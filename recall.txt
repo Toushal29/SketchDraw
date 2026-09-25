@@ -1,0 +1,23 @@
+PS C:\Users\toush\Desktop> npm create tauri-app@latest
+
+> npx
+> create-tauri-app
+
+✔ Project name · SketchDraw
+✔ Package name · sketchdraw
+✔ Identifier · com.toush.sketchdraw
+✔ Choose which language to use for your frontend · TypeScript / JavaScript - (pnpm, yarn, npm, deno, bun)
+✔ Choose your package manager · npm
+✔ Choose your UI template · Solid - (https://solidjs.com/)
+✔ Choose your UI flavor · TypeScript
+
+Template created! To get started run:
+  cd SketchDraw
+  npm install
+  npm run tauri android init
+
+For Desktop development, run:
+  npm run tauri dev
+
+For Android development, run:
+  npm run tauri android dev

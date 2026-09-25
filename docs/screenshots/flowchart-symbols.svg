@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-labelledby="t d">
+  <title id="t">SketchDraw flowchart symbol preview</title><desc id="d">Common flowchart symbols in a pale, hand-drawn style whiteboard interface.</desc>
+  <rect width="1200" height="700" rx="26" fill="#f7f7f3"/><rect x="1" y="1" width="1198" height="698" rx="25" fill="none" stroke="#deded8"/>
+  <text x="64" y="77" fill="#30332e" font-family="Arial,sans-serif" font-size="27" font-weight="700">Flowchart symbol set</text><text x="64" y="108" fill="#777b72" font-family="Arial,sans-serif" font-size="14">Hover the Flowchart tool to choose a symbol, then drag it onto the canvas.</text>
+  <rect x="64" y="145" width="1072" height="490" rx="20" fill="#fff" stroke="#e5e5de"/>
+  <g stroke="#d7d9d2" stroke-width="1"><path d="M421 145v490M778 145v490M64 390h1072"/></g>
+  <g fill="none" stroke="#476b91" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="170" y="210" width="170" height="78" rx="3" fill="#e8f1fb"/><path d="M501 210h164a39 39 0 0 1 0 78H501a39 39 0 0 1 0-78z" fill="#eef5e9"/><path d="m956 204 84 45-84 45-84-45z" fill="#fff2d8"/>
+    <path d="M170 462h170l-29 82H141z" fill="#ebf5f2"/><path d="M498 462h176v62c-40-24-53 21-88 0s-51 15-88 0z" fill="#f9eae8"/><path d="M881 467c0-11 34-19 75-19s75 8 75 19v74c0 11-34 19-75 19s-75-8-75-19z" fill="#edf0f8"/><path d="M881 467c0 11 34 19 75 19s75-8 75-19"/>
+  </g>
+  <g fill="#444943" font-family="Arial,sans-serif" text-anchor="middle"><text x="255" y="326" font-size="15" font-weight="700">Process</text><text x="583" y="326" font-size="15" font-weight="700">Terminator</text><text x="956" y="326" font-size="15" font-weight="700">Decision</text><text x="255" y="581" font-size="15" font-weight="700">Input / Output</text><text x="586" y="581" font-size="15" font-weight="700">Document</text><text x="956" y="581" font-size="15" font-weight="700">Database</text></g>
+  <g fill="#6f756e" font-family="Arial,sans-serif" text-anchor="middle" font-size="12"><text x="255" y="350">Action or operation</text><text x="583" y="350">Start or finish</text><text x="956" y="350">Branch condition</text><text x="255" y="605">Data entering or leaving</text><text x="586" y="605">Generated report</text><text x="956" y="605">Stored information</text></g>
+</svg>

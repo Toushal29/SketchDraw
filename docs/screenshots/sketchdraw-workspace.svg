@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">SketchDraw workspace preview</title>
+  <desc id="desc">A desktop sketch workspace showing floating drawing tools, a style panel, a grid canvas, and a colorful flowchart.</desc>
+  <defs>
+    <linearGradient id="background" x2="0" y2="1"><stop stop-color="#f8f7f3"/><stop offset="1" stop-color="#eeede8"/></linearGradient>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#d8d7d1"/></pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#29302a" flood-opacity=".10"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="4" orient="auto"><path d="M1 1 7 4 1 7" fill="none" stroke="#707c76" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+  </defs>
+  <rect width="1440" height="900" rx="24" fill="url(#background)"/>
+  <rect x="1" y="1" width="1438" height="898" rx="23" fill="none" stroke="#deddd7"/>
+  <rect x="1" y="1" width="1438" height="64" rx="23" fill="#fff"/>
+  <path d="M1 64h1438" stroke="#e6e4dd"/>
+  <rect x="22" y="16" width="32" height="32" rx="10" fill="#252822"/>
+  <path d="M31 26c4-4 12-3 14 0 2 4-6 5-10 7-5 2-4 8 2 9 4 1 8 0 11-2" fill="none" stroke="#f7f4ec" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="47" cy="24" r="3" fill="#f29a83"/>
+  <text x="65" y="37" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#292b26">SketchDraw</text>
+  <g fill="#71736c" font-family="Arial,sans-serif" font-size="12"><text x="180" y="37">File</text><text x="220" y="37">Edit</text><text x="260" y="37">View</text><text x="310" y="37">Export</text></g>
+  <circle cx="1338" cy="32" r="4" fill="#70a581"/><text x="1350" y="36" font-family="Arial,sans-serif" font-size="11" fill="#71736c">12:34</text>
+  <rect x="1" y="65" width="1438" height="834" fill="url(#dots)"/>
+  <g filter="url(#shadow)">
+    <rect x="18" y="84" width="294" height="535" rx="15" fill="#fff" stroke="#e4e2dc"/>
+    <text x="39" y="118" font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#393b35">Properties</text>
+    <text x="225" y="118" font-family="Arial,sans-serif" font-size="12" fill="#8a8a82">Layers  6</text>
+    <path d="M18 137h294" stroke="#eee"/>
+    <text x="39" y="168" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#4b4d47">Stroke color</text>
+    <g><circle cx="48" cy="195" r="12" fill="#252525"/><circle cx="82" cy="195" r="12" fill="#e76b62"/><circle cx="116" cy="195" r="12" fill="#6b91c9"/><circle cx="150" cy="195" r="12" fill="#74a582"/><circle cx="184" cy="195" r="12" fill="#d8a448"/><circle cx="218" cy="195" r="12" fill="#a581bb"/></g>
+    <path d="M18 220h294" stroke="#eee"/>
+    <text x="39" y="251" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#4b4d47">Stroke width</text><text x="252" y="251" font-family="Arial,sans-serif" font-size="11" fill="#8a8a82">2 px</text>
+    <g font-family="Arial,sans-serif" font-size="9" text-anchor="middle"><rect x="38" y="267" width="46" height="55" rx="7" fill="#f7f8fa" stroke="#e9e9e6"/><rect x="90" y="267" width="46" height="55" rx="7" fill="#edf3fb" stroke="#a6bad3"/><rect x="142" y="267" width="46" height="55" rx="7" fill="#f7f8fa" stroke="#e9e9e6"/><rect x="194" y="267" width="46" height="55" rx="7" fill="#f7f8fa" stroke="#e9e9e6"/><rect x="246" y="267" width="46" height="55" rx="7" fill="#f7f8fa" stroke="#e9e9e6"/><text x="61" y="306" fill="#64665f">1 px</text><text x="113" y="306" fill="#49658a">2 px</text><text x="165" y="306" fill="#64665f">4 px</text><text x="217" y="306" fill="#64665f">5 px</text><text x="269" y="306" fill="#64665f">10 px</text></g>
+    <path d="M18 340h294" stroke="#eee"/><text x="39" y="371" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#4b4d47">Fill</text>
+    <rect x="38" y="385" width="112" height="34" rx="7" fill="#f4f6f8"/><text x="94" y="407" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#62645d">None</text>
+    <rect x="158" y="385" width="132" height="34" rx="7" fill="#edf3fb" stroke="#bacbe0"/><text x="224" y="407" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" fill="#49658a">Solid</text>
+    <rect x="39" y="438" width="26" height="26" rx="6" fill="#f4a6a0"/><text x="78" y="456" font-family="Arial,sans-serif" font-size="11" fill="#71736c">Opacity</text><path d="M142 451h114" stroke="#d2d6d1" stroke-width="4" stroke-linecap="round"/><path d="M142 451h73" stroke="#779a89" stroke-width="4" stroke-linecap="round"/><circle cx="215" cy="451" r="6" fill="#779a89"/><text x="266" y="456" font-family="Arial,sans-serif" font-size="10" fill="#71736c">65%</text>
+    <path d="M18 484h294" stroke="#eee"/><text x="39" y="516" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#4b4d47">Selection</text><text x="39" y="546" font-family="Arial,sans-serif" font-size="11" fill="#71736c">Opacity</text><path d="M96 543h175" stroke="#dedfd9" stroke-width="4" stroke-linecap="round"/><path d="M96 543h151" stroke="#779a89" stroke-width="4" stroke-linecap="round"/><circle cx="247" cy="543" r="6" fill="#779a89"/>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="490" y="82" width="466" height="62" rx="15" fill="#fff" stroke="#e6e4df"/>
+    <g stroke="#555850" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M520 101v23m-8-8 8 8 8-8"/><path d="M563 104 579 120m0-16-16 16"/><path d="M610 104h19v19h-19z"/><circle cx="664" cy="114" r="10"/><path d="M704 123 724 103m-13 1 13-1-1 13"/><path d="M750 123h22l-11-19z"/><path d="M809 122c5-15 10 6 16-10s10 8 16-5"/><path d="M866 103h19v20h-19zM890 102l12 12-12 12"/>
+    </g>
+    <rect x="602" y="96" width="36" height="36" rx="9" fill="#edf3fb" stroke="#d3dfed"/>
+  </g>
+  <g fill="none" stroke="#7d8982" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M665 368h100" marker-end="url(#arrow)"/><path d="M884 368h91" marker-end="url(#arrow)"/><path d="M1090 368v100h-231v54" marker-end="url(#arrow)"/><path d="M756 552h-80v-89" marker-end="url(#arrow)"/>
+  </g>
+  <g font-family="Arial,sans-serif" text-anchor="middle">
+    <rect x="560" y="312" width="180" height="112" rx="20" fill="#edf5f1" stroke="#9abbac" stroke-width="2"/>
+    <text x="650" y="355" font-size="13" fill="#45594d">Start with a</text><text x="650" y="376" font-size="16" font-weight="700" fill="#34483d">small idea</text><text x="650" y="399" font-size="11" fill="#75857a">Write it down</text>
+    <rect x="770" y="312" width="180" height="112" rx="8" fill="#fff3dc" stroke="#e2bd72" stroke-width="2"/>
+    <text x="860" y="355" font-size="13" fill="#725b32">What matters</text><text x="860" y="378" font-size="16" font-weight="700" fill="#594421">right now?</text><text x="860" y="400" font-size="11" fill="#93815e">Choose a direction</text>
+    <path d="M1010 312h142l38 56-38 56h-142l-38-56z" fill="#e8effa" stroke="#9db5d5" stroke-width="2"/>
+    <text x="1080" y="355" font-size="13" fill="#4e6480">Try it</text><text x="1080" y="378" font-size="16" font-weight="700" fill="#3c5575">and learn</text><text x="1080" y="400" font-size="11" fill="#7287a1">Keep it flexible</text>
+    <rect x="756" y="514" width="210" height="102" rx="30" fill="#f8e8e6" stroke="#dfa6a1" stroke-width="2"/>
+    <text x="861" y="555" font-size="13" fill="#825b57">Make room to</text><text x="861" y="579" font-size="16" font-weight="700" fill="#744440">change course</text><text x="861" y="598" font-size="11" fill="#a07873">Nothing is final</text>
+    <text x="655" y="462" font-size="10" fill="#7a817b">yes</text><text x="902" y="462" font-size="10" fill="#7a817b">explore</text>
+  </g>
+  <rect x="1190" y="812" width="220" height="50" rx="11" fill="#fff" stroke="#e3e1db"/><circle cx="1214" cy="837" r="3" fill="#c9cbc5"/><circle cx="1227" cy="837" r="3" fill="#c9cbc5"/><circle cx="1240" cy="837" r="3" fill="#c9cbc5"/><text x="1260" y="841" font-family="Arial,sans-serif" font-size="11" fill="#777a72">−   100%   +</text>
+</svg>

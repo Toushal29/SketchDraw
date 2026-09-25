@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-labelledby="t d">
+  <title id="t">SketchDraw connector route and stroke preview</title><desc id="d">Straight, elbow, forked, loop, and jagged arrows, plus curved, dashed, and double line examples.</desc>
+  <rect width="1200" height="760" rx="26" fill="#f7f7f3"/><rect x="1" y="1" width="1198" height="758" rx="25" fill="none" stroke="#deded8"/>
+  <text x="62" y="76" fill="#30332e" font-family="Arial,sans-serif" font-size="27" font-weight="700">Connectors that fit the idea</text><text x="62" y="107" fill="#777b72" font-family="Arial,sans-serif" font-size="14">Choose a route from the line or arrow toolbar hover menu.</text>
+  <rect x="62" y="138" width="1076" height="562" rx="20" fill="#fff" stroke="#e5e5de"/>
+  <g stroke="#e8e8e2"><path d="M62 240h1076M62 342h1076M62 444h1076M62 546h1076M62 620h1076"/></g>
+  <g font-family="Arial,sans-serif" fill="#4b504a" font-size="14" font-weight="700"><text x="90" y="201">Straight</text><text x="90" y="303">Elbow</text><text x="90" y="405">Forked</text><text x="90" y="507">Loop</text><text x="90" y="589">Jagged</text></g>
+  <g fill="none" stroke="#55799e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M335 195H1000"/><path d="m986 184 14 11-14 11"/>
+    <path d="M335 277H1000V318"/><path d="m989 307 11 14 11-14"/>
+    <path d="M335 379H665M665 379V363H1000M665 379V395H1000"/><path d="m986 352 14 11-14 11m0 10 14 11-14 11"/>
+    <path d="M335 503C500 420 830 420 1000 503"/><path d="m986 491 14 12-17 8"/>
+    <path d="M335 586H450l38-18 38 36 38-36 38 36 38-18H1000"/><path d="m986 575 14 11-14 11"/>
+  </g>
+  <g fill="#858a82" font-family="Arial,sans-serif" font-size="11"><text x="335" y="224">Direct connection</text><text x="335" y="326">Right-angle path</text><text x="335" y="428">One input, two outputs</text><text x="335" y="531">Curved return</text><text x="335" y="612">Adaptive zigzag route</text></g>
+  <rect x="62" y="718" width="1076" height="1" fill="#e5e5de"/>
+  <text x="64" y="741" fill="#777b72" font-family="Arial,sans-serif" font-size="12">Line paths support solid, dashed, dotted, and parallel double strokes.</text>
+</svg>
