@@ -11,7 +11,12 @@ SketchDraw is a desktop whiteboard for diagrams, plans, and visual notes. Drawin
 These project illustrations show the workspace and selected tool options. They are SVG previews, not captures of a running build.
 
 ### Workspace
+**`Captures of a running build`**
+![SketchDraw workspace preview](docs/screenshots/screen_home.png)
 
+![SketchDraw workspace preview](docs/screenshots/image.png)
+
+**`Not captures of a running build`**
 ![SketchDraw workspace preview](docs/screenshots/sketchdraw-workspace.svg)
 
 ### Flowchart symbols
