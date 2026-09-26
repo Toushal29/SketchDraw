@@ -6,28 +6,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
-type Point = { x: number; y: number };
-type ArrowHead = "none" | "open" | "solid" | "thick" | "dot" | "diamond" | "bar";
-type FlowchartShape = "process" | "terminator" | "decision" | "data" | "document" | "database" | "predefined-process" | "preparation" | "manual-input";
-type ArrowRoute = "straight" | "elbow" | "forked" | "loop" | "jagged";
-type LineRoute = "straight" | "curve";
-type StrokeStyle = "solid" | "dashed" | "dotted" | "double";
-type LayerFlags = { hidden?: boolean; locked?: boolean; rotation?: number };
-type FreehandElement = LayerFlags & { type: "freehand"; points: Point[]; color: string; thickness: number; opacity?: number };
-type ShapeElement = LayerFlags & { type: "rectangle" | "circle" | "diamond" | "flowchart" | "line" | "arrow"; x: number; y: number; w: number; h: number; color: string; thickness: number; fillColor?: string; fillOpacity?: number; opacity?: number; lineStyle?: StrokeStyle; edgeStyle?: "sharp" | "rounded"; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute; startHead?: ArrowHead; endHead?: ArrowHead };
-type TextElement = LayerFlags & { type: "text"; x: number; y: number; text: string; color: string; fontSize: number; fontFamily?: "sans" | "hand"; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right"; listType?: "none" | "bullet" | "number"; opacity?: number };
-type ImageElement = LayerFlags & { type: "image"; x: number; y: number; w: number; h: number; dataUrl: string; sourceWidth?: number; sourceHeight?: number; cropX?: number; cropY?: number; cropW?: number; cropH?: number; opacity?: number };
-type GroupElement = LayerFlags & { type: "group"; elements: Element[] };
-type Element = FreehandElement | ShapeElement | TextElement | ImageElement | GroupElement;
-type Tool = "select" | "pan" | "pen" | "rectangle" | "circle" | "diamond" | "flowchart" | "line" | "arrow" | "text" | "bucket" | "eraser" | "crop";
-type CanvasState = { zoom: number; panX: number; panY: number; backgroundColor: string; boardColorFollowsTheme?: boolean };
-type SketchPage = { id: string; name: string; canvasState: CanvasState; elements: Element[] };
-type SketchFile = { format: "SketchDraw"; version: 4; activePageId: string; pages: SketchPage[] };
-type Preview = { type: Exclude<Tool, "select" | "pan" | "text" | "bucket" | "eraser" | "crop">; start: Point; end: Point; color: string; thickness: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute };
-type Bounds = { x: number; y: number; w: number; h: number };
-type TextDraft = { x: number; y: number; value: string; editingIndex?: number; color: string; opacity: number; fontSize: number; fontFamily: "sans" | "hand"; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right"; listType: "none" | "bullet" | "number" };
-type Theme = "light" | "dark";
-type ThemeMode = Theme | "system";
+import type { Point, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, LayerFlags, ShapeElement, TextElement, ImageElement, Element, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel } from "./model";
+import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, anchorPoint, nearestBinding, validReferences, textLayout, labelBox, textFont, extraFlowchartPath } from "./operations";
 
 const GRID_SIZE = 24;
 const BOARD_COLORS = ["#ffffff", "#fffdf7", "#f4f7fb", "#fbf2ed", "#f1f5ed", "#f3f0fa"];
@@ -39,6 +19,13 @@ const FLOWCHART_SHAPES: { value: FlowchartShape; label: string; path: string }[]
   { value: "predefined-process", label: "Predefined process", path: "M6 5h12v14H6zM9 5v14m6-14v14" }, { value: "preparation", label: "Preparation", path: "M7 5h10l5 7-5 7H7l-5-7z" },
   { value: "manual-input", label: "Manual input", path: "m4 8 3-3h13v14H4z" },
 ];
+FLOWCHART_SHAPES.push(
+  { value: "connector", label: "On-page connector", path: "M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0" },
+  { value: "off-page", label: "Off-page connector", path: "M4 4h16v11l-8 6-8-6z" },
+  { value: "delay", label: "Delay", path: "M4 4h8a8 8 0 0 1 0 16H4z" },
+  { value: "manual-operation", label: "Manual operation", path: "M3 5h18l-4 14H7z" },
+  { value: "stored-data", label: "Stored data", path: "M7 5h14q-5 7 0 14H7C1 19 1 5 7 5z" },
+);
 const ARROW_ROUTES: { value: ArrowRoute; label: string; path: string }[] = [
   { value: "straight", label: "Straight", path: "M3 12h17m-6-6 6 6-6 6" }, { value: "elbow", label: "Elbow", path: "M4 5v14h15m-6-6 6 6-6 6" },
   { value: "forked", label: "Forked", path: "M3 12h8m0 0V5h9m-4-3 4 3-4 3m-5 4v7h9m-4-3 4 3-4 3" },
@@ -74,7 +61,12 @@ function traceFlowchart(ctx: CanvasRenderingContext2D, shape: FlowchartShape, x:
   const left = Math.min(x, x + w); const top = Math.min(y, y + h); const width = Math.abs(w); const height = Math.abs(h); const right = left + width; const bottom = top + height; const mid = (left + right) / 2;
   ctx.beginPath();
   if (width < 1 || height < 1) { ctx.rect(left, top, width, height); return; }
-  if (shape === "process") ctx.rect(left, top, width, height);
+  if (shape === "connector") ctx.ellipse(mid, top + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
+  else if (shape === "off-page") { ctx.moveTo(left, top); ctx.lineTo(right, top); ctx.lineTo(right, top + height * .65); ctx.lineTo(mid, bottom); ctx.lineTo(left, top + height * .65); ctx.closePath(); }
+  else if (shape === "manual-operation") { ctx.moveTo(left, top); ctx.lineTo(right, top); ctx.lineTo(right - width * .2, bottom); ctx.lineTo(left + width * .2, bottom); ctx.closePath(); }
+  else if (shape === "delay") { ctx.moveTo(left, top); ctx.lineTo(mid, top); ctx.bezierCurveTo(right + width / 6, top, right + width / 6, bottom, mid, bottom); ctx.lineTo(left, bottom); ctx.closePath(); }
+  else if (shape === "stored-data") { ctx.moveTo(left + width * .2, top); ctx.lineTo(right, top); ctx.bezierCurveTo(right - width * .25, top + height / 3, right - width * .25, bottom - height / 3, right, bottom); ctx.lineTo(left + width * .2, bottom); ctx.bezierCurveTo(left - width * .06, bottom, left - width * .06, top, left + width * .2, top); ctx.closePath(); }
+  else if (shape === "process") ctx.rect(left, top, width, height);
   else if (shape === "terminator") { if (typeof ctx.roundRect === "function") ctx.roundRect(left, top, width, height, Math.min(height / 2, width / 2)); else ctx.ellipse(mid, top + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2); }
   else if (shape === "decision") { ctx.moveTo(mid, top); ctx.lineTo(right, top + height / 2); ctx.lineTo(mid, bottom); ctx.lineTo(left, top + height / 2); ctx.closePath(); }
   else if (shape === "data") { const inset = Math.min(width * .22, height * .42); ctx.moveTo(left + inset, top); ctx.lineTo(right, top); ctx.lineTo(right - inset, bottom); ctx.lineTo(left, bottom); ctx.closePath(); }
@@ -118,12 +110,12 @@ function connectorControls(element: ShapeElement, loop = false) {
   const start = { x: element.x, y: element.y }; const end = { x: element.x + element.w, y: element.y + element.h };
   const dx = end.x - start.x; const dy = end.y - start.y; const length = Math.max(1, Math.hypot(dx, dy)); const normal = { x: -dy / length, y: dx / length };
   const bend = (loop ? .72 : .3) * length;
-  return { start, end, dx, dy, c1: { x: start.x + dx / 3 + normal.x * bend, y: start.y + dy / 3 + normal.y * bend }, c2: { x: start.x + dx * 2 / 3 + normal.x * bend, y: start.y + dy * 2 / 3 + normal.y * bend }, normal };
+  return { start, end, dx, dy, c1: element.routePoints?.[0] ?? { x: start.x + dx / 3 + normal.x * bend, y: start.y + dy / 3 + normal.y * bend }, c2: element.routePoints?.[1] ?? { x: start.x + dx * 2 / 3 + normal.x * bend, y: start.y + dy * 2 / 3 + normal.y * bend }, normal };
 }
 function forkGeometry(element: ShapeElement) {
   const { start, end, dx, dy, normal } = connectorControls(element);
   const length = Math.max(1, Math.hypot(dx, dy)); const spread = Math.min(18, length * .14);
-  const junction = { x: start.x + dx * .62, y: start.y + dy * .62 };
+  const junction = element.routePoints?.[0] ?? { x: start.x + dx * .62, y: start.y + dy * .62 };
   const upper = { x: end.x + normal.x * spread, y: end.y + normal.y * spread };
   const lower = { x: end.x - normal.x * spread, y: end.y - normal.y * spread };
   return { start, end, junction, upper, lower, normal };
@@ -134,7 +126,7 @@ function jaggedVertices(element: ShapeElement): Point[] {
 }
 function connectorPolylines(element: ShapeElement, route: ArrowRoute | LineRoute, sampleCount = 49): Point[][] {
   const key = `${route}:${sampleCount}`; const cache = connectorCache.get(element); const existing = cache?.get(key); if (existing) return existing;
-  const points = route === "forked"
+  const points = element.routePoints?.length && !["curve", "loop", "forked"].includes(route) ? [[{ x: element.x, y: element.y }, ...element.routePoints, { x: element.x + element.w, y: element.y + element.h }]] : route === "forked"
     ? (() => { const fork = forkGeometry(element); return [[fork.start, fork.junction], [fork.junction, fork.upper], [fork.junction, fork.lower]]; })()
     : route === "jagged" ? [jaggedVertices(element)]
       : [Array.from({ length: sampleCount }, (_, index) => connectorPoint(element, route, index / (sampleCount - 1)))];
@@ -165,6 +157,7 @@ function connectorPoint(element: ShapeElement, route: ArrowRoute | LineRoute, t:
   return { x: start.x + element.w * t, y: start.y + element.h * t };
 }
 function connectorTangent(element: ShapeElement, route: ArrowRoute, atEnd: boolean): number {
+  if (element.routePoints?.length && !["loop", "forked"].includes(route)) { const a = atEnd ? element.routePoints[element.routePoints.length - 1] : { x: element.x, y: element.y }; const b = atEnd ? { x: element.x + element.w, y: element.y + element.h } : element.routePoints[0]; return Math.atan2(b.y - a.y, b.x - a.x); }
   if (route === "straight" || route === "forked") return Math.atan2(element.h, element.w);
   if (route === "elbow") return atEnd ? Math.PI / 2 * Math.sign(element.h || 1) : element.w < 0 ? Math.PI : 0;
   const before = connectorPoint(element, route, atEnd ? .99 : .01); const after = connectorPoint(element, route, atEnd ? 1 : .02);
@@ -174,6 +167,7 @@ function traceConnector(ctx: CanvasRenderingContext2D, element: ShapeElement) {
   const route: ArrowRoute | LineRoute = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
   const { start, end, c1, c2 } = connectorControls(element, route === "loop");
   ctx.beginPath(); ctx.moveTo(start.x, start.y);
+  if (element.routePoints?.length && !["curve", "loop", "forked"].includes(route)) { for (const point of element.routePoints) ctx.lineTo(point.x, point.y); ctx.lineTo(end.x, end.y); return; }
   if (route === "curve") ctx.quadraticCurveTo(c1.x, c1.y, end.x, end.y);
   else if (route === "loop") ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
   else if (route === "elbow") { ctx.lineTo(end.x, start.y); ctx.lineTo(end.x, end.y); }
@@ -187,6 +181,7 @@ function connectorSvgPath(element: ShapeElement): string {
 }
 function flowchartSvgPath(element: ShapeElement): string {
   const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const width = Math.abs(element.w); const height = Math.abs(element.h); const right = left + width; const bottom = top + height; const middle = (left + right) / 2; const shape = element.flowchartShape ?? "process";
+  const extra = extraFlowchartPath(shape, left, top, width, height); if (extra) return extra;
   if (shape === "terminator") { const radius = Math.min(width / 2, height / 2); return `M ${left + radius} ${top} H ${right - radius} A ${radius} ${radius} 0 0 1 ${right - radius} ${bottom} H ${left + radius} A ${radius} ${radius} 0 0 1 ${left + radius} ${top} Z`; }
   if (shape === "decision") return `M ${middle} ${top} L ${right} ${top + height / 2} L ${middle} ${bottom} L ${left} ${top + height / 2} Z`;
   if (shape === "data") { const inset = Math.min(width * .22, height * .42); return `M ${left + inset} ${top} H ${right} L ${right - inset} ${bottom} H ${left} Z`; }
@@ -211,6 +206,7 @@ const emptyCanvas = (): CanvasState => ({ zoom: 1, panX: 0, panY: 0, backgroundC
 const cloneElements = (items: Element[]): Element[] => JSON.parse(JSON.stringify(items)) as Element[];
 const boundsCache = new WeakMap<Element, Bounds>();
 const connectorCache = new WeakMap<ShapeElement, Map<string, Point[][]>>();
+let textMeasureContext: CanvasRenderingContext2D | null | undefined;
 const cacheBounds = (element: Element, bounds: Bounds): Bounds => { boundsCache.set(element, bounds); return bounds; };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -244,16 +240,14 @@ function unionBounds(boxes: Bounds[]): Bounds | undefined {
 }
 
 function withSketchExtension(path: string): string {
-  const trimmed = path.trim();
-  if (/\.sketch$/i.test(trimmed)) return trimmed;
-  const separator = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
-  const extension = trimmed.lastIndexOf(".");
-  return extension > separator ? `${trimmed.slice(0, extension)}.sketch` : `${trimmed}.sketch`;
+  if (!path.toLowerCase().endsWith(".sketch")) throw new Error("Choose a filename ending in .sketch in the save dialog.");
+  return path;
 }
 
 function normalizeElement(value: unknown): Element | undefined {
-  if (!isRecord(value) || typeof value.type !== "string") return undefined;
+  if (!isRecord(value) || typeof value.type !== "string" || typeof value.id !== "string" || !value.id || value.id.length > 100) return undefined;
   const flags: LayerFlags = {
+    id: value.id,
     hidden: typeof value.hidden === "boolean" ? value.hidden : false,
     locked: typeof value.locked === "boolean" ? value.locked : false,
     rotation: finite(value.rotation) ? value.rotation : 0,
@@ -271,7 +265,7 @@ function normalizeElement(value: unknown): Element | undefined {
   if (value.type === "text") {
     if (!finite(value.x) || !finite(value.y) || typeof value.text !== "string" || !isColor(value.color) || !finite(value.fontSize) || value.fontSize < 8) return undefined;
     const fontFamily = value.fontFamily === "hand" ? "hand" : "sans";
-    const textAlign = value.textAlign === "center" || value.textAlign === "right" ? value.textAlign : "left";
+    const textAlign = value.textAlign === "center" || value.textAlign === "right" || value.textAlign === "justify" ? value.textAlign : "left";
     const listType = value.listType === "bullet" || value.listType === "number" ? value.listType : "none";
     return { type: "text", ...flags, x: value.x, y: value.y, text: value.text, color: value.color, fontSize: value.fontSize, fontFamily, bold: value.bold === true, italic: value.italic === true, underline: value.underline === true, textAlign, listType, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
   }
@@ -289,10 +283,16 @@ function normalizeElement(value: unknown): Element | undefined {
     const fillColor = isColor(value.fillColor) ? value.fillColor : undefined;
     const fillOpacity = finite(value.fillOpacity) ? Math.max(0, Math.min(1, value.fillOpacity)) : 0.2;
     const validHead = (head: unknown): head is ArrowHead => ["none", "open", "solid", "thick", "dot", "diamond", "bar"].includes(String(head));
-    const flowchartShape: FlowchartShape = ["process", "terminator", "decision", "data", "document", "database", "predefined-process", "preparation", "manual-input"].includes(String(value.flowchartShape)) ? value.flowchartShape as FlowchartShape : "process";
+    const flowchartShape: FlowchartShape = FLOWCHART_SHAPES.some(shape => shape.value === value.flowchartShape) ? value.flowchartShape as FlowchartShape : "process";
     const lineRoute: LineRoute = value.lineRoute === "curve" ? "curve" : "straight";
     const arrowRoute: ArrowRoute = ["elbow", "forked", "loop", "jagged"].includes(String(value.arrowRoute)) ? value.arrowRoute as ArrowRoute : "straight";
-    return { type: value.type as ShapeElement["type"], ...flags, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness: value.thickness, fillColor, fillOpacity, lineStyle, edgeStyle, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, lineRoute: value.type === "line" ? lineRoute : undefined, arrowRoute: value.type === "arrow" ? arrowRoute : undefined, startHead: value.type === "arrow" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" ? validHead(value.endHead) ? value.endHead : "open" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
+    const binding = (raw: unknown): Binding | undefined => isRecord(raw) && typeof raw.elementId === "string" && isRecord(raw.anchor) && finite(raw.anchor.x) && finite(raw.anchor.y) && raw.anchor.x >= 0 && raw.anchor.x <= 1 && raw.anchor.y >= 0 && raw.anchor.y <= 1 ? { elementId: raw.elementId, anchor: { x: raw.anchor.x, y: raw.anchor.y } } : undefined;
+    if ((value.startBinding && !binding(value.startBinding)) || (value.endBinding && !binding(value.endBinding))) return undefined;
+    if (value.routePoints !== undefined && (!Array.isArray(value.routePoints) || value.routePoints.length > 100 || !value.routePoints.every(p => isRecord(p) && finite(p.x) && finite(p.y)))) return undefined;
+    const labelText = value.label === undefined ? undefined : normalizeElement({ ...(isRecord(value.label) ? value.label : {}), type: "text", id: "label", x: 0, y: 0 });
+    if (value.label !== undefined && labelText?.type !== "text") return undefined;
+    const label: ShapeLabel | undefined = labelText?.type === "text" ? { ...labelText, verticalAlign: isRecord(value.label) && (value.label.verticalAlign === "top" || value.label.verticalAlign === "bottom") ? value.label.verticalAlign : "middle" } : undefined;
+    return { type: value.type as ShapeElement["type"], ...flags, startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: value.routePoints as Point[] | undefined, label, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness: value.thickness, fillColor, fillOpacity, lineStyle, edgeStyle, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, lineRoute: value.type === "line" ? lineRoute : undefined, arrowRoute: value.type === "arrow" ? arrowRoute : undefined, startHead: value.type === "arrow" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" ? validHead(value.endHead) ? value.endHead : "open" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
   }
   return undefined;
 }
@@ -304,16 +304,16 @@ function parseSketchFile(value: unknown): SketchFile | undefined {
     const state = stateValue;
     if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !isColor(state.backgroundColor)) return undefined;
     const elements = elementsValue.map(normalizeElement);
-    if (elements.some((element) => !element)) return undefined;
+    if (elements.some((element) => !element) || !validReferences(elements as Element[])) return undefined;
     return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff" }, elements: elements as Element[] };
   };
-  if (value.version !== 4 || !Array.isArray(value.pages) || value.pages.length < 1 || value.pages.length > 100) return undefined;
+  if (value.version !== 5 || !Array.isArray(value.pages) || value.pages.length < 1 || value.pages.length > 100) return undefined;
   const pages = value.pages.map((page, index) => isRecord(page) ? normalizePage(page.id, page.name ?? `Page ${index + 1}`, page.canvasState, page.elements) : undefined);
   if (pages.some((page) => !page)) return undefined;
   const normalized = pages as SketchPage[];
   if (new Set(normalized.map((page) => page.id)).size !== normalized.length) return undefined;
   const activePageId = normalized.some((page) => page.id === value.activePageId) ? String(value.activePageId) : normalized[0].id;
-  return { format: "SketchDraw", version: 4, activePageId, pages: normalized };
+  return { format: "SketchDraw", version: 5, activePageId, pages: normalized };
 }
 
 function elementBounds(element: Element): Bounds {
@@ -323,8 +323,10 @@ function elementBounds(element: Element): Bounds {
   }
   if (element.type === "image") return cacheBounds(element, rotatedBounds({ x: element.x, y: element.y, w: element.w, h: element.h }, element.rotation ?? 0));
   if (element.type === "text") {
-    const lines = element.text.split(/\r?\n/);
-    const width = Math.max(element.fontSize * 0.5, ...lines.map((line) => line.length * element.fontSize * 0.58));
+    const lines = element.text.split(/\r?\n/).map((line, index) => element.listType === "bullet" ? "• " + line : element.listType === "number" ? `${index + 1}. ${line}` : line);
+    textMeasureContext ??= document.createElement("canvas").getContext("2d");
+    if (textMeasureContext) textMeasureContext.font = `${element.italic ? "italic " : ""}${element.bold ? "700" : "400"} ${element.fontSize}px ${element.fontFamily === "hand" ? "cursive" : "sans-serif"}`;
+    const width = Math.max(element.fontSize * .5, ...lines.map(line => textMeasureContext?.measureText(line).width ?? line.length * element.fontSize * .6));
     const x = element.textAlign === "center" ? element.x - width / 2 : element.textAlign === "right" ? element.x - width : element.x;
     return cacheBounds(element, rotatedBounds({ x, y: element.y, w: width, h: lines.length * element.fontSize * 1.25 }, element.rotation ?? 0));
   }
@@ -366,14 +368,15 @@ function distanceToSegment(point: Point, start: Point, end: Point) {
 }
 
 function App() {
-  const [elements, setElements] = createSignal<Element[]>([]);
+  const [elements, setElementsSignal] = createSignal<Element[]>([]);
+  function setElements(next: Element[] | ((previous: Element[]) => Element[])) { return setElementsSignal(previous => resolveBindings(ensureIds(typeof next === "function" ? next(previous) : next))); }
   const [canvasState, setCanvasState] = createSignal<CanvasState>(emptyCanvas());
   const [pages, setPages] = createSignal<SketchPage[]>([]);
   const [activePageId, setActivePageId] = createSignal("");
   const [activePath, setActivePath] = createSignal<string>();
   const [tool, setTool] = createSignal<Tool>("pen");
   const [color, setColor] = createSignal("#252525");
-  const [thickness, setThickness] = createSignal(4);
+  const [thickness, setThickness] = createSignal(2);
   const [dirty, setDirty] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
   const [savedAt, setSavedAt] = createSignal("");
@@ -399,7 +402,7 @@ function App() {
   const [boardColorFollowsTheme, setBoardColorFollowsTheme] = createSignal(true);
   const [boardLocked, setBoardLocked] = createSignal(false);
   const [sidebarTab, setSidebarTab] = createSignal<"properties" | "layers">("properties");
-  const [defaultFontSize, setDefaultFontSize] = createSignal(24);
+  const [defaultFontSize, setDefaultFontSize] = createSignal(16);
   const [defaultFontFamily, setDefaultFontFamily] = createSignal<"sans" | "hand">("sans");
   const [defaultBold, setDefaultBold] = createSignal(false);
   const [defaultItalic, setDefaultItalic] = createSignal(false);
@@ -413,7 +416,7 @@ function App() {
   const [recoveryPrompt, setRecoveryPrompt] = createSignal<{ path: string; snapshot: SketchFile; baselineRaw?: string }>();
   const [syncConflict, setSyncConflict] = createSignal<{ path: string; remote: string }>();
   const [exportOptionsOpen, setExportOptionsOpen] = createSignal(false);
-  const [exportFormat, setExportFormat] = createSignal<"png" | "pdf">("png");
+  const [exportFormat, setExportFormat] = createSignal<"png" | "svg" | "pdf">("png");
   const [exportWidth, setExportWidth] = createSignal(1600);
   const [exportHeight, setExportHeight] = createSignal(1000);
   const [exportTransparent, setExportTransparent] = createSignal(false);
@@ -428,7 +431,7 @@ function App() {
   })());
   const [systemDark, setSystemDark] = createSignal(window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
   const [recentFiles, setRecentFiles] = createSignal<string[]>((() => {
-    try { const value: unknown = JSON.parse(localStorage.getItem("sketchdraw-recent-files") ?? "[]"); return Array.isArray(value) ? value.filter((path): path is string => typeof path === "string" && path.toLowerCase().endsWith(".sketch")).slice(0, 8) : []; }
+    try { const value: unknown = JSON.parse(localStorage.getItem("sketchdraw-v5-recent-files") ?? "[]"); return Array.isArray(value) ? value.filter((path): path is string => typeof path === "string" && path.toLowerCase().endsWith(".sketch")).slice(0, 8) : []; }
     catch { return []; }
   })());
   const [marquee, setMarquee] = createSignal<{ start: Point; end: Point }>();
@@ -436,7 +439,6 @@ function App() {
   let redoStack: Element[][] = [];
   let canvas!: HTMLCanvasElement;
   let canvasWrap!: HTMLElement;
-  let textInput!: HTMLElement;
   let menu!: HTMLDetailsElement;
   let viewMenu!: HTMLDetailsElement;
   let drawing = false;
@@ -448,6 +450,167 @@ function App() {
   let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean } | undefined;
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number } | undefined;
   let resizeOrigin: { index: number; handle: string; start: Point; original: Element; before: Element[]; moved: boolean } | undefined;
+
+  const [nativeBusy, setNativeBusy] = createSignal(false);
+  const [documentBusy, setDocumentBusy] = createSignal(false);
+  const [openToolOptions, setOpenToolOptions] = createSignal<Tool>();
+  const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; world: Point }>();
+  const [pageDialog, setPageDialog] = createSignal<"rename" | "delete">();
+  const [pageName, setPageName] = createSignal("");
+  const [exportScope, setExportScope] = createSignal<"drawing" | "selection" | "viewport">("drawing");
+  const [exportGrid, setExportGrid] = createSignal(false);
+  const [attachmentHint, setAttachmentHint] = createSignal<Point>();
+  let clipboardItems: Element[] = [];
+  const pageHistories = new Map<string, { undo: Element[][]; redo: Element[][] }>();
+
+  function rememberPageHistory() { pageHistories.set(activePageId(), { undo: undoStack, redo: redoStack }); }
+  function restorePageHistory() { const history = pageHistories.get(activePageId()); undoStack = history?.undo ?? []; redoStack = history?.redo ?? []; setHistoryVersion(v => v + 1); }
+  function duplicatePage() {
+    if (boardLocked() || pages().length >= 100) return;
+    commitTextDraft(); storeCurrentPage(); rememberPageHistory();
+    const source = pages().find(p => p.id === activePageId()); if (!source) return;
+    const page = { ...source, id: crypto.randomUUID(), name: `${source.name} copy`.slice(0, 80), elements: copyElements(source.elements, 0, 0) };
+    const index = pages().findIndex(p => p.id === source.id);
+    setPages(items => [...items.slice(0, index + 1), page, ...items.slice(index + 1)]);
+    switchPage(page.id); setDirty(true);
+  }
+  function reorderPage(direction: number) {
+    if (boardLocked()) return;
+    const index = pages().findIndex(p => p.id === activePageId()); const next = index + direction;
+    if (next < 0 || next >= pages().length) return;
+    const items = [...pages()]; [items[index], items[next]] = [items[next], items[index]]; setPages(items); setDirty(true);
+  }
+  function openPageDialog(action: "rename" | "delete") {
+    commitTextDraft(); setPageName(currentPage()?.name ?? "Page"); setPageDialog(action);
+  }
+  function confirmPageDialog() {
+    if (boardLocked()) return;
+    if (pageDialog() === "rename" && pageName().trim()) { setPages(items => items.map(page => page.id === activePageId() ? { ...page, name: pageName().trim().slice(0, 80) } : page)); setDirty(true); }
+    else if (pageDialog() === "delete") deleteCurrentPage();
+    setPageDialog(undefined);
+  }
+  function changeSelected(operation: (element: Element) => Element) {
+    if (boardLocked()) return;
+    const selected = new Set(selectedIndices()); const before = cloneElements(elements());
+    setElements(items => items.map((item, index) => selected.has(index) && canMoveElement(item) ? operation(item) : item));
+    if (JSON.stringify(before) !== JSON.stringify(elements())) { pushUndo(before); setDirty(true); }
+  }
+  function precision(property: "x" | "y" | "w" | "h" | "rotation", value: number) {
+    if (!Number.isFinite(value) || Math.abs(value) > 1_000_000) return;
+    changeSelected(item => {
+      const bounds = elementBounds(item);
+      if (property === "x" || property === "y") return moveElement(item, property === "x" ? value - bounds.x : 0, property === "y" ? value - bounds.y : 0);
+      if (property === "rotation") return isConnector(item) || item.type === "group" ? item : { ...item, rotation: value % 360 };
+      if (item.type === "text") return { ...item, fontSize: Math.max(8, Math.min(160, item.fontSize * value / Math.max(1, bounds[property]))) };
+      if (item.type === "group" || item.type === "freehand" || isConnector(item)) return item;
+      return { ...item, [property]: Math.max(2, value) };
+    });
+  }
+  function alignSelection(command: "left" | "center" | "right" | "top" | "middle" | "bottom" | "horizontal" | "vertical") {
+    if (boardLocked()) return;
+    const selected = selectedIndices().filter(i => elements()[i] && canMoveElement(elements()[i]));
+    if (selected.length < 2) return;
+    const boxes = selected.map(index => ({ index, box: elementBounds(elements()[index]) })); const all = unionBounds(boxes.map(item => item.box))!;
+    const translations = new Map<number, Point>();
+    if (command === "horizontal" || command === "vertical") {
+      if (selected.length < 3) return;
+      const axis = command === "horizontal" ? "x" : "y"; const size = axis === "x" ? "w" : "h";
+      boxes.sort((a, b) => a.box[axis] - b.box[axis]);
+      const start = boxes[0].box[axis]; const last = boxes[boxes.length - 1].box;
+      const gap = (last[axis] + last[size] - start - boxes.reduce((total, { box }) => total + box[size], 0)) / (boxes.length - 1);
+      let position = start;
+      for (const { index, box } of boxes) { translations.set(index, { x: axis === "x" ? position - box.x : 0, y: axis === "y" ? position - box.y : 0 }); position += box[size] + gap; }
+    } else for (const { index, box } of boxes) translations.set(index, {
+      x: command === "left" ? all.x - box.x : command === "center" ? all.x + all.w / 2 - box.x - box.w / 2 : command === "right" ? all.x + all.w - box.x - box.w : 0,
+      y: command === "top" ? all.y - box.y : command === "middle" ? all.y + all.h / 2 - box.y - box.h / 2 : command === "bottom" ? all.y + all.h - box.y - box.h : 0,
+    });
+    const before = cloneElements(elements()); setElements(items => items.map((item, index) => { const delta = translations.get(index); return delta ? moveElement(item, delta.x, delta.y) : item; })); pushUndo(before); setDirty(true);
+  }
+  function clipboardPayload() { return JSON.stringify({ format: "SketchDrawClipboard", version: 5, elements: copyElements(selectedElements(), 0, 0) }); }
+  function pastePayload(raw: string, at?: Point) {
+    if (!activePath() || boardLocked()) return;
+    try {
+      const payload: unknown = JSON.parse(raw);
+      if (!isRecord(payload) || payload.format !== "SketchDrawClipboard" || payload.version !== 5 || !Array.isArray(payload.elements)) throw new Error("Copy objects from this version of SketchDraw first.");
+      const items = payload.elements.map(normalizeElement);
+      if (!items.length || items.some(item => !item) || !validReferences(items as Element[])) throw new Error("The clipboard objects are invalid.");
+      insertCopies(items as Element[], at);
+    } catch (cause) { setError(`Could not paste: ${String(cause)}`); }
+  }
+  function insertCopies(items: Element[], at?: Point) {
+    if (!activePath() || boardLocked() || !items.length) return;
+    const box = unionBounds(items.map(elementBounds));
+    const copies = copyElements(items, at && box ? at.x - box.x : 24, at && box ? at.y - box.y : 24); const start = elements().length;
+    pushUndo(cloneElements(elements())); setElements(current => [...current, ...copies]); setSelectedIndices(copies.map((_, index) => start + index)); setTool("select"); setDirty(true);
+  }
+  async function copySelection() {
+    if (!selectedElements().length) return;
+    clipboardItems = copyElements(selectedElements(), 0, 0);
+    try { await navigator.clipboard.writeText(clipboardPayload()); } catch { /* The in-app clipboard remains available. */ }
+  }
+  async function pasteSelection(at?: Point) {
+    try { const text = await navigator.clipboard.readText(); pastePayload(text, at); }
+    catch { if (clipboardItems.length) insertCopies(clipboardItems, at); else setError("Press Ctrl/Cmd+V to grant clipboard access."); }
+  }
+  function onContextMenu(event: MouseEvent) {
+    event.preventDefault(); if (!activePath()) return;
+    commitTextDraft(); const rect = canvas.getBoundingClientRect(); const view = canvasState(); const point = { x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom };
+    const hit = hitTest(point); if (hit !== undefined && !selectedIndices().includes(hit)) setSelectedIndices([hit]);
+    if (menu) menu.open = false; if (viewMenu) viewMenu.open = false;
+    setContextMenu({ x: Math.max(8, Math.min(event.clientX, window.innerWidth - 252)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - 510)), world: point });
+  }
+  function connectorHandles(item: ShapeElement) {
+    const route = item.type === "arrow" ? item.arrowRoute ?? "straight" : item.lineRoute ?? "straight";
+    const points = item.routePoints?.length ? item.routePoints : route === "straight" ? [{ x: item.x + item.w / 2, y: item.y + item.h / 2 }] : route === "elbow" ? [{ x: item.x + item.w, y: item.y }] : route === "jagged" ? jaggedVertices(item).slice(1, -1) : route === "curve" || route === "loop" ? (() => { const controls = connectorControls(item, route === "loop"); return route === "curve" ? [controls.c1] : [controls.c1, controls.c2]; })() : [forkGeometry(item).junction];
+    return [{ id: "start", x: item.x, y: item.y }, { id: "end", x: item.x + item.w, y: item.y + item.h }, ...points.map((point, index) => ({ ...point, id: `route:${index}` }))];
+  }
+  function resizeConnector(item: ShapeElement, handle: string, point: Point): ShapeElement {
+    const port = nearestBinding(elements(), point, 18 / canvasState().zoom); setAttachmentHint(port?.point);
+    const target = port?.point ?? snap(point);
+    if (handle === "start") return { ...item, x: target.x, y: target.y, w: item.x + item.w - target.x, h: item.y + item.h - target.y, startBinding: port?.binding, rotation: 0 };
+    if (handle === "end") return { ...item, w: target.x - item.x, h: target.y - item.y, endBinding: port?.binding, rotation: 0 };
+    const points = item.routePoints?.length ? [...item.routePoints] : connectorHandles(item).slice(2).map(({ x, y }) => ({ x, y }));
+    points[Number(handle.split(":")[1])] = snap(point); return { ...item, routePoints: points };
+  }
+  function setEndpoint(end: "start" | "end", axis: "x" | "y", value: number) {
+    if (!Number.isFinite(value) || Math.abs(value) > 1_000_000) return;
+    changeSelected(item => {
+      if (!isConnector(item)) return item;
+      const start = { x: item.x, y: item.y }; const finish = { x: item.x + item.w, y: item.y + item.h };
+      (end === "start" ? start : finish)[axis] = value;
+      return { ...item, x: start.x, y: start.y, w: finish.x - start.x, h: finish.y - start.y, [end === "start" ? "startBinding" : "endBinding"]: undefined };
+    });
+  }
+  function editShapeLabel(index: number) {
+    const shape = elements()[index]; if (!shape || !isLabelShape(shape) || shape.locked || boardLocked()) return;
+    commitTextDraft(); setSelectedIndices([index]); setTool("select");
+    const box = labelBox(shape); const label = shape.label;
+    setTextDraft({ x: box.x, y: box.y, width: box.w, height: box.h, rotation: shape.rotation ?? 0, value: label?.text ?? "", editingIndex: index, shapeLabel: true, color: label?.color ?? color(), opacity: label?.opacity ?? 1, fontSize: label?.fontSize ?? defaultFontSize(), fontFamily: label?.fontFamily ?? defaultFontFamily(), bold: label?.bold ?? defaultBold(), italic: label?.italic ?? defaultItalic(), underline: label?.underline ?? defaultUnderline(), textAlign: label?.textAlign ?? "center", listType: label?.listType ?? "none", verticalAlign: label?.verticalAlign ?? "middle" });
+  }
+  function editorWidth(draft: TextDraft) {
+    if (draft.width !== undefined) return draft.width;
+    const bounds = elementBounds({ type: "text", x: 0, y: 0, text: draft.value, color: draft.color, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic });
+    return Math.max(160, bounds.w + 16);
+  }
+  function editorLeft(draft: TextDraft) {
+    return draft.x - (draft.shapeLabel ? 0 : draft.textAlign === "center" ? editorWidth(draft) / 2 : draft.textAlign === "right" ? editorWidth(draft) : 0);
+  }
+  function updateLabel(property: keyof ShapeLabel, value: string | number | boolean) {
+    if (boardLocked() || focusedElement()?.locked) return;
+    setTextDraft(draft => draft?.shapeLabel ? { ...draft, [property]: value } : draft);
+    changeSelected(item => isLabelShape(item) ? { ...item, label: { text: "", color: color(), fontSize: 16, verticalAlign: "middle", ...item.label, [property]: value } } : item);
+  }
+  function drawLabel(ctx: CanvasRenderingContext2D, shape: ShapeElement) {
+    const label = shape.label; if (!label?.text) return;
+    ctx.save(); ctx.font = textFont(label); ctx.fillStyle = label.color; ctx.globalAlpha = (shape.opacity ?? 1) * (label.opacity ?? 1); ctx.textBaseline = "top"; ctx.textAlign = "left";
+    const box = labelBox(shape); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip();
+    for (const run of textLayout(ctx, shape)) { ctx.fillText(run.text, run.x, run.y); if (label.underline) ctx.fillRect(run.x, run.y + label.fontSize * 1.06, ctx.measureText(run.text).width, Math.max(1, label.fontSize / 18)); }
+    ctx.restore();
+  }
+  function labelSvg(shape: ShapeElement) {
+    const label = shape.label; const ctx = canvas.getContext("2d"); if (!label?.text || !ctx) return "";
+    return `<g fill="${escapeXml(label.color)}" opacity="${(shape.opacity ?? 1) * (label.opacity ?? 1)}" font-size="${label.fontSize}" font-family="${label.fontFamily === "hand" ? "cursive" : "sans-serif"}" font-weight="${label.bold ? 700 : 400}" font-style="${label.italic ? "italic" : "normal"}" text-decoration="${label.underline ? "underline" : "none"}">${textLayout(ctx, shape).map(run => `<text x="${run.x}" y="${run.y + label.fontSize * .8}">${escapeXml(run.text)}</text>`).join("")}</g>`;
+  }
 
   const fileName = () => activePath()?.split(/[\\/]/).pop() ?? "Untitled sketch";
   const currentPage = () => pages().find((page) => page.id === activePageId());
@@ -462,26 +625,40 @@ function App() {
     while (element?.type === "group") element = element.elements[element.elements.length - 1];
     return element;
   };
-  const selectedText = (): TextElement | undefined => { const element = focusedElement(); return element?.type === "text" ? element : undefined; };
+  const selectedLabel = () => { const item = focusedElement(); return item && isLabelShape(item) ? item.label : undefined; };
+  const selectedText = () => textDraft() ?? (() => { const item = focusedElement(); return item?.type === "text" ? item : selectedLabel(); })();
   const selectedColor = () => { const draft = textDraft(); if (draft) return draft.color; const element = focusedElement(); return element && "color" in element ? element.color : color(); };
   const selectedThickness = () => { const element = focusedElement(); return element && "thickness" in element ? element.thickness : thickness(); };
   const selectedOpacity = () => { const element = focusedElement(); return element && "opacity" in element ? element.opacity ?? 1 : 1; };
   const selectedFillColor = () => { const element = focusedElement(); return element && "fillColor" in element ? element.fillColor : undefined; };
+  const sidebarVisible = () => sidebarOpen() && (
+    sidebarTab() === "layers" ||
+    (tool() === "select" ? selectedIndices().length > 0 :
+      ["pen", "rectangle", "circle", "diamond", "flowchart", "line", "arrow", "text", "bucket"].includes(tool()))
+  );
+  const showStrokeControls = () => { const focused = focusedElement(); return tool() !== "bucket" && (
+    tool() === "pen" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "flowchart" || tool() === "line" || tool() === "arrow" || tool() === "text" ||
+    (tool() === "select" && !!focused && "color" in focused)
+  ); };
+  const showThicknessControls = () => { const focused = focusedElement(); return tool() !== "bucket" && tool() !== "text" && (
+    tool() === "pen" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "flowchart" || tool() === "line" || tool() === "arrow" ||
+    (tool() === "select" && !!focused && "thickness" in focused)
+  ); };
   const renderedBoardColor = () => boardColorFollowsTheme() ? theme() === "dark" ? "#17191f" : "#ffffff" : boardColor();
-  const updateStrokeColor = (value: string) => { setColor(value); setTextDraft((draft) => draft ? { ...draft, color: value } : undefined); if (selectedIndices().length) updateProperty("color", value); };
+  const updateStrokeColor = (value: string) => { if (boardLocked() || focusedElement()?.locked) return; if (textDraft()?.shapeLabel) { updateLabel("color", value); return; } setColor(value); setTextDraft((draft) => draft ? { ...draft, color: value } : undefined); if (selectedIndices().length) updateProperty("color", value); };
   const updateThickness = (value: number) => { setThickness(value); if (selectedIndices().length) updateProperty("thickness", value); };
-  const status = () => !activePath() ? "No file selected" : saving() ? "Saving…" : dirty() ? "Unsaved changes" : savedAt() ? `Saved ${savedAt()}` : "Saved locally";
+  const status = () => !activePath() ? "No file selected" : saving() ? "Saving…" : (dirty() || textDraft()) ? "Unsaved changes" : savedAt() ? `Saved ${savedAt()}` : "Saved locally";
   function documentSnapshot(): SketchFile {
     const sourcePages = pages().length ? pages() : [{ id: "page-1", name: "Page 1", canvasState: canvasState(), elements: elements() }];
     const serializedPages = sourcePages.map((page) => {
       const isCurrent = page.id === activePageId() || (!activePageId() && sourcePages.length === 1);
       const pageElements = isCurrent ? elements() : page.elements;
       const normalized = pageElements.map(normalizeElement);
-      if (normalized.some((element) => !element)) throw new Error("The drawing contains an element that cannot be saved in SketchDraw format v4.");
+      if (normalized.some((element) => !element)) throw new Error("The drawing contains an element that cannot be saved in SketchDraw format v5.");
       const state = isCurrent ? canvasState() : page.canvasState;
       return { id: page.id, name: page.name, canvasState: { ...state, backgroundColor: isCurrent ? renderedBoardColor() : (state.boardColorFollowsTheme ? (theme() === "dark" ? "#17191f" : "#ffffff") : state.backgroundColor), boardColorFollowsTheme: state.boardColorFollowsTheme ?? true }, elements: normalized as Element[] };
     });
-    return { format: "SketchDraw", version: 4, activePageId: activePageId() || serializedPages[0].id, pages: serializedPages };
+    return { format: "SketchDraw", version: 5, activePageId: activePageId() || serializedPages[0].id, pages: serializedPages };
   }
   function snapshotRaw(snapshot: SketchFile) { return JSON.stringify(snapshot, null, 2); }
   function storeCurrentPage() {
@@ -493,15 +670,15 @@ function App() {
     if (id === activePageId()) return;
     const target = pages().find((page) => page.id === id);
     if (!target) return;
-    storeCurrentPage();
+    commitTextDraft(); rememberPageHistory(); storeCurrentPage();
     setElements(cloneElements(target.elements)); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false);
     setActivePageId(id); setSelectedIndices([]); setHoveredIndex(undefined); setTextDraft(undefined); setMarquee(undefined);
-    undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1); setDirty(true);
+    restorePageHistory(); setDirty(true);
   }
   function addPage() {
     if (boardLocked()) return;
     if (pages().length >= 100) { setError("A sketch can contain up to 100 pages."); return; }
-    storeCurrentPage();
+    commitTextDraft(); storeCurrentPage(); rememberPageHistory();
     const number = pages().length + 1; const page: SketchPage = { id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: `Page ${number}`, canvasState: emptyCanvas(), elements: [] };
     setPages((items) => [...items, page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setDirty(true);
     undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1);
@@ -509,7 +686,7 @@ function App() {
   function deleteCurrentPage() {
     if (boardLocked() || pages().length <= 1) return;
     const nextPages = pages().filter((page) => page.id !== activePageId()); const target = nextPages[Math.max(0, pages().findIndex((page) => page.id === activePageId()) - 1)] ?? nextPages[0];
-    setPages(nextPages); setActivePageId(target.id); setElements(cloneElements(target.elements)); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false); setSelectedIndices([]); setTextDraft(undefined); setHoveredIndex(undefined); setMarquee(undefined); undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1); setDirty(true);
+    setPages(nextPages); setActivePageId(target.id); setElements(cloneElements(target.elements)); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false); setSelectedIndices([]); setTextDraft(undefined); setHoveredIndex(undefined); setMarquee(undefined); restorePageHistory(); setDirty(true);
   }
   const canUndo = () => { historyVersion(); return undoStack.length > 0; };
   const canRedo = () => { historyVersion(); return redoStack.length > 0; };
@@ -594,8 +771,8 @@ function App() {
         if (property === "edgeStyle") return { ...element, edgeStyle: value as ShapeElement["edgeStyle"] };
       }
       if ((element.type === "line" || element.type === "arrow") && property === "lineStyle") return { ...element, lineStyle: value as ShapeElement["lineStyle"] };
-      if (element.type === "line" && property === "lineRoute") return { ...element, lineRoute: value as LineRoute };
-      if (element.type === "arrow" && property === "arrowRoute") return { ...element, arrowRoute: value as ArrowRoute };
+      if (element.type === "line" && property === "lineRoute") return { ...element, lineRoute: value as LineRoute, routePoints: undefined };
+      if (element.type === "arrow" && property === "arrowRoute") return { ...element, arrowRoute: value as ArrowRoute, routePoints: undefined };
       if (element.type === "flowchart" && property === "flowchartShape") return { ...element, flowchartShape: value as FlowchartShape };
       if (element.type === "arrow" && (property === "startHead" || property === "endHead")) return { ...element, [property]: value as ArrowHead };
       return element;
@@ -606,7 +783,17 @@ function App() {
 
   function commitTextDraft() {
     const draft = textDraft();
-    if (draft) {
+    if (draft?.shapeLabel && draft.editingIndex !== undefined) {
+      const index = draft.editingIndex; const item = elements()[index];
+      if (item && isLabelShape(item) && !item.locked && !boardLocked()) {
+        const before = cloneElements(elements());
+        const label: ShapeLabel = { text: draft.value, color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType, verticalAlign: draft.verticalAlign ?? "middle" };
+        setElements(items => items.map((element, i) => i === index ? { ...item, label: draft.value.trim() ? label : undefined } : element));
+        if (JSON.stringify(before) !== JSON.stringify(elements())) { pushUndo(before); setDirty(true); }
+      }
+      setTextDraft(undefined); return;
+    }
+    if (draft && !boardLocked()) {
       const existing = draft.editingIndex === undefined ? undefined : elements()[draft.editingIndex];
       if (draft.editingIndex !== undefined && existing?.type === "text" && !draft.value.trim()) {
         pushUndo(cloneElements(elements()));
@@ -626,7 +813,11 @@ function App() {
   }
 
   function startTextDraft(point: Point, editingIndex?: number) {
+    if (textDraft()) commitTextDraft();
     const existing = editingIndex === undefined ? undefined : elements()[editingIndex];
+    if (existing?.locked) return;
+    setSelectedIndices(editingIndex === undefined ? [] : [editingIndex]);
+    setTool("text");
     const text = existing?.type === "text" ? existing : undefined;
     setTextDraft({ x: text?.x ?? point.x, y: text?.y ?? point.y, value: text?.text ?? "", editingIndex, color: text?.color ?? color(), opacity: text?.opacity ?? 1, fontSize: text?.fontSize ?? defaultFontSize(), fontFamily: text?.fontFamily ?? defaultFontFamily(), bold: text?.bold ?? defaultBold(), italic: text?.italic ?? defaultItalic(), underline: text?.underline ?? defaultUnderline(), textAlign: text?.textAlign ?? defaultTextAlign(), listType: text?.listType ?? defaultListType() });
   }
@@ -638,18 +829,17 @@ function App() {
     const bounds = unionBounds(items.filter((element) => !element.hidden).map(elementBounds)); if (!bounds) return;
     const { x: left, y: top } = bounds; const right = left + bounds.w; const bottom = top + bounds.h;
     const width = Math.max(1, right - left); const height = Math.max(1, bottom - top);
-    const zoom = Math.max(0.02, Math.min(1.25, (rect.width - 100) / width, (rect.height - 100) / height));
-    setCanvasState({ zoom, panX: (rect.width - width * zoom) / 2 - left * zoom, panY: (rect.height - height * zoom) / 2 - top * zoom, backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() });
+    const inset = sidebarVisible() ? 330 : 40; const availableWidth = Math.max(100, rect.width - inset - 40); const availableHeight = Math.max(100, rect.height - 180);
+    const zoom = Math.max(0.02, Math.min(4, availableWidth / width, availableHeight / height));
+    setCanvasState({ zoom, panX: inset + (availableWidth - width * zoom) / 2 - left * zoom, panY: 90 + (availableHeight - height * zoom) / 2 - top * zoom, backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() });
     setDirty(true);
   }
 
   function resetZoomAndCenter() {
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect(); const boxes = elements().filter((element) => !element.hidden).map(elementBounds);
-    const center = boxes.length
-      ? { x: boxes.reduce((sum, box) => sum + box.x + box.w / 2, 0) / boxes.length, y: boxes.reduce((sum, box) => sum + box.y + box.h / 2, 0) / boxes.length }
-      : { x: 0, y: 0 };
-    setCanvasState({ zoom: 1, panX: rect.width / 2 - center.x, panY: rect.height / 2 - center.y, backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() }); setDirty(true);
+    const rect = canvas.getBoundingClientRect(); const current = canvasState();
+    const centerWorld = { x: (rect.width / 2 - current.panX) / current.zoom, y: (rect.height / 2 - current.panY) / current.zoom };
+    setCanvasState({ zoom: 1, panX: rect.width / 2 - centerWorld.x, panY: rect.height / 2 - centerWorld.y, backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() }); setDirty(true);
   }
 
   function rectanglePathPoints(element: ShapeElement): Point[] {
@@ -685,6 +875,7 @@ function App() {
       }
       return false;
     }
+    if (isLabelShape(element) && element.label?.text) { const box = labelBox(element); if (point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h) return true; }
     if (element.type === "freehand") {
       for (let i = 1; i < element.points.length; i++) if (distanceToSegment(point, element.points[i - 1], element.points[i]) <= tolerance) return true;
       return element.points.length === 1 && Math.hypot(point.x - element.points[0].x, point.y - element.points[0].y) <= tolerance;
@@ -742,8 +933,9 @@ function App() {
       ctx.restore(); if (element.rotation) ctx.restore(); return;
     }
     if (element.type === "text") {
+      if (textDraft()?.editingIndex !== undefined && elements()[textDraft()!.editingIndex!]?.id === element.id) { if (element.rotation) ctx.restore(); return; }
       ctx.save(); ctx.globalAlpha = element.opacity ?? 1; ctx.fillStyle = element.color;
-      ctx.font = (element.italic ? "italic " : "") + (element.bold ? "700 " : "400 ") + element.fontSize + "px " + (element.fontFamily === "hand" ? "cursive" : "'DM Sans', sans-serif"); ctx.textBaseline = "top"; ctx.textAlign = element.textAlign ?? "left";
+      ctx.font = (element.italic ? "italic " : "") + (element.bold ? "700 " : "400 ") + element.fontSize + "px " + (element.fontFamily === "hand" ? "cursive" : "'DM Sans', sans-serif"); ctx.textBaseline = "top"; ctx.textAlign = element.textAlign === "justify" ? "left" : element.textAlign ?? "left";
       const lines = element.text.split(/\r?\n/).map((line, index) => element.listType === "bullet" ? "• " + line : element.listType === "number" ? (index + 1) + ". " + line : line);
       lines.forEach((line, index) => { const y = element.y + index * element.fontSize * 1.25; ctx.fillText(line, element.x, y); if (element.underline) { const measured = ctx.measureText(line).width; const startX = element.textAlign === "center" ? element.x - measured / 2 : element.textAlign === "right" ? element.x - measured : element.x; ctx.fillRect(startX, y + element.fontSize * 1.06, measured, Math.max(1, element.fontSize / 18)); } }); ctx.restore(); if (element.rotation) ctx.restore(); return;
     }
@@ -793,7 +985,7 @@ function App() {
     if ("fillColor" in element && element.fillColor) { ctx.fillStyle = element.fillColor; ctx.globalAlpha = (element.opacity ?? 1) * (element.fillOpacity ?? fillOpacity()); ctx.fill(); ctx.globalAlpha = element.opacity ?? 1; }
     ctx.stroke();
     if (element.type === "flowchart") traceFlowchartDetails(ctx, element.flowchartShape ?? "process", element.x, element.y, element.w, element.h);
-    ctx.restore(); if (element.rotation) ctx.restore();
+    ctx.restore(); if (isLabelShape(element) && !(textDraft()?.shapeLabel && elements()[textDraft()!.editingIndex!]?.id === element.id)) drawLabel(ctx, element); if (element.rotation) ctx.restore();
   }
 
   function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, state: CanvasState) {
@@ -824,41 +1016,51 @@ function App() {
   function findTransformHandle(point: Point): { index: number; handle: string } | undefined {
     if (selectedIndices().length !== 1) return undefined;
     const index = selectedIndices()[0]; const element = elements()[index]; if (!element || element.locked || element.type === "group" || element.type === "freehand") return undefined;
-    for (const handle of transformHandlePoints(elementBounds(element))) if (Math.hypot(point.x - handle.x, point.y - handle.y) <= 9 / canvasState().zoom) return { index, handle: handle.id };
+    for (const handle of isConnector(element) ? connectorHandles(element) : transformHandlePoints(elementBounds(element))) if (Math.hypot(point.x - handle.x, point.y - handle.y) <= 9 / canvasState().zoom) return { index, handle: handle.id };
     return undefined;
   }
 
   function resizeElement(element: Element, handle: string, start: Point, point: Point): Element {
     if (element.type === "group" || element.type === "freehand") return element;
+    if (isConnector(element)) return resizeConnector(element, handle, point);
     if (handle === "rotate") {
       const bounds = elementBounds(element); const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
       const a = Math.atan2(start.y - center.y, start.x - center.x); const b = Math.atan2(point.y - center.y, point.x - center.x);
       return { ...element, rotation: (element.rotation ?? 0) + (b - a) * 180 / Math.PI };
     }
     if (element.type === "text") { const delta = handle.includes("e") || handle.includes("w") ? point.x - start.x : point.y - start.y; return { ...element, fontSize: Math.max(8, Math.min(160, element.fontSize + delta * 0.3)) }; }
-    const bounds = { x: element.x, y: element.y, w: element.w, h: element.h }; let { x, y, w, h } = bounds; const dx = point.x - start.x; const dy = point.y - start.y;
+    const bounds = { x: Math.min(element.x, element.x + element.w), y: Math.min(element.y, element.y + element.h), w: Math.abs(element.w), h: Math.abs(element.h) }; let { x, y, w, h } = bounds; const dx = point.x - start.x; const dy = point.y - start.y;
     if (handle.includes("w")) { x += dx; w -= dx; } if (handle.includes("e")) w += dx;
     if (handle.includes("n")) { y += dy; h -= dy; } if (handle.includes("s")) h += dy;
     return { ...element, x, y, w: Math.max(2, w), h: Math.max(2, h) };
   }
 
-  function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, dpr: number, includeSelection: boolean, transparent = false, viewOverride?: CanvasState) {
+  function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, dpr: number, includeSelection: boolean, transparent = false, viewOverride?: CanvasState, sourceItems = elements(), includeGrid = true) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
     if (!transparent) { ctx.fillStyle = renderedBoardColor(); ctx.fillRect(0, 0, width, height); }
-    const state = viewOverride ?? canvasState(); if (!transparent) drawGrid(ctx, width, height, state);
+    const state = viewOverride ?? canvasState(); if (!transparent && includeGrid) drawGrid(ctx, width, height, state);
     ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
     const selected = selectedSet();
-    elements().forEach((element, index) => {
+    sourceItems.forEach((element, index) => {
       if (element.hidden) return;
       drawElement(ctx, element);
       const isSelected = selected.has(index);
-      if (includeSelection && (isSelected || hoveredIndex() === index)) {
+      if (includeSelection && (isSelected || hoveredIndex() === index) && isConnector(element)) {
+        ctx.save(); ctx.strokeStyle = "#548ce8"; ctx.globalAlpha = .65; ctx.lineWidth = (isSelected ? 2 : 1) / state.zoom; traceConnector(ctx, element); ctx.stroke();
+        if (isSelected && selected.size === 1 && !element.locked && !boardLocked()) for (const handle of connectorHandles(element)) { ctx.beginPath(); ctx.fillStyle = handle.id.startsWith("route") ? "#dbeafe" : "#ffffff"; ctx.arc(handle.x, handle.y, (handle.id.startsWith("route") ? 4 : 6) / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+        ctx.restore();
+      } else if (includeSelection && (isSelected || hoveredIndex() === index)) {
         const bounds = elementBounds(element); const padding = 5 / state.zoom;
         ctx.save(); ctx.strokeStyle = isSelected ? "#547bb1" : "#8298b8"; ctx.globalAlpha = isSelected ? 1 : 0.62; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([4 / state.zoom, 3 / state.zoom]);
         ctx.strokeRect(bounds.x - padding, bounds.y - padding, Math.max(bounds.w + padding * 2, 2 / state.zoom), Math.max(bounds.h + padding * 2, 2 / state.zoom)); ctx.restore();
         if (isSelected && !element.locked && selected.size === 1 && tool() === "select" && element.type !== "group" && element.type !== "freehand") drawTransformHandles(ctx, bounds, state.zoom);
       }
     });
+    if (includeSelection && (tool() === "arrow" || tool() === "line" || resizeOrigin && isConnector(resizeOrigin.original))) {
+      const ports = (items: Element[]) => { for (const item of items) { if (item.hidden || item.locked) continue; if (item.type === "group") { ports(item.elements); continue; } if (!isLabelShape(item)) continue;
+        for (const anchor of [{ x: .5, y: 0 }, { x: 1, y: .5 }, { x: .5, y: 1 }, { x: 0, y: .5 }]) { const point = anchorPoint(item, anchor); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
+      } }; ctx.save(); ctx.fillStyle = "#5d94e7"; ctx.globalAlpha = .7; ports(elements()); const hint = attachmentHint(); if (hint) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(hint.x, hint.y, 8 / state.zoom, 0, Math.PI * 2); ctx.strokeStyle = "#2675f5"; ctx.lineWidth = 2 / state.zoom; ctx.stroke(); } ctx.restore();
+    }
     const guides = alignmentGuides();
     if (includeSelection && guides) {
       const left = -state.panX / state.zoom; const top = -state.panY / state.zoom; const right = (width - state.panX) / state.zoom; const bottom = (height - state.panY) / state.zoom;
@@ -868,7 +1070,7 @@ function App() {
       ctx.stroke(); ctx.restore();
     }
     const activePreview = preview();
-    if (activePreview) {
+    if (includeSelection && activePreview) {
       const { start, end, type, color: stroke, thickness: widthPx } = activePreview;
       if (type === "pen") drawElement(ctx, { type: "freehand", points: currentPoints, color: stroke, thickness: widthPx });
       else drawElement(ctx, { type, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: stroke, thickness: widthPx, flowchartShape: activePreview.flowchartShape, lineRoute: activePreview.lineRoute, arrowRoute: activePreview.arrowRoute, ...(fillEnabled() && (type === "rectangle" || type === "circle" || type === "diamond" || type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead() } : {}) });
@@ -888,7 +1090,7 @@ function App() {
     const ctx = canvas.getContext("2d"); if (ctx) drawScene(ctx, rect.width, rect.height, dpr, true);
   }
 
-  createEffect(() => { elements(); canvasState(); preview(); selectedIndices(); hoveredIndex(); showGrid(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); renderCanvas(); });
+  createEffect(() => { elements(); canvasState(); preview(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); renderCanvas(); });
   createEffect(() => {
     if (!activePath() || !canvas) return;
     const resize = new ResizeObserver(renderCanvas); resize.observe(canvas);
@@ -916,6 +1118,25 @@ function App() {
     onCleanup(() => resize.disconnect());
   });
 
+  createEffect(() => {
+    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setShowClearConfirm(false); setContextMenu(undefined); setOpenToolOptions(undefined); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; }
+  });
+  createEffect(() => {
+    const open = pageDialog() || exportOptionsOpen() || showClearConfirm() || recoveryPrompt() || syncConflict();
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const frame = requestAnimationFrame(() => { const dialog = document.querySelector<HTMLElement>("[aria-modal='true']"); (dialog?.querySelector<HTMLElement>("[autofocus], input, button") ?? dialog)?.focus(); });
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const dialog = document.querySelector<HTMLElement>("[aria-modal='true']"); const controls = [...dialog?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), [tabindex='0']") ?? []];
+      if (!controls.length) return; const first = controls[0]; const last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialog?.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !dialog?.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", trap, true);
+    onCleanup(() => { cancelAnimationFrame(frame); document.removeEventListener("keydown", trap, true); if (previous?.isConnected) previous.focus(); });
+  });
+
   onMount(() => {
     void invoke<string[]>("take_startup_files").then((paths) => {
       const path = paths.find((candidate) => candidate.toLowerCase().endsWith(".sketch"));
@@ -923,6 +1144,10 @@ function App() {
     }).catch((cause) => setError(`Could not check for a SketchDraw file to open: ${String(cause)}`));
     const keyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (pageDialog()) { event.preventDefault(); setPageDialog(undefined); return; }
+        if (contextMenu()) { event.preventDefault(); setContextMenu(undefined); return; }
+        if (openToolOptions()) { setOpenToolOptions(undefined); return; }
+        document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => detail.open = false);
         if (showClearConfirm()) { event.preventDefault(); setShowClearConfirm(false); return; }
         if (exportOptionsOpen()) { event.preventDefault(); setExportOptionsOpen(false); return; }
         if (recoveryPrompt() || syncConflict()) return;
@@ -930,7 +1155,8 @@ function App() {
         event.preventDefault(); setTool("select"); setSelectedIndices([]); setHoveredIndex(undefined); setMarquee(undefined); marqueeOrigin = undefined; resizeOrigin = undefined; moveOrigin = undefined; setPreview(undefined); drawing = false; setSpaceDown(false); setIsPanning(false); panOrigin = undefined;
         if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; return;
       }
-      if (recoveryPrompt() || syncConflict() || exportOptionsOpen() || showClearConfirm()) return;
+      if (recoveryPrompt() || syncConflict() || exportOptionsOpen() || showClearConfirm() || pageDialog() || contextMenu()) return;
+      if (event.target instanceof HTMLElement && event.target.closest("details[open], .tool-options")) return;
       if (!activePath() || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
       if (event.code === "Space" && event.target instanceof HTMLElement && event.target.closest("button, summary, select, [role='menuitem']")) return;
       if (event.code === "Space") { if (!event.repeat) { event.preventDefault(); setSpaceDown(true); } return; }
@@ -941,7 +1167,12 @@ function App() {
       if ((event.ctrlKey || event.metaKey) && key === "g") { event.preventDefault(); if (event.shiftKey) ungroupSelection(); else groupSelection(); return; }
       if ((event.ctrlKey || event.metaKey) && key === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); return; }
       if ((event.ctrlKey || event.metaKey) && key === "y") { event.preventDefault(); redo(); return; }
+      if ((event.ctrlKey || event.metaKey) && key === "d") { event.preventDefault(); insertCopies(selectedElements()); return; }
+      if ((event.ctrlKey || event.metaKey) && key === "a") { event.preventDefault(); setSelectedIndices(elements().flatMap((item, index) => !item.hidden && !item.locked ? [index] : [])); return; }
       if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (key === "1") { fitDocumentToViewport(elements()); return; }
+      if (key === "2") { fitDocumentToViewport(selectedElements()); return; }
+      if (["arrowleft", "arrowright", "arrowup", "arrowdown"].includes(key)) { event.preventDefault(); const step = event.shiftKey ? 10 : 1; changeSelected(item => moveElement(item, key === "arrowleft" ? -step : key === "arrowright" ? step : 0, key === "arrowup" ? -step : key === "arrowdown" ? step : 0)); return; }
       if (key === "g" && event.shiftKey) { setSnapToGrid((enabled) => !enabled); return; }
       if (key === "o" && event.shiftKey) { setSnapToObjects((enabled) => !enabled); return; }
       if (key === "g") { setShowGrid((visible) => !visible); return; }
@@ -950,9 +1181,15 @@ function App() {
       if (key === "v") setTool("select"); else if (key === "p") activateTool("pen"); else if (key === "r") activateTool("rectangle"); else if (key === "c" || key === "o") activateTool("circle"); else if (key === "d") activateTool("diamond"); else if (key === "l") activateTool("line"); else if (key === "a") activateTool("arrow"); else if (key === "f") activateTool("flowchart"); else if (key === "t") activateTool("text"); else if (key === "b") activateTool("bucket"); else if (key === "e") activateTool("eraser"); else if (key === "x") activateTool("crop");
       else if (key === "delete" || key === "backspace") { event.preventDefault(); deleteSelected(); }
     };
+    const clipboardAllowed = (target: EventTarget | null) => activePath() && !pageDialog() && !exportOptionsOpen() && !showClearConfirm() && !recoveryPrompt() && !syncConflict() && !(target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea")));
+    const copy = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || !selectedElements().length) return; event.preventDefault(); event.clipboardData?.setData("text/plain", clipboardPayload()); clipboardItems = copyElements(selectedElements(), 0, 0); };
+    const paste = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || boardLocked()) return; const raw = event.clipboardData?.getData("text/plain"); if (raw) { event.preventDefault(); pastePayload(raw); } };
+    const cut = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || boardLocked()) return; copy(event); if (event.defaultPrevented) deleteSelected(); };
+    document.addEventListener("copy", copy); document.addEventListener("paste", paste); document.addEventListener("cut", cut);
+    onCleanup(() => { document.removeEventListener("copy", copy); document.removeEventListener("paste", paste); document.removeEventListener("cut", cut); });
     const keyUp = (event: KeyboardEvent) => { if (event.code === "Space") setSpaceDown(false); };
     const blur = () => { setSpaceDown(false); setIsPanning(false); panOrigin = undefined; };
-    const outsideClick = (event: PointerEvent) => { if (menu?.open && !menu.contains(event.target as Node)) menu.open = false; if (viewMenu?.open && !viewMenu.contains(event.target as Node)) viewMenu.open = false; };
+    const outsideClick = (event: PointerEvent) => { document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => { if (!detail.contains(event.target as Node)) detail.open = false; }); if (!(event.target instanceof HTMLElement && event.target.closest(".tool-family"))) setOpenToolOptions(undefined); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-context-menu"))) setContextMenu(undefined); if (textDraft() && event.target instanceof HTMLElement && !event.target.closest(".canvas-text-editor, .style-pane")) commitTextDraft(); if (menu?.open && !menu.contains(event.target as Node)) menu.open = false; if (viewMenu?.open && !viewMenu.contains(event.target as Node)) viewMenu.open = false; };
     const closeMenuOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { if (menu?.open) menu.open = false; if (viewMenu?.open) viewMenu.open = false; } };
     const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
     const updateSystemTheme = (event: MediaQueryListEvent) => setSystemDark(event.matches);
@@ -984,7 +1221,7 @@ function App() {
     }).then((unlisten) => { unlistenClose = unlisten; }).catch((cause) => setError(`Could not prepare safe closing: ${String(cause)}`));
     window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("blur", blur);
     document.addEventListener("pointerdown", outsideClick); document.addEventListener("keydown", closeMenuOnEscape);
-    const timer = window.setInterval(() => { if (activePath() && dirty() && !recoveryPrompt()) { persistRecovery(); if (!syncConflict() && !saveInFlight) void saveToPath(activePath()!); } }, 1750);
+    const timer = window.setInterval(() => { if (textDraft() && !recoveryPrompt() && !syncConflict()) persistRecovery(); if (activePath() && dirty() && !recoveryPrompt() && !textDraft() && !drawing && !resizeOrigin && !moveOrigin) { persistRecovery(); if (!syncConflict() && !saveInFlight) void saveToPath(activePath()!); } }, 1750);
     onCleanup(() => { unlistenClose?.(); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("blur", blur); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); window.clearInterval(timer); });
   });
 
@@ -993,13 +1230,22 @@ function App() {
     try { if (mode === "system") localStorage.removeItem("sketchdraw-theme"); else localStorage.setItem("sketchdraw-theme", mode); } catch { /* Theme still applies for this session. */ }
   }
 
-  const recoveryKey = (path: string) => `sketchdraw-recovery:${encodeURIComponent(path)}`;
+  const recoveryKey = (path: string) => `sketchdraw-v5-recovery:${encodeURIComponent(path)}`;
+  function recoverySnapshot(): SketchFile {
+    const snapshot = documentSnapshot(); const draft = textDraft(); if (!draft) return snapshot;
+    const page = snapshot.pages.find(p => p.id === snapshot.activePageId); if (!page) return snapshot;
+    const style = { color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType };
+    if (draft.shapeLabel && draft.editingIndex !== undefined) { const item = page.elements[draft.editingIndex]; if (item && isLabelShape(item)) item.label = { ...style, text: draft.value, verticalAlign: draft.verticalAlign ?? "middle" }; }
+    else { const item: TextElement = { ...style, type: "text", x: draft.x, y: draft.y, text: draft.value, id: draft.editingIndex !== undefined ? page.elements[draft.editingIndex]?.id : crypto.randomUUID() }; if (draft.editingIndex !== undefined) page.elements[draft.editingIndex] = item; else if (draft.value.trim()) page.elements.push(item); }
+    return snapshot;
+  }
   function persistRecovery() {
-    if (!activePath() || !dirty()) return;
-    try { localStorage.setItem(recoveryKey(activePath()!), JSON.stringify({ savedAt: Date.now(), baselineRaw: lastSavedRaw, snapshot: documentSnapshot() })); } catch { /* Recovery is best-effort if browser storage is unavailable. */ }
+    if (!activePath() || (!dirty() && !textDraft())) return;
+    try { localStorage.setItem(recoveryKey(activePath()!), JSON.stringify({ savedAt: Date.now(), baselineRaw: lastSavedRaw, snapshot: recoverySnapshot() })); } catch { /* Recovery is best-effort if browser storage is unavailable. */ }
   }
 
   function applySnapshot(snapshot: SketchFile, path: string, rawText: string) {
+    pageHistories.clear(); setTextDraft(undefined); setPreview(undefined); setMarquee(undefined); drawing = false; moveOrigin = undefined; resizeOrigin = undefined;
     const currentPage = snapshot.pages.find((page) => page.id === snapshot.activePageId) ?? snapshot.pages[0];
     setPages(snapshot.pages.map((page) => ({ ...page, elements: cloneElements(page.elements) })));
     setActivePageId(currentPage.id); setElements(cloneElements(currentPage.elements)); setCanvasState({ ...currentPage.canvasState });
@@ -1039,7 +1285,7 @@ function App() {
 
   async function saveToPath(path: string, force = false) {
     if (saveInFlight || recoveryPrompt()) return;
-    saveInFlight = true; setSaving(true);
+    commitTextDraft(); saveInFlight = true; setSaving(true);
     try {
       const snapshot = documentSnapshot();
       const encodedSnapshot = snapshotRaw(snapshot);
@@ -1048,30 +1294,34 @@ function App() {
         const diskRaw = await readTextFile(path);
         if (diskRaw !== lastSavedRaw) { setSyncConflict({ path, remote: diskRaw }); return; }
       }
-      await writeTextFile(path, encodedSnapshot); setActivePath(path); if (isNewPath) rememberFile(path);
+      await invoke("atomic_save_sketch", { path, contents: encodedSnapshot, expected: !force && !isNewPath ? lastSavedRaw ?? null : null }); setActivePath(path); if (isNewPath) rememberFile(path);
       lastSavedRaw = encodedSnapshot;
       setSyncConflict(undefined);
       try { localStorage.removeItem(recoveryKey(path)); } catch { /* Recovery cleanup is best-effort. */ }
       setDirty(snapshotRaw(documentSnapshot()) !== encodedSnapshot);
       setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setError("");
-    } catch (cause) { setError(`Could not save file: ${String(cause)}`); }
+    } catch (cause) { if (String(cause).includes("CONFLICT:")) { try { setSyncConflict({ path, remote: await readTextFile(path) }); } catch { /* Preserve recovery if disk is unavailable. */ } } setError(`Could not save file: ${String(cause)}`); }
     finally { saveInFlight = false; setSaving(false); }
   }
 
   async function saveAs() {
+    if (!activePath()) { await createFile(); return; }
+    if (nativeBusy() || documentBusy()) return;
+    setNativeBusy(true);
     try {
       const path = await save({ title: "Save SketchDraw file", defaultPath: "Untitled.sketch", filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
       if (path) await saveToPath(withSketchExtension(path));
-    } catch (cause) { setError(`Could not choose save location: ${String(cause)}`); }
+    } catch (cause) { setError(`Could not choose save location: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
   function rememberFile(path: string) {
     const updated = [path, ...recentFiles().filter((recent) => recent !== path)].slice(0, 8);
     setRecentFiles(updated);
-    try { localStorage.setItem("sketchdraw-recent-files", JSON.stringify(updated)); } catch { /* Local storage may be disabled by the host. */ }
+    try { localStorage.setItem("sketchdraw-v5-recent-files", JSON.stringify(updated)); } catch { /* Local storage may be disabled by the host. */ }
   }
 
   async function saveBeforeReplacingDocument(): Promise<boolean> {
+    commitTextDraft();
     const path = activePath();
     if (!path) return true;
     if (syncConflict()) return false;
@@ -1085,6 +1335,8 @@ function App() {
   }
 
   async function loadFile(path: string) {
+    if (documentBusy()) return;
+    setDocumentBusy(true);
     try {
       if (!path.toLowerCase().endsWith(".sketch")) throw new Error("Only .sketch documents are supported.");
       if (!await saveBeforeReplacingDocument()) return;
@@ -1094,7 +1346,7 @@ function App() {
       const rawText = await readTextFile(authorizedPath);
       const raw: unknown = JSON.parse(rawText);
       const parsed = parseSketchFile(raw);
-      if (!parsed) throw new Error("This file is invalid or is not a SketchDraw v4 document.");
+      if (!parsed) throw new Error("This file is invalid or is not a SketchDraw v5 document. Older formats are unsupported; create a new sketch.");
       applySnapshot(parsed, authorizedPath, rawText);
       try {
         const stored = localStorage.getItem(recoveryKey(authorizedPath));
@@ -1107,19 +1359,24 @@ function App() {
         }
       } catch { /* Ignore malformed recovery data and leave the source file untouched. */ }
       if (elements().length) requestAnimationFrame(() => fitDocumentToViewport(elements()));
-    } catch (cause) { setError(`Could not open file: ${String(cause)}`); }
+    } catch (cause) { setError(`Could not open file: ${String(cause)}`); } finally { setDocumentBusy(false); }
   }
 
   async function openFile() {
+    if (nativeBusy() || documentBusy()) return;
+    setNativeBusy(true);
     try {
       const selected = await open({ title: "Open SketchDraw file", multiple: false, filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
       if (!selected || Array.isArray(selected)) return;
       await loadFile(selected);
-    } catch (cause) { setError(`Could not choose file: ${String(cause)}`); }
+    } catch (cause) { setError(`Could not choose file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
   async function importImage() {
-    if (boardLocked()) return;
+    if (!activePath()) return;
+    if (nativeBusy() || documentBusy()) return;
+    setNativeBusy(true);
+    if (boardLocked()) { setNativeBusy(false); return; }
     try {
       const selected = await open({ title: "Import image", multiple: false, filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }] });
       if (!selected || Array.isArray(selected)) return;
@@ -1130,8 +1387,8 @@ function App() {
       await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error("Could not load image.")); });
       const width = Math.min(700, image.naturalWidth); const height = image.naturalHeight * width / image.naturalWidth; const rect = canvas.getBoundingClientRect(); const view = canvasState();
       const item: ImageElement = { type: "image", x: (rect.width / 2 - view.panX) / view.zoom - width / 2, y: (rect.height / 2 - view.panY) / view.zoom - height / 2, w: width, h: height, dataUrl, sourceWidth: image.naturalWidth, sourceHeight: image.naturalHeight };
-      pushUndo(cloneElements(elements())); setElements((items) => [...items, item]); imageCache.set(dataUrl, image); setSelectedIndices([elements().length]); setDirty(true);
-    } catch (cause) { setError(`Could not import image: ${String(cause)}`); }
+      pushUndo(cloneElements(elements())); setElements((items) => [...items, item]); imageCache.set(dataUrl, image); setSelectedIndices([elements().length - 1]); setDirty(true);
+    } catch (cause) { setError(`Could not import image: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
   function toggleLayer(index: number, property: "hidden" | "locked") {
@@ -1147,21 +1404,23 @@ function App() {
   }
 
   async function createFile() {
+    if (nativeBusy() || documentBusy()) return;
+    setNativeBusy(true);
     try {
       const selected = await save({ title: "Create SketchDraw file", defaultPath: "Untitled.sketch", filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
       if (!selected) return;
       if (!await saveBeforeReplacingDocument()) return;
       const path = withSketchExtension(selected);
       const page: SketchPage = { id: "page-1", name: "Page 1", canvasState: emptyCanvas(), elements: [] };
-      const document: SketchFile = { format: "SketchDraw", version: 4, activePageId: page.id, pages: [page] };
+      const document: SketchFile = { format: "SketchDraw", version: 5, activePageId: page.id, pages: [page] };
       const contents = JSON.stringify(document, null, 2);
-      await writeTextFile(path, contents);
-      setPages([page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setActivePath(path); rememberFile(path); setDirty(false); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setBoardLocked(false); setError(""); lastSavedRaw = contents;
+      await invoke("atomic_save_sketch", { path, contents, expected: null });
+      pageHistories.clear(); setPages([page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setActivePath(path); rememberFile(path); setDirty(false); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setBoardLocked(false); setError(""); lastSavedRaw = contents;
       undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1);
-    } catch (cause) { setError(`Could not create SketchDraw file: ${String(cause)}`); }
+    } catch (cause) { setError(`Could not create SketchDraw file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
-  function openExportOptions(format: "png" | "pdf") { setExportFormat(format); setExportOptionsOpen(true); }
+  function openExportOptions(format: "png" | "svg" | "pdf") { setExportFormat(format); setExportOptionsOpen(true); }
 
   function imagePdf(jpeg: Uint8Array, width: number, height: number): Uint8Array {
     const encoder = new TextEncoder(); const parts: Uint8Array[] = []; const offsets: number[] = []; let size = 0;
@@ -1182,44 +1441,54 @@ function App() {
   }
 
   async function exportAs(format: "png" | "svg" | "pdf") {
-    if (!canvas) return;
+    if (!canvas || nativeBusy() || documentBusy()) return;
+    setNativeBusy(true);
     try {
-      if ((format === "png" || format === "pdf") && (!Number.isFinite(exportWidth()) || !Number.isFinite(exportHeight()) || exportWidth() < 1 || exportHeight() < 1 || exportWidth() > 12000 || exportHeight() > 12000 || exportWidth() * exportHeight() > 60_000_000)) throw new Error("Choose dimensions between 1 and 12,000 pixels, totaling no more than 60 megapixels.");
+      if ((!Number.isFinite(exportWidth()) || !Number.isFinite(exportHeight()) || exportWidth() < 1 || exportHeight() < 1 || exportWidth() > 12000 || exportHeight() > 12000 || exportWidth() * exportHeight() > 60_000_000)) throw new Error("Choose dimensions between 1 and 12,000 pixels, totaling no more than 60 megapixels.");
+      commitTextDraft();
+      const exportItems = cloneElements(exportScope() === "selection" ? selectedElements() : elements()).filter(item => !item.hidden);
+      if (exportScope() === "selection" && !exportItems.length) throw new Error("Select one or more visible objects to export.");
+      const rect = canvas.getBoundingClientRect(); const view = { ...canvasState() };
+      const prepareImages = async (items: Element[]): Promise<void> => { await Promise.all(items.map(async item => { if (item.type === "group") await prepareImages(item.elements); else if (item.type === "image") { let bitmap = imageCache.get(item.dataUrl); if (!bitmap) { bitmap = new Image(); bitmap.src = item.dataUrl; imageCache.set(item.dataUrl, bitmap); } await bitmap.decode(); } })); };
+      await prepareImages(exportItems);
+      const rawBounds = exportScope() === "viewport" ? { x: -view.panX / view.zoom, y: -view.panY / view.zoom, w: rect.width / view.zoom, h: rect.height / view.zoom } : unionBounds(exportItems.map(elementBounds)) ?? { x: 0, y: 0, w: 800, h: 600 };
+      const padding = exportScope() === "viewport" ? 0 : 24;
+      const bounds = { x: rawBounds.x - padding, y: rawBounds.y - padding, w: Math.max(1, rawBounds.w + padding * 2), h: Math.max(1, rawBounds.h + padding * 2) };
+      const exportViewFor = (width: number, height: number) => { const zoom = Math.min(width / bounds.w, height / bounds.h); return { ...view, zoom, panX: (width - bounds.w * zoom) / 2 - bounds.x * zoom, panY: (height - bounds.h * zoom) / 2 - bounds.y * zoom }; };
       const path = await save({ title: `Export SketchDraw as ${format.toUpperCase()}`, defaultPath: `SketchDraw.${format}`, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
       if (!path) return;
       const target = path.toLowerCase().endsWith(`.${format}`) ? path : `${path}.${format}`;
-      const rect = canvas.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1;
+
       if (format === "png" || format === "pdf") {
         const width = Math.max(1, Math.min(12000, Math.floor(exportWidth()))); const height = Math.max(1, Math.min(12000, Math.floor(exportHeight())));
         if (width * height > 60_000_000) throw new Error("Export is too large. Choose dimensions totaling no more than 60 megapixels.");
         const output = document.createElement("canvas"); output.width = width; output.height = height;
         const ctx = output.getContext("2d"); if (!ctx) throw new Error("Could not create PNG image.");
-        const scale = Math.min(width / rect.width, height / rect.height); const view = canvasState();
-        const exportView = { ...view, zoom: view.zoom * scale, panX: view.panX * scale + (width - rect.width * scale) / 2, panY: view.panY * scale + (height - rect.height * scale) / 2 };
-        drawScene(ctx, width, height, 1, false, format === "png" && exportTransparent(), exportView);
+        const exportView = exportViewFor(width, height);
+        drawScene(ctx, width, height, 1, false, format === "png" && exportTransparent(), exportView, exportItems, exportGrid());
         const mime = format === "pdf" ? "image/jpeg" : "image/png";
         const blob = await new Promise<Blob>((resolve, reject) => output.toBlob((value) => value ? resolve(value) : reject(new Error(`${format.toUpperCase()} image encoding failed.`)), mime, .94));
         if (format === "png") await writeFile(target, new Uint8Array(await blob.arrayBuffer()));
         else await writeFile(target, imagePdf(new Uint8Array(await blob.arrayBuffer()), width, height));
       } else {
-        const state = canvasState();
-        const shapes = elements().map(elementToSvg).join("\n");
-        const grid = showGrid() ? `<pattern id="grid" width="${GRID_SIZE * state.zoom}" height="${GRID_SIZE * state.zoom}" patternUnits="userSpaceOnUse" x="${state.panX}" y="${state.panY}"><circle cx="1" cy="1" r="1" fill="#deddd6"/></pattern><rect width="100%" height="100%" fill="url(#grid)"/>` : "";
+        const state = exportViewFor(exportWidth(), exportHeight());
+        const shapes = exportItems.map(elementToSvg).join("\n");
+        const grid = exportGrid() && !exportTransparent() ? `<pattern id="grid" width="${GRID_SIZE * state.zoom}" height="${GRID_SIZE * state.zoom}" patternUnits="userSpaceOnUse" x="${state.panX}" y="${state.panY}"><circle cx="1" cy="1" r="1" fill="#deddd6"/></pattern><rect width="100%" height="100%" fill="url(#grid)"/>` : "";
         const svgBackground = renderedBoardColor();
         const svgGrid = theme() === "dark" ? "#414653" : "#deddd6";
         const themedGrid = grid.replace("#deddd6", svgGrid);
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(rect.width * dpr)}" height="${Math.round(rect.height * dpr)}" viewBox="0 0 ${rect.width} ${rect.height}"><rect width="100%" height="100%" fill="${svgBackground}"/>${themedGrid}<g transform="translate(${state.panX} ${state.panY}) scale(${state.zoom})">${shapes}</g></svg>`;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${exportWidth()}" height="${exportHeight()}" viewBox="0 0 ${exportWidth()} ${exportHeight()}">${exportTransparent() ? "" : `<rect width="100%" height="100%" fill="${svgBackground}"/>`}${themedGrid}<g transform="translate(${state.panX} ${state.panY}) scale(${state.zoom})">${shapes}</g></svg>`;
         await writeTextFile(target, svg);
       }
       setError("");
-    } catch (cause) { setError(`Could not export image: ${String(cause)}`); }
+    } catch (cause) { setError(`Could not export image: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
   function elementToSvg(element: Element): string {
     if (element.hidden) return "";
     if (element.type === "group") return `<g>${element.elements.map(elementToSvg).join("")}</g>`;
     const bounds = elementBounds(element); const cx = bounds.x + bounds.w / 2; const cy = bounds.y + bounds.h / 2;
-    const content = elementSvgBody(element);
+    const content = elementSvgBody(element) + (isLabelShape(element) ? labelSvg(element) : "");
     return element.rotation ? `<g transform="rotate(${element.rotation} ${cx} ${cy})">${content}</g>` : content;
   }
 
@@ -1235,7 +1504,7 @@ function App() {
     const fillColor = "fillColor" in element ? element.fillColor : undefined;
     const dash = "lineStyle" in element && element.lineStyle === "dashed" ? `${element.thickness * 4} ${element.thickness * 2.5}` : "lineStyle" in element && element.lineStyle === "dotted" ? `${element.thickness} ${element.thickness * 2.2}` : "";
     const fillOpacity = "fillOpacity" in element ? element.fillOpacity ?? 0.2 : 0.2;
-    const style = `fill="${fillColor ? escapeXml(fillColor) : "none"}"${fillColor ? ` fill-opacity="${fillOpacity}"` : ""} stroke="${escapeXml(element.color)}" stroke-opacity="${element.opacity ?? 1}" stroke-width="${element.thickness}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-linejoin="round"`;
+    const style = `fill="${fillColor ? escapeXml(fillColor) : "none"}"${fillColor ? ` fill-opacity="${fillOpacity}"` : ""} stroke="${escapeXml(element.color)}" opacity="${element.opacity ?? 1}" stroke-width="${element.thickness}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-linejoin="round"`;
     if (element.type === "freehand") {
       if (!element.points.length) return "";
       let d = `M ${element.points[0].x} ${element.points[0].y}`;
@@ -1246,12 +1515,12 @@ function App() {
       const last = element.points[element.points.length - 1]; d += ` L ${last.x} ${last.y}`;
       return `<path d="${d}" ${style}/>`;
     }
-    if (element.type === "rectangle") return `<rect x="${Math.min(element.x, element.x + element.w)}" y="${Math.min(element.y, element.y + element.h)}" width="${Math.abs(element.w)}" height="${Math.abs(element.h)}" ${style}/>`;
+    if (element.type === "rectangle") return `<rect x="${Math.min(element.x, element.x + element.w)}" y="${Math.min(element.y, element.y + element.h)}" width="${Math.abs(element.w)}" height="${Math.abs(element.h)}" rx="${element.edgeStyle === "rounded" ? Math.min(14, Math.abs(element.w) / 4, Math.abs(element.h) / 4) : 0}" ${style}/>`;
     if (element.type === "diamond") return `<path d="M ${element.x + element.w / 2} ${element.y} L ${element.x + element.w} ${element.y + element.h / 2} L ${element.x + element.w / 2} ${element.y + element.h} L ${element.x} ${element.y + element.h / 2} Z" ${style}/>`;
     if (element.type === "circle") return `<ellipse cx="${element.x + element.w / 2}" cy="${element.y + element.h / 2}" rx="${Math.abs(element.w / 2)}" ry="${Math.abs(element.h / 2)}" ${style}/>`;
     if (element.type === "flowchart") {
       const detail = flowchartSvgDetailPath(element);
-      const detailStyle = `fill="none" stroke="${escapeXml(element.color)}" stroke-opacity="${element.opacity ?? 1}" stroke-width="${element.thickness}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-linejoin="round"`;
+      const detailStyle = `fill="none" stroke="${escapeXml(element.color)}" opacity="${element.opacity ?? 1}" stroke-width="${element.thickness}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-linejoin="round"`;
       return `<path d="${flowchartSvgPath(element)}" ${style}/>${detail ? `<path d="${detail}" ${detailStyle}/>` : ""}`;
     }
     if (element.type === "line" || element.type === "arrow") {
@@ -1261,9 +1530,9 @@ function App() {
       if (element.type !== "arrow") return paths;
       const headSvg = (tip: Point, direction: number, kind: ArrowHead) => {
         if (kind === "none") return "";
-        if (kind === "dot") return `<circle cx="${tip.x}" cy="${tip.y}" r="${Math.max(3, element.thickness * 1.15)}" fill="${element.color}"/>`;
+        if (kind === "dot") return `<circle cx="${tip.x}" cy="${tip.y}" r="${Math.max(3, element.thickness * 1.15)}" fill="${element.color}" opacity="${element.opacity ?? 1}"/>`;
         const points = arrowHeadPoints(tip, direction, kind, element.thickness); const polygon = points.map((point) => `${point.x},${point.y}`).join(" ");
-        if (kind === "solid" || kind === "thick" || kind === "diamond") return `<polygon points="${polygon}" fill="${element.color}" stroke="${element.color}" stroke-width="${element.thickness}"/>`;
+        if (kind === "solid" || kind === "thick" || kind === "diamond") return `<polygon points="${polygon}" fill="${element.color}" stroke="${element.color}" stroke-width="${element.thickness}" opacity="${element.opacity ?? 1}"/>`;
         if (kind === "open") return `<path d="M ${tip.x} ${tip.y} L ${points[0].x} ${points[0].y} M ${tip.x} ${tip.y} L ${points[1].x} ${points[1].y}" ${style}/>`;
         return `<path d="M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}" ${style}/>`;
       };
@@ -1276,6 +1545,7 @@ function App() {
 
   function pointerDown(event: PointerEvent) {
     if (!activePath()) return;
+    setContextMenu(undefined); if (textDraft()) commitTextDraft();
     if (event.button === 1 || spaceDown() || tool() === "pan") {
       event.preventDefault(); setIsPanning(true); panOrigin = { x: event.clientX, y: event.clientY, panX: canvasState().panX, panY: canvasState().panY }; canvas.setPointerCapture(event.pointerId); return;
     }
@@ -1292,6 +1562,7 @@ function App() {
           ? current.includes(hit) ? current.filter((index) => index !== hit) : [...current, hit]
           : current.includes(hit) ? current : [hit];
         setSelectedIndices(next);
+        setSidebarTab("properties");
         const movable = next.filter((index) => { const element = elements()[index]; return !!element && canMoveElement(element); });
         if (movable.includes(hit)) moveOrigin = { indices: movable, point, before: cloneElements(elements()), moved: false };
       } else {
@@ -1303,14 +1574,14 @@ function App() {
     }
     if (tool() === "text") {
       if (textDraft()) { commitTextDraft(); return; }
-      const hit = hitTest(point); startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined); return;
+      const hit = hitTest(point) ?? hitInterior(point); if (hit !== undefined && isLabelShape(elements()[hit])) editShapeLabel(hit); else startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined); return;
     }
-    if (tool() === "bucket") { const hit = hitInterior(point); if (hit !== undefined) { setSelectedIndices([hit]); updatePropertyForIndex(hit, fillColor()); } return; }
+    if (tool() === "bucket") { const hit = hitInterior(point); if (hit !== undefined) updatePropertyForIndex(hit, fillColor()); return; }
     if (tool() === "eraser") { eraseAtPoint(point); drawing = true; canvas.setPointerCapture(event.pointerId); return; }
     if (tool() === "crop") { const hit = hitTest(point); if (hit !== undefined && elements()[hit].type === "image") { setSelectedIndices([hit]); marqueeOrigin = { point, additive: false, moved: false, cropIndex: hit }; setMarquee({ start: point, end: point }); canvas.setPointerCapture(event.pointerId); } return; }
     drawing = true; canvas.setPointerCapture(event.pointerId);
     activeDrawingTool = tool() as Preview["type"];
-    const start = activeDrawingTool === "pen" ? point : snap(point);
+    const start = activeDrawingTool === "line" || activeDrawingTool === "arrow" ? nearestBinding(elements(), point, 18 / canvasState().zoom)?.point ?? snap(point) : activeDrawingTool === "pen" ? point : snap(point);
     if (activeDrawingTool === "pen") { currentPoints = [point]; setPreview({ type: "pen", start: point, end: point, color: color(), thickness: thickness() }); }
     else setPreview({ type: activeDrawingTool, start, end: start, color: color(), thickness: thickness(), ...(activeDrawingTool === "flowchart" ? { flowchartShape: flowchartShape() } : {}), ...(activeDrawingTool === "line" ? { lineRoute: lineRoute() } : {}), ...(activeDrawingTool === "arrow" ? { arrowRoute: arrowRoute() } : {}) });
   }
@@ -1345,7 +1616,7 @@ function App() {
       return;
     }
     if (tool() === "eraser") { eraseAtPoint(toWorld(event)); return; }
-    const raw = toWorld(event); const point = activeDrawingTool === "pen" ? raw : snap(raw);
+    const raw = toWorld(event); const port = activeDrawingTool === "line" || activeDrawingTool === "arrow" ? nearestBinding(elements(), raw, 18 / canvasState().zoom) : undefined; setAttachmentHint(port?.point); const point = port?.point ?? (activeDrawingTool === "pen" ? raw : snap(raw));
     if (activeDrawingTool === "pen") currentPoints.push(point);
     setPreview((previous) => previous ? { ...previous, end: point } : undefined);
   }
@@ -1354,6 +1625,7 @@ function App() {
     if (element.locked) return element;
     if (element.type === "group") return { ...element, elements: element.elements.map((child) => moveElement(child, dx, dy)) };
     if (element.type === "freehand") return { ...element, points: element.points.map((point) => ({ x: point.x + dx, y: point.y + dy })) };
+    if (isConnector(element)) return { ...element, x: element.x + dx, y: element.y + dy, routePoints: element.routePoints?.map(p => ({ x: p.x + dx, y: p.y + dy })) };
     return { ...element, x: element.x + dx, y: element.y + dy };
   }
 
@@ -1386,12 +1658,19 @@ function App() {
   }
 
   function hitInterior(point: Point): number | undefined {
+    const context = canvas?.getContext("2d"); if (!context) return undefined;
     for (let index = elements().length - 1; index >= 0; index--) {
-      const element = elements()[index]; if (element.hidden || element.locked) continue;
-      if (element.type === "rectangle" && point.x >= Math.min(element.x, element.x + element.w) && point.x <= Math.max(element.x, element.x + element.w) && point.y >= Math.min(element.y, element.y + element.h) && point.y <= Math.max(element.y, element.y + element.h)) return index;
-      if (element.type === "circle") { const rx = Math.abs(element.w / 2); const ry = Math.abs(element.h / 2); if (rx && ry && ((point.x - element.x - element.w / 2) / rx) ** 2 + ((point.y - element.y - element.h / 2) / ry) ** 2 <= 1) return index; }
-      if (element.type === "diamond") { const left = Math.min(element.x, element.x + element.w); const right = Math.max(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const bottom = Math.max(element.y, element.y + element.h); if (pointInPolygon(point, [{ x: (left + right) / 2, y: top }, { x: right, y: (top + bottom) / 2 }, { x: (left + right) / 2, y: bottom }, { x: left, y: (top + bottom) / 2 }])) return index; }
-      if (element.type === "flowchart") { const context = canvas?.getContext("2d"); if (context) { context.save(); context.setTransform(1, 0, 0, 1, 0, 0); traceFlowchart(context, element.flowchartShape ?? "process", element.x, element.y, element.w, element.h); const inside = context.isPointInPath(point.x, point.y); context.restore(); if (inside) return index; } }
+      const shape = elements()[index]; if (!isLabelShape(shape) || shape.hidden || shape.locked) continue;
+      const cx = shape.x + shape.w / 2; const cy = shape.y + shape.h / 2; const angle = -(shape.rotation ?? 0) * Math.PI / 180;
+      const local = { x: cx + (point.x - cx) * Math.cos(angle) - (point.y - cy) * Math.sin(angle), y: cy + (point.x - cx) * Math.sin(angle) + (point.y - cy) * Math.cos(angle) };
+      context.save(); context.setTransform(1, 0, 0, 1, 0, 0); context.beginPath();
+      const left = Math.min(shape.x, shape.x + shape.w); const top = Math.min(shape.y, shape.y + shape.h); const width = Math.abs(shape.w); const height = Math.abs(shape.h);
+      if (shape.type === "circle") context.ellipse(cx, cy, width / 2, height / 2, 0, 0, Math.PI * 2);
+      else if (shape.type === "diamond") { context.moveTo(cx, top); context.lineTo(left + width, cy); context.lineTo(cx, top + height); context.lineTo(left, cy); context.closePath(); }
+      else if (shape.type === "flowchart") traceFlowchart(context, shape.flowchartShape ?? "process", shape.x, shape.y, shape.w, shape.h);
+      else if (shape.edgeStyle === "rounded") context.roundRect(left, top, width, height, Math.min(14, width / 4, height / 4));
+      else context.rect(left, top, width, height);
+      const inside = context.isPointInPath(local.x, local.y); context.restore(); if (inside) return index;
     }
     return undefined;
   }
@@ -1406,6 +1685,7 @@ function App() {
   }
 
   function pointerUp() {
+    setAttachmentHint(undefined);
     if (panOrigin) { panOrigin = undefined; setIsPanning(false); return; }
     if (marqueeOrigin) {
       const activeMarquee = marquee();
@@ -1427,6 +1707,7 @@ function App() {
           if (bounds.x >= box.x && bounds.y >= box.y && bounds.x + bounds.w <= box.x + box.w && bounds.y + bounds.h <= box.y + box.h) overlaps.push(index);
         });
         setSelectedIndices(marqueeOrigin.additive ? [...new Set([...selectedIndices(), ...overlaps])] : overlaps);
+        setSidebarTab("properties");
       }
       marqueeOrigin = undefined; setMarquee(undefined); return;
     }
@@ -1440,6 +1721,7 @@ function App() {
         ? { type: "freehand", points: [...currentPoints], color: activePreview.color, thickness: activePreview.thickness }
         : { type: activePreview.type, x: activePreview.start.x, y: activePreview.start.y, w: activePreview.end.x - activePreview.start.x, h: activePreview.end.y - activePreview.start.y, color: activePreview.color, thickness: activePreview.thickness, lineStyle: lineStyle(), edgeStyle: edgeStyle(), flowchartShape: activePreview.type === "flowchart" ? activePreview.flowchartShape : undefined, lineRoute: activePreview.type === "line" ? activePreview.lineRoute : undefined, arrowRoute: activePreview.type === "arrow" ? activePreview.arrowRoute : undefined, ...(fillEnabled() && (activePreview.type === "rectangle" || activePreview.type === "circle" || activePreview.type === "diamond" || activePreview.type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(activePreview.type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead() } : {}) } as ShapeElement;
       const valid = activePreview.type === "pen" ? currentPoints.length > 0 : Math.hypot(activePreview.end.x - activePreview.start.x, activePreview.end.y - activePreview.start.y) > 1;
+      if (isConnector(item)) { item.startBinding = nearestBinding(elements(), activePreview.start, 18 / canvasState().zoom)?.binding; item.endBinding = nearestBinding(elements(), activePreview.end, 18 / canvasState().zoom)?.binding; }
       if (valid) { pushUndo(cloneElements(elements())); setElements((items) => [...items, item]); setDirty(true); }
     }
     currentPoints = []; setPreview(undefined);
@@ -1463,7 +1745,10 @@ function App() {
   const swatches = ["#252525", "#e76b62", "#6b91c9", "#74a582", "#d8a448", "#a581bb", "#e5915b"];
   const updateTextDraft = (value: string) => setTextDraft((draft) => draft ? { ...draft, value } : undefined);
   const setTextFormat = (property: "bold" | "italic" | "underline" | "textAlign" | "listType" | "fontSize" | "fontFamily", value: boolean | string | number) => {
-    if (selectedText()) updateProperty(property, value);
+    if (boardLocked() || focusedElement()?.locked) return;
+    if (property === "fontSize" && (!Number.isFinite(Number(value)) || Number(value) < 8 || Number(value) > 160)) return;
+    if (focusedElement() && isLabelShape(focusedElement()!)) updateLabel(property, value);
+    else if (selectedText() && !textDraft()) updateProperty(property, value);
     else {
       if (property === "bold") setDefaultBold(Boolean(value)); else if (property === "italic") setDefaultItalic(Boolean(value)); else if (property === "underline") setDefaultUnderline(Boolean(value));
       else if (property === "textAlign") setDefaultTextAlign(value as "left" | "center" | "right"); else if (property === "listType") setDefaultListType(value as "none" | "bullet" | "number");
@@ -1471,55 +1756,91 @@ function App() {
     }
     setTextDraft((draft) => draft ? { ...draft, [property]: value } : undefined);
   };
-  const rotateSelection = (delta: number) => { if (boardLocked()) return; const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (!item || item.locked || item.type === "group") return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: (element.rotation ?? 0) + delta } as Element : element)); pushUndo(before); setDirty(true); };
+  const rotateSelection = (delta: number) => { if (boardLocked()) return; const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (!item || item.locked || item.type === "group" || isConnector(item)) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: (element.rotation ?? 0) + delta } as Element : element)); pushUndo(before); setDirty(true); };
   const resetSelectionRotation = () => { const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (boardLocked() || !item || item.locked || item.type === "group" || (item.rotation ?? 0) === 0) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: 0 } as Element : element)); pushUndo(before); setDirty(true); };
   const closeSystemMenu = (action: () => void) => { if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; action(); };
-  const activateTool = (next: Tool) => { const chosen = tool() === next && next !== "select" ? "select" : next; setTool(chosen); if (chosen !== "select" && chosen !== "pan") setSelectedIndices([]); };
+  const toggleSidebar = () => {
+    if (!sidebarOpen()) { setSidebarOpen(true); if (tool() === "select" && selectedIndices().length === 0) setSidebarTab("layers"); return; }
+    if (tool() === "select" && selectedIndices().length === 0 && sidebarTab() !== "layers") { setSidebarTab("layers"); return; }
+    setSidebarOpen(false);
+  };
+  const activateTool = (next: Tool) => { commitTextDraft(); setOpenToolOptions(undefined); const chosen = tool() === next && next !== "select" ? "select" : next; setTool(chosen); if (chosen !== "select" && chosen !== "pan") { setSelectedIndices([]); setSidebarTab("properties"); } };
   return (
     <main class={`app-shell theme-${theme()}`}>
       <header class="topbar">
         <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span>{activePath() ? fileName() : "SketchDraw"}</span></div></div>
         <nav class="app-menus" aria-label="Application menus">
           <details class="menu-dropdown" ref={menu}><summary>File<svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{activePath() ? fileName() : "No file open"}</div>
-            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); else void saveAs(); })}>Save <kbd>Ctrl+S</kbd></button><button onClick={() => closeSystemMenu(() => void saveAs())}>Save as...</button><button onClick={() => closeSystemMenu(() => void importImage())}>Import image...</button><div class="menu-separator" /><button onClick={() => closeSystemMenu(() => openExportOptions("png"))}>Export PNG...</button><button onClick={() => closeSystemMenu(() => openExportOptions("pdf"))}>Export PDF...</button><button onClick={() => closeSystemMenu(() => void exportAs("svg"))}>Export SVG...</button><button disabled={!elements().length || boardLocked()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button>
+            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); else void saveAs(); })}>Save <kbd>Ctrl+S</kbd></button><button onClick={() => closeSystemMenu(() => void saveAs())}>Save as...</button><button onClick={() => closeSystemMenu(() => void importImage())}>Import image...</button><div class="menu-separator" /><button onClick={() => closeSystemMenu(() => openExportOptions("png"))}>Export PNG...</button><button onClick={() => closeSystemMenu(() => openExportOptions("pdf"))}>Export PDF...</button><button onClick={() => closeSystemMenu(() => openExportOptions("svg"))}>Export SVG...</button><button disabled={!elements().length || boardLocked()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button>
           </div></details>
           <details class="menu-dropdown" ref={viewMenu}><summary>View<svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover view-popover"><span class="menu-section-title">Appearance</span><div class="theme-options"><button class={themeMode() === "system" ? "active" : ""} onClick={() => closeSystemMenu(() => setThemePreference("system"))} title="Use system theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z"/></svg><span>System</span></button><button class={themeMode() === "light" ? "active" : ""} onClick={() => closeSystemMenu(() => setThemePreference("light"))} title="Light theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Light</span></button><button class={themeMode() === "dark" ? "active" : ""} onClick={() => closeSystemMenu(() => setThemePreference("dark"))} title="Dark theme"><svg viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5z"/></svg><span>Dark</span></button></div><div class="menu-separator" /><span class="menu-section-title">Whiteboard</span><div class="view-colors"><button class={`board-auto-button ${boardColorFollowsTheme() ? "active" : ""}`} title="Match the canvas to the active theme" disabled={boardLocked()} onClick={() => closeSystemMenu(() => { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); })}>Auto</button>{BOARD_COLORS.map((value) => <button class={`color-swatch ${!boardColorFollowsTheme() && boardColor() === value ? "active" : ""}`} style={{ background: value }} aria-label={`Whiteboard ${value}`} title={value} disabled={boardLocked()} onClick={() => closeSystemMenu(() => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } })} />)}<label class="custom-color-swatch" title="Custom whiteboard color"><input aria-label="Custom whiteboard color" type="color" value={renderedBoardColor()} disabled={boardLocked()} onInput={(event) => { if (!boardLocked()) { setBoardColor(event.currentTarget.value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: event.currentTarget.value, boardColorFollowsTheme: false }); setDirty(true); } }} /></label></div></div></details>
         </nav>
-        <div class="canvas-toolbar" aria-label="Canvas actions"><button class={`header-control ${showGrid() ? "active" : ""}`} title="Toggle grid (G)" aria-label="Toggle grid (G)" onClick={() => setShowGrid((visible) => !visible)}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 4v16"/></svg><kbd>G</kbd></button><button class={`header-control ${snapToObjects() ? "active" : ""}`} title="Snap to other objects (Shift+O)" aria-label="Snap to other objects (Shift+O)" onClick={() => setSnapToObjects((enabled) => !enabled)}><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 14h5v5h-5zM10 7.5h4M16.5 10v4"/></svg><kbd>⇧O</kbd></button><button class={`header-control ${snapToGrid() ? "active" : ""}`} title="Toggle snap to grid (Shift+G)" aria-label="Toggle snap to grid (Shift+G)" onClick={() => setSnapToGrid((enabled) => !enabled)}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8v8H8z"/></svg><kbd>⇧G</kbd></button><button class="header-control" disabled={!canUndo() || boardLocked()} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" onClick={undo}><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg><kbd>Ctrl Z</kbd></button><button class="header-control" disabled={!canRedo() || boardLocked()} title="Redo (Ctrl/Cmd+Y)" aria-label="Redo" onClick={redo}><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5m4-5h-8a6 6 0 0 0-6 6"/></svg><kbd>Ctrl Y</kbd></button><button class={`header-control group-control ${groupSelected() ? "active" : ""}`} disabled={!groupActionEnabled() || boardLocked()} title="Group / ungroup (Ctrl/Cmd+G)" aria-label="Group or ungroup" onClick={groupSelection}><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="9" height="9" rx="1.5"/><rect x="11.5" y="11" width="9" height="9" rx="1.5"/></svg><kbd>Ctrl G</kbd></button><button class={`header-control ${boardLocked() ? "active" : ""}`} title="Toggle canvas lock (K)" aria-label="Toggle canvas lock" onClick={() => setBoardLocked((locked) => !locked)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button><button class="header-control reset-zoom" title="Center drawing and reset zoom to 100% (0)" aria-label={`Center drawing and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button></div>
-        <div class="top-actions"><span class={`save-status ${saving() ? "is-saving" : dirty() ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div>
+        <div class="canvas-toolbar" aria-label="Canvas actions"><button class="header-control" title="Fit drawing (1)" aria-label="Fit drawing" onClick={() => fitDocumentToViewport(elements())}><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8h8v8H8z"/></svg><kbd>1</kbd></button><button class="header-control" disabled={!selectedIndices().length} title="Zoom to selection (2)" aria-label="Zoom to selection" onClick={() => fitDocumentToViewport(selectedElements())}><svg viewBox="0 0 24 24"><path d="M3 3h7M3 3v7m18-7h-7m7-0v7M3 21h7m-7 0v-7m18 7h-7m7 0v-7"/><circle cx="12" cy="12" r="3"/></svg><kbd>2</kbd></button><button class={`header-control ${showGrid() ? "active" : ""}`} title="Toggle grid (G)" aria-label="Toggle grid (G)" onClick={() => setShowGrid((visible) => !visible)}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 4v16"/></svg><kbd>G</kbd></button><button class={`header-control ${snapToObjects() ? "active" : ""}`} title="Snap to other objects (Shift+O)" aria-label="Snap to other objects (Shift+O)" onClick={() => setSnapToObjects((enabled) => !enabled)}><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 14h5v5h-5zM10 7.5h4M16.5 10v4"/></svg><kbd>⇧O</kbd></button><button class={`header-control ${snapToGrid() ? "active" : ""}`} title="Toggle snap to grid (Shift+G)" aria-label="Toggle snap to grid (Shift+G)" onClick={() => setSnapToGrid((enabled) => !enabled)}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8v8H8z"/></svg><kbd>⇧G</kbd></button><button class="header-control" disabled={!canUndo() || boardLocked()} title="Undo (Ctrl/Cmd+Z)" aria-label="Undo" onClick={undo}><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg><kbd>Ctrl Z</kbd></button><button class="header-control" disabled={!canRedo() || boardLocked()} title="Redo (Ctrl/Cmd+Y)" aria-label="Redo" onClick={redo}><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5m4-5h-8a6 6 0 0 0-6 6"/></svg><kbd>Ctrl Y</kbd></button><button class={`header-control group-control ${groupSelected() ? "active" : ""}`} disabled={!groupActionEnabled() || boardLocked()} title="Group / ungroup (Ctrl/Cmd+G)" aria-label="Group or ungroup" onClick={groupSelection}><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="9" height="9" rx="1.5"/><rect x="11.5" y="11" width="9" height="9" rx="1.5"/></svg><kbd>Ctrl G</kbd></button><button class={`header-control ${boardLocked() ? "active" : ""}`} title="Toggle canvas lock (K)" aria-label="Toggle canvas lock" onClick={() => setBoardLocked((locked) => !locked)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button><button class="header-control reset-zoom" title="Center drawing and reset zoom to 100% (0)" aria-label={`Center drawing and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button></div>
+        <div class="top-actions"><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div>
       </header>
       <Show when={activePath()} fallback={<section class="welcome-screen"><div class="welcome-card"><div class="welcome-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg></div><p class="eyebrow">A quiet place to think</p><h1>Make space for<br /><em>your next idea.</em></h1><p class="welcome-copy">A simple, private canvas saved as a file on your device. Keep it in any folder, including your cloud drive.</p><div class="welcome-actions"><button class="save-button large" onClick={createFile}>Create new file <span aria-hidden="true">→</span></button><button class="quiet-button large" onClick={openFile}>Open a sketch</button></div><div class="file-hint"><span class="file-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span><span><strong>Your work stays yours</strong><br />Saved locally as a portable .sketch file.</span></div></div><div class="recent-dashboard"><div class="recent-heading"><span class="eyebrow">FILE BROWSER</span><h2>Recent sketches</h2></div><Show when={recentFiles().length > 0} fallback={<div class="recent-empty"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg><strong>No recent sketches yet</strong><span>Open a .sketch file or create a new one.</span><button class="quiet-button" onClick={openFile}>Browse for a file</button></div>}><div class="recent-list">{recentFiles().map((path) => <button class="recent-file" onClick={() => void loadFile(path)}><span class="recent-file-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span><span class="recent-file-name">{path.split(/[\\/]/).pop()}</span><span class="recent-file-path">{path}</span><span class="recent-open">Open →</span></button>)}</div></Show></div></section>}>
         <>
           <section class="canvas-wrap" ref={canvasWrap}>
-            <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() ? "not-allowed" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); }} onDblClick={(event) => { if (boardLocked()) return; event.preventDefault(); const rect = canvas.getBoundingClientRect(); const view = canvasState(); const point = { x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom }; const hit = hitTest(point); startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined); }} onContextMenu={(event) => event.preventDefault()} />
-            <nav class="page-tabs" aria-label="Sketch pages"><div class="page-tab-list">{pages().map((page) => <button class={`page-tab ${page.id === activePageId() ? "active" : ""}`} title={page.name} onClick={() => switchPage(page.id)} onDblClick={() => { if (boardLocked()) return; const name = window.prompt("Rename page", page.name)?.trim(); if (name) { setPages((items) => items.map((item) => item.id === page.id ? { ...item, name: name.slice(0, 80) } : item)); setDirty(true); } }}>{page.name}</button>)}</div><button class="page-tab-add" title="Add page" aria-label="Add page" disabled={boardLocked() || pages().length >= 100} onClick={addPage}>+</button><button class="page-tab-delete" title="Delete current page" aria-label="Delete current page" disabled={boardLocked() || pages().length <= 1} onClick={() => { if (window.confirm(`Delete “${currentPage()?.name ?? "Page"}”?`)) deleteCurrentPage(); }}>×</button></nav>
+            <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() ? "not-allowed" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { if (resizeOrigin) setElements(resizeOrigin.before); if (moveOrigin) setElements(moveOrigin.before); drawing = false; setPreview(undefined); setMarquee(undefined); setAttachmentHint(undefined); resizeOrigin = undefined; moveOrigin = undefined; marqueeOrigin = undefined; panOrigin = undefined; setIsPanning(false); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); }} onDblClick={(event) => { if (boardLocked()) return; event.preventDefault(); const rect = canvas.getBoundingClientRect(); const view = canvasState(); const point = { x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom }; const hit = hitTest(point) ?? hitInterior(point); if (hit !== undefined && isLabelShape(elements()[hit])) editShapeLabel(hit); else startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined); }} onContextMenu={onContextMenu} />
+            <nav class="page-tabs" aria-label="Sketch pages">
+              <div class="page-tab-list">{pages().map((page, index) => <button class={`page-tab ${page.id === activePageId() ? "active" : ""}`} aria-current={page.id === activePageId() ? "page" : undefined} title={`${page.name} — double-click to rename`} onClick={() => switchPage(page.id)} onDblClick={() => { switchPage(page.id); openPageDialog("rename"); }}><small>{index + 1}</small> {page.name}</button>)}</div>
+              <button title="Add page" aria-label="Add page" disabled={boardLocked() || pages().length >= 100} onClick={addPage}>+</button>
+              <details class="page-menu"><summary aria-label="Page actions">•••</summary><div class="page-actions" onClick={event => { const parent = event.currentTarget.parentElement as HTMLDetailsElement; parent.open = false; }}>
+                <button disabled={boardLocked()} onClick={() => openPageDialog("rename")}>Rename page</button><button disabled={boardLocked() || pages().length >= 100} onClick={duplicatePage}>Duplicate page</button>
+                <button disabled={boardLocked() || pages()[0]?.id === activePageId()} onClick={() => reorderPage(-1)}>Move page left</button><button disabled={boardLocked() || pages()[pages().length - 1]?.id === activePageId()} onClick={() => reorderPage(1)}>Move page right</button>
+                <button disabled={boardLocked() || pages().length <= 1} onClick={() => openPageDialog("delete")}>Delete page…</button>
+              </div></details>
+            </nav>
             <Show when={toolBarOpen()} fallback={<button class="tool-deck-reopen" title="Show tools" aria-label="Show tools" onClick={() => setToolBarOpen(true)}><svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></svg></button>}><nav class="tool-deck" aria-label="Canvas tools">{tools.map(({ value, label, key, path }) => { const active = tool() === value || (value === "pan" && spaceDown()); const hasOptions = value === "flowchart" || value === "line" || value === "arrow"; const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${hasOptions ? "has-options" : ""}`} title={`${label} (${key})${hasOptions ? " · hover for more options" : ""}`} aria-label={label} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} onClick={() => activateTool(value)}><svg viewBox="0 0 24 24" aria-hidden="true">{value === "flowchart" ? <><path d="M12 8v3m0 3v2m-1.5-5h3"/><rect x="9.5" y="2.5" width="5" height="5" rx="1"/><path d="m12 14 3 3-3 3-3-3z"/><rect x="9.5" y="15.5" width="5" height="5" rx="1"/></> : <path d={path} />}</svg><kbd>{key}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
-              if (value === "flowchart") return <div class="tool-family flowchart-family">{button}<div class="tool-options flowchart-options" role="menu" aria-label="Flowchart symbols">{FLOWCHART_SHAPES.map((shape) => <button class={flowchartShape() === shape.value ? "active" : ""} role="menuitem" title={shape.label} aria-label={shape.label} onClick={() => { setFlowchartShape(shape.value); setTool("flowchart"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div></div>;
-              if (value === "line") return <div class="tool-family route-family">{button}<div class="tool-options route-options" role="menu" aria-label="Line routes">{LINE_ROUTES.map((route) => <button class={lineRoute() === route.value ? "active" : ""} role="menuitem" title={route.label} aria-label={route.label} onClick={() => { setLineRoute(route.value); setTool("line"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><span>{route.label}</span></button>)}</div></div>;
-              if (value === "arrow") return <div class="tool-family route-family">{button}<div class="tool-options route-options" role="menu" aria-label="Arrow routes">{ARROW_ROUTES.map((route) => <button class={arrowRoute() === route.value ? "active" : ""} role="menuitem" title={route.label} aria-label={route.label} onClick={() => { setArrowRoute(route.value); setTool("arrow"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><span>{route.label}</span></button>)}</div></div>;
+              if (value === "flowchart") return <div class="tool-family flowchart-family" classList={{ "options-open": openToolOptions() === value }} onMouseEnter={() => setOpenToolOptions(value)} onMouseLeave={() => setOpenToolOptions(undefined)}>{button}<button class="family-expander" title="More options" aria-label={`More ${label.toLowerCase()} options`} aria-expanded={openToolOptions() === value} onClick={() => setOpenToolOptions(openToolOptions() === value ? undefined : value)}><svg viewBox="0 0 12 12"><path d="m3 4 3 3 3-3" /></svg></button><div class="tool-options flowchart-options" role="menu" aria-label="Flowchart symbols">{FLOWCHART_SHAPES.map((shape) => <button class={flowchartShape() === shape.value ? "active" : ""} role="menuitem" title={shape.label} aria-label={shape.label} onClick={() => { setOpenToolOptions(undefined); setFlowchartShape(shape.value); setTool("flowchart"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div></div>;
+              if (value === "line") return <div class="tool-family route-family" classList={{ "options-open": openToolOptions() === value }} onMouseEnter={() => setOpenToolOptions(value)} onMouseLeave={() => setOpenToolOptions(undefined)}>{button}<button class="family-expander" title="More options" aria-label={`More ${label.toLowerCase()} options`} aria-expanded={openToolOptions() === value} onClick={() => setOpenToolOptions(openToolOptions() === value ? undefined : value)}><svg viewBox="0 0 12 12"><path d="m3 4 3 3 3-3" /></svg></button><div class="tool-options route-options" role="menu" aria-label="Line routes">{LINE_ROUTES.map((route) => <button class={lineRoute() === route.value ? "active" : ""} role="menuitem" title={route.label} aria-label={route.label} onClick={() => { setOpenToolOptions(undefined); setLineRoute(route.value); setTool("line"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><span>{route.label}</span></button>)}</div></div>;
+              if (value === "arrow") return <div class="tool-family route-family" classList={{ "options-open": openToolOptions() === value }} onMouseEnter={() => setOpenToolOptions(value)} onMouseLeave={() => setOpenToolOptions(undefined)}>{button}<button class="family-expander" title="More options" aria-label={`More ${label.toLowerCase()} options`} aria-expanded={openToolOptions() === value} onClick={() => setOpenToolOptions(openToolOptions() === value ? undefined : value)}><svg viewBox="0 0 12 12"><path d="m3 4 3 3 3-3" /></svg></button><div class="tool-options route-options" role="menu" aria-label="Arrow routes">{ARROW_ROUTES.map((route) => <button class={arrowRoute() === route.value ? "active" : ""} role="menuitem" title={route.label} aria-label={route.label} onClick={() => { setOpenToolOptions(undefined); setArrowRoute(route.value); setTool("arrow"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><span>{route.label}</span></button>)}</div></div>;
               return button; })}<button class="tool-collapse" title="Hide tools" aria-label="Hide tools" onClick={() => setToolBarOpen(false)}><svg viewBox="0 0 24 24"><path d="m7 14 5-5 5 5" /></svg></button></nav></Show>
-            <button class={`sidebar-toggle ${sidebarOpen() ? "open" : "closed"}`} title={sidebarOpen() ? "Collapse sidebar" : "Expand sidebar"} aria-label={sidebarOpen() ? "Collapse sidebar" : "Expand sidebar"} onClick={() => setSidebarOpen((value) => !value)}><svg viewBox="0 0 24 24"><path d={sidebarOpen() ? "m14 5-7 7 7 7" : "m10 5 7 7-7 7"} /></svg></button>
-            <aside class={`style-pane ${sidebarOpen() ? "" : "collapsed"}`} aria-label="Properties and layers">
+            <button class={`sidebar-toggle ${sidebarVisible() ? "open" : "closed"}`} title={sidebarVisible() ? "Collapse sidebar" : "Show contextual properties or layers"} aria-label={sidebarVisible() ? "Collapse sidebar" : "Show contextual properties or layers"} onClick={toggleSidebar}><svg viewBox="0 0 24 24"><path d={sidebarVisible() ? "m14 5-7 7 7 7" : "m10 5 7 7-7 7"} /></svg></button>
+            <Show when={sidebarVisible()}><aside class="style-pane" aria-label="Properties and layers">
               <nav class="sidebar-tabs"><button class={sidebarTab() === "properties" ? "active" : ""} onClick={() => setSidebarTab("properties")}>Properties</button><button class={sidebarTab() === "layers" ? "active" : ""} onClick={() => setSidebarTab("layers")}>Layers <span>{elements().length}</span></button></nav>
               <Show when={sidebarTab() === "properties"}>
-                <section class="pane-section"><div class="pane-heading">Stroke color</div><div class="swatch-list stroke-swatches">{swatches.map((swatch) => <button class={`color-swatch ${selectedColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Set color ${swatch}`} title={swatch} onClick={() => updateStrokeColor(swatch)} />)}<label class="custom-color-swatch stroke-custom-swatch" title="Custom stroke color"><input aria-label="Custom stroke color" type="color" value={selectedColor()} onInput={(event) => updateStrokeColor(event.currentTarget.value)} /></label></div></section>
-                <Show when={focusedElement()?.type !== "text" && focusedElement()?.type !== "image"}><section class="pane-section"><div class="pane-heading">Stroke width <span>{selectedThickness()} px</span></div><div class="preset-list">{([[1, "Ultra-thin"], [2, "Thin"], [4, "Default"], [5, "Medium"], [10, "Bold"]] as const).map(([value, label]) => <button class={`preset-button ${selectedThickness() === value ? "active" : ""}`} onClick={() => updateThickness(value)} title={`${label}, ${value}px`}><span class="stroke-indicator" style={{ height: `${Math.max(1, value)}px` }} /><small>{label}</small><small>{value}px</small></button>)}</div><button class="advanced-toggle" aria-expanded={showAdvancedThickness()} onClick={() => setShowAdvancedThickness((visible) => !visible)}>Custom width <span>{showAdvancedThickness() ? "−" : "+"}</span></button><Show when={showAdvancedThickness()}><input class="pane-slider" aria-label="Custom stroke thickness" type="range" min="1" max="24" value={selectedThickness()} onInput={(event) => updateThickness(Number(event.currentTarget.value))} /></Show></section></Show>
-                <Show when={tool() === "text" || selectedText()}><section class="pane-section"><div class="pane-heading">Text formatting</div><div class="format-row"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button></div><label class="property-label">Font size<input type="number" min="8" max="160" value={selectedText()?.fontSize ?? defaultFontSize()} onInput={(event) => setTextFormat("fontSize", Number(event.currentTarget.value))} /></label><div class="property-label">Font family<div class="choice-deck"><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "sans" ? "active" : ""} title="Modern sans-serif" aria-label="Modern sans-serif font" onClick={() => setTextFormat("fontFamily", "sans")}><span class="font-sans-icon">Aa</span><small>Sans</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""} title="Handwritten font" aria-label="Handwritten font" onClick={() => setTextFormat("fontFamily", "hand")}><span class="font-hand-icon">Aa</span><small>Hand</small></button></div></div><div class="property-label">Alignment<div class="choice-deck compact"><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "left" ? "active" : ""} title="Align left" aria-label="Align left" onClick={() => setTextFormat("textAlign", "left")}><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "center" ? "active" : ""} title="Align center" aria-label="Align center" onClick={() => setTextFormat("textAlign", "center")}><svg viewBox="0 0 24 24"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "right" ? "active" : ""} title="Align right" aria-label="Align right" onClick={() => setTextFormat("textAlign", "right")}><svg viewBox="0 0 24 24"><path d="M4 5h16M9 10h11M4 15h16M9 20h11"/></svg></button></div></div><div class="property-label">Paragraphs<div class="choice-deck compact"><button class={(selectedText()?.listType ?? defaultListType()) === "none" ? "active" : ""} title="Plain paragraphs" aria-label="Plain paragraphs" onClick={() => setTextFormat("listType", "none")}><svg viewBox="0 0 24 24"><path d="M5 6h15M5 12h15M5 18h15"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "bullet" ? "active" : ""} title="Bulleted list" aria-label="Bulleted list" onClick={() => setTextFormat("listType", "bullet")}><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "number" ? "active" : ""} title="Numbered list" aria-label="Numbered list" onClick={() => setTextFormat("listType", "number")}><svg viewBox="0 0 24 24"><path d="M4 5h2v3M4 8h3M4 12h3l-3 3h3M10 6h10M10 12h10M10 18h10"/></svg></button></div></div></section></Show>
+                <Show when={showStrokeControls()}><section class="pane-section"><div class="pane-heading">{tool() === "text" || focusedElement()?.type === "text" ? "Text color" : "Stroke color"}</div><div class="swatch-list stroke-swatches">{swatches.map((swatch) => <button class={`color-swatch ${selectedColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Set color ${swatch}`} title={swatch} onClick={() => updateStrokeColor(swatch)} />)}<label class="custom-color-swatch stroke-custom-swatch" title="Custom stroke color"><input aria-label="Custom stroke color" type="color" value={selectedColor()} onInput={(event) => updateStrokeColor(event.currentTarget.value)} /></label></div></section></Show>
+                <Show when={showThicknessControls()}><section class="pane-section"><div class="pane-heading">Stroke width <span>{selectedThickness()} px</span></div><div class="preset-list">{([[1, "Ultra-thin"], [2, "Thin"], [5, "Medium"], [10, "Bold"]] as const).map(([value, label]) => <button class={`preset-button ${selectedThickness() === value ? "active" : ""}`} onClick={() => updateThickness(value)} title={`${label}, ${value}px`}><span class="stroke-indicator" style={{ height: `${Math.max(1, value)}px` }} /><small>{label}</small><small>{value}px</small></button>)}</div><button class="advanced-toggle" aria-expanded={showAdvancedThickness()} onClick={() => setShowAdvancedThickness((visible) => !visible)}>Custom width <span>{showAdvancedThickness() ? "−" : "+"}</span></button><Show when={showAdvancedThickness()}><input class="pane-slider" aria-label="Custom stroke thickness" type="range" min="1" max="24" value={selectedThickness()} onInput={(event) => updateThickness(Number(event.currentTarget.value))} /></Show></section></Show>
+                <Show when={tool() === "text" || selectedText() || focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Text formatting</div><div class="format-row"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button></div><label class="property-label">Font size<input type="number" min="8" max="160" value={selectedText()?.fontSize ?? defaultFontSize()} onInput={(event) => setTextFormat("fontSize", Number(event.currentTarget.value))} /></label><div class="property-label">Font family<div class="choice-deck"><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "sans" ? "active" : ""} title="Modern sans-serif" aria-label="Modern sans-serif font" onClick={() => setTextFormat("fontFamily", "sans")}><span class="font-sans-icon">Aa</span><small>Sans</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""} title="Handwritten font" aria-label="Handwritten font" onClick={() => setTextFormat("fontFamily", "hand")}><span class="font-hand-icon">Aa</span><small>Hand</small></button></div></div><div class="property-label">Alignment<div class="choice-deck compact"><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "left" ? "active" : ""} title="Align left" aria-label="Align left" onClick={() => setTextFormat("textAlign", "left")}><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "center" ? "active" : ""} title="Align center" aria-label="Align center" onClick={() => setTextFormat("textAlign", "center")}><svg viewBox="0 0 24 24"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "right" ? "active" : ""} title="Align right" aria-label="Align right" onClick={() => setTextFormat("textAlign", "right")}><svg viewBox="0 0 24 24"><path d="M4 5h16M9 10h11M4 15h16M9 20h11"/></svg></button></div></div><div class="property-label">Paragraphs<div class="choice-deck compact"><button class={(selectedText()?.listType ?? defaultListType()) === "none" ? "active" : ""} title="Plain paragraphs" aria-label="Plain paragraphs" onClick={() => setTextFormat("listType", "none")}><svg viewBox="0 0 24 24"><path d="M5 6h15M5 12h15M5 18h15"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "bullet" ? "active" : ""} title="Bulleted list" aria-label="Bulleted list" onClick={() => setTextFormat("listType", "bullet")}><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "number" ? "active" : ""} title="Numbered list" aria-label="Numbered list" onClick={() => setTextFormat("listType", "number")}><svg viewBox="0 0 24 24"><path d="M4 5h2v3M4 8h3M4 12h3l-3 3h3M10 6h10M10 12h10M10 18h10"/></svg></button></div></div></section></Show>
+                <Show when={focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Shape label</div>
+                  <button class="quiet-button" disabled={boardLocked() || focusedElement()?.locked} onClick={() => { const index = primarySelection(); if (index !== undefined) editShapeLabel(index); }}>Edit label</button>
+                  <label class="property-label">Font color<input type="color" value={textDraft()?.shapeLabel ? textDraft()!.color : selectedLabel()?.color ?? color()} onInput={event => updateLabel("color", event.currentTarget.value)} /></label>
+                  <div class="property-label">Vertical alignment<div class="choice-deck">{(["top", "middle", "bottom"] as const).map((alignment, index) => <button title={`Align ${alignment}`} aria-label={`Align ${alignment}`} class={(textDraft()?.verticalAlign ?? selectedLabel()?.verticalAlign ?? "middle") === alignment ? "active" : ""} onClick={() => updateLabel("verticalAlign", alignment)}><svg viewBox="0 0 24 24"><path d={`M3 ${index === 0 ? 4 : index === 1 ? 12 : 20}h18M8 ${6 + index * 2}v6m8-6v6`}/></svg><small>{alignment}</small></button>)}</div></div>
+                  <button class={`quiet-button ${selectedText()?.textAlign === "justify" ? "active" : ""}`} onClick={() => setTextFormat("textAlign", "justify")}>Justify text</button><p class="bucket-help">Double-click a shape to edit its label. Text wraps inside the shape.</p>
+                </section></Show>
                 <Show when={tool() === "line" || tool() === "arrow" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "flowchart" || ["line", "arrow", "rectangle", "circle", "diamond", "flowchart"].includes(focusedElement()?.type ?? "")}><section class="pane-section"><div class="pane-heading">Line style</div><div class="choice-deck line-choices"><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "solid" ? "active" : ""} title="Solid line" aria-label="Solid line" onClick={() => focusedElement() ? updateProperty("lineStyle", "solid") : setLineStyle("solid")}><svg viewBox="0 0 24 24"><path d="M3 12h18"/></svg><small>Solid</small></button><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "dashed" ? "active" : ""} title="Dashed line" aria-label="Dashed line" onClick={() => focusedElement() ? updateProperty("lineStyle", "dashed") : setLineStyle("dashed")}><svg viewBox="0 0 24 24" class="dash-icon"><path d="M3 12h18"/></svg><small>Dash</small></button><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "dotted" ? "active" : ""} title="Dotted line" aria-label="Dotted line" onClick={() => focusedElement() ? updateProperty("lineStyle", "dotted") : setLineStyle("dotted")}><svg viewBox="0 0 24 24" class="dot-icon"><path d="M3 12h18"/></svg><small>Dot</small></button><Show when={tool() === "line" || tool() === "arrow" || focusedElement()?.type === "line" || focusedElement()?.type === "arrow"}><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "double" ? "active" : ""} title="Double line" aria-label="Double line" onClick={() => focusedElement() ? updateProperty("lineStyle", "double") : setLineStyle("double")}><svg viewBox="0 0 24 24"><path d="M3 9h18M3 15h18"/></svg><small>Double</small></button></Show></div><Show when={focusedElement()?.type === "rectangle" || tool() === "rectangle"}><div class="property-label">Corners<div class="choice-deck compact"><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "sharp" ? "active" : ""} title="Square corners" aria-label="Square corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "sharp") : setEdgeStyle("sharp")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" ? "active" : ""} title="Rounded corners" aria-label="Rounded corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "rounded") : setEdgeStyle("rounded")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="4"/></svg></button></div></div></Show><Show when={tool() === "arrow" || focusedElement()?.type === "arrow"}><div class="arrow-head-config"><span>Start head</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={((focusedElement() as ShapeElement | undefined)?.startHead ?? defaultStartHead()) === value ? "active" : ""} title={`${label} start`} aria-label={`${label} start head`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("startHead", value) : setDefaultStartHead(value)}><ArrowHeadIcon kind={value} /></button>)}</div><span>End head</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={((focusedElement() as ShapeElement | undefined)?.endHead ?? defaultEndHead()) === value ? "active" : ""} title={`${label} end`} aria-label={`${label} end head`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("endHead", value) : setDefaultEndHead(value)}><ArrowHeadIcon kind={value} /></button>)}</div></div></Show></section></Show>
             <Show when={tool() === "bucket"}><section class="pane-section"><div class="pane-heading">Bucket fill</div><p class="bucket-help">Click a closed shape to apply a solid color.</p><div class="fill-palette">{FILL_SWATCHES.map((swatch) => <button class={`color-swatch ${fillColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Bucket color ${swatch}`} title={`Use ${swatch}`} onClick={() => setFillColor(swatch)} />)}<label class="custom-color-swatch" title="Choose custom bucket color"><input aria-label="Custom bucket color" type="color" value={fillColor()} onInput={(event) => setFillColor(event.currentTarget.value)} /></label></div></section></Show>
             <Show when={tool() === "line" || focusedElement()?.type === "line"}><section class="pane-section"><div class="pane-heading">Line route</div><div class="connector-route-buttons">{LINE_ROUTES.map((route) => <button class={(focusedElement()?.type === "line" ? (focusedElement() as ShapeElement).lineRoute : lineRoute()) === route.value ? "active" : ""} title={route.label} aria-label={`${route.label} line`} onClick={() => focusedElement()?.type === "line" ? updateProperty("lineRoute", route.value) : setLineRoute(route.value)}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><small>{route.label}</small></button>)}</div></section></Show>
 <Show when={tool() === "arrow" || focusedElement()?.type === "arrow"}><section class="pane-section"><div class="pane-heading">Arrow route</div><div class="connector-route-buttons">{ARROW_ROUTES.map((route) => <button class={(focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).arrowRoute : arrowRoute()) === route.value ? "active" : ""} title={route.label} aria-label={`${route.label} arrow`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("arrowRoute", route.value) : setArrowRoute(route.value)}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><small>{route.label}</small></button>)}</div></section></Show><Show when={tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "flowchart" || focusedElement()?.type === "rectangle" || focusedElement()?.type === "circle" || focusedElement()?.type === "diamond" || focusedElement()?.type === "flowchart"}><section class="pane-section"><div class="pane-heading">Fill</div><div class="fill-options"><button class={!(selectedFillColor()) && !fillEnabled() ? "active" : ""} onClick={() => { setFillEnabled(false); if (selectedIndices().length) updateProperty("fillColor", undefined); }}>None</button><button class={fillEnabled() || !!selectedFillColor() ? "active" : ""} onClick={() => { setFillEnabled(true); if (selectedIndices().length) updateProperty("fillColor", fillColor()); }}>Solid</button></div><div class="fill-style-row"><label class="fill-color-chip" title="Fill color"><input aria-label="Fill color" type="color" value={selectedFillColor() ?? fillColor()} onInput={(event) => { const value = event.currentTarget.value; setFillColor(value); if (selectedIndices().length) updateProperty("fillColor", value); }} /></label><label class="fill-opacity-control">Opacity<input aria-label="Fill opacity" type="range" min="5" max="100" value={Math.round(((focusedElement() as ShapeElement | undefined)?.fillOpacity ?? fillOpacity()) * 100)} onInput={(event) => { const value = Number(event.currentTarget.value) / 100; setFillOpacity(value); if (selectedIndices().length) updateProperty("fillOpacity", value); }} /><span>{Math.round(((focusedElement() as ShapeElement | undefined)?.fillOpacity ?? fillOpacity()) * 100)}%</span></label></div></section></Show>
-                <Show when={!!selectedIndices().length}><section class="pane-section"><div class="pane-heading">Selection</div><label class="property-label">Opacity <input disabled={selectedIndices().every((index) => !elements()[index] || elements()[index].locked)} type="range" min="10" max="100" value={Math.round(selectedOpacity() * 100)} onInput={(event) => updateProperty("opacity", Number(event.currentTarget.value) / 100)} /></label><Show when={!groupSelected()}><div class="rotation-controls"><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(-15)} title="Rotate counterclockwise by 15 degrees">−15°</button><button disabled={focusedElement()?.locked} onClick={resetSelectionRotation} title="Reset rotation to zero">Reset 0°</button><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(15)} title="Rotate clockwise by 15 degrees">+15°</button></div></Show></section></Show>
+                <Show when={selectedIndices().length === 1 && !groupSelected()}><section class="pane-section"><div class="pane-heading">Precision</div><div class="precision-grid">{(["x", "y", "w", "h", "rotation"] as const).map(property => <label>{property === "rotation" ? "Angle °" : property.toUpperCase()}<input aria-label={`Selection ${property}`} type="number" step="1" disabled={boardLocked() || focusedElement()?.locked || (!!focusedElement() && isConnector(focusedElement()!) && (property === "w" || property === "h" || property === "rotation"))} value={Math.round((property === "rotation" ? focusedElement()?.rotation ?? 0 : focusedElement() ? elementBounds(focusedElement()!)[property] : 0) * 100) / 100} onChange={event => precision(property, Number(event.currentTarget.value))} /></label>)}</div>
+                  <Show when={focusedElement() && isConnector(focusedElement()!)}><div class="precision-grid">{(["start", "end"] as const).flatMap(end => (["x", "y"] as const).map(axis => <label>{end} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(((focusedElement() as ShapeElement)[axis] + (end === "end" ? (focusedElement() as ShapeElement)[axis === "x" ? "w" : "h"] : 0)) * 100) / 100} onChange={event => setEndpoint(end, axis, Number(event.currentTarget.value))} /></label>))}</div><p class="bucket-help">Drag the circular endpoints to resize or attach. Drag a small route handle to bend the connector.</p><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, startBinding: undefined, endBinding: undefined } : item)}>Detach endpoints</button><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, routePoints: undefined } : item)}>Reset route</button></Show>
+                </section></Show>
+                <Show when={selectedIndices().length > 1}><section class="pane-section"><div class="pane-heading">Align & distribute</div><div class="alignment-grid">{(["left", "center", "right", "top", "middle", "bottom", "horizontal", "vertical"] as const).map(command => <button disabled={boardLocked() || ((command === "horizontal" || command === "vertical") && selectedIndices().length < 3)} title={command === "horizontal" || command === "vertical" ? `Distribute ${command} gaps` : `Align ${command}`} onClick={() => alignSelection(command)}>{command}</button>)}</div></section></Show>
+                <Show when={!!selectedIndices().length}><section class="pane-section"><div class="pane-heading">Selection</div><label class="property-label">Opacity <input disabled={selectedIndices().every((index) => !elements()[index] || elements()[index].locked)} type="range" min="10" max="100" value={Math.round(selectedOpacity() * 100)} onInput={(event) => updateProperty("opacity", Number(event.currentTarget.value) / 100)} /></label><Show when={!groupSelected() && !(focusedElement() && isConnector(focusedElement()!))}><div class="rotation-controls"><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(-15)} title="Rotate counterclockwise by 15 degrees">−15°</button><button disabled={focusedElement()?.locked} onClick={resetSelectionRotation} title="Reset rotation to zero">Reset 0°</button><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(15)} title="Rotate clockwise by 15 degrees">+15°</button></div></Show></section></Show>
                 <Show when={selectedIndices().length > 1 && !groupSelected()}><button class="pane-group-button" onClick={groupSelection}>Group {selectedIndices().length} elements <kbd>Ctrl+G</kbd></button></Show>
               </Show>
               <Show when={sidebarTab() === "layers"}><div class="layer-list">{[...elements().keys()].reverse().map((index) => { const element = elements()[index]; const label = element.type === "text" ? `Text: ${element.text.slice(0, 18) || "Empty"}` : element.type === "group" ? `Group (${element.elements.length})` : element.type[0].toUpperCase() + element.type.slice(1); return <div class={`layer-row ${selectedSet().has(index) ? "selected" : ""}`}><button class="layer-name" onClick={() => setSelectedIndices([index])}>{label}</button><button title="Move layer up" aria-label="Move layer up" onClick={() => moveLayer(index, 1)}>↑</button><button title="Move layer down" aria-label="Move layer down" onClick={() => moveLayer(index, -1)}>↓</button><button title={element.hidden ? "Show layer" : "Hide layer"} aria-label="Toggle layer visibility" onClick={() => toggleLayer(index, "hidden")}>{element.hidden ? "Show" : "Hide"}</button><button title={element.locked ? "Unlock layer" : "Lock layer"} aria-label="Toggle layer lock" onClick={() => toggleLayer(index, "locked")}>{element.locked ? "Unlock" : "Lock"}</button></div>; })}</div></Show>
-            </aside>
-            <Show when={textDraft()}>{(draft) => <div ref={(element) => { textInput = element; requestAnimationFrame(() => { if (textInput && !textInput.innerText) textInput.innerText = draft().value; textInput?.focus(); }); }} class="canvas-text-editor" contentEditable={true} role="textbox" aria-label="Canvas text" aria-multiline="true" data-placeholder="Type here..." style={`left:${canvasState().panX + draft().x * canvasState().zoom}px;top:${canvasState().panY + draft().y * canvasState().zoom}px;width:${Math.max(160, Math.min(480, draft().value.length * 14 + 20))}px;font-size:${draft().fontSize * canvasState().zoom}px;color:${draft().color};opacity:${draft().opacity};font-family:${draft().fontFamily === "hand" ? "cursive" : "'DM Sans',sans-serif"};font-weight:${draft().bold ? 700 : 400};font-style:${draft().italic ? "italic" : "normal"};text-decoration:${draft().underline ? "underline" : "none"};text-align:${draft().textAlign}`} onInput={(event) => updateTextDraft(event.currentTarget.innerText)} onBlur={commitTextDraft} onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape" || (event.key === "Enter" && (event.ctrlKey || event.metaKey))) { event.preventDefault(); commitTextDraft(); if (event.key === "Escape") { setTool("select"); setSelectedIndices([]); setHoveredIndex(undefined); } } }} />}</Show>
+            </aside></Show>
+            <Show when={textDraft()}>{draft => <div class="text-editor-frame" style={{ left: `${canvasState().panX + editorLeft(draft()) * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${editorWidth(draft()) * canvasState().zoom}px`, height: draft().height ? `${draft().height! * canvasState().zoom}px` : undefined, transform: `rotate(${draft().rotation ?? 0}deg)`, "justify-content": draft().verticalAlign === "bottom" ? "flex-end" : draft().verticalAlign === "middle" ? "center" : "flex-start", "font-size": `${draft().fontSize * canvasState().zoom}px`, "font-family": draft().fontFamily === "hand" ? "cursive" : "sans-serif", "font-weight": draft().bold ? 700 : 400, "font-style": draft().italic ? "italic" : "normal", "text-decoration": draft().underline ? "underline" : "none", "text-align": draft().textAlign, color: draft().color, opacity: draft().opacity }}>
+              <div ref={element => { requestAnimationFrame(() => { if (element.isConnected) { element.innerText = draft().value; element.focus(); const range = document.createRange(); range.selectNodeContents(element); range.collapse(false); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); } }); }} class="canvas-text-editor" contentEditable={true} role="textbox" aria-label="Canvas text" aria-multiline="true" data-placeholder="Type here…" onInput={event => updateTextDraft(event.currentTarget.innerText)} onBlur={event => { const next = event.relatedTarget; if (!(next instanceof HTMLElement && next.closest(".style-pane"))) commitTextDraft(); }} onPointerDown={event => event.stopPropagation()} onPaste={event => { event.preventDefault(); const text = event.clipboardData?.getData("text/plain") ?? ""; const selection = window.getSelection(); if (selection?.rangeCount) { const range = selection.getRangeAt(0); range.deleteContents(); const node = document.createTextNode(text); range.insertNode(node); range.setStartAfter(node); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); updateTextDraft(event.currentTarget.innerText); } }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Escape" || (event.key === "Enter" && (event.ctrlKey || event.metaKey))) { event.preventDefault(); commitTextDraft(); if (event.key === "Escape") { setTool("select"); setSelectedIndices([]); setHoveredIndex(undefined); } } }} />
+            </div>}</Show>
             <div class="canvas-help">Wheel to zoom <span>|</span> Hold Space or select the hand tool to pan <span>|</span> V to select and drag to move</div>
           </section>
         </>
       </Show>
-      <Show when={exportOptionsOpen()}><div class="confirm-backdrop"><section class="confirm-dialog export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-title"><h2 id="export-title">Export {exportFormat().toUpperCase()}</h2><p>Choose the output dimensions. Maximum 60 megapixels. PDF is exported as a raster snapshot.</p><div class="export-dimensions"><label>Width<input type="number" min="1" max="12000" value={exportWidth()} onInput={(event) => setExportWidth(Number(event.currentTarget.value))} /></label><span>×</span><label>Height<input type="number" min="1" max="12000" value={exportHeight()} onInput={(event) => setExportHeight(Number(event.currentTarget.value))} /></label></div><Show when={exportFormat() === "png"}><label class="export-transparent"><input type="checkbox" checked={exportTransparent()} onChange={(event) => setExportTransparent(event.currentTarget.checked)} /> Transparent background</label></Show><div><button class="quiet-button" onClick={() => setExportOptionsOpen(false)}>Cancel</button><button class="save-button" onClick={() => { const format = exportFormat(); setExportOptionsOpen(false); void exportAs(format); }}>Export {exportFormat().toUpperCase()}</button></div></section></div></Show>
+      <Show when={contextMenu()}>{position => <div class="canvas-context-menu" role="menu" aria-label="Canvas context menu" style={{ left: `${position().x}px`, top: `${position().y}px` }} onClick={() => setContextMenu(undefined)} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")]; const index = buttons.indexOf(document.activeElement as HTMLButtonElement); buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus(); } }} ref={element => requestAnimationFrame(() => element.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus())}>
+        <button role="menuitem" disabled={!selectedIndices().length} onClick={() => void copySelection()}>Copy <kbd>Ctrl C</kbd></button>
+        <button role="menuitem" disabled={boardLocked()} onClick={() => void pasteSelection(position().world)}>Paste here <kbd>Ctrl V</kbd></button>
+        <button role="menuitem" disabled={boardLocked() || !selectedIndices().length} onClick={() => insertCopies(selectedElements())}>Duplicate <kbd>Ctrl D</kbd></button>
+        <button role="menuitem" disabled={boardLocked() || !groupActionEnabled()} onClick={groupSelection}>{groupSelected() ? "Ungroup" : "Group"} <kbd>Ctrl G</kbd></button>
+        <button role="menuitem" disabled={!selectedIndices().length} onClick={() => fitDocumentToViewport(selectedElements())}>Zoom to selection <kbd>2</kbd></button>
+        <button role="menuitem" onClick={() => fitDocumentToViewport(elements())}>Fit drawing <kbd>1</kbd></button>
+        <button role="menuitem" disabled={!selectedIndices().length} onClick={() => { setExportScope("selection"); openExportOptions("png"); }}>Export selection…</button>
+        <button role="menuitem" disabled={boardLocked() || !selectedIndices().length} onClick={deleteSelected}>Delete <kbd>Del</kbd></button>
+      </div>}</Show>
+      <Show when={pageDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setPageDialog(undefined); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="page-dialog-title"><h2 id="page-dialog-title">{pageDialog() === "rename" ? "Rename page" : "Delete page?"}</h2><Show when={pageDialog() === "rename"} fallback={<p>Delete “{currentPage()?.name}” and its contents? This page deletion cannot be undone.</p>}><label>Page name<input autofocus maxlength="80" value={pageName()} onInput={event => setPageName(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter" && pageName().trim()) confirmPageDialog(); }} /></label></Show><div><button class="quiet-button" onClick={() => setPageDialog(undefined)}>Cancel</button><button class={pageDialog() === "delete" ? "danger-button" : "save-button"} disabled={boardLocked() || (pageDialog() === "rename" && !pageName().trim())} onClick={confirmPageDialog}>{pageDialog() === "rename" ? "Rename" : "Delete page"}</button></div></section></div></Show>
+      <Show when={exportOptionsOpen()}><div class="confirm-backdrop"><section class="confirm-dialog export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-title"><h2 id="export-title">Export {exportFormat().toUpperCase()}</h2><p>Export the current page, its selection, or the viewport. PDF is a raster snapshot.</p><div class="export-scope">{(["drawing", "selection", "viewport"] as const).map(scope => <button class={exportScope() === scope ? "active" : ""} disabled={scope === "selection" && !selectedIndices().length} onClick={() => setExportScope(scope)}>{scope === "drawing" ? "Whole drawing" : scope === "selection" ? "Selection" : "Viewport"}</button>)}</div><label class="export-transparent"><input type="checkbox" checked={exportGrid()} onChange={event => setExportGrid(event.currentTarget.checked)} /> Include visible grid</label><div class="export-dimensions"><label>Width<input type="number" min="1" max="12000" value={exportWidth()} onInput={(event) => setExportWidth(Number(event.currentTarget.value))} /></label><span>×</span><label>Height<input type="number" min="1" max="12000" value={exportHeight()} onInput={(event) => setExportHeight(Number(event.currentTarget.value))} /></label></div><Show when={exportFormat() !== "pdf"}><label class="export-transparent"><input type="checkbox" checked={exportTransparent()} onChange={(event) => setExportTransparent(event.currentTarget.checked)} /> Transparent background</label></Show><div><button class="quiet-button" onClick={() => setExportOptionsOpen(false)}>Cancel</button><button class="save-button" onClick={() => { const format = exportFormat(); setExportOptionsOpen(false); void exportAs(format); }}>Export {exportFormat().toUpperCase()}</button></div></section></div></Show>
       <Show when={recoveryPrompt()}>{(recovery) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="recovery-title"><h2 id="recovery-title">Recover unsaved work?</h2><p>SketchDraw found a local recovery copy for <strong>{recovery().path.split(/[\\/]/).pop()}</strong>. Restore it or continue with the saved file.</p><div><button class="quiet-button" onClick={discardRecovery}>Use saved file</button><button class="save-button" onClick={restoreRecovery}>Restore recovery</button></div></section></div>}</Show>
       <Show when={syncConflict()}>{(conflict) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title"><h2 id="conflict-title">File changed elsewhere</h2><p><strong>{conflict().path.split(/[\\/]/).pop()}</strong> was updated outside SketchDraw. Autosave is paused so neither version is overwritten without your choice.</p><div class="conflict-actions"><button class="quiet-button" onClick={() => void saveAs()}>Save my version as…</button><button class="quiet-button" onClick={reloadConflictingFile}>Load disk version</button><button class="danger-button" onClick={overwriteConflictingFile}>Overwrite disk version</button></div></section></div>}</Show>
       <Show when={showClearConfirm()}><div class="confirm-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setShowClearConfirm(false); }}><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">Clear this canvas?</h2><p>This will remove all {elements().length} items from the open sketch. You can undo this action.</p><div><button class="quiet-button" onClick={() => setShowClearConfirm(false)}>Cancel</button><button class="danger-button" onClick={() => { if (elements().length && !boardLocked()) { pushUndo(cloneElements(elements())); setElements([]); setSelectedIndices([]); setDirty(true); } setShowClearConfirm(false); }}>Clear canvas</button></div></section></div></Show>

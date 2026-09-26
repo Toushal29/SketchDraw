@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SketchDraw",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "identifier": "com.toush.sketchdraw",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -20,15 +20,39 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self' customprotocol: asset:",
+        "connect-src": "ipc: http://ipc.localhost",
+        "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self' data:",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'self'"
+      },
+      "devCsp": {
+        "default-src": "'self' http://localhost:1420",
+        "connect-src": "ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1421 ws://localhost:1420",
+        "img-src": "'self' http://localhost:1420 data: blob:",
+        "style-src": "'self' 'unsafe-inline' http://localhost:1420",
+        "font-src": "'self' http://localhost:1420 data:",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'self'"
+      }
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Toushal Sampat",
+    "copyright": "Copyright \u00a9 2026 Toushal Sampat",
+    "shortDescription": "A private, local-first desktop whiteboard",
     "fileAssociations": [
       {
-        "ext": ["sketch"],
+        "ext": [
+          "sketch"
+        ],
         "name": "SketchDraw document",
         "description": "SketchDraw drawing document",
         "role": "Editor",
