@@ -4,11 +4,13 @@
 
 `Windows Build Only`
 
-SketchDraw is a desktop whiteboard for diagrams, plans, and visual notes. Drawings are stored as versioned `.sketch` files on your device. Save a file in a OneDrive, iCloud Drive, Dropbox, Google Drive, or other synced folder to let that service synchronize it across devices. SketchDraw does not require an account or act as a cloud storage service.
+![SketchDraw workspace preview](src-tauri\icons\Square107x107Logo.png)
+
+SketchDraw is a desktop whiteboard for diagrams, plans, and visual notes. Drawings are stored as versioned `.sketch` files on your device. Save a file in a OneDrive, iCloud Drive, Dropbox, Google Drive, or other synced folder to let that service synchronize it across devices. Your work stays with you across all platforms, work anywhere anytime. SketchDraw does not require an account or act as a cloud storage service.
 
 ## Preview
 
-These project illustrations show the workspace and selected tool options. They are SVG previews, not captures of a running build.
+These project illustrations show the workspace and selected tool options.
 
 ### Workspace
 **`Captures of a running build`**
