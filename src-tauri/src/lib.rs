@@ -37,8 +37,8 @@ fn save_sketch_atomic(
         );
     }
     let document: serde_json::Value = serde_json::from_str(&contents).map_err(|e| e.to_string())?;
-    if document["format"] != "SketchDraw" || document["version"] != 5 {
-        return Err("Only SketchDraw format v5 can be saved.".into());
+    if document["format"] != "SketchDraw" || document["version"] != 6 {
+        return Err("Only SketchDraw format v6 can be saved.".into());
     }
     let parent = target
         .parent()

@@ -1,7 +1,7 @@
 import type { Binding, Element, ShapeElement, Point, ShapeLabel, FlowchartShape } from "./model";
 
 export const isConnector = (element: Element): element is ShapeElement => element.type === "line" || element.type === "arrow";
-export const isLabelShape = (element: Element): element is ShapeElement => ["rectangle", "circle", "diamond", "flowchart"].includes(element.type);
+export const isLabelShape = (element: Element): element is ShapeElement => ["rectangle", "circle", "diamond", "triangle", "flowchart"].includes(element.type);
 
 export function ensureIds(items: Element[]): Element[] {
   return items.map(item => {
@@ -20,7 +20,7 @@ export function flatten(items: Element[]): Element[] {
 export function validReferences(items: Element[]): boolean {
   const all = flatten(items); const ids = new Map(all.map(item => [item.id, item]));
   if (ids.size !== all.length || all.some(item => !item.id)) return false;
-  return all.every(item => !isConnector(item) || [item.startBinding, item.endBinding].every(binding => !binding || !!ids.get(binding.elementId) && isLabelShape(ids.get(binding.elementId)!)));
+  return all.every(item => !isConnector(item) || [item.startBinding, item.endBinding, item.forkUpper?.endBinding, item.forkLower?.endBinding].every(binding => !binding || !!ids.get(binding.elementId) && isLabelShape(ids.get(binding.elementId)!)));
 }
 
 export function anchorPoint(shape: ShapeElement, anchor: Point): Point {
@@ -61,11 +61,19 @@ export function resolveBindings(items: Element[]): Element[] {
       const target = binding ? lookup.get(binding.elementId) : undefined;
       return target && isLabelShape(target) ? anchorPoint(target, binding!.anchor) : undefined;
     };
+    const resolveBranch = (branch: ShapeElement["forkUpper"]) => {
+      if (!branch) return undefined;
+      const end = resolve(branch.endBinding);
+      if (!branch.endBinding || !end) return branch.endBinding ? { ...branch, endBinding: undefined } : branch;
+      if (branch.end?.x === end.x && branch.end?.y === end.y) return branch;
+      return { ...branch, end, endBinding: branch.endBinding };
+    };
     const start = resolve(item.startBinding); const end = resolve(item.endBinding);
     const x = start?.x ?? item.x; const y = start?.y ?? item.y;
     const w = (end?.x ?? item.x + item.w) - x; const h = (end?.y ?? item.y + item.h) - y;
-    if (x === item.x && y === item.y && w === item.w && h === item.h && (!item.startBinding || start) && (!item.endBinding || end)) return item;
-    return { ...item, x, y, w, h, startBinding: start ? item.startBinding : undefined, endBinding: end ? item.endBinding : undefined };
+    const forkUpper = resolveBranch(item.forkUpper); const forkLower = resolveBranch(item.forkLower);
+    if (x === item.x && y === item.y && w === item.w && h === item.h && forkUpper === item.forkUpper && forkLower === item.forkLower && (!item.startBinding || start) && (!item.endBinding || end)) return item;
+    return { ...item, x, y, w, h, startBinding: start ? item.startBinding : undefined, endBinding: end ? item.endBinding : undefined, forkUpper, forkLower };
   };
   return items.map(visit);
 }
@@ -77,16 +85,26 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
     const copy = { ...item, id: remap.get(item.id)!, locked: false };
     if (copy.type === "group") return { ...copy, elements: copy.elements.map(visit) };
     if (copy.type === "freehand") return { ...copy, points: copy.points.map(p => ({ x: p.x + dx, y: p.y + dy })) };
-    if (isConnector(copy)) return { ...copy, x: copy.x + dx, y: copy.y + dy, startBinding: binding(copy.startBinding), endBinding: binding(copy.endBinding), routePoints: copy.routePoints?.map(p => ({ x: p.x + dx, y: p.y + dy })) };
+    if (isConnector(copy)) {
+      const shiftBranch = (branch: ShapeElement["forkUpper"]) => branch ? {
+        ...branch,
+        end: branch.end ? { x: branch.end.x + dx, y: branch.end.y + dy } : undefined,
+        routePoints: branch.routePoints?.map(p => ({ x: p.x + dx, y: p.y + dy })),
+        endBinding: binding(branch.endBinding),
+      } : undefined;
+      return { ...copy, x: copy.x + dx, y: copy.y + dy, startBinding: binding(copy.startBinding), endBinding: binding(copy.endBinding), routePoints: copy.routePoints?.map(p => ({ x: p.x + dx, y: p.y + dy })), forkUpper: shiftBranch(copy.forkUpper), forkLower: shiftBranch(copy.forkLower) };
+    }
     return { ...copy, x: copy.x + dx, y: copy.y + dy };
   };
   return resolveBindings(items.map(visit));
 }
 
-export const textFont = (text: ShapeLabel) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "cursive" : "sans-serif"}`;
+export const textFont = (text: ShapeLabel) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "cursive" : text.fontFamily === "serif" ? "Georgia, serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : "'DM Sans', sans-serif"}`;
 export function labelBox(shape: ShapeElement) {
-  const insetX = Math.min(Math.abs(shape.w) * (shape.type === "diamond" || shape.flowchartShape === "decision" ? .25 : .12), Math.abs(shape.w) / 2);
-  const insetY = Math.min(Math.abs(shape.h) * (shape.flowchartShape === "database" ? .3 : .18), Math.abs(shape.h) / 2);
+  // Keep a small safety margin while making the text area use most of the shape.
+  // Diamond sides taper, so it needs a larger horizontal inset than rectangles.
+  const insetX = Math.min(Math.abs(shape.w) * (shape.type === "diamond" || shape.flowchartShape === "decision" ? .2 : .06), Math.abs(shape.w) / 2);
+  const insetY = Math.min(Math.abs(shape.h) * (shape.flowchartShape === "database" ? .22 : .1), Math.abs(shape.h) / 2);
   return { x: Math.min(shape.x, shape.x + shape.w) + insetX, y: Math.min(shape.y, shape.y + shape.h) + insetY, w: Math.max(1, Math.abs(shape.w) - insetX * 2), h: Math.max(1, Math.abs(shape.h) - insetY * 2) };
 }
 

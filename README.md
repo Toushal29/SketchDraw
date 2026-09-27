@@ -1,52 +1,83 @@
 # SketchDraw
 
+`This app is made entirely using AI. Use at your own risk.`
+
 SketchDraw is a local-first desktop whiteboard for flowcharts, diagrams, and visual notes. Each project is a portable `.sketch` file you choose where to save. Keep it on your computer or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
 
-**Current release: 0.2.1 · Document format: version 5**
+**Current release: 3.0.0 · Document format: version 6 · Copyright © 2026 Toushal Sampat**
 
-> Version 0.2.1 opens and saves only version 5 `.sketch` documents. Older SketchDraw formats and `.sketchdraw` files are unsupported; changing a file extension does not convert a document.
+> SketchDraw 3.0.0 opens and saves only version 6 `.sketch` documents. Version 5 and earlier documents, as well as `.sketchdraw` files, are unsupported. Changing a file extension does not convert a document.
 
 Try the [sample flowchart](docs/examples/getting-started.sketch) to explore attached connectors, labels, and multiple pages.
 
-## Screenshots
+## Screenshots and previews
 
-![SketchDraw launch screen with recent sketches](docs/screenshots/screen_home.png)
+The following hand-authored SVGs illustrate the current tools and workflows. They are feature previews rather than pixel-perfect captures of the installed app, and the diagrams are example artwork rather than a user's private work.
 
-*Launch screen with file actions and recent sketches.*
+![SketchDraw welcome screen with create/open actions and recent sketches](docs/screenshots/home-screen-current.svg)
 
-![SketchDraw workspace editing a flowchart](docs/screenshots/image.png)
+*Launch screen: start a new file, browse for one, or reopen a recent sketch.*
 
-*Canvas workspace showing editable flowchart shapes, attached arrows, pages, and style controls.*
+![SketchDraw workspace preview with its tool bar, quick style rail, advanced inspector, and flowchart](docs/screenshots/workspace-current.svg)
 
-![SketchDraw connector routes and arrow styles](docs/screenshots/connector-routes.svg)
+*Workspace preview: compact drawing tools, direct canvas actions, quick styles, and contextual properties.*
 
-*Connector routes and line styles. This is a feature illustration, not an application screenshot.*
+![PDF export preview showing paper size, orientation, layout, print quality, margins, and page preview](docs/screenshots/pdf-pages-preview.svg)
+
+*PDF export preview: standard paper sizes, custom dimensions, portrait or landscape, fit-to-page or tiled pages, overlap, margins, and print quality.*
+
+![SketchDraw flowchart preview with editable connectors and flowchart shapes](docs/screenshots/flowchart-board-preview.svg)
+
+*Diagram preview: editable flowchart shapes, labels, filled symbols, and attached connectors.*
+
+![Connector routing and line style gallery](docs/screenshots/connector-routes.svg)
+
+*Connector examples: straight, elbow, forked, loop, and jagged routes, plus varied line styles.*
+
+![Flowchart symbol collection](docs/screenshots/flowchart-symbols.svg)
+
+*Flowchart symbol gallery, including database, decision, document, and process symbols.*
+
+![Complex local-first document workflow diagram](docs/screenshots/complex-workflow-preview.svg)
+
+*A larger example combines decision branches, database storage, retries, attached connectors, and multi-stage process lanes.*
 
 ## Features
 
-- **File-based projects:** Create, open, and automatically save version 5 `.sketch` files. Native saves write a temporary file beside the destination before replacing it. Up to eight recent file paths are remembered on the device.
-- **Drawing tools:** Freehand pen, line, arrow, rectangle, circle, diamond, flowchart symbols, text, fill bucket, eraser, and image import/cropping.
+- **File-based projects:** Create, open, and automatically save version 6 `.sketch` files. Native saves write and flush a temporary file beside the destination before replacing it. Up to eight recent file paths are remembered on the device. Opening a document restores the saved center of the view at 100% zoom; use Fit drawing when you want to frame every object.
+- **Drawing tools:** Smooth freehand pen and a transient laser pointer. Draw lines, arrows, rectangles, circles, diamonds, triangles, flowchart symbols, and formatted text; fill shapes with the bucket, erase marks, and import/crop images. Rectangles support sharp, rounded, pill, and cut corners with adjustable radius or cut size.
 - **Flowchart symbols:** Process, Terminator, Decision, Input/Output, Document, Database, Predefined Process, Preparation, Manual Input, On-page Connector, Off-page Connector, Delay, Manual Operation, and Stored Data.
-- **Connectors:** Straight or curved lines; straight, elbow, forked, loop, and jagged arrows; solid, dashed, dotted, or double strokes; configurable arrowheads; shape attachment points; and editable connector routes.
+- **Connectors:** Straight lines, one-, two-, and three-control-point curves, and multi-point lines with four editable interior points; straight, elbow, forked, loop, and jagged arrows; solid, dashed, dotted, or double strokes; configurable arrowheads on lines and arrows; shape attachment points; and draggable route handles. Forked arrows have independent branch endpoints, routes, arrowheads, and shape attachments. Newly drawn connectors show their handles while keeping the current drawing tool active.
 - **Object editing:** Select, move, resize, rotate, group, copy, cut, paste, duplicate, align, distribute, and reorder objects. Lock or hide layers, use precision controls, and access commands from the right-click menu.
-- **Canvas controls:** Pan and zoom, fit the drawing, zoom to selection, use a grid, snap to grid or nearby objects, and lock the canvas against edits.
-- **Text and images:** Text starts at 16px. Shape labels support font and color, bold, italic, underline, lists, horizontal and vertical alignment, and wrapping. Imported images are embedded in the project file.
+- **Canvas controls:** Pan and zoom, fit the drawing, zoom to selection, use a grid, and snap to grid or nearby objects. Undo, redo, and canvas lock are available directly on the tool bar; other view and grouping controls are in the canvas options grid.
+- **Text and images:** Text starts at 16px. Choose sans-serif, handwritten, serif, or monospaced text with color, bold, italic, underline, lists, horizontal and vertical alignment, and wrapping. Imported images are embedded in the project file.
 - **Pages and history:** Add, rename, duplicate, reorder, and delete pages. Undo and redo history is maintained per page during the session.
 - **Recovery and conflict checks:** Unsaved work is recoverable from local app storage. Before autosaving, SketchDraw checks for external changes to the open file and offers conflict choices.
-- **Export:** Export the current page, selected objects, or the visible canvas as PNG, SVG, or PDF. Choose output dimensions and grid inclusion; PNG and SVG support transparent backgrounds. PDF export is a raster snapshot.
-- **Themes:** Follow the system light/dark appearance or choose a theme and canvas color.
+- **Export:** Review a live preview before exporting PNG, SVG, or PDF. Fit-to-page PDFs keep diagram paths vector-native and text selectable, embed imported images, and preserve open, solid, dot, bar, diamond, and fork arrowheads. They support current page, all pages, or a chosen page range. Configure A4, Letter, A3, Legal, Tabloid, or custom page sizes; orientation; margins; headers, footers, page numbers, bleed, crop marks; RGB, CMYK, or grayscale output. Tiled poster PDFs use high-resolution raster pages with 150/300 DPI and adjustable overlap. PNG and SVG support transparent backgrounds.
+- **Themes:** Follow the system light/dark appearance or choose a theme and canvas color. Neutral black and white strokes adapt to the active theme.
+- **Focused interface:** A compact floating tool bar includes direct undo, redo, and lock controls. A persistent vertical quick-style rail keeps common options close by, with an expandable contextual inspector for advanced settings.
+- **In-app help:** Open the Guide or Keyboard shortcuts from separate Help menu actions. The guide covers drawing, selection, file handling, pages, and exporting.
+- **Release checks:** Choose **Help → Check for updates** to compare your installed version with the latest public GitHub release. SketchDraw only reports whether a newer version is available; downloads and installation remain manual.
 
 ## File format
 
-SketchDraw uses a JSON-based **version 5** format in `.sketch` files. Older versions, `.sketchdraw` files, and unrelated files with a `.sketch` extension are rejected. Renaming an old file does not convert it. See the [version 5 format reference](docs/file-format-v5.md).
+SketchDraw 3.0.0 uses a JSON-based **version 6** format in `.sketch` files. Version 5 and earlier documents, `.sketchdraw` files, and unrelated files with a `.sketch` extension are rejected. Renaming an old file does not convert it. See the [version 6 format reference](docs/file-format-v6.md). Keep a backup of older projects before upgrading; they must be recreated in SketchDraw 3.0.0.
 
 Cloud synchronization is performed by the provider you choose, not by SketchDraw. Conflict checks reduce accidental overwrites but do not provide distributed locking; avoid editing the same file simultaneously on multiple devices.
 
 ## Download and install
 
-Windows installers are unsigned. The package metadata names **Toushal Sampat** as publisher, but that metadata does not authenticate the installer. Windows may show a SmartScreen warning for an unrecognized download. If you choose to proceed, review the source and file, then use Windows' **Run anyway** option where it is offered. This is an unsigned manual distribution; no signing credentials or signing step are required to build it.
+The Windows setup installer is not Authenticode-signed. Package metadata names **Toushal Sampat** as publisher, but that metadata does not authenticate the installer. Windows may show a SmartScreen warning for an unrecognized download. To install an update, visit the GitHub release page and run its setup file manually.
 
-For the current Windows x64 NSIS installer, see the [0.2.1 release guide](docs/release-0.2.1.md). It includes the build command and output path.
+For the Windows x64 NSIS build and manual GitHub release publishing steps, see the [3.0.0 release guide](docs/release-3.0.0.md).
+
+## Changing the app version
+
+Before making another release, update the app version in `package.json`, the root package entry in `package-lock.json`, `[package].version` in `src-tauri/Cargo.toml`, and the top-level `version` in `src-tauri/tauri.conf.json`. Regenerate the lock files with `npm install --package-lock-only` and `cargo check --manifest-path src-tauri/Cargo.toml` rather than editing generated dependency data by hand. Update the release tag and current release details. The document format version is independent of the app version; change it only when intentionally introducing a new file schema. The [release guide](docs/release-3.0.0.md) lists the build and publishing steps.
+
+## Copyright and ownership
+
+SketchDraw, its original application code, interface design, and SketchDraw brand assets are © 2026 **Toushal Sampat**. All rights reserved, subject to the [End User License Agreement](LICENSE). Third-party libraries and bundled components remain the property of their respective authors and are governed by their own licenses. Drawings created by users remain theirs.
 
 ## Build from source
 
@@ -77,7 +108,7 @@ To build the Windows x64 NSIS installer:
 npm run tauri -- build --bundles nsis
 ```
 
-The bundle metadata identifies **Toushal Sampat** as publisher. The current build configuration produces unsigned installers and uses no signing certificate or signing step.
+The resulting setup installer is unsigned, so SmartScreen warnings may appear on other computers.
 
 ## Keyboard shortcuts
 
@@ -85,9 +116,11 @@ The bundle metadata identifies **Toushal Sampat** as publisher. The current buil
 | --- | --- |
 | `V` | Select tool |
 | `P` | Pen |
+| `Y` | Laser pointer (temporary, not saved) |
 | `R` | Rectangle |
 | `C` or `O` | Circle |
 | `D` | Diamond |
+| `N` | Triangle |
 | `L` | Line |
 | `A` | Arrow |
 | `F` | Flowchart symbols |
@@ -117,7 +150,7 @@ The bundle metadata identifies **Toushal Sampat** as publisher. The current buil
 
 ## License
 
-SketchDraw is distributed under the [End User License Agreement](LICENSE), not an open-source license. You retain rights to the drawings and files you create. The EULA describes the terms for using and distributing the application.
+SketchDraw is distributed under the [End User License Agreement](LICENSE), not an open-source license. The application copyright belongs to Toushal Sampat; you retain rights to drawings and files you create. Third-party components remain under their respective licenses.
 
 ## Privacy and local data
 
@@ -132,5 +165,9 @@ Some app data is kept in local WebView storage on this device:
 The recovery snapshot can contain the document's text, shapes, and embedded image data. It is stored locally so an interrupted session can be recovered. Other apps or accounts on this device may have access according to the operating system's user-account and device security.
 
 If you save a project inside a cloud-sync folder, that folder's provider may upload and process the file under its own terms and settings. SketchDraw does not control that service. Exported files are written to the location you choose. The installer and operating system also have their own download, security, and update behavior; this project does not receive those reports.
+
+The optional **Check for updates** action contacts GitHub's public Releases API only when you select it. SketchDraw compares the returned release version with its local version and reports whether a newer version is available. It does not open a browser, download an installer, or install an update. The request does not include sketch content, file paths, or drawing data; GitHub receives the ordinary network request under its own privacy terms.
+
+PDF output supports RGB, process CMYK, and grayscale values. It does not currently embed or select a calibrated ICC press profile; confirm color conversion requirements with your print provider.
 
 This description is not a legal certification for every jurisdiction or distribution setup. Data protection obligations can include transparency, purpose limitation, data minimization, retention, and security requirements.

@@ -1,6 +1,6 @@
 {
   "name": "sketchdraw",
-  "version": "0.2.1",
+  "version": "3.0.0",
   "description": "A local-first desktop whiteboard for portable SketchDraw files.",
   "type": "module",
   "scripts": {
@@ -15,6 +15,7 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
+    "pdf-lib": "^1.17.1",
     "solid-js": "^1.9.3"
   },
   "devDependencies": {
