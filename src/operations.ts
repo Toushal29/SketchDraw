@@ -101,10 +101,12 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
 
 export const textFont = (text: ShapeLabel) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "cursive" : text.fontFamily === "serif" ? "Georgia, serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : "'DM Sans', sans-serif"}`;
 export function labelBox(shape: ShapeElement) {
-  // Keep a small safety margin while making the text area use most of the shape.
-  // Diamond sides taper, so it needs a larger horizontal inset than rectangles.
-  const insetX = Math.min(Math.abs(shape.w) * (shape.type === "diamond" || shape.flowchartShape === "decision" ? .2 : .06), Math.abs(shape.w) / 2);
-  const insetY = Math.min(Math.abs(shape.h) * (shape.flowchartShape === "database" ? .22 : .1), Math.abs(shape.h) / 2);
+  // Keep ordinary shape-label padding in canvas units so resizing the shape
+  // does not make its text margins grow. Tapered symbols retain extra clearance.
+  const width = Math.abs(shape.w); const height = Math.abs(shape.h);
+  const tapered = shape.type === "diamond" || shape.flowchartShape === "decision";
+  const insetX = Math.min(width / 2, tapered ? Math.max(12, width * .2) : 12);
+  const insetY = Math.min(height / 2, shape.flowchartShape === "database" ? Math.max(12, height * .22) : 12);
   return { x: Math.min(shape.x, shape.x + shape.w) + insetX, y: Math.min(shape.y, shape.y + shape.h) + insetY, w: Math.max(1, Math.abs(shape.w) - insetX * 2), h: Math.max(1, Math.abs(shape.h) - insetY * 2) };
 }
 
