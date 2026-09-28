@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="520" viewBox="0 0 1120 520" role="img" aria-labelledby="title desc">
+  <title id="title">Database schema visualizer preview</title>
+  <desc id="desc">A SQL input panel generates canvas table cards with connectors anchored at foreign-key and primary-key rows.</desc>
+  <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#243548" flood-opacity=".12"/></filter></defs>
+  <rect width="1120" height="520" rx="22" fill="#f4f6f3"/>
+  <text x="42" y="52" fill="#334338" font-family="Segoe UI, sans-serif" font-size="13" font-weight="700" letter-spacing="2">DATABASE SCHEMA VISUALIZER</text>
+  <text x="42" y="84" fill="#26362d" font-family="Segoe UI, sans-serif" font-size="25" font-weight="650">From CREATE TABLE to a linked canvas</text>
+  <g filter="url(#shadow)">
+    <rect x="40" y="112" width="344" height="360" rx="16" fill="#fff" stroke="#dce3dc"/>
+    <text x="64" y="148" fill="#5d7762" font-family="Segoe UI, sans-serif" font-size="10" font-weight="700" letter-spacing="1.4">PASTE SQL OR JSON</text>
+    <rect x="62" y="166" width="300" height="248" rx="10" fill="#202936"/>
+    <text x="80" y="196" fill="#90b2df" font-family="Cascadia Code, Consolas, monospace" font-size="12">CREATE TABLE users (</text>
+    <text x="80" y="220" fill="#d9e3ef" font-family="Cascadia Code, Consolas, monospace" font-size="11">  id INTEGER PRIMARY KEY,</text>
+    <text x="80" y="244" fill="#d9e3ef" font-family="Cascadia Code, Consolas, monospace" font-size="11">  name VARCHAR(80)</text>
+    <text x="80" y="268" fill="#90b2df" font-family="Cascadia Code, Consolas, monospace" font-size="12">);</text>
+    <text x="80" y="304" fill="#90b2df" font-family="Cascadia Code, Consolas, monospace" font-size="12">CREATE TABLE orders (</text>
+    <text x="80" y="328" fill="#d9e3ef" font-family="Cascadia Code, Consolas, monospace" font-size="11">  id INTEGER PRIMARY KEY,</text>
+    <text x="80" y="352" fill="#d9e3ef" font-family="Cascadia Code, Consolas, monospace" font-size="11">  user_id INTEGER REFERENCES</text>
+    <text x="80" y="376" fill="#acd18c" font-family="Cascadia Code, Consolas, monospace" font-size="11">    users(id)</text>
+    <rect x="62" y="430" width="300" height="28" rx="8" fill="#557d60"/>
+    <text x="212" y="449" text-anchor="middle" fill="#fff" font-family="Segoe UI, sans-serif" font-size="11" font-weight="650">Add linked tables to canvas</text>
+  </g>
+  <path d="M405 290h46" fill="none" stroke="#8c9b90" stroke-width="2" stroke-linecap="round"/>
+  <path d="m443 284 8 6-8 6" fill="none" stroke="#8c9b90" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="476" y="112" width="604" height="360" rx="16" fill="#fff" stroke="#dce3dc"/>
+  <text x="500" y="146" fill="#69776b" font-family="Segoe UI, sans-serif" font-size="10" font-weight="700" letter-spacing="1.3">GENERATED WHITEBOARD TABLES</text>
+  <g filter="url(#shadow)">
+    <rect x="514" y="196" width="228" height="190" rx="11" fill="#fbfcfe" stroke="#879caf"/>
+    <rect x="514" y="196" width="228" height="40" rx="11" fill="#e8f0f7" stroke="#879caf"/>
+    <text x="530" y="221" fill="#36556e" font-family="Segoe UI, sans-serif" font-size="13" font-weight="700">users</text>
+    <path d="M514 236h228M514 286h228M514 336h228" stroke="#d9e1e7"/>
+    <rect x="527" y="248" width="25" height="20" rx="5" fill="#f6edce"/><text x="539.5" y="262" text-anchor="middle" fill="#806d32" font-family="Segoe UI, sans-serif" font-size="9" font-weight="700">PK</text>
+    <text x="563" y="262" fill="#34495a" font-family="Cascadia Code, Consolas, monospace" font-size="11">id</text><text x="682" y="262" fill="#778696" font-family="Cascadia Code, Consolas, monospace" font-size="10">INTEGER</text>
+    <text x="563" y="312" fill="#34495a" font-family="Cascadia Code, Consolas, monospace" font-size="11">name</text><text x="682" y="312" fill="#778696" font-family="Cascadia Code, Consolas, monospace" font-size="10">VARCHAR</text>
+    <text x="563" y="362" fill="#34495a" font-family="Cascadia Code, Consolas, monospace" font-size="11">email</text><text x="682" y="362" fill="#778696" font-family="Cascadia Code, Consolas, monospace" font-size="10">TEXT</text>
+    <rect x="833" y="196" width="224" height="190" rx="11" fill="#fbfcfe" stroke="#879caf"/>
+    <rect x="833" y="196" width="224" height="40" rx="11" fill="#e8f0f7" stroke="#879caf"/>
+    <text x="849" y="221" fill="#36556e" font-family="Segoe UI, sans-serif" font-size="13" font-weight="700">orders</text>
+    <path d="M833 236h224M833 286h224M833 336h224" stroke="#d9e1e7"/>
+    <rect x="846" y="248" width="25" height="20" rx="5" fill="#f6edce"/><text x="858.5" y="262" text-anchor="middle" fill="#806d32" font-family="Segoe UI, sans-serif" font-size="9" font-weight="700">PK</text>
+    <text x="882" y="262" fill="#34495a" font-family="Cascadia Code, Consolas, monospace" font-size="11">id</text><text x="995" y="262" fill="#778696" font-family="Cascadia Code, Consolas, monospace" font-size="10">INTEGER</text>
+    <rect x="846" y="298" width="25" height="20" rx="5" fill="#dcecf3"/><text x="858.5" y="312" text-anchor="middle" fill="#436e85" font-family="Segoe UI, sans-serif" font-size="9" font-weight="700">FK</text>
+    <text x="882" y="312" fill="#34495a" font-family="Cascadia Code, Consolas, monospace" font-size="11">user_id</text><text x="995" y="312" fill="#778696" font-family="Cascadia Code, Consolas, monospace" font-size="10">INTEGER</text>
+    <text x="882" y="362" fill="#34495a" font-family="Cascadia Code, Consolas, monospace" font-size="11">created_at</text><text x="995" y="362" fill="#778696" font-family="Cascadia Code, Consolas, monospace" font-size="10">TIMESTAMP</text>
+  </g>
+  <path d="M742 311h91" fill="none" stroke="#63859d" stroke-width="2"/>
+  <path d="m833 311-10-6v12z" fill="#63859d"/>
+  <rect x="40" y="488" width="18" height="4" rx="2" fill="#7fa28a"/>
+  <text x="68" y="493" fill="#6d786f" font-family="Segoe UI, sans-serif" font-size="11">Foreign-key links attach to the matching field rows and follow tables when moved.</text>
+</svg>

@@ -8,8 +8,6 @@ SketchDraw is a local-first desktop whiteboard for flowcharts, diagrams, and vis
 
 > SketchDraw 3.0.0 opens and saves only version 6 `.sketch` documents. Version 5 and earlier documents, as well as `.sketchdraw` files, are unsupported. Changing a file extension does not convert a document.
 
-Try the [sample flowchart](docs/examples/getting-started.sketch) to explore attached connectors, labels, and multiple pages.
-
 ## Screenshots and previews
 
 The following hand-authored SVGs illustrate the current tools and workflows. They are feature previews rather than pixel-perfect captures of the installed app, and the diagrams are example artwork rather than a user's private work.
@@ -38,19 +36,44 @@ The following hand-authored SVGs illustrate the current tools and workflows. The
 
 *Flowchart symbol gallery, including database, decision, document, and process symbols.*
 
+![New productivity symbols and elements](docs/screenshots/symbols-elements-preview.svg)
+
+*New symbols include cloud, star, lightning, heart, callout, and gear.*
+
+![In-place note, sticky note, and checklist editing on the canvas](docs/screenshots/canvas-notes-preview.svg)
+
+*Notes, sticky notes, and checklists open as writing surfaces directly on the whiteboard.*
+
+![Database schema visualizer generating linked tables](docs/screenshots/database-schema-preview.svg)
+
+*Paste SQL `CREATE TABLE` statements or JSON and generate table cards with foreign-key links attached to field rows.*
+
+![UML, ER, and architecture component palette](docs/screenshots/modeling-components-preview.svg)
+
+*Insert individual class, sequence, ER, and C4 architecture components instead of a prefilled diagram.*
+
+![Windows pen pressure and tilt controls](docs/screenshots/windows-pen-preview.svg)
+
+*Windows pen input uses pressure, tilt, and eraser-end data from WebView2 pointer events.*
+
 ![Complex local-first document workflow diagram](docs/screenshots/complex-workflow-preview.svg)
 
 *A larger example combines decision branches, database storage, retries, attached connectors, and multi-stage process lanes.*
 
 ## Features
 
+- **Writing and schema editing:** Resize note, sticky-note, and checklist cards from their canvas handles. Set each card's text size from 8–32 px; the chosen size stays with the card when resizing, collapsing, and reopening it. `Tab` and `Shift+Tab` indent or outdent selected lines in those editors, including fenced code, and in the SQL/JSON schema input.
 - **File-based projects:** Create, open, and automatically save version 6 `.sketch` files. Native saves write and flush a temporary file beside the destination before replacing it. Up to eight recent file paths are remembered on the device. Opening a document restores the saved center of the view at 100% zoom; use Fit drawing when you want to frame every object.
-- **Drawing tools:** Smooth freehand pen and a transient laser pointer. Draw lines, arrows, rectangles, circles, diamonds, triangles, flowchart symbols, and formatted text; fill shapes with the bucket, erase marks, and import/crop images. Rectangles support sharp, rounded, pill, and cut corners with adjustable radius or cut size.
-- **Flowchart symbols:** Process, Terminator, Decision, Input/Output, Document, Database, Predefined Process, Preparation, Manual Input, On-page Connector, Off-page Connector, Delay, Manual Operation, and Stored Data.
+- **Drawing tools:** Smooth freehand pen and a transient laser pointer. Draw lines, arrows, rectangles, circles, diamonds, triangles, flowchart symbols, and formatted text; fill shapes with the bucket, erase marks, and import/crop images. Rectangles support sharp, rounded, pill, and cut corners with adjustable radius or cut size. The Shape & Component Library adds new cloud, star, lightning, heart, callout, and gear symbols alongside UML, ER, and architecture building blocks.
+- **Flowchart symbols:** Process, Terminator, Decision, Input/Output, Document, Database, Predefined Process, Preparation, Manual Input, On-page Connector, Off-page Connector, Delay, Manual Operation, Stored Data, Cloud, Star, Lightning, Heart, Callout, and Gear.
 - **Connectors:** Straight lines, one-, two-, and three-control-point curves, and multi-point lines with four editable interior points; straight, elbow, forked, loop, and jagged arrows; solid, dashed, dotted, or double strokes; configurable arrowheads on lines and arrows; shape attachment points; and draggable route handles. Forked arrows have independent branch endpoints, routes, arrowheads, and shape attachments. Newly drawn connectors show their handles while keeping the current drawing tool active.
 - **Object editing:** Select, move, resize, rotate, group, copy, cut, paste, duplicate, align, distribute, and reorder objects. Lock or hide layers, use precision controls, and access commands from the right-click menu.
 - **Canvas controls:** Pan and zoom, fit the drawing, zoom to selection, use a grid, and snap to grid or nearby objects. Undo, redo, and canvas lock are available directly on the tool bar; other view and grouping controls are in the canvas options grid.
-- **Text and images:** Text starts at 16px. Choose sans-serif, handwritten, serif, or monospaced text with color, bold, italic, underline, lists, horizontal and vertical alignment, and wrapping. Imported images are embedded in the project file.
+- **Text, notes, and checklists:** Text starts at 16px. Choose sans-serif, handwritten, serif, or monospaced text with color, bold, italic, underline, lists, alignment, and wrapping. The Text tool menu includes notes, sticky notes, and interactive checklists. Choose a note tool and click the canvas to write directly on the whiteboard; double-click a note to edit it. The inline editor keeps focus while typing and saves on Done, clicking away, or `Ctrl/⌘ + Enter`. Notes support Markdown-style headings and language-tagged fenced code blocks, with syntax colors on the canvas. Click checklist boxes directly to track progress. Notes and checklists are saved with the drawing in the existing `.sketch` format.
+- **Database Schema Visualizer:** Paste SQL `CREATE TABLE` statements or JSON table definitions to create a set of editable table cards. Primary and foreign-key badges, column names, and data types are drawn on each card. Foreign-key connectors attach to the matching field-row anchors, and keep following rows when tables move.
+- **UML, ER, and architecture components:** The library inserts individual UML class cards with name, attribute, and method compartments; participant lifelines, activation bars, sync/async message arrows, and inheritance/realization/aggregation/composition presets; ER table cards and crow's-foot relationship examples; and C4 boundary frames, technology-tagged database/cloud/service nodes, data-flow arrows, and network-zone enclosures. Components are grouped ordinary SketchDraw shapes and text, so they can be moved, ungrouped, and customized. These are reusable parts rather than prefilled diagram templates.
+- **Windows stylus input:** On Windows, the Pen tool reads pressure and tilt from WebView2 pointer events. Enable or disable pressure width, tilt shaping, and the compatible pen's eraser end from the Pen quick-style controls. Stylus pressure and tilt values travel with freehand points in the existing version 6 `.sketch` document.
+- **Images:** Imported images are embedded in the project file and can be cropped on the canvas.
 - **Pages and history:** Add, rename, duplicate, reorder, and delete pages. Undo and redo history is maintained per page during the session.
 - **Recovery and conflict checks:** Unsaved work is recoverable from local app storage. Before autosaving, SketchDraw checks for external changes to the open file and offers conflict choices.
 - **Export:** Review a live preview before exporting PNG, SVG, or PDF. Fit-to-page PDFs keep diagram paths vector-native and text selectable, embed imported images, and preserve open, solid, dot, bar, diamond, and fork arrowheads. They support current page, all pages, or a chosen page range. Configure A4, Letter, A3, Legal, Tabloid, or custom page sizes; orientation; margins; headers, footers, page numbers, bleed, crop marks; RGB, CMYK, or grayscale output. Tiled poster PDFs use high-resolution raster pages with 150/300 DPI and adjustable overlap. PNG and SVG support transparent backgrounds.
@@ -59,17 +82,21 @@ The following hand-authored SVGs illustrate the current tools and workflows. The
 - **In-app help:** Open the Guide or Keyboard shortcuts from separate Help menu actions. The guide covers drawing, selection, file handling, pages, and exporting.
 - **Release checks:** Choose **Help → Check for updates** to compare your installed version with the latest public GitHub release. SketchDraw only reports whether a newer version is available; downloads and installation remain manual.
 
+## Modeling component follow-ups
+
+The current library provides reusable component presets. Deeper modeling interactions are planned next: a UML class editor that inserts visibility modifiers while typing; selectable semantic UML relationship and Crow's Foot cardinality/optionality controls; message connectors that lock to lifelines; editable ER data-type controls and automatic FK-to-PK detection for hand-drawn connectors; searchable C4 technology tags; and animated data-flow indicators. Generated schema references already connect at their PK/FK field rows, and manual connectors can attach to those same row anchors.
+
 ## File format
 
-SketchDraw 3.0.0 uses a JSON-based **version 6** format in `.sketch` files. Version 5 and earlier documents, `.sketchdraw` files, and unrelated files with a `.sketch` extension are rejected. Renaming an old file does not convert it. See the [version 6 format reference](docs/file-format-v6.md). Keep a backup of older projects before upgrading; they must be recreated in SketchDraw 3.0.0.
+SketchDraw 3.0.0 uses a JSON-based **version 6** format in `.sketch` files. Version 5 and earlier documents, `.sketchdraw` files, and unrelated files with a `.sketch` extension are rejected. Renaming an old file does not convert it. Notes add optional metadata to existing group objects; their visible content, schema cards, and component library items use regular version 6 shapes and text. Freehand points can also carry optional pressure and tilt values. No new file extension or document version is introduced. Keep a backup of older projects before upgrading; they must be recreated in SketchDraw 3.0.0.
 
-Cloud synchronization is performed by the provider you choose, not by SketchDraw. Conflict checks reduce accidental overwrites but do not provide distributed locking; avoid editing the same file simultaneously on multiple devices.
+SketchDraw has no shared online workspaces, collaborative sessions, live cursors, or background document uploads. If you place a `.sketch` file inside a cloud-sync folder, synchronization is handled by that provider; conflict checks reduce accidental overwrites but do not provide distributed locking.
 
 ## Download and install
 
 The Windows setup installer is not Authenticode-signed. Package metadata names **Toushal Sampat** as publisher, but that metadata does not authenticate the installer. Windows may show a SmartScreen warning for an unrecognized download. To install an update, visit the GitHub release page and run its setup file manually.
 
-For the Windows x64 NSIS build and manual GitHub release publishing steps, see the [3.0.0 release guide](docs/release-3.0.0.md).
+For a Windows x64 NSIS installer, run the build command below with `--bundles nsis` and publish it manually through GitHub Releases.
 
 ## Changing the app version
 
