@@ -21,3 +21,64 @@ For Desktop development, run:
 
 For Android development, run:
   npm run tauri android dev
+
+
+---------------------------
+Versioning::
+
+Cargo.lock
+```
+[[package]]
+name = "sketchdraw"
+version = "4.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+]
+```
+
+
+Cargo.toml
+```
+[package]
+name = "sketchdraw"
+version = "4.0.0"
+description = "SketchDraw desktop whiteboard"
+edition = "2021"
+```
+
+
+tauri.conf.json
+```
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SketchDraw",
+  "version": "4.0.0",
+  "identifier": "com.toush.sketchdraw",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+```
+
+
+package-lock.json
+```
+  "version": "4.0.0",       ||||| line 3, 9
+```
+
+
+package.json
+```
+{
+  "name": "sketchdraw",
+  "version": "4.0.0",
+  "description": "A local-first desktop whiteboard for portable SketchDraw files.",
+  "type": "module",
+```

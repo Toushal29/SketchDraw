@@ -4,9 +4,9 @@
 
 SketchDraw is a local-first desktop whiteboard for flowcharts, diagrams, and visual notes. Each project is a portable `.sketch` file you choose where to save. Keep it on your computer or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
 
-**Current release: 3.0.0 · Document format: version 6 · Copyright © 2026 Toushal Sampat**
+**Current release: 4.0.0 · Document format: version 6 · Copyright © 2026 Toushal Sampat**
 
-> SketchDraw 3.0.0 opens and saves only version 6 `.sketch` documents. Version 5 and earlier documents, as well as `.sketchdraw` files, are unsupported. Changing a file extension does not convert a document.
+> SketchDraw 4.0.0 opens and saves only version 6 `.sketch` documents. Version 5 and earlier documents, as well as `.sketchdraw` files, are unsupported. Changing a file extension does not convert a document.
 
 ## Screenshots and previews
 
@@ -88,7 +88,7 @@ The current library provides reusable component presets. Deeper modeling interac
 
 ## File format
 
-SketchDraw 3.0.0 uses a JSON-based **version 6** format in `.sketch` files. Version 5 and earlier documents, `.sketchdraw` files, and unrelated files with a `.sketch` extension are rejected. Renaming an old file does not convert it. Notes add optional metadata to existing group objects; their visible content, schema cards, and component library items use regular version 6 shapes and text. Freehand points can also carry optional pressure and tilt values. No new file extension or document version is introduced. Keep a backup of older projects before upgrading; they must be recreated in SketchDraw 3.0.0.
+SketchDraw 4.0.0 uses a JSON-based **version 6** format in `.sketch` files. Version 5 and earlier documents, `.sketchdraw` files, and unrelated files with a `.sketch` extension are rejected. Renaming an old file does not convert it. Notes add optional metadata to existing group objects; their visible content, schema cards, and component library items use regular version 6 shapes and text. Freehand points can also carry optional pressure and tilt values. No new file extension or document version is introduced. Keep a backup of older projects before upgrading; they must be recreated in SketchDraw 4.0.0.
 
 SketchDraw has no shared online workspaces, collaborative sessions, live cursors, or background document uploads. If you place a `.sketch` file inside a cloud-sync folder, synchronization is handled by that provider; conflict checks reduce accidental overwrites but do not provide distributed locking.
 
@@ -100,7 +100,7 @@ For a Windows x64 NSIS installer, run the build command below with `--bundles ns
 
 ## Changing the app version
 
-Before making another release, update the app version in `package.json`, the root package entry in `package-lock.json`, `[package].version` in `src-tauri/Cargo.toml`, and the top-level `version` in `src-tauri/tauri.conf.json`. Regenerate the lock files with `npm install --package-lock-only` and `cargo check --manifest-path src-tauri/Cargo.toml` rather than editing generated dependency data by hand. Update the release tag and current release details. The document format version is independent of the app version; change it only when intentionally introducing a new file schema. The [release guide](docs/release-3.0.0.md) lists the build and publishing steps.
+Before making another release, update the app version in `package.json`, the root package entry in `package-lock.json`, `[package].version` in `src-tauri/Cargo.toml`, and the top-level `version` in `src-tauri/tauri.conf.json`. Regenerate the lock files with `npm install --package-lock-only` and `cargo check --manifest-path src-tauri/Cargo.toml` rather than editing generated dependency data by hand. Update the release tag and current release details. The document format version is independent of the app version; change it only when intentionally introducing a new file schema.
 
 ## Copyright and ownership
 

@@ -1,6 +1,6 @@
 [package]
 name = "sketchdraw"
-version = "3.0.0"
+version = "4.0.0"
 description = "SketchDraw desktop whiteboard"
 edition = "2021"
 

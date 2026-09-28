@@ -1,6 +1,6 @@
 {
   "name": "sketchdraw",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "A local-first desktop whiteboard for portable SketchDraw files.",
   "type": "module",
   "scripts": {
