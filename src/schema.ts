@@ -2,6 +2,44 @@ export type SchemaColumn = { name: string; type: string; primaryKey?: boolean; f
 export type SchemaTable = { name: string; columns: SchemaColumn[] };
 
 const identifier = (value: string) => value.replace(/^[`"\[]/, "").replace(/[`"\]]$/, "").trim();
+const sqlNamePart = '(?:`[^`]+`|"[^"]+"|\\[[^\\]]+\\]|[\\w$-]+)';
+const qualifiedSqlName = `${sqlNamePart}(?:\\s*\\.\\s*${sqlNamePart})*`;
+const createTablePattern = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(${qualifiedSqlName})\\s*\\(`, "ig");
+const foreignKeyPattern = new RegExp(`FOREIGN\\s+KEY\\s*\\(([^)]+)\\)\\s*REFERENCES\\s+(${qualifiedSqlName})\\s*\\(([^)]+)\\)`, "i");
+const referencePattern = new RegExp(`REFERENCES\\s+(${qualifiedSqlName})\\s*\\(([^)]+)\\)`, "i");
+
+const unqualifiedSqlName = (value: string) => {
+  const parts = value.match(/`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$-]+/g);
+  return identifier(parts?.[parts.length - 1] ?? value);
+};
+
+function withoutSqlComments(source: string): string {
+  let result = ""; let quote = "";
+  for (let index = 0; index < source.length; index++) {
+    const char = source[index]; const next = source[index + 1];
+    if (quote) {
+      result += char;
+      if (char === quote) { if (next === quote) result += source[++index]; else quote = ""; }
+      else if (char === "\\" && quote !== "]" && next !== undefined) result += source[++index];
+      continue;
+    }
+    if (char === "'" || char === '"' || char === "`" || char === "[") { quote = char === "[" ? "]" : char; result += char; continue; }
+    if (char === "-" && next === "-" || char === "#") {
+      while (index < source.length && source[index] !== "\n") { result += " "; index++; }
+      if (index < source.length) result += "\n";
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      result += "  "; index += 2;
+      while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) { result += source[index] === "\n" ? "\n" : " "; index++; }
+      if (index < source.length) result += "  ";
+      index++;
+      continue;
+    }
+    result += char;
+  }
+  return result;
+}
 
 function splitSqlItems(body: string): string[] {
   const items: string[] = []; let start = 0; let depth = 0; let quote = "";
@@ -33,26 +71,27 @@ function matchingParen(source: string, start: number): number {
 
 function parseSql(source: string): SchemaTable[] {
   const tables: SchemaTable[] = [];
-  const create = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?((?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$.-]+))\s*\(/ig;
-  for (const match of source.matchAll(create)) {
-    const name = identifier(match[1].split(".").pop() ?? match[1]);
-    const openIndex = (match.index ?? 0) + match[0].lastIndexOf("("); const closeIndex = matchingParen(source, openIndex);
+  const sql = withoutSqlComments(source);
+  for (const match of sql.matchAll(createTablePattern)) {
+    const name = unqualifiedSqlName(match[1]);
+    const openIndex = (match.index ?? 0) + match[0].lastIndexOf("("); const closeIndex = matchingParen(sql, openIndex);
     if (!name || closeIndex < 0) continue;
     const columns: SchemaColumn[] = []; const primaryKeys = new Set<string>(); const foreignKeys: { column: string; table: string; target: string }[] = [];
-    for (const item of splitSqlItems(source.slice(openIndex + 1, closeIndex))) {
+    for (const item of splitSqlItems(sql.slice(openIndex + 1, closeIndex))) {
       const primary = /PRIMARY\s+KEY\s*\(([^)]+)\)/i.exec(item);
       if (primary) { primary[1].split(",").forEach(part => primaryKeys.add(identifier(part.trim().split(/\s+/)[0]).toLowerCase())); continue; }
-      const foreign = /FOREIGN\s+KEY\s*\(([^)]+)\)\s*REFERENCES\s+((?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$.-]+))\s*\(([^)]+)\)/i.exec(item);
-      if (foreign) { foreignKeys.push({ column: identifier(foreign[1].split(",")[0]), table: identifier(foreign[2].split(".").pop() ?? foreign[2]), target: identifier(foreign[3].split(",")[0]) }); continue; }
+      const foreign = foreignKeyPattern.exec(item);
+      if (foreign) { foreignKeys.push({ column: identifier(foreign[1].split(",")[0]), table: unqualifiedSqlName(foreign[2]), target: identifier(foreign[3].split(",")[0]) }); continue; }
       if (/^(?:CONSTRAINT|UNIQUE|CHECK|INDEX|KEY)\b/i.test(item)) continue;
       const field = /^\s*(`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$.-]+)\s+([\w]+(?:\s+PRECISION)?(?:\s*\([^)]*\))?(?:\s+UNSIGNED)?)([\s\S]*)$/i.exec(item);
       if (!field) continue;
       const columnName = identifier(field[1]); const details = field[3] ?? "";
-      const reference = /REFERENCES\s+((?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$.-]+))\s*\(([^)]+)\)/i.exec(details);
-      columns.push({ name: columnName, type: field[2].trim(), primaryKey: /\bPRIMARY\s+KEY\b/i.test(details), foreignTable: reference ? identifier(reference[1].split(".").pop() ?? reference[1]) : undefined, foreignColumn: reference ? identifier(reference[2].split(",")[0]) : undefined, nullable: !/\bNOT\s+NULL\b/i.test(details) });
+      const reference = referencePattern.exec(details); const primaryKey = /\bPRIMARY\s+KEY\b/i.test(details);
+      columns.push({ name: columnName, type: field[2].trim(), primaryKey, foreignTable: reference ? unqualifiedSqlName(reference[1]) : undefined, foreignColumn: reference ? identifier(reference[2].split(",")[0]) : undefined, nullable: !primaryKey && !/\bNOT\s+NULL\b/i.test(details) });
     }
     for (const column of columns) {
       if (primaryKeys.has(column.name.toLowerCase())) column.primaryKey = true;
+      if (column.primaryKey) column.nullable = false;
       const foreign = foreignKeys.find(item => item.column.toLowerCase() === column.name.toLowerCase());
       if (foreign) { column.foreignTable = foreign.table; column.foreignColumn = foreign.target; }
     }
@@ -80,7 +119,8 @@ function parseJson(source: string): SchemaTable[] {
       const reference = column.references ?? column.foreignKey ?? column.foreign_key ?? column.fk;
       const refText = typeof reference === "string" ? reference : reference && typeof reference === "object" ? `${String((reference as Record<string, unknown>).table ?? "")}.${String((reference as Record<string, unknown>).column ?? "")}` : "";
       const lastDot = refText.lastIndexOf("."); const foreignTable = refText ? (lastDot >= 0 ? refText.slice(0, lastDot).split(".").pop() : refText) : undefined; const foreignColumn = lastDot >= 0 ? refText.slice(lastDot + 1) : undefined;
-      return [{ name: columnName, type: String(column.type ?? column.dataType ?? column.data_type ?? ""), primaryKey: column.primaryKey === true || column.primary_key === true || column.pk === true || primaryKeys.has(columnName.toLowerCase()), foreignTable, foreignColumn, nullable: column.nullable !== false }];
+      const primaryKey = column.primaryKey === true || column.primary_key === true || column.pk === true || primaryKeys.has(columnName.toLowerCase());
+      return [{ name: columnName, type: String(column.type ?? column.dataType ?? column.data_type ?? ""), primaryKey, foreignTable, foreignColumn, nullable: !primaryKey && column.nullable !== false }];
     });
     return columns.length ? [{ name, columns }] : [];
   });

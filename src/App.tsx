@@ -7,11 +7,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
-import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, LayerFlags, ShapeElement, TextElement, ImageElement, Element, GroupElement, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
+import { SKETCH_FORMAT_VERSION } from "./model";
+import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, LayerFlags, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
 import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, anchorPoint, nearestBinding, validReferences, textLayout, labelBox, textFont, extraFlowchartPath } from "./operations";
 import type { NoteKind } from "./model";
-import { buildLibraryComponent, buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, toggleChecklistContent, type LibraryComponentKind } from "./notes";
+import { buildLibraryComponent, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, toggleChecklistContent, type LibraryComponentKind } from "./notes";
 import { parseSchema } from "./schema";
+import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
+import { MermaidPreview } from "./MermaidPreview";
 
 type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
 
@@ -33,6 +36,17 @@ function compareReleaseVersions(left: string, right: string): number {
 const GRID_SIZE = 24;
 const stylusStrokeWidth = (point: StrokePoint, thickness: number) => thickness * (point.pressure === undefined ? 1 : .2 + Math.max(0, Math.min(1, point.pressure)) * 1.6) * (1 + Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) * .28);
 const BOARD_COLORS = ["#ffffff", "#fffdf7", "#f4f7fb", "#fbf2ed", "#f1f5ed", "#f3f0fa"];
+const UI_ACCENTS = [
+  { label: "Sage", value: "#547a5b" }, { label: "Ocean", value: "#3f78a5" }, { label: "Indigo", value: "#6d67aa" },
+  { label: "Teal", value: "#39877f" }, { label: "Amber", value: "#b47b35" }, { label: "Rose", value: "#ad6475" },
+];
+const TOOLBAR_COLORS = [
+  { label: "Paper", value: "#f8faf7" }, { label: "Warm", value: "#f4efe4" },
+  { label: "Slate", value: "#e8edf2" }, { label: "Sage", value: "#e8efe9" },
+  { label: "Night", value: "#252c31" },
+];
+const BOARD_COLOR_NAMES: Record<string, string> = { "#ffffff": "White", "#fffdf7": "Ivory", "#f4f7fb": "Mist", "#fbf2ed": "Blush", "#f1f5ed": "Sage", "#f3f0fa": "Lilac" };
+const readPreference = (key: string, fallback: string) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const FILL_SWATCHES = ["#f4a6a0", "#ffd166", "#b7e4c7", "#a8dadc", "#a0c4ff", "#cdb4db"];
 const FLOWCHART_SHAPES: { value: FlowchartShape; label: string; path: string }[] = [
   { value: "process", label: "Process", path: "M5 5h14v14H5z" }, { value: "terminator", label: "Terminator", path: "M8 5h8a7 7 0 0 1 0 14H8A7 7 0 0 1 8 5z" },
@@ -54,6 +68,8 @@ FLOWCHART_SHAPES.push(
   { value: "callout", label: "Callout", path: "M3 4h18v13H12l-5 4v-4H3z" },
   { value: "gear", label: "Gear", path: "M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z" },
 );
+// Keep the legacy Gear path so older sketches still render it; it is not insertable in the current palettes.
+const FLOWCHART_MENU_SHAPES = FLOWCHART_SHAPES.filter(shape => !["star", "lightning", "heart", "callout", "gear"].includes(shape.value));
 const ARROW_ROUTES: { value: ArrowRoute; label: string; path: string }[] = [
   { value: "straight", label: "Straight", path: "M3 12h17m-6-6 6 6-6 6" }, { value: "elbow", label: "Elbow", path: "M4 5v14h15m-6-6 6 6-6 6" },
   { value: "forked", label: "Forked", path: "M3 12h8m0 0V5h9m-4-3 4 3-4 3m-5 4v7h9m-4-3 4 3-4 3" },
@@ -369,19 +385,24 @@ function normalizeElement(value: unknown): Element | undefined {
     hidden: typeof value.hidden === "boolean" ? value.hidden : false,
     locked: typeof value.locked === "boolean" ? value.locked : false,
     rotation: finite(value.rotation) ? value.rotation : 0,
+    ...(typeof value.componentId === "string" ? { componentId: value.componentId } : {}),
+    ...(typeof value.componentRole === "string" ? { componentRole: value.componentRole } : {}),
   };
   if (value.type === "group") {
     if (!Array.isArray(value.elements)) return undefined;
     const children = value.elements.map(normalizeElement);
     if (children.some((child) => !child)) return undefined;
     const note = isRecord(value.note) && ["note", "sticky", "checklist"].includes(String(value.note.kind)) && typeof value.note.content === "string" && value.note.content.length <= 50000
+      && (value.note.title === undefined || typeof value.note.title === "string" && value.note.title.length <= 120)
       && (value.note.width === undefined || finite(value.note.width) && value.note.width >= 180 && value.note.width <= 4000)
       && (value.note.height === undefined || finite(value.note.height) && value.note.height >= 100 && value.note.height <= 1_000_000)
       && (value.note.fontSize === undefined || finite(value.note.fontSize) && value.note.fontSize >= 8 && value.note.fontSize <= 32)
       && (value.note.collapsed === undefined || typeof value.note.collapsed === "boolean")
-      ? { kind: value.note.kind as NoteKind, content: value.note.content, ...(finite(value.note.width) ? { width: value.note.width } : {}), ...(finite(value.note.height) ? { height: value.note.height } : {}), ...(finite(value.note.fontSize) ? { fontSize: Math.round(value.note.fontSize) } : {}), ...(typeof value.note.collapsed === "boolean" ? { collapsed: value.note.collapsed } : {}) } : undefined;
-    if (value.note !== undefined && !note) return undefined;
-    return { type: "group", ...flags, elements: children as Element[], note };
+      ? { kind: value.note.kind as NoteKind, content: value.note.content, ...(typeof value.note.title === "string" ? { title: value.note.title } : {}), ...(finite(value.note.width) ? { width: value.note.width } : {}), ...(finite(value.note.height) ? { height: value.note.height } : {}), ...(finite(value.note.fontSize) ? { fontSize: Math.round(value.note.fontSize) } : {}), ...(typeof value.note.collapsed === "boolean" ? { collapsed: value.note.collapsed } : {}) } : undefined;
+    const mermaid = isRecord(value.mermaid) && typeof value.mermaid.source === "string" && value.mermaid.source.length <= 100_000
+      ? { source: value.mermaid.source } : undefined;
+    if ((value.note !== undefined && !note) || (value.mermaid !== undefined && !mermaid) || (note && mermaid)) return undefined;
+    return { type: "group", ...flags, elements: children as Element[], note, mermaid };
   }
   if (value.type === "freehand") {
     if (!Array.isArray(value.points) || !value.points.every((point) => isRecord(point) && finite(point.x) && finite(point.y)) || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0) return undefined;
@@ -402,8 +423,22 @@ function normalizeElement(value: unknown): Element | undefined {
     if (cropX < 0 || cropY < 0 || cropW <= 0 || cropH <= 0 || cropX + cropW > value.sourceWidth || cropY + cropH > value.sourceHeight) return undefined;
     return { type: "image", ...flags, x: value.x, y: value.y, w: value.w, h: value.h, dataUrl: value.dataUrl, sourceWidth: value.sourceWidth, sourceHeight: value.sourceHeight, cropX, cropY, cropW, cropH, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
   }
+  if (value.type === "schemaTable") {
+    if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w < 120 || !finite(value.h) || value.h < 45 || typeof value.name !== "string" || !value.name.trim() || value.name.length > 200 || typeof value.schemaDiagramId !== "string" || !value.schemaDiagramId || typeof value.schemaSource !== "string" || value.schemaSource.length > 500_000 || !Array.isArray(value.columns) || !value.columns.length || value.columns.length > 500) return undefined;
+    const columns: SchemaField[] = [];
+    for (let index = 0; index < value.columns.length; index++) {
+      const raw = value.columns[index];
+      if (!isRecord(raw) || typeof raw.name !== "string" || !raw.name.trim() || raw.name.length > 200 || typeof raw.dataType !== "string" || raw.dataType.length > 200) return undefined;
+      const id = typeof raw.id === "string" && raw.id.length <= 100 ? raw.id : `${value.id}:column:${index}`;
+      columns.push({ id, name: raw.name, dataType: raw.dataType, primaryKey: raw.primaryKey === true, foreignTable: typeof raw.foreignTable === "string" ? raw.foreignTable.slice(0, 200) : undefined, foreignColumn: typeof raw.foreignColumn === "string" ? raw.foreignColumn.slice(0, 200) : undefined, nullable: raw.nullable !== false });
+    }
+    const fontSize = finite(value.fontSize) ? Math.max(8, Math.min(48, value.fontSize)) : 14; const neededHeight = Math.max(42, fontSize * 2.8) + columns.length * Math.max(30, fontSize * 1.8);
+    const neededWidth = Math.max(180, ...columns.map(column => (column.name.length + (column.dataType ?? "type").length) * fontSize * .36 + 80));
+    return { type: "schemaTable", ...flags, x: value.x, y: value.y, w: Math.max(value.w, neededWidth), h: Math.max(value.h, neededHeight), name: value.name, columns, schemaDiagramId: value.schemaDiagramId, schemaSource: value.schemaSource, fontSize, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
+  }
   if (["rectangle", "circle", "diamond", "triangle", "flowchart", "line", "arrow"].includes(value.type)) {
     if (!finite(value.x) || !finite(value.y) || !finite(value.w) || !finite(value.h) || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0) return undefined;
+    if (value.schemaDiagramId !== undefined && typeof value.schemaDiagramId !== "string") return undefined;
     const lineStyle: StrokeStyle = ["dashed", "dotted", "double"].includes(String(value.lineStyle)) ? value.lineStyle as StrokeStyle : "solid";
     const edgeStyle: EdgeStyle = ["rounded", "pill", "cut"].includes(String(value.edgeStyle)) ? value.edgeStyle as EdgeStyle : "sharp";
     const fillColor = isColor(value.fillColor) ? value.fillColor : undefined;
@@ -413,7 +448,7 @@ function normalizeElement(value: unknown): Element | undefined {
     const lineRoute: LineRoute = ["curve", "curve2", "curve3", "multi"].includes(String(value.lineRoute)) ? value.lineRoute as LineRoute : "straight";
     const cornerRadius = finite(value.cornerRadius) ? Math.max(0, Math.min(100, value.cornerRadius)) : undefined;
     const arrowRoute: ArrowRoute = ["elbow", "forked", "loop", "jagged"].includes(String(value.arrowRoute)) ? value.arrowRoute as ArrowRoute : "straight";
-    const binding = (raw: unknown): Binding | undefined => isRecord(raw) && typeof raw.elementId === "string" && isRecord(raw.anchor) && finite(raw.anchor.x) && finite(raw.anchor.y) && raw.anchor.x >= 0 && raw.anchor.x <= 1 && raw.anchor.y >= 0 && raw.anchor.y <= 1 ? { elementId: raw.elementId, anchor: { x: raw.anchor.x, y: raw.anchor.y } } : undefined;
+    const binding = (raw: unknown): Binding | undefined => isRecord(raw) && typeof raw.elementId === "string" && isRecord(raw.anchor) && finite(raw.anchor.x) && finite(raw.anchor.y) && raw.anchor.x >= 0 && raw.anchor.x <= 1 && raw.anchor.y >= 0 && raw.anchor.y <= 1 && (raw.rowId === undefined || typeof raw.rowId === "string") ? { elementId: raw.elementId, anchor: { x: raw.anchor.x, y: raw.anchor.y }, ...(typeof raw.rowId === "string" ? { rowId: raw.rowId } : {}) } : undefined;
     if ((value.startBinding && !binding(value.startBinding)) || (value.endBinding && !binding(value.endBinding))) return undefined;
     const forkBranch = (raw: unknown) => {
       if (raw === undefined) return undefined;
@@ -438,36 +473,53 @@ function normalizeElement(value: unknown): Element | undefined {
       : lineRoute === "multi" ? [0.2, 0.4, 0.6, 0.8].map((ratio, index) => storedRoutePoints?.[index] ?? { x: x + w * ratio, y: y + h * ratio })
       : ["curve", "curve2", "curve3"].includes(lineRoute) ? curveControlPoints(controlBase, lineRoute).map((point, index) => storedRoutePoints?.[index] ?? point)
       : storedRoutePoints;
-    return { type: value.type as ShapeElement["type"], ...flags, startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, forkUpper: forkUpper ?? undefined, forkLower: forkLower ?? undefined, label, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness: value.thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, lineRoute: value.type === "line" ? lineRoute : undefined, arrowRoute: value.type === "arrow" ? arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
+    return { type: value.type as ShapeElement["type"], ...flags, startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, forkUpper: forkUpper ?? undefined, forkLower: forkLower ?? undefined, label, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness: value.thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, lineRoute: value.type === "line" ? lineRoute : undefined, arrowRoute: value.type === "arrow" ? arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(typeof value.schemaDiagramId === "string" ? { schemaDiagramId: value.schemaDiagramId } : {}) };
   }
   return undefined;
 }
 
 function parseSketchFile(value: unknown): SketchFile | undefined {
   if (!isRecord(value) || value.format !== "SketchDraw") return undefined;
-  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown): SketchPage | undefined => {
+  const addLegacyElementIds = (item: unknown): unknown => {
+    if (!isRecord(item)) return item;
+    const next: Record<string, unknown> = { ...item, id: typeof item.id === "string" && item.id ? item.id : crypto.randomUUID() };
+    if (Array.isArray(item.elements)) next.elements = item.elements.map(addLegacyElementIds);
+    return next;
+  };
+  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, legacy: boolean): SketchPage | undefined => {
     if (typeof id !== "string" || typeof name !== "string" || !isRecord(stateValue) || !Array.isArray(elementsValue)) return undefined;
     const state = stateValue;
     if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !isColor(state.backgroundColor)) return undefined;
-    const elements = elementsValue.map(normalizeElement);
+    const elements = elementsValue.map((element) => normalizeElement(legacy ? addLegacyElementIds(element) : element));
     if (elements.some((element) => !element) || !validReferences(elements as Element[])) return undefined;
     return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff" }, elements: elements as Element[] };
   };
-  if (value.version !== 6 || !Array.isArray(value.pages) || value.pages.length < 1 || value.pages.length > 100) return undefined;
-  const pages = value.pages.map((page, index) => isRecord(page) ? normalizePage(page.id, page.name ?? `Page ${index + 1}`, page.canvasState, page.elements) : undefined);
+  const sourcePages = Array.isArray(value.pages) ? value.pages : Array.isArray(value.elements) ? [{ id: crypto.randomUUID(), name: "Page 1", canvasState: value.canvasState, elements: value.elements }] : undefined;
+  if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100 || !Number.isInteger(value.version) || Number(value.version) < 1 || Number(value.version) > SKETCH_FORMAT_VERSION) return undefined;
+  const pages = sourcePages.map((page, index) => {
+    if (!isRecord(page)) return undefined;
+    const state = isRecord(page.canvasState) ? page.canvasState : {};
+    const migratedState = Number(value.version) < SKETCH_FORMAT_VERSION ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
+    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, Number(value.version) < 6);
+  });
   if (pages.some((page) => !page)) return undefined;
   const normalized = pages as SketchPage[];
   if (new Set(normalized.map((page) => page.id)).size !== normalized.length) return undefined;
   const activePageId = normalized.some((page) => page.id === value.activePageId) ? String(value.activePageId) : normalized[0].id;
-  return { format: "SketchDraw", version: 6, activePageId, pages: normalized };
+  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized };
 }
 
 function elementBounds(element: Element): Bounds {
   const cached = boundsCache.get(element); if (cached) return cached;
   if (element.type === "group") {
+    if (element.note) {
+      const surface = element.elements.find((child): child is ShapeElement => child.type === "rectangle");
+      if (surface) return cacheBounds(element, rotatedBounds({ x: surface.x, y: surface.y, w: Math.abs(surface.w), h: Math.abs(surface.h) }, element.rotation ?? 0));
+    }
     return cacheBounds(element, unionBounds(element.elements.filter((child) => !child.hidden).map(elementBounds)) ?? { x: 0, y: 0, w: 0, h: 0 });
   }
   if (element.type === "image") return cacheBounds(element, rotatedBounds({ x: element.x, y: element.y, w: element.w, h: element.h }, element.rotation ?? 0));
+  if (element.type === "schemaTable") return cacheBounds(element, rotatedBounds({ x: element.x, y: element.y, w: element.w, h: element.h }, element.rotation ?? 0));
   if (element.type === "text") {
     const lines = element.text.split(/\r?\n/).map((line, index) => element.listType === "bullet" ? "• " + line : element.listType === "number" ? `${index + 1}. ${line}` : line);
     textMeasureContext ??= document.createElement("canvas").getContext("2d");
@@ -524,6 +576,10 @@ function App() {
   const [penPressure, setPenPressure] = createSignal(true);
   const [penTilt, setPenTilt] = createSignal(true);
   const [penEraser, setPenEraser] = createSignal(true);
+  const [laserColor, setLaserColor] = createSignal((() => { const value = readPreference("sketchdraw-laser-color", "#ff3265"); return /^#[\da-f]{6}$/i.test(value) ? value : "#ff3265"; })());
+  const [laserThickness, setLaserThickness] = createSignal(Math.max(1, Math.min(24, Number(readPreference("sketchdraw-laser-thickness", "5")) || 5)));
+  const [laserFadeDuration, setLaserFadeDuration] = createSignal(Math.max(250, Math.min(5000, Number(readPreference("sketchdraw-laser-fade", "1100")) || 1100)));
+  const [laserRainbow, setLaserRainbow] = createSignal(readPreference("sketchdraw-laser-rainbow", "false") === "true");
   const [dirty, setDirty] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
   const [savedAt, setSavedAt] = createSignal("");
@@ -540,6 +596,8 @@ function App() {
   const [fillColor, setFillColor] = createSignal("#6b91c9");
   const [fillOpacity, setFillOpacity] = createSignal(0.2);
   const [lineStyle, setLineStyle] = createSignal<StrokeStyle>("solid");
+  type BrushMode = "fine" | "pencil" | "brush" | "marker" | "highlighter" | "chalk";
+  const [brushMode, setBrushMode] = createSignal<BrushMode>("fine");
   const [lineRoute, setLineRoute] = createSignal<LineRoute>("straight");
   const [arrowRoute, setArrowRoute] = createSignal<ArrowRoute>("straight");
   const [flowchartShape, setFlowchartShape] = createSignal<FlowchartShape>("process");
@@ -554,9 +612,14 @@ function App() {
   const [boardColor, setBoardColor] = createSignal("#ffffff");
   const [boardColorFollowsTheme, setBoardColorFollowsTheme] = createSignal(true);
   const [boardLocked, setBoardLocked] = createSignal(false);
-  const [sidebarTab, setSidebarTab] = createSignal<"properties" | "layers">("properties");
+  const [sidebarTab, setSidebarTab] = createSignal<"properties">("properties");
+  const [layerPanelOpen, setLayerPanelOpen] = createSignal(false);
+  const [classCardDraft, setClassCardDraft] = createSignal<{ x: number; y: number; name: string; attributes: string; methods: string; fontSize: number; componentId?: string }>();
   const [styleMenuMode, setStyleMenuMode] = createSignal<"quick" | "full">("quick");
-  const [quickStylePopover, setQuickStylePopover] = createSignal<"color" | "thickness" | "fill" | "route" | "lineStyle" | "heads" | "penInput">();
+  const [quickStylePopover, setQuickStylePopover] = createSignal<"color" | "thickness" | "fill" | "route" | "lineStyle" | "heads" | "penInput" | "laser">();
+  const [autosaveSeconds, setAutosaveSeconds] = createSignal<5 | 10>(readPreference("sketchdraw-autosave-seconds", "10") === "5" ? 5 : 10);
+  const [componentAppearance, setComponentAppearance] = createSignal<"modern" | "simple">(readPreference("sketchdraw-component-appearance", "modern") === "simple" ? "simple" : "modern");
+  const [toolbarColorChoice, setToolbarColorChoice] = createSignal((() => { const value = readPreference("sketchdraw-toolbar-color", "auto"); return value === "auto" || /^#[\da-f]{6}$/i.test(value) ? value : "auto"; })());
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "error">("idle");
   const [updateVersion, setUpdateVersion] = createSignal<string>();
@@ -581,13 +644,18 @@ function App() {
   const [exportTransparent, setExportTransparent] = createSignal(false);
   const [textDraft, setTextDraft] = createSignal<TextDraft>();
   const [textMode, setTextMode] = createSignal<"text" | NoteKind>("text");
-  const [noteEditor, setNoteEditor] = createSignal<{ x: number; y: number; width: number; height: number; fontSize: number; kind: NoteKind; content: string; editingIndex?: number }>();
+  const [noteEditor, setNoteEditor] = createSignal<{ x: number; y: number; width: number; height: number; fontSize: number; kind: NoteKind; content: string; title: string; resized?: boolean; editingIndex?: number }>();
   const [noteEditorSession, setNoteEditorSession] = createSignal(0);
   let noteEditorTextarea: HTMLTextAreaElement | undefined;
   let resizingNoteEditor = false;
   const [schemaDialog, setSchemaDialog] = createSignal(false);
   const [schemaInput, setSchemaInput] = createSignal("");
   const [schemaError, setSchemaError] = createSignal("");
+  const [schemaEditingDiagram, setSchemaEditingDiagram] = createSignal<string>();
+  const [mermaidDialog, setMermaidDialog] = createSignal(false);
+  const [mermaidEditingDiagram, setMermaidEditingDiagram] = createSignal<string>();
+  const [mermaidInput, setMermaidInput] = createSignal("flowchart TD\n  Start([Start]) --> Check{Ready?}\n  Check -->|Yes| Done[Finish]\n  Check -->|No| Wait[Wait]");
+  const [mermaidError, setMermaidError] = createSignal("");
   const [isPanning, setIsPanning] = createSignal(false);
   const [spaceDown, setSpaceDown] = createSignal(false);
   const [historyVersion, setHistoryVersion] = createSignal(0);
@@ -596,6 +664,10 @@ function App() {
     try { const saved = localStorage.getItem("sketchdraw-theme"); return saved === "light" || saved === "dark" ? saved : "system"; }
     catch { return "system"; }
   })());
+  const [accentColor, setAccentColor] = createSignal((() => {
+    try { const saved = localStorage.getItem("sketchdraw-accent"); return saved && /^#[\da-f]{6}$/i.test(saved) ? saved : UI_ACCENTS[0].value; }
+    catch { return UI_ACCENTS[0].value; }
+  })());
   const [systemDark, setSystemDark] = createSignal(window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
   const [recentFiles, setRecentFiles] = createSignal<string[]>((() => {
     try { const value: unknown = JSON.parse(localStorage.getItem("sketchdraw-v6-recent-files") ?? "[]"); return Array.isArray(value) ? value.filter((path): path is string => typeof path === "string" && path.toLowerCase().endsWith(".sketch")).slice(0, 8) : []; }
@@ -603,8 +675,8 @@ function App() {
   })());
   createEffect(() => {
     selectedIndices();
-    tool();
-    setStyleMenuMode("quick");
+    const currentTool = tool();
+    if (currentTool === "select") setStyleMenuMode("quick");
     setQuickStylePopover(undefined);
   });
   const [marquee, setMarquee] = createSignal<{ start: Point; end: Point }>();
@@ -624,6 +696,7 @@ function App() {
   let penEraserDrawing = false;
   let laserTimer: number | undefined;
   let saveInFlight = false;
+  let restartAutosave: (() => void) | undefined;
   let lastSavedRaw: string | undefined;
   let panOrigin: { x: number; y: number; panX: number; panY: number } | undefined;
   let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean } | undefined;
@@ -633,6 +706,7 @@ function App() {
   const [documentBusy, setDocumentBusy] = createSignal(false);
   const [openToolOptions, setOpenToolOptions] = createSignal<Tool>();
   const [stencilMenuOpen, setStencilMenuOpen] = createSignal(false);
+  const [paintBrushMenuOpen, setPaintBrushMenuOpen] = createSignal(false);
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; world: Point }>();
   const [pageDialog, setPageDialog] = createSignal<"rename" | "delete">();
   const [pageName, setPageName] = createSignal("");
@@ -722,12 +796,12 @@ function App() {
     });
     const before = cloneElements(elements()); setElements(items => items.map((item, index) => { const delta = translations.get(index); return delta ? moveElement(item, delta.x, delta.y) : item; })); pushUndo(before); setDirty(true);
   }
-  function clipboardPayload() { return JSON.stringify({ format: "SketchDrawClipboard", version: 6, elements: copyElements(selectedElements(), 0, 0) }); }
+  function clipboardPayload() { return JSON.stringify({ format: "SketchDrawClipboard", version: SKETCH_FORMAT_VERSION, elements: copyElements(selectedElements(), 0, 0) }); }
   function pastePayload(raw: string, at?: Point) {
     if (!activePath() || boardLocked()) return;
     try {
       const payload: unknown = JSON.parse(raw);
-      if (!isRecord(payload) || payload.format !== "SketchDrawClipboard" || payload.version !== 6 || !Array.isArray(payload.elements)) throw new Error("Copy objects from this version of SketchDraw first.");
+      if (!isRecord(payload) || payload.format !== "SketchDrawClipboard" || ![6, SKETCH_FORMAT_VERSION].includes(Number(payload.version)) || !Array.isArray(payload.elements)) throw new Error("Copy objects from this version of SketchDraw first.");
       const items = payload.elements.map(normalizeElement);
       if (!items.length || items.some(item => !item) || !validReferences(items as Element[])) throw new Error("The clipboard objects are invalid.");
       insertCopies(items as Element[], at);
@@ -842,14 +916,15 @@ function App() {
   const fileName = () => activePath()?.split(/[\\/]/).pop() ?? "Untitled sketch";
   const currentPage = () => pages().find((page) => page.id === activePageId());
   const theme = (): Theme => themeMode() === "system" ? systemDark() ? "dark" : "light" : themeMode() as Theme;
+  const toolbarColor = () => toolbarColorChoice() === "auto" ? theme() === "dark" ? "#252c31" : "#f8faf7" : toolbarColorChoice();
   const selectedSet = createMemo(() => new Set(selectedIndices()));
   const selectedElements = () => selectedIndices().flatMap((index) => elements()[index] ? [elements()[index]] : []);
   const primarySelection = () => selectedIndices()[selectedIndices().length - 1];
-  const groupSelected = () => selectedElements().length === 1 && selectedElements()[0]?.type === "group";
-  const groupActionEnabled = () => groupSelected() ? !selectedElements()[0]?.locked : selectedElements().filter((element) => !element.locked).length >= 2;
+  const groupSelected = () => { const selected = selectedElements(); return selected.length === 1 && selected[0]?.type === "group" && !selected[0].note; };
+  const groupActionEnabled = () => { const selected = selectedElements(); if (selected.length === 1 && selected[0]?.type === "group" && selected[0].note) return false; return groupSelected() ? !selected[0]?.locked : selected.filter((element) => !element.locked).length >= 2; };
   const focusedElement = (): Element | undefined => {
     let element = primarySelection() === undefined ? undefined : elements()[primarySelection()!];
-    while (element?.type === "group") element = element.elements[element.elements.length - 1];
+    while (element?.type === "group" && !element.note) element = element.elements[element.elements.length - 1];
     return element;
   };
   const selectedLabel = () => { const item = focusedElement(); return item && isLabelShape(item) ? item.label : undefined; };
@@ -871,7 +946,10 @@ function App() {
   ); };
   const quickElementType = () => tool() === "select" ? focusedElement()?.type ?? "select" : tool();
   const quickHasShapeFill = () => ["rectangle", "circle", "diamond", "triangle", "flowchart"].includes(quickElementType());
-  const quickHasText = () => quickElementType() === "text" || !!(styleTargetElement() && isLabelShape(styleTargetElement()!));
+  const quickHasText = () => quickElementType() === "text" || !!(styleTargetElement() && (isLabelShape(styleTargetElement()!) || styleTargetElement()!.type === "schemaTable" || !!styleTargetElement()!.componentId));
+  const selectedNoteCard = () => { const element = primarySelection() === undefined ? undefined : elements()[primarySelection()!]; return element?.type === "group" && element.note ? element : undefined; };
+  const quickHasNoteCard = () => !!selectedNoteCard() && tool() === "select";
+  const quickCardFontSize = () => { const focused = focusedElement(); const componentText = focused?.componentId ? elements().find(item => item.componentId === focused.componentId && item.type === "text") : undefined; return noteEditor()?.fontSize ?? selectedNoteCard()?.note?.fontSize ?? (focused?.type === "schemaTable" ? focused.fontSize ?? 14 : undefined) ?? (componentText?.type === "text" ? componentText.fontSize : undefined) ?? selectedText()?.fontSize ?? defaultFontSize(); };
   const quickIsConnector = () => quickElementType() === "line" || quickElementType() === "arrow";
   const quickRouteChoices = () => quickElementType() === "arrow" ? ARROW_ROUTES : LINE_ROUTES;
   const quickCurrentRoute = () => { const focused = styleTargetElement(); if (quickElementType() === "arrow") return focused?.type === "arrow" ? focused.arrowRoute ?? "straight" : arrowRoute(); return focused?.type === "line" ? focused.lineRoute ?? "straight" : lineRoute(); };
@@ -888,11 +966,11 @@ function App() {
       const isCurrent = page.id === activePageId() || (!activePageId() && sourcePages.length === 1);
       const pageElements = isCurrent ? elements() : page.elements;
       const normalized = pageElements.map(normalizeElement);
-      if (normalized.some((element) => !element)) throw new Error("The drawing contains an element that cannot be saved in SketchDraw format v6.");
+      if (normalized.some((element) => !element)) throw new Error(`The drawing contains an element that cannot be saved in SketchDraw format v${SKETCH_FORMAT_VERSION}.`);
       const state = isCurrent ? canvasState() : page.canvasState;
       return { id: page.id, name: page.name, canvasState: { ...state, backgroundColor: isCurrent ? renderedBoardColor() : (state.boardColorFollowsTheme ? (theme() === "dark" ? "#17191f" : "#ffffff") : state.backgroundColor), boardColorFollowsTheme: state.boardColorFollowsTheme ?? true }, elements: normalized as Element[] };
     });
-    return { format: "SketchDraw", version: 6, activePageId: activePageId() || serializedPages[0].id, pages: serializedPages };
+    return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: activePageId() || serializedPages[0].id, pages: serializedPages };
   }
   function snapshotRaw(snapshot: SketchFile) { return JSON.stringify(snapshot, null, 2); }
   function storeCurrentPage() {
@@ -967,7 +1045,8 @@ function App() {
   function groupSelection() {
     if (boardLocked()) return;
     const indices = [...new Set(selectedIndices())].filter((index) => !!elements()[index] && !elements()[index].locked).sort((a, b) => a - b);
-    if (indices.length === 1 && elements()[indices[0]]?.type === "group") { ungroupSelection(); return; }
+    const onlySelected = indices.length === 1 ? elements()[indices[0]] : undefined;
+    if (onlySelected?.type === "group" && !onlySelected.note) { ungroupSelection(); return; }
     if (indices.length < 2) return;
     const before = cloneElements(elements()); const selected = new Set(indices); const first = indices[0];
     const children = indices.map((index) => elements()[index]); const grouped: Element[] = [];
@@ -977,10 +1056,10 @@ function App() {
 
   function ungroupSelection() {
     if (boardLocked()) return;
-    const indices = new Set(selectedIndices().filter((index) => !!elements()[index] && !elements()[index].locked)); if (!indices.size) return;
+    const indices = new Set(selectedIndices().filter(index => { const item = elements()[index]; return !!item && !item.locked && !(item.type === "group" && item.note); })); if (!indices.size) return;
     const before = cloneElements(elements()); const next: Element[] = []; const selectedAfter: number[] = []; let changed = false;
     elements().forEach((element, index) => {
-      if (indices.has(index) && element.type === "group" && !element.locked) {
+      if (indices.has(index) && element.type === "group" && !element.note && !element.locked) {
         changed = true;
         const start = next.length; next.push(...element.elements);
         for (let offset = 0; offset < element.elements.length; offset++) selectedAfter.push(start + offset);
@@ -997,6 +1076,7 @@ function App() {
     const update = (element: Element): Element => {
       if (element.locked) return element;
       if (element.type === "group") return { ...element, elements: element.elements.map(update) };
+      if (element.type === "schemaTable" && property === "fontSize") { const size = Math.max(8, Math.min(48, Number(value))); const headerHeight = Math.max(42, size * 2.8); const rowHeight = Math.max(30, size * 1.8); const neededWidth = Math.max(180, ...element.columns.map(column => (column.name.length + (column.dataType ?? "type").length) * size * .36 + 80)); return { ...element, fontSize: size, w: Math.max(element.w, neededWidth), h: Math.max(element.h, headerHeight + element.columns.length * rowHeight) }; }
       if (property === "color") return { ...element, color: String(value) } as Element;
       if (property === "opacity") return { ...element, opacity: Number(value) } as Element;
       if (property === "thickness" && "thickness" in element) return { ...element, thickness: Number(value) } as Element;
@@ -1082,7 +1162,7 @@ function App() {
     if (existing?.locked) return;
     const group = existing?.type === "group" ? existing : undefined;
     const bounds = group ? elementBounds(group) : undefined;
-    setNoteEditor({ x: bounds?.x ?? point.x, y: bounds?.y ?? point.y, width: group?.note?.width ?? bounds?.w ?? (kind === "sticky" ? 296 : 340), height: group?.note?.height ?? bounds?.h ?? 190, fontSize: group?.note?.fontSize ?? 14, kind, content: group?.note?.content ?? (kind === "checklist" ? "- [ ] New task" : ""), editingIndex });
+    setNoteEditor({ x: bounds?.x ?? point.x, y: bounds?.y ?? point.y, width: group?.note?.width ?? bounds?.w ?? (kind === "sticky" ? 296 : 340), height: group?.note?.height ?? bounds?.h ?? 190, fontSize: group?.note?.fontSize ?? 14, kind, content: group?.note?.content ?? (kind === "checklist" ? "- [ ] New task" : ""), title: group?.note?.title ?? defaultNoteTitle(kind), editingIndex });
     setNoteEditorSession(session => session + 1);
   }
 
@@ -1091,13 +1171,13 @@ function App() {
     if (!draft || boardLocked()) return;
     if (draft.content.length > 50000) { setError("Notes and checklists are limited to 50,000 characters."); return; }
     const content = draft.kind === "checklist" && !draft.content.trim() ? "- [ ] New task" : draft.content;
-    if (!content.trim()) { setNoteEditor(undefined); return; }
+    if (!content.trim() && !draft.title.trim()) { setNoteEditor(undefined); return; }
     if (normalizeNoteContent(content, draft.kind).length > 50000) {
       setError("Checklist task markers count toward the 50,000-character save limit. Shorten the checklist before saving it.");
       return;
     }
     const previous = draft.editingIndex === undefined ? undefined : elements()[draft.editingIndex];
-    let group = buildNoteGroup(draft.x, draft.y, draft.kind, content, { width: draft.width, height: draft.height, fontSize: draft.fontSize });
+    let group = buildNoteGroup(draft.x, draft.y, draft.kind, content, { width: draft.width, ...(draft.editingIndex !== undefined || draft.resized ? { height: draft.height } : {}), fontSize: draft.fontSize, title: draft.title });
     if (previous?.type === "group") {
       group = { ...group, ...previous, note: { ...group.note, kind: draft.kind, content: group.note?.content ?? content }, elements: group.elements.map((child, index) => previous.elements[index]?.id ? { ...child, id: previous.elements[index].id } as Element : child) };
     }
@@ -1113,7 +1193,7 @@ function App() {
     if (previous?.type !== "group" || previous.note?.kind !== "checklist" || boardLocked() || previous.locked) return;
     const before = cloneElements(elements());
     const content = toggleChecklistContent(previous.note.content, row);
-    const rebuilt = buildNoteGroup(elementBounds(previous).x, elementBounds(previous).y, "checklist", content, { width: previous.note.width, height: previous.note.height, fontSize: previous.note.fontSize });
+    const rebuilt = buildNoteGroup(elementBounds(previous).x, elementBounds(previous).y, "checklist", content, { width: previous.note.width, height: previous.note.height, fontSize: previous.note.fontSize, title: previous.note.title, collapsed: previous.note.collapsed });
     const replacement: Element = { ...rebuilt, ...previous, note: { ...rebuilt.note, kind: "checklist", content }, elements: rebuilt.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
     setElements(items => items.map((item, current) => current === index ? replacement : item)); pushUndo(before); setDirty(true);
   }
@@ -1126,6 +1206,7 @@ function App() {
       width: previous.note.width ?? bounds.w,
       height: previous.note.height ?? Math.max(100, bounds.h),
       fontSize: previous.note.fontSize,
+      title: previous.note.title,
       collapsed: !previous.note.collapsed,
     });
     const replacement: Element = { ...next, ...previous, note: next.note, elements: next.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
@@ -1139,9 +1220,73 @@ function App() {
     const rect = canvas.getBoundingClientRect(); const view = canvasState();
     const point = { x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom };
     const hit = hitTest(point) ?? hitInterior(point); const target = hit === undefined ? undefined : elements()[hit];
+    if (target?.type === "schemaTable") { openSchemaDialog(target.schemaDiagramId); return; }
+    if (target?.type === "group" && target.mermaid) { openMermaidDialog(target.id); return; }
+    if (target?.componentId?.startsWith("uml-class:")) { const shell = elements().find(item => item.componentId === target.componentId && item.componentRole === "class-shell"); const box = elementBounds(shell ?? target); openClassCardDialog(box.x, box.y, target.componentId); return; }
     if (target?.type === "group" && target.note) { if (!noteCollapseHit(target, point)) openNoteEditor(point, target.note.kind, hit); return; }
     if (hit !== undefined && isLabelShape(elements()[hit])) editShapeLabel(hit);
     else startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined);
+  }
+
+  function openClassCardDialog(x: number, y: number, componentId?: string) {
+    const parts = componentId ? elements().filter(item => item.componentId === componentId) : [];
+    const byRole = (role: string) => parts.find(item => item.componentRole === role);
+    const name = byRole("class-name"); const attributes = byRole("class-attributes"); const methods = byRole("class-methods");
+    setClassCardDraft({ x, y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: name?.type === "text" ? name.fontSize : 13, componentId });
+    setStencilMenuOpen(false);
+  }
+
+  function classCardElements(draft: NonNullable<ReturnType<typeof classCardDraft>>): Element[] {
+    const fontSize = Math.max(8, Math.min(48, draft.fontSize));
+    const longest = Math.max(12, ...[draft.name, draft.attributes, draft.methods].flatMap(text => text.split(/\r?\n/).map(line => line.length)));
+    const width = Math.max(230, Math.min(640, longest * fontSize * .62 + 32));
+    const wrap = (text: string) => text.split(/\r?\n/).flatMap(line => {
+      const rows: string[] = []; let rest = line; const limit = Math.max(12, Math.floor((width - 28) / (fontSize * .62)));
+      while (rest.length > limit) { let cut = rest.lastIndexOf(" ", limit); if (cut < 1) cut = limit; rows.push(rest.slice(0, cut)); rest = rest.slice(cut).trimStart(); }
+      rows.push(rest); return rows;
+    }).join("\n");
+    const attrs = wrap(draft.attributes); const methods = wrap(draft.methods); const lineHeight = fontSize * 1.4;
+    const attrHeight = Math.max(54, attrs.split("\n").length * lineHeight + 18); const methodHeight = Math.max(54, methods.split("\n").length * lineHeight + 18);
+    const group = buildLibraryComponent("uml-class", draft.x, draft.y); const items = group.elements;
+    const positions: { role: string; item: Element }[] = [
+      { role: "class-shell", item: { ...items[0] as ShapeElement, w: width, h: 36 + attrHeight + methodHeight } },
+      { role: "class-header", item: { ...items[1] as ShapeElement, w: width } },
+      { role: "class-divider-name", item: { ...items[2] as ShapeElement, w: width, h: 0 } },
+      { role: "class-divider-attributes", item: { ...items[3] as ShapeElement, y: draft.y + 36 + attrHeight, w: width, h: 0 } },
+      { role: "class-name", item: { ...(items[4] as TextElement), text: draft.name, fontSize, x: draft.x + 12, y: draft.y + 10 } },
+      { role: "class-attributes", item: { ...(items[5] as TextElement), text: attrs, fontSize, x: draft.x + 12, y: draft.y + 45 } },
+      { role: "class-methods", item: { ...(items[6] as TextElement), text: methods, fontSize, x: draft.x + 12, y: draft.y + 45 + attrHeight } },
+    ];
+    const existing = draft.componentId ? elements().filter(item => item.componentId === draft.componentId) : [];
+    const oldIds = new Map(existing.map(item => [item.componentRole, item.id]));
+    const componentId = draft.componentId ?? `uml-class:${crypto.randomUUID()}`;
+    return positions.map(({ role, item }) => ({ ...item, id: oldIds.get(role) ?? crypto.randomUUID(), componentId, componentRole: role } as Element));
+  }
+
+  function resizeClassCardFont(componentId: string, requestedSize: number) {
+    const parts = elements().filter(item => item.componentId === componentId); const shell = parts.find(item => item.componentRole === "class-shell");
+    if (!parts.length || !shell || shell.type !== "rectangle" || boardLocked() || parts.some(item => item.locked)) return false;
+    const textFor = (role: string) => parts.find(item => item.componentRole === role);
+    const name = textFor("class-name"); const attributes = textFor("class-attributes"); const methods = textFor("class-methods");
+    const draft = { x: shell.x, y: shell.y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: Math.max(8, Math.min(48, Math.round(requestedSize))), componentId };
+    const before = cloneElements(elements()); const nextParts = classCardElements(draft); const indices = elements().flatMap((item, index) => item.componentId === componentId ? [index] : []);
+    const insertAt = Math.min(...indices); const remove = new Set(indices); const next = elements().filter((_, index) => !remove.has(index)); next.splice(insertAt, 0, ...nextParts);
+    setElements(next); setSelectedIndices(nextParts.map((_, offset) => insertAt + offset)); pushUndo(before); setDirty(true); return true;
+  }
+
+  function insertClassCard() {
+    const draft = classCardDraft();
+    if (!draft || !activePath() || boardLocked()) return;
+    const parts = classCardElements(draft);
+    const oldIndices = draft.componentId ? elements().flatMap((item, index) => item.componentId === draft.componentId ? [index] : []) : [];
+    const insertion = oldIndices.length ? Math.min(...oldIndices) : elements().length; const remove = new Set(oldIndices);
+    const next = elements().filter((_, index) => !remove.has(index)); next.splice(insertion, 0, ...parts);
+    pushUndo(cloneElements(elements()));
+    setElements(next);
+    setSelectedIndices(parts.map((_, offset) => insertion + offset));
+    setTool("select");
+    setClassCardDraft(undefined);
+    setDirty(true);
   }
 
   function insertLibraryComponent(kind: LibraryComponentKind) {
@@ -1150,8 +1295,10 @@ function App() {
     const rect = canvas.getBoundingClientRect(); const view = canvasState();
     const x = (rect.width / 2 - view.panX) / view.zoom - item.width / 2;
     const y = (rect.height / 2 - view.panY) / view.zoom - item.height / 2;
-    const group = buildLibraryComponent(kind, x, y); const index = elements().length;
-    pushUndo(cloneElements(elements())); setElements(items => [...items, group]); setSelectedIndices([index]); setTool("select"); setStencilMenuOpen(false); setDirty(true);
+    const group = buildLibraryComponent(kind, x, y); const parts = group.elements; const index = elements().length;
+    const moveAsUnit = new Set<LibraryComponentKind>(["uml-lifeline", "uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition", "sequence-sync", "sequence-async", "er-one-many", "er-many-many", "tech-service", "data-flow"]).has(kind);
+    const inserted: Element[] = moveAsUnit ? [{ ...group, id: crypto.randomUUID() }] : parts;
+    pushUndo(cloneElements(elements())); setElements(items => [...items, ...inserted]); setSelectedIndices(inserted.map((_, offset) => index + offset)); setTool("select"); setStencilMenuOpen(false); setDirty(true);
   }
 
   function libraryIcon(kind: LibraryComponentKind) {
@@ -1160,8 +1307,8 @@ function App() {
     if (kind === "uml-lifeline") return <svg {...base}><rect x="8" y="3" width="16" height="7" rx="2"/><path d="M16 10v19" stroke-dasharray="2 2"/><circle cx="16" cy="6.5" r="1" fill="currentColor"/></svg>;
     if (kind === "uml-activation") return <svg {...base}><path d="M16 2v4m0 20v4"/><rect x="12" y="6" width="8" height="20" rx="1.5" fill="currentColor" fill-opacity=".16"/></svg>;
     if (kind === "sequence-sync" || kind === "sequence-async") return <svg {...base}><path d="M4 10h24M4 22h24"/>{kind === "sequence-sync" ? <path d="m22 18 6 4-6 4z" fill="currentColor"/> : <path d="m23 18 6 4-6 4"/>}<rect x="14" y="11" width="4" height="6" rx="1" fill="currentColor" fill-opacity=".18"/></svg>;
-    if (kind === "uml-inheritance" || kind === "uml-realization") return <svg {...base}><path d="M4 16h21" stroke-dasharray={kind === "uml-realization" ? "3 2" : undefined}/><path d="m24 11 5 5-5 5z" fill="var(--menu-bg, #fff)"/></svg>;
-    if (kind === "uml-aggregation" || kind === "uml-composition") return <svg {...base}><path d="M10 16h19"/><path d="m5 16 5-5 5 5-5 5z" fill={kind === "uml-composition" ? "currentColor" : "var(--menu-bg, #fff)"}/></svg>;
+    if (kind === "uml-inheritance" || kind === "uml-realization") return <svg {...base}><path d="M4 16h21" stroke-dasharray={kind === "uml-realization" ? "3 2" : undefined}/><path d="m24 11 5 5-5 5z" fill="var(--stencil-icon-bg, #fff)"/></svg>;
+    if (kind === "uml-aggregation" || kind === "uml-composition") return <svg {...base}><path d="M10 16h19"/><path d="m5 16 5-5 5 5-5 5z" fill={kind === "uml-composition" ? "currentColor" : "var(--stencil-icon-bg, #fff)"}/></svg>;
     if (kind === "er-table") return <svg {...base}><rect x="4" y="4" width="24" height="24" rx="2"/><path d="M4 11h24M14 11v17M14 17h14M14 23h14"/><path d="M7 15h4m-4 7h4" stroke-width="2"/></svg>;
     if (kind === "er-one-many") return <svg {...base}><path d="M3 16h20m0-6v12m0-12 6 6-6 6m0-6 6-6m-6 6 6 6"/><path d="M6 12v8" stroke-width="2"/></svg>;
     if (kind === "er-many-many") return <svg {...base}><path d="M9 10 3 16l6 6m0-12-6 6 6 6m14-12 6 6-6 6m0-12 6 6-6 6M9 16h14"/></svg>;
@@ -1176,48 +1323,92 @@ function App() {
     return <svg {...base}><path d="M5 5h22v22H5zM9 11h14M9 16h14M9 21h9"/></svg>;
   }
 
+  function openSchemaDialog(diagramId?: string, initialSource?: string) {
+    setSchemaError(""); setSchemaEditingDiagram(diagramId);
+    const source = diagramId ? elements().find((item): item is SchemaTableElement => item.type === "schemaTable" && item.schemaDiagramId === diagramId)?.schemaSource : undefined;
+    setSchemaInput(source ?? initialSource ?? ""); setSchemaDialog(true); setStencilMenuOpen(false);
+  }
+
+  function closeMermaidDialog() {
+    setMermaidDialog(false); setMermaidEditingDiagram(undefined); setMermaidError("");
+  }
+
+  function openMermaidDialog(diagramId?: string) {
+    const existing = diagramId ? elements().find((item): item is Extract<Element, { type: "group" }> => item.type === "group" && item.id === diagramId && !!item.mermaid) : undefined;
+    if (diagramId && !existing) { setMermaidError("This Mermaid diagram is no longer available."); return; }
+    setMermaidInput(existing?.mermaid?.source ?? "flowchart TD\n  Start([Start]) --> Check{Ready?}\n  Check -->|Yes| Done[Finish]\n  Check -->|No| Wait[Wait]");
+    setMermaidError(""); setMermaidEditingDiagram(existing?.id); setMermaidDialog(true); setStencilMenuOpen(false);
+  }
+
+  function insertMermaidDiagram() {
+    if (!activePath() || boardLocked() || !canvas) return;
+    try {
+      const source = mermaidInput().trim(); const parsed = parseMermaidFlowchart(source);
+      const editingId = mermaidEditingDiagram(); const oldIndex = editingId ? elements().findIndex(item => item.type === "group" && item.id === editingId && !!item.mermaid) : -1;
+      if (editingId && oldIndex < 0) throw new Error("This Mermaid diagram is no longer available.");
+      const existing = oldIndex >= 0 ? elements()[oldIndex] as Extract<Element, { type: "group" }> : undefined;
+      const rect = canvas.getBoundingClientRect(); const view = canvasState(); const bounds = existing ? elementBounds(existing) : undefined;
+      const center = bounds ? { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 } : { x: (rect.width / 2 - view.panX) / view.zoom, y: (rect.height / 2 - view.panY) / view.zoom };
+      const children = layoutMermaidFlowchart(parsed, center);
+      const group: Extract<Element, { type: "group" }> = existing
+        ? { ...existing, elements: children, mermaid: { source } }
+        : { type: "group", id: crypto.randomUUID(), elements: children, mermaid: { source } };
+      const groupIndex = oldIndex >= 0 ? oldIndex : elements().length; const before = cloneElements(elements());
+      if (oldIndex >= 0) setElements(items => items.map((item, index) => index === oldIndex ? group : item));
+      else setElements(items => [...items, group]);
+      pushUndo(before); setSelectedIndices([groupIndex]); setTool("select"); setSidebarTab("properties"); closeMermaidDialog(); setDirty(true);
+    } catch (cause) { setMermaidError(cause instanceof Error ? cause.message : String(cause)); }
+  }
+
   function insertSchemaVisual() {
     if (!activePath() || boardLocked() || !canvas) return;
     try {
-      const tables = parseSchema(schemaInput()); const width = 252; const header = 40; const rowHeight = 29; const gapX = 72; const gapY = 68;
-      const columns = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(tables.length))));
-      const rowHeights = Array.from({ length: Math.ceil(tables.length / columns) }, (_, row) => Math.max(...tables.slice(row * columns, (row + 1) * columns).map(table => header + Math.max(1, table.columns.length) * rowHeight + 12)));
-      const totalWidth = columns * width + (columns - 1) * gapX; const totalHeight = rowHeights.reduce((sum, height) => sum + height, 0) + (rowHeights.length - 1) * gapY;
+      const source = schemaInput().trim(); const parsedTables = parseSchema(source); const tableNames = new Set<string>();
+      for (const table of parsedTables) {
+        const tableName = table.name.toLowerCase(); if (tableNames.has(tableName)) throw new Error(`Table "${table.name}" appears more than once.`); tableNames.add(tableName);
+        const columnNames = new Set<string>(); for (const column of table.columns) { const columnName = column.name.toLowerCase(); if (columnNames.has(columnName)) throw new Error(`Column "${column.name}" appears more than once in table "${table.name}".`); columnNames.add(columnName); }
+      }
+      const width = 268; const header = 42; const rowHeight = 30; const gapX = 88; const gapY = 64;
+      const columnsPerRow = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(parsedTables.length))));
+      const existing = schemaEditingDiagram() ? elements().filter((item): item is SchemaTableElement => item.type === "schemaTable" && item.schemaDiagramId === schemaEditingDiagram()) : [];
+      const oldByName = new Map(existing.map(table => [table.name.toLowerCase(), table]));
+      const cardFontSize = (table: (typeof parsedTables)[number]) => oldByName.get(table.name.toLowerCase())?.fontSize ?? 14;
+      const cardWidth = (table: (typeof parsedTables)[number]) => Math.max(width, oldByName.get(table.name.toLowerCase())?.w ?? 0, ...table.columns.map(column => (column.name.length + column.type.length) * cardFontSize(table) * .36 + 80));
+      const cardHeight = (table: (typeof parsedTables)[number]) => Math.max(oldByName.get(table.name.toLowerCase())?.h ?? 0, Math.max(header, cardFontSize(table) * 2.8) + table.columns.length * Math.max(rowHeight, cardFontSize(table) * 1.8));
+      const columnWidths = Array.from({ length: columnsPerRow }, (_, col) => Math.max(...parsedTables.filter((_table, index) => index % columnsPerRow === col).map(cardWidth)));
+      const rowHeights = Array.from({ length: Math.ceil(parsedTables.length / columnsPerRow) }, (_, row) => Math.max(...parsedTables.slice(row * columnsPerRow, (row + 1) * columnsPerRow).map(cardHeight)));
+      const totalWidth = columnWidths.reduce((sum, item) => sum + item, 0) + (columnsPerRow - 1) * gapX; const totalHeight = rowHeights.reduce((sum, item) => sum + item, 0) + (rowHeights.length - 1) * gapY;
+      const diagramId = schemaEditingDiagram() ?? crypto.randomUUID();
       const rect = canvas.getBoundingClientRect(); const view = canvasState(); const centerX = (rect.width / 2 - view.panX) / view.zoom; const centerY = (rect.height / 2 - view.panY) / view.zoom;
-      const originX = centerX - totalWidth / 2; const originY = centerY - totalHeight / 2;
-      const groups: GroupElement[] = []; const anchors = new Map<string, { id: string; x: number; y: number }>();
-      tables.forEach((table, tableIndex) => {
-        const row = Math.floor(tableIndex / columns); const col = tableIndex % columns; const x = originX + col * (width + gapX); const y = originY + rowHeights.slice(0, row).reduce((sum, height) => sum + height + gapY, 0);
-        const tableHeight = header + Math.max(1, table.columns.length) * rowHeight + 12;
-        const background: ShapeElement = { type: "rectangle", x, y, w: width, h: tableHeight, color: "#8a9caf", thickness: 1.4, fillColor: "#fbfcfe", fillOpacity: 1, edgeStyle: "rounded", cornerRadius: 10 };
-        const topBand: ShapeElement = { type: "rectangle", x, y, w: width, h: header, color: "#8a9caf", thickness: 1.2, fillColor: "#e8f0f7", fillOpacity: 1, edgeStyle: "rounded", cornerRadius: 10 };
-        const children: Element[] = [background, topBand, { type: "text", x: x + 12, y: y + 11, text: table.name, color: "#36556e", fontSize: 13, fontFamily: "sans", bold: true, textAlign: "left", listType: "none" }];
-        table.columns.forEach((column, columnIndex) => {
-          const itemY = y + header + columnIndex * rowHeight; const badge = column.primaryKey ? "PK" : column.foreignTable ? "FK" : "";
-          children.push({ type: "text", x: x + 10, y: itemY + 8, text: badge, color: column.primaryKey ? "#7d672a" : "#436e85", fontSize: 9, fontFamily: "sans", bold: true, textAlign: "left", listType: "none" });
-          children.push({ type: "text", x: x + 38, y: itemY + 7, text: column.name, color: "#354759", fontSize: 11, fontFamily: "mono", bold: false, textAlign: "left", listType: "none" });
-          children.push({ type: "text", x: x + 156, y: itemY + 7, text: column.type || "type", color: "#768493", fontSize: 10, fontFamily: "mono", bold: false, textAlign: "left", listType: "none" });
-          const rightId = crypto.randomUUID(); const leftId = crypto.randomUUID();
-          children.push({ type: "rectangle", id: rightId, x: x + width - 4, y: itemY + 3, w: 4, h: rowHeight - 6, color: "#ffffff", thickness: 1, fillColor: "#ffffff", fillOpacity: 0, opacity: 0 });
-          children.push({ type: "rectangle", id: leftId, x, y: itemY + 3, w: 4, h: rowHeight - 6, color: "#ffffff", thickness: 1, fillColor: "#ffffff", fillOpacity: 0, opacity: 0 });
-          anchors.set(`${table.name.toLowerCase()}.${column.name.toLowerCase()}.right`, { id: rightId, x: x + width, y: itemY + rowHeight / 2 });
-          anchors.set(`${table.name.toLowerCase()}.${column.name.toLowerCase()}.left`, { id: leftId, x, y: itemY + rowHeight / 2 });
-        });
-        groups.push({ type: "group", elements: children });
+      const originX = existing.length ? Math.min(...existing.map(item => item.x)) : centerX - totalWidth / 2;
+      const originY = existing.length ? Math.min(...existing.map(item => item.y)) : centerY - totalHeight / 2;
+      const created: SchemaTableElement[] = parsedTables.map((table, tableIndex) => {
+        const row = Math.floor(tableIndex / columnsPerRow); const col = tableIndex % columnsPerRow;
+        const old = oldByName.get(table.name.toLowerCase()); const id = old?.id ?? crypto.randomUUID();
+        const fieldsByName = new Map(old?.columns.map(field => [field.name.toLowerCase(), field]) ?? []);
+        const fields: SchemaField[] = table.columns.map(column => ({ id: fieldsByName.get(column.name.toLowerCase())?.id ?? crypto.randomUUID(), name: column.name, dataType: column.type, primaryKey: column.primaryKey, foreignTable: column.foreignTable, foreignColumn: column.foreignColumn, nullable: column.nullable }));
+        const fontSize = old?.fontSize ?? 14;
+        return { type: "schemaTable", id, schemaDiagramId: diagramId, schemaSource: source, name: table.name, columns: fields, x: originX + columnWidths.slice(0, col).reduce((sum, current) => sum + current + gapX, 0), y: originY + rowHeights.slice(0, row).reduce((sum, current) => sum + current + gapY, 0), w: columnWidths[col], h: cardHeight(table), fontSize, rotation: 0, opacity: 1 };
       });
-      const byName = new Map(tables.map(table => [table.name.toLowerCase(), table])); const relations: ShapeElement[] = [];
-      tables.forEach(table => table.columns.forEach(column => {
-        if (!column.foreignTable) return;
-        const targetName = column.foreignTable.toLowerCase(); const target = byName.get(targetName); if (!target) return;
-        const sourceAnchor = anchors.get(`${table.name.toLowerCase()}.${column.name.toLowerCase()}.right`);
-        const targetColumn = column.foreignColumn ? target.columns.find(value => value.name.toLowerCase() === column.foreignColumn!.toLowerCase()) : target.columns.find(value => value.primaryKey) ?? target.columns[0];
-        const targetAnchor = targetColumn ? anchors.get(`${target.name.toLowerCase()}.${targetColumn.name.toLowerCase()}.left`) : undefined;
-        if (!sourceAnchor || !targetAnchor) return;
-        relations.push({ type: "line", x: sourceAnchor.x, y: sourceAnchor.y, w: targetAnchor.x - sourceAnchor.x, h: targetAnchor.y - sourceAnchor.y, color: "#63859d", thickness: 1.6, lineStyle: "solid", startHead: "none", endHead: "open", startBinding: { elementId: sourceAnchor.id, anchor: { x: 1, y: .5 } }, endBinding: { elementId: targetAnchor.id, anchor: { x: 0, y: .5 } } });
-      }));
-      const before = cloneElements(elements()); const firstIndex = elements().length; const imported: Element[] = [...groups, ...relations];
-      setElements(items => [...items, ...imported]); pushUndo(before); setSelectedIndices(imported.map((_item, index) => firstIndex + index)); setTool("select"); setTextMode("text"); setDirty(true);
-      setSchemaDialog(false); setSchemaInput(""); setSchemaError("");
+      const tableIds = new Set(existing.map(table => table.id));
+      const removedRelations = new Set(elements().filter(item => isConnector(item) && item.schemaDiagramId === diagramId).map(item => item.id!));
+      const byName = new Map(created.map(table => [table.name.toLowerCase(), table])); const relations: ShapeElement[] = [];
+      for (const table of parsedTables) for (const field of table.columns) {
+        if (!field.foreignTable) continue;
+        const from = byName.get(table.name.toLowerCase()); const to = byName.get(field.foreignTable.toLowerCase()); if (!from || !to) continue;
+        const sourceField = from.columns.find(value => value.name.toLowerCase() === field.name.toLowerCase());
+        const targetField = field.foreignColumn ? to.columns.find(value => value.name.toLowerCase() === field.foreignColumn!.toLowerCase()) : to.columns.find(value => value.primaryKey) ?? to.columns[0];
+        if (!sourceField || !targetField) continue;
+        const forward = from.x <= to.x; const startBinding: Binding = { elementId: from.id!, rowId: sourceField.id, anchor: { x: forward ? 1 : 0, y: .5 } }; const endBinding: Binding = { elementId: to.id!, rowId: targetField.id, anchor: { x: forward ? 0 : 1, y: .5 } };
+        const start = anchorPoint(from, startBinding.anchor, startBinding.rowId); const end = anchorPoint(to, endBinding.anchor, endBinding.rowId);
+        relations.push({ type: "line", id: crypto.randomUUID(), schemaDiagramId: diagramId, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: "#63859d", thickness: 1.6, lineStyle: "solid", startHead: "none", endHead: "open", startBinding, endBinding });
+      }
+      const before = cloneElements(elements()); const oldIds = new Set([...tableIds, ...removedRelations]);
+      const kept = elements().filter(item => !oldIds.has(item.id ?? ""));
+      const imported: Element[] = [...relations, ...created];
+      pushUndo(before); setElements([...kept, ...imported]);
+      const firstIndex = kept.length; setSelectedIndices(created.map((_item, index) => firstIndex + relations.length + index)); setTool("select"); setTextMode("text"); setDirty(true);
+      setSchemaDialog(false); setSchemaInput(""); setSchemaError(""); setSchemaEditingDiagram(undefined);
     } catch (cause) { setSchemaError(cause instanceof Error ? cause.message : String(cause)); }
   }
 
@@ -1250,11 +1441,16 @@ function App() {
 
   function hitElement(element: Element, point: Point, zoom: number): boolean {
     if (element.hidden || element.locked) return false;
-    if (element.type === "group") return element.elements.some((child) => hitElement(child, point, zoom));
+    if (element.type === "group") {
+      if (element.elements.some((child) => hitElement(child, point, zoom))) return true;
+      if (element.mermaid) { const box = elementBounds(element); const tolerance = 5 / zoom; return point.x >= box.x - tolerance && point.x <= box.x + box.w + tolerance && point.y >= box.y - tolerance && point.y <= box.y + box.h + tolerance; }
+      return false;
+    }
     const box = elementBounds(element); const center = { x: box.x + box.w / 2, y: box.y + box.h / 2 };
     if (element.rotation) { const angle = -element.rotation * Math.PI / 180; const dx = point.x - center.x; const dy = point.y - center.y; point = { x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle), y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle) }; }
     const tolerance = Math.max(5 / zoom, "thickness" in element ? element.thickness / 2 + 2 / zoom : 2 / zoom);
     if (element.type === "image") return point.x >= element.x - tolerance && point.x <= element.x + element.w + tolerance && point.y >= element.y - tolerance && point.y <= element.y + element.h + tolerance;
+    if (element.type === "schemaTable") return point.x >= element.x - tolerance && point.x <= element.x + element.w + tolerance && point.y >= element.y - tolerance && point.y <= element.y + element.h + tolerance;
     if (element.type === "text") {
       const bounds = elementBounds(element);
       return point.x >= bounds.x - tolerance && point.x <= bounds.x + bounds.w + tolerance && point.y >= bounds.y - tolerance && point.y <= bounds.y + bounds.h + tolerance;
@@ -1327,9 +1523,18 @@ function App() {
     return undefined;
   }
 
+  function simpleComponentElement(element: Element): Element {
+    if (componentAppearance() !== "simple" || !element.componentId?.startsWith("uml-class:")) return element;
+    const ink = theme() === "dark" ? "#f0f0f0" : "#262626";
+    if (element.type === "text") return { ...element, color: ink };
+    if ("color" in element) return { ...element, color: ink, fillColor: undefined, fillOpacity: 0, edgeStyle: "sharp", cornerRadius: 0 } as Element;
+    return element;
+  }
+
   function drawElement(ctx: CanvasRenderingContext2D, element: Element) {
     if (element.hidden) return;
-    if (element.type === "group") { for (const child of element.elements) drawElement(ctx, child); return; }
+    element = simpleComponentElement(element);
+    if (element.type === "group") { if (element.note) { drawNoteCard(ctx, element, theme(), componentAppearance()); return; } for (const child of element.elements) drawElement(ctx, child); return; }
     const elementBox = elementBounds(element); const centerX = elementBox.x + elementBox.w / 2; const centerY = elementBox.y + elementBox.h / 2;
     if (element.rotation) { ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
     if (element.type === "image") {
@@ -1347,6 +1552,28 @@ function App() {
       ctx.font = (element.italic ? "italic " : "") + (element.bold ? "700 " : "400 ") + element.fontSize + "px " + fontCss(element.fontFamily); ctx.textBaseline = "top"; ctx.textAlign = element.textAlign === "justify" ? "left" : element.textAlign ?? "left";
       const lines = element.text.split(/\r?\n/).map((line, index) => element.listType === "bullet" ? "• " + line : element.listType === "number" ? (index + 1) + ". " + line : line);
       lines.forEach((line, index) => { const y = element.y + index * element.fontSize * 1.25; ctx.fillText(line, element.x, y); if (element.underline) { const measured = ctx.measureText(line).width; const startX = element.textAlign === "center" ? element.x - measured / 2 : element.textAlign === "right" ? element.x - measured : element.x; ctx.fillRect(startX, y + element.fontSize * 1.06, measured, Math.max(1, element.fontSize / 18)); } }); ctx.restore(); if (element.rotation) ctx.restore(); return;
+    }
+    if (element.type === "schemaTable") {
+      const left = element.x; const top = element.y; const width = Math.abs(element.w); const height = Math.abs(element.h); const simple = componentAppearance() === "simple"; const fontSize = element.fontSize ?? 14; const rowHeight = Math.max(30, fontSize * 1.8); const headerHeight = Math.max(42, fontSize * 2.8); const dark = theme() === "dark";
+      const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const border = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const header = simple ? surface : (dark ? "#30465b" : "#e8f0f7"); const rule = simple ? border : (dark ? "#394856" : "#e6ebf0");
+      ctx.save(); ctx.globalAlpha = element.opacity ?? 1; ctx.fillStyle = surface; ctx.strokeStyle = border; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.roundRect(left, top, width, height, simple ? 0 : 10); ctx.fill(); ctx.stroke();
+      ctx.save(); ctx.beginPath(); ctx.roundRect(left, top, width, headerHeight + (simple ? 0 : 8), simple ? 0 : [10, 10, 0, 0]); ctx.clip(); ctx.fillStyle = header; ctx.fillRect(left, top, width, headerHeight); ctx.restore();
+      ctx.beginPath(); ctx.moveTo(left, top + headerHeight); ctx.lineTo(left + width, top + headerHeight); ctx.strokeStyle = border; ctx.lineWidth = 1; ctx.stroke();
+      ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillStyle = simple ? (dark ? "#f3f3f3" : "#222222") : (dark ? "#d8e8f5" : "#36556e"); ctx.font = `600 ${fontSize}px ${fontCss("sans")}`;
+      const fitText = (value: string, maxWidth: number) => { let text = value; while (text && ctx.measureText(text).width > maxWidth) text = text.slice(0, -1); return text === value ? text : text.slice(0, -1) + "…"; };
+      ctx.fillText(fitText(element.name, width - 26), left + 14, top + headerHeight / 2);
+      element.columns.forEach((column, index) => {
+        const rowTop = top + headerHeight + index * rowHeight; const middle = rowTop + rowHeight / 2;
+        if (index) { ctx.beginPath(); ctx.moveTo(left + 10, rowTop); ctx.lineTo(left + width - 10, rowTop); ctx.strokeStyle = rule; ctx.lineWidth = .7; ctx.stroke(); }
+        if (column.primaryKey || column.foreignTable) {
+          const tag = column.primaryKey ? "PK" : "FK"; ctx.fillStyle = simple ? (dark ? "#3a3a3a" : "#eeeeee") : column.primaryKey ? (dark ? "#6a5930" : "#f4e9c7") : (dark ? "#31556b" : "#e1eff6"); ctx.beginPath(); ctx.roundRect(left + 11, middle - 8, 24, 16, simple ? 0 : 5); ctx.fill();
+          ctx.fillStyle = simple ? (dark ? "#eeeeee" : "#333333") : column.primaryKey ? (dark ? "#f0d58c" : "#826b2f") : (dark ? "#aed9ed" : "#436e85"); ctx.font = "700 9px " + fontCss("sans"); ctx.textAlign = "center"; ctx.fillText(tag, left + 23, middle); ctx.textAlign = "left";
+        }
+        ctx.font = `${fontSize * .86}px ${fontCss("mono")}`; ctx.fillStyle = simple ? (dark ? "#eeeeee" : "#303030") : (dark ? "#dbe5ee" : "#354759"); ctx.fillText(fitText(column.name, width * .48), left + 44, middle);
+        ctx.textAlign = "right"; ctx.font = `${fontSize * .78}px ${fontCss("mono")}`; ctx.fillStyle = simple ? (dark ? "#c8c8c8" : "#666666") : (dark ? "#a4b1bf" : "#768493"); ctx.fillText(fitText(column.dataType || "type", width * .37), left + width - 14, middle); ctx.textAlign = "left";
+      });
+      ctx.restore(); if (element.rotation) ctx.restore(); return;
     }
     ctx.save(); ctx.globalAlpha = element.opacity ?? 1;
     const renderedInk = themeInk(element.color, theme());
@@ -1425,6 +1652,26 @@ function App() {
     ctx.restore(); if (isLabelShape(element) && !(textDraft()?.shapeLabel && elements()[textDraft()!.editingIndex!]?.id === element.id)) drawLabel(ctx, element); if (element.rotation) ctx.restore();
   }
 
+  function drawLaserStroke(ctx: CanvasRenderingContext2D, points: Point[], opacity: number, thickness: number) {
+    if (!points.length) return;
+    ctx.save(); ctx.globalAlpha = opacity; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.lineWidth = thickness; ctx.shadowBlur = thickness * 2.2;
+    if (points.length === 1) {
+      ctx.beginPath(); ctx.arc(points[0].x, points[0].y, thickness / 2, 0, Math.PI * 2);
+      ctx.fillStyle = laserRainbow() ? `hsl(${Date.now() / 22 % 360} 100% 62%)` : laserColor(); ctx.shadowColor = ctx.fillStyle; ctx.fill();
+    } else if (laserRainbow()) {
+      for (let index = 1; index < points.length; index++) {
+        const hue = (Date.now() / 22 + index * 8) % 360; ctx.strokeStyle = `hsl(${hue} 100% 62%)`; ctx.shadowColor = ctx.strokeStyle;
+        ctx.beginPath(); ctx.moveTo(points[index - 1].x, points[index - 1].y); ctx.lineTo(points[index].x, points[index].y); ctx.stroke();
+      }
+    } else {
+      ctx.strokeStyle = laserColor(); ctx.shadowColor = laserColor(); ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
+      for (let index = 1; index < points.length; index++) ctx.lineTo(points[index].x, points[index].y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, state: CanvasState) {
     if (!showGrid()) return;
     const multiplier = Math.max(1, 2 ** Math.max(0, Math.ceil(Math.log2(0.65 / state.zoom))));
@@ -1468,7 +1715,7 @@ function App() {
       if (handle.includes("w")) { x += dx; w -= dx; } if (handle.includes("e")) w += dx;
       if (handle.includes("n")) { y += dy; h -= dy; } if (handle.includes("s")) h += dy;
       const next = { x, y, w: Math.max(180, Math.min(4000, w)), h: Math.max(100, Math.min(1_000_000, h)) };
-      const rebuilt = buildNoteGroup(next.x, next.y, element.note.kind, element.note.content, { width: next.w, height: next.h, fontSize: element.note.fontSize });
+      const rebuilt = buildNoteGroup(next.x, next.y, element.note.kind, element.note.content, { width: next.w, height: next.h, fontSize: element.note.fontSize, title: element.note.title, collapsed: element.note.collapsed });
       return { ...rebuilt, ...element, note: rebuilt.note, elements: rebuilt.elements.map((child, index) => element.elements[index]?.id ? { ...child, id: element.elements[index].id } as Element : child) };
     }
     if (handle === "rotate") {
@@ -1481,6 +1728,7 @@ function App() {
     if (handle.includes("w")) { x += dx; w -= dx; } if (handle.includes("e")) w += dx;
     if (handle.includes("n")) { y += dy; h -= dy; } if (handle.includes("s")) h += dy;
     const nextW = Math.max(2, w); const nextH = Math.max(2, h);
+    if (element.type === "schemaTable") return { ...element, x, y, w: Math.max(190, nextW), h: Math.max(42 + element.columns.length * 30, nextH) };
     if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart") {
       return { ...element, x, y, w: nextW, h: nextH };
     }
@@ -1523,14 +1771,12 @@ function App() {
     }
     const transientLaser = laserTrail();
     if (includeSelection && transientLaser) {
-      ctx.save(); ctx.shadowColor = "#ff3265"; ctx.shadowBlur = 8 / state.zoom;
-      drawElement(ctx, { type: "freehand", points: transientLaser.points, color: "#ff3265", thickness: 4 / state.zoom, opacity: transientLaser.opacity });
-      ctx.restore();
+      drawLaserStroke(ctx, transientLaser.points, transientLaser.opacity, laserThickness() / state.zoom);
     }
     const activePreview = preview();
     if (includeSelection && activePreview) {
-      const { start, end, type, color: stroke, thickness: widthPx } = activePreview;
-      if (type === "pen") { ctx.save(); if (tool() === "laser") { ctx.shadowColor = "#ff3265"; ctx.shadowBlur = widthPx * 2.5; } drawElement(ctx, { type: "freehand", points: currentPoints, color: stroke, thickness: widthPx }); ctx.restore(); }
+      const { start, end, type, color: stroke, thickness: widthPx, opacity } = activePreview;
+      if (type === "pen") { if (tool() === "laser") drawLaserStroke(ctx, currentPoints, 1, laserThickness() / state.zoom); else drawElement(ctx, { type: "freehand", points: currentPoints, color: stroke, thickness: widthPx, opacity }); }
       else drawElement(ctx, { type, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: stroke, thickness: widthPx, flowchartShape: activePreview.flowchartShape, lineRoute: activePreview.lineRoute, arrowRoute: activePreview.arrowRoute, edgeStyle: edgeStyle(), cornerRadius: cornerRadius(), ...(fillEnabled() && (type === "rectangle" || type === "circle" || type === "diamond" || type === "triangle" || type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(type === "line" ? { startHead: defaultLineStartHead(), endHead: defaultLineEndHead() } : {}), ...(type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead() } : {}) });
     }
     ctx.restore();
@@ -1548,9 +1794,9 @@ function App() {
     const ctx = canvas.getContext("2d"); if (ctx) drawScene(ctx, rect.width, rect.height, dpr, true);
   }
 
-  createEffect(() => { elements(); canvasState(); preview(); laserTrail(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); renderCanvas(); });
+  createEffect(() => { elements(); canvasState(); preview(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); componentAppearance(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); renderCanvas(); });
   createEffect(() => { const session = noteEditorSession(); if (!session) return; requestAnimationFrame(() => { if (noteEditorTextarea?.isConnected) noteEditorTextarea.focus(); }); });
-  createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); boardColor(); renderExportPreview(); });
+  createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); componentAppearance(); boardColor(); renderExportPreview(); });
   createEffect(() => {
     if (!activePath() || !canvas) return;
     const resize = new ResizeObserver(renderCanvas); resize.observe(canvas);
@@ -1579,10 +1825,10 @@ function App() {
   });
 
   createEffect(() => {
-    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setSchemaDialog(false); setShowClearConfirm(false); setContextMenu(undefined); closeToolOptions(); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; }
+    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setSchemaDialog(false); setMermaidDialog(false); setShowClearConfirm(false); setContextMenu(undefined); closeToolOptions(); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; }
   });
   createEffect(() => {
-    const open = pageDialog() || schemaDialog() || exportOptionsOpen() || showClearConfirm() || recoveryPrompt() || syncConflict() || helpOpen();
+    const open = pageDialog() || schemaDialog() || mermaidDialog() || exportOptionsOpen() || showClearConfirm() || recoveryPrompt() || syncConflict() || helpOpen();
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     const frame = requestAnimationFrame(() => { const dialog = document.querySelector<HTMLElement>("[aria-modal='true']"); (dialog?.querySelector<HTMLElement>("[autofocus], input, button") ?? dialog)?.focus(); });
@@ -1606,9 +1852,11 @@ function App() {
       if (event.key === "Escape") {
         if (noteEditor()) { event.preventDefault(); saveNoteEditor(); return; }
         if (schemaDialog()) { event.preventDefault(); setSchemaDialog(false); return; }
+        if (mermaidDialog()) { event.preventDefault(); setMermaidDialog(false); return; }
         if (pageDialog()) { event.preventDefault(); setPageDialog(undefined); return; }
         if (helpOpen()) { event.preventDefault(); setHelpOpen(false); return; }
         if (contextMenu()) { event.preventDefault(); setContextMenu(undefined); return; }
+        if (paintBrushMenuOpen()) { event.preventDefault(); setPaintBrushMenuOpen(false); return; }
         if (canvasOptionsOpen()) { setCanvasOptionsOpen(false); return; }
         if (openToolOptions()) { closeToolOptions(); return; }
         document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => detail.open = false);
@@ -1620,7 +1868,7 @@ function App() {
         if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; return;
       }
       if (event.key === "F1") { event.preventDefault(); setHelpOpen(true); return; }
-      if (recoveryPrompt() || syncConflict() || exportOptionsOpen() || showClearConfirm() || pageDialog() || schemaDialog() || noteEditor() || contextMenu()) return;
+      if (recoveryPrompt() || syncConflict() || exportOptionsOpen() || showClearConfirm() || pageDialog() || schemaDialog() || mermaidDialog() || noteEditor() || contextMenu()) return;
       if (event.target instanceof HTMLElement && event.target.closest("details[open], .tool-options")) return;
       if (!activePath() || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
       if (event.code === "Space" && event.target instanceof HTMLElement && event.target.closest("button, summary, select, [role='menuitem']")) return;
@@ -1646,7 +1894,7 @@ function App() {
       if (key === "v") setTool("select"); else if (key === "p") activateTool("pen"); else if (key === "y") activateTool("laser"); else if (key === "r") activateTool("rectangle"); else if (key === "c" || key === "o") activateTool("circle"); else if (key === "d") activateTool("diamond"); else if (key === "n") activateTool("triangle"); else if (key === "l") activateTool("line"); else if (key === "a") activateTool("arrow"); else if (key === "f") activateTool("flowchart"); else if (key === "t") activateTool("text"); else if (key === "b") activateTool("bucket"); else if (key === "e") activateTool("eraser"); else if (key === "x") activateTool("crop");
       else if (key === "delete" || key === "backspace") { event.preventDefault(); deleteSelected(); }
     };
-    const clipboardAllowed = (target: EventTarget | null) => activePath() && !pageDialog() && !schemaDialog() && !exportOptionsOpen() && !showClearConfirm() && !recoveryPrompt() && !syncConflict() && !noteEditor() && !(target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea")));
+    const clipboardAllowed = (target: EventTarget | null) => activePath() && !pageDialog() && !schemaDialog() && !mermaidDialog() && !exportOptionsOpen() && !showClearConfirm() && !recoveryPrompt() && !syncConflict() && !noteEditor() && !(target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea")));
     const copy = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || !selectedElements().length) return; event.preventDefault(); event.clipboardData?.setData("text/plain", clipboardPayload()); clipboardItems = copyElements(selectedElements(), 0, 0); };
     const paste = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || boardLocked()) return; const raw = event.clipboardData?.getData("text/plain"); if (raw) { event.preventDefault(); pastePayload(raw); } };
     const cut = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || boardLocked()) return; copy(event); if (event.defaultPrevented) deleteSelected(); };
@@ -1686,14 +1934,60 @@ function App() {
     }).then((unlisten) => { unlistenClose = unlisten; }).catch((cause) => setError(`Could not prepare safe closing: ${String(cause)}`));
     window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("blur", blur);
     document.addEventListener("pointerdown", outsideClick); document.addEventListener("keydown", closeMenuOnEscape);
-    const timer = window.setInterval(() => { if (textDraft() && !recoveryPrompt() && !syncConflict()) persistRecovery(); if (activePath() && dirty() && !recoveryPrompt() && !textDraft() && !drawing && !resizeOrigin && !moveOrigin) { persistRecovery(); if (!syncConflict() && !saveInFlight) void saveToPath(activePath()!); } }, 1750);
-    onCleanup(() => { unlistenClose?.(); window.clearInterval(laserTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("blur", blur); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); window.clearInterval(timer); });
+    let autosaveTimer: number | undefined;
+    const scheduleAutosave = () => {
+      autosaveTimer = window.setTimeout(() => {
+        if (textDraft() && !recoveryPrompt() && !syncConflict()) persistRecovery();
+        if (activePath() && dirty() && !recoveryPrompt() && !textDraft() && !drawing && !resizeOrigin && !moveOrigin) {
+          persistRecovery();
+          if (!syncConflict() && !saveInFlight) void saveToPath(activePath()!);
+        }
+        scheduleAutosave();
+      }, autosaveSeconds() * 1000);
+    };
+    restartAutosave = () => { if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); scheduleAutosave(); };
+    scheduleAutosave();
+    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("blur", blur); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
   });
 
   function setThemePreference(mode: ThemeMode) {
     setThemeMode(mode);
     try { if (mode === "system") localStorage.removeItem("sketchdraw-theme"); else localStorage.setItem("sketchdraw-theme", mode); } catch { /* Theme still applies for this session. */ }
   }
+
+  function setAccentPreference(value: string) {
+    if (!/^#[\da-f]{6}$/i.test(value)) return;
+    setAccentColor(value);
+    try { localStorage.setItem("sketchdraw-accent", value); } catch { /* Accent still applies for this session. */ }
+  }
+
+  function setAutosavePreference(seconds: 5 | 10) {
+    setAutosaveSeconds(seconds);
+    try { localStorage.setItem("sketchdraw-autosave-seconds", String(seconds)); } catch { /* This session still uses the selected interval. */ }
+    restartAutosave?.();
+  }
+  function setComponentAppearancePreference(value: "modern" | "simple") {
+    setComponentAppearance(value);
+    try { localStorage.setItem("sketchdraw-component-appearance", value); } catch { /* Appearance still applies this session. */ }
+  }
+  function setToolbarColorPreference(value: string) {
+    if (value !== "auto" && !/^#[\da-f]{6}$/i.test(value)) return;
+    setToolbarColorChoice(value);
+    try { localStorage.setItem("sketchdraw-toolbar-color", value); } catch { /* Color still applies this session. */ }
+  }
+  function setLaserPreference(key: string, value: string) {
+    if (key === "color" && !/^#[\da-f]{6}$/i.test(value)) return;
+    try { localStorage.setItem(`sketchdraw-laser-${key}`, value); } catch { /* Laser settings remain active for this session. */ }
+    if (key === "color") setLaserColor(value);
+    if (key === "thickness") setLaserThickness(Math.max(1, Math.min(24, Number(value) || 5)));
+    if (key === "fade") setLaserFadeDuration(Math.max(250, Math.min(5000, Number(value) || 1100)));
+    if (key === "rainbow") setLaserRainbow(value === "true");
+  }
+  const toolbarInk = () => {
+    const value = toolbarColor().slice(1);
+    const channels = [0, 2, 4].map(index => parseInt(value.slice(index, index + 2), 16) / 255).map(channel => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
+    return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2] > .42 ? "#303832" : "#f0f3f1";
+  };
 
   const recoveryKey = (path: string) => `sketchdraw-v6-recovery:${encodeURIComponent(path)}`;
   function recoverySnapshot(): SketchFile {
@@ -1745,13 +2039,14 @@ function App() {
     try { localStorage.removeItem(recoveryKey(recovery.path)); } catch { /* Best effort. */ }
     setRecoveryPrompt(undefined);
   }
-  function reloadConflictingFile() {
+  async function reloadConflictingFile() {
     const conflict = syncConflict(); if (!conflict) return;
     try {
-      const parsed = parseSketchFile(JSON.parse(conflict.remote));
+      const raw: unknown = JSON.parse(conflict.remote); const parsed = parseSketchFile(raw);
       if (!parsed) throw new Error("The updated file is not a valid SketchDraw document.");
       applySnapshot(parsed, conflict.path, conflict.remote); setSyncConflict(undefined);
       try { localStorage.removeItem(recoveryKey(conflict.path)); } catch { /* Best effort. */ }
+      if (isRecord(raw) && raw.version !== SKETCH_FORMAT_VERSION) { setDirty(true); await saveToPath(conflict.path); }
     } catch (cause) { setError(`Could not reload the synchronized file: ${String(cause)}`); }
   }
   function overwriteConflictingFile() {
@@ -1822,9 +2117,11 @@ function App() {
       const rawText = await readTextFile(authorizedPath);
       const raw: unknown = JSON.parse(rawText);
       const parsed = parseSketchFile(raw);
-      if (!parsed) throw new Error("This file is invalid or is not a SketchDraw v6 document. Older formats are unsupported; create a new sketch.");
+      if (!parsed) throw new Error("This file is invalid or uses an unsupported SketchDraw format.");
+      const needsMigration = isRecord(raw) && raw.version !== SKETCH_FORMAT_VERSION;
       applySnapshot(parsed, authorizedPath, rawText);
       restoreOpenedViewAt100(authorizedPath, parsed.activePageId);
+      if (needsMigration) setDirty(true);
       try {
         const stored = localStorage.getItem(recoveryKey(authorizedPath));
         if (stored) {
@@ -1835,6 +2132,7 @@ function App() {
           else localStorage.removeItem(recoveryKey(authorizedPath));
         }
       } catch { /* Ignore malformed recovery data and leave the source file untouched. */ }
+      if (needsMigration && !recoveryPrompt()) await saveToPath(authorizedPath);
     } catch (cause) { setError(`Could not open file: ${String(cause)}`); } finally { setDocumentBusy(false); }
   }
 
@@ -1886,11 +2184,13 @@ function App() {
     const before = cloneElements(elements()); setElements((items) => items.map((element, current) => current === index ? { ...element, [property]: !element[property] } as Element : element)); pushUndo(before); setDirty(true);
   }
 
-  function moveLayer(index: number, direction: -1 | 1) {
-    if (boardLocked()) return;
-    const target = index + direction; if (target < 0 || target >= elements().length || !elements()[index] || !elements()[target] || !canMoveElement(elements()[index]) || !canMoveElement(elements()[target])) return;
-    const before = cloneElements(elements()); const items = [...elements()]; [items[index], items[target]] = [items[target], items[index]];
-    setElements(items); setSelectedIndices(selectedIndices().map((selected) => selected === index ? target : selected === target ? index : selected)); pushUndo(before); setDirty(true);
+  function moveLayerTo(sourceRow: number, targetRow: number) {
+    const current = elements(); const visibleIndices = current.map((_, index) => index).reverse();
+    if (boardLocked() || sourceRow === targetRow || sourceRow < 0 || sourceRow >= visibleIndices.length || targetRow < 0 || targetRow >= visibleIndices.length) return;
+    const visible = visibleIndices.map(index => current[index]); const selectedIds = selectedIndices().map(index => current[index]?.id).filter((id): id is string => !!id);
+    const before = cloneElements(current); const [moved] = visible.splice(sourceRow, 1); visible.splice(targetRow, 0, moved);
+    const reordered = visible.reverse(); const nextIndex = new Map(reordered.flatMap((element, index) => element.id ? [[element.id, index] as const] : []));
+    setElements(reordered); setSelectedIndices(selectedIds.flatMap(id => { const index = nextIndex.get(id); return index === undefined ? [] : [index]; })); pushUndo(before); setDirty(true);
   }
 
   async function createFile() {
@@ -1902,7 +2202,7 @@ function App() {
       if (!await saveBeforeReplacingDocument()) return;
       const path = withSketchExtension(selected);
       const page: SketchPage = { id: "page-1", name: "Page 1", canvasState: emptyCanvas(), elements: [] };
-      const document: SketchFile = { format: "SketchDraw", version: 6, activePageId: page.id, pages: [page] };
+      const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page] };
       const contents = JSON.stringify(document, null, 2);
       await invoke("atomic_save_sketch", { path, contents, expected: null });
       pageHistories.clear(); setPages([page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setActivePath(path); rememberFile(path); setDirty(false); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setBoardLocked(false); setError(""); lastSavedRaw = contents;
@@ -2081,9 +2381,44 @@ function App() {
       };
       const drawItem = async (element: Element): Promise<void> => {
         if (element.hidden) return;
-        if (element.type === "group") { for (const child of element.elements) await drawItem(child); return; }
+        element = simpleComponentElement(element);
+        if (element.type === "group") {
+          if (element.note) {
+            try {
+              const box = elementBounds(element); const width = Math.max(1, Math.abs(box.w)), height = Math.max(1, Math.abs(box.h));
+              const ratio = Math.max(.01, Math.min(2, 8192 / width, 8192 / height, Math.sqrt(16_000_000 / (width * height))));
+              const surface = document.createElement("canvas"); surface.width = Math.max(1, Math.ceil(width * ratio)); surface.height = Math.max(1, Math.ceil(height * ratio));
+              const context = surface.getContext("2d"); if (!context) throw new Error("Canvas renderer unavailable");
+              context.setTransform(ratio, 0, 0, ratio, -box.x * ratio, -box.y * ratio); drawNoteCard(context, element, theme(), componentAppearance());
+              const encoded = surface.toDataURL("image/png").split(",")[1]; const bytes = Uint8Array.from(atob(encoded), character => character.charCodeAt(0)); const image = await doc.embedPng(bytes);
+              const left = x0 + box.x * scale; const top = paperH - (bleed + margin + (box.y - bounds.y) * scale); const centerX = left + box.w * scale / 2; const centerY = top - box.h * scale / 2; const rotated = !!element.rotation;
+              if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
+              page.drawImage(image, { x: left, y: top - box.h * scale, width: box.w * scale, height: box.h * scale });
+              if (rotated) page.pushOperators(popGraphicsState());
+            } catch { for (const child of element.elements) await drawItem(child); }
+            return;
+          }
+          for (const child of element.elements) await drawItem(child); return;
+        }
         if (element.type === "image") { try { const embedded = await readImage(element); const cropX = element.cropX ?? 0; const cropY = element.cropY ?? 0; const cropW = element.cropW ?? element.sourceWidth ?? element.w; const cropH = element.cropH ?? element.sourceHeight ?? element.h; void cropX; void cropY; void cropW; void cropH; const centerX=x0+(element.x+element.w/2)*scale,centerY=paperH-(bleed+margin+(element.y+element.h/2-bounds.y)*scale),rotated=!!element.rotation;if(rotated)page.pushOperators(pushGraphicsState(),translate(centerX,centerY),rotateDegrees(-(element.rotation??0)),translate(-centerX,-centerY));page.drawImage(embedded, { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y - bounds.y + element.h) * scale), width: element.w * scale, height: element.h * scale, opacity: element.opacity ?? 1 });if(rotated)page.pushOperators(popGraphicsState()); } catch { /* Keep other vector content even if an embedded image cannot be decoded. */ } return; }
         if (element.type === "text") { const lines = element.text.split(/\r?\n/).map((line,index)=>element.listType==="bullet"?`• ${line}`:element.listType==="number"?`${index+1}. ${line}`:line); const textBox=elementBounds(element); const center={x:textBox.x+textBox.w/2,y:textBox.y+textBox.h/2}; lines.forEach((line, index) => drawText(line, element.x, element.y + index * element.fontSize * 1.25, element.color, element.fontSize, element.fontFamily, !!element.bold, !!element.italic, element.opacity ?? 1, element.rotation ?? 0, center, element.textAlign)); if (element.underline) { const font = element.fontFamily === "mono" ? fontMono : element.fontFamily === "serif" ? fontSerif : element.fontFamily === "hand" || element.italic ? fontItalic : element.bold ? fontBold : fontRegular; const width = font.widthOfTextAtSize(lines[0] ?? "", element.fontSize) * scale; page.drawLine({ start: { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, end: { x: x0 + element.x * scale + width, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, thickness: Math.max(.5, scale), color: pdfColor(themeInk(element.color, theme()), pdfColorMode()) }); } return; }
+        if (element.type === "schemaTable") {
+          const dark = theme() === "dark"; const simple = componentAppearance() === "simple"; const fontSize = element.fontSize ?? 14; const headerHeight = Math.max(42, fontSize * 2.8); const rowHeight = Math.max(30, fontSize * 1.8); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const border = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const heading = simple ? surface : dark ? "#30465b" : "#e8f0f7"; const ink = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e"); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
+          const centerX = left + width / 2; const centerY = top - height / 2; const rotated = !!element.rotation;
+          if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
+          page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(surface, pdfColorMode()), opacity, borderColor: pdfColor(border, pdfColorMode()), borderWidth: 1.2 * scale, borderOpacity: opacity });
+          page.drawRectangle({ x: left, y: top - headerHeight * scale, width, height: headerHeight * scale, color: pdfColor(heading, pdfColorMode()), opacity });
+          drawText(element.name, element.x + 14, element.y + 13, ink, fontSize, "sans", true, false, opacity);
+          element.columns.forEach((column, index) => {
+            const rowY = element.y + headerHeight + index * rowHeight;
+            if (index) page.drawLine({ start: { x: left + 10 * scale, y: top - rowY * scale }, end: { x: left + width - 10 * scale, y: top - rowY * scale }, thickness: .7 * scale, color: pdfColor(simple ? border : dark ? "#394856" : "#e6ebf0", pdfColorMode()), opacity });
+            drawText(column.primaryKey ? "PK" : column.foreignTable ? "FK" : "", element.x + 13, rowY + 7, simple ? ink : column.primaryKey ? (dark ? "#f0d58c" : "#826b2f") : (dark ? "#aed9ed" : "#436e85"), 9, "sans", true, false, opacity);
+            drawText(column.name, element.x + 44, rowY + 5, simple ? ink : dark ? "#dbe5ee" : "#354759", fontSize * .86, "mono", false, false, opacity);
+            drawText(column.dataType || "type", element.x + element.w - 14, rowY + 5, simple ? ink : dark ? "#a4b1bf" : "#768493", fontSize * .78, "mono", false, false, opacity, 0, undefined, "right");
+          });
+          if (rotated) page.pushOperators(popGraphicsState());
+          return;
+        }
         if (element.type === "freehand") {
           if (element.points.length < 2) return;
           const points = element.points;
@@ -2233,9 +2568,42 @@ function App() {
     } catch (cause) { setError(`Could not export image: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
+  function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
+    const meta = group.note; const background = group.elements.find((child): child is ShapeElement => child.type === "rectangle");
+    if (!meta || !background) return "";
+    const x = background.x, y = background.y, width = Math.abs(background.w), height = Math.abs(background.h), palette = noteCardPalette(meta.kind, theme(), componentAppearance()), simple = componentAppearance() === "simple";
+    const title = escapeXml(meta.title || defaultNoteTitle(meta.kind)); const collapsed = meta.collapsed === true; const clipId = `note-${(group.id ?? crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+    let body = "";
+    if (!collapsed) {
+      if (meta.kind === "checklist") {
+        const rows = checklistRows(meta.content, width, meta.fontSize ?? 14); const done = rows.filter(row => row.done).length;
+        body += `<text x="${x + 16}" y="${y + 53}" dominant-baseline="hanging" font-family="sans-serif" font-size="10" fill="${palette.muted}">${done} of ${rows.length} complete</text><rect x="${x + 16}" y="${y + 71}" width="${width - 32}" height="3" rx="${componentAppearance() === "simple" ? 0 : 2}" fill="${palette.rule}"/><rect x="${x + 16}" y="${y + 71}" width="${rows.length ? (width - 32) * done / rows.length : 0}" height="3" rx="${componentAppearance() === "simple" ? 0 : 2}" fill="${palette.check}"/>`;
+        body += rows.map(row => { const boxX = x + row.boxX, boxY = y + row.top + Math.max(0, (row.height - 16) / 2), textY = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2; return `<rect x="${boxX}" y="${boxY}" width="16" height="16" rx="${simple ? 0 : 4}" fill="${row.done ? palette.check : palette.surface}" stroke="${row.done ? palette.check : palette.border}"/>${row.done ? `<path d="M ${boxX + 4} ${boxY + 8} l3 3 5 -6" fill="none" stroke="${simple ? palette.ink : "#fff"}" stroke-width="1.8"/>` : ""}${row.labelLines.map((line, index) => `<text x="${x + row.textX}" y="${textY + index * row.lineHeight}" dominant-baseline="hanging" font-family="sans-serif" font-size="${meta.fontSize ?? 14}" fill="${row.done ? palette.muted : palette.ink}">${escapeXml(line)}</text>`).join("")}`; }).join("");
+      } else {
+        let cursor = y + 58, inCode = false, language = "text", codeLines: string[] = [];
+        const addCode = () => { const fontSize = meta.fontSize ?? 14; const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => { const chunks: string[] = []; for (let index = 0; index < Math.max(1, line.length); index += max) chunks.push(line.slice(index, index + max)); return chunks; }); const blockHeight = Math.max(45, lines.length * fontSize * 1.5 + 26); body += `<rect x="${x + 10}" y="${cursor}" width="${width - 20}" height="${blockHeight}" rx="${simple ? 0 : 7}" fill="${simple ? palette.surface : "#202936"}" stroke="${simple ? palette.rule : "#344154"}"/><text x="${x + 20}" y="${cursor + 7}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" font-weight="600" fill="${simple ? palette.muted : "#91a1b5"}">${escapeXml(language.toUpperCase())}</text>${lines.map((line, index) => { let column = 0; return syntaxTokens(line, language).map(token => { const rendered = `<text x="${x + 20 + column * fontSize * .62}" y="${cursor + 22 + index * fontSize * 1.5}" dominant-baseline="hanging" font-family="monospace" font-size="${fontSize}" fill="${syntaxTokenColor(token.color, theme(), componentAppearance())}">${escapeXml(token.value)}</text>`; column += token.value.length; return rendered; }).join(""); }).join("")}`; cursor += blockHeight + 9; codeLines = []; inCode = false; };
+        const maxChars = Math.max(8, Math.floor((width - 36) / ((meta.fontSize ?? 14) * .56)));
+        for (const line of meta.content.split(/\r?\n/)) {
+          const fence = /^\s*```\s*([\w+#.-]*)\s*$/.exec(line); if (fence) { if (!inCode) { inCode = true; language = fence[1] || "text"; } else addCode(); continue; }
+          if (inCode) { codeLines.push(line); continue; } if (!line.trim()) { cursor += 8; continue; }
+          const heading = /^(#{1,3})\s+(.*)$/.exec(line); const value = heading?.[2] ?? line; const size = heading ? (meta.fontSize ?? 14) + (4 - heading[1].length) * 2 : (meta.fontSize ?? 14);
+          for (let index = 0; index < Math.max(1, value.length); index += maxChars) { body += `<text x="${x + 16}" y="${cursor}" dominant-baseline="hanging" font-family="sans-serif" font-size="${size}" font-weight="${heading ? 650 : 400}" fill="${palette.ink}">${escapeXml(value.slice(index, index + maxChars))}</text>`; cursor += size * 1.5; }
+        }
+        if (inCode) addCode();
+      }
+    }
+    const summaryRows = collapsed && meta.kind === "checklist" ? checklistRows(meta.content, width, meta.fontSize ?? 14) : undefined;
+    const summary = summaryRows ? `${summaryRows.filter(row => row.done).length} of ${summaryRows.length} tasks` : meta.content.split(/\r?\n/).find(line => line.trim() && !/^\s*```/.test(line))?.trim() || "Empty card";
+    const chevron = collapsed ? `M ${x + width - 26} ${y + 30} l5 5 5 -5` : `M ${x + width - 26} ${y + 23} l5 -5 5 5`;
+    const radius = simple ? 0 : 12; const accent = simple ? "" : `<path d="M ${x + 2} ${y + 13} v ${Math.max(0, height - 26)}" stroke="${palette.accent}" stroke-width="3" stroke-linecap="round"/>`;
+    const toggleY = collapsed ? y + 20 : y + 11; const separator = collapsed ? "" : `<path d="M ${x + 14} ${y + 47} H ${x + width - 14}" stroke="${palette.rule}"/>`;
+    return `<g><defs><clipPath id="${clipId}"><rect x="${x + 8}" y="${y + 49}" width="${Math.max(0, width - 16)}" height="${Math.max(0, height - 57)}"/></clipPath></defs><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${palette.surface}" stroke="${palette.border}"/>${accent}<text x="${x + 16}" y="${y + 13}" dominant-baseline="hanging" font-family="sans-serif" font-size="13" font-weight="600" fill="${palette.ink}">${title}</text>${collapsed ? `<text x="${x + 16}" y="${y + 37}" dominant-baseline="hanging" font-family="sans-serif" font-size="10" fill="${palette.muted}">${escapeXml(summary.slice(0, 80))}</text>` : ""}<rect x="${x + width - 38}" y="${toggleY}" width="24" height="24" rx="${simple ? 0 : 7}" fill="${palette.soft}" stroke="${palette.rule}"/><path d="${chevron}" fill="none" stroke="${palette.muted}" stroke-width="1.5"/>${separator}${collapsed ? "" : `<g clip-path="url(#${clipId})">${body}</g>`}</g>`;
+  }
+
   function elementToSvg(element: Element): string {
     if (element.hidden) return "";
-    if (element.type === "group") return `<g>${element.elements.map(elementToSvg).join("")}</g>`;
+    if (element.type === "group") return element.note ? noteCardSvg(element) : `<g>${element.elements.map(elementToSvg).join("")}</g>`;
+    element = simpleComponentElement(element);
     const bounds = elementBounds(element); const cx = bounds.x + bounds.w / 2; const cy = bounds.y + bounds.h / 2;
     const content = elementSvgBody(element) + (isLabelShape(element) ? labelSvg(element) : "");
     return element.rotation ? `<g transform="rotate(${element.rotation} ${cx} ${cy})">${content}</g>` : content;
@@ -2245,6 +2613,17 @@ function App() {
     if (element.type === "group") return `<g>${element.elements.map(elementToSvg).join("")}</g>`;
     if (element.hidden) return "";
     if (element.type === "image") { const sx = element.cropX ?? 0; const sy = element.cropY ?? 0; const sw = element.cropW ?? element.sourceWidth ?? element.w; const sh = element.cropH ?? element.sourceHeight ?? element.h; return `<svg x="${element.x}" y="${element.y}" width="${element.w}" height="${element.h}" viewBox="${sx} ${sy} ${sw} ${sh}" preserveAspectRatio="none" opacity="${element.opacity ?? 1}"><image width="${element.sourceWidth ?? sw}" height="${element.sourceHeight ?? sh}" href="${element.dataUrl}"/></svg>`; }
+    if (element.type === "schemaTable") {
+      const simple = componentAppearance() === "simple"; const dark = theme() === "dark"; const size = element.fontSize ?? 14; const headerHeight = Math.max(42, size * 2.8); const rowHeight = Math.max(30, size * 1.8);
+      const ink = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const header = simple ? surface : (dark ? "#30465b" : "#e8f0f7"); const mainText = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e");
+      const rows = element.columns.map((column, index) => {
+        const y = element.y + headerHeight + index * rowHeight;
+        const badge = column.primaryKey || column.foreignTable ? '<rect x="' + (element.x + 11) + '" y="' + (y + 7) + '" width="24" height="16" rx="' + (simple ? 0 : 5) + '" fill="' + (simple ? (dark ? "#3a3a3a" : "#eeeeee") : column.primaryKey ? (dark ? "#6a5930" : "#f4e9c7") : (dark ? "#31556b" : "#e1eff6")) + '"/><text x="' + (element.x + 23) + '" y="' + (y + 18.5) + '" text-anchor="middle" font-family="sans-serif" font-size="9" font-weight="700" fill="' + (simple ? mainText : column.primaryKey ? (dark ? "#f0d58c" : "#826b2f") : (dark ? "#aed9ed" : "#436e85")) + '">' + (column.primaryKey ? "PK" : "FK") + "</text>" : "";
+        return (index ? '<path d="M ' + (element.x + 10) + " " + y + " H " + (element.x + element.w - 10) + '" stroke="' + (simple ? ink : dark ? "#394856" : "#e6ebf0") + '"/>' : "") + badge + '<text x="' + (element.x + 44) + '" y="' + (y + rowHeight * .64) + '" font-family="monospace" font-size="' + (size * .86) + '" fill="' + (simple ? mainText : dark ? "#dbe5ee" : "#354759") + '">' + escapeXml(column.name) + '</text><text x="' + (element.x + element.w - 14) + '" y="' + (y + rowHeight * .64) + '" text-anchor="end" font-family="monospace" font-size="' + (size * .78) + '" fill="' + (simple ? mainText : dark ? "#a4b1bf" : "#768493") + '">' + escapeXml(column.dataType || "type") + "</text>";
+      }).join("");
+      const headerShape = simple ? '<rect x="' + element.x + '" y="' + element.y + '" width="' + element.w + '" height="' + headerHeight + '" fill="' + header + '"/>' : '<path d="M ' + (element.x + 10) + " " + element.y + " H " + (element.x + element.w - 10) + " Q " + (element.x + element.w) + " " + element.y + " " + (element.x + element.w) + " " + (element.y + 10) + " V " + (element.y + headerHeight) + " H " + element.x + " V " + (element.y + 10) + " Q " + element.x + " " + element.y + " " + (element.x + 10) + " " + element.y + ' Z" fill="' + header + '"/>';
+      return '<g opacity="' + (element.opacity ?? 1) + '"><rect x="' + element.x + '" y="' + element.y + '" width="' + element.w + '" height="' + element.h + '" rx="' + (simple ? 0 : 10) + '" fill="' + surface + '" stroke="' + ink + '" stroke-width="1.4"/>' + headerShape + '<path d="M ' + element.x + " " + (element.y + headerHeight) + " H " + (element.x + element.w) + '" stroke="' + ink + '"/><text x="' + (element.x + 14) + '" y="' + (element.y + headerHeight * .62) + '" font-family="sans-serif" font-size="' + size + '" font-weight="600" fill="' + mainText + '">' + escapeXml(element.name) + "</text>" + rows + "</g>";
+    }
     if (element.type === "text") {
       const family = fontCss(element.fontFamily);
       const lines = element.text.split(/\r?\n/).map((line, index) => { const formatted = element.listType === "bullet" ? `• ${line}` : element.listType === "number" ? `${index + 1}. ${line}` : line; return `<tspan x="${element.x}" dy="${index === 0 ? 0 : element.fontSize * 1.25}">${escapeXml(formatted)}</tspan>`; }).join("");
@@ -2370,7 +2749,13 @@ function App() {
     drawing = true; canvas.setPointerCapture(event.pointerId);
     activeDrawingTool = tool() === "laser" ? "pen" : tool() as Preview["type"];
     const start = activeDrawingTool === "line" || activeDrawingTool === "arrow" ? nearestBinding(elements(), point, 18 / canvasState().zoom)?.point ?? snap(point) : activeDrawingTool === "pen" ? point : snap(point);
-    if (activeDrawingTool === "pen") { const strokePoint = tool() === "pen" ? strokePointFromPointer(event, point) : point; currentPoints = [strokePoint]; setPreview({ type: "pen", start: point, end: point, color: tool() === "laser" ? "#ff3265" : color(), thickness: tool() === "laser" ? Math.max(4, thickness() * 1.5) : thickness() }); }
+    if (activeDrawingTool === "pen") {
+      const laser = tool() === "laser"; const mode = brushMode();
+      const strokePoint = tool() === "pen" ? strokePointFromPointer(event, point) : point; currentPoints = [strokePoint];
+      const brushStyle: Record<BrushMode, { width: number; opacity: number }> = { fine: { width: 1, opacity: 1 }, pencil: { width: .72, opacity: .62 }, brush: { width: 2.2, opacity: .9 }, marker: { width: 3, opacity: .78 }, highlighter: { width: 6, opacity: .28 }, chalk: { width: 1.7, opacity: .48 } };
+      const style = brushStyle[mode];
+      setPreview({ type: "pen", start: point, end: point, color: laser ? laserColor() : color(), thickness: laser ? laserThickness() / canvasState().zoom : Math.max(mode === "highlighter" ? 12 : mode === "marker" ? 6 : 1, thickness() * style.width), opacity: laser ? 1 : style.opacity });
+    }
     else setPreview({ type: activeDrawingTool, start, end: start, color: color(), thickness: thickness(), ...(activeDrawingTool === "flowchart" ? { flowchartShape: flowchartShape() } : {}), ...(activeDrawingTool === "line" ? { lineRoute: lineRoute() } : {}), ...(activeDrawingTool === "arrow" ? { arrowRoute: arrowRoute() } : {}) });
   }
 
@@ -2428,9 +2813,10 @@ function App() {
   }
 
   function snapTranslation(indices: number[], before: Element[], dx: number, dy: number) {
-    if (!snapToObjects()) { setAlignmentGuides(undefined); return { dx, dy }; }
     const selected = new Set(indices); const moving = unionBounds(before.flatMap((element, index) => selected.has(index) && !element.hidden ? [elementBounds(element)] : []));
-    if (!moving || !before.some((element, index) => !selected.has(index) && !element.hidden)) { setAlignmentGuides(undefined); return { dx, dy }; }
+    if (!moving) { setAlignmentGuides(undefined); return { dx, dy }; }
+    if (snapToGrid()) { dx = Math.round((moving.x + dx) / GRID_SIZE) * GRID_SIZE - moving.x; dy = Math.round((moving.y + dy) / GRID_SIZE) * GRID_SIZE - moving.y; }
+    if (!snapToObjects() || !before.some((element, index) => !selected.has(index) && !element.hidden)) { setAlignmentGuides(undefined); return { dx, dy }; }
     const left = moving.x; const top = moving.y; const right = moving.x + moving.w; const bottom = moving.y + moving.h;
     const movingX = [left, (left + right) / 2, right]; const movingY = [top, (top + bottom) / 2, bottom];
     const threshold = 8 / canvasState().zoom;
@@ -2520,7 +2906,7 @@ function App() {
         const startedAt = Date.now();
         laserTimer = window.setInterval(() => setLaserTrail((trail) => {
           if (!trail) return undefined;
-          const opacity = 1 - (Date.now() - startedAt) / 1100;
+          const opacity = 1 - (Date.now() - startedAt) / laserFadeDuration();
           if (opacity <= 0) { window.clearInterval(laserTimer); laserTimer = undefined; return undefined; }
           return { ...trail, opacity };
         }), 32);
@@ -2529,7 +2915,7 @@ function App() {
     }
     if (activePreview) {
       const item: Element = activePreview.type === "pen"
-        ? { type: "freehand", points: [...currentPoints], color: activePreview.color, thickness: activePreview.thickness }
+        ? { type: "freehand", points: [...currentPoints], color: activePreview.color, thickness: activePreview.thickness, opacity: activePreview.opacity }
         : { type: activePreview.type, x: activePreview.start.x, y: activePreview.start.y, w: activePreview.end.x - activePreview.start.x, h: activePreview.end.y - activePreview.start.y, color: activePreview.color, thickness: activePreview.thickness, lineStyle: lineStyle(), edgeStyle: edgeStyle(), cornerRadius: cornerRadius(), flowchartShape: activePreview.type === "flowchart" ? activePreview.flowchartShape : undefined, lineRoute: activePreview.type === "line" ? activePreview.lineRoute : undefined, routePoints: activePreview.type === "line" && activePreview.lineRoute === "multi" ? [0.2, 0.4, 0.6, 0.8].map((ratio) => ({ x: activePreview.start.x + (activePreview.end.x - activePreview.start.x) * ratio, y: activePreview.start.y + (activePreview.end.y - activePreview.start.y) * ratio })) : undefined, arrowRoute: activePreview.type === "arrow" ? activePreview.arrowRoute : undefined, ...(fillEnabled() && (activePreview.type === "rectangle" || activePreview.type === "circle" || activePreview.type === "diamond" || activePreview.type === "triangle" || activePreview.type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(activePreview.type === "line" ? { startHead: defaultLineStartHead(), endHead: defaultLineEndHead() } : {}), ...(activePreview.type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead(), ...(activePreview.arrowRoute === "forked" ? { forkUpper: { endHead: defaultForkUpperHead() }, forkLower: { endHead: defaultForkLowerHead() } } : {}) } : {}) } as ShapeElement;
       const valid = activePreview.type === "pen" ? currentPoints.length > 0 : Math.hypot(activePreview.end.x - activePreview.start.x, activePreview.end.y - activePreview.start.y) > 1;
       if (isConnector(item)) {
@@ -2575,11 +2961,39 @@ function App() {
     { id: "content", label: "Text and image tools", tools: ["text", "bucket", "eraser", "crop"] },
   ];
   const swatches = ["#252525", "#e76b62", "#6b91c9", "#74a582", "#d8a448", "#a581bb", "#e5915b"];
-  const helpShortcuts: [string, string][] = [["V", "Select tool"], ["Space", "Hold to pan"], ["P", "Pen"], ["Y", "Laser pointer"], ["R", "Rectangle"], ["C / O", "Circle"], ["D", "Diamond"], ["N", "Triangle"], ["L", "Line"], ["A", "Arrow"], ["F", "Flowchart symbol"], ["T", "Text"], ["B", "Fill bucket"], ["E", "Eraser"], ["X", "Image crop"], ["Esc", "Select tool and clear selection"], ["G", "Toggle grid"], ["Shift+G", "Snap to grid"], ["Shift+O", "Snap to objects"], ["K", "Lock canvas"], ["0", "Center view at 100%"], ["1 / 2", "Fit drawing / selection"], ["Ctrl / Cmd + N", "New sketch"], ["Ctrl / Cmd + O", "Open sketch"], ["Ctrl / Cmd + S", "Save"], ["Ctrl / Cmd + Z", "Undo"], ["Ctrl / Cmd + Y", "Redo"], ["Ctrl / Cmd + C / X / V", "Copy / cut / paste"], ["Ctrl / Cmd + D", "Duplicate selection"], ["Ctrl / Cmd + A", "Select all"], ["Ctrl / Cmd + G", "Group selection"], ["Ctrl / Cmd + Shift + G", "Ungroup"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge by 1 px"], ["Shift+Arrow", "Nudge by 10 px"], ["F1", "Open Help"]];
+  const helpShortcuts: [string, string][] = [["V", "Select tool"], ["Space", "Hold to pan"], ["P", "Fine pen"], ["Y", "Laser pointer"], ["R", "Rectangle"], ["C / O", "Circle"], ["D", "Diamond"], ["N", "Triangle"], ["L", "Line"], ["A", "Arrow"], ["F", "Flowchart symbol"], ["T", "Text"], ["B", "Fill bucket"], ["E", "Eraser"], ["X", "Image crop"], ["Esc", "Select tool and clear selection"], ["G", "Toggle grid"], ["Shift+G", "Snap to grid"], ["Shift+O", "Snap to objects"], ["K", "Lock canvas"], ["0", "Center view at 100%"], ["1 / 2", "Fit drawing / selection"], ["Ctrl / Cmd + N", "New sketch"], ["Ctrl / Cmd + O", "Open sketch"], ["Ctrl / Cmd + S", "Save"], ["Ctrl / Cmd + Z", "Undo"], ["Ctrl / Cmd + Y", "Redo"], ["Ctrl / Cmd + C / X / V", "Copy / cut / paste"], ["Ctrl / Cmd + D", "Duplicate selection"], ["Ctrl / Cmd + A", "Select all"], ["Ctrl / Cmd + G", "Group selection"], ["Ctrl / Cmd + Shift + G", "Ungroup"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge by 1 px"], ["Shift+Arrow", "Nudge by 10 px"], ["F1", "Open Help"]];
   const updateTextDraft = (value: string) => setTextDraft((draft) => draft ? { ...draft, value } : undefined);
+  function setSelectedNoteFontSize(size: number) {
+    const bounded = Math.max(8, Math.min(32, Math.round(size)));
+    if (noteEditor()) { setNoteEditor(draft => draft ? { ...draft, fontSize: bounded } : draft); return; }
+    const index = primarySelection(); const previous = index === undefined ? undefined : elements()[index];
+    if (previous?.type !== "group" || !previous.note || previous.locked || boardLocked()) return;
+    const bounds = elementBounds(previous); const before = cloneElements(elements());
+    const rebuilt = buildNoteGroup(bounds.x, bounds.y, previous.note.kind, previous.note.content, { width: previous.note.width ?? bounds.w, height: previous.note.height ?? bounds.h, fontSize: bounded, title: previous.note.title, collapsed: previous.note.collapsed });
+    const replacement: Element = { ...rebuilt, ...previous, note: rebuilt.note, elements: rebuilt.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
+    setElements(items => items.map((item, current) => current === index ? replacement : item)); pushUndo(before); setDirty(true);
+  }
+  function updateSelectedNoteCard(patch: Partial<Pick<NonNullable<Extract<Element, { type: "group" }>['note']>, "title">>) {
+    const index = primarySelection(); const previous = index === undefined ? undefined : elements()[index];
+    if (previous?.type !== "group" || !previous.note || previous.locked || boardLocked()) return;
+    const bounds = elementBounds(previous); const before = cloneElements(elements());
+    const rebuilt = buildNoteGroup(bounds.x, bounds.y, previous.note.kind, previous.note.content, { width: previous.note.width ?? bounds.w, height: previous.note.height ?? bounds.h, fontSize: previous.note.fontSize, title: patch.title ?? previous.note.title, collapsed: previous.note.collapsed });
+    const replacement: Element = { ...rebuilt, ...previous, note: rebuilt.note, elements: rebuilt.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
+    setElements(items => items.map((item, current) => current === index ? replacement : item)); pushUndo(before); setDirty(true);
+  }
+  const adjustQuickFont = (delta: number) => {
+    if (noteEditor() || quickHasNoteCard()) { setSelectedNoteFontSize(quickCardFontSize() + delta); return; }
+    const focused = focusedElement();
+    if (focused?.type === "schemaTable") { updateProperty("fontSize", Math.max(8, Math.min(48, (focused.fontSize ?? 14) + delta))); return; }
+    if (focused?.componentId?.startsWith("uml-class:") && resizeClassCardFont(focused.componentId, quickCardFontSize() + delta)) return;
+    setTextFormat("fontSize", Math.max(8, Math.min(160, (selectedText()?.fontSize ?? defaultFontSize()) + delta)));
+  };
   const setTextFormat = (property: "bold" | "italic" | "underline" | "textAlign" | "listType" | "fontSize" | "fontFamily", value: boolean | string | number) => {
     if (boardLocked() || focusedElement()?.locked) return;
     if (property === "fontSize" && (!Number.isFinite(Number(value)) || Number(value) < 8 || Number(value) > 160)) return;
+    if (property === "fontSize" && (noteEditor() || quickHasNoteCard())) { setSelectedNoteFontSize(Number(value)); return; }
+    if (property === "fontSize" && focusedElement()?.componentId?.startsWith("uml-class:")) { resizeClassCardFont(focusedElement()!.componentId!, Number(value)); return; }
+    if (property === "fontSize" && focusedElement()?.type === "schemaTable") { updateProperty("fontSize", Math.max(8, Math.min(48, Number(value)))); return; }
     if (focusedElement() && isLabelShape(focusedElement()!)) updateLabel(property, value);
     else if (selectedText() && !textDraft()) updateProperty(property, value);
     else {
@@ -2599,31 +3013,40 @@ function App() {
   };
   const showToolOptions = (value: Tool) => setOpenToolOptions(value);
   const closeToolOptions = () => setOpenToolOptions(undefined);
-  const activateTool = (next: Tool) => { commitTextDraft(); setQuickStylePopover(undefined); setStyleMenuMode("quick"); closeToolOptions(); if (next === "text") setTextMode("text"); const chosen = tool() === next && next !== "select" ? "select" : next; setTool(chosen); if (chosen !== "select" && chosen !== "pan") { setSelectedIndices([]); setSidebarTab("properties"); } };
+  const activateTool = (next: Tool) => { commitTextDraft(); setQuickStylePopover(undefined); closeToolOptions(); if (next === "text") setTextMode("text"); const switchFromBrush = next === "pen" && tool() === "pen" && brushMode() !== "fine"; const chosen = switchFromBrush ? "pen" : tool() === next && next !== "select" ? "select" : next; if (next === "pen") setBrushMode("fine"); setTool(chosen); if (chosen === "select") setStyleMenuMode("quick"); if (chosen !== "select" && chosen !== "pan") { setSelectedIndices([]); setSidebarTab("properties"); } };
   const renderToolbarTool = ({ value, label, key, path }: typeof tools[number]) => {
-    const active = tool() === value || (value === "pan" && spaceDown());
+    const active = (value === "pen" ? tool() === "pen" && brushMode() === "fine" : tool() === value) || (value === "pan" && spaceDown());
     const hasOptions = value === "flowchart" || value === "line" || value === "arrow" || value === "text";
-    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${hasOptions ? "has-options" : ""}`} title={`${label} (${key})${hasOptions ? " · click or hover for options" : ""}`} aria-label={label} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions) showToolOptions(value); }} onClick={(event) => { if (hasOptions && (event.target as HTMLElement).closest?.(".tool-family-caret")) { showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{value === "flowchart" ? <><path d="M12 8v3m0 3v2m-1.5-5h3"/><rect x="9.5" y="2.5" width="5" height="5" rx="1"/><path d="m12 14 3 3-3 3-3-3z"/><rect x="9.5" y="15.5" width="5" height="5" rx="1"/></> : <path d={path} />}</svg><kbd>{key}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
-    if (value === "flowchart") return <div class="tool-family flowchart-family" classList={{ "options-open": openToolOptions() === value }} onPointerEnter={() => showToolOptions(value)} onPointerLeave={closeToolOptions} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options flowchart-options" role="menu" aria-label="Flowchart symbols">{FLOWCHART_SHAPES.map((shape) => <button class={flowchartShape() === shape.value ? "active" : ""} role="menuitem" title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setFlowchartShape(shape.value); setTool("flowchart"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div></div>;
+    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${hasOptions ? "has-options" : ""}`} title={`${label} (${key})${hasOptions ? " · click or hover for options" : ""}`} aria-label={label} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions) showToolOptions(value); }} onClick={() => { if (hasOptions) { if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{value === "flowchart" ? <><path d="M12 8v3m0 3v2m-1.5-5h3"/><rect x="9.5" y="2.5" width="5" height="5" rx="1"/><path d="m12 14 3 3-3 3-3-3z"/><rect x="9.5" y="15.5" width="5" height="5" rx="1"/></> : <path d={path} />}</svg><kbd>{key}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
+    if (value === "flowchart") return <div class="tool-family flowchart-family" classList={{ "options-open": openToolOptions() === value }} onPointerEnter={() => showToolOptions(value)} onPointerLeave={closeToolOptions} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options flowchart-options" role="menu" aria-label="Flowchart symbols">{FLOWCHART_MENU_SHAPES.map((shape) => <button class={flowchartShape() === shape.value ? "active" : ""} role="menuitem" title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setFlowchartShape(shape.value); setTool("flowchart"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div></div>;
     if (value === "text") return <div class="tool-family text-family" classList={{ "options-open": openToolOptions() === value }} onPointerEnter={() => showToolOptions(value)} onPointerLeave={closeToolOptions} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options text-options" role="menu" aria-label="Text and note tools">
       <button role="menuitem" title="Place plain text" onClick={() => { closeToolOptions(); setTextMode("text"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M4 6h16M12 6v13m-4 0h8"/></svg><span>Text</span></button>
       <button role="menuitem" title="Add a note; supports fenced, syntax-highlighted code blocks" onClick={() => { closeToolOptions(); setTextMode("note"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M5 4h14v13l-4 3H5zM8 9h8M8 13h6"/></svg><span>Note + code</span></button>
       <button role="menuitem" title="Add a sticky note" onClick={() => { closeToolOptions(); setTextMode("sticky"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M5 4h14v12l-5 5H5zM14 16v5m-6-12h8m-8 4h6"/></svg><span>Sticky note</span></button>
       <button role="menuitem" title="Add an interactive checklist" onClick={() => { closeToolOptions(); setTextMode("checklist"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="m4 6 2 2 3-4M12 6h8M4 14l2 2 3-4m3 2h8"/></svg><span>Checklist</span></button>
+      <button role="menuitem" title="Generate editable canvas shapes from Mermaid flowchart code" onClick={() => openMermaidDialog()}><svg viewBox="0 0 24 24"><rect x="2.5" y="4" width="7" height="5" rx="1"/><path d="M9.5 6.5H14a3 3 0 0 1 3 3v.5m0 0-2-2m2 2 2-2M17 10v3.5a3 3 0 0 1-3 3H10m0 0 2-2m-2 2 2 2M10 16.5H6a3 3 0 0 1-3-3V12m0 0 2 2m-2-2-2 2"/><rect x="15" y="15" width="7" height="5" rx="1"/></svg><span>Diagram as code</span></button>
     </div></div>;
     if (value === "line") return <div class="tool-family route-family" classList={{ "options-open": openToolOptions() === value }} onPointerEnter={() => showToolOptions(value)} onPointerLeave={closeToolOptions} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options route-options" role="menu" aria-label="Line routes">{LINE_ROUTES.map((route) => <button class={lineRoute() === route.value ? "active" : ""} role="menuitem" title={route.label} aria-label={route.label} onClick={() => { closeToolOptions(); setLineRoute(route.value); setTool("line"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><span>{route.label}</span></button>)}</div></div>;
     if (value === "arrow") return <div class="tool-family route-family" classList={{ "options-open": openToolOptions() === value }} onPointerEnter={() => showToolOptions(value)} onPointerLeave={closeToolOptions} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options route-options" role="menu" aria-label="Arrow routes">{ARROW_ROUTES.map((route) => <button class={arrowRoute() === route.value ? "active" : ""} role="menuitem" title={route.label} aria-label={route.label} onClick={() => { closeToolOptions(); setArrowRoute(route.value); setTool("arrow"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><span>{route.label}</span></button>)}</div></div>;
     return button;
   };
   return (
-    <main class={`app-shell theme-${theme()}`}>
+    <main class={`app-shell theme-${theme()}`} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()};`}>
       <header class="topbar">
         <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span>{activePath() ? fileName() : "SketchDraw"}</span></div></div>
         <nav class="app-menus" aria-label="Application menus">
           <details class="menu-dropdown" ref={menu}><summary>File<svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{activePath() ? fileName() : "No file open"}</div>
             <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>Ctrl+S</kbd></button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><div class="menu-separator" /><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Export PDF...</button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !elements().length || boardLocked()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button>
+<div class="menu-separator" /><span class="menu-section-title">Autosave interval</span><div class="autosave-choices">{([5, 10] as const).map(seconds => <button class={autosaveSeconds() === seconds ? "active" : ""} aria-pressed={autosaveSeconds() === seconds} onClick={() => setAutosavePreference(seconds)}>{seconds} seconds</button>)}</div>          </div></details>
+          <details class="menu-dropdown" ref={viewMenu}><summary>View<svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover view-popover view-settings-popover">
+            <header class="view-menu-heading"><strong>View settings</strong><span>Theme, tools and canvas</span></header>
+            <section class="view-menu-section"><span class="menu-section-title">Application theme</span><div class="theme-options"><button class={themeMode() === "system" ? "active" : ""} onClick={() => closeSystemMenu(() => setThemePreference("system"))} title="Use system theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z"/></svg><span>System</span></button><button class={themeMode() === "light" ? "active" : ""} onClick={() => closeSystemMenu(() => setThemePreference("light"))} title="Light theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l-1.4 1.4M17.7 6.3l1.4-1.4"/></svg><span>Light</span></button><button class={themeMode() === "dark" ? "active" : ""} onClick={() => closeSystemMenu(() => setThemePreference("dark"))} title="Dark theme"><svg viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5z"/></svg><span>Dark</span></button></div></section>
+            <section class="view-menu-section"><div class="view-section-heading"><span class="menu-section-title">Component style</span><span>Stencil cards</span></div><div class="component-style-options"><button class={componentAppearance() === "modern" ? "active" : ""} onClick={() => setComponentAppearancePreference("modern")}>Modern</button><button class={componentAppearance() === "simple" ? "active" : ""} onClick={() => setComponentAppearancePreference("simple")}>Simple</button></div></section>
+            <section class="view-menu-section"><span class="menu-section-title">Toolbar surface</span><div class="toolbar-color-options"><button class="named-color-choice" classList={{ active: toolbarColorChoice() === "auto" }} onClick={() => setToolbarColorPreference("auto")} title="Match the application theme"><i class="toolbar-auto-dot" /><span>Auto</span></button>{TOOLBAR_COLORS.map(option => <button class="named-color-choice" classList={{ active: toolbarColorChoice() === option.value }} onClick={() => setToolbarColorPreference(option.value)} title={option.label}><i style={{ background: option.value }} /><span>{option.label}</span></button>)}<label class="custom-color-swatch" title="Custom toolbar color"><input aria-label="Custom toolbar color" type="color" value={toolbarColor()} onInput={event => setToolbarColorPreference(event.currentTarget.value)} /></label></div>
+              <div class="view-section-heading compact"><span class="menu-section-title">Tool accent</span></div><div class="view-colors accent-colors">{UI_ACCENTS.map(option => <button class={"color-swatch ui-accent-swatch " + (accentColor() === option.value ? "active" : "")} style={{ background: option.value }} aria-label={"Use " + option.label + " accent"} title={option.label + " accent"} onClick={() => setAccentPreference(option.value)} />)}<label class="custom-color-swatch" title="Custom tool accent"><input aria-label="Custom tool accent color" type="color" value={accentColor()} onInput={event => setAccentPreference(event.currentTarget.value)} /></label></div>
+            </section>
+            <section class="view-menu-section board-view-section"><div class="view-section-heading"><span class="menu-section-title">Whiteboard</span><span>Canvas background</span></div><div class="board-theme-options"><button class={"board-auto-choice " + (boardColorFollowsTheme() ? "active" : "")} disabled={boardLocked()} onClick={() => closeSystemMenu(() => { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); })}><i class="board-auto-dot" /><span>Auto</span></button>{BOARD_COLORS.map(value => <button class={"board-auto-choice " + (!boardColorFollowsTheme() && boardColor() === value ? "active" : "")} disabled={boardLocked()} onClick={() => closeSystemMenu(() => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } })}><i style={{ background: value }} /><span>{BOARD_COLOR_NAMES[value] ?? value}</span></button>)}</div><label class="board-custom-choice"><span>Custom color</span><label class="custom-color-swatch" title="Custom whiteboard color"><input aria-label="Custom whiteboard color" type="color" value={renderedBoardColor()} disabled={boardLocked()} onInput={event => { if (!boardLocked()) { setBoardColor(event.currentTarget.value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: event.currentTarget.value, boardColorFollowsTheme: false }); setDirty(true); } }} /></label></label></section>
           </div></details>
-          <details class="menu-dropdown" ref={viewMenu}><summary>View<svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover view-popover"><span class="menu-section-title">Appearance</span><div class="theme-options"><button class={themeMode() === "system" ? "active" : ""} onClick={() => closeSystemMenu(() => setThemePreference("system"))} title="Use system theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z"/></svg><span>System</span></button><button class={themeMode() === "light" ? "active" : ""} onClick={() => closeSystemMenu(() => setThemePreference("light"))} title="Light theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Light</span></button><button class={themeMode() === "dark" ? "active" : ""} onClick={() => closeSystemMenu(() => setThemePreference("dark"))} title="Dark theme"><svg viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5z"/></svg><span>Dark</span></button></div><div class="menu-separator" /><span class="menu-section-title">Whiteboard</span><div class="view-colors"><button class={`board-auto-button ${boardColorFollowsTheme() ? "active" : ""}`} title="Match the canvas to the active theme" disabled={boardLocked()} onClick={() => closeSystemMenu(() => { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); })}>Auto</button>{BOARD_COLORS.map((value) => <button class={`color-swatch ${!boardColorFollowsTheme() && boardColor() === value ? "active" : ""}`} style={{ background: value }} aria-label={`Whiteboard ${value}`} title={value} disabled={boardLocked()} onClick={() => closeSystemMenu(() => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } })} />)}<label class="custom-color-swatch" title="Custom whiteboard color"><input aria-label="Custom whiteboard color" type="color" value={renderedBoardColor()} disabled={boardLocked()} onInput={(event) => { if (!boardLocked()) { setBoardColor(event.currentTarget.value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: event.currentTarget.value, boardColorFollowsTheme: false }); setDirty(true); } }} /></label></div></div></details>
           <details class="menu-dropdown help-menu" ref={helpMenu}><summary>Help<svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><div class="menu-separator" /><button disabled={updateCheck() === "checking"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Could not check for a newer version.</span></Show></div></details>
         </nav>
 
@@ -2664,15 +3087,9 @@ function App() {
 </section>}>
         <>
           <section class="canvas-wrap" ref={canvasWrap}>
-            <Show when={noteEditor()}>{draft => <div class={`canvas-note-editor ${draft().kind}`} role="group" aria-label={`${draft().kind} canvas editor`} style={{ left: `${canvasState().panX + draft().x * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${Math.max(220, draft().width * canvasState().zoom)}px`, height: `${Math.max(130, draft().height * canvasState().zoom)}px` }} onPointerDown={event => { const rect = event.currentTarget.getBoundingClientRect(); resizingNoteEditor = event.clientX >= rect.right - 22 && event.clientY >= rect.bottom - 22; event.stopPropagation(); }} onPointerUp={event => { if (resizingNoteEditor) { const rect = event.currentTarget.getBoundingClientRect(); const zoom = canvasState().zoom; setNoteEditor(current => current ? { ...current, width: Math.max(180, Math.min(4000, rect.width / zoom)), height: Math.max(100, Math.min(1_000_000, rect.height / zoom)) } : current); } resizingNoteEditor = false; }}>
+            <Show when={noteEditor()}>{draft => <div class={`canvas-note-editor ${draft().kind} ${componentAppearance()}`} role="group" aria-label={`${draft().kind} canvas editor`} style={{ left: `${canvasState().panX + draft().x * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${Math.max(220, draft().width * canvasState().zoom)}px`, height: `${Math.max(130, draft().height * canvasState().zoom)}px`, background: noteCardPalette(draft().kind, theme(), componentAppearance()).surface, "border-color": noteCardPalette(draft().kind, theme(), componentAppearance()).border, color: noteCardPalette(draft().kind, theme(), componentAppearance()).ink }} onPointerDown={event => { const rect = event.currentTarget.getBoundingClientRect(); resizingNoteEditor = event.clientX >= rect.right - 22 && event.clientY >= rect.bottom - 22; event.stopPropagation(); }} onPointerUp={event => { if (resizingNoteEditor) { const rect = event.currentTarget.getBoundingClientRect(); const zoom = canvasState().zoom; setNoteEditor(current => current ? { ...current, width: Math.max(180, Math.min(4000, rect.width / zoom)), height: Math.max(100, Math.min(1_000_000, rect.height / zoom)), resized: true } : current); } resizingNoteEditor = false; }}>
               <header><span>{draft().kind === "sticky" ? "STICKY NOTE" : draft().kind === "checklist" ? "CHECKLIST" : "NOTE + CODE"}</span><small class="editor-key-hint">Tab indents</small><button type="button" onClick={saveNoteEditor} title="Save to canvas" aria-label="Save note to canvas">Done &#10003;</button></header>
-              <div class="note-font-control" aria-label="Card font size">
-                <span>Text size</span>
-                <button type="button" aria-label="Decrease card font size" title="Decrease font size" disabled={draft().fontSize <= 8} onClick={() => setNoteEditor(current => current ? { ...current, fontSize: Math.max(8, current.fontSize - 1) } : undefined)}>&#8722;</button>
-                <input aria-label="Card font size in pixels" type="range" min="8" max="32" step="1" value={draft().fontSize} onInput={event => setNoteEditor(current => current ? { ...current, fontSize: Number(event.currentTarget.value) } : undefined)} />
-                <output>{draft().fontSize}px</output>
-                <button type="button" aria-label="Increase card font size" title="Increase font size" disabled={draft().fontSize >= 32} onClick={() => setNoteEditor(current => current ? { ...current, fontSize: Math.min(32, current.fontSize + 1) } : undefined)}>+</button>
-              </div>
+              <div class="note-card-details"><label>Title<input aria-label="Card title" maxlength="120" value={draft().title} onInput={event => setNoteEditor(current => current ? { ...current, title: event.currentTarget.value } : undefined)} /></label></div>
               <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Note and code content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write here…\n\nUse fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); } }} />
             </div>}</Show>
             <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() ? "not-allowed" : tool() === "select" ? noteToggleHovered() ? "pointer" : hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { penEraserDrawing = false; if (resizeOrigin) setElements(resizeOrigin.before); if (moveOrigin) setElements(moveOrigin.before); drawing = false; setPreview(undefined); setMarquee(undefined); setAttachmentHint(undefined); resizeOrigin = undefined; moveOrigin = undefined; marqueeOrigin = undefined; panOrigin = undefined; setIsPanning(false); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
@@ -2690,35 +3107,61 @@ function App() {
               <div class="canvas-options-family" classList={{ "options-open": canvasOptionsOpen() }}>
               <button class={`canvas-options-trigger ${canvasOptionsOpen() ? "active" : ""}`} aria-label="Canvas options" aria-haspopup="menu" aria-expanded={canvasOptionsOpen()} title="Canvas options" onClick={() => { setCanvasOptionsOpen(value => !value); closeToolOptions(); }}><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg></button>
               <div class="canvas-options-menu" role="menu" aria-label="Canvas options">
-                <span class="canvas-options-title">Canvas</span>
-                <div class="canvas-options-grid">
-                  <button role="menuitem" disabled={!elements().length} title="Fit drawing (1)" onClick={() => { setCanvasOptionsOpen(false); fitDocumentToViewport(elements()); }}><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8h8v8H8z"/></svg><span>Fit drawing</span></button>
-                  <button role="menuitem" disabled={!selectedIndices().length} title="Zoom to selection (2)" onClick={() => { setCanvasOptionsOpen(false); fitDocumentToViewport(selectedElements()); }}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span>Fit selection</span></button>
-                  <button role="menuitem" class={showGrid() ? "active" : ""} title="Toggle grid (G)" onClick={() => setShowGrid(value => !value)}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 4v16"/></svg><span>Grid</span><kbd>G</kbd></button>
-                  <button role="menuitem" class={snapToGrid() ? "active" : ""} title="Snap to grid (Shift+G)" onClick={() => setSnapToGrid(value => !value)}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8v8H8z"/></svg><span>Snap to grid</span><kbd>Shift+G</kbd></button>
-                  <button role="menuitem" class={snapToObjects() ? "active" : ""} title="Snap to objects (Shift+O)" onClick={() => setSnapToObjects(value => !value)}><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 14h5v5h-5zM10 7.5h4M16.5 10v4"/></svg><span>Snap to objects</span><kbd>Shift+O</kbd></button>
-                  <button role="menuitem" disabled={!groupActionEnabled() || boardLocked()} class={groupSelected() ? "active" : ""} title="Group / ungroup (Ctrl+G)" onClick={groupSelection}><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="9" height="9" rx="1.5"/><rect x="11.5" y="11" width="9" height="9" rx="1.5"/></svg><span>{groupSelected() ? "Ungroup" : "Group"}</span><kbd>Ctrl G</kbd></button>
-                </div>
+                <header class="canvas-options-heading"><strong>Canvas options</strong><small>View and organize your board</small></header>
+                <section class="canvas-options-section"><span>VIEW</span><div class="canvas-options-grid">
+                  <button role="menuitem" disabled={!elements().length} title="Fit drawing (1)" onClick={() => { setCanvasOptionsOpen(false); fitDocumentToViewport(elements()); }}><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8h8v8H8z"/></svg><span>Fit drawing</span><kbd>1</kbd></button>
+                  <button role="menuitem" disabled={!selectedIndices().length} title="Fit selection (2)" onClick={() => { setCanvasOptionsOpen(false); fitDocumentToViewport(selectedElements()); }}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span>Fit selection</span><kbd>2</kbd></button>
+                  <button role="menuitemcheckbox" aria-checked={showGrid()} class={showGrid() ? "active" : ""} title="Toggle grid (G)" onClick={() => setShowGrid(value => !value)}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 4v16"/></svg><span>Show grid</span><kbd>G</kbd></button>
+                </div></section>
+                <section class="canvas-options-section"><span>SNAPPING</span><div class="canvas-options-grid">
+                  <button role="menuitemcheckbox" aria-checked={snapToGrid()} class={snapToGrid() ? "active" : ""} title="Snap to grid (Shift+G)" onClick={() => setSnapToGrid(value => !value)}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8v8H8z"/></svg><span>Snap to grid</span><kbd>Shift G</kbd></button>
+                  <button role="menuitemcheckbox" aria-checked={snapToObjects()} class={snapToObjects() ? "active" : ""} title="Snap to objects (Shift+O)" onClick={() => setSnapToObjects(value => !value)}><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 14h5v5h-5zM10 7.5h4M16.5 10v4"/></svg><span>Snap to objects</span><kbd>Shift O</kbd></button>
+                </div></section>
+                <section class="canvas-options-section"><span>SELECTION</span><div class="canvas-options-grid">
+                  <button role="menuitem" disabled={!groupActionEnabled() || boardLocked()} class={groupSelected() ? "active" : ""} title="Group or ungroup selection (Ctrl+G)" onClick={() => { groupSelection(); setCanvasOptionsOpen(false); }}><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="9" height="9" rx="1.5"/><rect x="11.5" y="11" width="9" height="9" rx="1.5"/></svg><span>{groupSelected() ? "Ungroup selection" : "Group selection"}</span><kbd>Ctrl G</kbd></button>
+                </div></section>
               </div>
               </div></div>
               {toolGroups.map((group) => <div class={`tool-cluster tool-cluster-${group.id}`} role="group" aria-label={group.label}>{tools.filter((item) => group.tools.includes(item.value)).map(renderToolbarTool)}</div>)}
+              <div class="tool-family paint-brush-family" classList={{ "options-open": paintBrushMenuOpen() }} onPointerEnter={() => setPaintBrushMenuOpen(true)} onPointerLeave={() => setPaintBrushMenuOpen(false)}><button class={`tool-icon-button has-options ${tool() === "pen" && brushMode() !== "fine" ? "selected" : ""}`} title="Paint brushes" aria-label="Paint brushes" aria-haspopup="menu" aria-expanded={paintBrushMenuOpen()} onClick={() => setPaintBrushMenuOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m14 4 6 6M5 18c2-2 4-1 6-3l7-7-6-6-7 7c-2 2-1 4-3 6-.7.7-.4 2.4 1 3 1.2.5 2 .1 2-.4Z"/></svg><kbd>BR</kbd><svg class="tool-family-caret" viewBox="0 0 12 12"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button><div class="tool-options paint-brush-options" role="menu" aria-label="Paint brush tools">{([ ["pencil", "Pencil"], ["brush", "Soft brush"], ["marker", "Marker"], ["highlighter", "Highlighter"], ["chalk", "Chalk"] ] as const).map(([mode, label]) => <button class={brushMode() === mode ? "active" : ""} role="menuitem" onClick={() => { setBrushMode(mode); setTool("pen"); setSelectedIndices([]); setPaintBrushMenuOpen(false); }}><svg viewBox="0 0 24 24"><path d={mode === "pencil" ? "m5 19 11-11 3 3L8 22H5zm10-13 2-2 4 4-2 2" : mode === "brush" ? "M5 18c4 0 3-8 8-8 4 0 4 4 7 4m-15 4h14M15 5l3 3" : mode === "marker" ? "M5 18 17 6l3 3L8 21H5zm9-9 3 3" : mode === "highlighter" ? "M4 16 15 5l5 5-11 11H4zm4-2 5 5" : "M5 18 17 6m-8 12 2 2M4 21h16"}/></svg><span>{label}</span></button>)}</div></div>
               <div class="tool-family stencil-family" classList={{ "options-open": stencilMenuOpen() }} onPointerEnter={() => setStencilMenuOpen(true)} onPointerLeave={() => setStencilMenuOpen(false)}>
                 <button class="tool-icon-button has-options" title="Symbols and modeling components" aria-label="Symbols and modeling components" aria-haspopup="menu" aria-expanded={stencilMenuOpen()} onClick={() => setStencilMenuOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="M3 5h7v7H3zM14 4l7 4-4 7-7-4zM4 16h7v5H4zM15 17h6v4h-6z"/></svg><kbd>LIB</kbd><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button>
                 <div class="tool-options stencil-options" role="menu" aria-label="Symbols and diagram components">
                   <strong class="tool-options-heading">Symbols &amp; elements</strong>
                   {EXTRA_FLOWCHART_SHAPES.map(shape => <button role="menuitem" title={shape.label} onClick={() => { setFlowchartShape(shape.value); setTool("flowchart"); setSelectedIndices([]); setSidebarTab("properties"); setStencilMenuOpen(false); }}><svg viewBox="0 0 24 24"><path d={FLOWCHART_SHAPES.find(item => item.value === shape.value)?.path ?? "M4 4h16v16H4z"}/></svg><span>{shape.label}</span></button>)}
-                  {[...new Set(LIBRARY_COMPONENTS.map(component => component.section))].map(section => <><strong class="tool-options-heading stencil-heading">{section}</strong>{LIBRARY_COMPONENTS.filter(component => component.section === section).map(component => <button class="stencil-template" role="menuitem" title={component.description} onClick={() => insertLibraryComponent(component.kind)}>{libraryIcon(component.kind)}<span>{component.label}</span></button>)}</>)}
+                  {[...new Set(LIBRARY_COMPONENTS.map(component => component.section))].map(section => <><strong class="tool-options-heading stencil-heading">{section}</strong>{LIBRARY_COMPONENTS.filter(component => component.section === section).map(component => <button class="stencil-template" role="menuitem" title={component.description} onClick={() => component.kind === "er-table" ? openSchemaDialog(undefined, "CREATE TABLE table_name (\n  id INTEGER PRIMARY KEY,\n  name TEXT\n);") : component.kind === "uml-class" ? (() => { const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; const rect = canvas!.getBoundingClientRect(); const view = canvasState(); openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind)}>{libraryIcon(component.kind)}<span>{component.label}</span></button>)}</>)}
                   <strong class="tool-options-heading stencil-heading">Database schema</strong>
-                  <button class="stencil-template" role="menuitem" title="Paste SQL CREATE TABLE statements or a JSON schema and generate linked table cards" onClick={() => { setSchemaError(""); setSchemaDialog(true); setStencilMenuOpen(false); }}><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Visualize schema</span></button>
+                  <button class="stencil-template" role="menuitem" title="Paste SQL CREATE TABLE statements or a JSON schema and generate editable linked table cards" onClick={() => openSchemaDialog()}><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Visualize schema</span></button>
                 </div>
               </div>
               <div class="tool-cluster tool-cluster-history" role="group" aria-label="History and canvas state">
+                <button class={layerPanelOpen() ? "tool-icon-button canvas-utility-button selected" : "tool-icon-button canvas-utility-button"} title="Layers" aria-label="Open layers panel" aria-pressed={layerPanelOpen()} onClick={() => setLayerPanelOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4"/></svg></button>
                 <button class="tool-icon-button canvas-utility-button" disabled={!canUndo() || boardLocked()} title="Undo (Ctrl+Z)" aria-label="Undo" onClick={undo}><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg><kbd>Ctrl+Z</kbd></button>
                 <button class="tool-icon-button canvas-utility-button" disabled={!canRedo() || boardLocked()} title="Redo (Ctrl+Y)" aria-label="Redo" onClick={redo}><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5m4-5h-8a6 6 0 0 0-6 6"/></svg><kbd>Ctrl+Y</kbd></button>
                 <button class={`tool-icon-button canvas-utility-button ${boardLocked() ? "selected" : ""}`} title={`Canvas ${boardLocked() ? "locked" : "unlocked"} (K)`} aria-label={boardLocked() ? "Unlock canvas" : "Lock canvas"} aria-pressed={boardLocked()} onClick={() => setBoardLocked(value => !value)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button>
               </div>
               <button class="tool-collapse" title="Hide tools" aria-label="Hide tools" onClick={() => setToolBarOpen(false)}><svg viewBox="0 0 24 24"><path d="m7 14 5-5 5 5" /></svg></button></nav></Show>
-            <Show when={sidebarVisible()}><aside class="style-pane" classList={{ "quick-style-mode": styleMenuMode() === "quick", "full-style-mode": styleMenuMode() === "full" }} aria-label="Properties and layers">
+            <Show when={layerPanelOpen()}>
+              <aside class="floating-layer-panel" aria-label="Layers">
+                <header><strong>Layers</strong><span>{elements().length}</span><button class="pane-close-icon" aria-label="Close layers" title="Close layers" onClick={() => setLayerPanelOpen(false)}>&times;</button></header>
+                <div class="layer-list">
+                  {[...elements().keys()].reverse().map((index, rowIndex) => {
+                    const element = elements()[index];
+                    const label = element.type === "text" ? "Text: " + (element.text.slice(0, 18) || "Empty") : element.type === "group" ? element.mermaid ? "Mermaid flowchart" : "Group (" + element.elements.length + ")" : element.type[0].toUpperCase() + element.type.slice(1);
+                    return <div class={"layer-row " + (selectedSet().has(index) ? "selected" : "")}>
+                      <button class="layer-name" onClick={() => setSelectedIndices([index])}>{label}</button>
+                      <div class="layer-order-controls" aria-label={"Reorder " + label}>
+                        <button type="button" title="Move forward" aria-label={"Move " + label + " up"} disabled={boardLocked() || rowIndex === 0} onClick={() => moveLayerTo(rowIndex, rowIndex - 1)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 10 5-5 5 5" /></svg></button>
+                        <button type="button" title="Move backward" aria-label={"Move " + label + " down"} disabled={boardLocked() || rowIndex === elements().length - 1} onClick={() => moveLayerTo(rowIndex, rowIndex + 1)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 6 5 5 5-5" /></svg></button>
+                      </div>
+                      <button title={element.hidden ? "Show layer" : "Hide layer"} aria-label={element.hidden ? "Show layer" : "Hide layer"} onClick={() => toggleLayer(index, "hidden")}>{element.hidden ? "Show" : "Hide"}</button>
+                      <button title={element.locked ? "Unlock layer" : "Lock layer"} aria-label={element.locked ? "Unlock layer" : "Lock layer"} onClick={() => toggleLayer(index, "locked")}>{element.locked ? "Unlock" : "Lock"}</button>
+                    </div>;
+                  })}
+                </div>
+              </aside>
+            </Show>
+            <Show when={sidebarVisible()}><aside class="style-pane" classList={{ "quick-style-mode": styleMenuMode() === "quick", "full-style-mode": styleMenuMode() === "full" }} aria-label="Properties">
               <div class="quick-style-panel">
                 <div class="quick-style-heading"><button onClick={toggleSidebar} title={styleMenuMode() === "full" ? "Close properties" : "Open properties"} aria-label={styleMenuMode() === "full" ? "Close properties" : "Open properties"} aria-expanded={styleMenuMode() === "full"}><svg viewBox="0 0 24 24"><path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button></div>
                 <Show when={sidebarTab() === "properties"}>
@@ -2733,6 +3176,7 @@ function App() {
                       <button class="quick-style-icon quick-width-icon" onClick={() => setQuickStylePopover(quickStylePopover() === "thickness" ? undefined : "thickness")} aria-label={tool() === "eraser" ? "Eraser size" : "Stroke width"} title={tool() === "eraser" ? "Eraser size" : `Stroke width ${selectedThickness()}px`} aria-expanded={quickStylePopover() === "thickness"}><i style={{ height: `${Math.max(1, selectedThickness())}px`, background: themeInk(selectedColor(), theme()) }} /><small>{selectedThickness()}</small></button>
                     </Show>
                     <Show when={tool() === "pen"}><button class={`quick-style-icon ${quickStylePopover() === "penInput" ? "active" : ""}`} onClick={() => setQuickStylePopover(quickStylePopover() === "penInput" ? undefined : "penInput")} aria-label="Stylus input options" title="Stylus pressure, tilt, and eraser" aria-expanded={quickStylePopover() === "penInput"}><svg viewBox="0 0 24 24"><path d="m5 19 3.5-.8L19 7.7 16.3 5 5.8 15.5 5 19Zm9.8-12 2.7 2.7M4 22h16"/></svg></button></Show>
+                    <Show when={tool() === "laser"}><button class={`quick-style-icon ${quickStylePopover() === "laser" ? "active" : ""}`} onClick={() => setQuickStylePopover(quickStylePopover() === "laser" ? undefined : "laser")} aria-label="Laser pointer settings" title="Laser pointer settings" aria-expanded={quickStylePopover() === "laser"}><svg viewBox="0 0 24 24"><path d="M4 20 16 8m-5-1 6 6M15 3v2m6 4h-2M20 3l-1 1M8 3l1 1M4 9H2"/><circle cx="17" cy="7" r="2"/></svg></button></Show>
                     <Show when={quickHasShapeFill()}>
                       <button class={`quick-style-icon ${fillEnabled() || !!selectedFillColor() ? "active" : ""}`} onClick={() => setQuickStylePopover(quickStylePopover() === "fill" ? undefined : "fill")} aria-label="Shape fill" title="Shape fill" aria-expanded={quickStylePopover() === "fill"}><svg class="quick-fill-preview-icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" style={{ fill: selectedFillColor() ?? (fillEnabled() ? fillColor() : "#ffffff") }} /><path d="M4 4h16v16H4z" /></svg></button>
                     </Show>
@@ -2743,9 +3187,11 @@ function App() {
                     <Show when={quickIsConnector()}>
                       <button class="quick-style-icon" onClick={() => setQuickStylePopover(quickStylePopover() === "heads" ? undefined : "heads")} aria-label="Connector arrowheads" title="Connector arrowheads" aria-expanded={quickStylePopover() === "heads"}><ArrowHeadIcon kind={quickArrowHead("end")} /></button>
                     </Show>
-                    <Show when={quickHasText()}>
-                      <div class="quick-text-size"><button aria-label="Decrease font size" title="Decrease font size" onClick={() => setTextFormat("fontSize", Math.max(8, (selectedText()?.fontSize ?? defaultFontSize()) - 1))}>-</button><span>{selectedText()?.fontSize ?? defaultFontSize()}</span><button aria-label="Increase font size" title="Increase font size" onClick={() => setTextFormat("fontSize", Math.min(160, (selectedText()?.fontSize ?? defaultFontSize()) + 1))}>+</button></div>
+                    <Show when={quickHasText() || quickHasNoteCard()}>
+                      <div class="quick-text-size"><button aria-label="Decrease font size" title="Decrease font size" onClick={() => adjustQuickFont(-1)}>-</button><span>{quickCardFontSize()}</span><button aria-label="Increase font size" title="Increase font size" onClick={() => adjustQuickFont(1)}>+</button></div>
+                      <Show when={quickHasText()}>
                       <div class="quick-text-format"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button><button class={`quick-font-toggle ${(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""}`} aria-label="Toggle text font family" title="Toggle text font family" onClick={() => setTextFormat("fontFamily", (selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "sans" : "hand")}>Aa</button></div>
+                      </Show>
                     </Show>
                     <Show when={quickStylePopover() === "color" || quickStylePopover() === "fill"}>
                       <div class="quick-style-popover quick-color-popover" aria-label={quickStylePopover() === "fill" ? "Fill colors" : "Stroke colors"}>
@@ -2761,7 +3207,8 @@ function App() {
                         <input aria-label="Custom size" type="range" min="1" max="20" step="1" value={selectedThickness()} onInput={(event) => updateThickness(Number(event.currentTarget.value))} />
                       </div>
                     </Show>
-                    <Show when={quickStylePopover() === "penInput" && tool() === "pen"}><div class="quick-style-popover pen-input-popover" aria-label="Stylus input options"><strong>Windows pen</strong><label><input type="checkbox" checked={penPressure()} onChange={event => setPenPressure(event.currentTarget.checked)} /> Pressure width</label><label><input type="checkbox" checked={penTilt()} onChange={event => setPenTilt(event.currentTarget.checked)} /> Tilt shaping</label><label><input type="checkbox" checked={penEraser()} onChange={event => setPenEraser(event.currentTarget.checked)} /> Eraser end</label><small>Uses native WebView2 pointer data when a pen is connected.</small></div></Show>
+                    <Show when={quickStylePopover() === "penInput" && tool() === "pen"}><div class="quick-style-popover pen-input-popover" aria-label="Stylus input options"><strong>Pen options</strong><label><input type="checkbox" checked={penPressure()} onChange={event => setPenPressure(event.currentTarget.checked)} /> Pressure width</label><label><input type="checkbox" checked={penTilt()} onChange={event => setPenTilt(event.currentTarget.checked)} /> Tilt shaping</label><label><input type="checkbox" checked={penEraser()} onChange={event => setPenEraser(event.currentTarget.checked)} /> Eraser end</label><small>Stylus settings use WebView2 pointer data when a pen is connected.</small></div></Show>
+                    <Show when={quickStylePopover() === "laser" && tool() === "laser"}><div class="quick-style-popover laser-settings-popover" aria-label="Laser pointer settings"><strong>Laser pointer</strong><label>Thickness <output>{laserThickness()} px</output><input aria-label="Laser pointer thickness" type="range" min="1" max="24" value={laserThickness()} onInput={event => setLaserPreference("thickness", event.currentTarget.value)} /></label><label>Fade duration <output>{(laserFadeDuration() / 1000).toFixed(1)} s</output><input aria-label="Laser pointer fade duration" type="range" min="250" max="5000" step="250" value={laserFadeDuration()} onInput={event => setLaserPreference("fade", event.currentTarget.value)} /></label><div class="laser-colors" aria-label="Laser pointer colors">{["#ff3265", "#ff8a32", "#ffd52e", "#29c66f", "#28b9ef", "#8c63ff"].map(value => <button class={`color-swatch ${laserColor() === value && !laserRainbow() ? "active" : ""}`} style={{ background: value }} title={value} aria-label={`Laser color ${value}`} onClick={() => { setLaserPreference("rainbow", "false"); setLaserPreference("color", value); }} />)}<label class="custom-color-swatch" title="Custom laser color"><input type="color" aria-label="Custom laser color" value={laserColor()} onInput={event => { setLaserPreference("rainbow", "false"); setLaserPreference("color", event.currentTarget.value); }} /></label></div><label class="laser-rainbow"><input type="checkbox" checked={laserRainbow()} onChange={event => setLaserPreference("rainbow", String(event.currentTarget.checked))} /> Rainbow color</label></div></Show>
                     <Show when={quickStylePopover() === "lineStyle"}>
                       <div class="quick-style-popover quick-line-styles">{(["solid", "dashed", "dotted", "double"] as const).map(value => <button class={quickCurrentLineStyle() === value ? "active" : ""} aria-label={`${value} line`} title={`${value} line`} onClick={() => { if (quickFocusedHasLineStyle()) updateProperty("lineStyle", value); else setLineStyle(value); setQuickStylePopover(undefined); }}><svg viewBox="0 0 24 24" class={`line-preview ${value}`}><path d={value === "double" ? "M3 9h18M3 15h18" : "M3 12h18"} /></svg></button>)}</div>
                     </Show>
@@ -2773,12 +3220,13 @@ function App() {
                     </Show>
                   </div>
                 </Show>
-                <Show when={sidebarTab() === "layers"}><button class="quick-layers-button" onClick={() => { setStyleMenuMode("full"); setQuickStylePopover(undefined); }}>Open layers panel ?</button></Show>
               </div>
               <div class="full-inspector">
               <div class="full-style-heading"><strong>Properties</strong><button onClick={() => { setStyleMenuMode("quick"); setQuickStylePopover(undefined); }}>Quick style</button></div>
-              <nav class="sidebar-tabs"><button class={sidebarTab() === "properties" ? "active" : ""} onClick={() => setSidebarTab("properties")}>Properties</button><button class={sidebarTab() === "layers" ? "active" : ""} onClick={() => setSidebarTab("layers")}>Layers <span>{elements().length}</span></button></nav>
+
               <Show when={sidebarTab() === "properties"}>
+                <Show when={selectedNoteCard()}>{card => <section class="pane-section note-card-properties"><div class="pane-heading">{card().note?.kind === "sticky" ? "Sticky note" : card().note?.kind === "checklist" ? "Checklist" : "Note + code"}<button class="note-collapse-action" disabled={boardLocked() || card().locked} onClick={() => { const index = primarySelection(); if (index !== undefined) toggleNoteCollapsed(index); }}>{card().note?.collapsed ? "Expand" : "Collapse"}</button></div><label class="property-label">Title<input aria-label="Card title" maxlength="120" value={card().note?.title ?? defaultNoteTitle(card().note!.kind)} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label><p class="bucket-help">Resize the card to change its layout; text size stays fixed.</p></section>}</Show>
+                <Show when={focusedElement()?.type === "schemaTable"}><section class="pane-section"><div class="pane-heading">Table schema</div><label class="property-label">Font size<input type="number" min="8" max="48" value={(focusedElement() as SchemaTableElement | undefined)?.fontSize ?? 14} onChange={event => updateProperty("fontSize", Number(event.currentTarget.value))} /></label><p class="bucket-help">The table grows to keep every row legible.</p></section></Show>
                 <Show when={showStrokeControls()}><section class="pane-section"><div class="pane-heading">{tool() === "text" || focusedElement()?.type === "text" ? "Text color" : "Stroke color"}</div><div class="swatch-list stroke-swatches">{swatches.map((swatch) => <button class={`color-swatch ${selectedColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Set color ${swatch}`} title={swatch} onClick={() => updateStrokeColor(swatch)} />)}<label class="custom-color-swatch stroke-custom-swatch" title="Custom stroke color"><input aria-label="Custom stroke color" type="color" value={selectedColor()} onInput={(event) => updateStrokeColor(event.currentTarget.value)} /></label></div></section></Show>
                 <Show when={showThicknessControls()}><section class="pane-section"><div class="pane-heading">Stroke width <span>{selectedThickness()} px</span></div><div class="preset-list">{([[1, "Ultra-thin"], [2, "Thin"], [5, "Medium"], [10, "Bold"]] as const).map(([value, label]) => <button class={`preset-button ${selectedThickness() === value ? "active" : ""}`} onClick={() => updateThickness(value)} title={`${label}, ${value}px`}><span class="stroke-indicator" style={{ height: `${Math.max(1, value)}px` }} /><small>{label}</small><small>{value}px</small></button>)}</div><button class="advanced-toggle" aria-expanded={showAdvancedThickness()} onClick={() => setShowAdvancedThickness((visible) => !visible)}>Custom width <span>{showAdvancedThickness() ? "−" : "+"}</span></button><Show when={showAdvancedThickness()}><input class="pane-slider" aria-label="Custom stroke thickness" type="range" min="1" max="24" value={selectedThickness()} onInput={(event) => updateThickness(Number(event.currentTarget.value))} /></Show></section></Show>
                 <Show when={tool() === "text" || selectedText() || focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Text formatting</div><div class="format-row"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button></div><label class="property-label">Font size<input type="number" min="8" max="160" value={selectedText()?.fontSize ?? defaultFontSize()} onInput={(event) => setTextFormat("fontSize", Number(event.currentTarget.value))} /></label><div class="property-label">Font family<div class="choice-deck"><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "sans" ? "active" : ""} title="Modern sans-serif" aria-label="Modern sans-serif font" onClick={() => setTextFormat("fontFamily", "sans")}><span class="font-sans-icon">Aa</span><small>Sans</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""} title="Handwritten" aria-label="Handwritten font" onClick={() => setTextFormat("fontFamily", "hand")}><span class="font-hand-icon">Aa</span><small>Hand</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "serif" ? "active" : ""} title="Serif" aria-label="Serif font" onClick={() => setTextFormat("fontFamily", "serif")}><span style={{ "font-family": "Georgia,serif" }}>Aa</span><small>Serif</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "mono" ? "active" : ""} title="Monospaced" aria-label="Monospaced font" onClick={() => setTextFormat("fontFamily", "mono")}><span style={{ "font-family": "monospace" }}>Aa</span><small>Mono</small></button></div></div><div class="property-label">Alignment<div class="choice-deck compact"><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "left" ? "active" : ""} title="Align left" aria-label="Align left" onClick={() => setTextFormat("textAlign", "left")}><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "center" ? "active" : ""} title="Align center" aria-label="Align center" onClick={() => setTextFormat("textAlign", "center")}><svg viewBox="0 0 24 24"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "right" ? "active" : ""} title="Align right" aria-label="Align right" onClick={() => setTextFormat("textAlign", "right")}><svg viewBox="0 0 24 24"><path d="M4 5h16M9 10h11M4 15h16M9 20h11"/></svg></button></div></div><div class="property-label">Paragraphs<div class="choice-deck compact"><button class={(selectedText()?.listType ?? defaultListType()) === "none" ? "active" : ""} title="Plain paragraphs" aria-label="Plain paragraphs" onClick={() => setTextFormat("listType", "none")}><svg viewBox="0 0 24 24"><path d="M5 6h15M5 12h15M5 18h15"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "bullet" ? "active" : ""} title="Bulleted list" aria-label="Bulleted list" onClick={() => setTextFormat("listType", "bullet")}><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "number" ? "active" : ""} title="Numbered list" aria-label="Numbered list" onClick={() => setTextFormat("listType", "number")}><svg viewBox="0 0 24 24"><path d="M4 5h2v3M4 8h3M4 12h3l-3 3h3M10 6h10M10 12h10M10 18h10"/></svg></button></div></div></section></Show>
@@ -2793,14 +3241,14 @@ function App() {
             <Show when={tool() === "bucket"}><section class="pane-section"><div class="pane-heading">Bucket fill</div><p class="bucket-help">Click a closed shape to apply a solid color.</p><div class="fill-palette">{FILL_SWATCHES.map((swatch) => <button class={`color-swatch ${fillColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Bucket color ${swatch}`} title={`Use ${swatch}`} onClick={() => setFillColor(swatch)} />)}<label class="custom-color-swatch" title="Choose custom bucket color"><input aria-label="Custom bucket color" type="color" value={fillColor()} onInput={(event) => setFillColor(event.currentTarget.value)} /></label></div></section></Show>
             <Show when={tool() === "line" || focusedElement()?.type === "line"}><section class="pane-section"><div class="pane-heading">Line route</div><div class="connector-route-buttons">{LINE_ROUTES.map((route) => <button class={(focusedElement()?.type === "line" ? (focusedElement() as ShapeElement).lineRoute : lineRoute()) === route.value ? "active" : ""} title={route.label} aria-label={`${route.label} line`} onClick={() => focusedElement()?.type === "line" ? updateProperty("lineRoute", route.value) : setLineRoute(route.value)}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><small>{route.label}</small></button>)}</div></section></Show>
 <Show when={tool() === "arrow" || focusedElement()?.type === "arrow"}><section class="pane-section"><div class="pane-heading">Arrow route</div><div class="connector-route-buttons">{ARROW_ROUTES.map((route) => <button class={(focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).arrowRoute : arrowRoute()) === route.value ? "active" : ""} title={route.label} aria-label={`${route.label} arrow`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("arrowRoute", route.value) : setArrowRoute(route.value)}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><small>{route.label}</small></button>)}</div></section></Show><Show when={tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || focusedElement()?.type === "rectangle" || focusedElement()?.type === "circle" || focusedElement()?.type === "diamond" || focusedElement()?.type === "triangle" || focusedElement()?.type === "flowchart"}><section class="pane-section"><div class="pane-heading">Fill</div><div class="fill-options"><button class={!(selectedFillColor()) && !fillEnabled() ? "active" : ""} onClick={() => { setFillEnabled(false); if (selectedIndices().length) updateProperty("fillColor", undefined); }}>None</button><button class={fillEnabled() || !!selectedFillColor() ? "active" : ""} onClick={() => { setFillEnabled(true); if (selectedIndices().length) updateProperty("fillColor", fillColor()); }}>Solid</button></div><div class="fill-style-row"><label class="fill-color-chip" title="Fill color"><input aria-label="Fill color" type="color" value={selectedFillColor() ?? fillColor()} onInput={(event) => { const value = event.currentTarget.value; setFillColor(value); if (hasStyleSelection()) updateProperty("fillColor", value); }} /></label><label class="fill-opacity-control">Opacity<input aria-label="Fill opacity" type="range" min="5" max="100" value={Math.round(((focusedElement() as ShapeElement | undefined)?.fillOpacity ?? fillOpacity()) * 100)} onInput={(event) => { const value = Number(event.currentTarget.value) / 100; setFillOpacity(value); if (selectedIndices().length) updateProperty("fillOpacity", value); }} /><span>{Math.round(((focusedElement() as ShapeElement | undefined)?.fillOpacity ?? fillOpacity()) * 100)}%</span></label></div></section></Show>
-                <Show when={selectedIndices().length === 1 && !groupSelected()}><section class="pane-section"><div class="pane-heading">Precision</div><div class="precision-grid">{(["x", "y", "w", "h", "rotation"] as const).map(property => <label>{property === "rotation" ? "Angle °" : property.toUpperCase()}<input aria-label={`Selection ${property}`} type="number" step="1" disabled={boardLocked() || focusedElement()?.locked || (!!focusedElement() && isConnector(focusedElement()!) && (property === "w" || property === "h" || property === "rotation"))} value={Math.round((property === "rotation" ? focusedElement()?.rotation ?? 0 : focusedElement() ? elementBounds(focusedElement()!)[property] : 0) * 100) / 100} onChange={event => precision(property, Number(event.currentTarget.value))} /></label>)}</div>
+                <Show when={selectedIndices().length === 1 && !groupSelected() && !selectedNoteCard()}><section class="pane-section"><div class="pane-heading">Precision</div><div class="precision-grid">{(["x", "y", "w", "h", "rotation"] as const).map(property => <label>{property === "rotation" ? "Angle °" : property.toUpperCase()}<input aria-label={`Selection ${property}`} type="number" step="1" disabled={boardLocked() || focusedElement()?.locked || (!!focusedElement() && isConnector(focusedElement()!) && (property === "w" || property === "h" || property === "rotation"))} value={Math.round((property === "rotation" ? focusedElement()?.rotation ?? 0 : focusedElement() ? elementBounds(focusedElement()!)[property] : 0) * 100) / 100} onChange={event => precision(property, Number(event.currentTarget.value))} /></label>)}</div>
                   <Show when={focusedElement() && isConnector(focusedElement()!)}><div class="precision-grid">{(["start", "end"] as const).flatMap(end => (["x", "y"] as const).map(axis => <label>{end} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(((focusedElement() as ShapeElement)[axis] + (end === "end" ? (focusedElement() as ShapeElement)[axis === "x" ? "w" : "h"] : 0)) * 100) / 100} onChange={event => setEndpoint(end, axis, Number(event.currentTarget.value))} /></label>))}</div><Show when={focusedElement()?.type === "arrow" && (focusedElement() as ShapeElement).arrowRoute === "forked"}><div class="precision-grid">{(["upper", "lower"] as const).flatMap(branch => (["x", "y"] as const).map(axis => <label>{branch} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(forkGeometry(focusedElement() as ShapeElement)[branch] [axis] * 100) / 100} onChange={event => setForkEndpoint(branch, axis, Number(event.currentTarget.value))} /></label>))}</div></Show><p class="bucket-help">Drag the circular endpoints to resize or attach. Fork branches have separate endpoints and attachment points.</p><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, startBinding: undefined, endBinding: undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, endBinding: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, endBinding: undefined } : undefined } : item)}>Detach endpoints</button><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, routePoints: undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, routePoints: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, routePoints: undefined } : undefined } : item)}>Reset route</button></Show>
                 </section></Show>
                 <Show when={selectedIndices().length > 1}><section class="pane-section"><div class="pane-heading">Align & distribute</div><div class="alignment-grid">{(["left", "center", "right", "top", "middle", "bottom", "horizontal", "vertical"] as const).map(command => <button disabled={boardLocked() || ((command === "horizontal" || command === "vertical") && selectedIndices().length < 3)} title={command === "horizontal" || command === "vertical" ? `Distribute ${command} gaps` : `Align ${command}`} onClick={() => alignSelection(command)}>{command}</button>)}</div></section></Show>
-                <Show when={!!selectedIndices().length}><section class="pane-section"><div class="pane-heading">Selection</div><label class="property-label">Opacity <input disabled={selectedIndices().every((index) => !elements()[index] || elements()[index].locked)} type="range" min="10" max="100" value={Math.round(selectedOpacity() * 100)} onInput={(event) => updateProperty("opacity", Number(event.currentTarget.value) / 100)} /></label><Show when={!groupSelected() && !(focusedElement() && isConnector(focusedElement()!))}><div class="rotation-controls"><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(-15)} title="Rotate counterclockwise by 15 degrees">−15°</button><button disabled={focusedElement()?.locked} onClick={resetSelectionRotation} title="Reset rotation to zero">Reset 0°</button><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(15)} title="Rotate clockwise by 15 degrees">+15°</button></div></Show></section></Show>
+                <Show when={!!selectedIndices().length && !selectedNoteCard()}><section class="pane-section"><div class="pane-heading">Selection</div><label class="property-label">Opacity <input disabled={selectedIndices().every((index) => !elements()[index] || elements()[index].locked)} type="range" min="10" max="100" value={Math.round(selectedOpacity() * 100)} onInput={(event) => updateProperty("opacity", Number(event.currentTarget.value) / 100)} /></label><Show when={!groupSelected() && !(focusedElement() && isConnector(focusedElement()!))}><div class="rotation-controls"><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(-15)} title="Rotate counterclockwise by 15 degrees">−15°</button><button disabled={focusedElement()?.locked} onClick={resetSelectionRotation} title="Reset rotation to zero">Reset 0°</button><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(15)} title="Rotate clockwise by 15 degrees">+15°</button></div></Show></section></Show>
                 <Show when={selectedIndices().length > 1 && !groupSelected()}><button class="pane-group-button" onClick={groupSelection}>Group {selectedIndices().length} elements <kbd>Ctrl+G</kbd></button></Show>
               </Show>
-              <Show when={sidebarTab() === "layers"}><div class="layer-list">{[...elements().keys()].reverse().map((index) => { const element = elements()[index]; const label = element.type === "text" ? `Text: ${element.text.slice(0, 18) || "Empty"}` : element.type === "group" ? `Group (${element.elements.length})` : element.type[0].toUpperCase() + element.type.slice(1); return <div class={`layer-row ${selectedSet().has(index) ? "selected" : ""}`}><button class="layer-name" onClick={() => setSelectedIndices([index])}>{label}</button><button title="Move layer up" aria-label="Move layer up" onClick={() => moveLayer(index, 1)}>↑</button><button title="Move layer down" aria-label="Move layer down" onClick={() => moveLayer(index, -1)}>↓</button><button title={element.hidden ? "Show layer" : "Hide layer"} aria-label="Toggle layer visibility" onClick={() => toggleLayer(index, "hidden")}>{element.hidden ? "Show" : "Hide"}</button><button title={element.locked ? "Unlock layer" : "Lock layer"} aria-label="Toggle layer lock" onClick={() => toggleLayer(index, "locked")}>{element.locked ? "Unlock" : "Lock"}</button></div>; })}</div></Show>
+
               </div>
             </aside></Show>
             <Show when={textDraft()}>{draft => <div class="text-editor-frame" style={{ left: `${canvasState().panX + editorLeft(draft()) * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${editorWidth(draft()) * canvasState().zoom}px`, height: draft().height ? `${draft().height! * canvasState().zoom}px` : undefined, transform: `rotate(${draft().rotation ?? 0}deg)`, "justify-content": draft().verticalAlign === "bottom" ? "flex-end" : draft().verticalAlign === "middle" ? "center" : "flex-start", "font-size": `${draft().fontSize * canvasState().zoom}px`, "font-family": fontCss(draft().fontFamily), "font-weight": draft().bold ? 700 : 400, "font-style": draft().italic ? "italic" : "normal", "text-decoration": draft().underline ? "underline" : "none", "text-align": draft().textAlign, color: themeInk(draft().color, theme()), opacity: draft().opacity }}>
@@ -2820,7 +3268,22 @@ function App() {
         <button role="menuitem" disabled={!selectedIndices().length} onClick={() => { setExportScope("selection"); openExportOptions("png"); }}>Export selection…</button>
         <button role="menuitem" disabled={boardLocked() || !selectedIndices().length} onClick={deleteSelected}>Delete <kbd>Del</kbd></button>
       </div>}</Show>
-      <Show when={schemaDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setSchemaDialog(false); }}><section class="confirm-dialog schema-dialog" role="dialog" aria-modal="true" aria-labelledby="schema-title"><header><div><span class="eyebrow">DATABASE SCHEMA VISUALIZER</span><h2 id="schema-title">Generate linked table cards</h2></div><button class="help-close" aria-label="Close schema visualizer" onClick={() => setSchemaDialog(false)}>&times;</button></header><p>Paste SQL <code>CREATE TABLE</code> statements or JSON with a <code>tables</code> array. Primary and foreign keys become labeled rows with connectors anchored to those rows. Press Tab to indent and Shift+Tab to outdent.</p><textarea autofocus class="schema-input" aria-label="SQL or JSON schema" value={schemaInput()} placeholder={'CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  name VARCHAR(80) NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  user_id INTEGER REFERENCES users(id)\n);'} onInput={event => { setSchemaInput(event.currentTarget.value); setSchemaError(""); }} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, setSchemaInput); }} /><Show when={schemaError()}><p class="schema-error" role="alert">{schemaError()}</p></Show><div class="schema-dialog-footer"><span>Up to 50 tables per import</span><div><button class="quiet-button" onClick={() => setSchemaDialog(false)}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={insertSchemaVisual}>Add to canvas</button></div></div></section></div></Show>
+      <Show when={classCardDraft()}>{draft => <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setClassCardDraft(undefined); }}><section class="confirm-dialog class-card-dialog" role="dialog" aria-modal="true" aria-labelledby="class-card-title"><header><div><span class="eyebrow">UML CLASS CARD</span><h2 id="class-card-title">{draft().componentId ? "Edit class card" : "Create a class card"}</h2></div><button class="help-close" aria-label="Close class card editor" onClick={() => setClassCardDraft(undefined)}>&times;</button></header><p>Enter the class name, attributes, and methods. The card grows to fit its content; its sections stay independently editable on the canvas.</p><label>Class name<input autofocus value={draft().name} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label>Attributes<textarea rows="4" placeholder={"+ id: UUID\n- name: string"} value={draft().attributes} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label>Methods<textarea rows="3" placeholder={"+ create()\n- validate()"} value={draft().methods} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><label>Font size<input type="number" min="8" max="48" value={draft().fontSize} onChange={event => setClassCardDraft(value => value ? { ...value, fontSize: Number(event.currentTarget.value) } : value)} /></label><div><button class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button class="save-button" onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></section></div>}</Show>
+      <Show when={mermaidDialog()}>
+        <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) closeMermaidDialog(); }}>
+          <section class="confirm-dialog schema-dialog mermaid-dialog" role="dialog" aria-modal="true" aria-labelledby="mermaid-title">
+            <header><div><span class="eyebrow">DIAGRAM AS CODE</span><h2 id="mermaid-title">{mermaidEditingDiagram() ? "Update editable flowchart" : "Generate an editable flowchart"}</h2></div><button class="help-close" aria-label="Close diagram code editor" onClick={closeMermaidDialog}>&times;</button></header>
+            <p>Paste Mermaid flowchart code. The preview updates as you type. SketchDraw stores the source in the .sketch file and creates native shapes and connectors. Double-click the diagram to edit its source. Subgraphs, node labels, decisions, solid, dashed, dotted, thick, bidirectional and endpoint-marked connectors are supported.</p>
+            <div class="mermaid-editor-layout">
+              <textarea autofocus class="mermaid-input" aria-label="Mermaid flowchart source" value={mermaidInput()} placeholder={'flowchart TD\n  subgraph Auth[Authentication]\n    Start([Start]) --> Check{Ready?}\n    Check -.->|retry| Start\n  end\n  Check ==> Done[Finish]'} onInput={event => { setMermaidInput(event.currentTarget.value); setMermaidError(""); }} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, setMermaidInput); }} />
+              <MermaidPreview source={mermaidInput()} />
+            </div>
+            <Show when={mermaidError()}><p class="schema-error" role="alert">{mermaidError()}</p></Show>
+            <div class="mermaid-dialog-footer"><span>Up to 200 nodes, 500 connectors and 50 subgraphs</span><div><button class="quiet-button" onClick={closeMermaidDialog}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={insertMermaidDiagram}>{mermaidEditingDiagram() ? "Update diagram" : "Generate canvas diagram"}</button></div></div>
+          </section>
+        </div>
+      </Show>
+      <Show when={schemaDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) { setSchemaDialog(false); setSchemaEditingDiagram(undefined); } }}><section class="confirm-dialog schema-dialog" role="dialog" aria-modal="true" aria-labelledby="schema-title"><header><div><span class="eyebrow">DATABASE SCHEMA VISUALIZER</span><h2 id="schema-title">{schemaEditingDiagram() ? "Update linked table cards" : "Generate linked table cards"}</h2></div><button class="help-close" aria-label="Close schema visualizer" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>&times;</button></header><p>Paste SQL <code>CREATE TABLE</code> statements or JSON with a <code>tables</code> array. Primary and foreign keys become labeled rows with connectors anchored to those rows. Double-click any generated table to edit this source and regenerate the diagram. Press Tab to indent and Shift+Tab to outdent.</p><textarea autofocus class="schema-input" aria-label="SQL or JSON schema" value={schemaInput()} placeholder={'CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  name VARCHAR(80) NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  user_id INTEGER REFERENCES users(id)\n);'} onInput={event => { setSchemaInput(event.currentTarget.value); setSchemaError(""); }} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, setSchemaInput); }} /><Show when={schemaError()}><p class="schema-error" role="alert">{schemaError()}</p></Show><div class="schema-dialog-footer"><span>Up to 50 tables per import</span><div><button class="quiet-button" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={insertSchemaVisual}>{schemaEditingDiagram() ? "Update diagram" : "Add to canvas"}</button></div></div></section></div></Show>
       <Show when={pageDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setPageDialog(undefined); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="page-dialog-title"><h2 id="page-dialog-title">{pageDialog() === "rename" ? "Rename page" : "Delete page?"}</h2><Show when={pageDialog() === "rename"} fallback={<p>Delete “{currentPage()?.name}” and its contents? This page deletion cannot be undone.</p>}><label>Page name<input autofocus maxlength="80" value={pageName()} onInput={event => setPageName(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter" && pageName().trim()) confirmPageDialog(); }} /></label></Show><div><button class="quiet-button" onClick={() => setPageDialog(undefined)}>Cancel</button><button class={pageDialog() === "delete" ? "danger-button" : "save-button"} disabled={boardLocked() || (pageDialog() === "rename" && !pageName().trim())} onClick={confirmPageDialog}>{pageDialog() === "rename" ? "Rename" : "Delete page"}</button></div></section></div></Show>
       <Show when={exportOptionsOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setExportOptionsOpen(false); }}><section class="confirm-dialog export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-title">
         <header class="export-heading"><div><span class="eyebrow">EXPORT PREVIEW</span><h2 id="export-title">Export {exportFormat().toUpperCase()}</h2></div><button class="help-close" aria-label="Close export dialog" onClick={() => setExportOptionsOpen(false)}>&times;</button></header>
@@ -2844,7 +3307,7 @@ function App() {
       <Show when={recoveryPrompt()}>{(recovery) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="recovery-title"><h2 id="recovery-title">Recover unsaved work?</h2><p>SketchDraw found a local recovery copy for <strong>{recovery().path.split(/[\\/]/).pop()}</strong>. Restore it or continue with the saved file.</p><div><button class="quiet-button" onClick={discardRecovery}>Use saved file</button><button class="save-button" onClick={restoreRecovery}>Restore recovery</button></div></section></div>}</Show>
       <Show when={syncConflict()}>{(conflict) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title"><h2 id="conflict-title">File changed elsewhere</h2><p><strong>{conflict().path.split(/[\\/]/).pop()}</strong> was updated outside SketchDraw. Autosave is paused so neither version is overwritten without your choice.</p><div class="conflict-actions"><button class="quiet-button" onClick={() => void saveAs()}>Save my version as…</button><button class="quiet-button" onClick={reloadConflictingFile}>Load disk version</button><button class="danger-button" onClick={overwriteConflictingFile}>Overwrite disk version</button></div></section></div>}</Show>
       <Show when={showClearConfirm()}><div class="confirm-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setShowClearConfirm(false); }}><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">Clear this canvas?</h2><p>This will remove all {elements().length} items from the open sketch. You can undo this action.</p><div><button class="quiet-button" onClick={() => setShowClearConfirm(false)}>Cancel</button><button class="danger-button" onClick={() => { if (elements().length && !boardLocked()) { pushUndo(cloneElements(elements())); setElements([]); setSelectedIndices([]); setDirty(true); } setShowClearConfirm(false); }}>Clear canvas</button></div></section></div></Show>
-      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">SKETCHDRAW GUIDE</span><h2 id="help-title">Help</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><nav class="help-tabs" aria-label="Help sections"><button class={helpSection() === "guide" ? "active" : ""} onClick={() => setHelpSection("guide")}>Guide</button><button class={helpSection() === "shortcuts" ? "active" : ""} onClick={() => setHelpSection("shortcuts")}>Keyboard shortcuts</button></nav><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 6 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the floating toolbar, then click or drag on the canvas. The vertical quick-style rail holds common settings. Use its arrow to show the full properties panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Newly drawn connectors keep their tool active and show draggable route handles. Hold Space or choose Hand to pan; use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and single-click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Export opens a preview before writing the file. Add and manage pages from the page strip. Use View to change theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 6 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
+      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">SKETCHDRAW GUIDE</span><h2 id="help-title">Help</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><nav class="help-tabs" aria-label="Help sections"><button class={helpSection() === "guide" ? "active" : ""} onClick={() => setHelpSection("guide")}>Guide</button><button class={helpSection() === "shortcuts" ? "active" : ""} onClick={() => setHelpSection("shortcuts")}>Keyboard shortcuts</button></nav><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 7 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the floating toolbar, then click or drag on the canvas. The vertical quick-style rail holds common settings. Use its arrow to show the full properties panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Newly drawn connectors keep their tool active and show draggable route handles. Hold Space or choose Hand to pan; use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and single-click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Export opens a preview before writing the file. Add and manage pages from the page strip. Use View to change theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 7 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
       <Show when={error()}><div class="error-toast" role="alert">{error()}<button onClick={() => setError("")}>Dismiss</button></div></Show>
     </main>
   );

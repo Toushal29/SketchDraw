@@ -4,6 +4,22 @@ use std::sync::Mutex;
 use tauri_plugin_fs::FsExt;
 
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const CURRENT_SKETCH_FORMAT_VERSION: u64 = 7;
+
+fn validate_sketch_document(contents: &str) -> Result<(), String> {
+    let document: serde_json::Value = serde_json::from_str(contents).map_err(|e| e.to_string())?;
+    if document.get("format").and_then(serde_json::Value::as_str) != Some("SketchDraw")
+        || document
+            .get("version")
+            .and_then(serde_json::Value::as_u64)
+            != Some(CURRENT_SKETCH_FORMAT_VERSION)
+    {
+        return Err(format!(
+            "Only SketchDraw format v{CURRENT_SKETCH_FORMAT_VERSION} can be saved."
+        ));
+    }
+    Ok(())
+}
 
 // Write next to the destination: rename must stay on the same filesystem.
 // The dialog or authorize_sketch_file must grant access before this command runs.
@@ -36,10 +52,7 @@ fn save_sketch_atomic(
             "The selected .sketch path is not authorized. Use Save As to select it.".into(),
         );
     }
-    let document: serde_json::Value = serde_json::from_str(&contents).map_err(|e| e.to_string())?;
-    if document["format"] != "SketchDraw" || document["version"] != 6 {
-        return Err("Only SketchDraw format v6 can be saved.".into());
-    }
+    validate_sketch_document(&contents)?;
     let parent = target
         .parent()
         .ok_or("The destination has no parent folder.")?;
@@ -143,4 +156,21 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_sketch_document;
+
+    #[test]
+    fn accepts_current_sketch_format() {
+        assert!(validate_sketch_document(r#"{"format":"SketchDraw","version":7}"#).is_ok());
+    }
+
+    #[test]
+    fn rejects_older_sketch_format_with_current_version_hint() {
+        let error = validate_sketch_document(r#"{"format":"SketchDraw","version":6}"#)
+            .unwrap_err();
+        assert_eq!(error, "Only SketchDraw format v7 can be saved.");
+    }
 }

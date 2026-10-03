@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="560" viewBox="0 0 1120 560" role="img" aria-labelledby="title desc">
+  <title id="title">SketchDraw toolbar surface follows the light and dark application themes</title>
+  <desc id="desc">The View menu has an Auto toolbar surface option that changes between a light surface and a dark slate surface with the app theme.</desc>
+  <defs><filter id="shadow" x="-20%" y="-20%" width="145%" height="160%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#20302b" flood-opacity=".12"/></filter></defs>
+  <rect width="1120" height="560" rx="24" fill="#f1f4f2"/>
+  <text x="40" y="48" fill="#64746a" font-family="Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="2">TOOLBAR SURFACE</text>
+  <text x="40" y="82" fill="#26362d" font-family="Segoe UI, sans-serif" font-size="25" font-weight="650">Match the toolbar to your app theme</text>
+  <rect x="28" y="108" width="1064" height="416" rx="18" fill="#fff" stroke="#e1e7e3"/>
+  <text x="74" y="157" fill="#617066" font-family="Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="1">LIGHT APPEARANCE</text>
+  <text x="598" y="157" fill="#617066" font-family="Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="1">DARK APPEARANCE</text>
+  <rect x="70" y="176" width="452" height="112" rx="15" fill="#fafbf9" stroke="#e0e5e1"/>
+  <rect x="594" y="176" width="452" height="112" rx="15" fill="#1d2228" stroke="#333a42"/>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <rect x="89" y="198" width="416" height="68" rx="12" fill="#f8faf7" stroke="#dce3dd" filter="url(#shadow)"/>
+    <rect x="105" y="211" width="42" height="42" rx="10" fill="#e8efe9" stroke="#d0ddd2"/><path d="m117 232 8-12 8 12h-5l-3 9-2-9z" fill="none" stroke="#547a5b" stroke-width="1.8"/>
+    <path d="M167 221h19m-9-9v18m25-9 14 14m0-14-14 14m31-14h21m-10-10v20m30 0v-20m-8 9 8-9 8 9" fill="none" stroke="#5e6d62" stroke-width="2"/>
+    <circle cx="342" cy="232" r="12" fill="none" stroke="#5e6d62" stroke-width="2"/><rect x="376" y="220" width="25" height="24" rx="4" fill="none" stroke="#5e6d62" stroke-width="2"/>
+    <rect x="415" y="216" width="72" height="32" rx="8" fill="#e9f0ea" stroke="#cbd9ce"/><path d="M429 238l11-14 7 7-12 12h-6z" fill="none" stroke="#547a5b" stroke-width="1.7"/><text x="466" y="236" text-anchor="middle" fill="#48644e" font-family="Segoe UI, sans-serif" font-size="9">Brushes</text>
+    <rect x="613" y="198" width="416" height="68" rx="12" fill="#252c31" stroke="#424a50" filter="url(#shadow)"/>
+    <rect x="629" y="211" width="42" height="42" rx="10" fill="#364139" stroke="#4b5a4e"/><path d="m641 232 8-12 8 12h-5l-3 9-2-9z" fill="none" stroke="#a3c0a7" stroke-width="1.8"/>
+    <path d="M691 221h19m-9-9v18m25-9 14 14m0-14-14 14m31-14h21m-10-10v20m30 0v-20m-8 9 8-9 8 9" fill="none" stroke="#c1cbc3" stroke-width="2"/>
+    <circle cx="866" cy="232" r="12" fill="none" stroke="#c1cbc3" stroke-width="2"/><rect x="900" y="220" width="25" height="24" rx="4" fill="none" stroke="#c1cbc3" stroke-width="2"/>
+    <rect x="939" y="216" width="72" height="32" rx="8" fill="#364139" stroke="#4b5a4e"/><path d="m953 238 11-14 7 7-12 12h-6z" fill="none" stroke="#a3c0a7" stroke-width="1.7"/><text x="990" y="236" text-anchor="middle" fill="#d2ded4" font-family="Segoe UI, sans-serif" font-size="9">Brushes</text>
+  </g>
+  <rect x="358" y="323" width="404" height="154" rx="14" fill="#fbfcfb" stroke="#dce3df" filter="url(#shadow)"/>
+  <text x="381" y="355" fill="#35463a" font-family="Segoe UI, sans-serif" font-size="14" font-weight="700">View · Toolbar surface</text>
+  <rect x="380" y="373" width="360" height="43" rx="10" fill="#eef5ef" stroke="#c7d8c9"/>
+  <circle cx="402" cy="394" r="8" fill="#edf3ef" stroke="#59745e" stroke-width="1.5"/><path d="M402 386a8 8 0 0 0 0 16z" fill="#5c7a61"/>
+  <text x="422" y="399" fill="#34493a" font-family="Segoe UI, sans-serif" font-size="12" font-weight="650">Auto</text><text x="714" y="399" text-anchor="end" fill="#69806f" font-family="Segoe UI, sans-serif" font-size="10">Follow light / dark</text>
+  <text x="381" y="447" fill="#718078" font-family="Segoe UI, sans-serif" font-size="10">Paper · Warm · Slate · Sage · Night · Custom</text>
+  <text x="40" y="510" fill="#7a867e" font-family="Segoe UI, sans-serif" font-size="10">Auto updates the toolbar surface as the application appearance changes. Choose a named or custom color to keep it fixed.</text>
+</svg>

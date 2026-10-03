@@ -1,7 +1,8 @@
-import type { Binding, Element, ShapeElement, Point, ShapeLabel, FlowchartShape } from "./model";
+import type { Binding, Element, ShapeElement, SchemaTableElement, Point, ShapeLabel, FlowchartShape } from "./model";
 
 export const isConnector = (element: Element): element is ShapeElement => element.type === "line" || element.type === "arrow";
 export const isLabelShape = (element: Element): element is ShapeElement => ["rectangle", "circle", "diamond", "triangle", "flowchart"].includes(element.type);
+const isConnectable = (element: Element): element is ShapeElement | SchemaTableElement => isLabelShape(element) || element.type === "schemaTable";
 
 export function ensureIds(items: Element[]): Element[] {
   return items.map(item => {
@@ -20,13 +21,24 @@ export function flatten(items: Element[]): Element[] {
 export function validReferences(items: Element[]): boolean {
   const all = flatten(items); const ids = new Map(all.map(item => [item.id, item]));
   if (ids.size !== all.length || all.some(item => !item.id)) return false;
-  return all.every(item => !isConnector(item) || [item.startBinding, item.endBinding, item.forkUpper?.endBinding, item.forkLower?.endBinding].every(binding => !binding || !!ids.get(binding.elementId) && isLabelShape(ids.get(binding.elementId)!)));
+  const rowIds = all.flatMap(item => item.type === "schemaTable" ? item.columns.map(column => column.id) : []);
+  if (new Set(rowIds).size !== rowIds.length || rowIds.some(id => ids.has(id))) return false;
+  return all.every(item => !isConnector(item) || [item.startBinding, item.endBinding, item.forkUpper?.endBinding, item.forkLower?.endBinding].every(binding => {
+    if (!binding) return true;
+    const target = ids.get(binding.elementId);
+    return !!target && isConnectable(target) && (target.type !== "schemaTable" || !binding.rowId || target.columns.some(column => column.id === binding.rowId));
+  }));
 }
 
-export function anchorPoint(shape: ShapeElement, anchor: Point): Point {
+export function anchorPoint(shape: ShapeElement | SchemaTableElement, anchor: Point, rowId?: string): Point {
   const cx = shape.x + shape.w / 2; const cy = shape.y + shape.h / 2;
   const x = Math.min(shape.x, shape.x + shape.w) + Math.abs(shape.w) * anchor.x;
-  const y = Math.min(shape.y, shape.y + shape.h) + Math.abs(shape.h) * anchor.y;
+  const rowIndex = shape.type === "schemaTable" && rowId ? shape.columns.findIndex(column => column.id === rowId) : -1;
+  const rowFontSize = shape.type === "schemaTable" ? shape.fontSize ?? 14 : 14;
+  const rowHeaderHeight = Math.max(42, rowFontSize * 2.8); const rowHeight = Math.max(30, rowFontSize * 1.8);
+  const y = shape.type === "schemaTable" && rowIndex >= 0
+    ? shape.y + rowHeaderHeight + rowIndex * rowHeight + rowHeight / 2
+    : Math.min(shape.y, shape.y + shape.h) + Math.abs(shape.h) * anchor.y;
   const angle = (shape.rotation ?? 0) * Math.PI / 180;
   return { x: cx + (x - cx) * Math.cos(angle) - (y - cy) * Math.sin(angle), y: cy + (x - cx) * Math.sin(angle) + (y - cy) * Math.cos(angle) };
 }
@@ -38,8 +50,13 @@ export function nearestBinding(items: Element[], point: Point, threshold: number
     for (const item of [...children].reverse()) {
       if (item.hidden || item.locked) continue;
       if (item.type === "group") { visit(item.elements); continue; }
-      if (!isLabelShape(item) || !item.id) continue;
-      for (const anchor of [{ x: .5, y: 0 }, { x: 1, y: .5 }, { x: .5, y: 1 }, { x: 0, y: .5 }]) {
+      if (!isConnectable(item) || !item.id) continue;
+      if (item.type === "schemaTable") {
+        for (const column of item.columns) for (const anchor of [{ x: 1, y: .5 }, { x: 0, y: .5 }]) {
+          const port = anchorPoint(item, anchor, column.id); const distance = Math.hypot(point.x - port.x, point.y - port.y);
+          if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id, anchor, rowId: column.id }, point: port, distance };
+        }
+      } else for (const anchor of [{ x: .5, y: 0 }, { x: 1, y: .5 }, { x: .5, y: 1 }, { x: 0, y: .5 }]) {
         const port = anchorPoint(item, anchor); const distance = Math.hypot(point.x - port.x, point.y - port.y);
         if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id, anchor }, point: port, distance };
       }
@@ -59,7 +76,8 @@ export function resolveBindings(items: Element[]): Element[] {
     if (!isConnector(item)) return item;
     const resolve = (binding?: Binding) => {
       const target = binding ? lookup.get(binding.elementId) : undefined;
-      return target && isLabelShape(target) ? anchorPoint(target, binding!.anchor) : undefined;
+      const rowExists = target?.type !== "schemaTable" || !binding?.rowId || target.columns.some(column => column.id === binding.rowId);
+      return target && isConnectable(target) && rowExists ? anchorPoint(target, binding!.anchor, binding!.rowId) : undefined;
     };
     const resolveBranch = (branch: ShapeElement["forkUpper"]) => {
       if (!branch) return undefined;
@@ -80,11 +98,15 @@ export function resolveBindings(items: Element[]): Element[] {
 
 export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
   const remap = new Map(flatten(items).map(item => [item.id, crypto.randomUUID()]));
-  const binding = (value?: Binding): Binding | undefined => value && remap.has(value.elementId) ? { ...value, elementId: remap.get(value.elementId)! } : undefined;
+  const componentRemap = new Map(flatten(items).flatMap(item => item.componentId ? [[item.componentId, crypto.randomUUID()] as const] : []));
+  const rowRemap = new Map(flatten(items).flatMap(item => item.type === "schemaTable" ? item.columns.map(column => [column.id, crypto.randomUUID()] as const) : []));
+  const diagramRemap = new Map(flatten(items).flatMap(item => item.type === "schemaTable" ? [[item.schemaDiagramId, crypto.randomUUID()] as const] : []));
+  const binding = (value?: Binding): Binding | undefined => value && remap.has(value.elementId) ? { ...value, elementId: remap.get(value.elementId)!, rowId: value.rowId ? rowRemap.get(value.rowId) ?? value.rowId : undefined } : undefined;
   const visit = (item: Element): Element => {
-    const copy = { ...item, id: remap.get(item.id)!, locked: false };
+    const copy = { ...item, id: remap.get(item.id)!, componentId: item.componentId ? componentRemap.get(item.componentId) : undefined, locked: false };
     if (copy.type === "group") return { ...copy, elements: copy.elements.map(visit) };
     if (copy.type === "freehand") return { ...copy, points: copy.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy })) };
+    if (copy.type === "schemaTable") return { ...copy, schemaDiagramId: diagramRemap.get(copy.schemaDiagramId)!, columns: copy.columns.map(column => ({ ...column, id: rowRemap.get(column.id)! })), x: copy.x + dx, y: copy.y + dy };
     if (isConnector(copy)) {
       const shiftBranch = (branch: ShapeElement["forkUpper"]) => branch ? {
         ...branch,
@@ -92,7 +114,7 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
         routePoints: branch.routePoints?.map(p => ({ x: p.x + dx, y: p.y + dy })),
         endBinding: binding(branch.endBinding),
       } : undefined;
-      return { ...copy, x: copy.x + dx, y: copy.y + dy, startBinding: binding(copy.startBinding), endBinding: binding(copy.endBinding), routePoints: copy.routePoints?.map(p => ({ x: p.x + dx, y: p.y + dy })), forkUpper: shiftBranch(copy.forkUpper), forkLower: shiftBranch(copy.forkLower) };
+      return { ...copy, schemaDiagramId: copy.schemaDiagramId ? diagramRemap.get(copy.schemaDiagramId) : undefined, x: copy.x + dx, y: copy.y + dy, startBinding: binding(copy.startBinding), endBinding: binding(copy.endBinding), routePoints: copy.routePoints?.map(p => ({ x: p.x + dx, y: p.y + dy })), forkUpper: shiftBranch(copy.forkUpper), forkLower: shiftBranch(copy.forkLower) };
     }
     return { ...copy, x: copy.x + dx, y: copy.y + dy };
   };

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="600" viewBox="0 0 1120 600" role="img" aria-labelledby="title desc">
+  <title id="title">Mermaid flowchart code imported as an editable SketchDraw diagram</title>
+  <desc id="desc">A Mermaid source editor sits beside a native editable diagram. The source is saved in the sketch file and can be reopened by double-clicking the diagram.</desc>
+  <defs><filter id="shadow" x="-20%" y="-20%" width="145%" height="160%"><feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#27352d" flood-opacity=".12"/></filter></defs>
+  <rect width="1120" height="600" rx="24" fill="#f1f4f2"/>
+  <text x="40" y="48" fill="#64746a" font-family="Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="2">DIAGRAM AS CODE</text>
+  <text x="40" y="82" fill="#26362d" font-family="Segoe UI, sans-serif" font-size="25" font-weight="650">Generate it, edit the code later</text>
+  <rect x="28" y="108" width="1064" height="444" rx="18" fill="#fff" stroke="#e1e7e3"/>
+  <g filter="url(#shadow)">
+    <rect x="52" y="136" width="404" height="366" rx="14" fill="#fbfcfb" stroke="#dce3df"/>
+    <rect x="478" y="136" width="588" height="366" rx="14" fill="#fff" stroke="#dce3df"/>
+  </g>
+  <rect x="52" y="136" width="404" height="47" rx="14" fill="#f5f7f5"/><path d="M52 169v14h404v-14" fill="#f5f7f5"/>
+  <text x="73" y="165" fill="#394a40" font-family="Segoe UI, sans-serif" font-size="13" font-weight="700">Mermaid source</text>
+  <circle cx="411" cy="159" r="4" fill="#73a17e"/><text x="400" y="164" text-anchor="end" fill="#718078" font-family="Segoe UI, sans-serif" font-size="10">Saved with diagram</text>
+  <rect x="69" y="199" width="370" height="236" rx="8" fill="#f8faf9" stroke="#e8ece9"/>
+  <g font-family="Cascadia Code, Consolas, monospace" font-size="12">
+    <text x="84" y="224" fill="#718078">1</text><text x="106" y="224" fill="#7c5aa6">flowchart</text><text x="174" y="224" fill="#4d6f92">TD</text>
+    <text x="84" y="252" fill="#718078">2</text><text x="106" y="252" fill="#52666e">Start</text><text x="144" y="252" fill="#a06d32">([Start])</text><text x="205" y="252" fill="#52666e">--&gt;</text><text x="244" y="252" fill="#52666e">Check</text><text x="285" y="252" fill="#a06d32">{Ready?}</text>
+    <text x="84" y="280" fill="#718078">3</text><text x="106" y="280" fill="#52666e">Check</text><text x="146" y="280" fill="#52666e">--&gt;|Yes|</text><text x="218" y="280" fill="#52666e">Done[Finish]</text>
+    <text x="84" y="308" fill="#718078">4</text><text x="106" y="308" fill="#52666e">Check</text><text x="146" y="308" fill="#52666e">--&gt;|No|</text><text x="210" y="308" fill="#52666e">Wait[Retry]</text>
+  </g>
+  <rect x="69" y="451" width="370" height="34" rx="8" fill="#f1f6f1" stroke="#dce8dd"/><text x="84" y="472" fill="#4e7557" font-family="Segoe UI, sans-serif" font-size="10" font-weight="600">Double-click the diagram to edit its source</text>
+  <text x="506" y="166" fill="#394a40" font-family="Segoe UI, sans-serif" font-size="13" font-weight="700">Editable canvas objects</text><text x="1043" y="166" text-anchor="end" fill="#718078" font-family="Segoe UI, sans-serif" font-size="10">Native shapes · attached connectors</text>
+  <g stroke="#71869b" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M696 257v41"/><path d="m691 290 5 8 5-8"/><path d="M858 320h54v-63h32"/><path d="m936 252 8 5-8 5"/><path d="M858 320h54v76h32"/><path d="m936 391 8 5-8 5"/>
+  </g>
+  <g font-family="Segoe UI, sans-serif" text-anchor="middle">
+    <rect x="612" y="211" width="168" height="48" rx="24" fill="#f3f7fb" stroke="#6e8aa2" stroke-width="2"/><text x="696" y="241" fill="#354c60" font-size="14">Start</text>
+    <path d="m780 320 78-44 78 44-78 44z" fill="#f9f6e9" stroke="#a18a4f" stroke-width="2"/><text x="858" y="325" fill="#51472b" font-size="14">Ready?</text>
+    <rect x="944" y="232" width="96" height="48" rx="9" fill="#f1f7f2" stroke="#648c6d" stroke-width="2"/><text x="992" y="262" fill="#34523a" font-size="14">Finish</text>
+    <rect x="944" y="372" width="96" height="48" rx="9" fill="#f4f5f7" stroke="#708190" stroke-width="2"/><text x="992" y="402" fill="#3f515f" font-size="14">Retry</text>
+  </g>
+  <rect x="502" y="465" width="536" height="24" rx="8" fill="#f7f9f8"/><circle cx="517" cy="477" r="4" fill="#668b6f"/><text x="530" y="481" fill="#66736b" font-family="Segoe UI, sans-serif" font-size="10">Local-only parsing · edits regenerate in place · .sketch source preserved</text>
+  <text x="40" y="580" fill="#7a867e" font-family="Segoe UI, sans-serif" font-size="10">Mermaid flowchart subset: node labels, decisions, basic connectors, and direction controls.</text>
+</svg>
