@@ -1,5 +1,36 @@
 /* Desktop and Windows window sizing; touch layouts override this in their own files. */
 .platform-windows .touch-gesture-menu { display: none !important; }
+
+/* Keep the shared touch toolbar frame from flattening the Windows canvas controls. */
+.platform-windows .touch-tool-bar {
+    position: absolute;
+    z-index: 12;
+    top: 18px;
+    right: auto;
+    bottom: auto;
+    left: 50%;
+    display: flex;
+    width: max-content;
+    max-width: calc(100% - 32px);
+    max-height: calc(100% - 36px);
+    flex-direction: row;
+    align-items: center;
+    overflow: visible;
+    transform: translateX(-50%);
+}
+
+.platform-windows .touch-tool-content,
+.platform-windows .touch-tool-actions { display: contents; }
+
+/* Keep the property rail beside the canvas, independent of touch breakpoints. */
+.platform-windows .style-pane {
+    top: 18px;
+    right: auto;
+    bottom: auto;
+    left: 18px;
+    max-height: calc(100% - 36px);
+}
+
 @media (min-width: 901px) and (pointer: fine) {
     body { min-width: 1000px; min-height: 680px; }
     .app-shell { min-width: 1000px; min-height: 680px; }

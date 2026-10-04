@@ -16,13 +16,15 @@ type Props = {
   onAutosaveChange: (seconds: 5 | 10) => void;
   onReduceMotionChange: (reduce: boolean) => void;
   onRestoreDefaults: () => void;
+  detailsRef?: (element: HTMLDetailsElement) => void;
+  onToggle?: () => void;
 };
 
 const interfaceScales = [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4];
 
 export function AppSettingsMenu(props: Props) {
   return (
-    <details class="menu-dropdown settings-menu-dropdown">
+    <details class="menu-dropdown settings-menu-dropdown" ref={props.detailsRef} onToggle={props.onToggle}>
       <summary aria-label="App settings" title="App settings">
         <AdvancedPropertiesIcon />
         <span class="settings-menu-label">Settings</span>

@@ -1,0 +1,926 @@
+/* Unified touch interface. Kept separate from the Windows desktop theme. */
+.app-menu-rail,
+.app-menu-items { display: contents; }
+.app-menus .file-menu-dropdown { order: 1; }
+.app-menus .view-menu-dropdown { order: 2; }
+.app-menus .settings-menu-dropdown { order: 3; }
+.app-menus .touch-gesture-menu { order: 4; }
+.app-menus .help-menu { order: 5; }
+.touch-focus-entry { display: none; }
+
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+    .app-shell:not(.platform-windows) {
+        --touch-header-height: 90px;
+        --touch-line: color-mix(in srgb, var(--toolbar-ink, #526057) 13%, transparent);
+        --touch-muted: color-mix(in srgb, var(--toolbar-ink, #526057) 62%, transparent);
+        --touch-glass: color-mix(in srgb, var(--toolbar-surface, #fff) 96%, transparent);
+        --touch-shadow: 0 12px 34px #19261d20, 0 2px 8px #19261d0a;
+        background: #edf1ed;
+        color: #26342c;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .app-shell:not(.platform-windows) button,
+    .app-shell:not(.platform-windows) summary,
+    .app-shell:not(.platform-windows) select {
+        touch-action: manipulation;
+    }
+
+    /* Two compact rows on phones: app identity and menus, with Pages kept close. */
+    .app-shell:not(.platform-windows) > .topbar {
+        position: relative;
+        z-index: 220;
+        display: grid;
+        flex: 0 0 auto;
+        width: 100%;
+        height: auto;
+        min-height: 86px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: 30px 40px;
+        align-content: center;
+        align-items: center;
+        gap: 4px 8px;
+        padding: max(6px, env(safe-area-inset-top)) max(9px, env(safe-area-inset-right)) 7px max(9px, env(safe-area-inset-left));
+        border-bottom: 1px solid var(--touch-line);
+        background: var(--touch-glass);
+        box-shadow: 0 3px 14px #24352a08;
+        /* Keep fixed menu panels positioned against the viewport. */
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    .app-shell:not(.platform-windows) .header-leading {
+        min-width: 0;
+        max-width: none;
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .app-shell:not(.platform-windows) .topbar .brand {
+        min-width: 0;
+        gap: 7px;
+        color: var(--toolbar-ink, #344239);
+        font-size: 12px;
+    }
+
+    .app-shell:not(.platform-windows) .topbar .brand-mark-image {
+        width: 25px;
+        height: 25px;
+        flex-basis: 25px;
+    }
+
+    .app-shell:not(.platform-windows) .topbar .brand > span {
+        max-width: min(55vw, 340px);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .app-shell:not(.platform-windows) > .topbar > .app-menus {
+        box-sizing: border-box;
+        display: flex;
+        min-width: 0;
+        grid-column: 1;
+        grid-row: 2;
+        gap: 4px;
+        margin: 0;
+        overflow: visible;
+        padding: 1px 0;
+    }
+
+    .app-shell:not(.platform-windows) .app-menu-rail { display: flex; width: 100%; min-width: 0; align-items: center; gap: 4px; }
+    .app-shell:not(.platform-windows) .app-menu-items { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 3px; overflow-x: auto; overflow-y: hidden; padding: 1px 0; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; touch-action: pan-x; }
+    .app-shell:not(.platform-windows) .app-menu-items::-webkit-scrollbar { display: none; }
+    .app-shell:not(.platform-windows) .app-menu-items > .menu-dropdown,
+    .app-shell:not(.platform-windows) .app-menu-items > .touch-gesture-menu { flex: 0 0 auto; }
+    .app-shell:not(.platform-windows) .app-menu-rail > .settings-menu-dropdown { flex: 0 0 auto; margin-left: auto; }
+
+    .app-shell:not(.platform-windows) .topbar .menu-dropdown {
+        position: static;
+        flex: 0 0 auto;
+    }
+
+    .app-shell:not(.platform-windows) .topbar .menu-dropdown > summary {
+        box-sizing: border-box;
+        min-width: 0;
+        min-height: 36px;
+        gap: 4px;
+        padding: 5px 9px;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        color: var(--toolbar-ink, #46534a);
+        font-size: 11px;
+        font-weight: 650;
+        white-space: nowrap;
+    }
+
+    .app-shell:not(.platform-windows) .topbar .menu-dropdown > summary:hover,
+    .app-shell:not(.platform-windows) .topbar .menu-dropdown[open] > summary {
+        border-color: var(--ui-accent-border);
+        color: var(--ui-accent-ink);
+        background: var(--ui-accent-soft);
+    }
+
+    .app-shell:not(.platform-windows) .topbar .menu-dropdown > summary > svg {
+        width: 12px;
+        height: 12px;
+    }
+
+    .app-shell:not(.platform-windows) .topbar .settings-menu-dropdown > summary {
+        width: 40px;
+        min-width: 40px;
+        min-height: 40px;
+        border: 1px solid var(--touch-line);
+        border-radius: 12px;
+        background: var(--touch-glass);
+    }
+
+    .app-shell:not(.platform-windows) .topbar .top-actions {
+        min-width: 0;
+        grid-column: 2;
+        grid-row: 1;
+        justify-content: flex-end;
+    }
+
+    .app-shell:not(.platform-windows) .topbar .save-status {
+        min-width: 26px;
+        min-height: 26px;
+        justify-content: center;
+        gap: 0;
+        padding: 5px 8px;
+        border: 1px solid var(--touch-line);
+        border-radius: 99px;
+        background: var(--touch-glass);
+    }
+
+    .app-shell:not(.platform-windows) .topbar .save-status time { display: none; }
+
+    .app-shell:not(.platform-windows) .topbar > .touch-page-control {
+        box-sizing: border-box;
+        min-width: 0;
+        width: clamp(90px, 28vw, 154px);
+        max-width: 154px;
+        grid-column: 2;
+        grid-row: 2;
+        margin: 0;
+    }
+
+    .app-shell:not(.platform-windows) .touch-page-control > summary {
+        min-height: 36px;
+        gap: 5px;
+        padding: 4px 7px;
+        border-color: var(--touch-line);
+        border-radius: 10px;
+        color: var(--toolbar-ink, #46534a);
+        background: var(--touch-glass);
+    }
+
+    .app-shell:not(.platform-windows) .touch-pages-popover {
+        position: fixed;
+        z-index: 260;
+        top: calc(var(--touch-header-height) + env(safe-area-inset-top));
+        right: max(8px, env(safe-area-inset-right));
+        width: min(300px, calc(100vw - 16px));
+        max-height: calc(100dvh - var(--touch-header-height) - 16px - env(safe-area-inset-top));
+        border-color: var(--touch-line);
+        border-radius: 16px;
+        background: var(--toolbar-surface, #fff);
+        box-shadow: var(--touch-shadow);
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .header-leading { grid-column: 1 / -1; }
+    .app-shell.home-screen-active:not(.platform-windows) > .topbar > .app-menus { grid-column: 1 / -1; }
+
+    /* All header menus open as the same viewport-safe surface. */
+    .app-shell:not(.platform-windows) .app-menus .system-menu-popover {
+        position: fixed;
+        z-index: 280;
+        top: calc(var(--touch-header-height) + env(safe-area-inset-top));
+        right: max(8px, env(safe-area-inset-right));
+        left: max(8px, env(safe-area-inset-left));
+        box-sizing: border-box;
+        width: auto;
+        max-width: 520px;
+        max-height: calc(100dvh - var(--touch-header-height) - 16px - env(safe-area-inset-top));
+        margin-inline: auto;
+        padding: 8px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--touch-line);
+        border-radius: 17px;
+        color: var(--toolbar-ink, #344239);
+        background: var(--toolbar-surface, #fff);
+        box-shadow: var(--touch-shadow);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    .app-shell:not(.platform-windows) .app-menus .system-menu-popover > button {
+        min-height: 42px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        color: inherit;
+        font-size: 12px;
+    }
+
+    .app-shell:not(.platform-windows) .app-menus .system-menu-popover > button:hover:not(:disabled) {
+        color: var(--ui-accent-ink);
+        background: var(--ui-accent-soft);
+    }
+
+    .app-shell:not(.platform-windows) .view-settings-popover {
+        max-height: calc(100dvh - var(--touch-header-height) - 16px - env(safe-area-inset-top));
+    }
+
+    .app-shell:not(.platform-windows) .view-panel-pages { min-height: 0; }
+    .app-shell:not(.platform-windows) .view-panel-page { min-width: 0; }
+
+    .app-shell:not(.platform-windows) .app-settings-popover,
+    .app-shell:not(.platform-windows) .gesture-settings-popover {
+        width: auto;
+        max-width: 520px;
+        max-height: calc(100dvh - var(--touch-header-height) - 16px - env(safe-area-inset-top));
+    }
+
+    .app-shell:not(.platform-windows) .gesture-action-card {
+        grid-template-columns: 36px minmax(72px, .65fr) minmax(0, 1fr);
+        gap: 7px;
+        padding: 7px;
+        border-radius: 12px;
+    }
+
+    .app-shell:not(.platform-windows) .gesture-action-card select,
+    .app-shell:not(.platform-windows) .app-setting-field select { min-height: 40px; }
+
+    /* The welcome page becomes a scrollable touch dashboard instead of a scaled desktop grid. */
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-screen {
+        box-sizing: border-box;
+        display: flex;
+        width: 100%;
+        max-width: 1040px;
+        height: auto;
+        min-height: 0;
+        flex: 1 1 auto;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        margin: 0 auto;
+        padding: 14px max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-card {
+        box-sizing: border-box;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(210px, .8fr);
+        gap: 18px;
+        min-height: 0;
+        padding: clamp(17px, 3vw, 26px);
+        border-color: var(--touch-line);
+        border-radius: 22px;
+        background: var(--toolbar-surface, #fff);
+        box-shadow: 0 8px 30px #24352a0b;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-symbol {
+        width: 40px;
+        height: 40px;
+        margin: 0 0 15px;
+        border-radius: 13px;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-intro .eyebrow { margin-bottom: 8px; font-size: 9px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-intro h1 { font-size: clamp(31px, 5vw, 46px); letter-spacing: -1.7px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-intro .welcome-copy { margin: 12px 0 17px; font-size: 12px; line-height: 1.55; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-actions { gap: 8px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-actions button { min-height: 44px; padding: 10px 13px; border-radius: 12px; font-size: 12px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-intro .file-hint { margin-top: 16px; font-size: 10px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-intro .copyright-notice { margin-top: 13px; }
+
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-visual {
+        min-height: 220px;
+        padding: 12px;
+        border-color: var(--touch-line);
+        border-radius: 17px;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .recent-dashboard {
+        box-sizing: border-box;
+        min-height: 190px;
+        height: auto;
+        max-height: none;
+        padding: 16px;
+        border-color: var(--touch-line);
+        border-radius: 20px;
+        background: var(--toolbar-surface, #fff);
+        box-shadow: 0 8px 30px #24352a0b;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .recent-heading { padding-bottom: 10px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-heading .eyebrow { margin-bottom: 5px; font-size: 9px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-heading h2 { font-size: 18px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-heading > p { margin-top: 4px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-list { min-height: 0; max-height: 35dvh; gap: 4px; overflow-y: auto; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-file {
+        grid-template-columns: 38px minmax(0, 1fr) auto;
+        min-height: 58px;
+        gap: 2px 9px;
+        padding: 8px 5px;
+        border: 0;
+        border-top: 1px solid var(--touch-line);
+        border-radius: 9px;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .recent-file-name { font-size: 12px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-file-path { max-width: 58vw; font-size: 9px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-open { font-size: 10px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-empty { min-height: 150px; padding: 14px 8px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-empty .quiet-button { min-height: 40px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-footnote { margin-top: 9px; padding-top: 10px; }
+
+    /* The canvas gets a quiet frame; all controls sit in predictable edge lanes. */
+    .app-shell:not(.platform-windows) > .canvas-wrap {
+        min-width: 0;
+        min-height: 0;
+        flex: 1 1 auto;
+        background: #e9eee9;
+        isolation: isolate;
+    }
+
+    .app-shell:not(.platform-windows) .drawing-canvas { -webkit-tap-highlight-color: transparent; }
+    .app-shell:not(.platform-windows) .canvas-help { display: none; }
+
+    .app-shell:not(.platform-windows) .tool-deck {
+        z-index: 95;
+        top: 12px;
+        right: auto;
+        bottom: max(12px, env(safe-area-inset-bottom));
+        left: max(9px, env(safe-area-inset-left));
+        box-sizing: border-box;
+        width: 50px;
+        max-width: 50px;
+        max-height: calc(100% - 24px);
+        align-items: center;
+        gap: 4px;
+        padding: 5px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        border: 1px solid var(--touch-line);
+        border-radius: 17px;
+        background: var(--touch-glass);
+        box-shadow: 0 10px 28px #19261d1c;
+        /* Fixed option menus must stay attached to the viewport, not this dock. */
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        scrollbar-width: none;
+    }
+
+    .app-shell:not(.platform-windows) .tool-deck::-webkit-scrollbar { display: none; }
+    .app-shell:not(.platform-windows) .tool-deck .tool-cluster { width: 38px; gap: 2px; padding: 2px; border: 0; border-radius: 12px; background: transparent; }
+    .app-shell:not(.platform-windows) .tool-deck .tool-icon-button,
+    .app-shell:not(.platform-windows) .tool-deck .tool-family,
+    .app-shell:not(.platform-windows) .tool-deck .tool-family > .tool-icon-button,
+    .app-shell:not(.platform-windows) .tool-deck .canvas-options-trigger {
+        box-sizing: border-box;
+        width: 38px;
+        min-width: 38px;
+        height: 40px;
+        min-height: 40px;
+        border-radius: 11px;
+    }
+
+    .app-shell:not(.platform-windows) .tool-deck .tool-icon-button svg:not(.tool-family-caret),
+    .app-shell:not(.platform-windows) .tool-deck .canvas-options-trigger svg { width: 19px; height: 19px; }
+    .app-shell:not(.platform-windows) .tool-deck .mobile-tools-toggle { width: 38px; min-width: 38px; height: 40px; min-height: 40px; border-radius: 11px; }
+    .app-shell:not(.platform-windows) .tool-deck .mobile-tools-toggle span { display: none; }
+    .app-shell:not(.platform-windows) .tool-deck .tool-cluster + .tool-cluster { border-top: 1px solid var(--touch-line); }
+    .app-shell:not(.platform-windows) .tool-deck-reopen { left: max(9px, env(safe-area-inset-left)); border-radius: 13px; }
+
+    .app-shell:not(.platform-windows).mobile-tools-expanded .tool-deck {
+        top: 10px;
+        right: auto;
+        bottom: auto;
+        left: max(9px, env(safe-area-inset-left));
+        width: min(390px, calc(100vw - max(9px, env(safe-area-inset-left)) - max(9px, env(safe-area-inset-right))));
+        max-width: calc(100vw - max(9px, env(safe-area-inset-left)) - max(9px, env(safe-area-inset-right)));
+        max-height: min(62dvh, calc(100% - 20px));
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        align-content: flex-start;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 8px;
+        border-radius: 18px;
+        touch-action: pan-y;
+    }
+
+    .app-shell:not(.platform-windows).mobile-tools-expanded .tool-deck .tool-cluster {
+        width: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        border: 0;
+    }
+
+    .app-shell:not(.platform-windows).mobile-tools-expanded .tool-deck .tool-family { flex: 0 0 40px; }
+    .app-shell:not(.platform-windows).mobile-tools-expanded .tool-deck .mobile-tools-toggle { width: auto; min-width: 42px; padding: 0 8px; }
+    .app-shell:not(.platform-windows).mobile-tools-expanded .tool-deck .mobile-tools-toggle span { display: inline; font-size: 10px; }
+
+    .app-shell:not(.platform-windows) .tool-family.options-open .tool-options,
+    .app-shell:not(.platform-windows) .canvas-options-family.options-open .canvas-options-menu {
+        z-index: 100;
+        top: 50%;
+        right: max(10px, env(safe-area-inset-right));
+        bottom: auto;
+        left: max(66px, calc(env(safe-area-inset-left) + 60px));
+        width: auto;
+        max-width: none;
+        max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        transform: translateY(-50%);
+    }
+
+    .app-shell:not(.platform-windows) .canvas-options-family.options-open .canvas-options-menu {
+        width: min(340px, calc(100vw - max(66px, calc(env(safe-area-inset-left) + 60px)) - max(10px, env(safe-area-inset-right))));
+        padding: 10px;
+        border: 1px solid var(--touch-line);
+        border-radius: 16px;
+        background: var(--toolbar-surface, #fff);
+        box-shadow: var(--touch-shadow);
+    }
+
+    .app-shell:not(.platform-windows) .canvas-options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+    .app-shell:not(.platform-windows) .canvas-options-grid button { min-height: 44px; border-radius: 10px; }
+    .app-shell:not(.platform-windows) .tool-options button { min-height: 44px; border-radius: 10px; }
+
+    .app-shell:not(.platform-windows) .canvas-zoom-reset {
+        z-index: 14;
+        top: 12px;
+        right: max(12px, env(safe-area-inset-right));
+        bottom: auto;
+        left: auto;
+        min-width: 68px;
+        height: 40px;
+        justify-content: center;
+        padding: 0 10px;
+        border-color: var(--touch-line);
+        border-radius: 13px;
+        color: var(--toolbar-ink, #46534a);
+        background: var(--touch-glass);
+        box-shadow: 0 5px 18px #19261d12;
+        transform: none;
+    }
+
+    .app-shell:not(.platform-windows) .canvas-zoom-reset kbd { color: var(--ui-accent-ink); }
+
+    /* Properties start as a one-tap button; full properties become a real sheet. */
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode,
+    .app-shell:not(.platform-windows) .style-pane.full-style-mode {
+        z-index: 76;
+        top: 62px;
+        right: max(12px, env(safe-area-inset-right));
+        bottom: auto;
+        left: auto;
+        box-sizing: border-box;
+        width: 46px;
+        height: 46px;
+        min-height: 46px;
+        max-height: 46px;
+        padding: 4px;
+        overflow: visible;
+        border: 1px solid var(--touch-line);
+        border-radius: 15px;
+        background: var(--touch-glass);
+        box-shadow: 0 6px 20px #19261d14;
+        /* The advanced inspector is fixed to the screen from inside this pane. */
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-heading,
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading { margin: 0; }
+
+    .app-shell:not(.platform-windows) .style-pane .quick-style-heading > button {
+        width: 38px !important;
+        min-width: 38px;
+        max-width: 38px;
+        height: 38px;
+        min-height: 38px;
+        border-radius: 12px;
+    }
+
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded.quick-style-mode,
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded.full-style-mode {
+        z-index: 180;
+        top: 62px;
+        right: max(12px, env(safe-area-inset-right));
+        bottom: auto;
+        left: auto;
+        width: min(540px, calc(100vw - max(66px, calc(env(safe-area-inset-left) + 60px)) - max(12px, env(safe-area-inset-right))));
+        height: auto;
+        min-height: 48px;
+        max-height: min(46dvh, 340px);
+        padding: 5px;
+        border-radius: 16px;
+        overflow: visible;
+    }
+
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded > .quick-style-panel {
+        align-items: flex-start;
+        gap: 5px;
+    }
+
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading {
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 3px;
+    }
+
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > button,
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
+        width: 38px !important;
+        min-width: 38px;
+        max-width: 38px;
+        height: 38px;
+        min-height: 38px;
+        border-radius: 12px;
+    }
+
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-controls {
+        max-height: min(38dvh, 280px);
+        align-content: flex-start;
+        gap: 4px;
+        padding: 1px;
+    }
+
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-icon,
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-text-size,
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-text-format {
+        min-height: 38px;
+        border-radius: 11px;
+    }
+
+    .app-shell:not(.platform-windows) .style-pane .quick-style-popover {
+        position: fixed;
+        z-index: 160;
+        top: 50%;
+        right: auto;
+        bottom: auto;
+        left: max(66px, calc(env(safe-area-inset-left) + 60px));
+        width: min(340px, calc(100vw - max(66px, calc(env(safe-area-inset-left) + 60px)) - max(10px, env(safe-area-inset-right))));
+        max-width: min(340px, calc(100vw - max(66px, calc(env(safe-area-inset-left) + 60px)) - max(10px, env(safe-area-inset-right))));
+        max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        padding: 10px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--touch-line);
+        border-radius: 15px;
+        background: var(--toolbar-surface, #fff);
+        box-shadow: var(--touch-shadow);
+        transform: translateY(-50%);
+    }
+
+    .app-shell:not(.platform-windows) .style-pane.full-style-mode > .full-inspector {
+        position: fixed;
+        z-index: 190;
+        top: auto;
+        right: max(10px, env(safe-area-inset-right));
+        bottom: max(10px, env(safe-area-inset-bottom));
+        left: max(10px, env(safe-area-inset-left));
+        box-sizing: border-box;
+        width: auto;
+        max-width: none;
+        max-height: min(68dvh, 620px);
+        padding: 12px 14px max(14px, env(safe-area-inset-bottom));
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--touch-line);
+        border-radius: 20px;
+        color: var(--toolbar-ink, #344239);
+        background: var(--toolbar-surface, #fff);
+        box-shadow: 0 18px 54px #101a1440;
+    }
+
+    .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-style-heading {
+        top: -12px;
+        margin: -12px -14px 9px;
+        padding: 9px 14px 10px;
+        border-color: var(--touch-line);
+        background: var(--toolbar-surface, #fff);
+    }
+
+    .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-style-heading button,
+    .app-shell:not(.platform-windows) .style-pane .full-inspector button { min-height: 40px; }
+
+    .app-shell:not(.platform-windows) .floating-layer-panel {
+        position: fixed;
+        z-index: 170;
+        top: calc(var(--touch-header-height) + 10px + env(safe-area-inset-top));
+        right: max(10px, env(safe-area-inset-right));
+        bottom: max(10px, env(safe-area-inset-bottom));
+        left: auto;
+        box-sizing: border-box;
+        width: min(350px, calc(100vw - max(66px, calc(env(safe-area-inset-left) + 60px)) - max(10px, env(safe-area-inset-right))));
+        max-height: none;
+        padding: 12px;
+        border: 1px solid var(--touch-line);
+        border-radius: 18px;
+        color: var(--toolbar-ink, #344239);
+        background: var(--toolbar-surface, #fff);
+        box-shadow: var(--touch-shadow);
+    }
+
+    .app-shell:not(.platform-windows) .selection-delete-action {
+        top: auto;
+        right: max(12px, env(safe-area-inset-right));
+        bottom: max(62px, calc(env(safe-area-inset-bottom) + 58px));
+        min-height: 42px;
+        border-radius: 13px;
+        box-shadow: var(--touch-shadow);
+    }
+
+    .app-shell:not(.platform-windows) .confirm-backdrop {
+        z-index: 500;
+        align-items: end;
+        padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+        background: #10181370;
+    }
+
+    .app-shell:not(.platform-windows) .confirm-dialog {
+        box-sizing: border-box;
+        width: min(600px, 100%);
+        max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        padding: 18px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        border: 1px solid var(--touch-line);
+        border-radius: 21px;
+        box-shadow: 0 20px 60px #07100a55;
+    }
+
+    .app-shell:not(.platform-windows) .help-dialog { width: min(760px, 100%); }
+    .app-shell:not(.platform-windows) .canvas-note-editor { max-width: calc(100vw - 24px); }
+
+    /* Respect safe areas and leave a full-height canvas in narrow landscape. */
+    @media (min-width: 700px) and (orientation: landscape) {
+        .app-shell:not(.platform-windows) { --touch-header-height: 66px; }
+        .app-shell:not(.platform-windows) > .topbar {
+            min-height: 60px;
+            grid-template-columns: minmax(128px, auto) minmax(0, 1fr) auto auto;
+            grid-template-rows: 42px;
+            gap: 0 10px;
+            padding-top: max(7px, env(safe-area-inset-top));
+            padding-bottom: 7px;
+        }
+
+        .app-shell:not(.platform-windows) .header-leading { grid-column: 1; grid-row: 1; }
+        .app-shell:not(.platform-windows) > .topbar > .app-menus { grid-column: 2; grid-row: 1; overflow: visible; }
+        .app-shell:not(.platform-windows) .topbar > .touch-page-control { grid-column: 3; grid-row: 1; width: clamp(120px, 17vw, 190px); }
+        .app-shell:not(.platform-windows) .topbar .top-actions { grid-column: 4; grid-row: 1; }
+        .app-shell.home-screen-active:not(.platform-windows) .header-leading { grid-column: 1; }
+        .app-shell.home-screen-active:not(.platform-windows) > .topbar > .app-menus { grid-column: 2 / -1; }
+        .app-shell:not(.platform-windows) .app-menus .system-menu-popover,
+        .app-shell:not(.platform-windows) .app-settings-popover,
+        .app-shell:not(.platform-windows) .gesture-settings-popover {
+            top: calc(66px + env(safe-area-inset-top));
+            right: 10px;
+            left: auto;
+            width: min(390px, calc(100vw - 20px));
+            max-height: calc(100dvh - 78px - env(safe-area-inset-top));
+            margin: 0;
+        }
+
+        .app-shell:not(.platform-windows) .app-menus .view-settings-popover { width: min(440px, calc(100vw - 20px)); }
+
+        .app-shell:not(.platform-windows) .welcome-screen { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(230px, .8fr); align-items: stretch; }
+        .app-shell:not(.platform-windows) .welcome-card { grid-template-columns: minmax(0, 1fr) minmax(170px, .8fr); }
+        .app-shell:not(.platform-windows) .welcome-visual { min-height: 180px; }
+        .app-shell:not(.platform-windows) .tool-deck { top: 10px; bottom: 10px; }
+        .app-shell:not(.platform-windows) .style-pane.full-style-mode > .full-inspector {
+            top: calc(var(--touch-header-height) + 10px + env(safe-area-inset-top));
+            right: max(12px, env(safe-area-inset-right));
+            bottom: max(12px, env(safe-area-inset-bottom));
+            left: auto;
+            width: min(400px, calc(100vw - 90px));
+            max-height: none;
+            border-radius: 18px;
+        }
+    }
+
+    @media (max-width: 560px) {
+        .app-shell.home-screen-active:not(.platform-windows) .welcome-screen { gap: 11px; padding-top: 11px; }
+        .app-shell.home-screen-active:not(.platform-windows) .welcome-card { grid-template-columns: minmax(0, 1fr); padding: 18px; }
+        .app-shell.home-screen-active:not(.platform-windows) .welcome-visual { display: none; }
+        .app-shell.home-screen-active:not(.platform-windows) .welcome-intro h1 { font-size: clamp(30px, 9vw, 40px); }
+        .app-shell.home-screen-active:not(.platform-windows) .recent-dashboard { padding: 14px; }
+        .app-shell.home-screen-active:not(.platform-windows) .recent-open { display: none; }
+        .app-shell.home-screen-active:not(.platform-windows) .recent-file { grid-template-columns: 34px minmax(0, 1fr); }
+        .app-shell.home-screen-active:not(.platform-windows) .recent-file-icon { width: 31px; height: 33px; }
+        .app-shell:not(.platform-windows) .gesture-action-card { grid-template-columns: 34px minmax(64px, .55fr) minmax(0, 1fr); gap: 5px; padding: 6px; }
+    }
+
+    @media (max-height: 540px) {
+        .app-shell:not(.platform-windows) { --touch-header-height: 68px; }
+        .app-shell:not(.platform-windows) > .topbar { min-height: 56px; grid-template-rows: 26px 34px; padding-top: max(3px, env(safe-area-inset-top)); padding-bottom: 4px; }
+        .app-shell:not(.platform-windows) .topbar .menu-dropdown > summary { min-height: 32px; padding: 4px 7px; }
+        .app-shell:not(.platform-windows) .topbar > .touch-page-control > summary { min-height: 32px; }
+        .app-shell:not(.platform-windows) .app-menus .system-menu-popover,
+        .app-shell:not(.platform-windows) .touch-pages-popover { top: calc(var(--touch-header-height) + env(safe-area-inset-top)); max-height: calc(100dvh - var(--touch-header-height) - 8px); }
+        .app-shell.home-screen-active:not(.platform-windows) .welcome-screen { padding-top: 8px; }
+        .app-shell.home-screen-active:not(.platform-windows) .welcome-card { padding: 14px; }
+        .app-shell:not(.platform-windows) .style-pane.full-style-mode > .full-inspector { max-height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+
+        @media (min-width: 700px) and (orientation: landscape) {
+            .app-shell:not(.platform-windows) { --touch-header-height: 52px; }
+            .app-shell:not(.platform-windows) > .topbar { min-height: 48px; grid-template-rows: 36px; }
+            .app-shell:not(.platform-windows) .app-menus .system-menu-popover,
+            .app-shell:not(.platform-windows) .touch-pages-popover { top: calc(var(--touch-header-height) + env(safe-area-inset-top)); max-height: calc(100dvh - var(--touch-header-height) - 8px); }
+        }
+    }
+}
+
+/* Keep Settings pinned at the top bar edge and show its panel fully on touch screens. */
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+    .app-shell:not(.platform-windows) .settings-menu-dropdown .app-settings-popover {
+        position: fixed;
+        z-index: 320;
+        top: calc(var(--touch-header-height) + env(safe-area-inset-top));
+        right: max(8px, env(safe-area-inset-right));
+        left: auto;
+        box-sizing: border-box;
+        width: min(380px, calc(100vw - 16px));
+        max-width: calc(100vw - 16px);
+        max-height: calc(100dvh - var(--touch-header-height) - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        margin: 0;
+        padding: 12px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--touch-line);
+        border-radius: 18px;
+        box-shadow: var(--touch-shadow);
+    }
+
+    .app-shell:not(.platform-windows) .settings-menu-dropdown > summary:focus-visible,
+    .app-shell:not(.platform-windows) .app-menu-items > .menu-dropdown > summary:focus-visible {
+        outline: 2px solid var(--ui-accent);
+        outline-offset: 2px;
+    }
+
+    .app-shell:not(.platform-windows) .touch-focus-entry { display: flex; }
+
+    .app-shell:not(.platform-windows) .tool-deck .tool-icon-button,
+    .app-shell:not(.platform-windows) .tool-deck .canvas-options-trigger {
+        color: var(--toolbar-ink, #46534a);
+        transition: background-color .14s ease, color .14s ease, transform .14s ease;
+    }
+
+    .app-shell:not(.platform-windows) .tool-deck .tool-icon-button:active,
+    .app-shell:not(.platform-windows) .tool-deck .canvas-options-trigger:active { transform: scale(.94); }
+
+    .app-shell:not(.platform-windows) .tool-deck .tool-icon-button.selected,
+    .app-shell:not(.platform-windows) .tool-deck .canvas-options-trigger[aria-expanded="true"] {
+        border-color: color-mix(in srgb, var(--ui-accent) 28%, transparent);
+        color: var(--ui-accent-ink);
+        background: var(--ui-accent-soft);
+    }
+
+    .app-shell:not(.platform-windows) .quick-brush-picker {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 5px;
+    }
+    .app-shell:not(.platform-windows) .quick-brush-picker button {
+        display: grid;
+        min-width: 0;
+        min-height: 62px;
+        justify-items: center;
+        align-content: center;
+        gap: 5px;
+        border: 1px solid var(--touch-line);
+        border-radius: 11px;
+        color: var(--toolbar-ink, #46534a);
+        background: transparent;
+        font: 600 10px system-ui, sans-serif;
+    }
+    .app-shell:not(.platform-windows) .quick-brush-picker button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .quick-brush-picker svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* Full-screen touch focus keeps the canvas and only three drawing tools visible. */
+    .app-shell:not(.platform-windows).touch-focus-mode { position: fixed; inset: 0; z-index: 10000; min-height: 0; overflow: hidden; background: var(--toolbar-surface, #fff); }
+    .app-shell:not(.platform-windows).touch-focus-mode > .topbar,
+    .app-shell:not(.platform-windows).touch-focus-mode .tool-deck,
+    .app-shell:not(.platform-windows).touch-focus-mode .tool-deck-reopen,
+    .app-shell:not(.platform-windows).touch-focus-mode .canvas-options-family,
+    .app-shell:not(.platform-windows).touch-focus-mode .canvas-zoom-reset,
+    .app-shell:not(.platform-windows).touch-focus-mode .page-tabs,
+    .app-shell:not(.platform-windows).touch-focus-mode .desktop-page-tabs,
+    .app-shell:not(.platform-windows).touch-focus-mode .style-pane,
+    .app-shell:not(.platform-windows).touch-focus-mode .floating-layer-panel,
+    .app-shell:not(.platform-windows).touch-focus-mode .selection-delete-action,
+    .app-shell:not(.platform-windows).touch-focus-mode .canvas-help { display: none !important; }
+    .app-shell:not(.platform-windows).touch-focus-mode > .canvas-wrap { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; background: var(--toolbar-surface, #fff); }
+    .app-shell:not(.platform-windows).touch-focus-mode .drawing-canvas { width: 100%; height: 100%; touch-action: none; }
+    .app-shell:not(.platform-windows) .touch-focus-tools {
+        position: fixed;
+        z-index: 10020;
+        top: max(10px, env(safe-area-inset-top));
+        left: max(10px, env(safe-area-inset-left));
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px;
+        border: 1px solid var(--touch-line);
+        border-radius: 16px;
+        color: var(--toolbar-ink, #46534a);
+        background: color-mix(in srgb, var(--toolbar-surface, #fff) 94%, transparent);
+        box-shadow: 0 8px 28px #15211722;
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+    }
+    .app-shell:not(.platform-windows) .touch-focus-tools button { display: grid; width: 44px; min-width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 12px; color: inherit; background: transparent; }
+    .app-shell:not(.platform-windows) .touch-focus-tools button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .touch-focus-tools svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .app-shell:not(.platform-windows) .touch-focus-tools .focus-tool-divider { width: 1px; height: 27px; margin: 0 1px; background: var(--touch-line); }
+    .app-shell:not(.platform-windows) .touch-focus-tools .focus-exit { color: var(--touch-muted); }
+
+    .app-shell.theme-dark:not(.platform-windows) .settings-menu-dropdown .app-settings-popover { color: #d9e2da; background: var(--toolbar-surface, #252d27); }
+    .app-shell.theme-dark:not(.platform-windows) .quick-brush-picker button { color: #d9e2da; }
+}
+
+@media (max-width: 560px) {
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-screen { gap: 9px; padding: 10px max(10px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-card { gap: 0; padding: 16px; border-radius: 18px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-symbol { width: 34px; height: 34px; margin-bottom: 10px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-intro h1 { margin: 0; font-size: clamp(27px, 8.3vw, 36px); line-height: 1.02; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-intro .welcome-copy { margin: 8px 0 12px; font-size: 11px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-actions button { min-width: 0; min-height: 41px; padding: 8px; font-size: 11px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-intro .file-hint,
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-intro .copyright-notice { display: none; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-dashboard { min-height: 0; padding: 12px; border-radius: 17px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-heading { padding-bottom: 7px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-heading h2 { font-size: 16px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-heading > p { font-size: 10px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-list { max-height: 34dvh; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-empty { min-height: 100px; gap: 5px; padding: 8px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-empty-icon { width: 34px; height: 36px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-empty > span { max-width: 250px; font-size: 10px; }
+    .app-shell.home-screen-active:not(.platform-windows) .recent-footnote { margin-top: 6px; padding-top: 7px; font-size: 9px; }
+}
+
+@media (min-width: 561px) and (max-width: 900px) and (orientation: landscape), (min-width: 700px) and (max-width: 1600px) and (pointer: coarse) and (orientation: landscape) {
+    .app-shell:not(.platform-windows) .touch-focus-tools { top: max(6px, env(safe-area-inset-top)); left: max(6px, env(safe-area-inset-left)); gap: 3px; padding: 4px; }
+    .app-shell:not(.platform-windows) .touch-focus-tools button { width: 40px; min-width: 40px; height: 40px; min-height: 40px; }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-card { grid-template-columns: minmax(0, 1fr) minmax(170px, .75fr); }
+    .app-shell.home-screen-active:not(.platform-windows) .welcome-visual { display: block; min-height: 130px; }
+}
+
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+    .app-shell.theme-dark:not(.platform-windows) { background: #171d19; color: #e3ebe4; }
+    .app-shell.theme-dark:not(.platform-windows) > .topbar { border-color: #39443c; background: color-mix(in srgb, var(--toolbar-surface, #202722) 94%, transparent); box-shadow: 0 3px 16px #0002; }
+    .app-shell.theme-dark:not(.platform-windows) .topbar .brand,
+    .app-shell.theme-dark:not(.platform-windows) .topbar .menu-dropdown > summary,
+    .app-shell.theme-dark:not(.platform-windows) .touch-page-control > summary { color: #d9e2da; }
+    .app-shell.theme-dark:not(.platform-windows) .topbar .menu-dropdown > summary:hover,
+    .app-shell.theme-dark:not(.platform-windows) .topbar .menu-dropdown[open] > summary,
+    .app-shell.theme-dark:not(.platform-windows) .touch-page-control[open] > summary { color: var(--ui-accent-ink); }
+    .app-shell.theme-dark:not(.platform-windows) .tool-deck,
+    .app-shell.theme-dark:not(.platform-windows) .canvas-zoom-reset,
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode,
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode { border-color: #3e4a41; color: #d9e2da; background: color-mix(in srgb, var(--toolbar-surface, #242c26) 95%, transparent); }
+    .app-shell.theme-dark:not(.platform-windows) > .canvas-wrap { background: #131915; }
+    .app-shell.theme-dark:not(.platform-windows) .welcome-card,
+    .app-shell.theme-dark:not(.platform-windows) .recent-dashboard { border-color: #39443c; background: linear-gradient(145deg, #252d27, #202722); box-shadow: 0 10px 28px #0002; }
+    .app-shell.theme-dark:not(.platform-windows) .welcome-intro h1,
+    .app-shell.theme-dark:not(.platform-windows) .recent-heading h2,
+    .app-shell.theme-dark:not(.platform-windows) .recent-file-name { color: #e1e9e2; }
+    .app-shell.theme-dark:not(.platform-windows) .welcome-intro .welcome-copy,
+    .app-shell.theme-dark:not(.platform-windows) .recent-heading > p,
+    .app-shell.theme-dark:not(.platform-windows) .recent-file-path { color: #aab6ac; }
+    .app-shell.theme-dark:not(.platform-windows) .recent-file { border-color: #39443c; }
+    .app-shell.theme-dark:not(.platform-windows) .recent-file-icon,
+    .app-shell.theme-dark:not(.platform-windows) .recent-empty-icon { border-color: #3f4b42; color: #b0c6b2; background: #2a342d; }
+    .app-shell.theme-dark:not(.platform-windows) .recent-footnote { border-color: #39443c; color: #aab6ac; }
+    .app-shell.theme-dark:not(.platform-windows) .app-menus .system-menu-popover,
+    .app-shell.theme-dark:not(.platform-windows) .touch-pages-popover,
+    .app-shell.theme-dark:not(.platform-windows) .style-pane .quick-style-popover,
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode > .full-inspector,
+    .app-shell.theme-dark:not(.platform-windows) .floating-layer-panel { border-color: #3d4940; color: #d9e2da; background: var(--toolbar-surface, #252d27); }
+    .app-shell.theme-dark:not(.platform-windows) .app-menus .system-menu-popover > button { color: #d9e2da; }
+    .app-shell.theme-dark:not(.platform-windows) .gesture-action-card { border-color: #3f4b42; background: #252e28; }
+    .app-shell.theme-dark:not(.platform-windows) .gesture-action-card select { border-color: #46534a; color: #d9e2da; background: #1e2621; }
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode .full-style-heading { border-color: #3d4940; background: var(--toolbar-surface, #252d27); }
+}

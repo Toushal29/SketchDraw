@@ -4,9 +4,9 @@
 
 SketchDraw is a local-first whiteboard for Windows, Android, and iOS, with a responsive workspace for desktop, tablet, and phone screens. Use it for flowcharts, diagrams, and visual notes. Each project is a portable `.sketch` file you choose where to save. Keep it on your device or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
 
-**Current release: 5.0.0 · Document format: version 7 · Copyright © 2026 Toushal Sampat**
+**Current release: Windows 7.0.0 · Android 1.0.0 · Document format: version 7 · Copyright © 2026 Toushal Sampat**
 
-> SketchDraw 5.0.0 saves version 7 `.sketch` documents. Recognizable earlier SketchDraw JSON versions (1-6) are migrated to v7 when opened and saved back to the same `.sketch` file; unrelated or malformed files remain unsupported. The `.sketch` extension stays the same.
+> SketchDraw saves version 7 `.sketch` documents on both platforms. Recognizable earlier SketchDraw JSON versions (1-6) are migrated to v7 when opened and saved back to the same `.sketch` file; unrelated or malformed files remain unsupported. The `.sketch` extension stays the same.
 
 ## Screenshots and previews
 
@@ -118,7 +118,7 @@ The current library provides reusable component presets. Deeper modeling interac
 
 ## File format
 
-SketchDraw 5.0.0 uses a JSON-based **version 7** format in `.sketch` files. Recognizable version 1-6 SketchDraw JSON documents are normalized to v7 when opened and saved back to their existing `.sketch` path. Missing page settings and legacy element IDs receive safe defaults. Version 7 adds stored Mermaid source to editable flowchart components. The loader retains support for the existing elements and groups from older files. `.sketchdraw` files and malformed or unrelated files remain unsupported. Renaming an old file does not convert it; opening it in SketchDraw does. The file extension remains `.sketch`.
+SketchDraw uses a JSON-based **version 7** format in `.sketch` files. Recognizable version 1-6 SketchDraw JSON documents are normalized to v7 when opened and saved back to their existing `.sketch` path. Missing page settings and legacy element IDs receive safe defaults. Version 7 adds stored Mermaid source to editable flowchart components. The loader retains support for the existing elements and groups from older files. `.sketchdraw` files and malformed or unrelated files remain unsupported. Renaming an old file does not convert it; opening it in SketchDraw does. The file extension remains `.sketch`.
 
 SketchDraw has no shared online workspaces, collaborative sessions, live cursors, or background document uploads. If you place a `.sketch` file inside a cloud-sync folder, synchronization is handled by that provider; conflict checks reduce accidental overwrites but do not provide distributed locking.
 

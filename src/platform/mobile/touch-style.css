@@ -1,0 +1,223 @@
+.touch-style-panel { display: none; }
+
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+    .app-shell:not(.platform-windows) .touch-style-panel {
+        position: fixed;
+        z-index: 220;
+        top: 50%;
+        left: max(64px, calc(env(safe-area-inset-left) + 58px));
+        display: flex;
+        box-sizing: border-box;
+        width: min(380px, calc(100vw - 76px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+        max-width: 440px;
+        max-height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        flex-direction: column;
+        overflow: hidden;
+        transform: translateY(-50%);
+        border: 1px solid color-mix(in srgb, var(--touch-line) 82%, transparent);
+        border-radius: 20px;
+        color: var(--toolbar-ink, #263128);
+        background: color-mix(in srgb, var(--toolbar-surface, #fff) 97%, transparent);
+        box-shadow: 0 18px 54px #17251b36;
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+    }
+    .app-shell:not(.platform-windows) .touch-style-header {
+        display: flex;
+        min-height: 52px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px 8px 15px;
+    }
+    .app-shell:not(.platform-windows) .touch-style-title { display: grid; gap: 2px; }
+    .app-shell:not(.platform-windows) .touch-style-title > span { color: var(--touch-muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+    .app-shell:not(.platform-windows) .touch-style-title > strong { font-size: 16px; font-weight: 750; }
+    .app-shell:not(.platform-windows) .touch-style-close {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        flex: 0 0 34px;
+        place-items: center;
+        padding: 0;
+        border: 1px solid var(--touch-line);
+        border-radius: 11px;
+        color: inherit;
+        background: var(--touch-glass);
+    }
+    .app-shell:not(.platform-windows) .touch-style-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
+    .app-shell:not(.platform-windows) .touch-style-content {
+        display: grid;
+        gap: 2px;
+        min-height: 0;
+        padding: 6px 12px 12px;
+        overflow: auto;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+    }
+    .app-shell:not(.platform-windows) .touch-style-section { display: grid; gap: 8px; padding: 10px 2px; border-bottom: 1px solid var(--touch-line); }
+    .app-shell:not(.platform-windows) .touch-style-section:last-child { border-bottom: 0; }
+    .app-shell:not(.platform-windows) .touch-style-subsection { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--touch-line); }
+    .app-shell:not(.platform-windows) .touch-style-subsection > strong { color: var(--touch-muted); font-size: 10px; font-weight: 700; }
+    .app-shell:not(.platform-windows) .touch-style-section-title { display: flex; min-height: 24px; align-items: center; justify-content: space-between; gap: 8px; color: var(--touch-muted); font-size: 11px; font-weight: 650; }
+    .app-shell:not(.platform-windows) .touch-style-section-title strong { color: var(--toolbar-ink, #263128); font-size: 12px; font-weight: 750; }
+    .app-shell:not(.platform-windows) .touch-style-custom-color { display: grid; width: 30px; height: 28px; place-items: center; overflow: hidden; border: 1px solid var(--touch-line); border-radius: 9px; }
+    .app-shell:not(.platform-windows) .touch-style-custom-color input { width: 42px; height: 38px; padding: 0; border: 0; background: transparent; }
+    .app-shell:not(.platform-windows) .touch-style-palette { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 5px; }
+    .app-shell:not(.platform-windows) .touch-style-swatch {
+        width: 100%;
+        aspect-ratio: 1;
+        min-width: 0;
+        padding: 0;
+        border: 2px solid var(--touch-line);
+        border-radius: 50%;
+        background: var(--swatch);
+    }
+    .app-shell:not(.platform-windows) .touch-style-swatch.active { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+    .app-shell:not(.platform-windows) .touch-style-widths { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .app-shell:not(.platform-windows) .touch-style-widths button { display: grid; min-height: 34px; place-items: center; border: 1px solid var(--touch-line); border-radius: 10px; color: inherit; background: var(--touch-glass); }
+    .app-shell:not(.platform-windows) .touch-style-widths button.active { border-color: var(--ui-accent-border); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .touch-style-widths i { width: 22px; border-radius: 5px; background: currentColor; }
+    .app-shell:not(.platform-windows) .touch-style-range { width: 100%; min-height: 25px; margin: 0; accent-color: var(--ui-accent); }
+    .app-shell:not(.platform-windows) .touch-brush-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+    .app-shell:not(.platform-windows) .touch-brush-grid button,
+    .app-shell:not(.platform-windows) .touch-line-style-grid button { display: grid; min-height: 46px; place-items: center; gap: 3px; padding: 5px 2px; border: 1px solid var(--touch-line); border-radius: 11px; color: inherit; background: var(--touch-glass); }
+    .app-shell:not(.platform-windows) .touch-brush-grid button.active,
+    .app-shell:not(.platform-windows) .touch-line-style-grid button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .touch-brush-grid svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .app-shell:not(.platform-windows) .touch-brush-grid span,
+    .app-shell:not(.platform-windows) .touch-line-style-grid span { font-size: 9px; font-weight: 650; }
+    .app-shell:not(.platform-windows) .touch-line-style-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+    .app-shell:not(.platform-windows) .touch-line-style-grid svg { width: 22px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+    .app-shell:not(.platform-windows) .touch-route-grid,
+    .app-shell:not(.platform-windows) .touch-flowchart-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+    .app-shell:not(.platform-windows) .touch-route-grid button,
+    .app-shell:not(.platform-windows) .touch-flowchart-grid button { display: grid; min-height: 48px; min-width: 0; place-items: center; gap: 3px; padding: 4px; border: 1px solid var(--touch-line); border-radius: 10px; color: inherit; background: var(--touch-glass); }
+    .app-shell:not(.platform-windows) .touch-route-grid button.active,
+    .app-shell:not(.platform-windows) .touch-flowchart-grid button.active,
+    .app-shell:not(.platform-windows) .touch-edge-grid button.active,
+    .app-shell:not(.platform-windows) .touch-text-format-row button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .touch-route-grid svg,
+    .app-shell:not(.platform-windows) .touch-flowchart-grid svg { width: 23px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .app-shell:not(.platform-windows) .touch-route-grid span,
+    .app-shell:not(.platform-windows) .touch-flowchart-grid span { width: 100%; overflow: hidden; font-size: 8px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+    .app-shell:not(.platform-windows) .touch-edge-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+    .app-shell:not(.platform-windows) .touch-edge-grid button,
+    .app-shell:not(.platform-windows) .touch-text-format-row button,
+    .app-shell:not(.platform-windows) .touch-selection-rotation button { min-height: 34px; border: 1px solid var(--touch-line); border-radius: 9px; color: inherit; background: var(--touch-glass); font-size: 10px; }
+    .app-shell:not(.platform-windows) .touch-style-select { display: grid; grid-template-columns: 1fr minmax(120px, 1.2fr); align-items: center; gap: 8px; min-height: 36px; color: var(--toolbar-ink, #263128); font-size: 11px; }
+    .app-shell:not(.platform-windows) .touch-style-select select,
+    .app-shell:not(.platform-windows) .touch-style-select input { box-sizing: border-box; width: 100%; min-height: 34px; padding: 5px 8px; border: 1px solid var(--touch-line); border-radius: 9px; color: inherit; background: var(--touch-glass); font-size: 11px; }
+    .app-shell:not(.platform-windows) .touch-text-format-row { display: flex; gap: 5px; }
+    .app-shell:not(.platform-windows) .touch-text-format-row button { width: 38px; font-size: 13px; }
+    .app-shell:not(.platform-windows) .touch-selection-rotation { display: grid; grid-template-columns: 1fr repeat(3, auto); align-items: center; gap: 5px; }
+    .app-shell:not(.platform-windows) .touch-selection-rotation > strong { font-size: 11px; }
+    .app-shell:not(.platform-windows) .touch-selection-rotation button { padding: 0 8px; }
+    .app-shell:not(.platform-windows) .touch-style-switch,
+    .app-shell:not(.platform-windows) .touch-style-check { display: flex; min-height: 34px; align-items: center; gap: 9px; color: var(--toolbar-ink, #263128); font-size: 11px; }
+    .app-shell:not(.platform-windows) .touch-style-switch { justify-content: space-between; }
+    .app-shell:not(.platform-windows) .touch-style-switch input,
+    .app-shell:not(.platform-windows) .touch-style-check input { width: 17px; height: 17px; accent-color: var(--ui-accent); }
+    .app-shell:not(.platform-windows) .touch-style-range-label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 5px 8px; color: var(--toolbar-ink, #263128); font-size: 11px; }
+    .app-shell:not(.platform-windows) .touch-style-range-label > span { color: var(--touch-muted); }
+    .app-shell:not(.platform-windows) .touch-style-range-label > input { grid-column: 1 / -1; }
+    .app-shell:not(.platform-windows) .touch-style-panel button:disabled,
+    .app-shell:not(.platform-windows) .touch-style-panel input:disabled { opacity: .48; }
+    .app-shell.theme-dark:not(.platform-windows) .touch-style-panel { border-color: #3e4b42; color: #e0e8e1; background: color-mix(in srgb, var(--toolbar-surface, #202722) 97%, transparent); box-shadow: 0 18px 54px #0007; }
+    .app-shell.theme-dark:not(.platform-windows) .touch-style-section-title strong { color: #e0e8e1; }
+    .app-shell.theme-dark:not(.platform-windows) .touch-style-widths button,
+    .app-shell.theme-dark:not(.platform-windows) .touch-brush-grid button,
+    .app-shell.theme-dark:not(.platform-windows) .touch-line-style-grid button { background: #252e28; }
+    .app-shell.theme-dark:not(.platform-windows) .touch-style-widths button.active,
+    .app-shell.theme-dark:not(.platform-windows) .touch-brush-grid button.active,
+    .app-shell.theme-dark:not(.platform-windows) .touch-line-style-grid button.active { background: var(--ui-accent-soft); }
+    .app-shell.theme-dark:not(.platform-windows) .touch-route-grid button,
+    .app-shell.theme-dark:not(.platform-windows) .touch-flowchart-grid button,
+    .app-shell.theme-dark:not(.platform-windows) .touch-edge-grid button,
+    .app-shell.theme-dark:not(.platform-windows) .touch-text-format-row button,
+    .app-shell.theme-dark:not(.platform-windows) .touch-style-select select,
+    .app-shell.theme-dark:not(.platform-windows) .touch-style-select input,
+    .app-shell.theme-dark:not(.platform-windows) .touch-selection-rotation button { background: #252e28; }
+}
+
+@media (max-width: 480px) {
+    .app-shell:not(.platform-windows) .touch-style-panel { left: max(60px, calc(env(safe-area-inset-left) + 54px)); width: min(300px, calc(100vw - 68px - env(safe-area-inset-left) - env(safe-area-inset-right))); border-radius: 17px; }
+    .app-shell:not(.platform-windows) .touch-style-palette { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+}
+
+.app-shell:not(.platform-windows).touch-focus-mode .touch-style-panel { display: none !important; }
+
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+    .app-shell:not(.platform-windows) .help-backdrop {
+        z-index: 400;
+        display: grid;
+        box-sizing: border-box;
+        place-items: center;
+        padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+        background: #11181378;
+    }
+    .app-shell:not(.platform-windows) .help-dialog {
+        display: flex;
+        box-sizing: border-box;
+        width: min(720px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+        max-width: none;
+        max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        flex-direction: column;
+        gap: 0;
+        padding: 14px;
+        overflow: hidden;
+        border: 1px solid var(--touch-line);
+        border-radius: 20px;
+        background: var(--toolbar-surface, #fff);
+        box-shadow: 0 22px 65px #10181250;
+    }
+    .app-shell:not(.platform-windows) .help-dialog > header {
+        min-height: 54px;
+        align-items: center;
+        gap: 12px;
+        padding: 2px 0 11px;
+        border-bottom: 1px solid var(--touch-line);
+    }
+    .app-shell:not(.platform-windows) .help-dialog > header .eyebrow { font-size: 9px; letter-spacing: .12em; }
+    .app-shell:not(.platform-windows) .help-dialog h2 { margin: 3px 0 0; font-size: clamp(18px, 4vw, 23px); line-height: 1.15; }
+    .app-shell:not(.platform-windows) .help-dialog .help-close { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border: 1px solid var(--touch-line); border-radius: 12px; color: inherit; background: var(--touch-glass); }
+    .app-shell:not(.platform-windows) .help-content {
+        display: block;
+        min-height: 0;
+        flex: 1 1 auto;
+        padding: 12px 1px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+    }
+    .app-shell:not(.platform-windows) .help-guide { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .app-shell:not(.platform-windows) .help-guide > section { min-width: 0; padding: 11px; border: 1px solid var(--touch-line); border-radius: 13px; background: var(--touch-glass); }
+    .app-shell:not(.platform-windows) .help-guide h3,
+    .app-shell:not(.platform-windows) .help-shortcuts-section h3 { margin: 0 0 6px; font-size: 12px; }
+    .app-shell:not(.platform-windows) .help-guide p,
+    .app-shell:not(.platform-windows) .help-shortcuts-section > p { margin: 0; color: var(--touch-muted); font-size: 11px; line-height: 1.55; }
+    .app-shell:not(.platform-windows) .help-shortcuts-section > p { margin-bottom: 10px; }
+    .app-shell:not(.platform-windows) .shortcut-table { display: table; width: 100%; min-width: 0; max-width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; white-space: normal; }
+    .app-shell:not(.platform-windows) .shortcut-table thead { position: sticky; z-index: 1; top: 0; background: var(--toolbar-surface, #fff); }
+    .app-shell:not(.platform-windows) .shortcut-table th,
+    .app-shell:not(.platform-windows) .shortcut-table td { padding: 7px 6px; border-bottom: 1px solid var(--touch-line); text-align: left; vertical-align: middle; font-size: 10px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
+    .app-shell:not(.platform-windows) .shortcut-table thead th:first-child,
+    .app-shell:not(.platform-windows) .shortcut-table tbody th { width: 37%; }
+    .app-shell:not(.platform-windows) .shortcut-table tbody th { font-weight: 600; }
+    .app-shell:not(.platform-windows) .shortcut-table kbd { display: inline-block; max-width: 100%; padding: 3px 5px; border: 1px solid var(--touch-line); border-radius: 6px; background: var(--touch-glass); font-size: 9px; white-space: normal; overflow-wrap: anywhere; }
+    .app-shell:not(.platform-windows) .help-dialog > footer { min-height: 38px; justify-content: flex-end; gap: 8px; padding-top: 9px; border-top: 1px solid var(--touch-line); }
+    .app-shell:not(.platform-windows) .help-dialog > footer > span { display: none; }
+    .app-shell:not(.platform-windows) .help-dialog > footer .save-button { min-height: 36px; padding: 7px 16px; }
+    .app-shell.theme-dark:not(.platform-windows) .help-dialog { border-color: #3e4b42; background: var(--toolbar-surface, #202722); }
+    .app-shell.theme-dark:not(.platform-windows) .help-guide > section { border-color: #3e4b42; background: #242d27; }
+    .app-shell.theme-dark:not(.platform-windows) .shortcut-table thead { background: var(--toolbar-surface, #202722); }
+    .app-shell.theme-dark:not(.platform-windows) .shortcut-table th,
+    .app-shell.theme-dark:not(.platform-windows) .shortcut-table td { border-color: #3e4b42; }
+}
+
+@media (max-width: 540px) {
+    .app-shell:not(.platform-windows) .help-guide { grid-template-columns: minmax(0, 1fr); }
+}

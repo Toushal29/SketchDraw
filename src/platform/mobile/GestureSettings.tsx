@@ -44,13 +44,14 @@ type Props = {
   onTapChange: (fingers: "one" | "two" | "three", action: TouchTapAction) => void;
   onGestureChange: (fingers: 1 | 2 | 3, action: string) => void;
   detailsRef: (element: HTMLDetailsElement) => void;
+  onToggle: () => void;
 };
 
 export function GestureSettings(props: Props) {
-  return <details class="menu-dropdown touch-gesture-menu" ref={props.detailsRef}>
-    <summary>Gestures<svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
+  return <details class="menu-dropdown touch-gesture-menu" ref={props.detailsRef} onToggle={props.onToggle}>
+    <summary aria-label="Gestures"><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="13" r="2"/><circle cx="12" cy="8" r="2"/><circle cx="18" cy="13" r="2"/><path d="M4 19h16"/></svg><span class="touch-menu-label">Gestures</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
     <div class="system-menu-popover gesture-settings-popover">
-      <header class="gesture-menu-heading"><div><span class="eyebrow">TOUCH CONTROLS</span><strong>{props.section === "taps" ? "Tap actions" : "Finger movements"}</strong><p>Tap assignments and movement gestures have separate settings.</p></div></header>
+      <header class="gesture-menu-heading"><div><span class="eyebrow">TOUCH CONTROLS</span><strong>{props.section === "taps" ? "Tap actions" : "Finger movements"}</strong><p>Tap actions and finger movement are configured separately.</p></div></header>
       <nav class="gesture-menu-tabs" aria-label="Touch settings">
         <button class={props.section === "taps" ? "active" : ""} aria-pressed={props.section === "taps"} onClick={() => props.onSectionChange("taps")}>Tap actions</button>
         <button class={props.section === "gestures" ? "active" : ""} aria-pressed={props.section === "gestures"} onClick={() => props.onSectionChange("gestures")}>Finger movements</button>

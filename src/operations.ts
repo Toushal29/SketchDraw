@@ -1,8 +1,28 @@
-import type { Binding, Element, ShapeElement, SchemaTableElement, Point, ShapeLabel, FlowchartShape } from "./model";
+import type { Binding, Element, ShapeElement, SchemaTableElement, TextElement, Point, FlowchartShape, Bounds } from "./model";
 
 export const isConnector = (element: Element): element is ShapeElement => element.type === "line" || element.type === "arrow";
-export const isLabelShape = (element: Element): element is ShapeElement => ["rectangle", "circle", "diamond", "triangle", "flowchart"].includes(element.type);
-const isConnectable = (element: Element): element is ShapeElement | SchemaTableElement => isLabelShape(element) || element.type === "schemaTable";
+export const isLabelShape = (element: Element): element is ShapeElement => element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart";
+export const isConnectable = (element: Element): element is ShapeElement | SchemaTableElement | TextElement => isLabelShape(element) || element.type === "schemaTable" || element.type === "text";
+export const BOX_ANCHORS: readonly Point[] = [
+  { x: 0, y: 0 }, { x: .5, y: 0 }, { x: 1, y: 0 },
+  { x: 1, y: .5 }, { x: 1, y: 1 }, { x: .5, y: 1 },
+  { x: 0, y: 1 }, { x: 0, y: .5 },
+];
+
+let textBoundsContext: CanvasRenderingContext2D | null | undefined;
+const textBoxCache = new WeakMap<TextElement, Bounds>();
+/** Text has no stored width, so ports use the same measured box as selection. */
+export function textElementBox(element: TextElement): Bounds {
+  const cached = textBoxCache.get(element); if (cached) return cached;
+  const lines = element.text.split(/\r?\n/).map((line, index) => element.listType === "bullet" ? `\u2022 ${line}` : element.listType === "number" ? `${index + 1}. ${line}` : line);
+  if (textBoundsContext === undefined && typeof document !== "undefined") textBoundsContext = document.createElement("canvas").getContext("2d");
+  if (textBoundsContext) textBoundsContext.font = textFont(element);
+  let width = element.fontSize * .5;
+  for (const line of lines) width = Math.max(width, textBoundsContext?.measureText(line).width ?? line.length * element.fontSize * .6);
+  const bounds = { x: element.textAlign === "center" ? element.x - width / 2 : element.textAlign === "right" ? element.x - width : element.x, y: element.y, w: width, h: lines.length * element.fontSize * 1.25 };
+  textBoxCache.set(element, bounds);
+  return bounds;
+}
 
 export function ensureIds(items: Element[]): Element[] {
   return items.map(item => {
@@ -30,24 +50,26 @@ export function validReferences(items: Element[]): boolean {
   }));
 }
 
-export function anchorPoint(shape: ShapeElement | SchemaTableElement, anchor: Point, rowId?: string): Point {
-  const cx = shape.x + shape.w / 2; const cy = shape.y + shape.h / 2;
-  const x = Math.min(shape.x, shape.x + shape.w) + Math.abs(shape.w) * anchor.x;
+export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextElement, anchor: Point, rowId?: string): Point {
+  const box = shape.type === "text" ? textElementBox(shape) : { x: shape.x, y: shape.y, w: shape.w, h: shape.h };
+  const cx = box.x + box.w / 2; const cy = box.y + box.h / 2;
+  const x = Math.min(box.x, box.x + box.w) + Math.abs(box.w) * anchor.x;
   const rowIndex = shape.type === "schemaTable" && rowId ? shape.columns.findIndex(column => column.id === rowId) : -1;
   const rowFontSize = shape.type === "schemaTable" ? shape.fontSize ?? 14 : 14;
   const rowHeaderHeight = Math.max(42, rowFontSize * 2.8); const rowHeight = Math.max(30, rowFontSize * 1.8);
   const y = shape.type === "schemaTable" && rowIndex >= 0
     ? shape.y + rowHeaderHeight + rowIndex * rowHeight + rowHeight / 2
-    : Math.min(shape.y, shape.y + shape.h) + Math.abs(shape.h) * anchor.y;
+    : Math.min(box.y, box.y + box.h) + Math.abs(box.h) * anchor.y;
   const angle = (shape.rotation ?? 0) * Math.PI / 180;
   return { x: cx + (x - cx) * Math.cos(angle) - (y - cy) * Math.sin(angle), y: cy + (x - cx) * Math.sin(angle) + (y - cy) * Math.cos(angle) };
 }
 
-/** Four explicit ports keep attachments predictable, including rotated shapes. */
+/** Box corners and edge midpoints keep attachments predictable, including rotated elements. */
 export function nearestBinding(items: Element[], point: Point, threshold: number): { binding: Binding; point: Point } | undefined {
   let best: { binding: Binding; point: Point; distance: number } | undefined;
   const visit = (children: Element[]) => {
-    for (const item of [...children].reverse()) {
+    for (let index = children.length - 1; index >= 0; index--) {
+      const item = children[index];
       if (item.hidden || item.locked) continue;
       if (item.type === "group") { visit(item.elements); continue; }
       if (!isConnectable(item) || !item.id) continue;
@@ -56,7 +78,8 @@ export function nearestBinding(items: Element[], point: Point, threshold: number
           const port = anchorPoint(item, anchor, column.id); const distance = Math.hypot(point.x - port.x, point.y - port.y);
           if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id, anchor, rowId: column.id }, point: port, distance };
         }
-      } else for (const anchor of [{ x: .5, y: 0 }, { x: 1, y: .5 }, { x: .5, y: 1 }, { x: 0, y: .5 }]) {
+      }
+      for (const anchor of BOX_ANCHORS) {
         const port = anchorPoint(item, anchor); const distance = Math.hypot(point.x - port.x, point.y - port.y);
         if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id, anchor }, point: port, distance };
       }
@@ -67,6 +90,10 @@ export function nearestBinding(items: Element[], point: Point, threshold: number
 
 /** Re-evaluate attachments after every geometry edit, undo, group move, and load. */
 export function resolveBindings(items: Element[]): Element[] {
+  const hasBindings = (children: Element[]): boolean => children.some(item => item.type === "group"
+    ? hasBindings(item.elements)
+    : isConnector(item) && !!(item.startBinding || item.endBinding || item.forkUpper?.endBinding || item.forkLower?.endBinding));
+  if (!hasBindings(items)) return items;
   const lookup = new Map(flatten(items).map(item => [item.id, item]));
   const visit = (item: Element): Element => {
     if (item.type === "group") {
@@ -121,7 +148,7 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
   return resolveBindings(items.map(visit));
 }
 
-export const textFont = (text: ShapeLabel) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "cursive" : text.fontFamily === "serif" ? "Georgia, serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : "'DM Sans', sans-serif"}`;
+export const textFont = (text: Pick<TextElement, "italic" | "bold" | "fontSize" | "fontFamily">) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "cursive" : text.fontFamily === "serif" ? "Georgia, serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : "'DM Sans', sans-serif"}`;
 export function labelBox(shape: ShapeElement) {
   // Keep ordinary shape-label padding in canvas units so resizing the shape
   // does not make its text margins grow. Tapered symbols retain extra clearance.

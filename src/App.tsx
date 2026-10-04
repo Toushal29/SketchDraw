@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getVersion } from "@tauri-apps/api/app";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 import "./styles/platform-responsive.css";
@@ -13,11 +13,15 @@ import "./platform/mobile/overrides.css";
 import "./platform/mobile/mobile.css";
 import "./platform/windows/windows.css";
 import "./styles/app-settings.css";
+import "./platform/mobile/ui-refresh.css";
+import "./platform/mobile/home.css";
+import "./platform/mobile/touch-bars.css";
+import "./platform/mobile/touch-style.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
 import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, LayerFlags, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
-import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, anchorPoint, nearestBinding, validReferences, textLayout, labelBox, textFont, extraFlowchartPath } from "./operations";
+import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, isConnectable, BOX_ANCHORS, anchorPoint, nearestBinding, validReferences, textLayout, textElementBox, labelBox, textFont, extraFlowchartPath } from "./operations";
 import type { NoteKind } from "./model";
 import { buildLibraryComponent, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, toggleChecklistContent, type LibraryComponentKind } from "./notes";
 import { parseSchema } from "./schema";
@@ -25,6 +29,11 @@ import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
 import { MermaidPreview } from "./MermaidPreview";
 import { GestureSettings, TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, readTouchGestureAction, readTouchTapAction, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./platform/mobile/GestureSettings";
 import { TouchPageMenu } from "./platform/mobile/TouchPageMenu";
+import { TouchFocusTools } from "./platform/mobile/TouchFocusTools";
+import { TouchMenuBar } from "./platform/mobile/TouchMenuBar";
+import { TouchToolBar } from "./platform/mobile/TouchToolBar";
+import { TouchStylePanel } from "./platform/mobile/TouchStylePanel";
+import { MobileHomeScreen } from "./platform/mobile/MobileHomeScreen";
 import { DesktopPageTabs } from "./platform/windows/DesktopPageTabs";
 import { CanvasOptionsMenu } from "./components/CanvasOptionsMenu";
 import { AppSettingsMenu, type DisplayMetrics } from "./components/AppSettingsMenu";
@@ -33,7 +42,7 @@ import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/Proper
 type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
 type TouchGesture = { fingerCount: 2 | 3; action: TouchGestureAction; initialDistance: number; initialZoom: number; initialPanX: number; initialPanY: number; initialMidpoint: Point; worldAnchor: Point };
 type TouchTapTracker = { startedAt: number; starts: Map<number, Point>; maxFingers: number; canceled: boolean; initialEvent: PointerEvent; deferredInteractionStarted?: boolean };
-type WhiteboardStyle = "plain" | "dots" | "lines";
+type WhiteboardStyle = "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric";
 const readDisplayMetrics = (): DisplayMetrics => {
   const ratio = window.devicePixelRatio || 1;
   return { physicalWidth: Math.round(window.screen.width * ratio), physicalHeight: Math.round(window.screen.height * ratio), viewportWidth: window.innerWidth, viewportHeight: window.innerHeight };
@@ -55,6 +64,7 @@ function compareReleaseVersions(left: string, right: string): number {
 }
 
 const GRID_SIZE = 24;
+const TOUCH_DRAG_THRESHOLD = 8;
 const stylusStrokeWidth = (point: StrokePoint, thickness: number) => thickness * (point.pressure === undefined ? 1 : .2 + Math.max(0, Math.min(1, point.pressure)) * 1.6) * (1 + Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) * .28);
 const BOARD_COLORS = ["#ffffff", "#fffdf7", "#f4f7fb", "#fbf2ed", "#f1f5ed", "#f3f0fa"];
 const UI_ACCENTS = [
@@ -70,7 +80,7 @@ const BOARD_COLOR_NAMES: Record<string, string> = { "#ffffff": "White", "#fffdf7
 const readPreference = (key: string, fallback: string) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const readWhiteboardStyle = (): WhiteboardStyle => {
   const stored = readPreference("sketchdraw-whiteboard-style", "dots");
-  return stored === "plain" || stored === "lines" || stored === "dots" ? stored : "dots";
+  return stored === "plain" || stored === "lines" || stored === "dots" || stored === "small-dots" || stored === "ruled" || stored === "small-grid" || stored === "isometric" ? stored : "dots";
 };
 const FILL_SWATCHES = ["#f4a6a0", "#ffd166", "#b7e4c7", "#a8dadc", "#a0c4ff", "#cdb4db"];
 const FLOWCHART_SHAPES: { value: FlowchartShape; label: string; path: string }[] = [
@@ -584,12 +594,7 @@ function elementBounds(element: Element): Bounds {
   if (element.type === "image") return cacheBounds(element, rotatedBounds({ x: element.x, y: element.y, w: element.w, h: element.h }, element.rotation ?? 0));
   if (element.type === "schemaTable") return cacheBounds(element, rotatedBounds({ x: element.x, y: element.y, w: element.w, h: element.h }, element.rotation ?? 0));
   if (element.type === "text") {
-    const lines = element.text.split(/\r?\n/).map((line, index) => element.listType === "bullet" ? "• " + line : element.listType === "number" ? `${index + 1}. ${line}` : line);
-    textMeasureContext ??= document.createElement("canvas").getContext("2d");
-    if (textMeasureContext) textMeasureContext.font = `${element.italic ? "italic " : ""}${element.bold ? "700 " : "400 "}${element.fontSize}px ${fontCss(element.fontFamily)}`;
-    const width = Math.max(element.fontSize * .5, ...lines.map(line => textMeasureContext?.measureText(line).width ?? line.length * element.fontSize * .6));
-    const x = element.textAlign === "center" ? element.x - width / 2 : element.textAlign === "right" ? element.x - width : element.x;
-    return cacheBounds(element, rotatedBounds({ x, y: element.y, w: width, h: lines.length * element.fontSize * 1.25 }, element.rotation ?? 0));
+    return cacheBounds(element, rotatedBounds(textElementBox(element), element.rotation ?? 0));
   }
   if (element.type === "freehand") {
     return cacheBounds(element, rotatedBounds(boundsOfPoints(element.points, element.thickness / 2), element.rotation ?? 0));
@@ -680,7 +685,7 @@ function App() {
   const [layerPanelOpen, setLayerPanelOpen] = createSignal(false);
   const [classCardDraft, setClassCardDraft] = createSignal<{ x: number; y: number; name: string; attributes: string; methods: string; fontSize: number; componentId?: string }>();
   const [styleMenuMode, setStyleMenuMode] = createSignal<"quick" | "full">("quick");
-  const [quickStylePopover, setQuickStylePopover] = createSignal<"color" | "thickness" | "fill" | "route" | "lineStyle" | "heads" | "penInput" | "laser">();
+  const [quickStylePopover, setQuickStylePopover] = createSignal<"color" | "thickness" | "fill" | "route" | "lineStyle" | "heads" | "penInput" | "laser" | "brushes">();
   const [autosaveSeconds, setAutosaveSeconds] = createSignal<5 | 10>(readPreference("sketchdraw-autosave-seconds", "10") === "5" ? 5 : 10);
   const [interfaceScale, setInterfaceScale] = createSignal((() => { const value = Number(readPreference("sketchdraw-interface-scale", "1")); return [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4].includes(value) ? value : 1; })());
   const [reduceMotion, setReduceMotion] = createSignal(readPreference("sketchdraw-reduce-motion", "false") === "true");
@@ -701,8 +706,10 @@ function App() {
   const [defaultListType, setDefaultListType] = createSignal<"none" | "bullet" | "number">("none");
   const [showAdvancedThickness, setShowAdvancedThickness] = createSignal(false);
   const [toolBarOpen, setToolBarOpen] = createSignal(true);
+  const [touchFocusMode, setTouchFocusMode] = createSignal(false);
   const [mobileToolsExpanded, setMobileToolsExpanded] = createSignal(false);
   const [mobileQuickPropertiesOpen, setMobileQuickPropertiesOpen] = createSignal(false);
+  const [touchStylePanel, setTouchStylePanel] = createSignal(false);
   const [gestureMenuSection, setGestureMenuSection] = createSignal<"taps" | "gestures">("taps");
   const [oneFingerTapAction, setOneFingerTapAction] = createSignal<TouchTapAction>(readTouchTapAction("sketchdraw-one-finger-tap", "none"));
   const [twoFingerTapAction, setTwoFingerTapAction] = createSignal<TouchTapAction>(readTouchTapAction("sketchdraw-two-finger-tap", "undo"));
@@ -724,6 +731,10 @@ function App() {
   const [noteEditor, setNoteEditor] = createSignal<{ x: number; y: number; width: number; height: number; fontSize: number; kind: NoteKind; content: string; title: string; resized?: boolean; editingIndex?: number }>();
   const [noteEditorSession, setNoteEditorSession] = createSignal(0);
   let noteEditorTextarea: HTMLTextAreaElement | undefined;
+  let textEditorElement: HTMLDivElement | undefined;
+  let textEditorPendingPointerId: number | undefined;
+  let textEditorFocusTimer: number | undefined;
+  let textEditorFocusOnCanvasClick = false;
   let resizingNoteEditor = false;
   const [schemaDialog, setSchemaDialog] = createSignal(false);
   const [schemaInput, setSchemaInput] = createSignal("");
@@ -768,6 +779,7 @@ function App() {
   let viewMenu!: HTMLDetailsElement;
   let gestureMenu!: HTMLDetailsElement;
   let helpMenu!: HTMLDetailsElement;
+  let appSettingsMenu!: HTMLDetailsElement;
   let drawing = false;
   let activeDrawingTool: Preview["type"] = "pen";
   let currentPoints: StrokePoint[] = [];
@@ -778,8 +790,12 @@ function App() {
   let lastSavedRaw: string | undefined;
   let panOrigin: { x: number; y: number; panX: number; panY: number } | undefined;
   const touchPointers = new Map<number, Point>();
+  const ignoredTouchPointers = new Set<number>();
+  let activePenPointerId: number | undefined;
   let touchGesture: TouchGesture | undefined;
   let touchTapTracker: TouchTapTracker | undefined;
+  let focusModeWasFullscreen: boolean | undefined;
+  let focusModeUsedDocumentFullscreen = false;
   let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean } | undefined;
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number } | undefined;
   let resizeOrigin: { index: number; handle: string; start: Point; original: Element; before: Element[]; moved: boolean } | undefined;
@@ -963,9 +979,10 @@ function App() {
       return { ...item, [key]: { ...(item[key] ?? {}), end, endBinding: undefined } };
     });
   }
-  function editShapeLabel(index: number) {
+  function editShapeLabel(index: number, pointerId?: number) {
     const shape = elements()[index]; if (!shape || !isLabelShape(shape) || shape.locked || boardLocked()) return;
     commitTextDraft(); setSelectedIndices([index]); setTool("select");
+    textEditorPendingPointerId = isWindowsPlatform() ? undefined : pointerId;
     const box = labelBox(shape); const label = shape.label;
     setTextDraft({ x: box.x, y: box.y, width: box.w, height: box.h, rotation: shape.rotation ?? 0, value: label?.text ?? "", editingIndex: index, shapeLabel: true, color: label?.color ?? color(), opacity: label?.opacity ?? 1, fontSize: label?.fontSize ?? defaultFontSize(), fontFamily: label?.fontFamily ?? defaultFontFamily(), bold: label?.bold ?? defaultBold(), italic: label?.italic ?? defaultItalic(), underline: label?.underline ?? defaultUnderline(), textAlign: label?.textAlign ?? "center", listType: label?.listType ?? "none", verticalAlign: label?.verticalAlign ?? "middle" });
   }
@@ -1026,6 +1043,7 @@ function App() {
     (tool() === "select" && !!focused && "thickness" in focused)
   ); };
   const quickElementType = () => tool() === "select" ? focusedElement()?.type ?? "select" : tool();
+  const quickShapeSelection = () => { const focused = focusedElement(); return focused && "thickness" in focused ? focused as ShapeElement : undefined; };
   const quickHasShapeFill = () => ["rectangle", "circle", "diamond", "triangle", "flowchart"].includes(quickElementType());
   const quickHasText = () => quickElementType() === "text" || !!(styleTargetElement() && (isLabelShape(styleTargetElement()!) || styleTargetElement()!.type === "schemaTable" || !!styleTargetElement()!.componentId));
   const selectedNoteCard = () => { const element = primarySelection() === undefined ? undefined : elements()[primarySelection()!]; return element?.type === "group" && element.note ? element : undefined; };
@@ -1198,6 +1216,9 @@ function App() {
   }
 
   function commitTextDraft() {
+    textEditorPendingPointerId = undefined;
+    textEditorFocusOnCanvasClick = false;
+    if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; }
     const draft = textDraft();
     if (draft?.shapeLabel && draft.editingIndex !== undefined) {
       const index = draft.editingIndex; const item = elements()[index];
@@ -1228,14 +1249,19 @@ function App() {
     setTextDraft(undefined);
   }
 
-  function startTextDraft(point: Point, editingIndex?: number) {
+  function startTextDraft(point: Point, editingIndex?: number, pointerId?: number) {
     if (textDraft()) commitTextDraft();
     const existing = editingIndex === undefined ? undefined : elements()[editingIndex];
     if (existing?.locked) return;
+    textEditorPendingPointerId = isWindowsPlatform() ? undefined : pointerId;
     setSelectedIndices(editingIndex === undefined ? [] : [editingIndex]);
     setTool("text");
     const text = existing?.type === "text" ? existing : undefined;
     setTextDraft({ x: text?.x ?? point.x, y: text?.y ?? point.y, value: text?.text ?? "", editingIndex, color: text?.color ?? color(), opacity: text?.opacity ?? 1, fontSize: text?.fontSize ?? defaultFontSize(), fontFamily: text?.fontFamily ?? defaultFontFamily(), bold: text?.bold ?? defaultBold(), italic: text?.italic ?? defaultItalic(), underline: text?.underline ?? defaultUnderline(), textAlign: text?.textAlign ?? defaultTextAlign(), listType: text?.listType ?? defaultListType() });
+  }
+
+  function focusTextEditor() {
+    if (textDraft() && textEditorElement?.isConnected) textEditorElement.focus();
   }
 
   function openNoteEditor(point: Point, kind: NoteKind, editingIndex?: number) {
@@ -1685,9 +1711,10 @@ function App() {
       const pressureAware = element.points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined);
       if (pressureAware) {
         const pointWidth = (point: StrokePoint) => stylusStrokeWidth(point, element.thickness);
+        ctx.fillStyle = renderedInk;
         const stamp = (point: StrokePoint) => {
           const tilt = Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90); const width = pointWidth(point);
-          ctx.save(); ctx.translate(point.x, point.y); ctx.rotate(Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0)); ctx.beginPath(); ctx.ellipse(0, 0, Math.max(.25, width * (.5 + tilt * .35)), Math.max(.25, width * .5), 0, 0, Math.PI * 2); ctx.fillStyle = ctx.strokeStyle; ctx.fill(); ctx.restore();
+          ctx.beginPath(); ctx.ellipse(point.x, point.y, Math.max(.25, width * (.5 + tilt * .35)), Math.max(.25, width * .5), Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0), 0, Math.PI * 2); ctx.fill();
         };
         ctx.lineCap = "round"; ctx.lineJoin = "round";
         if (element.points.length === 1) stamp(element.points[0]);
@@ -1758,18 +1785,44 @@ function App() {
     const style = whiteboardStyle();
     if (!showGrid() || style === "plain") return;
     const multiplier = Math.max(1, 2 ** Math.max(0, Math.ceil(Math.log2(0.65 / state.zoom))));
-    const step = GRID_SIZE * multiplier; const left = -state.panX / state.zoom; const top = -state.panY / state.zoom;
+    const baseStep = style === "small-dots" || style === "small-grid" ? 12 : style === "ruled" ? 30 : GRID_SIZE;
+    const step = baseStep * multiplier; const left = -state.panX / state.zoom; const top = -state.panY / state.zoom;
     const right = (width - state.panX) / state.zoom; const bottom = (height - state.panY) / state.zoom;
     const hex = renderedBoardColor().replace("#", ""); const rgb = Number.parseInt(hex.length === 3 ? hex.split("").map((part) => part + part).join("") : hex, 16); const luminance = (0.2126 * ((rgb >> 16) & 255)) + (0.7152 * ((rgb >> 8) & 255)) + (0.0722 * (rgb & 255));
     ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
     const startX = Math.floor(left / step) * step; const startY = Math.floor(top / step) * step;
-    if (style === "lines") {
-      ctx.strokeStyle = luminance < 130 ? "#353a45" : "#e4e5e2"; ctx.lineWidth = 0.75 / state.zoom; ctx.beginPath();
+    ctx.strokeStyle = luminance < 130 ? "#353a45" : "#e4e5e2"; ctx.lineWidth = 0.75 / state.zoom; ctx.beginPath();
+    if (style === "lines" || style === "small-grid") {
       for (let x = startX; x <= right; x += step) { ctx.moveTo(x, top); ctx.lineTo(x, bottom); }
       for (let y = startY; y <= bottom; y += step) { ctx.moveTo(left, y); ctx.lineTo(right, y); }
       ctx.stroke();
+    } else if (style === "ruled") {
+      for (let y = startY; y <= bottom; y += step) { ctx.moveTo(left, y); ctx.lineTo(right, y); }
+      ctx.stroke();
+    } else if (style === "isometric") {
+      // Index both axes from the document origin so this pattern shares the fixed GRID_SIZE snap origin.
+      const rowStep = step * Math.sqrt(3) / 2;
+      const firstRow = Math.floor(top / rowStep) - 1;
+      const lastRow = Math.ceil(bottom / rowStep) + 1;
+      const firstX = left - step;
+      const lastX = right + step;
+      for (let row = firstRow; row <= lastRow; row++) {
+        const y = row * rowStep;
+        const phase = Math.abs(row % 2) === 1 ? step / 2 : 0;
+        const firstColumn = Math.floor((firstX - phase) / step);
+        const lastColumn = Math.ceil((lastX - phase) / step);
+        for (let column = firstColumn; column <= lastColumn; column++) {
+          const x = column * step + phase;
+          ctx.moveTo(x, y); ctx.lineTo(x + step, y);
+          if (row < lastRow) {
+            ctx.moveTo(x, y); ctx.lineTo(x - step / 2, y + rowStep);
+            ctx.moveTo(x, y); ctx.lineTo(x + step / 2, y + rowStep);
+          }
+        }
+      }
+      ctx.stroke();
     } else {
-      ctx.fillStyle = luminance < 130 ? "#414653" : "#deddd6"; const radius = 0.85 / state.zoom;
+      ctx.fillStyle = luminance < 130 ? "#414653" : "#deddd6"; const radius = (style === "small-dots" ? 0.65 : 0.85) / state.zoom;
       for (let x = startX; x <= right; x += step) for (let y = startY; y <= bottom; y += step) { ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill(); }
     }
     ctx.restore();
@@ -1848,8 +1901,12 @@ function App() {
       }
     });
     if (includeSelection && (tool() === "arrow" || tool() === "line" || resizeOrigin && isConnector(resizeOrigin.original))) {
-      const ports = (items: Element[]) => { for (const item of items) { if (item.hidden || item.locked) continue; if (item.type === "group") { ports(item.elements); continue; } if (!isLabelShape(item)) continue;
-        for (const anchor of [{ x: .5, y: 0 }, { x: 1, y: .5 }, { x: .5, y: 1 }, { x: 0, y: .5 }]) { const point = anchorPoint(item, anchor); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
+      const ports = (items: Element[]) => { for (const item of items) { if (item.hidden || item.locked) continue; if (item.type === "group") { ports(item.elements); continue; } if (!isConnectable(item)) continue;
+        const anchors: { anchor: Point; rowId?: string }[] = [
+          ...BOX_ANCHORS.map(anchor => ({ anchor })),
+          ...(item.type === "schemaTable" ? item.columns.flatMap(column => [{ anchor: { x: 0, y: .5 }, rowId: column.id }, { anchor: { x: 1, y: .5 }, rowId: column.id }]) : []),
+        ];
+        for (const { anchor, rowId } of anchors) { const point = anchorPoint(item, anchor, rowId); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
       } }; ctx.save(); ctx.fillStyle = "#5d94e7"; ctx.globalAlpha = .7; ports(elements()); const hint = attachmentHint(); if (hint) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(hint.x, hint.y, 8 / state.zoom, 0, Math.PI * 2); ctx.strokeStyle = "#2675f5"; ctx.lineWidth = 2 / state.zoom; ctx.stroke(); } ctx.restore();
     }
     const guides = alignmentGuides();
@@ -1868,7 +1925,7 @@ function App() {
     if (includeSelection && activePreview) {
       const { start, end, type, color: stroke, thickness: widthPx, opacity } = activePreview;
       if (type === "pen") { if (tool() === "laser") drawLaserStroke(ctx, currentPoints, 1, laserThickness() / state.zoom); else drawElement(ctx, { type: "freehand", points: currentPoints, color: stroke, thickness: widthPx, opacity }); }
-      else drawElement(ctx, { type, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: stroke, thickness: widthPx, flowchartShape: activePreview.flowchartShape, lineRoute: activePreview.lineRoute, arrowRoute: activePreview.arrowRoute, edgeStyle: edgeStyle(), cornerRadius: cornerRadius(), ...(fillEnabled() && (type === "rectangle" || type === "circle" || type === "diamond" || type === "triangle" || type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(type === "line" ? { startHead: defaultLineStartHead(), endHead: defaultLineEndHead() } : {}), ...(type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead() } : {}) });
+      else drawElement(ctx, { type, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: stroke, thickness: widthPx, lineStyle: lineStyle(), flowchartShape: activePreview.flowchartShape, lineRoute: activePreview.lineRoute, arrowRoute: activePreview.arrowRoute, edgeStyle: edgeStyle(), cornerRadius: cornerRadius(), ...(fillEnabled() && (type === "rectangle" || type === "circle" || type === "diamond" || type === "triangle" || type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(type === "line" ? { startHead: defaultLineStartHead(), endHead: defaultLineEndHead() } : {}), ...(type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead(), ...(activePreview.arrowRoute === "forked" ? { forkUpper: { endHead: defaultForkUpperHead() }, forkLower: { endHead: defaultForkLowerHead() } } : {}) } : {}) });
     }
     ctx.restore();
     if (includeSelection && marquee()) {
@@ -1879,18 +1936,28 @@ function App() {
   }
 
   function renderCanvas() {
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1;
+    if (!activePath() || !canvas?.isConnected) return;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 8192 / rect.width, 8192 / rect.height, Math.sqrt(16_000_000 / (rect.width * rect.height)));
     if (canvas.width !== Math.round(rect.width * dpr) || canvas.height !== Math.round(rect.height * dpr)) { canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr); }
     const ctx = canvas.getContext("2d"); if (ctx) drawScene(ctx, rect.width, rect.height, dpr, true);
   }
 
-  createEffect(() => { elements(); canvasState(); preview(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); componentAppearance(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); renderCanvas(); });
+  let canvasFrame: number | undefined;
+  function scheduleCanvasRender() {
+    if (canvasFrame !== undefined) return;
+    canvasFrame = requestAnimationFrame(() => { canvasFrame = undefined; renderCanvas(); });
+  }
+  onCleanup(() => { if (canvasFrame !== undefined) cancelAnimationFrame(canvasFrame); });
+  createEffect(() => { activePath(); elements(); canvasState(); preview(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); componentAppearance(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
   createEffect(() => { const session = noteEditorSession(); if (!session) return; requestAnimationFrame(() => { if (noteEditorTextarea?.isConnected) noteEditorTextarea.focus(); }); });
   createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); componentAppearance(); boardColor(); whiteboardStyle(); renderExportPreview(); });
   createEffect(() => {
     if (!activePath() || !canvas) return;
-    const resize = new ResizeObserver(renderCanvas); resize.observe(canvas);
+    const resize = new ResizeObserver(scheduleCanvasRender); resize.observe(canvas);
+    window.addEventListener("resize", scheduleCanvasRender);
+    window.visualViewport?.addEventListener("resize", scheduleCanvasRender);
     const wheel = (event: WheelEvent) => {
       event.preventDefault(); const bounds = canvas.getBoundingClientRect(); const px = event.clientX - bounds.left; const py = event.clientY - bounds.top;
       const old = canvasState(); const nextZoom = Math.max(0.02, Math.min(8, old.zoom * Math.exp(-event.deltaY * 0.001)));
@@ -1898,7 +1965,7 @@ function App() {
       setCanvasState({ zoom: nextZoom, panX: px - worldX * nextZoom, panY: py - worldY * nextZoom, backgroundColor: old.backgroundColor }); setDirty(true);
     };
     canvas.addEventListener("wheel", wheel, { passive: false });
-    onCleanup(() => { resize.disconnect(); canvas.removeEventListener("wheel", wheel); });
+    onCleanup(() => { resize.disconnect(); canvas.removeEventListener("wheel", wheel); window.removeEventListener("resize", scheduleCanvasRender); window.visualViewport?.removeEventListener("resize", scheduleCanvasRender); });
   });
   createEffect(() => {
     const items = elements();
@@ -1906,7 +1973,7 @@ function App() {
     const visit = (children: Element[]) => { for (const child of children) { if (child.type === "image") retained.add(child.dataUrl); else if (child.type === "group") visit(child.elements); } };
     visit(items);
     for (const key of imageCache.keys()) if (!retained.has(key)) imageCache.delete(key);
-    for (const key of retained) if (!imageCache.has(key)) { const image = new Image(); image.onload = () => { if (imageCache.get(key) === image) renderCanvas(); }; image.src = key; imageCache.set(key, image); }
+    for (const key of retained) if (!imageCache.has(key)) { const image = new Image(); image.onload = () => { if (imageCache.get(key) === image) scheduleCanvasRender(); }; image.src = key; imageCache.set(key, image); }
   });
   createEffect(() => {
     if (!activePath() || !canvasWrap) return;
@@ -1941,7 +2008,8 @@ function App() {
     }).catch((cause) => setError(`Could not check for a SketchDraw file to open: ${String(cause)}`));
     const keyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (noteEditor()) { event.preventDefault(); saveNoteEditor(); return; }
+        if (touchFocusMode()) { event.preventDefault(); void toggleTouchFocusMode(false); return; }
+        if (noteEditor()) { event.preventDefault(); saveNoteEditor(); if (isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } return; }
         if (schemaDialog()) { event.preventDefault(); setSchemaDialog(false); return; }
         if (mermaidDialog()) { event.preventDefault(); setMermaidDialog(false); return; }
         if (pageDialog()) { event.preventDefault(); setPageDialog(undefined); return; }
@@ -1955,7 +2023,7 @@ function App() {
         if (exportOptionsOpen()) { event.preventDefault(); setExportOptionsOpen(false); return; }
         if (recoveryPrompt() || syncConflict()) return;
         if (textDraft()) commitTextDraft();
-        event.preventDefault(); setTool("select"); setSelectedIndices([]); setHoveredIndex(undefined); setMarquee(undefined); marqueeOrigin = undefined; resizeOrigin = undefined; moveOrigin = undefined; setPreview(undefined); drawing = false; setSpaceDown(false); setIsPanning(false); panOrigin = undefined;
+        event.preventDefault(); setTool(isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform()) setStyleMenuMode("quick"); setTouchStylePanel(false); setQuickStylePopover(undefined); setSelectedIndices([]); setHoveredIndex(undefined); setMarquee(undefined); marqueeOrigin = undefined; resizeOrigin = undefined; moveOrigin = undefined; setPreview(undefined); drawing = false; setSpaceDown(false); setIsPanning(false); panOrigin = undefined;
         if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; return;
       }
       if (event.key === "F1") { event.preventDefault(); setHelpOpen(true); return; }
@@ -1982,7 +2050,7 @@ function App() {
       if (key === "g") { setShowGrid((visible) => !visible); return; }
       if (key === "k") { setBoardLocked((locked) => !locked); return; }
       if (key === "0") { resetZoomAndCenter(); return; }
-      if (key === "v") setTool("select"); else if (key === "p") activateTool("pen"); else if (key === "y") activateTool("laser"); else if (key === "r") activateTool("rectangle"); else if (key === "c" || key === "o") activateTool("circle"); else if (key === "d") activateTool("diamond"); else if (key === "n") activateTool("triangle"); else if (key === "l") activateTool("line"); else if (key === "a") activateTool("arrow"); else if (key === "f") activateTool("flowchart"); else if (key === "t") activateTool("text"); else if (key === "b") activateTool("bucket"); else if (key === "e") activateTool("eraser"); else if (key === "x") activateTool("crop");
+      if (key === "v") activateTool("select"); else if (key === "p") activateTool("pen"); else if (key === "y") activateTool("laser"); else if (key === "r") activateTool("rectangle"); else if (key === "c" || key === "o") activateTool("circle"); else if (key === "d") activateTool("diamond"); else if (key === "n") activateTool("triangle"); else if (key === "l") activateTool("line"); else if (key === "a") activateTool("arrow"); else if (key === "f") activateTool("flowchart"); else if (key === "t") activateTool("text"); else if (key === "b") activateTool("bucket"); else if (key === "e") activateTool("eraser"); else if (key === "x") activateTool("crop");
       else if (key === "delete" || key === "backspace") { event.preventDefault(); deleteSelected(); }
     };
     const clipboardAllowed = (target: EventTarget | null) => activePath() && !pageDialog() && !schemaDialog() && !mermaidDialog() && !exportOptionsOpen() && !showClearConfirm() && !recoveryPrompt() && !syncConflict() && !noteEditor() && !(target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea")));
@@ -1992,9 +2060,13 @@ function App() {
     document.addEventListener("copy", copy); document.addEventListener("paste", paste); document.addEventListener("cut", cut);
     onCleanup(() => { document.removeEventListener("copy", copy); document.removeEventListener("paste", paste); document.removeEventListener("cut", cut); });
     const keyUp = (event: KeyboardEvent) => { if (event.code === "Space") setSpaceDown(false); };
-    const blur = () => { setSpaceDown(false); setIsPanning(false); panOrigin = undefined; };
+    const blur = () => {
+      setSpaceDown(false);
+      activePenPointerId = undefined; ignoredTouchPointers.clear(); touchPointers.clear(); touchGesture = undefined; touchTapTracker = undefined;
+      cancelCanvasInteraction();
+    };
     const updateDisplayMetrics = () => setDisplayMetrics(readDisplayMetrics());
-    const outsideClick = (event: PointerEvent) => { document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => { if (!detail.contains(event.target as Node)) detail.open = false; }); if (!(event.target instanceof HTMLElement && event.target.closest(".tool-family"))) { closeToolOptions(); setStencilMenuOpen(false); } if (!(event.target instanceof HTMLElement && event.target.closest(".paint-brush-family"))) setPaintBrushMenuOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-options-family"))) setCanvasOptionsOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".quick-style-panel"))) setQuickStylePopover(undefined); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-context-menu"))) setContextMenu(undefined); if (textDraft() && event.target instanceof HTMLElement && !event.target.closest(".canvas-text-editor, .style-pane, .drawing-canvas")) commitTextDraft(); if (menu?.open && !menu.contains(event.target as Node)) menu.open = false; if (viewMenu?.open && !viewMenu.contains(event.target as Node)) viewMenu.open = false; if (gestureMenu?.open && !gestureMenu.contains(event.target as Node)) gestureMenu.open = false; };
+    const outsideClick = (event: PointerEvent) => { document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => { if (!detail.contains(event.target as Node)) detail.open = false; }); if (!(event.target instanceof HTMLElement && event.target.closest(".tool-family"))) { closeToolOptions(); setStencilMenuOpen(false); } if (!(event.target instanceof HTMLElement && event.target.closest(".paint-brush-family"))) setPaintBrushMenuOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-options-family"))) setCanvasOptionsOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".quick-style-panel"))) setQuickStylePopover(undefined); if (!(event.target instanceof HTMLElement && event.target.closest(".touch-style-panel, .touch-style-open"))) setTouchStylePanel(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-context-menu"))) setContextMenu(undefined); if (textDraft() && event.target instanceof Element && !event.target.closest(".canvas-text-editor, .style-pane, .drawing-canvas")) commitTextDraft(); if (menu?.open && !menu.contains(event.target as Node)) menu.open = false; if (viewMenu?.open && !viewMenu.contains(event.target as Node)) viewMenu.open = false; if (gestureMenu?.open && !gestureMenu.contains(event.target as Node)) gestureMenu.open = false; };
     const closeMenuOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { setQuickStylePopover(undefined); if (menu?.open) menu.open = false; if (viewMenu?.open) viewMenu.open = false; if (gestureMenu?.open) gestureMenu.open = false; } };
     const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
     const updateSystemTheme = (event: MediaQueryListEvent) => setSystemDark(event.matches);
@@ -2024,7 +2096,7 @@ function App() {
         closeInProgress = false;
       }
     }).then((unlisten) => { unlistenClose = unlisten; }).catch((cause) => setError(`Could not prepare safe closing: ${String(cause)}`));
-    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("blur", blur); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", updateDisplayMetrics);
+    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("blur", blur); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", alignOpenTouchMenus); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", alignOpenTouchMenus); window.addEventListener("orientationchange", updateDisplayMetrics);
     document.addEventListener("pointerdown", outsideClick); document.addEventListener("keydown", closeMenuOnEscape);
     let autosaveTimer: number | undefined;
     const scheduleAutosave = () => {
@@ -2039,7 +2111,7 @@ function App() {
     };
     restartAutosave = () => { if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); scheduleAutosave(); };
     scheduleAutosave();
-    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("blur", blur); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
+    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("blur", blur); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", alignOpenTouchMenus); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", alignOpenTouchMenus); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
   });
 
   function setThemePreference(mode: ThemeMode) {
@@ -2116,7 +2188,7 @@ function App() {
     else if (action === "resetZoom") resetZoomAndCenter();
     else if (action === "layers") setLayerPanelOpen(open => !open);
     else if (action === "grid") setShowGrid(value => !value);
-    else if (action === "properties") toggleSidebar();
+    else if (action === "properties") { if (!isWindowsPlatform() && isCompactTouchLayout()) setTouchStylePanel(current => !current); else toggleSidebar(); }
     else if (action === "tools") setToolBarOpen(value => !value);
     else if (action === "clearSelection") { setSelectedIndices([]); setHoveredIndex(undefined); }
   }
@@ -2568,7 +2640,7 @@ function App() {
           }
           for (const child of element.elements) await drawItem(child); return;
         }
-        if (element.type === "image") { try { const embedded = await readImage(element); const cropX = element.cropX ?? 0; const cropY = element.cropY ?? 0; const cropW = element.cropW ?? element.sourceWidth ?? element.w; const cropH = element.cropH ?? element.sourceHeight ?? element.h; void cropX; void cropY; void cropW; void cropH; const centerX=x0+(element.x+element.w/2)*scale,centerY=paperH-(bleed+margin+(element.y+element.h/2-bounds.y)*scale),rotated=!!element.rotation;if(rotated)page.pushOperators(pushGraphicsState(),translate(centerX,centerY),rotateDegrees(-(element.rotation??0)),translate(-centerX,-centerY));page.drawImage(embedded, { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y - bounds.y + element.h) * scale), width: element.w * scale, height: element.h * scale, opacity: element.opacity ?? 1 });if(rotated)page.pushOperators(popGraphicsState()); } catch { /* Keep other vector content even if an embedded image cannot be decoded. */ } return; }
+        if (element.type === "image") { try { const embedded = await readImage(element); const centerX=x0+(element.x+element.w/2)*scale,centerY=paperH-(bleed+margin+(element.y+element.h/2-bounds.y)*scale),rotated=!!element.rotation;if(rotated)page.pushOperators(pushGraphicsState(),translate(centerX,centerY),rotateDegrees(-(element.rotation??0)),translate(-centerX,-centerY));page.drawImage(embedded, { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y - bounds.y + element.h) * scale), width: element.w * scale, height: element.h * scale, opacity: element.opacity ?? 1 });if(rotated)page.pushOperators(popGraphicsState()); } catch { /* Keep other vector content even if an embedded image cannot be decoded. */ } return; }
         if (element.type === "text") { const lines = element.text.split(/\r?\n/).map((line,index)=>element.listType==="bullet"?`• ${line}`:element.listType==="number"?`${index+1}. ${line}`:line); const textBox=elementBounds(element); const center={x:textBox.x+textBox.w/2,y:textBox.y+textBox.h/2}; lines.forEach((line, index) => drawText(line, element.x, element.y + index * element.fontSize * 1.25, element.color, element.fontSize, element.fontFamily, !!element.bold, !!element.italic, element.opacity ?? 1, element.rotation ?? 0, center, element.textAlign)); if (element.underline) { const font = element.fontFamily === "mono" ? fontMono : element.fontFamily === "serif" ? fontSerif : element.fontFamily === "hand" || element.italic ? fontItalic : element.bold ? fontBold : fontRegular; const width = font.widthOfTextAtSize(lines[0] ?? "", element.fontSize) * scale; page.drawLine({ start: { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, end: { x: x0 + element.x * scale + width, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, thickness: Math.max(.5, scale), color: pdfColor(themeInk(element.color, theme()), pdfColorMode()) }); } return; }
         if (element.type === "schemaTable") {
           const dark = theme() === "dark"; const simple = componentAppearance() === "simple"; const fontSize = element.fontSize ?? 14; const headerHeight = Math.max(42, fontSize * 2.8); const rowHeight = Math.max(30, fontSize * 1.8); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const border = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const heading = simple ? surface : dark ? "#30465b" : "#e8f0f7"; const ink = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e"); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
@@ -2666,7 +2738,6 @@ function App() {
       const padding = exportScope() === "viewport" ? 0 : 24;
       const bounds = { x: rawBounds.x - padding, y: rawBounds.y - padding, w: Math.max(1, rawBounds.w + padding * 2), h: Math.max(1, rawBounds.h + padding * 2) };
       const exportViewFor = (width: number, height: number) => { const zoom = Math.min(width / bounds.w, height / bounds.h); return { ...view, zoom, panX: (width - bounds.w * zoom) / 2 - bounds.x * zoom, panY: (height - bounds.h * zoom) / 2 - bounds.y * zoom }; };
-      const exportViewForPage = (items: Element[], width: number, height: number, pageView: CanvasState) => { const pageBounds = unionBounds(items.map(elementBounds)) ?? { x: 0, y: 0, w: 800, h: 600 }; const pagePadding = 24; const content = { x: pageBounds.x - pagePadding, y: pageBounds.y - pagePadding, w: Math.max(1, pageBounds.w + pagePadding * 2), h: Math.max(1, pageBounds.h + pagePadding * 2) }; const zoom = Math.min(width / content.w, height / content.h); return { ...pageView, zoom, panX: (width - content.w * zoom) / 2 - content.x * zoom, panY: (height - content.h * zoom) / 2 - content.y * zoom }; };
       const path = await save({ title: `Export SketchDraw as ${format.toUpperCase()}`, defaultPath: `SketchDraw.${format}`, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
       if (!path) return;
       const target = path.toLowerCase().endsWith(`.${format}`) ? path : `${path}.${format}`;
@@ -2679,6 +2750,7 @@ function App() {
         if (pdfLayout() === "fit") {
           const scenes = pdfPageSet() === "current" ? [{ items: exportItems, view }] : selectedPdfPages().map(page => ({ items: cloneElements(page.elements).filter(item => !item.hidden), view: page.canvasState }));
           await writeFile(target, await makeVectorPdf(scenes, { widthPt: metrics.page.widthPt, heightPt: metrics.page.heightPt }, metrics.marginMm));
+          setError("");
           return;
         }
         const marginPt = metrics.marginMm * 72 / 25.4;
@@ -2691,27 +2763,16 @@ function App() {
           return new Uint8Array(await blob.arrayBuffer());
         };
         const rasterPages: PdfRasterPage[] = [];
-        if (pdfLayout() === "fit") {
-          const scenes = pdfPageSet() !== "current" ? selectedPdfPages().map(page => ({ items: cloneElements(page.elements).filter(item => !item.hidden), view: page.canvasState })) : [{ items: exportItems, view }];
-          for (const scene of scenes) {
-            const output = document.createElement("canvas"); output.width = metrics.innerWidthPx; output.height = metrics.innerHeightPx;
-            const ctx = output.getContext("2d"); if (!ctx) throw new Error("Could not create a PDF page image.");
-            const pageView = pdfPageSet() !== "current" ? exportViewForPage(scene.items, output.width, output.height, scene.view) : exportViewFor(output.width, output.height);
-            drawScene(ctx, output.width, output.height, 1, false, false, pageView, scene.items, exportGrid());
-            rasterPages.push({ jpeg: await toJpeg(output), imageWidth: output.width, imageHeight: output.height, pageWidth: metrics.page.widthPt, pageHeight: metrics.page.heightPt, x: marginPt, y: marginPt, drawWidth: output.width * 72 / metrics.dpi, drawHeight: output.height * 72 / metrics.dpi, bleedPt: pdfBleedMm() * 72 / 25.4, grayscale: pdfColorMode() === "grayscale" });
-          }
-        } else {
-          const source = document.createElement("canvas"); source.width = Math.floor(exportWidth()); source.height = Math.floor(exportHeight());
-          const sourceCtx = source.getContext("2d"); if (!sourceCtx) throw new Error("Could not create the tiled PDF source image.");
-          drawScene(sourceCtx, source.width, source.height, 1, false, false, exportViewFor(source.width, source.height), exportItems, exportGrid());
-          const xs = pageOffsets(source.width, metrics.innerWidthPx, metrics.stepX); const ys = pageOffsets(source.height, metrics.innerHeightPx, metrics.stepY);
-          for (const y of ys) for (const x of xs) {
-            const width = Math.min(metrics.innerWidthPx, source.width - x); const height = Math.min(metrics.innerHeightPx, source.height - y);
-            const tile = document.createElement("canvas"); tile.width = width; tile.height = height;
-            const tileCtx = tile.getContext("2d"); if (!tileCtx) throw new Error("Could not create a tiled PDF page.");
-            tileCtx.drawImage(source, x, y, width, height, 0, 0, width, height);
-            rasterPages.push({ jpeg: await toJpeg(tile), imageWidth: width, imageHeight: height, pageWidth: metrics.page.widthPt, pageHeight: metrics.page.heightPt, x: marginPt, y: marginPt, drawWidth: width * 72 / metrics.dpi, drawHeight: height * 72 / metrics.dpi, bleedPt: pdfBleedMm() * 72 / 25.4, grayscale: pdfColorMode() === "grayscale" });
-          }
+        const source = document.createElement("canvas"); source.width = Math.floor(exportWidth()); source.height = Math.floor(exportHeight());
+        const sourceCtx = source.getContext("2d"); if (!sourceCtx) throw new Error("Could not create the tiled PDF source image.");
+        drawScene(sourceCtx, source.width, source.height, 1, false, false, exportViewFor(source.width, source.height), exportItems, exportGrid());
+        const xs = pageOffsets(source.width, metrics.innerWidthPx, metrics.stepX); const ys = pageOffsets(source.height, metrics.innerHeightPx, metrics.stepY);
+        for (const y of ys) for (const x of xs) {
+          const width = Math.min(metrics.innerWidthPx, source.width - x); const height = Math.min(metrics.innerHeightPx, source.height - y);
+          const tile = document.createElement("canvas"); tile.width = width; tile.height = height;
+          const tileCtx = tile.getContext("2d"); if (!tileCtx) throw new Error("Could not create a tiled PDF page.");
+          tileCtx.drawImage(source, x, y, width, height, 0, 0, width, height);
+          rasterPages.push({ jpeg: await toJpeg(tile), imageWidth: width, imageHeight: height, pageWidth: metrics.page.widthPt, pageHeight: metrics.page.heightPt, x: marginPt, y: marginPt, drawWidth: width * 72 / metrics.dpi, drawHeight: height * 72 / metrics.dpi, bleedPt: pdfBleedMm() * 72 / 25.4, grayscale: pdfColorMode() === "grayscale" });
         }
         await writeFile(target, imagePdfPages(rasterPages));
       } else if (format === "png") {
@@ -2725,9 +2786,11 @@ function App() {
       } else {
         const state = exportViewFor(exportWidth(), exportHeight());
         const shapes = exportItems.map(elementToSvg).join("\n");
-        const pattern = whiteboardStyle(); const svgGridColor = theme() === "dark" ? "#414653" : "#deddd6"; const gridStep = GRID_SIZE * state.zoom;
-        const gridMark = pattern === "lines" ? `<path d="M ${gridStep} 0 H 0 V ${gridStep}" fill="none" stroke="${svgGridColor}" stroke-width="0.65"/>` : `<circle cx="1" cy="1" r="0.85" fill="${svgGridColor}"/>`;
-        const grid = exportGrid() && showGrid() && pattern !== "plain" && !exportTransparent() ? `<pattern id="grid" width="${gridStep}" height="${gridStep}" patternUnits="userSpaceOnUse" x="${state.panX}" y="${state.panY}">${gridMark}</pattern><rect width="100%" height="100%" fill="url(#grid)"/>` : "";
+        const pattern = whiteboardStyle(); const svgGridColor = theme() === "dark" ? "#414653" : "#deddd6"; const patternBase = pattern === "small-dots" || pattern === "small-grid" ? 12 : pattern === "ruled" ? 30 : GRID_SIZE; const gridStep = patternBase * state.zoom;
+        const isoHeight = gridStep * Math.sqrt(3);
+        const gridMark = pattern === "lines" || pattern === "small-grid" ? `<path d="M ${gridStep} 0 H 0 V ${gridStep}" fill="none" stroke="${svgGridColor}" stroke-width="0.65"/>` : pattern === "ruled" ? `<path d="M 0 ${gridStep} H 8" fill="none" stroke="${svgGridColor}" stroke-width="0.65"/>` : pattern === "isometric" ? `<path d="M 0 0 H ${gridStep} M 0 ${isoHeight / 2} H ${gridStep} M 0 ${isoHeight} H ${gridStep} M 0 0 L ${gridStep} ${isoHeight} M 0 ${isoHeight} L ${gridStep} 0" fill="none" stroke="${svgGridColor}" stroke-width="0.65"/>` : `<circle cx="1" cy="1" r="${pattern === "small-dots" ? 0.65 : 0.85}" fill="${svgGridColor}"/>`;
+        const gridWidth = pattern === "ruled" ? 8 : gridStep; const gridHeight = pattern === "isometric" ? isoHeight : gridStep;
+        const grid = exportGrid() && showGrid() && pattern !== "plain" && !exportTransparent() ? `<pattern id="grid" width="${gridWidth}" height="${gridHeight}" patternUnits="userSpaceOnUse" x="${state.panX}" y="${state.panY}">${gridMark}</pattern><rect width="100%" height="100%" fill="url(#grid)"/>` : "";
         const svgBackground = renderedBoardColor();
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${exportWidth()}" height="${exportHeight()}" viewBox="0 0 ${exportWidth()} ${exportHeight()}">${exportTransparent() ? "" : `<rect width="100%" height="100%" fill="${svgBackground}"/>`}${grid}<g transform="translate(${state.panX} ${state.panY}) scale(${state.zoom})">${shapes}</g></svg>`;
         await writeTextFile(target, svg);
@@ -2886,13 +2949,7 @@ function App() {
       worldAnchor: { x: (midpoint.x - rect.left - state.panX) / state.zoom, y: (midpoint.y - rect.top - state.panY) / state.zoom },
     };
     event.preventDefault();
-    if (!continuingGesture) {
-      if (resizeOrigin) setElements(resizeOrigin.before);
-      if (moveOrigin) setElements(moveOrigin.before);
-      drawing = false; currentPoints = []; penEraserDrawing = false;
-      setPreview(undefined); setMarquee(undefined); setAttachmentHint(undefined); setAlignmentGuides(undefined);
-      resizeOrigin = undefined; moveOrigin = undefined; marqueeOrigin = undefined; panOrigin = undefined;
-    }
+    if (!continuingGesture) cancelCanvasInteraction();
     for (const pointerId of touchPointers.keys()) { try { canvas.setPointerCapture(pointerId); } catch { /* A pointer may have left the canvas. */ } }
     setIsPanning(action === "pan" || action === "panZoom");
     return true;
@@ -2921,11 +2978,11 @@ function App() {
     if (!activePath()) return;
     if (noteEditor()) saveNoteEditor();
     setContextMenu(undefined); penEraserDrawing = false;
-    if (textDraft()) { commitTextDraft(); if (tool() === "text") return; }
-    if (event.button === 1 || spaceDown() || tool() === "pan") {
+    const isPenEraser = penEraser() && event.pointerType === "pen" && (event.button === 5 || (event.buttons & 32) !== 0);
+    if (textDraft()) { commitTextDraft(); if (tool() === "text" && !isPenEraser) return; }
+    if (!isPenEraser && (event.button === 1 || spaceDown() || tool() === "pan")) {
       event.preventDefault(); setIsPanning(true); panOrigin = { x: event.clientX, y: event.clientY, panX: canvasState().panX, panY: canvasState().panY }; canvas.setPointerCapture(event.pointerId); return;
     }
-    const isPenEraser = penEraser() && event.pointerType === "pen" && (event.button === 5 || (event.buttons & 32) !== 0);
     if (event.button !== 0 && !isPenEraser) return;
     const point = toWorld(event);
     if (boardLocked()) return;
@@ -2965,7 +3022,6 @@ function App() {
       }
     }
     if (tool() === "text") {
-      if (textDraft()) { commitTextDraft(); return; }
       const activeTextMode = textMode();
       if (activeTextMode !== "text") {
         const hit = hitTest(point); const element = hit === undefined ? undefined : elements()[hit];
@@ -2973,7 +3029,7 @@ function App() {
         else openNoteEditor(point, activeTextMode);
         return;
       }
-      const hit = hitTest(point) ?? hitInterior(point); if (hit !== undefined && isLabelShape(elements()[hit])) editShapeLabel(hit); else startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined); return;
+      const hit = hitTest(point) ?? hitInterior(point); if (hit !== undefined && isLabelShape(elements()[hit])) editShapeLabel(hit, event.pointerId); else startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined, event.pointerId); return;
     }
     if (tool() === "bucket") { const hit = hitInterior(point); if (hit !== undefined) updatePropertyForIndex(hit, fillColor()); return; }
     if (tool() === "eraser") { eraseAtPoint(point); drawing = true; canvas.setPointerCapture(event.pointerId); return; }
@@ -3001,10 +3057,33 @@ function App() {
     try { canvas.setPointerCapture(event.pointerId); } catch { /* The pointer can be canceled before capture. */ }
   }
 
+  function cancelCanvasInteraction() {
+    if (resizeOrigin) setElements(resizeOrigin.before);
+    if (moveOrigin) setElements(moveOrigin.before);
+    drawing = false; currentPoints = []; penEraserDrawing = false;
+    setPreview(undefined); setMarquee(undefined); setAttachmentHint(undefined); setAlignmentGuides(undefined);
+    resizeOrigin = undefined; moveOrigin = undefined; marqueeOrigin = undefined; panOrigin = undefined;
+    setIsPanning(false);
+  }
+
   function pointerDown(event: PointerEvent) {
     if (!activePath()) return;
-    if (event.target === canvas && event.pointerType !== "mouse" && isCompactTouchLayout() &&
-      (canvasOptionsOpen() || !!openToolOptions() || stencilMenuOpen() || paintBrushMenuOpen() || !!quickStylePopover() || !!contextMenu() || !!document.querySelector("details[open]") || !!noteEditor() || !!textDraft())) {
+    if (event.pointerType === "touch" && activePenPointerId !== undefined && !drawing && !panOrigin && !resizeOrigin && !moveOrigin && !marqueeOrigin) activePenPointerId = undefined;
+    if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
+    if (event.pointerType === "pen") {
+      activePenPointerId = event.pointerId;
+      if (touchPointers.size) {
+        touchPointers.clear(); touchGesture = undefined; touchTapTracker = undefined;
+        cancelCanvasInteraction();
+      }
+    }
+    if (event.pointerType === "touch" && activePenPointerId !== undefined) {
+      ignoredTouchPointers.add(event.pointerId);
+      event.preventDefault();
+      return;
+    }
+    if (event.target === canvas && isCompactTouchLayout() && (event.pointerType !== "mouse" || !!touchStylePanel()) &&
+      (canvasOptionsOpen() || !!touchStylePanel() || !!openToolOptions() || stencilMenuOpen() || paintBrushMenuOpen() || !!quickStylePopover() || !!contextMenu() || !!document.querySelector("details[open]") || !!noteEditor() || !!textDraft())) {
       if (noteEditor()) saveNoteEditor();
       if (textDraft()) commitTextDraft();
       event.preventDefault();
@@ -3029,11 +3108,19 @@ function App() {
     beginCanvasInteraction(event);
   }
 
+  function appendStrokeSample(event: PointerEvent, point: Point) {
+    const previous = currentPoints[currentPoints.length - 1];
+    if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * canvasState().zoom < .3) return;
+    currentPoints.push(tool() === "pen" ? strokePointFromPointer(event, point) : point);
+  }
+
   function pointerMove(event: PointerEvent) {
+    if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
+    if (ignoredTouchPointers.has(event.pointerId) || event.pointerType === "touch" && !touchPointers.has(event.pointerId)) return;
     if (event.pointerType === "touch" && touchPointers.has(event.pointerId)) {
       touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       const start = touchTapTracker?.starts.get(event.pointerId);
-      if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 16 && touchTapTracker) {
+      if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > TOUCH_DRAG_THRESHOLD && touchTapTracker) {
         const tap = touchTapTracker;
         tap.canceled = true;
         if (tap.maxFingers === 1 && !tap.deferredInteractionStarted && (oneFingerTapAction() !== "none" || oneFingerDragAction() === "pan")) {
@@ -3077,7 +3164,13 @@ function App() {
     }
     if (penEraserDrawing || tool() === "eraser") { eraseAtPoint(toWorld(event)); return; }
     const raw = toWorld(event); const port = activeDrawingTool === "line" || activeDrawingTool === "arrow" ? nearestBinding(elements(), raw, 18 / canvasState().zoom) : undefined; setAttachmentHint(port?.point); const point = port?.point ?? (activeDrawingTool === "pen" ? raw : snap(raw));
-    if (activeDrawingTool === "pen") currentPoints.push(tool() === "pen" ? strokePointFromPointer(event, point) : point);
+    if (activeDrawingTool === "pen") {
+      if (event.pointerType === "pen") {
+        const bounds = canvas.getBoundingClientRect(); const state = canvasState();
+        for (const sample of event.getCoalescedEvents?.() ?? []) appendStrokeSample(sample, { x: (sample.clientX - bounds.left - state.panX) / state.zoom, y: (sample.clientY - bounds.top - state.panY) / state.zoom });
+      }
+      appendStrokeSample(event, point);
+    }
     setPreview((previous) => previous ? { ...previous, end: point } : undefined);
   }
 
@@ -3150,11 +3243,37 @@ function App() {
     const before = cloneElements(elements()); setElements((items) => items.filter((_, index) => index !== hit)); setSelectedIndices((indices) => indices.filter((index) => index !== hit).map((index) => index > hit ? index - 1 : index)); pushUndo(before); setDirty(true);
   }
 
+  function pointerCancel(event: PointerEvent) {
+    if (textEditorPendingPointerId === event.pointerId) textEditorPendingPointerId = undefined;
+    if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
+    if (ignoredTouchPointers.delete(event.pointerId) || event.pointerType === "touch" && !touchPointers.has(event.pointerId)) return;
+    if (event.pointerType === "pen" && activePenPointerId === event.pointerId) activePenPointerId = undefined;
+    touchPointers.clear(); touchGesture = undefined; touchTapTracker = undefined;
+    cancelCanvasInteraction();
+  }
+
+  function pointerLostCapture(event: PointerEvent) {
+    if (event.pointerType === "pen" && activePenPointerId === event.pointerId || event.pointerType === "touch" && touchPointers.has(event.pointerId)) pointerCancel(event);
+  }
+
   function pointerUp(event: PointerEvent) {
+    if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
+    if (ignoredTouchPointers.delete(event.pointerId) || event.pointerType === "touch" && !touchPointers.has(event.pointerId)) return;
+    if (event.pointerType === "pen" && activePenPointerId === event.pointerId) activePenPointerId = undefined;
+    if (textEditorPendingPointerId === event.pointerId) {
+      textEditorPendingPointerId = undefined;
+      textEditorFocusOnCanvasClick = true;
+      focusTextEditor();
+      textEditorFocusTimer = window.setTimeout(() => {
+        textEditorFocusTimer = undefined;
+        textEditorFocusOnCanvasClick = false;
+        focusTextEditor();
+      }, 0);
+    }
     let handledTapAction = false;
     if (event.pointerType === "touch") {
       const start = touchTapTracker?.starts.get(event.pointerId);
-      if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 16 && touchTapTracker) touchTapTracker.canceled = true;
+      if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > TOUCH_DRAG_THRESHOLD && touchTapTracker) touchTapTracker.canceled = true;
       touchPointers.delete(event.pointerId);
       if (touchPointers.size === 0) {
         const tap = touchTapTracker;
@@ -3203,6 +3322,12 @@ function App() {
     if (!drawing) return;
     if (penEraserDrawing) { penEraserDrawing = false; drawing = false; return; }
     if (tool() === "eraser") { drawing = false; return; }
+    if (activeDrawingTool === "pen" && event.pointerType === "pen") {
+      const end = toWorld(event); const last = currentPoints[currentPoints.length - 1];
+      if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= .3) {
+        currentPoints.push(tool() === "pen" ? { ...end, pressure: last.pressure, tiltX: last.tiltX, tiltY: last.tiltY } : end);
+      }
+    }
     drawing = false; const activePreview = preview();
     if (tool() === "laser") {
       if (activePreview && currentPoints.length) {
@@ -3247,7 +3372,7 @@ function App() {
     { value: "pen", label: "Pen", key: "P", path: "M4 20l4.5-1 10.8-10.8a2.2 2.2 0 0 0-3.1-3.1L5.4 15.9 4 20zM14.8 6.3l3 3" },
     { value: "laser", label: "Laser pointer", key: "Y", path: "M5 19 17 7m-8 0 8 0 0 8M5 5l1 1M19 19l-1-1" },
     { value: "line", label: "Line", key: "L", path: "M4 20L20 4" },
-    { value: "arrow", label: "Arrow", key: "A", path: "M4 19L19 4M9 4h10v10" },
+    { value: "arrow", label: "Arrow", key: "A", path: "M4 20 20 4m-11 0h11v11" },
     { value: "rectangle", label: "Rectangle", key: "R", path: "M5 5h14v14H5z" },
     { value: "circle", label: "Circle", key: "C", path: "M19.5 12a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0z" },
     { value: "diamond", label: "Diamond", key: "D", path: "M12 3 21 12 12 21 3 12z" },
@@ -3265,9 +3390,9 @@ function App() {
     { id: "shapes", label: "Shapes", tools: ["rectangle", "circle", "diamond", "triangle", "flowchart"] },
     { id: "content", label: "Text and image tools", tools: ["text", "bucket", "eraser", "crop"] },
   ];
-  const mobileEssentialTools = new Set<Tool>(["select", "pan", "pen", "line", "arrow", "rectangle", "flowchart", "text", "eraser"]);
+  const mobileEssentialTools = new Set<Tool>(["select", "pan", "pen", "laser", "line", "arrow", "rectangle", "text", "eraser"]);
   const swatches = ["#252525", "#e76b62", "#6b91c9", "#74a582", "#d8a448", "#a581bb", "#e5915b"];
-  const helpShortcuts: [string, string][] = [["V", "Select tool"], ["Space", "Hold to pan"], ["P", "Fine pen"], ["Y", "Laser pointer"], ["R", "Rectangle"], ["C / O", "Circle"], ["D", "Diamond"], ["N", "Triangle"], ["L", "Line"], ["A", "Arrow"], ["F", "Flowchart symbol"], ["T", "Text"], ["B", "Fill bucket"], ["E", "Eraser"], ["X", "Image crop"], ["Esc", "Select tool and clear selection"], ["G", "Toggle grid"], ["Shift+G", "Snap to grid"], ["Shift+O", "Snap to objects"], ["K", "Lock canvas"], ["0", "Center view at 100%"], ["1 / 2", "Fit drawing / selection"], ["Ctrl / Cmd + N", "New sketch"], ["Ctrl / Cmd + O", "Open sketch"], ["Ctrl / Cmd + S", "Save"], ["Ctrl / Cmd + Z", "Undo"], ["Ctrl / Cmd + Y", "Redo"], ["Ctrl / Cmd + C / X / V", "Copy / cut / paste"], ["Ctrl / Cmd + D", "Duplicate selection"], ["Ctrl / Cmd + A", "Select all"], ["Ctrl / Cmd + G", "Group selection"], ["Ctrl / Cmd + Shift + G", "Ungroup"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge by 1 px"], ["Shift+Arrow", "Nudge by 10 px"], ["F1", "Open Help"]];
+  const helpShortcuts: [string, string][] = [["V", "Select tool"], ["Space", "Hold to pan"], ["P", "Fine pen"], ["Y", "Laser pointer"], ["R", "Rectangle"], ["C / O", "Circle"], ["D", "Diamond"], ["N", "Triangle"], ["L", "Line"], ["A", "Arrow"], ["F", "Flowchart symbol"], ["T", "Text"], ["B", "Fill bucket"], ["E", "Eraser"], ["X", "Image crop"], ["Esc", "Pan tool and clear selection"], ["G", "Toggle grid"], ["Shift+G", "Snap to grid"], ["Shift+O", "Snap to objects"], ["K", "Lock canvas"], ["0", "Center view at 100%"], ["1 / 2", "Fit drawing / selection"], ["Ctrl / Cmd + N", "New sketch"], ["Ctrl / Cmd + O", "Open sketch"], ["Ctrl / Cmd + S", "Save"], ["Ctrl / Cmd + Z", "Undo"], ["Ctrl / Cmd + Y", "Redo"], ["Ctrl / Cmd + C / X / V", "Copy / cut / paste"], ["Ctrl / Cmd + D", "Duplicate selection"], ["Ctrl / Cmd + A", "Select all"], ["Ctrl / Cmd + G", "Group selection"], ["Ctrl / Cmd + Shift + G", "Ungroup"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge by 1 px"], ["Shift+Arrow", "Nudge by 10 px"], ["F1", "Open Help"]];
   const updateTextDraft = (value: string) => setTextDraft((draft) => draft ? { ...draft, value } : undefined);
   function setSelectedNoteFontSize(size: number) {
     const bounded = Math.max(8, Math.min(32, Math.round(size)));
@@ -3320,11 +3445,31 @@ function App() {
   const showToolOptions = (value: Tool) => setOpenToolOptions(value);
   const closeToolOptions = () => setOpenToolOptions(undefined);
   const isCompactTouchLayout = () => window.matchMedia("(max-width: 900px), (max-width: 1600px) and (pointer: coarse)").matches;
+  const alignTouchMenuPopover = (details?: HTMLDetailsElement) => {
+    if (!details || !isCompactTouchLayout() || isWindowsPlatform()) return;
+    requestAnimationFrame(() => {
+      if (!details.isConnected || !details.open) return;
+      const anchor = details.querySelector<HTMLElement>("summary");
+      const panel = details.querySelector<HTMLElement>(".system-menu-popover");
+      if (!anchor || !panel) return;
+      const anchorRect = anchor.getBoundingClientRect();
+      const panelRect = panel.getBoundingClientRect();
+      const inset = Math.max(8, window.visualViewport?.offsetLeft ?? 0);
+      const maxLeft = Math.max(inset, window.innerWidth - panelRect.width - 8);
+      const left = Math.max(inset, Math.min(anchorRect.left, maxLeft));
+      const maxTop = window.innerHeight - panelRect.height - Math.max(8, window.visualViewport?.offsetTop ?? 0);
+      const below = anchorRect.bottom + 6;
+      const top = below <= maxTop ? below : Math.max(8, anchorRect.top - panelRect.height - 6);
+      panel.style.left = `${left}px`;
+      panel.style.right = "auto";
+      panel.style.top = `${top}px`;
+    });
+  };
   const alignViewSettingsPopover = () => {
     requestAnimationFrame(() => {
       const panel = viewMenu?.querySelector<HTMLElement>(".view-settings-popover");
       if (!panel || !viewMenu?.open) return;
-      if (isCompactTouchLayout()) { panel.style.left = ""; panel.style.right = ""; return; }
+      if (isCompactTouchLayout()) { alignTouchMenuPopover(viewMenu); return; }
       const menuBounds = viewMenu.getBoundingClientRect();
       const panelWidth = panel.getBoundingClientRect().width;
       const targetLeft = Math.max(8, Math.min(menuBounds.left, window.innerWidth - panelWidth - 8));
@@ -3332,10 +3477,60 @@ function App() {
       panel.style.right = "auto";
     });
   };
+  const alignOpenTouchMenus = () => {
+    if (!isCompactTouchLayout() || isWindowsPlatform()) return;
+    [menu, viewMenu, gestureMenu, helpMenu, appSettingsMenu].forEach(details => { if (details?.open) alignTouchMenuPopover(details); });
+  };
   const isWindowsPlatform = () => typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
-  const activateTool = (next: Tool) => { commitTextDraft(); setQuickStylePopover(undefined); closeToolOptions(); if (next === "text") setTextMode("text"); const switchFromBrush = next === "pen" && tool() === "pen" && brushMode() !== "fine"; const chosen = switchFromBrush ? "pen" : tool() === next && next !== "select" ? "select" : next; if (next === "pen") setBrushMode("fine"); setTool(chosen); if (chosen === "select") setStyleMenuMode("quick"); if (chosen !== "select" && chosen !== "pan") { setSelectedIndices([]); setSidebarTab("properties"); } };
+  const toggleTouchFocusMode = async (enabled = !touchFocusMode()) => {
+    if (!isCompactTouchLayout() || isWindowsPlatform()) return;
+    if (enabled === touchFocusMode()) return;
+    if (enabled) {
+      commitTextDraft();
+      closeToolOptions();
+      setCanvasOptionsOpen(false);
+      setPaintBrushMenuOpen(false);
+      setStencilMenuOpen(false);
+      setLayerPanelOpen(false);
+      setQuickStylePopover(undefined);
+      setTouchStylePanel(false);
+      document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => detail.open = false);
+      setTouchFocusMode(true);
+      if (isTauri()) {
+        try {
+          const appWindow = getCurrentWindow();
+          focusModeWasFullscreen = await appWindow.isFullscreen();
+          if (!focusModeWasFullscreen) await appWindow.setFullscreen(true);
+          return;
+        } catch {
+          focusModeWasFullscreen = undefined;
+        }
+      }
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        try { await document.documentElement.requestFullscreen(); focusModeUsedDocumentFullscreen = true; }
+        catch { focusModeUsedDocumentFullscreen = false; }
+      }
+      return;
+    }
+    setTouchFocusMode(false);
+    if (isTauri() && focusModeWasFullscreen === false) {
+      try { await getCurrentWindow().setFullscreen(false); } catch { /* The focus layout still exits if native fullscreen is unavailable. */ }
+    } else if (focusModeUsedDocumentFullscreen && document.fullscreenElement) {
+      try { await document.exitFullscreen(); } catch { /* The focus layout still exits if browser fullscreen is unavailable. */ }
+    }
+    focusModeWasFullscreen = undefined;
+    focusModeUsedDocumentFullscreen = false;
+  };
+  const chooseFocusTool = (value: "pen" | "laser" | "eraser") => {
+    setQuickStylePopover(undefined);
+    closeToolOptions();
+    if (value === "pen") setBrushMode("fine");
+    setTool(value);
+  };
+  const activateTool = (next: Tool) => { commitTextDraft(); setQuickStylePopover(undefined); setTouchStylePanel(false); closeToolOptions(); if (next === "text") setTextMode("text"); const switchFromBrush = next === "pen" && tool() === "pen" && brushMode() !== "fine"; const chosen = switchFromBrush ? "pen" : tool() === next ? (isWindowsPlatform() ? "pan" : "select") : next; if (next === "pen" && chosen === "pen") setBrushMode("fine"); setTool(chosen); if (chosen === "select") setStyleMenuMode("quick"); if (chosen !== "select" && chosen !== "pan") { setSelectedIndices([]); setSidebarTab("properties"); } };
+  const toggleTouchStylePanel = () => setTouchStylePanel(open => !open);
   const toggleQuickProperties = () => {
-    if (!isCompactTouchLayout()) { toggleSidebar(); return; }
+    if (isWindowsPlatform() || !isCompactTouchLayout()) { toggleSidebar(); return; }
     if (styleMenuMode() === "full") { setStyleMenuMode("quick"); setMobileQuickPropertiesOpen(false); }
     else setMobileQuickPropertiesOpen(value => !value);
   };
@@ -3344,7 +3539,7 @@ function App() {
     const active = (value === "pen" ? tool() === "pen" && brushMode() === "fine" : tool() === value) || (value === "pan" && spaceDown());
     const hasOptions = value === "flowchart" || value === "line" || value === "arrow" || value === "text";
     const mobileEssential = mobileEssentialTools.has(value);
-    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${label} (${key})${hasOptions ? " · click or hover for options" : ""}`} aria-label={label} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (hasOptions) { if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{value === "flowchart" ? <><g class="desktop-flowchart-icon"><path d={path} /></g><g class="touch-flowchart-icon"><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></g></> : <path d={path} />}</svg><kbd>{key}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
+    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${label} (${key})${hasOptions ? " · click or hover for options" : ""}`} aria-label={label} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (hasOptions) { if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{value === "flowchart" ? <><g class="desktop-flowchart-icon"><path d={path} /></g><g class="touch-flowchart-icon"><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></g></> : <path d={path} />}</svg><kbd>{key}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
     if (value === "flowchart") return <div class="tool-family flowchart-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options flowchart-options" role="menu" aria-label="Flowchart symbols">{FLOWCHART_MENU_SHAPES.map((shape) => <button class={flowchartShape() === shape.value ? "active" : ""} role="menuitem" title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setFlowchartShape(shape.value); setTool("flowchart"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div></div>;
     if (value === "text") return <div class="tool-family text-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options text-options" role="menu" aria-label="Text and note tools">
       <button role="menuitem" title="Place plain text" onClick={() => { closeToolOptions(); setTextMode("text"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M4 6h16M12 6v13m-4 0h8"/></svg><span>Text</span></button>
@@ -3358,14 +3553,26 @@ function App() {
     return button;
   };
   return (
-    <main class={`app-shell theme-${theme()}`} classList={{ "mobile-tools-expanded": mobileToolsExpanded(), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "platform-windows": isWindowsPlatform() }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
+    <main class={`app-shell theme-${theme()}`} classList={{ "mobile-tools-expanded": mobileToolsExpanded(), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform() }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
       <header class="topbar">
         <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={activePath() ? fileName() : "SketchDraw"}>{activePath() ? fileName() : "SketchDraw"}</span></div></div>
         <nav class="app-menus" aria-label="Application menus">
-          <details class="menu-dropdown" ref={menu}><summary>File<svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{activePath() ? fileName() : "No file open"}</div>
+          <TouchMenuBar settings={<AppSettingsMenu
+            interfaceScale={interfaceScale()}
+            autosaveSeconds={autosaveSeconds()}
+            reduceMotion={reduceMotion()}
+            displayMetrics={displayMetrics()}
+            onInterfaceScaleChange={setInterfaceScalePreference}
+            onAutosaveChange={setAutosavePreference}
+            onReduceMotionChange={setReduceMotionPreference}
+            onRestoreDefaults={restoreAppSettings}
+            detailsRef={element => { appSettingsMenu = element; }}
+            onToggle={() => alignTouchMenuPopover(appSettingsMenu)}
+          />}>
+          <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{activePath() ? fileName() : "No file open"}</div>
             <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>Ctrl+S</kbd></button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><div class="menu-separator" /><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Export PDF...</button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !elements().length || boardLocked()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
           </div></details>
-          <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={alignViewSettingsPopover}><summary>View<svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover view-popover view-settings-popover">
+          <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={() => { alignViewSettingsPopover(); alignTouchMenuPopover(viewMenu); }}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>View</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover view-popover view-settings-popover">
             <header class="view-menu-heading"><div><strong>View settings</strong><span>Adjust the interface or canvas</span></div></header>
             <nav class="view-panel-tabs" aria-label="View settings sections"><button class={viewPanelSection() === "interface" ? "active" : ""} aria-pressed={viewPanelSection() === "interface"} onClick={() => setViewPanelSection("interface")}>Interface</button><button class={viewPanelSection() === "canvas" ? "active" : ""} aria-pressed={viewPanelSection() === "canvas"} onClick={() => setViewPanelSection("canvas")}>Canvas</button></nav>
             <div class="view-panel-pages">
@@ -3377,28 +3584,19 @@ function App() {
               </div>
               <div class="view-panel-page canvas-page" classList={{ active: viewPanelSection() === "canvas" }}>
                 <section class="view-menu-section board-view-section"><div class="view-section-heading"><span class="menu-section-title">Whiteboard color</span><span>{boardLocked() ? "Board locked" : "Canvas background"}</span></div><div class="board-color-palette"><button class={`board-color-choice ${boardColorFollowsTheme() ? "active" : ""}`} aria-pressed={boardColorFollowsTheme()} disabled={boardLocked()} onClick={() => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } }}><i class="board-auto-dot" /><span>Auto</span></button>{BOARD_COLORS.map(value => <button class={`board-color-choice ${!boardColorFollowsTheme() && boardColor() === value ? "active" : ""}`} aria-pressed={!boardColorFollowsTheme() && boardColor() === value} disabled={boardLocked()} onClick={() => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } }}><i style={{ background: value }} /><span>{BOARD_COLOR_NAMES[value] ?? value}</span></button>)}</div><div class="board-custom-choice"><span>Custom color</span><label class="custom-color-swatch" title="Custom whiteboard color"><input aria-label="Custom whiteboard color" type="color" value={renderedBoardColor()} disabled={boardLocked()} onInput={event => { if (!boardLocked()) { setBoardColor(event.currentTarget.value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: event.currentTarget.value, boardColorFollowsTheme: false }); setDirty(true); } }} /></label></div></section>
-                <section class="view-menu-section pattern-setting-section"><div class="view-section-heading"><span class="menu-section-title">Paper pattern</span><span>Plain, dots, or lines</span></div><div class="whiteboard-style-options">{([{ value: "plain", label: "Plain" }, { value: "dots", label: "Dots" }, { value: "lines", label: "Lines" }] as const).map(option => <button class={`whiteboard-style-choice ${whiteboardStyle() === option.value ? "active" : ""}`} aria-pressed={whiteboardStyle() === option.value} onClick={() => setWhiteboardStylePreference(option.value)}><i class={`paper-pattern-swatch ${option.value}`} /><span>{option.label}</span></button>)}</div></section>
+                <section class="view-menu-section pattern-setting-section"><div class="view-section-heading"><span class="menu-section-title">Paper pattern</span><span>Choose a writing surface</span></div><div class="whiteboard-style-options">{([{ value: "plain", label: "Plain" }, { value: "dots", label: "Dots" }, { value: "small-dots", label: "Fine dots" }, { value: "lines", label: "Grid" }, { value: "small-grid", label: "Fine grid" }, { value: "ruled", label: "Ruled" }, { value: "isometric", label: "Isometric" }] as const).map(option => <button class={`whiteboard-style-choice ${whiteboardStyle() === option.value ? "active" : ""}`} aria-pressed={whiteboardStyle() === option.value} onClick={() => setWhiteboardStylePreference(option.value)}><i class={`paper-pattern-swatch ${option.value}`} /><span>{option.label}</span></button>)}</div></section>
               </div>
             </div>
           </div></details>
-          <AppSettingsMenu
-            interfaceScale={interfaceScale()}
-            autosaveSeconds={autosaveSeconds()}
-            reduceMotion={reduceMotion()}
-            displayMetrics={displayMetrics()}
-            onInterfaceScaleChange={setInterfaceScalePreference}
-            onAutosaveChange={setAutosavePreference}
-            onReduceMotionChange={setReduceMotionPreference}
-            onRestoreDefaults={restoreAppSettings}
-          />
-          <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} />
-          <details class="menu-dropdown help-menu" ref={helpMenu}><summary>Help<svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><div class="menu-separator" /><button disabled={updateCheck() === "checking"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Could not check for a newer version.</span></Show></div></details>
+          <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
+          <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><div class="menu-separator" /><button disabled={updateCheck() === "checking"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Could not check for a newer version.</span></Show></div></details>
+          </TouchMenuBar>
         </nav>
         <Show when={activePath()}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} /></Show>
 
         <Show when={activePath()}><div class="top-actions"><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
       </header>
-      <Show when={activePath()} fallback={<section class="welcome-screen">
+      <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayPathName} onCreate={createFile} onOpen={openFile} onOpenRecent={loadFile} /><section class="welcome-screen">
   <div class="welcome-card">
     <div class="welcome-intro">
       <div class="welcome-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg></div>
@@ -3430,18 +3628,96 @@ function App() {
     </Show>
     <div class="recent-footnote"><span class="recent-footnote-dot"></span> Saved on this device</div>
   </div>
-</section>}>
+</section></>}>
         <>
           <section class="canvas-wrap" ref={canvasWrap}>
+            <Show when={touchFocusMode()}><TouchFocusTools tool={tool()} onSelect={chooseFocusTool} onExit={() => void toggleTouchFocusMode(false)} /></Show>
+            <Show when={touchStylePanel() && !isWindowsPlatform() && isCompactTouchLayout()}><TouchStylePanel
+              tool={tool()}
+              styleName={quickElementType()}
+              supportsStroke={showStrokeControls()}
+              supportsWidth={showThicknessControls()}
+              isLine={quickElementType() === "line"}
+              isArrow={quickElementType() === "arrow"}
+              isFlowchart={quickElementType() === "flowchart"}
+              color={selectedColor()}
+              width={selectedThickness()}
+              brushMode={brushMode()}
+              supportsFill={quickHasShapeFill()}
+              fillEnabled={fillEnabled() || !!selectedFillColor()}
+              fillColor={selectedFillColor() ?? fillColor()}
+              fillOpacity={(focusedElement() as ShapeElement | undefined)?.fillOpacity ?? fillOpacity()}
+              supportsLineStyle={quickHasShapeFill() || quickIsConnector()}
+              lineStyle={quickCurrentLineStyle()}
+              lineRoute={quickShapeSelection()?.type === "line" ? quickShapeSelection()?.lineRoute ?? "straight" : lineRoute()}
+              lineRoutes={LINE_ROUTES}
+              arrowRoute={quickShapeSelection()?.type === "arrow" ? quickShapeSelection()?.arrowRoute ?? "straight" : arrowRoute()}
+              arrowRoutes={ARROW_ROUTES}
+              flowchartShape={quickShapeSelection()?.type === "flowchart" ? quickShapeSelection()?.flowchartShape ?? "process" : flowchartShape()}
+              flowchartShapes={FLOWCHART_MENU_SHAPES}
+              arrowHeads={ARROW_HEADS}
+              startHead={quickArrowHead("start")}
+              endHead={quickArrowHead("end")}
+              forkUpperHead={quickShapeSelection()?.type === "arrow" ? quickShapeSelection()?.forkUpper?.endHead ?? defaultForkUpperHead() : defaultForkUpperHead()}
+              forkLowerHead={quickShapeSelection()?.type === "arrow" ? quickShapeSelection()?.forkLower?.endHead ?? defaultForkLowerHead() : defaultForkLowerHead()}
+              supportsCorners={quickElementType() === "rectangle"}
+              edgeStyle={quickShapeSelection()?.type === "rectangle" ? quickShapeSelection()?.edgeStyle ?? "sharp" : edgeStyle()}
+              cornerRadius={quickShapeSelection()?.type === "rectangle" ? quickShapeSelection()?.cornerRadius ?? 14 : cornerRadius()}
+              supportsText={quickHasText()}
+              fontSize={quickCardFontSize()}
+              fontFamily={selectedText()?.fontFamily ?? defaultFontFamily()}
+              bold={selectedText()?.bold ?? defaultBold()}
+              italic={selectedText()?.italic ?? defaultItalic()}
+              underline={selectedText()?.underline ?? defaultUnderline()}
+              textAlign={selectedText()?.textAlign ?? defaultTextAlign()}
+              listType={selectedText()?.listType ?? defaultListType()}
+              hasSelection={!!selectedIndices().length && !selectedNoteCard()}
+              selectionOpacity={selectedOpacity()}
+              canRotate={!!selectedIndices().length && !selectedNoteCard() && !groupSelected() && !!focusedElement() && !isConnector(focusedElement()!)}
+              penPressure={penPressure()}
+              penTilt={penTilt()}
+              penEraser={penEraser()}
+              isLaser={tool() === "laser"}
+              laserColor={laserColor()}
+              laserThickness={laserThickness()}
+              laserFadeDuration={laserFadeDuration()}
+              laserRainbow={laserRainbow()}
+              isBucket={tool() === "bucket"}
+              locked={boardLocked() || !!focusedElement()?.locked}
+              onClose={() => setTouchStylePanel(false)}
+              onColorChange={value => { if (selectedLabel() && !textDraft()) updateLabel("color", value); else updateStrokeColor(value); }}
+              onWidthChange={updateThickness}
+              onBrushModeChange={mode => { setBrushMode(mode); setTool("pen"); }}
+              onFillEnabledChange={enabled => { setFillEnabled(enabled); if (hasStyleSelection()) updateProperty("fillColor", enabled ? fillColor() : undefined); }}
+              onFillColorChange={value => { setFillColor(value); setFillEnabled(true); if (hasStyleSelection()) updateProperty("fillColor", value); }}
+              onFillOpacityChange={value => { setFillOpacity(value); if (selectedIndices().length) updateProperty("fillOpacity", value); }}
+              onLineStyleChange={value => focusedElement() ? updateProperty("lineStyle", value) : setLineStyle(value)}
+              onLineRouteChange={value => focusedElement()?.type === "line" ? updateProperty("lineRoute", value) : setLineRoute(value)}
+              onArrowRouteChange={value => focusedElement()?.type === "arrow" ? updateProperty("arrowRoute", value) : setArrowRoute(value)}
+              onFlowchartShapeChange={value => focusedElement()?.type === "flowchart" ? updateProperty("flowchartShape", value) : setFlowchartShape(value)}
+              onConnectorHeadChange={setConnectorHead}
+              onForkHeadChange={(branch, value) => { if (focusedElement()?.type === "arrow") updateProperty(branch === "upper" ? "forkUpperHead" : "forkLowerHead", value); else (branch === "upper" ? setDefaultForkUpperHead : setDefaultForkLowerHead)(value); }}
+              onEdgeStyleChange={value => focusedElement()?.type === "rectangle" ? updateProperty("edgeStyle", value) : setEdgeStyle(value)}
+              onCornerRadiusChange={value => { setCornerRadius(value); if (focusedElement()?.type === "rectangle") updateProperty("cornerRadius", value); }}
+              onTextChange={setTextFormat}
+              onSelectionOpacityChange={value => updateProperty("opacity", value)}
+              onRotate={rotateSelection}
+              onResetRotation={resetSelectionRotation}
+              onPenPressureChange={setPenPressure}
+              onPenTiltChange={setPenTilt}
+              onPenEraserChange={setPenEraser}
+              onLaserChange={(key, value) => setLaserPreference(key, value)}
+              onBucketColorChange={setFillColor}
+            /></Show>
             <Show when={noteEditor()}>{draft => <div class={`canvas-note-editor ${draft().kind} ${componentAppearance()}`} role="group" aria-label={`${draft().kind} canvas editor`} style={{ left: `${canvasState().panX + draft().x * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${Math.max(220, draft().width * canvasState().zoom)}px`, height: `${Math.max(130, draft().height * canvasState().zoom)}px`, background: noteCardPalette(draft().kind, theme(), componentAppearance()).surface, "border-color": noteCardPalette(draft().kind, theme(), componentAppearance()).border, color: noteCardPalette(draft().kind, theme(), componentAppearance()).ink }} onPointerDown={event => { const rect = event.currentTarget.getBoundingClientRect(); resizingNoteEditor = event.clientX >= rect.right - 22 && event.clientY >= rect.bottom - 22; event.stopPropagation(); }} onPointerUp={event => { if (resizingNoteEditor) { const rect = event.currentTarget.getBoundingClientRect(); const zoom = canvasState().zoom; setNoteEditor(current => current ? { ...current, width: Math.max(180, Math.min(4000, rect.width / zoom)), height: Math.max(100, Math.min(1_000_000, rect.height / zoom)), resized: true } : current); } resizingNoteEditor = false; }}>
               <header><span>{draft().kind === "sticky" ? "STICKY NOTE" : draft().kind === "checklist" ? "CHECKLIST" : "NOTE + CODE"}</span><small class="editor-key-hint">Tab indents</small><button type="button" onClick={saveNoteEditor} title="Save to canvas" aria-label="Save note to canvas">Done &#10003;</button></header>
               <div class="note-card-details"><label>Title<input aria-label="Card title" maxlength="120" value={draft().title} onInput={event => setNoteEditor(current => current ? { ...current, title: event.currentTarget.value } : undefined)} /></label></div>
-              <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Note and code content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write here…\n\nUse fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); } }} />
+              <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Note and code content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write here…\n\nUse fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); if (event.key === "Escape" && isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } } }} />
             </div>}</Show>
-            <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() ? "not-allowed" : tool() === "select" ? noteToggleHovered() ? "pointer" : hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => { touchPointers.clear(); touchGesture = undefined; touchTapTracker = undefined; penEraserDrawing = false; if (resizeOrigin) setElements(resizeOrigin.before); if (moveOrigin) setElements(moveOrigin.before); drawing = false; setPreview(undefined); setMarquee(undefined); setAttachmentHint(undefined); resizeOrigin = undefined; moveOrigin = undefined; marqueeOrigin = undefined; panOrigin = undefined; setIsPanning(false); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
+            <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() ? "not-allowed" : tool() === "select" ? noteToggleHovered() ? "pointer" : hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
             <Show when={deletableSelectionCount() > 1}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected elements`} aria-label={`Delete ${deletableSelectionCount()} selected elements`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
             <DesktopPageTabs pages={pages()} activePageId={activePageId()} boardLocked={boardLocked()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} />
-            <Show when={toolBarOpen()} fallback={<button class="tool-deck-reopen" title="Show tools" aria-label="Show tools" onClick={() => setToolBarOpen(true)}><svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></svg></button>}><nav class="tool-deck" aria-label="Canvas tools">
+            <TouchToolBar open={toolBarOpen()} expanded={mobileToolsExpanded()} styleOpen={touchStylePanel()} onShow={() => setToolBarOpen(true)} onHide={() => setToolBarOpen(false)} onToggleExpanded={() => setMobileToolsExpanded(value => !value)} onToggleStyle={toggleTouchStylePanel}><>
               <div class="tool-cluster tool-cluster-canvas mobile-cluster-has-essential" role="group" aria-label="Canvas view">
               <CanvasOptionsMenu
                 open={canvasOptionsOpen()}
@@ -3462,8 +3738,8 @@ function App() {
                 onToggleSnapToObjects={() => setSnapToObjects(value => !value)}
                 onGroupSelection={() => { groupSelection(); setCanvasOptionsOpen(false); }}
               />
+              <button class="tool-icon-button mobile-tool-essential touch-focus-entry" aria-label="Enter full screen focus mode" title="Full screen focus mode" onClick={() => void toggleTouchFocusMode(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button>
               </div>
-              <button class="mobile-tools-toggle" title={mobileToolsExpanded() ? "Show essential tools only" : "Show all tools"} aria-label={mobileToolsExpanded() ? "Show essential tools only" : "Show all tools"} aria-expanded={mobileToolsExpanded()} onClick={() => setMobileToolsExpanded(value => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={mobileToolsExpanded() ? "M5 12h14" : "M12 5v14M5 12h14"} /></svg><span>{mobileToolsExpanded() ? "Done" : "More"}</span></button>
               {toolGroups.map((group) => <div class={`tool-cluster tool-cluster-${group.id}`} classList={{ "mobile-cluster-has-essential": group.tools.some(value => mobileEssentialTools.has(value)), "mobile-cluster-has-current": group.tools.includes(tool()) }} role="group" aria-label={group.label}>{tools.filter((item) => group.tools.includes(item.value)).map(renderToolbarTool)}</div>)}
               <div class="tool-family tool-extra-family paint-brush-family" classList={{ "options-open": paintBrushMenuOpen(), "mobile-tool-current": tool() === "pen" && brushMode() !== "fine" }}><button class={`tool-icon-button has-options ${tool() === "pen" && brushMode() !== "fine" ? "selected" : ""}`} title="Paint brushes" aria-label="Paint brushes" aria-haspopup="menu" aria-expanded={paintBrushMenuOpen()} onClick={() => setPaintBrushMenuOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m14 4 6 6M5 18c2-2 4-1 6-3l7-7-6-6-7 7c-2 2-1 4-3 6-.7.7-.4 2.4 1 3 1.2.5 2 .1 2-.4Z"/></svg><kbd>BR</kbd><svg class="tool-family-caret" viewBox="0 0 12 12"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button><div class="tool-options paint-brush-options" role="menu" aria-label="Paint brush tools">{([ ["pencil", "Pencil"], ["brush", "Soft brush"], ["marker", "Marker"], ["highlighter", "Highlighter"], ["chalk", "Chalk"] ] as const).map(([mode, label]) => <button class={brushMode() === mode ? "active" : ""} role="menuitem" onClick={() => { setBrushMode(mode); setTool("pen"); setSelectedIndices([]); setPaintBrushMenuOpen(false); }}><svg viewBox="0 0 24 24"><path d={mode === "pencil" ? "m5 19 11-11 3 3L8 22H5zm10-13 2-2 4 4-2 2" : mode === "brush" ? "M5 18c4 0 3-8 8-8 4 0 4 4 7 4m-15 4h14M15 5l3 3" : mode === "marker" ? "M5 18 17 6l3 3L8 21H5zm9-9 3 3" : mode === "highlighter" ? "M4 16 15 5l5 5-11 11H4zm4-2 5 5" : "M5 18 17 6m-8 12 2 2M4 21h16"}/></svg><span>{label}</span></button>)}</div></div>
               <div class="tool-family tool-extra-family stencil-family" classList={{ "options-open": stencilMenuOpen() }}>
@@ -3476,13 +3752,14 @@ function App() {
                   <button class="stencil-template" role="menuitem" title="Paste SQL CREATE TABLE statements or a JSON schema and generate editable linked table cards" onClick={() => openSchemaDialog()}><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Visualize schema</span></button>
                 </div>
               </div>
-              <div class="tool-cluster tool-cluster-history mobile-cluster-has-essential" role="group" aria-label="History and canvas state">
+              <div class="tool-cluster tool-cluster-history mobile-cluster-has-essential" role="group" aria-label="History, selection, and canvas state">
                 <button class={layerPanelOpen() ? "tool-icon-button canvas-utility-button mobile-tool-extra selected" : "tool-icon-button canvas-utility-button mobile-tool-extra"} title="Layers" aria-label="Open layers panel" aria-pressed={layerPanelOpen()} onClick={() => setLayerPanelOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4"/></svg></button>
+                <Show when={deletableSelectionCount() > 0}><button class="tool-icon-button mobile-tool-essential touch-selection-delete" disabled={boardLocked()} title={`Erase ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} aria-label={`Erase ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6" /></svg><small class="touch-selection-count">{deletableSelectionCount()}</small></button></Show>
                 <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canUndo() || boardLocked()} title="Undo (Ctrl+Z)" aria-label="Undo" onClick={undo}><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg><kbd>Ctrl+Z</kbd></button>
                 <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canRedo() || boardLocked()} title="Redo (Ctrl+Y)" aria-label="Redo" onClick={redo}><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5m4-5h-8a6 6 0 0 0-6 6"/></svg><kbd>Ctrl+Y</kbd></button>
                 <button class={`tool-icon-button canvas-utility-button mobile-tool-extra ${boardLocked() ? "selected" : ""}`} title={`Canvas ${boardLocked() ? "locked" : "unlocked"} (K)`} aria-label={boardLocked() ? "Unlock canvas" : "Lock canvas"} aria-pressed={boardLocked()} onClick={() => setBoardLocked(value => !value)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button>
               </div>
-              <button class="tool-collapse" title="Hide tools" aria-label="Hide tools" onClick={() => setToolBarOpen(false)}><svg viewBox="0 0 24 24"><path d="m7 14 5-5 5 5" /></svg></button></nav></Show>
+            </></TouchToolBar>
             <Show when={layerPanelOpen()}>
               <aside class="floating-layer-panel" aria-label="Layers">
                 <header><strong>Layers</strong><span>{elements().length}</span><button class="pane-close-icon" aria-label="Close layers" title="Close layers" onClick={() => setLayerPanelOpen(false)}>&times;</button></header>
@@ -3503,9 +3780,9 @@ function App() {
                 </div>
               </aside>
             </Show>
-            <Show when={sidebarVisible()}><aside class="style-pane" classList={{ "quick-style-mode": styleMenuMode() === "quick", "full-style-mode": styleMenuMode() === "full", "mobile-properties-collapsed": !mobileQuickPropertiesOpen(), "mobile-properties-expanded": mobileQuickPropertiesOpen() }} aria-label="Properties">
+            <Show when={sidebarVisible() && (isWindowsPlatform() || !isCompactTouchLayout())}><aside class="style-pane" classList={{ "quick-style-mode": styleMenuMode() === "quick", "full-style-mode": styleMenuMode() === "full", "mobile-properties-collapsed": !mobileQuickPropertiesOpen(), "mobile-properties-expanded": mobileQuickPropertiesOpen() }} aria-label="Properties">
               <div class="quick-style-panel">
-                <div class="quick-style-heading"><button onClick={toggleQuickProperties} title={isCompactTouchLayout() ? mobileQuickPropertiesOpen() ? "Close quick properties" : "Open quick properties" : styleMenuMode() === "full" ? "Close properties" : "Open properties"} aria-label={isCompactTouchLayout() ? mobileQuickPropertiesOpen() ? "Close quick properties" : "Open quick properties" : styleMenuMode() === "full" ? "Close properties" : "Open properties"} aria-expanded={isCompactTouchLayout() ? mobileQuickPropertiesOpen() : styleMenuMode() === "full"}><QuickPropertiesIcon /></button><button class="mobile-advanced-properties" aria-expanded={styleMenuMode() === "full"} onClick={openAdvancedProperties} title="Open advanced properties" aria-label="Open advanced properties"><AdvancedPropertiesIcon /></button></div>
+                <div class="quick-style-heading"><button onClick={toggleQuickProperties} title={isCompactTouchLayout() && !isWindowsPlatform() ? mobileQuickPropertiesOpen() ? "Close quick properties" : "Open quick properties" : styleMenuMode() === "full" ? "Close properties" : "Open properties"} aria-label={isCompactTouchLayout() && !isWindowsPlatform() ? mobileQuickPropertiesOpen() ? "Close quick properties" : "Open quick properties" : styleMenuMode() === "full" ? "Close properties" : "Open properties"} aria-expanded={isCompactTouchLayout() && !isWindowsPlatform() ? mobileQuickPropertiesOpen() : styleMenuMode() === "full"}><QuickPropertiesIcon /></button><Show when={!isWindowsPlatform()}><button class="mobile-advanced-properties" aria-expanded={styleMenuMode() === "full"} onClick={openAdvancedProperties} title="Open advanced properties" aria-label="Open advanced properties"><AdvancedPropertiesIcon /></button></Show></div>
                 <Show when={sidebarTab() === "properties"}>
                   <div class="quick-style-controls">
                     <Show when={tool() === "bucket"}>
@@ -3542,6 +3819,9 @@ function App() {
                         </div>
                         <Show when={quickStylePopover() === "fill" && quickHasShapeFill()}><button class="quick-fill-toggle" onClick={() => { const enabled = !fillEnabled() && !selectedFillColor(); setFillEnabled(enabled); if (hasStyleSelection()) updateProperty("fillColor", enabled ? fillColor() : undefined); }}>{fillEnabled() || !!selectedFillColor() ? "Remove fill" : "Enable fill"}</button></Show>
                       </div>
+                    </Show>
+                    <Show when={quickStylePopover() === "brushes" && tool() === "pen"}>
+                      <div class="quick-style-popover quick-brush-picker" role="group" aria-label="Pen and brush styles">{([ ["fine", "Pen"], ["pencil", "Pencil"], ["brush", "Soft brush"], ["marker", "Marker"], ["highlighter", "Highlighter"], ["chalk", "Chalk"] ] as const).map(([mode, label]) => <button class={brushMode() === mode ? "active" : ""} aria-pressed={brushMode() === mode} title={label} onClick={() => { setBrushMode(mode); setTool("pen"); setQuickStylePopover(undefined); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={mode === "fine" ? "m5 19 13-14M4 21h16" : mode === "pencil" ? "m5 19 11-11 3 3L8 22H5zm10-13 2-2 4 4-2 2" : mode === "brush" ? "M5 18c4 0 3-8 8-8 4 0 4 4 7 4m-15 4h14M15 5l3 3" : mode === "marker" ? "M5 18 17 6l3 3L8 21H5zm9-9 3 3" : mode === "highlighter" ? "M4 16 15 5l5 5-11 11H4zm4-2 5 5" : "M5 18 17 6m-8 12 2 2M4 21h16"}/></svg><span>{label}</span></button>)}</div>
                     </Show>
                     <Show when={quickStylePopover() === "thickness"}>
                       <div class="quick-style-popover thickness-popover" aria-label={tool() === "eraser" ? "Eraser size" : "Stroke width"}>
@@ -3594,7 +3874,7 @@ function App() {
               </div>
             </aside></Show>
             <Show when={textDraft()}>{draft => <div class="text-editor-frame" style={{ left: `${canvasState().panX + editorLeft(draft()) * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${editorWidth(draft()) * canvasState().zoom}px`, height: draft().height ? `${draft().height! * canvasState().zoom}px` : undefined, transform: `rotate(${draft().rotation ?? 0}deg)`, "justify-content": draft().verticalAlign === "bottom" ? "flex-end" : draft().verticalAlign === "middle" ? "center" : "flex-start", "font-size": `${draft().fontSize * canvasState().zoom}px`, "font-family": fontCss(draft().fontFamily), "font-weight": draft().bold ? 700 : 400, "font-style": draft().italic ? "italic" : "normal", "text-decoration": draft().underline ? "underline" : "none", "text-align": draft().textAlign, color: themeInk(draft().color, theme()), opacity: draft().opacity }}>
-              <div ref={element => { requestAnimationFrame(() => { if (element.isConnected) { element.innerText = draft().value; element.focus(); const range = document.createRange(); range.selectNodeContents(element); range.collapse(false); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); } }); }} class="canvas-text-editor" contentEditable={true} role="textbox" aria-label="Canvas text" aria-multiline="true" data-placeholder="Type here…" onInput={event => updateTextDraft(event.currentTarget.innerText)} onBlur={event => { const next = event.relatedTarget; if (!(next instanceof HTMLElement && next.closest(".style-pane"))) commitTextDraft(); }} onPointerDown={event => event.stopPropagation()} onPaste={event => { event.preventDefault(); const text = event.clipboardData?.getData("text/plain") ?? ""; const selection = window.getSelection(); if (selection?.rangeCount) { const range = selection.getRangeAt(0); range.deleteContents(); const node = document.createTextNode(text); range.insertNode(node); range.setStartAfter(node); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); updateTextDraft(event.currentTarget.innerText); } }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Escape" || (event.key === "Enter" && (event.ctrlKey || event.metaKey))) { event.preventDefault(); commitTextDraft(); if (event.key === "Escape") { setTool("select"); setSelectedIndices([]); setHoveredIndex(undefined); } } }} />
+              <div ref={element => { textEditorElement = element; requestAnimationFrame(() => { if (element.isConnected && textDraft()) { element.innerText = draft().value; if (textEditorPendingPointerId === undefined) element.focus(); const range = document.createRange(); range.selectNodeContents(element); range.collapse(false); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); } }); }} class="canvas-text-editor" contentEditable={true} role="textbox" aria-label="Canvas text" aria-multiline="true" data-placeholder="Type here…" onInput={event => updateTextDraft(event.currentTarget.innerText)} onBlur={event => { if (!isWindowsPlatform()) return; const next = event.relatedTarget; if (!(next instanceof HTMLElement && next.closest(".style-pane"))) commitTextDraft(); }} onPointerDown={event => event.stopPropagation()} onPaste={event => { event.preventDefault(); const text = event.clipboardData?.getData("text/plain") ?? ""; const selection = window.getSelection(); if (selection?.rangeCount) { const range = selection.getRangeAt(0); range.deleteContents(); const node = document.createTextNode(text); range.insertNode(node); range.setStartAfter(node); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); updateTextDraft(event.currentTarget.innerText); } }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Escape" || (event.key === "Enter" && (event.ctrlKey || event.metaKey))) { event.preventDefault(); commitTextDraft(); if (event.key === "Escape") { setTool(isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform()) setStyleMenuMode("quick"); setSelectedIndices([]); setHoveredIndex(undefined); } } }} />
             </div>}</Show>
             <div class="canvas-help">Wheel to zoom <span>|</span> Hold Space or select the hand tool to pan <span>|</span> Use Gestures to set touch actions <span>|</span> V to select and drag to move</div>
           </section>
@@ -3649,7 +3929,7 @@ function App() {
       <Show when={recoveryPrompt()}>{(recovery) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="recovery-title"><h2 id="recovery-title">Recover unsaved work?</h2><p>SketchDraw found a local recovery copy for <strong>{recovery().path.split(/[\\/]/).pop()}</strong>. Restore it or continue with the saved file.</p><div><button class="quiet-button" onClick={discardRecovery}>Use saved file</button><button class="save-button" onClick={restoreRecovery}>Restore recovery</button></div></section></div>}</Show>
       <Show when={syncConflict()}>{(conflict) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title"><h2 id="conflict-title">File changed elsewhere</h2><p><strong>{conflict().path.split(/[\\/]/).pop()}</strong> was updated outside SketchDraw. Autosave is paused so neither version is overwritten without your choice.</p><div class="conflict-actions"><button class="quiet-button" onClick={() => void saveAs()}>Save my version as…</button><button class="quiet-button" onClick={reloadConflictingFile}>Load disk version</button><button class="danger-button" onClick={overwriteConflictingFile}>Overwrite disk version</button></div></section></div>}</Show>
       <Show when={showClearConfirm()}><div class="confirm-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setShowClearConfirm(false); }}><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">Clear this canvas?</h2><p>This will remove all {elements().length} items from the open sketch. You can undo this action.</p><div><button class="quiet-button" onClick={() => setShowClearConfirm(false)}>Cancel</button><button class="danger-button" onClick={() => { if (elements().length && !boardLocked()) { pushUndo(cloneElements(elements())); setElements([]); setSelectedIndices([]); setDirty(true); } setShowClearConfirm(false); }}>Clear canvas</button></div></section></div></Show>
-      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">{helpSection() === "guide" ? "SKETCHDRAW GUIDE" : "SHORTCUT REFERENCE"}</span><h2 id="help-title">{helpSection() === "guide" ? "Guide" : "Keyboard shortcuts"}</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 7 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the toolbar, then click or drag on the canvas. Common style controls sit beside the canvas; open the properties button for the full settings panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Hold Space or choose Hand to pan, or use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Add and manage pages from the page strip. Use View to change the theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section><section class="touch-guide-section"><h3>Phone and tablet controls</h3><p>The compact tool dock stays on the left. Tap <strong>More</strong> to show the remaining tools, then tap it again to collapse the dock. The four-square button at the top of the dock opens canvas options such as grid, snapping, and fit-to-view.</p></section><section class="touch-guide-section"><h3>Properties and components</h3><p>Tap the small properties button beside the left tool dock to open or close quick controls. Use its advanced-properties button for the full settings panel. Open Symbols and elements from the expanded tools and scroll its list vertically to browse components.</p></section><section class="touch-guide-section"><h3>Touch, stylus, and navigation</h3><p>Draw with a finger or stylus. Pinch with two fingers to zoom. Open Pages in the top bar to switch, add, rename, or organize pages. The zoom percentage button recenters the canvas and resets to 100%. Set tap-only actions under Gestures &gt; Tap actions. Configure one-finger drags and two- or three-finger movement separately under Gestures &gt; Finger movements. Stylus input continues to use the active tool.</p></section></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 7 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
+      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">{helpSection() === "guide" ? "SKETCHDRAW GUIDE" : "SHORTCUT REFERENCE"}</span><h2 id="help-title">{helpSection() === "guide" ? "Guide" : "Keyboard shortcuts"}</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 7 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the toolbar, then click or drag on the canvas. Common style controls sit beside the canvas; open the properties button for the full settings panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Hold Space or choose Hand to pan, or use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Add and manage pages from the page strip. Use View to change the theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section><section class="touch-guide-section"><h3>Phone and tablet controls</h3><p>The compact tool dock stays on the left. Tap <strong>More</strong> to show the remaining tools, then tap it again to collapse the dock. The four-square button at the top of the dock opens canvas options such as grid, snapping, and fit-to-view.</p></section><section class="touch-guide-section"><h3>Properties and components</h3><p>Tap the Quick style or Advanced style button in the left dock. Quick style adjusts color and width; Advanced style adds tool-specific options. Close either panel with its top-corner button. Open Symbols and elements from the expanded tools and scroll its list vertically to browse components.</p></section><section class="touch-guide-section"><h3>Touch, stylus, and navigation</h3><p>Draw with a finger or stylus. Pinch with two fingers to zoom. Open Pages in the top bar to switch, add, rename, or organize pages. The zoom percentage button recenters the canvas and resets to 100%. Set tap-only actions under Gestures &gt; Tap actions. Configure one-finger drags and two- or three-finger movement separately under Gestures &gt; Finger movements. A compatible stylus uses the active tool. Tap a style button in the tool dock to change pen, brush, or shape settings.</p></section></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 7 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
       <Show when={error()}><div class="error-toast" role="alert">{error()}<button onClick={() => setError("")}>Dismiss</button></div></Show>
     </main>
   );
