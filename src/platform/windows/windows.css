@@ -1,0 +1,7 @@
+/* Desktop and Windows window sizing; touch layouts override this in their own files. */
+.platform-windows .touch-gesture-menu { display: none !important; }
+@media (min-width: 901px) and (pointer: fine) {
+    body { min-width: 1000px; min-height: 680px; }
+    .app-shell { min-width: 1000px; min-height: 680px; }
+    .canvas-options-menu { left: 0; right: auto; }
+}

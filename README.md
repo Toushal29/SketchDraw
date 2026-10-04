@@ -2,7 +2,7 @@
 
 `This app is made entirely using AI. Use at your own risk.`
 
-SketchDraw is a local-first desktop whiteboard for flowcharts, diagrams, and visual notes. Each project is a portable `.sketch` file you choose where to save. Keep it on your computer or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
+SketchDraw is a local-first whiteboard for Windows, Android, and iOS, with a responsive workspace for desktop, tablet, and phone screens. Use it for flowcharts, diagrams, and visual notes. Each project is a portable `.sketch` file you choose where to save. Keep it on your device or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
 
 **Current release: 5.0.0 · Document format: version 7 · Copyright © 2026 Toushal Sampat**
 
@@ -70,7 +70,7 @@ The following hand-authored SVGs illustrate the current tools and workflows. The
 
 ![Windows pen pressure and tilt controls](docs/screenshots/windows-pen-preview.svg)
 
-*Windows pen input uses pressure, tilt, and eraser-end data from WebView2 pointer events.*
+*Compatible styluses can provide pressure, tilt, and eraser-end data through platform pointer events.*
 
 ![Laser pointer colors, rainbow mode, and reusable paint brush tools](docs/screenshots/laser-and-brush-preview.svg)
 
@@ -98,7 +98,11 @@ The following hand-authored SVGs illustrate the current tools and workflows. The
 - **Modeling components:** UML class cards open an editor for the class name, attributes, and methods. Their compartments grow as content is added, double-click opens the editor, and quick-style font controls resize their text. Table schema cards open the SQL/JSON schema editor and generate native linked table elements; stencil text is no longer prefilled. A standalone Layers panel in the canvas toolbar supports up/down layer controls, visibility, and lock controls outside the properties pane.
 - **Database Schema Visualizer:** Paste SQL `CREATE TABLE` statements or JSON table definitions to create individual native table cards, rather than groups of text and shapes. Primary and foreign-key badges, column names, and data types render as one resizable canvas element; foreign-key connectors attach to their field rows and follow tables when they move. Double-click any generated card to reopen the saved raw SQL or JSON, edit it, and regenerate the complete linked diagram. Existing grouped schema cards remain loadable.
 - **UML, ER, and architecture components:** The library inserts individual UML class cards with name, attribute, and method compartments; participant lifelines, activation bars, sync/async message arrows, and inheritance/realization/aggregation/composition presets; ER table cards and crow's-foot relationship examples; and C4 boundary frames, technology-tagged database/cloud/service nodes, data-flow arrows, and network-zone enclosures. Connector motifs move as a single group so arrowheads and lines stay together; ungroup them when you need to edit their pieces. Other component shapes remain individually editable. These are reusable parts rather than prefilled diagram templates.
-- **Windows stylus input:** On Windows, the Pen tool reads pressure and tilt from WebView2 pointer events. Enable or disable pressure width, tilt shaping, and the compatible pen's eraser end from the Pen quick-style controls. Stylus pressure and tilt values travel with freehand points in the `.sketch` document.
+- **Stylus input:** The Pen tool reads pressure and tilt when the platform reports compatible stylus pointer events, including Windows WebView2 and supported tablet webviews. Enable or disable pressure width, tilt shaping, and eraser-end support from the Pen quick-style controls. Stylus pressure and tilt values travel with freehand points in the `.sketch` document.
+- **Touch navigation:** Draw and edit with one finger or a compatible stylus. Use two fingers to pan and zoom; configure two- and three-finger taps in the Gestures menu.
+- **Compact touch controls:** Phones and tablets start with a compact tool dock on the left; tap **More** to open the full tool dock. The home screen keeps Create and Open close at hand and makes recent sketches easy to browse.
+- **Whiteboard paper:** Choose a plain, dotted, or lined canvas from View settings on Windows, phones, and tablets.
+- **Group erase:** Select several objects and use the floating **Delete** action, the Selection inspector, or the Delete key to remove them together in one undoable operation.
 - **Images:** Imported images are embedded in the project file and can be cropped on the canvas.
 - **Pages and history:** Add, rename, duplicate, reorder, and delete pages. Undo and redo history is maintained per page during the session.
 - **Recovery and conflict checks:** Unsaved work is recoverable from local app storage. Before autosaving, SketchDraw checks for external changes to the open file and offers conflict choices.
@@ -162,6 +166,24 @@ npm run tauri -- build --bundles nsis
 ```
 
 The resulting setup installer is unsigned, so SmartScreen warnings may appear on other computers.
+
+### Android and iOS
+
+Tauri mobile targets need their platform toolchains and a one-time native project setup. Follow the [Tauri mobile prerequisites](https://v2.tauri.app/start/prerequisites/) first, then initialize and run Android from this repository. The Android app opens in landscape and hides the system bars during use; swipe from an edge to reveal them temporarily.
+
+```sh
+npm run tauri -- android init
+npm run tauri -- android dev
+```
+
+Build an Android package with `npm run tauri -- android build`. iOS setup and builds require macOS with Xcode:
+
+```sh
+npm run tauri -- ios init
+npm run tauri -- ios dev
+```
+
+Build an iOS package with `npm run tauri -- ios build`.
 
 ## Keyboard shortcuts
 

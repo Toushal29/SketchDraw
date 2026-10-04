@@ -1,0 +1,92 @@
+/* App-level sizing and motion settings are separate from the OS display resolution. */
+.app-shell {
+    width: calc(100vw / var(--app-ui-scale, 1));
+    height: calc(100dvh / var(--app-ui-scale, 1));
+    zoom: var(--app-ui-scale, 1);
+}
+
+.app-shell.reduce-motion *,
+.app-shell.reduce-motion *::before,
+.app-shell.reduce-motion *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+}
+
+@supports not (zoom: 1) {
+    .app-shell { transform: scale(var(--app-ui-scale, 1)); transform-origin: top left; }
+}
+
+.app-settings-popover {
+    display: grid;
+    width: min(340px, calc(100vw - 20px));
+    max-height: min(78dvh, 560px);
+    gap: 10px;
+    padding: 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.settings-menu-dropdown > summary { gap: 5px; }
+.settings-menu-dropdown > summary > svg:first-child { width: 15px; height: 15px; }
+.settings-menu-dropdown > summary > svg:last-child { width: 11px; height: 11px; }
+.settings-menu-label { white-space: nowrap; }
+.app-settings-heading { display: grid; gap: 3px; padding: 1px 3px 9px; border-bottom: 1px solid #e7ebe7; }
+.app-settings-heading strong { color: #303832; font-size: 13px; }
+.app-settings-heading small,
+.app-setting-field > small,
+.app-setting-toggle small,
+.app-display-info small { color: #828c84; font-size: 10px; line-height: 1.4; }
+.app-setting-field { display: grid; gap: 5px; color: #59645c; font-size: 11px; }
+.app-setting-field > span { display: flex; justify-content: space-between; gap: 8px; }
+.app-setting-field > span > strong { color: var(--ui-accent-ink); font-variant-numeric: tabular-nums; }
+.app-setting-field select { box-sizing: border-box; width: 100%; min-height: 36px; padding: 6px 9px; border: 1px solid #dfe6df; border-radius: 8px; color: #39443c; background: #fff; font: 11px system-ui, sans-serif; }
+.app-setting-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 2px; border-top: 1px solid #e7ebe7; border-bottom: 1px solid #e7ebe7; }
+.app-setting-toggle > span { display: grid; gap: 3px; color: #39443c; font-size: 11px; }
+.app-setting-toggle input { width: 18px; height: 18px; accent-color: var(--ui-accent); }
+.app-display-info { display: grid; gap: 3px; padding: 9px; border: 1px solid #e6ebe6; border-radius: 9px; background: #f8faf8; }
+.app-display-info > strong { color: #59645c; font-size: 10px; }
+.app-display-info > span { color: #303832; font: 11px 'DM Mono', monospace; }
+.app-settings-reset { min-height: 34px; border: 1px solid #e1e6e1; border-radius: 8px; color: #58645b; background: transparent; font-size: 10px; font-weight: 600; }
+.app-settings-reset:hover { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+.theme-dark .app-settings-heading { border-color: #414c43; }
+.theme-dark .app-settings-heading strong,
+.theme-dark .app-setting-toggle > span,
+.theme-dark .app-display-info > strong { color: #e3ebe2; }
+.theme-dark .app-settings-heading small,
+.theme-dark .app-setting-field,
+.theme-dark .app-setting-field > small,
+.theme-dark .app-setting-toggle small,
+.theme-dark .app-display-info small { color: #a3aea4; }
+.theme-dark .app-setting-field select { border-color: #465148; color: #d4ddd5; background: #252c27; }
+.theme-dark .app-setting-toggle { border-color: #414c43; }
+.theme-dark .app-display-info { border-color: #414c43; background: #252c27; }
+.theme-dark .app-display-info > span { color: #d4ddd5; }
+.theme-dark .app-settings-reset { border-color: #465148; color: #d4ddd5; }
+
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+    .settings-menu-dropdown > summary { width: 34px; min-width: 34px; justify-content: center; padding: 5px 4px; }
+    .settings-menu-label { display: none; }
+    .settings-menu-dropdown > summary > svg:first-child { width: 16px; height: 16px; }
+    .settings-menu-dropdown > summary > svg:last-child { display: none; }
+    .app-shell .app-menus .settings-menu-dropdown .app-settings-popover {
+        position: fixed;
+        z-index: 100;
+        top: calc(max(54px, env(safe-area-inset-top) + 46px));
+        right: max(8px, env(safe-area-inset-right));
+        left: auto;
+        width: min(360px, calc(100vw - 16px));
+        max-width: calc(100vw - 16px);
+        max-height: calc(100dvh - max(62px, env(safe-area-inset-top) + 54px));
+        padding: 9px;
+        transform: none;
+    }
+    .app-setting-field select { min-height: 40px; }
+}
+
+@media (max-width: 400px) {
+    .topbar .app-menus { gap: 0; }
+    .app-settings-popover { gap: 8px; }
+}
