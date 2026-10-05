@@ -1,24 +1,41 @@
-﻿<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="540" viewBox="0 0 1040 540" role="img" aria-labelledby="title desc">
-  <title id="title">SketchDraw layer panel with arrow ordering controls</title>
-  <desc id="desc">A floating Layers panel lists canvas objects in stacking order. Up and down arrows reorder layers while visibility and lock controls stay on each row.</desc>
-  <defs><filter id="shadow" x="-20%" y="-20%" width="145%" height="160%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#26352c" flood-opacity=".13"/></filter></defs>
-  <rect width="1040" height="540" rx="24" fill="#f1f4f2"/>
-  <text x="40" y="48" fill="#64746a" font-family="Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="2">LAYER MANAGEMENT</text>
-  <text x="40" y="82" fill="#26362d" font-family="Segoe UI, sans-serif" font-size="25" font-weight="650">Reorder objects where you can see them</text>
-  <rect x="28" y="108" width="984" height="392" rx="18" fill="#fff" stroke="#e1e7e3"/>
-  <rect x="50" y="130" width="440" height="348" rx="12" fill="#fbfcfb" stroke="#e6eae7"/>
-  <path d="M96 361h250m0 0 12-9m-12 9 12 9" fill="none" stroke="#71869b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="134" y="244" width="226" height="124" rx="15" fill="#e8f1eb" stroke="#68836e" stroke-width="2"/><text x="247" y="287" text-anchor="middle" fill="#344a39" font-family="Segoe UI, sans-serif" font-size="14" font-weight="650">Service</text>
-  <path d="m320 238 86-50 87 50-87 50z" fill="#fff4d9" stroke="#aa8b45" stroke-width="2"/><text x="406" y="243" text-anchor="middle" fill="#5f4e27" font-family="Segoe UI, sans-serif" font-size="13">Decision</text>
-  <rect x="211" y="335" width="246" height="80" rx="12" fill="#e8eef8" fill-opacity=".9" stroke="#7189a1" stroke-width="2"/><text x="333" y="380" text-anchor="middle" fill="#394f68" font-family="Segoe UI, sans-serif" font-size="14">Selected shape</text>
-  <g filter="url(#shadow)"><rect x="516" y="145" width="282" height="316" rx="15" fill="#fff" stroke="#dbe2dd"/></g>
-  <text x="538" y="178" fill="#2d3e33" font-family="Segoe UI, sans-serif" font-size="15" font-weight="700">Layers</text><text x="777" y="178" text-anchor="end" fill="#7b8980" font-family="Segoe UI, sans-serif" font-size="11">4 objects</text>
-  <path d="M532 194h250" stroke="#e8ede9"/>
-  <g font-family="Segoe UI, sans-serif" font-size="12" fill="#35473a">
-    <rect x="531" y="205" width="252" height="48" rx="9" fill="#fff"/><g transform="translate(541 218)" fill="none" stroke="#839087" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m1 7 5-5 5 5M6 2v10m8-1 5 5 5-5m-5 5V6"/></g><text x="575" y="234">Text: Selected shape</text><text x="739" y="234" fill="#738078" font-size="9">Hide</text><text x="774" y="234" text-anchor="end" fill="#738078" font-size="9">Lock</text>
-    <rect x="531" y="257" width="252" height="43" rx="9" fill="#f2f6f2" stroke="#dbe6dc"/><g transform="translate(541 267)" fill="none" stroke="#547a5b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m1 7 5-5 5 5M6 2v10m8-1 5 5 5-5m-5 5V6"/></g><text x="575" y="284" font-weight="650">Decision</text><text x="739" y="284" fill="#738078" font-size="9">Hide</text><text x="774" y="284" text-anchor="end" fill="#738078" font-size="9">Lock</text>
-    <rect x="531" y="308" width="252" height="43" rx="9" fill="#fff"/><g transform="translate(541 318)" fill="none" stroke="#839087" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m1 7 5-5 5 5M6 2v10m8-1 5 5 5-5m-5 5V6"/></g><text x="575" y="335">Service</text><text x="739" y="335" fill="#738078" font-size="9">Hide</text><text x="774" y="335" text-anchor="end" fill="#738078" font-size="9">Lock</text>
-    <rect x="531" y="359" width="252" height="43" rx="9" fill="#fff"/><g transform="translate(541 369)" fill="none" stroke="#839087" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m1 7 5-5 5 5M6 2v10m8-1 5 5 5-5m-5 5V6"/></g><text x="575" y="386">Arrow</text><text x="739" y="386" fill="#738078" font-size="9">Hide</text><text x="774" y="386" text-anchor="end" fill="#738078" font-size="9">Lock</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 560" role="img" aria-labelledby="title desc">
+  <title id="title">Separate SketchDraw Layers panel with row controls</title>
+  <desc id="desc">The floating Layers panel opens separately from Properties. Each object row has move-forward and move-backward arrows, plus visibility and lock controls.</desc>
+  <defs><pattern id="layers-grid" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0v22" fill="none" stroke="#edf0ec"/></pattern><filter id="layers-shadow" x="-20%" y="-20%" width="145%" height="155%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#26352c" flood-opacity=".14"/></filter></defs>
+  <rect width="1120" height="560" rx="24" fill="#f1f4f2"/><text x="36" y="44" fill="#64746a" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="1.7">OBJECT ORDER</text><text x="36" y="77" fill="#26362d" font-family="Segoe UI,Arial,sans-serif" font-size="24" font-weight="700">Manage layers beside the canvas</text>
+  <rect x="24" y="101" width="1072" height="430" rx="18" fill="#fff" stroke="#e1e7e3"/>
+  <rect x="40" y="117" width="1040" height="398" rx="13" fill="#fff" stroke="#e0e6e1"/><rect x="41" y="118" width="1038" height="396" rx="12" fill="url(#layers-grid)"/>
+  <rect x="73" y="162" width="180" height="82" rx="13" fill="#e8f1eb" stroke="#68836e" stroke-width="2"/><text x="163" y="210" text-anchor="middle" fill="#344a39" font-family="Segoe UI,Arial,sans-serif" font-size="15">Service</text>
+  <path d="m385 190 84-48 84 48-84 48z" fill="#fff4d9" stroke="#aa8b45" stroke-width="2"/><text x="469" y="194" text-anchor="middle" fill="#5f4e27" font-family="Segoe UI,Arial,sans-serif" font-size="14">Decision</text>
+  <rect x="160" y="319" width="227" height="92" rx="13" fill="#e8eef8" fill-opacity=".92" stroke="#7189a1" stroke-width="2"/><text x="273" y="371" text-anchor="middle" fill="#394f68" font-family="Segoe UI,Arial,sans-serif" font-size="14">Selected shape</text>
+  <path d="M251 203h134v-15m-134 15v121h43m175-134 134 20v70h-92m-96-32 0 97" fill="none" stroke="#718294" stroke-width="2.4"/><path d="m378 184 7 4-7 4m-95 128 7 4-7 4" fill="none" stroke="#718294" stroke-width="2.4"/>
+  <g filter="url(#layers-shadow)"><rect x="630" y="134" width="426" height="348" rx="15" fill="#fff" stroke="#deded7"/></g>
+  <text x="653" y="166" fill="#2d3e33" font-family="Segoe UI,Arial,sans-serif" font-size="14" font-weight="700">Layers</text><text x="1009" y="166" text-anchor="end" fill="#7b8980" font-family="Segoe UI,Arial,sans-serif" font-size="10">4 objects</text><rect x="1019" y="146" width="24" height="24" rx="7" fill="#f6f8f6"/><path d="m1026 153 10 10m0-10-10 10" stroke="#6e7a70" stroke-width="1.4" stroke-linecap="round"/><path d="M650 180h385" stroke="#e8ede9"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <rect x="648" y="190" width="390" height="53" rx="9" fill="#fff" stroke="#eef0ec"/><text x="662" y="222" fill="#35473a" font-size="11">Text: Selected shape</text>
+    <rect x="828" y="200" width="24" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><path d="m835 220 5-6 5 6" fill="none" stroke="#728077" stroke-width="1.5"/><path d="M840 214v10" stroke="#728077" stroke-width="1.3"/>
+    <rect x="855" y="200" width="24" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><path d="m862 212 5 6 5-6" fill="none" stroke="#728077" stroke-width="1.5"/><path d="M867 206v11" stroke="#728077" stroke-width="1.3"/>
+    <rect x="886" y="200" width="59" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><path d="M895 216c0-5 4-8 9-8s9 3 9 8-4 8-9 8-9-3-9-8z" fill="none" stroke="#77857a" stroke-width="1.2"/><text x="926" y="220" text-anchor="middle" fill="#6f7b72" font-size="8">Hide</text>
+    <rect x="950" y="200" width="75" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><rect x="958" y="211" width="12" height="10" rx="2" fill="none" stroke="#77857a" stroke-width="1.2"/><path d="M961 211v-3a3 3 0 0 1 6 0v3" fill="none" stroke="#77857a" stroke-width="1.2"/><text x="998" y="220" text-anchor="middle" fill="#6f7b72" font-size="8">Lock</text>
+
+    <rect x="648" y="248" width="390" height="53" rx="9" fill="#edf4fc" stroke="#c6d9ef"/><text x="662" y="280" fill="#35473a" font-size="11" font-weight="650">Decision</text>
+    <rect x="828" y="258" width="24" height="32" rx="6" fill="#fff" stroke="#dce6ef"/><path d="m835 278 5-6 5 6M840 272v10" fill="none" stroke="#587da5" stroke-width="1.4"/>
+    <rect x="855" y="258" width="24" height="32" rx="6" fill="#fff" stroke="#dce6ef"/><path d="m862 270 5 6 5-6M867 266v10" fill="none" stroke="#587da5" stroke-width="1.4"/>
+    <rect x="886" y="258" width="59" height="32" rx="6" fill="#fff" stroke="#dce6ef"/><path d="M895 274c0-5 4-8 9-8s9 3 9 8-4 8-9 8-9-3-9-8z" fill="none" stroke="#587da5" stroke-width="1.2"/><text x="926" y="278" text-anchor="middle" fill="#587da5" font-size="8">Hide</text>
+    <rect x="950" y="258" width="75" height="32" rx="6" fill="#fff" stroke="#dce6ef"/><rect x="958" y="269" width="12" height="10" rx="2" fill="none" stroke="#587da5" stroke-width="1.2"/><path d="M961 269v-3a3 3 0 0 1 6 0v3" fill="none" stroke="#587da5" stroke-width="1.2"/><text x="998" y="278" text-anchor="middle" fill="#587da5" font-size="8">Lock</text>
+
+    <rect x="648" y="306" width="390" height="53" rx="9" fill="#fff" stroke="#eef0ec"/><text x="662" y="338" fill="#35473a" font-size="11">Service</text>
+    <rect x="828" y="316" width="24" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><path d="m835 336 5-6 5 6m-5-6v10" fill="none" stroke="#728077" stroke-width="1.4"/>
+    <rect x="855" y="316" width="24" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><path d="m862 328 5 6 5-6m-5-6v11" fill="none" stroke="#728077" stroke-width="1.4"/>
+    <rect x="886" y="316" width="59" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><path d="M895 332c0-5 4-8 9-8s9 3 9 8-4 8-9 8-9-3-9-8z" fill="none" stroke="#77857a" stroke-width="1.2"/><text x="926" y="336" text-anchor="middle" fill="#6f7b72" font-size="8">Hide</text>
+    <rect x="950" y="316" width="75" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><rect x="958" y="327" width="12" height="10" rx="2" fill="none" stroke="#77857a" stroke-width="1.2"/><path d="M961 327v-3a3 3 0 0 1 6 0v3" fill="none" stroke="#77857a" stroke-width="1.2"/><text x="998" y="336" text-anchor="middle" fill="#6f7b72" font-size="8">Lock</text>
+
+    <rect x="648" y="364" width="390" height="53" rx="9" fill="#fff" stroke="#eef0ec"/><text x="662" y="396" fill="#35473a" font-size="11">Arrow</text>
+    <rect x="828" y="374" width="24" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><path d="m835 394 5-6 5 6m-5-6v10" fill="none" stroke="#728077" stroke-width="1.4"/>
+    <rect x="855" y="374" width="24" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><path d="m862 386 5 6 5-6m-5-6v11" fill="none" stroke="#728077" stroke-width="1.4"/>
+    <rect x="886" y="374" width="59" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><path d="M895 390c0-5 4-8 9-8s9 3 9 8-4 8-9 8-9-3-9-8z" fill="none" stroke="#77857a" stroke-width="1.2"/><text x="926" y="394" text-anchor="middle" fill="#6f7b72" font-size="8">Hide</text>
+    <rect x="950" y="374" width="75" height="32" rx="6" fill="#f8faf8" stroke="#e5e9e5"/><rect x="958" y="385" width="12" height="10" rx="2" fill="none" stroke="#77857a" stroke-width="1.2"/><path d="M961 385v-3a3 3 0 0 1 6 0v3" fill="none" stroke="#77857a" stroke-width="1.2"/><text x="998" y="394" text-anchor="middle" fill="#6f7b72" font-size="8">Lock</text>
   </g>
-  <text x="50" y="522" fill="#7a867e" font-family="Segoe UI, sans-serif" font-size="10">Layers open separately from object properties. Use the up and down arrows to change stacking order.</text>
+  <rect x="49" y="457" width="410" height="31" rx="9" fill="#fbfcfb" stroke="#e4e9e5"/><text x="67" y="477" fill="#66736a" font-family="Segoe UI,Arial,sans-serif" font-size="9">Layers opens as a separate floating panel from the toolbar.</text>
+  <path d="M529 473h54" stroke="#8d9a8e" stroke-width="1.4"/><rect x="572" y="460" width="27" height="27" rx="8" fill="#f0f5ef" stroke="#dbe5db"/><g transform="translate(577 465)" fill="none" stroke="#59735f" stroke-width="1.2" stroke-linejoin="round"><path d="m1 5 8-4 8 4-8 4zM1 9l8 4 8-4m-16 4 8 4 8-4"/></g>
 </svg>

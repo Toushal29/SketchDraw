@@ -1,81 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 900" role="img" aria-labelledby="title desc">
-  <title id="title">SketchDraw mobile home preview</title>
-  <desc id="desc">Portrait phone preview of the SketchDraw mobile home screen, with new and open actions and a persistent recent sketches list.</desc>
-  <defs>
-    <linearGradient id="home-bg" x2="0" y2="1"><stop stop-color="#f5f8f5"/><stop offset="1" stop-color="#eaf0ec"/></linearGradient>
-    <filter id="home-shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#26352c" flood-opacity=".09"/></filter>
-  </defs>
-  <rect width="430" height="900" rx="30" fill="#202620"/>
-  <rect x="8" y="8" width="414" height="884" rx="25" fill="url(#home-bg)"/>
-  <rect x="8" y="8" width="414" height="83" rx="25" fill="#fbfcfb"/>
-  <path d="M8 91h414" stroke="#e1e7e2"/>
-  <rect x="23" y="19" width="27" height="27" rx="8" fill="#252822"/>
-  <path d="M29 27c3-4 12-4 15-1 3 3 0 5-5 7-5 1-8 3-6 6 2 3 9 3 13 0" fill="none" stroke="#f7f4ec" stroke-width="2.2" stroke-linecap="round"/>
-  <circle cx="44" cy="27" r="2.6" fill="#f29a83"/>
-  <text x="58" y="38" fill="#303a33" font-family="Segoe UI,Arial,sans-serif" font-size="13" font-weight="700">SketchDraw</text>
-  <rect x="375" y="18" width="31" height="31" rx="10" fill="#f6f8f6" stroke="#e0e7e1"/>
-  <path d="M384 28h13m-13 5h13m-13 5h13" stroke="#69776d" stroke-width="1.6" stroke-linecap="round"/>
-  <circle cx="389" cy="28" r="1.7" fill="#69866e"/><circle cx="394" cy="33" r="1.7" fill="#69866e"/><circle cx="390" cy="38" r="1.7" fill="#69866e"/>
-  <g font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="600" fill="#566258">
-    <rect x="20" y="54" width="57" height="29" rx="9" fill="#edf2ee"/><text x="48" y="73" text-anchor="middle">File⌄</text>
-    <rect x="81" y="54" width="61" height="29" rx="9" fill="#edf2ee"/><text x="111" y="73" text-anchor="middle">View⌄</text>
-    <rect x="146" y="54" width="81" height="29" rx="9" fill="#edf2ee"/><text x="186" y="73" text-anchor="middle">Gestures⌄</text>
-    <rect x="231" y="54" width="64" height="29" rx="9" fill="#edf2ee"/><text x="262" y="73" text-anchor="middle">Help⌄</text>
-    <rect x="301" y="54" width="105" height="29" rx="9" fill="#fff" stroke="#dfe6e0"/><text x="353" y="73" text-anchor="middle">Settings⌄</text>
-  </g>
+  <title id="title">SketchDraw portrait mobile home preview</title>
+  <desc id="desc">Portrait mobile home layout with File and Menu, App Settings, New sketch and Open a sketch actions, and a Recent sketches list.</desc>
+  <defs><linearGradient id="mobile-home-bg" x2="0" y2="1"><stop stop-color="#f4f7f5"/><stop offset="1" stop-color="#edf1ef"/></linearGradient><filter id="mobile-home-shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#26352c" flood-opacity=".08"/></filter></defs>
+  <rect width="430" height="900" rx="30" fill="#202620"/><rect x="8" y="8" width="414" height="884" rx="25" fill="url(#mobile-home-bg)"/>
+  <rect x="8" y="8" width="414" height="51" rx="25" fill="#fbfcfb"/><rect x="8" y="40" width="414" height="19" fill="#fbfcfb"/><path d="M8 59h414" stroke="#e1e7e2"/>
+  <rect x="18" y="17" width="26" height="26" rx="8" fill="#252822"/><path d="M23 23c3-4 10-4 13-1 2 3 0 5-4 6-5 2-7 4-5 7s8 3 11 0" fill="none" stroke="#f7f4ec" stroke-width="1.8" stroke-linecap="round"/><circle cx="37" cy="23" r="2" fill="#f29a83"/>
+  <rect x="54" y="15" width="57" height="34" rx="9" fill="#edf2ee"/><text x="82.5" y="36" text-anchor="middle" fill="#566258" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="650">File</text>
+  <rect x="116" y="15" width="69" height="34" rx="9" fill="#edf2ee"/><path d="M128 24h15m-15 6h15m-15 6h15" fill="none" stroke="#566258" stroke-width="1.3" stroke-linecap="round"/><text x="160" y="36" text-anchor="middle" fill="#566258" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="650">Menu</text>
+  <rect x="337" y="15" width="72" height="34" rx="9" fill="#fff" stroke="#dfe6e0"/><text x="373" y="36" text-anchor="middle" fill="#566258" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="650">Settings</text>
   <g font-family="Segoe UI,Arial,sans-serif">
-    <rect x="28" y="111" width="7" height="7" rx="4" fill="#6d9875"/>
-    <text x="43" y="118" fill="#758379" font-size="9" font-weight="700" letter-spacing="1.1">SKETCHDRAW WORKSPACE</text>
-    <text x="27" y="161" fill="#26342c" font-size="29" font-weight="700" letter-spacing="-1.2">What would you</text>
-    <text x="27" y="194" fill="#26342c" font-size="29" font-weight="700" letter-spacing="-1.2">like to make?</text>
-    <text x="28" y="220" fill="#77847b" font-size="12">Start fresh or continue a sketch.</text>
-  </g>
-  <g filter="url(#home-shadow)" font-family="Segoe UI,Arial,sans-serif">
-    <rect x="23" y="244" width="384" height="80" rx="17" fill="#fff" stroke="#dce6dd"/>
-    <rect x="35" y="261" width="43" height="43" rx="13" fill="#edf4ed" stroke="#dbe9dd"/>
-    <path d="M56.5 273v19m-9.5-9.5h19" stroke="#557b5d" stroke-width="2" stroke-linecap="round"/>
-    <text x="91" y="278" fill="#303a33" font-size="13" font-weight="700">New sketch</text>
-    <text x="91" y="296" fill="#879188" font-size="10">Start with a blank canvas</text>
-    <path d="M379 280h13m-6-6 6 6-6 6" fill="none" stroke="#929c93" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-    <rect x="23" y="335" width="384" height="80" rx="17" fill="#fff" stroke="#dce6dd"/>
-    <rect x="35" y="352" width="43" height="43" rx="13" fill="#eef2f4" stroke="#dfe7e9"/>
-    <path d="M45 365a3 3 0 0 1 3-3h7l4 4h9a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3H48a3 3 0 0 1-3-3zM45 369h26" fill="none" stroke="#637782" stroke-width="1.6" stroke-linejoin="round"/>
-    <text x="91" y="369" fill="#303a33" font-size="13" font-weight="700">Open a sketch</text>
-    <text x="91" y="387" fill="#879188" font-size="10">Browse files on this device</text>
-    <path d="M379 371h13m-6-6 6 6-6 6" fill="none" stroke="#929c93" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
-  <g filter="url(#home-shadow)" font-family="Segoe UI,Arial,sans-serif">
-    <rect x="20" y="431" width="390" height="373" rx="20" fill="#fff" stroke="#dfe6e0"/>
-    <text x="39" y="461" fill="#89948b" font-size="9" font-weight="700" letter-spacing="1">YOUR WORK</text>
-    <text x="39" y="486" fill="#2e3931" font-size="17" font-weight="700">Recent sketches</text>
-    <rect x="365" y="454" width="26" height="26" rx="13" fill="#f5f8f5" stroke="#e2e9e3"/>
-    <text x="378" y="471" text-anchor="middle" fill="#68776b" font-size="10" font-weight="600">3</text>
-    <path d="M38 501h354" stroke="#edf0ed"/>
-    <g>
-      <rect x="32" y="514" width="366" height="67" rx="12" fill="#fbfcfb"/>
-      <rect x="42" y="528" width="38" height="39" rx="11" fill="#f2f6f2" stroke="#e2e9e3"/>
-      <path d="M53 536h10l6 6v17H53zM63 536v7h6m-12 4h8m-8 4h8" fill="none" stroke="#758479" stroke-width="1.4" stroke-linejoin="round"/>
-      <text x="91" y="541" fill="#37433a" font-size="11" font-weight="650">Project planning.sketch</text>
-      <text x="91" y="558" fill="#99a199" font-size="9">Sketch document</text>
-      <path d="m379 539 6 6-6 6" fill="none" stroke="#9ba59c" stroke-width="1.5"/>
-      <path d="M39 585h369" stroke="#edf0ed"/>
-      <rect x="32" y="590" width="366" height="67" rx="12" fill="#fbfcfb"/>
-      <rect x="42" y="604" width="38" height="39" rx="11" fill="#f2f6f2" stroke="#e2e9e3"/>
-      <path d="M53 612h10l6 6v17H53zM63 612v7h6m-12 4h8m-8 4h8" fill="none" stroke="#758479" stroke-width="1.4" stroke-linejoin="round"/>
-      <text x="91" y="617" fill="#37433a" font-size="11" font-weight="650">Workshop notes.sketch</text>
-      <text x="91" y="634" fill="#99a199" font-size="9">Sketch document</text>
-      <path d="m379 615 6 6-6 6" fill="none" stroke="#9ba59c" stroke-width="1.5"/>
-      <path d="M39 661h369" stroke="#edf0ed"/>
-      <rect x="32" y="666" width="366" height="67" rx="12" fill="#fbfcfb"/>
-      <rect x="42" y="680" width="38" height="39" rx="11" fill="#f2f6f2" stroke="#e2e9e3"/>
-      <path d="M53 688h10l6 6v17H53zM63 688v7h6m-12 4h8m-8 4h8" fill="none" stroke="#758479" stroke-width="1.4" stroke-linejoin="round"/>
-      <text x="91" y="693" fill="#37433a" font-size="11" font-weight="650">Research board.sketch</text>
-      <text x="91" y="710" fill="#99a199" font-size="9">Sketch document</text>
-      <path d="m379 691 6 6-6 6" fill="none" stroke="#9ba59c" stroke-width="1.5"/>
+    <rect x="20" y="74" width="7" height="7" rx="4" fill="#6d9875"/><text x="39" y="81" fill="#758379" font-size="9" font-weight="700" letter-spacing="1.1">SKETCHDRAW WORKSPACE</text>
+    <text x="20" y="128" fill="#26342c" font-size="30" font-weight="700" letter-spacing="-1.2">What would you like</text><text x="20" y="161" fill="#26342c" font-size="30" font-weight="700" letter-spacing="-1.2">to make?</text><text x="21" y="187" fill="#77847b" font-size="11">Start with a fresh canvas or continue a sketch.</text>
+    <g filter="url(#mobile-home-shadow)">
+      <rect x="18" y="208" width="190" height="86" rx="16" fill="#fff" stroke="#dce6dd"/><rect x="30" y="229" width="38" height="38" rx="12" fill="#edf4ed" stroke="#dbe9dd"/><path d="M49 238v20m-10-10h20" stroke="#557b5d" stroke-width="1.8" stroke-linecap="round"/><text x="78" y="243" fill="#303a33" font-size="11" font-weight="700">New sketch</text><text x="78" y="262" fill="#879188" font-size="8">Start with a blank canvas</text><path d="M185 249h11m-5-5 5 5-5 5" fill="none" stroke="#929c93" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="220" y="208" width="192" height="86" rx="16" fill="#fff" stroke="#dce6dd"/><rect x="232" y="229" width="38" height="38" rx="12" fill="#eef2f4" stroke="#dfe7e9"/><path d="M239 239a2 2 0 0 1 2-2h7l4 4h10a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2h-21a2 2 0 0 1-2-2zM239 243h25" fill="none" stroke="#637782" stroke-width="1.4" stroke-linejoin="round"/><text x="280" y="243" fill="#303a33" font-size="11" font-weight="700">Open a sketch</text><text x="280" y="262" fill="#879188" font-size="8">Browse files on device</text><path d="M389 249h11m-5-5 5 5-5 5" fill="none" stroke="#929c93" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
     </g>
-    <path d="M38 752h354" stroke="#edf0ed"/>
-    <circle cx="42" cy="775" r="3" fill="#78a27d"/>
-    <text x="52" y="779" fill="#8b968d" font-size="9">Saved on this device</text>
+    <g filter="url(#mobile-home-shadow)">
+      <rect x="17" y="315" width="396" height="445" rx="19" fill="#fff" stroke="#dfe6e0"/>
+      <text x="34" y="344" fill="#89948b" font-size="9" font-weight="700" letter-spacing="1">YOUR WORK</text><text x="34" y="370" fill="#2e3931" font-size="17" font-weight="700">Recent sketches</text><rect x="374" y="337" width="25" height="25" rx="12" fill="#f5f8f5" stroke="#e2e9e3"/><text x="386.5" y="354" text-anchor="middle" fill="#68776b" font-size="9" font-weight="600">3</text><path d="M33 383h364" stroke="#edf0ed"/>
+      <g>
+        <rect x="27" y="393" width="376" height="78" rx="12" fill="#fbfcfb"/><rect x="38" y="410" width="36" height="42" rx="10" fill="#f2f6f2" stroke="#e2e9e3"/><path d="M48 417h10l6 6v20H48zM58 417v7h6m-12 5h9m-9 4h9" fill="none" stroke="#758479" stroke-width="1.3" stroke-linejoin="round"/><text x="85" y="423" fill="#37433a" font-size="10" font-weight="650">Project planning.sketch</text><text x="85" y="441" fill="#99a199" font-size="8">Sketch document</text><path d="m384 422 5 6-5 6" fill="none" stroke="#9ba59c" stroke-width="1.4"/>
+        <path d="M33 474h364" stroke="#edf0ed"/><rect x="27" y="481" width="376" height="78" rx="12" fill="#fbfcfb"/><rect x="38" y="498" width="36" height="42" rx="10" fill="#f2f6f2" stroke="#e2e9e3"/><path d="M48 505h10l6 6v20H48zM58 505v7h6m-12 5h9m-9 4h9" fill="none" stroke="#758479" stroke-width="1.3" stroke-linejoin="round"/><text x="85" y="511" fill="#37433a" font-size="10" font-weight="650">Workshop notes.sketch</text><text x="85" y="529" fill="#99a199" font-size="8">Sketch document</text><path d="m384 510 5 6-5 6" fill="none" stroke="#9ba59c" stroke-width="1.4"/>
+        <path d="M33 562h364" stroke="#edf0ed"/><rect x="27" y="569" width="376" height="78" rx="12" fill="#fbfcfb"/><rect x="38" y="586" width="36" height="42" rx="10" fill="#f2f6f2" stroke="#e2e9e3"/><path d="M48 593h10l6 6v20H48zM58 593v7h6m-12 5h9m-9 4h9" fill="none" stroke="#758479" stroke-width="1.3" stroke-linejoin="round"/><text x="85" y="599" fill="#37433a" font-size="10" font-weight="650">Research board.sketch</text><text x="85" y="617" fill="#99a199" font-size="8">Sketch document</text><path d="m384 598 5 6-5 6" fill="none" stroke="#9ba59c" stroke-width="1.4"/>
+      </g>
+      <path d="M33 663h364" stroke="#edf0ed"/><circle cx="37" cy="686" r="3" fill="#78a27d"/><text x="47" y="690" fill="#8b968d" font-size="8">Saved on this device</text>
+    </g>
+    <rect x="156" y="878" width="118" height="4" rx="2" fill="#bac3bc"/>
   </g>
-  <rect x="151" y="878" width="128" height="4" rx="2" fill="#bac3bc"/>
 </svg>

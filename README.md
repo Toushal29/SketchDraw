@@ -4,29 +4,29 @@
 
 SketchDraw is a local-first whiteboard for Windows, Android, and iOS, with a responsive workspace for desktop, tablet, and phone screens. Use it for flowcharts, diagrams, and visual notes. Each project is a portable `.sketch` file you choose where to save. Keep it on your device or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
 
-**Current release: Windows 7.0.0 · Android 1.0.0 · Document format: version 7 · Copyright © 2026 Toushal Sampat**
+**Current release: Windows 7.1.0 · Android 2.0.0 · Document format: version 7 · Copyright © 2026 Toushal Sampat**
 
 > SketchDraw saves version 7 `.sketch` documents on both platforms. Recognizable earlier SketchDraw JSON versions (1-6) are migrated to v7 when opened and saved back to the same `.sketch` file; unrelated or malformed files remain unsupported. The `.sketch` extension stays the same.
 
 ## Screenshots and previews
 
-The following hand-authored SVGs illustrate the current interface and workflows. They are previews rather than pixel-perfect captures of the installed app, and the diagrams are example artwork rather than a user's private work.
+The launch and workspace SVGs have been reviewed against the current desktop and touch components. They are drawn previews rather than runtime captures, so touch tool visibility and spacing can vary with screen size. Board artwork and recent-file names are examples, not user data.
 
-![SketchDraw welcome screen with create/open actions and recent sketches](docs/screenshots/home-screen-current.svg)
+![SketchDraw desktop launch screen with welcome actions and recent sketches](docs/screenshots/home-screen-current.svg)
 
-*Launch screen: start a new file, browse for one, or reopen a recent sketch.*
+*Launch screen: create a sketch, browse for a file, or reopen a recent sketch.*
 
-![SketchDraw Windows workspace preview with grouped toolbar, simple Properties panel, and flowchart](docs/screenshots/workspace-current.svg)
+![SketchDraw Windows workspace with grouped toolbar, direct canvas actions, contextual Properties, and flowchart](docs/screenshots/workspace-current.svg)
 
-*Windows workspace preview: a flat, grouped tool bar, direct canvas actions, and a simpler contextual Properties panel.*
+*Windows workspace preview: a flat, grouped toolbar, direct canvas actions, and a simpler contextual Properties panel.*
 
-![SketchDraw mobile home screen preview](docs/screenshots/mobile-home-preview.svg)
+![Portrait SketchDraw mobile home with File and Menu controls, new/open actions, and recent sketches](docs/screenshots/mobile-home-preview.svg)
 
 *Mobile home preview: create or open a sketch and browse recent files in a touch-friendly layout.*
 
-![SketchDraw landscape tablet workspace preview](docs/screenshots/mobile-workspace-preview.svg)
+![SketchDraw landscape tablet workspace with vertical dock, quick-style strip, color dropdown, and zoom reset](docs/screenshots/mobile-workspace-preview.svg)
 
-![SketchDraw portrait phone workspace preview](docs/screenshots/mobile-portrait-preview.svg)
+![SketchDraw portrait mobile workspace with compact header, responsive top tool rail, and quick styles](docs/screenshots/mobile-portrait-preview.svg)
 
 *Mobile and tablet workspaces: Landscape uses a vertical tool dock with a horizontal quick-style strip immediately left of the zoom reset button, a drop-down row of color presets, and a visible stroke control; Portrait moves the tools into a responsive horizontal rail at the top of the canvas, puts quick controls beside the advanced style button, and groups non-File menus under Menu. Choose an orientation in App Settings on supported devices.*
 
@@ -38,15 +38,15 @@ The following hand-authored SVGs illustrate the current interface and workflows.
 
 *View-only preview: inspect a `.sketch` file with the laser pointer while expanding or collapsing note, sticky-note, and checklist cards.*
 
-![Simple Properties panel with grouped selected-card controls and a canvas preview](docs/screenshots/advanced-inspector-preview.svg)
+![Contextual Properties panel for a selected Markdown card with collapse, title, and conversion controls](docs/screenshots/advanced-inspector-preview.svg)
 
-*Properties preview: focused controls for the selected item; Layers opens separately from the canvas toolbar.*
+*Properties preview: focused controls for the selected item; Layers opens in a separate panel from the canvas toolbar.*
 
-![Standalone Layers panel with up and down arrow controls](docs/screenshots/layers-panel-preview.svg)
+![Separate Layers panel with forward/backward arrows and visibility and lock controls on each row](docs/screenshots/layers-panel-preview.svg)
 
 *Layers preview: move an object forward or backward with the row arrows, with visibility and lock controls beside each layer.*
 
-![Toolbar surface matching the light and dark application themes](docs/screenshots/toolbar-auto-preview.svg)
+![View settings with Auto, named, and custom toolbar surface choices and light/dark examples](docs/screenshots/toolbar-auto-preview.svg)
 
 *Toolbar appearance preview: choose Auto to follow light and dark mode, or set a named or custom surface color.*
 
@@ -114,7 +114,7 @@ The following hand-authored SVGs illustrate the current interface and workflows.
 - **Text, Markdown, tables, and checklists:** Plain text starts at 16 px. Font sizes and thickness values use whole numbers. Choose sans-serif, handwritten, serif, or monospaced text with color, bold, italic, underline, lists, alignment, and wrapping. The Text menu offers plain text, Markdown text, Markdown table, note + code, sticky note, checklist, and Diagram as code. Markdown cards support headings, lists, tables, and language-tagged fenced code blocks with syntax colors in both modern and simple appearance. Insert a starter Markdown table from the Text menu or add one inside an existing card, then double-click the card to edit its source and refresh the rendered table. Convert selected plain text to an editable Markdown card or convert a Markdown card back to plain text. Earlier note cards remain loadable and editable. Notes and checklists can be collapsed, expanded, resized, and titled; collapsed cards show a short content or task-progress summary. The inline editor saves on Done, clicking away, or `Ctrl/⌘ + Enter`. These cards and their code metadata are stored in the current v7 `.sketch` format.
 - **View-only files:** Open a `.sketch` file in view-only mode to inspect it without editing or saving changes. The laser pointer is the only drawing tool. Note, sticky-note, and checklist cards can still be expanded and collapsed while viewing.
 - **Mermaid diagram as code:** Paste Mermaid flowchart code and see a live preview before generating native shapes and attached connectors. Its source is saved inside the diagram component in the `.sketch` file; double-click the diagram to reopen, edit, preview, and regenerate the code in place. The importer supports common flowchart directions, node labels and shapes, nested subgraphs, labeled connectors, and solid, dashed, dotted, thick, bidirectional, circle-end, and cross-end connectors.
-- **Modeling components:** UML class cards open an editor for the class name, attributes, and methods. Their compartments grow as content is added, double-click opens the editor, and quick-style font controls resize their text. Table schema cards open the SQL/JSON schema editor and generate native linked table elements; stencil text is no longer prefilled. A standalone Layers panel in the canvas toolbar supports up/down layer controls, visibility, and lock controls outside the properties pane.
+- **Modeling components:** UML class cards open an editor for the class name, attributes, and methods. Their compartments grow as content is added, double-click opens the editor, and quick-style font controls resize their text. Table schema cards open the SQL/JSON schema editor and generate native linked table elements; stencil text is no longer prefilled. A separate Layers panel opens from the canvas toolbar and offers up/down layer, visibility, and lock controls outside the Properties pane.
 - **Database Schema Visualizer:** Paste SQL `CREATE TABLE` statements or JSON table definitions to create individual native table cards, rather than groups of text and shapes. Primary and foreign-key badges, column names, and data types render as one resizable canvas element; foreign-key connectors attach to their field rows and follow tables when they move. Double-click any generated card to reopen the saved raw SQL or JSON, edit it, and regenerate the complete linked diagram. Existing grouped schema cards remain loadable.
 - **UML, ER, and architecture components:** The library inserts individual UML class cards with name, attribute, and method compartments; participant lifelines, activation bars, sync/async message arrows, and inheritance/realization/aggregation/composition presets; ER table cards and crow's-foot relationship examples; and C4 boundary frames, technology-tagged database/cloud/service nodes, data-flow arrows, and network-zone enclosures. Connector motifs move as a single group so arrowheads and lines stay together; ungroup them when you need to edit their pieces. Other component shapes remain individually editable. These are reusable parts rather than prefilled diagram templates.
 - **Stylus input:** The Pen tool reads pressure and tilt when the platform reports compatible stylus pointer events, including Windows WebView2 and supported tablet webviews. Enable or disable pressure width, tilt shaping, and eraser-end support from the Pen quick-style controls. Stylus pressure and tilt values travel with freehand points in the `.sketch` document.
@@ -151,7 +151,7 @@ For a Windows x64 NSIS installer, run the build command below with `--bundles ns
 
 ## Changing the app version
 
-Before making another release, update the app version in `package.json`, the root package entry in `package-lock.json`, `[package].version` in `src-tauri/Cargo.toml`, and the top-level `version` in `src-tauri/tauri.conf.json`. Regenerate the lock files with `npm install --package-lock-only` and `cargo check --manifest-path src-tauri/Cargo.toml` rather than editing generated dependency data by hand. Update the release tag and current release details. The document format version is independent of the app version; change it only when intentionally introducing a new file schema.
+For a release, update the Windows version in `package.json`, the root package entry in `package-lock.json`, `[package].version` in `src-tauri/Cargo.toml`, and the top-level `version` in `src-tauri/tauri.conf.json`. Set the Android version name and increase its version code in `src-tauri/tauri.android.conf.json`. Regenerate lock files with `npm install --package-lock-only` and `cargo check --manifest-path src-tauri/Cargo.toml` rather than editing generated dependency data by hand. Update the release tag and current release details. The document format version is independent of the app version; change it only when intentionally introducing a new file schema.
 
 ## Copyright and ownership
 
