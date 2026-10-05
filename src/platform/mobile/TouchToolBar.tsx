@@ -5,6 +5,7 @@ type Props = {
   expanded: boolean;
   styleOpen: boolean;
   children: JSX.Element;
+  quickStyles?: JSX.Element;
   onShow: () => void;
   onHide: () => void;
   onToggleExpanded: () => void;
@@ -23,6 +24,7 @@ export function TouchToolBar(props: Props) {
         <nav class="tool-deck touch-tool-bar" aria-label="Canvas tools">
           <div class="touch-tool-content">{props.children}</div>
           <div class="touch-tool-actions">
+            {props.quickStyles}
             <button class={`touch-style-open ${props.styleOpen ? "active" : ""}`} title={props.styleOpen ? "Close tool style" : "Open tool style"} aria-label={props.styleOpen ? "Close tool style" : "Open tool style"} aria-expanded={props.styleOpen} aria-haspopup="dialog" onClick={props.onToggleStyle}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="11" cy="18" r="2"/></svg>
             </button>

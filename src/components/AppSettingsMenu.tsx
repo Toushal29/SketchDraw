@@ -1,4 +1,4 @@
-import { AdvancedPropertiesIcon } from "./PropertyPanelIcons";
+import { Show } from "solid-js";
 
 export type DisplayMetrics = {
   physicalWidth: number;
@@ -11,11 +11,16 @@ type Props = {
   interfaceScale: number;
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
+  mobileButtonChoices: boolean;
+  mobileOrientation: "landscape" | "portrait";
+  showOrientationSetting: boolean;
+  orientationMessage?: string;
   reduceMotion: boolean;
   displayMetrics: DisplayMetrics;
   onInterfaceScaleChange: (scale: number) => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: "presets" | "stepper") => void;
+  onMobileOrientationChange: (orientation: "landscape" | "portrait") => void;
   onReduceMotionChange: (reduce: boolean) => void;
   onRestoreDefaults: () => void;
   detailsRef?: (element: HTMLDetailsElement) => void;
@@ -24,38 +29,54 @@ type Props = {
 
 const interfaceScales = [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4];
 
+function SettingChoices<T extends string | number>(props: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return <div class={`app-setting-choices ${props.label === "Interface scale" ? "app-setting-choices-scale" : ""}`} role="group" aria-label={props.label}>
+    {props.options.map(option => <button type="button" class={props.value === option.value ? "active" : ""} aria-pressed={props.value === option.value} onClick={() => props.onChange(option.value)}>{option.label}</button>)}
+  </div>;
+}
+
 export function AppSettingsMenu(props: Props) {
   return (
     <details class="menu-dropdown settings-menu-dropdown" ref={props.detailsRef} onToggle={props.onToggle}>
       <summary aria-label="App settings" title="App settings">
-        <AdvancedPropertiesIcon />
         <span class="settings-menu-label">Settings</span>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
       </summary>
       <div class="system-menu-popover app-settings-popover">
         <header class="app-settings-heading"><strong>App settings</strong><small>Adjust SketchDraw for this device</small></header>
-        <label class="app-setting-field">
+        <div class="app-setting-field">
           <span>Interface scale <strong>{Math.round(props.interfaceScale * 100)}%</strong></span>
-          <select aria-label="Interface scale" value={props.interfaceScale} onChange={event => props.onInterfaceScaleChange(Number(event.currentTarget.value))}>
-            {interfaceScales.map(scale => <option value={scale}>{Math.round(scale * 100)}%</option>)}
-          </select>
+          <Show when={props.mobileButtonChoices} fallback={<select aria-label="Interface scale" value={props.interfaceScale} onChange={event => props.onInterfaceScaleChange(Number(event.currentTarget.value))}>{interfaceScales.map(scale => <option value={scale}>{Math.round(scale * 100)}%</option>)}</select>}>
+            <SettingChoices label="Interface scale" value={props.interfaceScale} options={interfaceScales.map(scale => ({ value: scale, label: `${Math.round(scale * 100)}%` }))} onChange={props.onInterfaceScaleChange} />
+          </Show>
           <small>Changes the app's control and text size. Device display resolution is managed by system settings.</small>
-        </label>
-        <label class="app-setting-field">
+        </div>
+        <div class="app-setting-field">
           <span>Autosave interval</span>
-          <select aria-label="Autosave interval" value={props.autosaveSeconds} onChange={event => props.onAutosaveChange(Number(event.currentTarget.value) as 5 | 10)}>
-            <option value={5}>Every 5 seconds</option>
-            <option value={10}>Every 10 seconds</option>
-          </select>
-        </label>
-        <label class="app-setting-field">
+          <Show when={props.mobileButtonChoices} fallback={<select aria-label="Autosave interval" value={props.autosaveSeconds} onChange={event => props.onAutosaveChange(Number(event.currentTarget.value) as 5 | 10)}><option value={5}>Every 5 seconds</option><option value={10}>Every 10 seconds</option></select>}>
+            <SettingChoices label="Autosave interval" value={props.autosaveSeconds} options={[{ value: 5, label: "5 sec" }, { value: 10, label: "10 sec" }]} onChange={props.onAutosaveChange} />
+          </Show>
+        </div>
+        <div class="app-setting-field">
           <span>Pen and brush thickness controls</span>
-          <select aria-label="Pen and brush thickness controls" value={props.thicknessPickerMode} onChange={event => props.onThicknessPickerModeChange(event.currentTarget.value as "presets" | "stepper")}>
-            <option value="presets">Preset thicknesses</option>
-            <option value="stepper">Fine tune with slider</option>
-          </select>
+          <Show when={props.mobileButtonChoices} fallback={<select aria-label="Pen and brush thickness controls" value={props.thicknessPickerMode} onChange={event => props.onThicknessPickerModeChange(event.currentTarget.value as "presets" | "stepper")}><option value="presets">Preset thicknesses</option><option value="stepper">Fine tune with slider</option></select>}>
+            <SettingChoices label="Pen and brush thickness controls" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} />
+          </Show>
           <small>Choose presets or fine tuning for pen and paint brushes. Other tools keep their existing controls.</small>
-        </label>
+        </div>
+        {props.showOrientationSetting && <div class="app-setting-field">
+          <span>Mobile orientation</span>
+          <Show when={props.mobileButtonChoices} fallback={<select aria-label="Mobile orientation" value={props.mobileOrientation} onChange={event => props.onMobileOrientationChange(event.currentTarget.value as "landscape" | "portrait")}><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>}>
+            <SettingChoices label="Mobile orientation" value={props.mobileOrientation} options={[{ value: "landscape", label: "Landscape" }, { value: "portrait", label: "Portrait" }]} onChange={props.onMobileOrientationChange} />
+          </Show>
+          <small>Choose the screen direction for this device. The touch workspace rearranges to fit.</small>
+          {props.orientationMessage && <small class="orientation-setting-message" role="status">{props.orientationMessage}</small>}
+        </div>}
         <label class="app-setting-toggle">
           <span><strong>Reduce motion</strong><small>Turn off most interface animations</small></span>
           <input type="checkbox" checked={props.reduceMotion} onChange={event => props.onReduceMotionChange(event.currentTarget.checked)} />

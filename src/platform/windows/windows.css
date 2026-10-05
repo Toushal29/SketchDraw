@@ -122,38 +122,17 @@
 .platform-windows .tool-deck-reopen svg { width: 20px; height: 20px; }
 
 .platform-windows .tool-deck-reopen {
-    /* position: fixed;
-    z-index: 20;
-    top: 18px;
-    right: 18px;
-    left: auto;
-    display: grid;
-    width: 42px;
-    height: 42px;
-    place-items: center;
-    padding: 0;
-    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
-    border-radius: 12px;
-    color: var(--toolbar-ink);
-    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
-    box-shadow: 0 6px 20px #2028201a;
-    transform: none; */
     position: fixed;
     z-index: 20;
     top: 50px;
-    /* right: auto; */
-    /* left: auto; */
     display: grid;
     width: 40px;
     height: 40px;
     place-items: center;
-    /* padding: 0px; */
-    border: 1px solid 
-color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
     border-radius: 12px;
     color: var(--toolbar-ink);
-    background: 
-color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
+    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
     box-shadow: 0 6px 20px #2028201a;
     transform: none;
 }

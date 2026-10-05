@@ -54,21 +54,20 @@
         stroke-linejoin: round;
     }
     .app-shell:not(.platform-windows) .touch-menu-items > .menu-dropdown > summary > svg:last-child { flex: 0 0 9px; width: 9px; height: 9px; }
-    .app-shell:not(.platform-windows) .touch-menu-bar > .settings-menu-dropdown { flex: 0 0 38px; margin: 0; }
+    .app-shell:not(.platform-windows) .touch-menu-bar > .settings-menu-dropdown { flex: 0 0 50px; margin: 0; }
     .app-shell:not(.platform-windows) .touch-menu-bar > .settings-menu-dropdown > summary {
-        width: 38px;
-        min-width: 38px;
+        width: 50px;
+        min-width: 50px;
         height: 38px;
         min-height: 38px;
         justify-content: center;
-        padding: 0;
+        padding: 0 3px;
         border: 1px solid var(--touch-line);
         border-radius: 12px;
         background: var(--touch-glass);
     }
-    .app-shell:not(.platform-windows) .touch-menu-bar > .settings-menu-dropdown > summary > .settings-menu-label,
-    .app-shell:not(.platform-windows) .touch-menu-bar > .settings-menu-dropdown > summary > svg:last-child { display: none; }
-    .app-shell:not(.platform-windows) .touch-menu-bar > .settings-menu-dropdown > summary > svg:first-child { width: 18px; height: 18px; }
+    .app-shell:not(.platform-windows) .touch-menu-bar > .settings-menu-dropdown > summary > .settings-menu-label { display: inline; font-size: 8px; }
+    .app-shell:not(.platform-windows) .touch-menu-bar > .settings-menu-dropdown > summary > svg { display: none; }
 
     /* Fixed panels use the trigger's measured position, so every menu opens beneath its own button. */
     .app-shell:not(.platform-windows) .touch-menu-bar .system-menu-popover {

@@ -17,6 +17,8 @@ import "./platform/mobile/ui-refresh.css";
 import "./platform/mobile/home.css";
 import "./platform/mobile/touch-bars.css";
 import "./platform/mobile/touch-style.css";
+import "./platform/mobile/orientation.css";
+import "./platform/mobile/quick-style.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
@@ -31,6 +33,7 @@ import { TouchPageMenu } from "./platform/mobile/TouchPageMenu";
 import { TouchFocusTools } from "./platform/mobile/TouchFocusTools";
 import { TouchMenuBar } from "./platform/mobile/TouchMenuBar";
 import { TouchToolBar } from "./platform/mobile/TouchToolBar";
+import { TouchQuickStyleControls } from "./platform/mobile/TouchQuickStyleControls";
 import { TouchStylePanel } from "./platform/mobile/TouchStylePanel";
 import { MobileHomeScreen } from "./platform/mobile/MobileHomeScreen";
 import { DesktopPageTabs } from "./platform/windows/DesktopPageTabs";
@@ -190,6 +193,8 @@ function App() {
   const [quickStylePopover, setQuickStylePopover] = createSignal<"color" | "thickness" | "fill" | "route" | "lineStyle" | "heads" | "penInput" | "laser" | "brushes">();
   const [autosaveSeconds, setAutosaveSeconds] = createSignal<5 | 10>(readPreference("sketchdraw-autosave-seconds", "10") === "5" ? 5 : 10);
   const [interfaceScale, setInterfaceScale] = createSignal((() => { const value = Number(readPreference("sketchdraw-interface-scale", "1")); return [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4].includes(value) ? value : 1; })());
+  const [mobileOrientation, setMobileOrientation] = createSignal(readPreference("sketchdraw-mobile-orientation", "landscape") === "portrait" ? "portrait" as const : "landscape" as const);
+  const [orientationMessage, setOrientationMessage] = createSignal("");
   const [reduceMotion, setReduceMotion] = createSignal(readPreference("sketchdraw-reduce-motion", "false") === "true");
   const [displayMetrics, setDisplayMetrics] = createSignal<DisplayMetrics>(readDisplayMetrics());
   const [componentAppearance, setComponentAppearance] = createSignal<"modern" | "simple">(readPreference("sketchdraw-component-appearance", "modern") === "simple" ? "simple" : "modern");
@@ -280,6 +285,7 @@ function App() {
   let viewMenu!: HTMLDetailsElement;
   let gestureMenu!: HTMLDetailsElement;
   let helpMenu!: HTMLDetailsElement;
+  let portraitMenu!: HTMLDetailsElement;
   let appSettingsMenu!: HTMLDetailsElement;
   let drawing = false;
   let activeDrawingTool: Preview["type"] = "pen";
@@ -531,7 +537,7 @@ function App() {
   const styleTargetElement = () => { const focused = focusedElement(); return tool() === "select" || focused?.type === tool() ? focused : undefined; };
   const hasStyleSelection = () => !!styleTargetElement() && selectedIndices().length > 0;
   const selectedColor = () => { const draft = textDraft(); if (draft) return draft.color; const element = styleTargetElement(); return element && "color" in element ? element.color : color(); };
-  const selectedThickness = () => { const element = styleTargetElement(); return element && "thickness" in element ? element.thickness : thickness(); };
+  const selectedThickness = () => { const element = styleTargetElement(); return Math.round(element && "thickness" in element ? element.thickness : thickness()); };
   const selectedOpacity = () => { const element = focusedElement(); return element && "opacity" in element ? element.opacity ?? 1 : 1; };
   const selectedFillColor = () => { const element = styleTargetElement(); return element && "fillColor" in element ? element.fillColor : undefined; };
   const sidebarVisible = () => !!activePath();
@@ -550,7 +556,12 @@ function App() {
   const quickHasText = () => quickElementType() === "text" || !!(styleTargetElement() && (isLabelShape(styleTargetElement()!) || styleTargetElement()!.type === "schemaTable" || !!styleTargetElement()!.componentId));
   const selectedNoteCard = () => { const element = primarySelection() === undefined ? undefined : elements()[primarySelection()!]; return element?.type === "group" && element.note ? element : undefined; };
   const quickHasNoteCard = () => !!selectedNoteCard() && tool() === "select";
-  const quickCardFontSize = () => { const focused = focusedElement(); const componentText = focused?.componentId ? elements().find(item => item.componentId === focused.componentId && item.type === "text") : undefined; return noteEditor()?.fontSize ?? selectedNoteCard()?.note?.fontSize ?? (focused?.type === "schemaTable" ? focused.fontSize ?? 14 : undefined) ?? (componentText?.type === "text" ? componentText.fontSize : undefined) ?? selectedText()?.fontSize ?? defaultFontSize(); };
+  const quickCardFontSize = () => {
+    const focused = focusedElement();
+    const componentText = focused?.componentId ? elements().find(item => item.componentId === focused.componentId && item.type === "text") : undefined;
+    const size = noteEditor()?.fontSize ?? selectedNoteCard()?.note?.fontSize ?? (focused?.type === "schemaTable" ? focused.fontSize ?? 14 : undefined) ?? (componentText?.type === "text" ? componentText.fontSize : undefined) ?? selectedText()?.fontSize ?? defaultFontSize();
+    return Math.round(size);
+  };
   const quickIsConnector = () => quickElementType() === "line" || quickElementType() === "arrow";
   const quickRouteChoices = () => quickElementType() === "arrow" ? ARROW_ROUTES : LINE_ROUTES;
   const quickCurrentRoute = () => { const focused = styleTargetElement(); if (quickElementType() === "arrow") return focused?.type === "arrow" ? focused.arrowRoute ?? "straight" : arrowRoute(); return focused?.type === "line" ? focused.lineRoute ?? "straight" : lineRoute(); };
@@ -860,7 +871,8 @@ function App() {
     if (target?.componentId?.startsWith("uml-class:")) { const shell = elements().find(item => item.componentId === target.componentId && item.componentRole === "class-shell"); const box = elementBounds(shell ?? target); openClassCardDialog(box.x, box.y, target.componentId); return; }
     if (target?.type === "group" && target.note) { if (!noteCollapseHit(target, point)) openNoteEditor(point, target.note.kind, hit); return; }
     if (hit !== undefined && isLabelShape(elements()[hit])) editShapeLabel(hit);
-    else startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined);
+    else if (hit !== undefined && elements()[hit]?.type === "text") startTextDraft(point, hit);
+    else if (isWindowsPlatform() || !isCompactTouchLayout()) startTextDraft(point);
   }
 
   function openClassCardDialog(x: number, y: number, componentId?: string) {
@@ -1261,6 +1273,11 @@ function App() {
         ctx.beginPath(); ctx.lineWidth = Math.max(.75, pointWidth(lastPoint)); ctx.moveTo(from.x, from.y); ctx.lineTo(lastPoint.x, lastPoint.y); ctx.stroke();
         if (element.points.length > 1) { stamp(element.points[0]); stamp(element.points[element.points.length - 1]); }
       } else {
+        if (element.points.length === 1) {
+          const point = element.points[0];
+          ctx.beginPath(); ctx.arc(point.x, point.y, Math.max(.5, element.thickness / 2), 0, Math.PI * 2); ctx.fillStyle = renderedInk; ctx.fill();
+          ctx.restore(); if (element.rotation) ctx.restore(); return;
+        }
         ctx.beginPath(); ctx.moveTo(element.points[0].x, element.points[0].y);
         for (let i = 1; i < element.points.length; i++) {
           const previous = element.points[i - 1]; const point = element.points[i];
@@ -1521,7 +1538,7 @@ function App() {
   });
 
   createEffect(() => {
-    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setSchemaDialog(false); setMermaidDialog(false); setShowClearConfirm(false); setContextMenu(undefined); closeToolOptions(); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; }
+    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setSchemaDialog(false); setMermaidDialog(false); setShowClearConfirm(false); setContextMenu(undefined); closeToolOptions(); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (portraitMenu) portraitMenu.open = false; }
   });
   createEffect(() => {
     const open = pageDialog() || schemaDialog() || mermaidDialog() || exportOptionsOpen() || showClearConfirm() || recoveryPrompt() || syncConflict() || helpOpen();
@@ -1540,6 +1557,9 @@ function App() {
   });
 
   onMount(() => {
+    if (isTauri() && /android/i.test(navigator.userAgent)) {
+      void invoke("set_mobile_orientation", { orientation: mobileOrientation() }).catch(() => setOrientationMessage("Rotate the device manually if its saved orientation is not applied."));
+    }
     if (isTauri()) void invoke<string[]>("load_recent_sketches").then(paths => {
       const combined = [...recentFiles(), ...paths].filter((path, index, all): path is string => typeof path === "string" && isSketchPath(path) && all.indexOf(path) === index).slice(0, 8);
       setRecentFiles(combined);
@@ -1618,7 +1638,7 @@ function App() {
     };
     const updateDisplayMetrics = () => setDisplayMetrics(readDisplayMetrics());
     const outsideClick = (event: PointerEvent) => { document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => { if (!detail.contains(event.target as Node)) detail.open = false; }); if (!(event.target instanceof HTMLElement && event.target.closest(".tool-family"))) { closeToolOptions(); setStencilMenuOpen(false); } if (!(event.target instanceof HTMLElement && event.target.closest(".paint-brush-family"))) setPaintBrushMenuOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-options-family"))) setCanvasOptionsOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".quick-style-panel"))) setQuickStylePopover(undefined); if (!(event.target instanceof HTMLElement && event.target.closest(".touch-style-panel, .touch-style-open"))) setTouchStylePanel(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-context-menu"))) setContextMenu(undefined); if (textDraft() && event.target instanceof Element && !event.target.closest(".canvas-text-editor, .style-pane, .drawing-canvas")) commitTextDraft(); if (menu?.open && !menu.contains(event.target as Node)) menu.open = false; if (viewMenu?.open && !viewMenu.contains(event.target as Node)) viewMenu.open = false; if (gestureMenu?.open && !gestureMenu.contains(event.target as Node)) gestureMenu.open = false; };
-    const closeMenuOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { setQuickStylePopover(undefined); if (menu?.open) menu.open = false; if (viewMenu?.open) viewMenu.open = false; if (gestureMenu?.open) gestureMenu.open = false; } };
+    const closeMenuOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { setQuickStylePopover(undefined); if (menu?.open) menu.open = false; if (viewMenu?.open) viewMenu.open = false; if (gestureMenu?.open) gestureMenu.open = false; if (helpMenu?.open) helpMenu.open = false; if (portraitMenu?.open) portraitMenu.open = false; if (appSettingsMenu?.open) appSettingsMenu.open = false; } };
     const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
     const updateSystemTheme = (event: MediaQueryListEvent) => setSystemDark(event.matches);
     setSystemDark(colorScheme.matches); colorScheme.addEventListener("change", updateSystemTheme);
@@ -1690,11 +1710,29 @@ function App() {
     setReduceMotion(enabled);
     try { localStorage.setItem("sketchdraw-reduce-motion", String(enabled)); } catch { /* The motion preference still applies for this session. */ }
   }
+  async function setMobileOrientationPreference(orientation: "landscape" | "portrait") {
+    setMobileOrientation(orientation);
+    setOrientationMessage("");
+    try { localStorage.setItem("sketchdraw-mobile-orientation", orientation); } catch { /* Orientation still applies for this session. */ }
+    if (isWindowsPlatform() || !isCompactTouchLayout()) return;
+    try {
+      if (isTauri() && /android/i.test(navigator.userAgent)) {
+        await invoke("set_mobile_orientation", { orientation });
+      } else if (window.screen.orientation?.lock) {
+        await window.screen.orientation.lock(orientation);
+      } else {
+        throw new Error("Screen orientation control is not available.");
+      }
+    } catch {
+      setOrientationMessage("This device could not switch orientation. Rotate it manually or check its rotation lock.");
+    }
+  }
   function restoreAppSettings() {
     setInterfaceScalePreference(1);
     setAutosavePreference(10);
     setThicknessPickerPreference("presets");
     setReduceMotionPreference(false);
+    void setMobileOrientationPreference("landscape");
   }
   function setComponentAppearancePreference(value: "modern" | "simple") {
     setComponentAppearance(value);
@@ -2229,8 +2267,21 @@ function App() {
           return;
         }
         if (element.type === "freehand") {
-          if (element.points.length < 2) return;
+          if (!element.points.length) return;
           const points = element.points;
+          if (points.length === 1) {
+            const point = points[0]; const pressureAware = point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined;
+            const pressure = pressureAware ? stylusStrokeWidth(point, element.thickness) : element.thickness;
+            const tilt = pressureAware ? Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) : 0;
+            const radiusX = Math.max(.25, pressure * (pressureAware ? .5 + tilt * .35 : .5) * scale);
+            const radiusY = Math.max(.25, pressure * .5 * scale);
+            const centerX = x0 + point.x * scale; const centerY = yTop - point.y * scale;
+            const rotated = !!element.rotation;
+            if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
+            page.drawEllipse({ x: centerX, y: centerY, xScale: radiusX, yScale: radiusY, color: pdfColor(themeInk(element.color, theme()), pdfColorMode()), opacity: element.opacity ?? 1 });
+            if (rotated) page.pushOperators(popGraphicsState());
+            return;
+          }
           if (points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined)) {
             const box = elementBounds(element); const centerX = x0 + (box.x + box.w / 2) * scale; const centerY = yTop - (box.y + box.h / 2) * scale; const rotated = !!element.rotation;
             if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
@@ -2449,6 +2500,7 @@ function App() {
         }).join("");
         return `<g>${marks}</g>`;
       }
+      if (points.length === 1) return `<circle cx="${points[0].x}" cy="${points[0].y}" r="${Math.max(.5, element.thickness / 2)}" fill="${escapeXml(themeInk(element.color, theme()))}" opacity="${strokeOpacity}"/>`;
       let d = `M ${points[0].x} ${points[0].y}`;
       for (let i = 1; i < points.length; i++) {
         const a = points[i - 1]; const b = points[i]; const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
@@ -3043,7 +3095,12 @@ function App() {
   };
   const rotateSelection = (delta: number) => { if (boardLocked()) return; const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (!item || item.locked || item.type === "group" || isConnector(item)) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: (element.rotation ?? 0) + delta } as Element : element)); pushUndo(before); setDirty(true); };
   const resetSelectionRotation = () => { const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (boardLocked() || !item || item.locked || item.type === "group" || (item.rotation ?? 0) === 0) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: 0 } as Element : element)); pushUndo(before); setDirty(true); };
-  const closeSystemMenu = (action: () => void) => { if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (helpMenu) helpMenu.open = false; action(); };
+  const closeSystemMenu = (action: () => void) => { if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (helpMenu) helpMenu.open = false; if (portraitMenu) portraitMenu.open = false; action(); };
+  const openPortraitMenuPanel = (target: HTMLDetailsElement) => {
+    if (portraitMenu) portraitMenu.open = false;
+    document.querySelectorAll<HTMLDetailsElement>(".app-menus details[open]").forEach(details => { if (details !== target) details.open = false; });
+    target.open = true;
+  };
   const toggleSidebar = () => {
     setQuickStylePopover(undefined);
     if (styleMenuMode() === "quick") { setStyleMenuMode("full"); }
@@ -3070,6 +3127,7 @@ function App() {
       panel.style.left = `${left}px`;
       panel.style.right = "auto";
       panel.style.top = `${top}px`;
+      panel.style.transform = "none";
     });
   };
   const alignViewSettingsPopover = () => {
@@ -3086,7 +3144,7 @@ function App() {
   };
   const alignOpenTouchMenus = () => {
     if (!isCompactTouchLayout() || isWindowsPlatform()) return;
-    [menu, viewMenu, gestureMenu, helpMenu, appSettingsMenu].forEach(details => { if (details?.open) alignTouchMenuPopover(details); });
+    [menu, viewMenu, gestureMenu, helpMenu, portraitMenu, appSettingsMenu].forEach(details => { if (details?.open) alignTouchMenuPopover(details); });
   };
   const toggleTouchFocusMode = async (enabled = !touchFocusMode()) => {
     if (!isCompactTouchLayout() || isWindowsPlatform()) return;
@@ -3162,7 +3220,7 @@ function App() {
     return button;
   };
   return (
-    <main class={`app-shell theme-${theme()}`} classList={{ "mobile-tools-expanded": mobileToolsExpanded(), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "read-only-view": readOnlyView() }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
+    <main class={`app-shell theme-${theme()}`} classList={{ "mobile-tools-expanded": mobileToolsExpanded(), "mobile-orientation-portrait": mobileOrientation() === "portrait", "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "read-only-view": readOnlyView() }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
       <header class="topbar">
         <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={activePath() ? fileName() : "SketchDraw"}>{activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
         <nav class="app-menus" aria-label="Application menus">
@@ -3170,11 +3228,16 @@ function App() {
             interfaceScale={interfaceScale()}
             autosaveSeconds={autosaveSeconds()}
             thicknessPickerMode={thicknessPickerMode()}
+            mobileButtonChoices={!isWindowsPlatform() && isCompactTouchLayout()}
+            mobileOrientation={mobileOrientation()}
+            showOrientationSetting={!isWindowsPlatform() && isCompactTouchLayout()}
+            orientationMessage={orientationMessage()}
             reduceMotion={reduceMotion()}
             displayMetrics={displayMetrics()}
             onInterfaceScaleChange={setInterfaceScalePreference}
             onAutosaveChange={setAutosavePreference}
             onThicknessPickerModeChange={setThicknessPickerPreference}
+            onMobileOrientationChange={orientation => void setMobileOrientationPreference(orientation)}
             onReduceMotionChange={setReduceMotionPreference}
             onRestoreDefaults={restoreAppSettings}
             detailsRef={element => { appSettingsMenu = element; }}
@@ -3201,6 +3264,7 @@ function App() {
           </div></details>
           <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
           <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><div class="menu-separator" /><button disabled={updateCheck() === "checking"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Could not check for a newer version.</span></Show></div></details>
+          <details class="menu-dropdown portrait-menu-dropdown" ref={portraitMenu} onToggle={() => alignTouchMenuPopover(portraitMenu)}><summary aria-label="More menus"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg><span>Menu</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover portrait-menu-list" role="menu" aria-label="Other menus"><button role="menuitem" onClick={() => openPortraitMenuPanel(viewMenu)}>View and canvas</button><button role="menuitem" onClick={() => openPortraitMenuPanel(gestureMenu)}>Touch gestures</button><button role="menuitem" onClick={() => openPortraitMenuPanel(helpMenu)}>Help and updates</button><button role="menuitem" onClick={() => openPortraitMenuPanel(appSettingsMenu)}>App settings</button></div></details>
           </TouchMenuBar>
         </nav>
         <Show when={activePath()}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} /></Show>
@@ -3329,7 +3393,22 @@ function App() {
             <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
             <Show when={deletableSelectionCount() > 1}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected elements`} aria-label={`Delete ${deletableSelectionCount()} selected elements`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
             <DesktopPageTabs pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} />
-            <TouchToolBar open={toolBarOpen()} expanded={mobileToolsExpanded()} styleOpen={touchStylePanel()} onShow={() => setToolBarOpen(true)} onHide={() => setToolBarOpen(false)} onToggleExpanded={() => setMobileToolsExpanded(value => !value)} onToggleStyle={toggleTouchStylePanel}><>
+            <TouchToolBar open={toolBarOpen()} expanded={mobileToolsExpanded()} styleOpen={touchStylePanel()} quickStyles={<Show when={!isWindowsPlatform() && mobileOrientation() === "portrait" && isCompactTouchLayout()}><TouchQuickStyleControls
+              orientation={mobileOrientation()}
+              showColor={showStrokeControls() || tool() === "bucket" || tool() === "laser"}
+              color={tool() === "laser" ? laserColor() : tool() === "bucket" ? fillColor() : selectedColor()}
+              colorLabel={tool() === "laser" ? "Laser color" : tool() === "bucket" ? "Bucket fill color" : tool() === "text" ? "Text color" : "Stroke color"}
+              colors={["#202124", "#e45454", "#ddb43c", "#5eaa72", "#3d91bd"]}
+              showWidth={showThicknessControls() || tool() === "laser"}
+              width={tool() === "laser" ? laserThickness() : selectedThickness()}
+              widthLabel={tool() === "laser" ? "Laser thickness" : tool() === "eraser" ? "Eraser size" : "Stroke width"}
+              previewColor={tool() === "laser" ? laserColor() : selectedColor()}
+              widthMode={tool() === "laser" ? "slider" : isPenBrushThicknessTarget() && thicknessPickerMode() === "stepper" ? "fine" : "presets"}
+              presets={(isPenBrushThicknessTarget() ? THICKNESS_PRESETS : ORIGINAL_INSPECTOR_THICKNESS_PRESETS).map(([value, label]) => ({ value, label }))}
+              disabled={tool() !== "laser" && (boardLocked() || !!focusedElement()?.locked)}
+              onColorChange={value => { if (tool() === "laser") { setLaserPreference("rainbow", "false"); setLaserPreference("color", value); } else if (tool() === "bucket") setFillColor(value); else if (selectedLabel() && !textDraft()) updateLabel("color", value); else updateStrokeColor(value); }}
+              onWidthChange={value => { if (tool() === "laser") setLaserPreference("thickness", String(value)); else updateThickness(value); }}
+            /></Show>} onShow={() => setToolBarOpen(true)} onHide={() => setToolBarOpen(false)} onToggleExpanded={() => setMobileToolsExpanded(value => !value)} onToggleStyle={toggleTouchStylePanel}><>
               <div class="tool-cluster tool-cluster-canvas mobile-cluster-has-essential" role="group" aria-label="Canvas view">
               <CanvasOptionsMenu
                 open={canvasOptionsOpen()}
@@ -3372,6 +3451,24 @@ function App() {
                 <button class={`tool-icon-button canvas-utility-button mobile-tool-extra ${boardLocked() ? "selected" : ""}`} title={`Canvas ${boardLocked() ? "locked" : "unlocked"} (K)`} aria-label={boardLocked() ? "Unlock canvas" : "Lock canvas"} aria-pressed={boardLocked()} onClick={() => setBoardLocked(value => !value)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button>
               </div>
             </></TouchToolBar>
+            <Show when={!isWindowsPlatform() && mobileOrientation() === "landscape" && isCompactTouchLayout()}>
+              <TouchQuickStyleControls
+                orientation="landscape"
+                showColor={showStrokeControls() || tool() === "bucket" || tool() === "laser"}
+                color={tool() === "laser" ? laserColor() : tool() === "bucket" ? fillColor() : selectedColor()}
+                colorLabel={tool() === "laser" ? "Laser color" : tool() === "bucket" ? "Bucket fill color" : tool() === "text" ? "Text color" : "Stroke color"}
+                colors={["#202124", "#e45454", "#ddb43c", "#5eaa72", "#3d91bd"]}
+                showWidth={showThicknessControls() || tool() === "laser"}
+                width={tool() === "laser" ? laserThickness() : selectedThickness()}
+                widthLabel={tool() === "laser" ? "Laser thickness" : tool() === "eraser" ? "Eraser size" : "Stroke width"}
+                previewColor={tool() === "laser" ? laserColor() : selectedColor()}
+                widthMode={tool() === "laser" ? "slider" : isPenBrushThicknessTarget() && thicknessPickerMode() === "stepper" ? "fine" : "presets"}
+                presets={(isPenBrushThicknessTarget() ? THICKNESS_PRESETS : ORIGINAL_INSPECTOR_THICKNESS_PRESETS).map(([value, label]) => ({ value, label }))}
+                disabled={tool() !== "laser" && (boardLocked() || !!focusedElement()?.locked)}
+                onColorChange={value => { if (tool() === "laser") { setLaserPreference("rainbow", "false"); setLaserPreference("color", value); } else if (tool() === "bucket") setFillColor(value); else if (selectedLabel() && !textDraft()) updateLabel("color", value); else updateStrokeColor(value); }}
+                onWidthChange={value => { if (tool() === "laser") setLaserPreference("thickness", String(value)); else updateThickness(value); }}
+              />
+            </Show>
             <Show when={layerPanelOpen()}>
               <aside class="floating-layer-panel" aria-label="Layers">
                 <header><strong>Layers</strong><span>{elements().length}</span><button class="pane-close-icon" aria-label="Close layers" title="Close layers" onClick={() => setLayerPanelOpen(false)}>&times;</button></header>

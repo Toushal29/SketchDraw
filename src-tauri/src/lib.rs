@@ -4,6 +4,8 @@ use std::sync::Mutex;
 use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
+mod orientation;
+
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const CURRENT_SKETCH_FORMAT_VERSION: u64 = 7;
 
@@ -211,12 +213,14 @@ pub fn run() {
         )))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(orientation::init())
         .invoke_handler(tauri::generate_handler![
             take_startup_files,
             authorize_sketch_file,
             atomic_save_sketch,
             load_recent_sketches,
-            save_recent_sketches
+            save_recent_sketches,
+            orientation::set_mobile_orientation
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

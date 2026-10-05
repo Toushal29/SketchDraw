@@ -1,55 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="560" viewBox="0 0 1120 560" role="img" aria-labelledby="title desc">
-  <title id="title">SketchDraw advanced properties sidebar preview</title>
-  <desc id="desc">A compact quick-style rail sits beside a clean advanced inspector with app-aware card appearance and customizable accents. Layers live in a separate floating panel.</desc>
-  <defs><filter id="shadow" x="-20%" y="-20%" width="150%" height="160%"><feDropShadow dx="0" dy="9" stdDeviation="12" flood-color="#26352c" flood-opacity=".12"/></filter></defs>
-  <rect width="1120" height="560" rx="24" fill="#f1f4f2"/>
-  <text x="40" y="48" fill="#64746a" font-family="Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="2">A CLEARER WAY TO STYLE</text>
-  <text x="40" y="82" fill="#26362d" font-family="Segoe UI, sans-serif" font-size="25" font-weight="650">Advanced properties, kept simple</text>
-  <rect x="28" y="108" width="1064" height="410" rx="18" fill="#fff" stroke="#e1e7e3"/>
-  <rect x="48" y="127" width="52" height="366" rx="15" fill="#fbfcfb" stroke="#dce3df" filter="url(#shadow)"/>
-  <g fill="none" stroke="#66766d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="63" y="145" width="22" height="22" rx="6" fill="#f3f6f4" stroke="#dce4df"/><path d="M68 156h12m-6-6v12"/>
-    <rect x="63" y="181" width="22" height="22" rx="6" fill="#f3f6f4" stroke="#dce4df"/><path d="M68 187h12M68 193h8"/>
-    <rect x="63" y="217" width="22" height="22" rx="6" fill="#eef5ef" stroke="#a8c0ac"/><circle cx="74" cy="228" r="6"/><path d="M71 228h6"/>
-    <rect x="63" y="253" width="22" height="22" rx="6" fill="#f3f6f4" stroke="#dce4df"/><path d="M68 260h12M68 266h12"/>
-    <path d="M74 293v15m-7-8 7-7 7 7"/>
-  </g>
-  <text x="74" y="332" text-anchor="middle" fill="#78857d" font-family="Segoe UI, sans-serif" font-size="8" font-weight="600">QUICK</text>
-  <g filter="url(#shadow)">
-    <rect x="118" y="127" width="306" height="366" rx="15" fill="#fbfdfb" stroke="#dce3df"/>
-    <path d="M118 166h306" stroke="#e8eeea"/>
-  </g>
-  <text x="139" y="153" fill="#27372e" font-family="Segoe UI, sans-serif" font-size="14" font-weight="700">Card properties</text>
-  <rect x="338" y="138" width="69" height="22" rx="7" fill="#f3f7f3" stroke="#dce6de"/>
-  <text x="372.5" y="152.5" text-anchor="middle" fill="#52705a" font-family="Segoe UI, sans-serif" font-size="9" font-weight="600">Quick style</text>
-  <text x="140" y="196" fill="#78857d" font-family="Segoe UI, sans-serif" font-size="9" font-weight="650" letter-spacing="1">SELECTED OBJECT</text>
-  <text x="140" y="234" fill="#4a5b51" font-family="Segoe UI, sans-serif" font-size="11" font-weight="700">Sticky note</text>
-  <rect x="340" y="218" width="64" height="23" rx="7" fill="#f7f9f7" stroke="#dfe7e2"/>
-  <text x="372" y="233" text-anchor="middle" fill="#65786a" font-family="Segoe UI, sans-serif" font-size="9">Collapse</text>
-  <text x="140" y="260" fill="#78857d" font-family="Segoe UI, sans-serif" font-size="9" font-weight="600">TITLE</text>
-  <rect x="140" y="268" width="264" height="31" rx="8" fill="#fff" stroke="#dfe7e2"/>
-  <text x="151" y="288" fill="#33443a" font-family="Segoe UI, sans-serif" font-size="10">Launch follow-up</text>
-  <text x="140" y="321" fill="#78857d" font-family="Segoe UI, sans-serif" font-size="9" font-weight="600">APP THEME</text>
-  <rect x="140" y="329" width="264" height="31" rx="8" fill="#fff" stroke="#dfe7e2"/>
-  <circle cx="154" cy="344" r="5" fill="#547a5b"/><text x="166" y="348" fill="#33443a" font-family="Segoe UI, sans-serif" font-size="10">Follows Light / Dark</text>
-  <text x="140" y="382" fill="#78857d" font-family="Segoe UI, sans-serif" font-size="9" font-weight="600">TEXT SIZE</text>
-  <rect x="140" y="390" width="264" height="31" rx="8" fill="#fff" stroke="#dfe7e2"/>
-  <text x="151" y="410" fill="#33443a" font-family="Segoe UI, sans-serif" font-size="10">12 px</text>
-  <text x="140" y="448" fill="#7b8982" font-family="Segoe UI, sans-serif" font-size="9">Text stays the same size when you resize the card.</text>
-  <g filter="url(#shadow)">
-    <rect x="466" y="150" width="520" height="316" rx="16" fill="#fbf7ed" stroke="#e5d9bc"/>
-    <path d="M468 164v286" stroke="#9b824d" stroke-width="3" stroke-linecap="round"/>
-  </g>
-  <text x="489" y="180" fill="#49402d" font-family="Segoe UI, sans-serif" font-size="14" font-weight="650">Launch follow-up</text>
-  <text x="489" y="200" fill="#93845f" font-family="Segoe UI, sans-serif" font-size="9" font-weight="650" letter-spacing=".8">STICKY</text>
-  <rect x="951" y="163" width="22" height="22" rx="7" fill="#f5eedf" stroke="#eee5d3"/><path d="m958 171 4 4 4-4" fill="none" stroke="#93845f" stroke-width="1.5"/>
-  <path d="M482 218h488" stroke="#eee5d3"/>
-  <text x="489" y="241" fill="#49402d" font-family="Segoe UI, sans-serif" font-size="13">Confirm the owner for the release review.</text>
-  <text x="489" y="266" fill="#49402d" font-family="Segoe UI, sans-serif" font-size="13">Update the short checklist after the design pass.</text>
-  <text x="489" y="291" fill="#49402d" font-family="Segoe UI, sans-serif" font-size="13">The quick rail stays close while detailed options</text>
-  <text x="489" y="310" fill="#49402d" font-family="Segoe UI, sans-serif" font-size="13">open in a separate, tidy panel.</text>
-  <rect x="489" y="352" width="166" height="48" rx="10" fill="#f7f9f7" stroke="#e1e8e3"/>
-  <circle cx="507" cy="376" r="7" fill="#547a5b"/><circle cx="531" cy="376" r="7" fill="#3f78a5"/><circle cx="555" cy="376" r="7" fill="#6d67aa"/><circle cx="579" cy="376" r="7" fill="#39877f"/><circle cx="603" cy="376" r="7" fill="#b47b35"/>
-  <text x="675" y="381" fill="#93845f" font-family="Segoe UI, sans-serif" font-size="10">Custom tool accent choices</text>
-  <text x="48" y="538" fill="#7a867e" font-family="Segoe UI, sans-serif" font-size="10">The Layers panel opens separately from the canvas toolbar; card surfaces follow the app light/dark appearance.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 560" role="img" aria-labelledby="title desc">
+  <title id="title">SketchDraw Properties panel preview</title>
+  <desc id="desc">Illustrative current Windows properties panel with clear grouped controls for a selected note card beside its canvas preview.</desc>
+  <defs><pattern id="property-grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0v20" fill="none" stroke="#e9eeea"/></pattern><filter id="property-shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#26352c" flood-opacity=".09"/></filter></defs>
+  <rect width="1120" height="560" rx="24" fill="#f1f4f2"/><text x="36" y="44" fill="#64746a" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="1.7">CONTEXTUAL CONTROLS</text><text x="36" y="77" fill="#26362d" font-family="Segoe UI,Arial,sans-serif" font-size="24" font-weight="700">A simpler Properties panel</text>
+  <rect x="24" y="101" width="1072" height="430" rx="18" fill="#fff" stroke="#e1e7e3"/>
+  <rect x="39" y="116" width="292" height="400" rx="14" fill="#fbfcfb" stroke="#e1e7e2" filter="url(#property-shadow)"/>
+  <text x="58" y="146" fill="#2f3b32" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700">Properties</text><rect x="247" y="127" width="67" height="25" rx="7" fill="#f1f5f1" stroke="#dfe7e0"/><text x="280" y="144" text-anchor="middle" fill="#57715b" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">Quick style</text><path d="M57 161h256" stroke="#e8ede8"/>
+  <text x="58" y="184" fill="#78857d" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="700" letter-spacing=".8">SELECTED OBJECT</text><text x="58" y="211" fill="#3d4b40" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="650">Sticky note</text><rect x="236" y="194" width="78" height="25" rx="7" fill="#f7f9f7" stroke="#dfe7e2"/><text x="275" y="210" text-anchor="middle" fill="#65786a" font-family="Segoe UI,Arial,sans-serif" font-size="9">Collapse</text>
+  <text x="58" y="240" fill="#78857d" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">TITLE</text><rect x="58" y="248" width="256" height="32" rx="8" fill="#fff" stroke="#dfe7e2"/><text x="70" y="269" fill="#33443a" font-family="Segoe UI,Arial,sans-serif" font-size="10">Launch follow-up</text>
+  <text x="58" y="304" fill="#78857d" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">TEXT SIZE</text><rect x="58" y="312" width="113" height="32" rx="8" fill="#fff" stroke="#dfe7e2"/><text x="71" y="333" fill="#33443a" font-family="Segoe UI,Arial,sans-serif" font-size="10">16 px</text><path d="m151 324 5 5 5-5" fill="none" stroke="#89958b" stroke-width="1.3"/>
+  <text x="58" y="370" fill="#78857d" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">CARD COLOR</text><rect x="58" y="378" width="256" height="38" rx="9" fill="#fff" stroke="#dfe7e2"/><circle cx="77" cy="397" r="8" fill="#fff5cf" stroke="#e6dbab"/><text x="95" y="401" fill="#435047" font-family="Segoe UI,Arial,sans-serif" font-size="10">Soft yellow</text><path d="m293 394 5 5 5-5" fill="none" stroke="#89958b" stroke-width="1.3"/>
+  <rect x="58" y="434" width="256" height="54" rx="10" fill="#f6f8f6"/><text x="72" y="457" fill="#606e63" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="700">CARD BEHAVIOR</text><text x="72" y="475" fill="#838e85" font-family="Segoe UI,Arial,sans-serif" font-size="9">Resize freely; text size stays fixed.</text>
+  <rect x="349" y="116" width="731" height="400" rx="13" fill="#fff" stroke="#e0e6e1"/><rect x="350" y="117" width="729" height="398" rx="12" fill="url(#property-grid)"/>
+  <rect x="370" y="133" width="228" height="29" rx="8" fill="#fbfcfb" stroke="#e4e9e5"/><text x="384" y="152" fill="#3d493f" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">Planning.sketch · Page 1</text><circle cx="582" cy="147" r="3.5" fill="#78a37d"/>
+  <rect x="447" y="222" width="211" height="107" rx="14" fill="#fff5cf" stroke="#e4d89c" filter="url(#property-shadow)"/><rect x="447" y="222" width="211" height="36" rx="13" fill="#fff0bb"/><rect x="447" y="245" width="211" height="13" fill="#fff0bb"/><text x="466" y="246" fill="#454534" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="700">Launch follow-up</text><text x="637" y="245" text-anchor="end" fill="#8a805d" font-family="Segoe UI,Arial,sans-serif" font-size="10">⌄</text><path d="M466 271h173" stroke="#ebe1b7"/><text x="466" y="292" fill="#64604e" font-family="Segoe UI,Arial,sans-serif" font-size="9">Confirm owners, collect feedback,</text><text x="466" y="308" fill="#64604e" font-family="Segoe UI,Arial,sans-serif" font-size="9">and share the next release steps.</text>
+  <rect x="757" y="273" width="198" height="73" rx="14" fill="#fff" stroke="#91a98f" stroke-width="1.4"/><rect x="757" y="273" width="198" height="6" rx="3" fill="#77a37d"/><text x="856" y="313" text-anchor="middle" fill="#303b32" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="700">Review launch plan</text><text x="856" y="331" text-anchor="middle" fill="#879188" font-family="Segoe UI,Arial,sans-serif" font-size="9">Assign final tasks</text><path d="M658 279h98m-98 0v69h98" fill="none" stroke="#78897b" stroke-width="1.8"/><path d="m747 273 8 6-8 6m0 57 8 6-8 6" fill="none" stroke="#78897b" stroke-width="1.8"/><circle cx="757" cy="279" r="4" fill="#fff" stroke="#69886e" stroke-width="1.5"/>
+  <rect x="373" y="464" width="203" height="31" rx="9" fill="#fbfcfb" stroke="#e4e9e5"/><text x="390" y="484" fill="#66736a" font-family="Segoe UI,Arial,sans-serif" font-size="9">Focused settings for selection</text><rect x="936" y="464" width="119" height="31" rx="9" fill="#fbfcfb" stroke="#e4e9e5"/><text x="995" y="484" text-anchor="middle" fill="#66736a" font-family="Segoe UI,Arial,sans-serif" font-size="9">Layers open separately</text>
 </svg>

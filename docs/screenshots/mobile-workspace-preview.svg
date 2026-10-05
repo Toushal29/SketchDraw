@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" role="img" aria-labelledby="title desc">
+  <title id="title">SketchDraw landscape touch workspace preview</title>
+  <desc id="desc">Illustrative landscape tablet workspace with a vertical compact touch tool dock and a horizontal quick-style strip immediately to the left of the zoom reset button. The strip opens a horizontal color preset list and keeps stroke width visible.</desc>
+  <defs><pattern id="touch-grid" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0v22" fill="none" stroke="#e9eeea"/></pattern><filter id="touch-shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#25352b" flood-opacity=".1"/></filter></defs>
+  <rect width="1000" height="620" rx="38" fill="#252923"/><rect x="10" y="10" width="980" height="600" rx="31" fill="#f4f6f4"/>
+  <rect x="10" y="10" width="980" height="60" rx="31" fill="#fbfcfb"/><rect x="10" y="48" width="980" height="22" fill="#fbfcfb"/><path d="M10 70h980" stroke="#e2e8e3"/>
+  <rect x="28" y="23" width="30" height="30" rx="9" fill="#252822"/><path d="M34 31c3-4 12-4 15-1 3 3 0 5-5 7-5 1-8 3-6 6 2 3 9 3 13 0" fill="none" stroke="#f7f4ec" stroke-width="2" stroke-linecap="round"/><circle cx="50" cy="31" r="2.3" fill="#f29a83"/>
+  <text x="68" y="43" fill="#303a33" font-family="Segoe UI,Arial,sans-serif" font-size="13" font-weight="700">SketchDraw</text>
+  <g font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600" fill="#566258" text-anchor="middle">
+    <rect x="205" y="20" width="51" height="31" rx="9" fill="#edf2ee"/><text x="230" y="40">File⌄</text><rect x="260" y="20" width="52" height="31" rx="9" fill="#edf2ee"/><text x="286" y="40">View⌄</text><rect x="316" y="20" width="71" height="31" rx="9" fill="#edf2ee"/><text x="351" y="40">Gestures⌄</text><rect x="391" y="20" width="52" height="31" rx="9" fill="#edf2ee"/><text x="417" y="40">Help⌄</text><rect x="447" y="20" width="75" height="31" rx="9" fill="#edf2ee"/><text x="484" y="40">Settings⌄</text>
+    <rect x="815" y="20" width="151" height="31" rx="9" fill="#f5f7f5" stroke="#e1e7e2"/><text x="890" y="40">Pages　▤　 Page 1　⌄</text>
+  </g>
+  <rect x="23" y="104" width="954" height="488" rx="20" fill="#fff" stroke="#e0e6e1"/><rect x="24" y="105" width="952" height="486" rx="19" fill="url(#touch-grid)"/>
+  <rect x="38" y="119" width="204" height="30" rx="8" fill="#fbfcfb" stroke="#e4e9e5"/><text x="51" y="139" fill="#3d493f" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="600">Sprint planning.sketch</text><circle cx="224" cy="134" r="3.5" fill="#78a37d"/>
+  <rect x="40" y="158" width="55" height="330" rx="18" fill="#fbfcfb" stroke="#e0e7e1" filter="url(#touch-shadow)"/>
+  <g stroke="#58675b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <rect x="51" y="169" width="33" height="34" rx="10" fill="#f0f4f0" stroke="#e0e7e1"/><path d="M61 180h13m-13 5h13m-13 5h13"/>
+    <rect x="51" y="211" width="33" height="34" rx="10" fill="#e6f0e7" stroke="#cbdccb"/><path d="m59 235 16-17 3 4-16 16-4 1z" stroke="#52765a"/>
+    <rect x="51" y="253" width="33" height="34" rx="10" fill="#f0f4f0" stroke="#e0e7e1"/><path d="M59 262h17v16H59zM63 267h9m-9 4h9"/>
+    <rect x="51" y="295" width="33" height="34" rx="10" fill="#f0f4f0" stroke="#e0e7e1"/><path d="m58 320 17-17m-13 0 13 13"/>
+    <rect x="51" y="337" width="33" height="34" rx="10" fill="#f0f4f0" stroke="#e0e7e1"/><path d="M60 346h15v16H60zM64 350h7m-7 4h7"/>
+    <path d="M58 383h19m-19 6h19"/><rect x="51" y="377" width="33" height="34" rx="10" fill="#f0f4f0" stroke="#e0e7e1"/>
+    <path d="M59 430h16m-8-8v16"/><rect x="51" y="419" width="33" height="34" rx="10" fill="#f0f4f0" stroke="#e0e7e1"/>
+    <path d="m59 474 5 5 10-12"/><rect x="51" y="461" width="33" height="24" rx="8" fill="#f7f9f7" stroke="#e0e7e1"/>
+  </g>
+  <g font-family="Segoe UI,Arial,sans-serif" text-anchor="middle" fill="#69766b" font-size="8"><text x="67" y="210">Canvas</text><text x="67" y="252">Pen</text><text x="67" y="294">Text</text><text x="67" y="336">Eraser</text><text x="67" y="378">Laser</text><text x="67" y="416">More</text><text x="67" y="493">Undo</text></g>
+  <rect x="716" y="110" width="150" height="36" rx="11" fill="#fbfcfb" stroke="#dfe6e0" filter="url(#touch-shadow)"/><rect x="722" y="114" width="36" height="28" rx="8" fill="#edf2ee" stroke="#dce4dd"/><circle cx="733" cy="128" r="7" fill="#405f86"/><path d="m747 125 4 4 4-4" fill="none" stroke="#58675b" stroke-width="1.4"/><rect x="763" y="114" width="97" height="28" rx="8" fill="#edf2ee" stroke="#dce4dd"/><path d="M772 128h20" stroke="#405f86" stroke-width="3" stroke-linecap="round"/><text x="831" y="131" fill="#536055" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700">3px stroke</text>
+  <rect x="716" y="152" width="158" height="34" rx="11" fill="#fbfcfb" stroke="#dfe6e0" filter="url(#touch-shadow)"/><g stroke="#fbfcfb" stroke-width="2"><circle cx="733" cy="169" r="8" fill="#202124"/><circle cx="756" cy="169" r="8" fill="#e45454"/><circle cx="779" cy="169" r="8" fill="#ddb43c"/><circle cx="802" cy="169" r="8" fill="#5eaa72"/><circle cx="825" cy="169" r="8" fill="#3d91bd"/><circle cx="851" cy="169" r="8" fill="#fff" stroke-dasharray="2 2"/></g><text x="851" y="173" text-anchor="middle" fill="#66736a" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="700">+</text>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <text x="284" y="242" fill="#839087" font-size="9" font-weight="700" letter-spacing="1.1">SPRINT PLANNING</text>
+    <rect x="269" y="263" width="149" height="59" rx="12" fill="#fff" stroke="#9aac97" stroke-width="1.4" filter="url(#touch-shadow)"/><rect x="269" y="263" width="149" height="6" rx="3" fill="#77a37d"/><text x="343" y="296" text-anchor="middle" fill="#303b32" font-size="11" font-weight="700">Collect ideas</text><text x="343" y="312" text-anchor="middle" fill="#879188" font-size="9">Choose what matters</text>
+    <path d="M418 293h98v-42h64m-64 42v106h64" fill="none" stroke="#78897b" stroke-width="1.8"/><path d="m574 248 8 4-8 5m0 35 8 4-8 5" fill="none" stroke="#78897b" stroke-width="1.8"/>
+    <rect x="583" y="218" width="171" height="59" rx="12" fill="#fff" stroke="#bba06c" stroke-width="1.4" filter="url(#touch-shadow)"/><rect x="583" y="218" width="171" height="6" rx="3" fill="#e5c579"/><path d="m601 248 9-10 9 10-9 10z" fill="#fff7e6" stroke="#bd9a58"/><text x="678" y="245" text-anchor="middle" fill="#303b32" font-size="10" font-weight="700">Ready to start?</text><text x="678" y="261" text-anchor="middle" fill="#879188" font-size="8">Confirm the top priority</text>
+    <rect x="583" y="370" width="171" height="59" rx="12" fill="#fff" stroke="#9aac97" stroke-width="1.4" filter="url(#touch-shadow)"/><rect x="583" y="370" width="171" height="6" rx="3" fill="#77a37d"/><text x="668" y="403" text-anchor="middle" fill="#303b32" font-size="10" font-weight="700">Write tasks</text><text x="668" y="419" text-anchor="middle" fill="#879188" font-size="8">Assign and estimate work</text>
+    <path d="M754 248h52v76h59m-59-76v152h59" fill="none" stroke="#78897b" stroke-width="1.8"/><path d="m858 320 8 4-8 5m0 72 8 4-8 5" fill="none" stroke="#78897b" stroke-width="1.8"/>
+    <rect x="867" y="290" width="87" height="59" rx="12" fill="#fff" stroke="#9aac97" stroke-width="1.4" filter="url(#touch-shadow)"/><rect x="867" y="290" width="87" height="6" rx="3" fill="#77a37d"/><text x="910" y="323" text-anchor="middle" fill="#303b32" font-size="9" font-weight="700">Review</text><text x="910" y="339" text-anchor="middle" fill="#879188" font-size="8">Share plan</text>
+    <rect x="40" y="548" width="143" height="28" rx="9" fill="#fbfcfb" stroke="#e4e9e5"/><text x="54" y="566" fill="#66736a" font-size="9">Page 1　　+ Add page</text>
+    <rect x="878" y="112" width="77" height="28" rx="9" fill="#fbfcfb" stroke="#e4e9e5"/><text x="916" y="130" text-anchor="middle" fill="#66736a" font-size="9">100%　⌕</text>
+  </g>
+</svg>

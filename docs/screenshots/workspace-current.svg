@@ -1,30 +1,70 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
-<title id="title">SketchDraw workspace preview</title><desc id="desc">Illustrative preview of the current SketchDraw workspace with compact menus, drawing toolbar, quick style rail, canvas controls, and an editable flowchart.</desc>
-<rect width="1440" height="900" rx="18" fill="#f7f7f4"/><rect x="1" y="1" width="1438" height="898" rx="17" fill="none" stroke="#d9d9d3"/>
-<rect x="1" y="1" width="1438" height="52" rx="17" fill="#fff"/><path d="M1 52h1438" stroke="#e8e7e2"/>
-<rect x="18" y="13" width="27" height="27" rx="8" fill="#24302b"/><path d="m25 32 5-15 3 10 7-8" fill="none" stroke="#e9eee5" stroke-width="2" stroke-linecap="round"/><text x="56" y="31" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#30332e">Quarterly planning.sketch</text>
-<text x="319" y="31" font-family="Arial,sans-serif" font-size="12" fill="#666961">File</text><path d="m344 26 4 4 4-4" fill="none" stroke="#777970"/><text x="378" y="31" font-family="Arial,sans-serif" font-size="12" fill="#666961">View</text><path d="m412 26 4 4 4-4" fill="none" stroke="#777970"/><text x="447" y="31" font-family="Arial,sans-serif" font-size="12" fill="#666961">Help</text>
-<circle cx="1393" cy="26" r="4" fill="#68a57a"/><text x="1365" y="31" text-anchor="end" font-family="Arial,sans-serif" font-size="10" fill="#74766f">Saved 10:42</text>
-<rect x="1" y="53" width="1438" height="847" fill="#fff"/>
-<!-- compact vertical quick-style rail -->
-<rect x="17" y="78" width="54" height="238" rx="12" fill="#fff" stroke="#dfdfd9"/><rect x="28" y="91" width="32" height="32" rx="8" fill="#f0f5fc" stroke="#c9d8ec"/><circle cx="44" cy="107" r="8" fill="#333b48"/><rect x="28" y="132" width="32" height="32" rx="8" fill="#fff" stroke="#e4e3dd"/><path d="M34 149h20" stroke="#333b48" stroke-width="4" stroke-linecap="round"/><rect x="28" y="173" width="32" height="32" rx="8" fill="#fff" stroke="#e4e3dd"/><path d="m35 196 17-17" stroke="#333b48" stroke-width="2"/><rect x="28" y="214" width="32" height="32" rx="8" fill="#fff" stroke="#e4e3dd"/><path d="M35 222h18v18H35z" fill="#f1c8ae" stroke="#59605b"/><rect x="29" y="261" width="30" height="30" rx="8" fill="#fff" stroke="#e4e3dd"/><path d="M38 276h12m-6-6v12" stroke="#56749a" stroke-width="2"/>
-<!-- advanced inspector preview -->
-<rect x="82" y="78" width="258" height="422" rx="12" fill="#fff" stroke="#dfdfd9"/><rect x="98" y="94" width="226" height="34" rx="7" fill="#f3f6fa"/><text x="113" y="116" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#536a89">Properties</text><text x="310" y="116" text-anchor="end" font-family="Arial,sans-serif" font-size="11" fill="#819087">×</text>
-<text x="100" y="157" font-family="Arial,sans-serif" font-size="11" font-weight="700" fill="#555850">Stroke color</text><circle cx="109" cy="178" r="9" fill="#252525"/><circle cx="134" cy="178" r="9" fill="#e76b62"/><circle cx="159" cy="178" r="9" fill="#6b91c9"/><circle cx="184" cy="178" r="9" fill="#74a582"/><circle cx="209" cy="178" r="9" fill="#d8a448"/><circle cx="234" cy="178" r="9" fill="#a581bb"/>
-<path d="M98 200h226" stroke="#ecebe6"/><text x="100" y="224" font-family="Arial,sans-serif" font-size="11" font-weight="700" fill="#555850">Stroke width</text><g font-family="Arial,sans-serif" font-size="9" fill="#74766f"><rect x="99" y="235" width="49" height="42" rx="6" fill="#fff" stroke="#e3e2dc"/><text x="123" y="253" text-anchor="middle">Thin</text><text x="123" y="268" text-anchor="middle">2 px</text><rect x="154" y="235" width="49" height="42" rx="6" fill="#f0f5fc" stroke="#b9cce5"/><text x="178" y="253" text-anchor="middle">Medium</text><text x="178" y="268" text-anchor="middle">5 px</text><rect x="209" y="235" width="49" height="42" rx="6" fill="#fff" stroke="#e3e2dc"/><text x="233" y="253" text-anchor="middle">Bold</text><text x="233" y="268" text-anchor="middle">10 px</text></g>
-<text x="100" y="309" font-family="Arial,sans-serif" font-size="11" font-weight="700" fill="#555850">Fill</text><rect x="100" y="319" width="105" height="30" rx="6" fill="#fff" stroke="#e3e2dc"/><text x="152" y="339" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" fill="#65675f">None</text><rect x="211" y="319" width="105" height="30" rx="6" fill="#edf3fc" stroke="#cbd9eb"/><text x="263" y="339" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" fill="#315c9a">Solid</text>
-<text x="100" y="382" font-family="Arial,sans-serif" font-size="11" font-weight="700" fill="#555850">Text formatting</text><rect x="99" y="393" width="37" height="33" rx="6" fill="#fff" stroke="#e3e2dc"/><text x="117" y="415" text-anchor="middle" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="#555">B</text><rect x="142" y="393" width="37" height="33" rx="6" fill="#fff" stroke="#e3e2dc"/><text x="160" y="415" text-anchor="middle" font-family="Arial,sans-serif" font-size="15" font-style="italic" fill="#555">I</text><rect x="185" y="393" width="37" height="33" rx="6" fill="#fff" stroke="#e3e2dc"/><text x="203" y="415" text-anchor="middle" font-family="Arial,sans-serif" font-size="15" text-decoration="underline" fill="#555">U</text>
-<!-- floating icon toolbar -->
-<rect x="462" y="76" width="630" height="54" rx="12" fill="#fff" stroke="#e1e0da"/><g fill="none" stroke="#60645c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="474" y="84" width="39" height="38" rx="8" fill="#eaf2ff" stroke="#cfdef1"/><path d="m489 91 12 11-7 1-3 6z" stroke="#315c9a"/><path d="M536 112V91m-6 7 6-7 6 7M567 110l12-15m-7 1 7-1-1 7M605 94h18v18h-18zM650 103a9 9 0 1 0 18 0 9 9 0 1 0-18 0M696 94l18 18m0-18-18 18M752 95h19m-9-1v24M808 95v20m-8-13 8-8 8 8M854 94h18v18h-18zM899 94l18 18-15 0-3-18M950 95h19v17h-19zM1000 96l15 15m0-15-15 15"/></g><text x="493" y="126" text-anchor="middle" font-family="Arial,sans-serif" font-size="8" fill="#60738e">V</text><text x="1028" y="126" text-anchor="middle" font-family="Arial,sans-serif" font-size="8" fill="#73766e">Undo</text>
-<!-- diagram on infinite canvas -->
-<g font-family="Arial,sans-serif" text-anchor="middle" stroke="#353b38" stroke-width="2.5" stroke-linejoin="round">
-<rect x="495" y="300" width="145" height="66" rx="32" fill="#f2a4a0"/><text x="567" y="340" stroke="none" fill="#252525" font-size="20">Start</text>
-<rect x="736" y="300" width="160" height="66" rx="8" fill="#ffe4a8"/><text x="816" y="340" stroke="none" fill="#252525" font-size="18">Collect data</text>
-<path d="M1033 286 1110 333 1033 380 956 333z" fill="#bde2cc"/><text x="1033" y="339" stroke="none" fill="#252525" font-size="17">Approved?</text>
-<rect x="1180" y="300" width="152" height="66" rx="32" fill="#f2a4a0"/><text x="1256" y="340" stroke="none" fill="#252525" font-size="20">Complete</text>
-<g fill="none" stroke="#353b38" stroke-width="2.5"><path d="M640 333h95m-9-8 9 8-9 8M896 333h59m-9-8 9 8-9 8M1110 333h66m-9-8 9 8-9 8"/><path d="M1033 380v100h-217v-115m-8 9 8-9 8 9"/></g>
-<rect x="720" y="480" width="190" height="65" rx="9" fill="#b8d4fb"/><path d="M720 495c0-20 190-20 190 0m-190 30c0 20 190 20 190 0" fill="none"/><text x="815" y="520" stroke="none" fill="#252525" font-size="18">Archive result</text>
-</g><text x="1017" y="410" font-family="Arial,sans-serif" font-size="12" fill="#74766f">No</text><text x="832" y="469" font-family="Arial,sans-serif" font-size="12" fill="#74766f">Yes</text>
-<rect x="1176" y="823" width="230" height="37" rx="9" fill="#fff" stroke="#e2e1db"/><rect x="1186" y="831" width="57" height="21" rx="5" fill="#eff4fb"/><text x="1214" y="846" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" fill="#315c9a">Page 1</text><text x="1263" y="846" font-family="Arial,sans-serif" font-size="14" fill="#777">+</text><text x="1385" y="846" text-anchor="end" font-family="Arial,sans-serif" font-size="10" fill="#72746d">Fit view 100%</text>
-<text x="720" y="882" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" fill="#96988f">Illustrative workspace preview of SketchDraw's current tools and editing controls</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 820" role="img" aria-labelledby="title desc">
+  <title id="title">SketchDraw desktop workspace preview</title>
+  <desc id="desc">Illustrative Windows workspace with a flat grouped toolbar, simple properties panel, page tabs, and editable flowchart on a gridded canvas.</desc>
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0v24" fill="none" stroke="#e9eeea" stroke-width="1"/></pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#26352c" flood-opacity=".08"/></filter>
+  </defs>
+  <rect width="1440" height="820" rx="20" fill="#202620"/>
+  <rect x="8" y="8" width="1424" height="804" rx="15" fill="#f4f6f4"/>
+  <rect x="8" y="8" width="1424" height="34" rx="15" fill="#f8faf8"/>
+  <rect x="8" y="28" width="1424" height="14" fill="#f8faf8"/>
+  <rect x="24" y="15" width="20" height="20" rx="6" fill="#252822"/>
+  <path d="M29 21c3-3 8-3 10-1 2 2 0 4-4 5-4 1-6 2-5 4 2 2 7 2 10 0" fill="none" stroke="#f7f4ec" stroke-width="1.7" stroke-linecap="round"/><circle cx="40" cy="20" r="1.8" fill="#f29a83"/>
+  <text x="53" y="29" fill="#3c463f" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="650">SketchDraw</text>
+  <text x="1320" y="29" fill="#9aa39b" font-family="Segoe UI,Arial,sans-serif" font-size="11">−　□　×</text>
+  <rect x="20" y="51" width="1400" height="54" rx="14" fill="#fbfcfb" stroke="#e2e8e3" filter="url(#shadow)"/>
+  <g font-family="Segoe UI,Arial,sans-serif" fill="#546057" text-anchor="middle" font-size="10" font-weight="600">
+    <g transform="translate(34 61)"><rect width="48" height="34" rx="9" fill="#f1f4f1"/><path d="M17 10 9 17l8 7m14-14 8 7-8 7M27 8l-6 18" fill="none" stroke="#56655a" stroke-width="1.5"/><text x="24" y="48">Canvas</text></g>
+    <g transform="translate(88 61)"><rect width="42" height="34" rx="9" fill="#f1f4f1"/><path d="m13 23 12-12 5 5-12 12-6 1z" fill="none" stroke="#56655a" stroke-width="1.5"/><text x="21" y="48">Select</text></g>
+    <g transform="translate(136 61)"><rect width="42" height="34" rx="9" fill="#e6f0e7" stroke="#cadccb"/><path d="m12 23 15-15 4 4-15 15-6 1z" fill="none" stroke="#52765a" stroke-width="1.5"/><text x="21" y="48" fill="#4f7557">Pen</text></g>
+    <g transform="translate(184 61)"><rect width="42" height="34" rx="9" fill="#f1f4f1"/><path d="m12 15 14 14m2-17 3 3-7 7-3-3z" fill="none" stroke="#56655a" stroke-width="1.5"/><text x="21" y="48">Eraser</text></g>
+    <g transform="translate(232 61)"><rect width="42" height="34" rx="9" fill="#f1f4f1"/><path d="M12 24q7-15 18-15-1 11-18 15zm3 3q7-4 15-3" fill="none" stroke="#56655a" stroke-width="1.4"/><text x="21" y="48">Brush</text></g>
+    <g transform="translate(280 61)"><rect width="42" height="34" rx="9" fill="#f1f4f1"/><path d="m13 25 16-16m-12 0 12 12" fill="none" stroke="#56655a" stroke-width="1.5"/><text x="21" y="48">Laser</text></g>
+    <path d="M331 66v28" stroke="#e1e7e2"/>
+    <g transform="translate(343 61)"><rect width="42" height="34" rx="9" fill="#f1f4f1"/><path d="M11 17h20m-10-10v20" stroke="#56655a" stroke-width="1.5"/><text x="21" y="48">Shapes</text></g>
+    <g transform="translate(391 61)"><rect width="42" height="34" rx="9" fill="#f1f4f1"/><path d="M11 11h20M11 17h20M11 23h14" stroke="#56655a" stroke-width="1.5"/><text x="21" y="48">Text</text></g>
+    <g transform="translate(439 61)"><rect width="42" height="34" rx="9" fill="#f1f4f1"/><path d="M11 23h18m-9-12v12m-5-12h10" stroke="#56655a" stroke-width="1.5"/><text x="21" y="48">Notes</text></g>
+    <path d="M488 66v28" stroke="#e1e7e2"/>
+    <g transform="translate(500 61)"><rect width="42" height="34" rx="9" fill="#f1f4f1"/><path d="M12 11h17v17H12zM16 15h9m-9 5h9m-9 4h6" fill="none" stroke="#56655a" stroke-width="1.3"/><text x="21" y="48">Layers</text></g>
+    <g transform="translate(548 61)"><rect width="42" height="34" rx="9" fill="#f1f4f1"/><path d="m14 14 6 6 8-9m-14 14h16" fill="none" stroke="#56655a" stroke-width="1.5"/><text x="21" y="48">Undo</text></g>
+    <g transform="translate(596 61)"><rect width="42" height="34" rx="9" fill="#f1f4f1"/><path d="m28 14-6 6-8-9m14 14H12" fill="none" stroke="#56655a" stroke-width="1.5"/><text x="21" y="48">Redo</text></g>
+  </g>
+  <g font-family="Segoe UI,Arial,sans-serif" fill="#566258" font-size="10" font-weight="600">
+    <rect x="1319" y="59" width="85" height="37" rx="10" fill="#f5f7f5" stroke="#e0e7e1"/><path d="M1332 70h15m-15 6h15m-15 6h15" stroke="#67766b" stroke-width="1.4"/><text x="1353" y="82">Hide tools</text>
+  </g>
+  <rect x="20" y="117" width="238" height="635" rx="15" fill="#fbfcfb" stroke="#e1e7e2" filter="url(#shadow)"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <text x="40" y="148" fill="#2f3b32" font-size="16" font-weight="700">Properties</text>
+    <text x="40" y="169" fill="#8b968d" font-size="10">Pen · Default style</text>
+    <path d="M39 184h199" stroke="#e8ede8"/>
+    <text x="40" y="210" fill="#647167" font-size="10" font-weight="700" letter-spacing=".7">STROKE COLOR</text>
+    <rect x="40" y="222" width="198" height="39" rx="10" fill="#f7f9f7" stroke="#e2e8e2"/><circle cx="59" cy="241" r="9" fill="#405f86"/><text x="76" y="245" fill="#435047" font-size="11">Deep blue</text><text x="220" y="245" fill="#8b968d" font-size="14">⌄</text>
+    <text x="40" y="290" fill="#647167" font-size="10" font-weight="700" letter-spacing=".7">THICKNESS</text>
+    <rect x="40" y="302" width="198" height="42" rx="10" fill="#f7f9f7" stroke="#e2e8e2"/><circle cx="67" cy="323" r="2" fill="#405f86"/><circle cx="103" cy="323" r="4" fill="#405f86"/><circle cx="139" cy="323" r="6" fill="#405f86"/><circle cx="175" cy="323" r="8" fill="#405f86"/><circle cx="215" cy="323" r="10" fill="#405f86" opacity=".2"/><circle cx="215" cy="323" r="5" fill="#405f86"/>
+    <text x="40" y="376" fill="#647167" font-size="10" font-weight="700" letter-spacing=".7">STYLUS INPUT</text>
+    <rect x="40" y="389" width="198" height="88" rx="11" fill="#f7f9f7" stroke="#e2e8e2"/>
+    <text x="53" y="412" fill="#48554b" font-size="11">Pressure width</text><rect x="204" y="400" width="23" height="13" rx="7" fill="#6e9a72"/><circle cx="219" cy="406.5" r="5" fill="#fff"/>
+    <text x="53" y="438" fill="#48554b" font-size="11">Tilt shaping</text><rect x="204" y="426" width="23" height="13" rx="7" fill="#d7ded8"/><circle cx="211" cy="432.5" r="5" fill="#fff"/>
+    <text x="53" y="464" fill="#48554b" font-size="11">Eraser end</text><rect x="204" y="452" width="23" height="13" rx="7" fill="#d7ded8"/><circle cx="211" cy="458.5" r="5" fill="#fff"/>
+    <rect x="39" y="500" width="199" height="82" rx="11" fill="#f5f7f5"/>
+    <text x="53" y="523" fill="#657167" font-size="10" font-weight="700">TOOL SETTINGS</text><text x="53" y="544" fill="#89948b" font-size="10">Quick controls are available</text><text x="53" y="561" fill="#89948b" font-size="10">from the canvas style button.</text>
+  </g>
+  <rect x="269" y="117" width="1151" height="635" rx="15" fill="#fff" stroke="#e0e6e1"/>
+  <rect x="270" y="118" width="1149" height="633" rx="14" fill="url(#grid)"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <rect x="289" y="131" width="213" height="34" rx="9" fill="#fbfcfb" stroke="#e5eae6"/><text x="304" y="153" fill="#3d493f" font-size="11" font-weight="600">Quarterly planning board</text><circle cx="485" cy="148" r="4" fill="#77a37d"/>
+    <rect x="291" y="705" width="148" height="31" rx="9" fill="#fbfcfb" stroke="#e4e9e5"/><text x="306" y="725" fill="#66736a" font-size="10">Page 1　　+ Add page</text>
+    <rect x="1316" y="705" width="84" height="31" rx="10" fill="#fbfcfb" stroke="#e4e9e5"/><text x="1358" y="725" text-anchor="middle" fill="#66736a" font-size="10">100%　⌕</text>
+    <text x="493" y="254" fill="#829087" font-size="10" font-weight="700" letter-spacing="1.2">QUARTERLY PLANNING</text>
+    <rect x="476" y="286" width="185" height="70" rx="14" fill="#fff" stroke="#91a98f" stroke-width="1.5" filter="url(#shadow)"/><rect x="476" y="286" width="185" height="7" rx="4" fill="#77a37d"/><text x="568" y="323" text-anchor="middle" fill="#303b32" font-size="13" font-weight="700">Plan goals</text><text x="568" y="341" text-anchor="middle" fill="#879188" font-size="10">Set the next priorities</text>
+    <path d="M661 321h116v-50h70m-70 50v118h70" fill="none" stroke="#748778" stroke-width="2"/><path d="m842 266 9 5-9 5m0 36 9 5-9 5" fill="none" stroke="#748778" stroke-width="2"/>
+    <path d="M661 321h64v-50h52m-52 50v118h52" fill="none" stroke="#748778" stroke-width="2"/>
+    <rect x="851" y="235" width="196" height="70" rx="14" fill="#fff" stroke="#bda16c" stroke-width="1.5" filter="url(#shadow)"/><rect x="851" y="235" width="196" height="7" rx="4" fill="#e5c579"/><path d="m872 270 12-13 12 13-12 13z" fill="#fff7e6" stroke="#bd9a58"/><text x="959" y="266" text-anchor="middle" fill="#303b32" font-size="12" font-weight="700">Ready to launch?</text><text x="959" y="286" text-anchor="middle" fill="#879188" font-size="10">Check owners and dates</text>
+    <rect x="851" y="404" width="196" height="70" rx="14" fill="#fff" stroke="#91a98f" stroke-width="1.5" filter="url(#shadow)"/><rect x="851" y="404" width="196" height="7" rx="4" fill="#77a37d"/><text x="949" y="442" text-anchor="middle" fill="#303b32" font-size="12" font-weight="700">Refine the plan</text><text x="949" y="460" text-anchor="middle" fill="#879188" font-size="10">Assign owners</text>
+    <path d="M1047 270h69v87h67m-67-87v174h67" fill="none" stroke="#748778" stroke-width="2"/><path d="m1179 352 9 5-9 5m0 82 9 5-9 5" fill="none" stroke="#748778" stroke-width="2"/>
+    <rect x="1189" y="321" width="181" height="70" rx="14" fill="#fff" stroke="#91a98f" stroke-width="1.5" filter="url(#shadow)"/><rect x="1189" y="321" width="181" height="7" rx="4" fill="#77a37d"/><text x="1279" y="359" text-anchor="middle" fill="#303b32" font-size="12" font-weight="700">Publish roadmap</text><text x="1279" y="377" text-anchor="middle" fill="#879188" font-size="10">Share with the team</text>
+    <circle cx="851" cy="439" r="5" fill="#fff" stroke="#628768" stroke-width="2"/><circle cx="1189" cy="356" r="5" fill="#fff" stroke="#628768" stroke-width="2"/>
+  </g>
+  <rect x="1291" y="175" width="95" height="39" rx="12" fill="#fbfcfb" stroke="#e0e7e1" filter="url(#shadow)"/><circle cx="1310" cy="194" r="7" fill="#405f86"/><text x="1324" y="198" fill="#5c695f" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="600">Quick style</text>
 </svg>
