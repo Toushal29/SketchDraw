@@ -37,6 +37,17 @@ export const noteCardPalette = (kind: NoteKind, theme: Theme, appearance: "moder
   ? { surface: theme === "dark" ? "#202020" : "#ffffff", border: theme === "dark" ? "#b8b8b8" : "#777777", accent: theme === "dark" ? "#c8c8c8" : "#666666", ink: theme === "dark" ? "#f0f0f0" : "#202020", muted: theme === "dark" ? "#c5c5c5" : "#606060", rule: theme === "dark" ? "#555555" : "#c6c6c6", soft: theme === "dark" ? "#333333" : "#eeeeee", check: theme === "dark" ? "#dedede" : "#555555" }
   : NOTE_CARD_PALETTES[theme][kind];
 
+function markdownCells(line: string): string[] {
+  let source = line.trim();
+  if (source.startsWith("|")) source = source.slice(1);
+  if (source.endsWith("|")) source = source.slice(0, -1);
+  return source.split(/(?<!\\)\|/).map(cell => cell.trim().replace(/\\\|/g, "|"));
+}
+function isMarkdownTableDivider(line: string): boolean {
+  const cells = markdownCells(line);
+  return cells.length > 1 && cells.every(cell => /^:?-{3,}:?$/.test(cell.replace(/\s/g, "")));
+}
+
 export function checklistRows(content: string, width: number, fontSize: number) {
   let top = 86;
   return content.split(/\r?\n/).filter(line => line.trim()).map((line, index) => {
@@ -118,7 +129,7 @@ export function buildNoteGroup(x: number, y: number, kind: NoteKind, source: str
     estimated += 18;
   }
   const fullHeight = dimensions.height === undefined ? Math.max(estimated, 120) : Math.max(100, Math.min(1_000_000, dimensions.height));
-  const visibleHeight = collapsed ? 66 : fullHeight;
+  const visibleHeight = collapsed ? 52 : fullHeight;
   const background: ShapeElement = { type: "rectangle", x, y, w: width, h: visibleHeight, color: palette.border, thickness: 1, fillColor: palette.surface, fillOpacity: 1, edgeStyle: "rounded", cornerRadius: 12 };
   return { type: "group", note: { kind, content, title, width, height: fullHeight, fontSize, collapsed }, elements: [background] };
 }
@@ -128,12 +139,12 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
   const meta = group.note; const background = group.elements.find((item): item is ShapeElement => item.type === "rectangle");
   if (!meta || !background) return;
   const { x, y } = background; const width = Math.abs(background.w); const height = Math.abs(background.h);
-  const palette = noteCardPalette(meta.kind, theme, appearance); const fontSize = Math.max(8, Math.min(48, meta.fontSize ?? 14));
+  const palette = noteCardPalette(meta.kind, theme, appearance); const fontSize = Math.round(Math.max(8, Math.min(48, meta.fontSize ?? 14)));
   ctx.save(); ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(x, y, width, height, appearance === "simple" ? 0 : 9); ctx.fillStyle = palette.surface; ctx.fill(); ctx.strokeStyle = palette.border; ctx.stroke();
   if (appearance !== "simple") { ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, width, height, 9); ctx.clip(); ctx.fillStyle = palette.accent; ctx.fillRect(x, y + 1, 3, Math.max(0, height - 2)); ctx.restore(); }
   const collapsed = meta.collapsed === true; const title = (meta.title || defaultNoteTitle(meta.kind)).slice(0, 120);
-  ctx.textBaseline = "top"; ctx.textAlign = "left"; ctx.font = "600 13px system-ui, sans-serif"; ctx.fillStyle = palette.ink; ctx.fillText(title, x + 16, y + 13, Math.max(40, width - 94));
-  const toggleX = x + width - 38; const toggleY = collapsed ? y + 20 : y + 11;
+  ctx.textBaseline = "top"; ctx.textAlign = "left"; ctx.font = "600 12px system-ui, sans-serif"; ctx.fillStyle = palette.ink; ctx.fillText(title, x + 14, y + (collapsed ? 8 : 13), Math.max(40, width - 88));
+  const toggleX = x + width - 36; const toggleY = collapsed ? y + 6 : y + 11;
   ctx.beginPath(); ctx.roundRect(toggleX, toggleY, 24, 24, appearance === "simple" ? 0 : 7); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.rule; ctx.stroke();
   ctx.strokeStyle = palette.muted; ctx.lineWidth = 1.5; ctx.beginPath();
   if (collapsed) { ctx.moveTo(toggleX + 8, toggleY + 9); ctx.lineTo(toggleX + 12, toggleY + 13); ctx.lineTo(toggleX + 16, toggleY + 9); }
@@ -143,7 +154,7 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
     const rows = meta.kind === "checklist" ? checklistRows(meta.content, width, fontSize) : undefined;
     const completed = rows?.filter(row => row.done).length ?? 0;
     const summary = rows ? completed + " of " + rows.length + " tasks" : (meta.content.split(/\r?\n/).find(line => line.trim() && !/^\s*```/.test(line)) ?? "Empty card").trim();
-    ctx.font = "500 10px system-ui, sans-serif"; ctx.fillStyle = palette.muted; ctx.fillText(summary, x + 16, y + 37, Math.max(40, width - 70));
+    ctx.font = "500 9px system-ui, sans-serif"; ctx.fillStyle = palette.muted; ctx.fillText(summary, x + 14, y + 31, Math.max(40, width - 62));
   }
   if (!collapsed) { ctx.strokeStyle = palette.rule; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + 14, y + 47); ctx.lineTo(x + width - 14, y + 47); ctx.stroke(); }
   if (collapsed || height <= 54) { ctx.restore(); return; }
@@ -175,13 +186,61 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
       cursor += blockHeight + 9; codeLines = []; inCode = false;
     };
     const maxChars = Math.max(8, Math.floor((width - 36) / (fontSize * .56)));
-    for (const line of meta.content.split(/\r?\n/)) {
+    const sourceLines = meta.content.split(/\r?\n/);
+    const drawMarkdownInline = (value: string, px: number, py: number, size: number, baseWeight: number, baseColor = palette.ink) => {
+      const pattern = /(\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|`[^`]+`|\*[^*]+\*|_[^_]+_)/g;
+      let cursorX = px; let cursorIndex = 0;
+      const drawRun = (text: string, bold: boolean, italic: boolean, code: boolean, strike: boolean) => {
+        ctx.font = `${italic ? "italic " : ""}${bold ? 650 : baseWeight} ${size}px ${code ? "ui-monospace, SFMono-Regular, Consolas, monospace" : "system-ui, sans-serif"}`;
+        const runWidth = ctx.measureText(text).width;
+        if (code) { ctx.fillStyle = appearance === "simple" ? palette.soft : "#e9eef4"; ctx.fillRect(cursorX - 2, py + 1, runWidth + 4, size + 3); }
+        ctx.fillStyle = code ? (theme === "dark" ? "#e4edf6" : "#34465a") : baseColor;
+        ctx.textBaseline = "top"; ctx.fillText(text, cursorX, py, Math.max(1, x + width - 16 - cursorX));
+        if (strike) { ctx.strokeStyle = baseColor; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cursorX, py + size * .55); ctx.lineTo(cursorX + runWidth, py + size * .55); ctx.stroke(); }
+        cursorX += runWidth + (code ? 4 : 0);
+      };
+      for (const match of value.matchAll(pattern)) {
+        const token = match[0]; const start = match.index ?? 0;
+        if (start > cursorIndex) drawRun(value.slice(cursorIndex, start), false, false, false, false);
+        const double = token.startsWith("**") || token.startsWith("__"); const strike = token.startsWith("~~"); const code = token.startsWith("`");
+        const italic = !double && !strike && !code; const trim = double || strike ? 2 : 1;
+        drawRun(token.slice(trim, -trim), double, italic, code, strike); cursorIndex = start + token.length;
+      }
+      if (cursorIndex < value.length) drawRun(value.slice(cursorIndex), false, false, false, false);
+    };
+    for (let lineIndex = 0; lineIndex < sourceLines.length;) {
+      const line = sourceLines[lineIndex];
       const fence = /^\s*```\s*([\w+#.-]*)\s*$/.exec(line);
-      if (fence) { if (!inCode) { inCode = true; language = fence[1] || "text"; } else flushCode(); continue; }
-      if (inCode) { codeLines.push(line); continue; }
-      if (!line.trim()) { cursor += 8; continue; }
-      const heading = /^(#{1,3})\s+(.*)$/.exec(line); const size = heading ? fontSize + (4 - heading[1].length) * 2 : fontSize;
-      for (const part of wrap(heading?.[2] ?? line, maxChars)) { drawText(part, x + 16, cursor, size, palette.ink, heading ? 650 : 400); cursor += size * 1.5; }
+      if (fence) { if (!inCode) { inCode = true; language = fence[1] || "text"; } else flushCode(); lineIndex++; continue; }
+      if (inCode) { codeLines.push(line); lineIndex++; continue; }
+      if (!line.trim()) { cursor += 8; lineIndex++; continue; }
+      if (lineIndex + 1 < sourceLines.length && isMarkdownTableDivider(sourceLines[lineIndex + 1])) {
+        const header = markdownCells(line); const rows: string[][] = [header]; let rowIndex = lineIndex + 2;
+        while (rowIndex < sourceLines.length && sourceLines[rowIndex].includes("|")) { rows.push(markdownCells(sourceLines[rowIndex])); rowIndex++; }
+        const columns = Math.max(1, ...rows.map(row => row.length)); const tableWidth = width - 32; const cellWidth = tableWidth / columns; const rowHeight = Math.max(24, fontSize * 1.7); const tableHeight = rows.length * rowHeight;
+        ctx.save(); ctx.beginPath(); ctx.rect(x + 16, cursor, tableWidth, tableHeight); ctx.clip();
+        rows.forEach((row, r) => {
+          const rowY = cursor + r * rowHeight;
+          if (r === 0) { ctx.fillStyle = palette.soft; ctx.fillRect(x + 16, rowY, tableWidth, rowHeight); }
+          for (let c = 0; c < columns; c++) {
+            const left = x + 16 + c * cellWidth; const value = row[c] ?? ""; ctx.font = `${r === 0 ? "600" : "400"} ${Math.max(9, fontSize * .86)}px system-ui, sans-serif`; ctx.fillStyle = palette.ink; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+            ctx.fillText(value, left + 6, rowY + rowHeight / 2, Math.max(1, cellWidth - 12));
+            if (c) { ctx.strokeStyle = palette.rule; ctx.lineWidth = .75; ctx.beginPath(); ctx.moveTo(left, rowY); ctx.lineTo(left, rowY + rowHeight); ctx.stroke(); }
+          }
+          ctx.strokeStyle = palette.rule; ctx.lineWidth = .75; ctx.beginPath(); ctx.moveTo(x + 16, rowY + rowHeight); ctx.lineTo(x + 16 + tableWidth, rowY + rowHeight); ctx.stroke();
+        });
+        ctx.restore(); ctx.strokeStyle = palette.rule; ctx.lineWidth = 1; ctx.strokeRect(x + 16, cursor, tableWidth, tableHeight);
+        cursor += tableHeight + 12; lineIndex = rowIndex; continue;
+      }
+      const heading = /^(#{1,3})\s+(.*)$/.exec(line); const quote = /^>\s?(.*)$/.exec(line); const bullet = /^\s*([-*+])\s+(.*)$/.exec(line); const numbered = /^\s*(\d+)[.)]\s+(.*)$/.exec(line);
+      const value = heading?.[2] ?? quote?.[1] ?? bullet?.[2] ?? numbered?.[2] ?? line; const size = heading ? fontSize + (4 - heading[1].length) * 2 : fontSize;
+      const prefix = bullet ? "• " : numbered ? `${numbered[1]}. ` : quote ? "“ " : ""; const indent = bullet || numbered ? 12 : quote ? 8 : 0;
+      const parts = wrap(prefix + value, Math.max(4, maxChars - Math.ceil(indent / (fontSize * .56))));
+      for (const part of parts) {
+        if (quote) { ctx.strokeStyle = palette.accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 12, cursor + 1); ctx.lineTo(x + 12, cursor + size); ctx.stroke(); }
+        drawMarkdownInline(part, x + 16 + indent, cursor, size, heading ? 650 : quote ? 400 : 400, quote ? palette.muted : palette.ink); cursor += size * 1.5;
+      }
+      lineIndex++;
     }
     if (inCode) flushCode();
   }
@@ -191,7 +250,7 @@ export function noteCollapseHit(group: GroupElement, point: { x: number; y: numb
   if (!group.note) return false;
   const background = group.elements.find((item): item is ShapeElement => item.type === "rectangle");
   if (!background) return false;
-  const x = background.x + background.w - 40; const y = background.y + (group.note.collapsed ? 16 : 8);
+  const x = background.x + background.w - 39; const y = background.y + (group.note.collapsed ? 3 : 8);
   return point.x >= x && point.x <= x + 30 && point.y >= y && point.y <= y + 30;
 }
 

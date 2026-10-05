@@ -91,6 +91,21 @@
 .pattern-setting-section .whiteboard-style-options { display: grid; grid-template-columns: 1fr; gap: 3px; padding: 2px 3px; }
 .pattern-setting-section .whiteboard-style-choice { min-height: 29px; gap: 6px; padding: 3px 5px; border-radius: 7px; font-size: 9px; }
 .pattern-setting-section .paper-pattern-swatch { width: 19px; height: 18px; flex-basis: 19px; border-radius: 4px; background-size: 6px 6px; }
+.paper-pattern-swatch {
+    box-sizing: border-box;
+    display: block;
+    border: 1px solid #d9dfda;
+    background-color: #fff;
+}
+.paper-pattern-swatch.dots { background-image: radial-gradient(#9aa69c 1px, transparent 1.2px); background-size: 7px 7px; }
+.paper-pattern-swatch.small-dots { background-image: radial-gradient(#a6afa8 .7px, transparent .9px); background-size: 5px 5px; }
+.paper-pattern-swatch.lines,
+.paper-pattern-swatch.small-grid { background-image: linear-gradient(#d5ddd7 1px, transparent 1px), linear-gradient(90deg, #d5ddd7 1px, transparent 1px); }
+.paper-pattern-swatch.lines { background-size: 7px 7px; }
+.paper-pattern-swatch.small-grid { background-size: 5px 5px; }
+.paper-pattern-swatch.ruled { background-image: linear-gradient(transparent 5px, #d5ddd7 5px, #d5ddd7 6px, transparent 6px); background-size: 100% 7px; }
+.paper-pattern-swatch.isometric { background-image: repeating-linear-gradient(0deg, transparent 0 7px, #d5ddd7 7px 8px), repeating-linear-gradient(60deg, transparent 0 7px, #d5ddd7 7px 8px), repeating-linear-gradient(120deg, transparent 0 7px, #d5ddd7 7px 8px); background-size: 12px 14px; }
+.paper-pattern-swatch.plain { background-image: none; }
 .theme-dark .view-panel-tabs { border-bottom-color: #414c43; }
 .theme-dark .view-panel-tabs button { color: #c7d0c8; }
 .theme-dark .view-panel-tabs button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
@@ -105,6 +120,13 @@
 .theme-dark .component-setting-section .component-style-options button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
 .theme-dark .toolbar-setting-section .toolbar-color-options .named-color-choice { color: #d4ddd5; }
 .theme-dark .board-custom-choice { color: #c4cec5; }
+.theme-dark .paper-pattern-swatch { border-color: #4b554d; background-color: #222923; }
+.theme-dark .paper-pattern-swatch.dots { background-image: radial-gradient(#738077 1px, transparent 1.2px); }
+.theme-dark .paper-pattern-swatch.small-dots { background-image: radial-gradient(#657268 .7px, transparent .9px); }
+.theme-dark .paper-pattern-swatch.lines,
+.theme-dark .paper-pattern-swatch.small-grid { background-image: linear-gradient(#47544a 1px, transparent 1px), linear-gradient(90deg, #47544a 1px, transparent 1px); }
+.theme-dark .paper-pattern-swatch.ruled { background-image: linear-gradient(transparent 5px, #47544a 5px, #47544a 6px, transparent 6px); }
+.theme-dark .paper-pattern-swatch.isometric { background-image: repeating-linear-gradient(0deg, transparent 0 7px, #47544a 7px 8px), repeating-linear-gradient(60deg, transparent 0 7px, #47544a 7px 8px), repeating-linear-gradient(120deg, transparent 0 7px, #47544a 7px 8px); }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell .app-menus .view-menu-dropdown .view-settings-popover {

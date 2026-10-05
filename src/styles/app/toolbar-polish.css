@@ -1,0 +1,365 @@
+/* Route every click on an option's artwork to its full button hit area. */
+.tool-icon-button > svg:not(.tool-family-caret),
+.tool-options button > *,
+.quick-style-icon > *,
+.quick-arrow-heads button > *,
+.connector-route-buttons button > *,
+.arrow-head-choices button > * {
+    pointer-events: none;
+}
+
+.tool-icon-button > .tool-family-caret {
+    pointer-events: auto;
+}
+
+.quick-arrow-heads>div>span {
+    width: 42px;
+}
+
+.quick-arrow-heads>div>div {
+    gap: 3px;
+}
+
+.quick-arrow-heads button {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border-radius: 9px;
+}
+
+.quick-arrow-heads svg {
+    width: 22px;
+    height: 22px;
+}
+
+.choice-deck.arrow-head-choices {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.choice-deck.arrow-head-choices button {
+    width: 36px;
+    min-width: 32px;
+    min-height: 42px;
+    padding: 4px;
+}
+
+.choice-deck.arrow-head-choices button svg {
+    width: 23px;
+    height: 23px;
+}
+
+/* Group the floating toolbar into clear, compact tool families. */
+.tool-deck {
+    z-index: 12;
+    align-items: center;
+    gap: 6px;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    padding: 7px;
+    border: 1px solid #e3e8e0;
+    border-radius: 20px;
+    background: rgba(250, 252, 249, .94);
+    box-shadow: 0 14px 40px #26332918, 0 2px 8px #2633290a;
+    backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.tool-cluster {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid #edf0eb;
+    border-radius: 14px;
+    background: #f4f6f2;
+}
+
+.tool-cluster-canvas {
+    border-color: transparent;
+    background: transparent;
+}
+
+.tool-cluster-connectors {
+    background: #f2f6f4;
+}
+
+.tool-cluster-shapes {
+    background: #f6f5f1;
+}
+
+.tool-cluster-content,
+.tool-cluster-history {
+    background: #f4f6f5;
+}
+
+.tool-icon-button {
+    width: 42px;
+    height: 50px;
+    gap: 2px;
+    border-radius: 11px;
+    color: #59645a;
+    transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.tool-icon-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: #dce6da;
+    color: #3d6344;
+    background: #fff;
+    box-shadow: 0 3px 9px #3146320c;
+}
+
+.tool-icon-button.selected {
+    border-color: #cadbc9;
+    color: #3c6843;
+    background: #eaf3e8;
+    box-shadow: inset 0 0 0 1px #ffffffa8, 0 2px 7px #476d481b;
+}
+
+.tool-icon-button.selected:hover {
+    border-color: #bfd3bd;
+    background: #e5f0e3;
+}
+
+.tool-icon-button svg:not(.tool-family-caret) {
+    width: 21px;
+    height: 21px;
+}
+
+.tool-icon-button kbd {
+    color: #858d84;
+    font: 8px 'DM Mono', monospace;
+    line-height: 10px;
+}
+
+.tool-icon-button.selected kbd {
+    color: #527355;
+}
+
+.tool-icon-button.has-options {
+    padding-right: 1px;
+}
+
+.tool-icon-button .tool-family-caret {
+    top: 4px;
+    right: 4px;
+    width: 11px;
+    height: 11px;
+    padding: 2px;
+    border: 1px solid #e5eae3;
+    border-radius: 50%;
+    color: #788578;
+    background: #f8faf7;
+}
+
+.tool-family {
+    height: 50px;
+}
+
+.tool-family.options-open > .tool-icon-button,
+.tool-family:focus-within > .tool-icon-button {
+    border-color: #cbdcc9;
+    color: #416b47;
+    background: #edf5eb;
+}
+
+.tool-options {
+    z-index: 30;
+    top: 100%;
+    gap: 6px;
+    padding: 9px;
+    border-color: #e2e8df;
+    border-radius: 15px;
+    color: #4f5d51;
+    background: rgba(252, 253, 251, .98);
+    box-shadow: 0 16px 40px #27352824, 0 2px 8px #2735280b;
+    backdrop-filter: blur(18px);
+}
+
+.tool-options button {
+    min-width: 66px;
+    min-height: 66px;
+    gap: 7px;
+    padding: 8px 7px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    color: #59665b;
+    background: transparent;
+    transition: transform .14s ease, border-color .14s ease, background .14s ease, color .14s ease;
+}
+
+.tool-options button:hover,
+.tool-options button.active {
+    transform: translateY(-1px);
+    border-color: #d7e4d4;
+    color: #3d6844;
+    background: #f1f7ef;
+}
+
+.tool-options button svg {
+    width: 27px;
+    height: 27px;
+    color: inherit;
+}
+
+.tool-options button span {
+    color: inherit;
+    font-size: 10px;
+    line-height: 1.25;
+    text-align: center;
+}
+
+.tool-family.options-open .flowchart-options {
+    width: 390px;
+    grid-template-columns: repeat(4, minmax(72px, 1fr));
+}
+
+.tool-family.options-open .route-options {
+    gap: 5px;
+}
+
+.tool-collapse,
+.tool-deck-reopen {
+    width: 32px;
+    height: 42px;
+    border-radius: 11px;
+    color: #7a857b;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.tool-collapse:hover,
+.tool-deck-reopen:hover {
+    border-color: #dce6da;
+    color: #416b47;
+    background: #eef5ec;
+}
+
+.theme-dark .tool-deck {
+    border-color: #404942;
+    background: rgba(37, 42, 39, .96);
+    box-shadow: 0 14px 40px #0005;
+}
+
+.theme-dark .tool-cluster {
+    border-color: #39433b;
+    background: #2b322d;
+}
+
+.theme-dark .tool-cluster-canvas {
+    border-color: transparent;
+    background: transparent;
+}
+
+.theme-dark .tool-cluster-connectors,
+.theme-dark .tool-cluster-shapes,
+.theme-dark .tool-cluster-content,
+.theme-dark .tool-cluster-history {
+    background: #2a312c;
+}
+
+.theme-dark .tool-icon-button {
+    color: #b7c1b8;
+}
+
+.theme-dark .tool-icon-button:hover:not(:disabled) {
+    border-color: #4b5b4b;
+    color: #d7e6d4;
+    background: #343d36;
+}
+
+.theme-dark .tool-icon-button.selected {
+    border-color: #587456;
+    color: #d2e6cf;
+    background: #354638;
+}
+
+.theme-dark .tool-icon-button kbd {
+    color: #9aa59a;
+}
+
+.theme-dark .tool-icon-button.selected kbd {
+    color: #c3d9bf;
+}
+
+.theme-dark .tool-icon-button .tool-family-caret {
+    border-color: #4a544b;
+    color: #c4cec3;
+    background: #343b35;
+}
+
+.theme-dark .tool-options {
+    border-color: #414a43;
+    color: #d3dcd2;
+    background: rgba(40, 46, 41, .98);
+    box-shadow: 0 16px 40px #0007;
+}
+
+.theme-dark .tool-options button {
+    color: #c1ccc0;
+}
+
+.theme-dark .tool-options button:hover,
+.theme-dark .tool-options button.active {
+    border-color: #50684e;
+    color: #d6e8d2;
+    background: #354438;
+}
+
+.theme-dark .tool-collapse,
+.theme-dark .tool-deck-reopen {
+    color: #bdc8bd;
+}
+
+.theme-dark .tool-collapse:hover,
+.theme-dark .tool-deck-reopen:hover {
+    border-color: #4a5b49;
+    color: #d6e8d2;
+    background: #354438;
+}
+
+@media (max-width: 760px) {
+    .tool-deck {
+        gap: 4px;
+        padding: 5px;
+    }
+
+    .tool-cluster {
+        gap: 1px;
+        padding: 2px;
+    }
+
+    .tool-icon-button {
+        width: 39px;
+    }
+}
+
+.canvas-utility-button kbd {
+    color: #85877f;
+    font: 8px 'DM Mono', monospace;
+    line-height: 10px;
+    white-space: nowrap;
+}
+
+.canvas-utility-button:disabled {
+    opacity: .35;
+    cursor: default;
+}
+
+.theme-dark .canvas-utility-button kbd {
+    color: #aeb3bd;
+}
+
+@media (max-width: 760px) {
+    .tool-deck {
+        max-width: calc(100vw - 16px);
+        overflow-x: auto;
+    }
+
+    .canvas-utility-button {
+        width: 37px;
+        min-width: 37px;
+    }
+}
+

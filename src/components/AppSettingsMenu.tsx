@@ -10,10 +10,12 @@ export type DisplayMetrics = {
 type Props = {
   interfaceScale: number;
   autosaveSeconds: 5 | 10;
+  thicknessPickerMode: "presets" | "stepper";
   reduceMotion: boolean;
   displayMetrics: DisplayMetrics;
   onInterfaceScaleChange: (scale: number) => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
+  onThicknessPickerModeChange: (mode: "presets" | "stepper") => void;
   onReduceMotionChange: (reduce: boolean) => void;
   onRestoreDefaults: () => void;
   detailsRef?: (element: HTMLDetailsElement) => void;
@@ -45,6 +47,14 @@ export function AppSettingsMenu(props: Props) {
             <option value={5}>Every 5 seconds</option>
             <option value={10}>Every 10 seconds</option>
           </select>
+        </label>
+        <label class="app-setting-field">
+          <span>Pen and brush thickness controls</span>
+          <select aria-label="Pen and brush thickness controls" value={props.thicknessPickerMode} onChange={event => props.onThicknessPickerModeChange(event.currentTarget.value as "presets" | "stepper")}>
+            <option value="presets">Preset thicknesses</option>
+            <option value="stepper">Fine tune with slider</option>
+          </select>
+          <small>Choose presets or fine tuning for pen and paint brushes. Other tools keep their existing controls.</small>
         </label>
         <label class="app-setting-toggle">
           <span><strong>Reduce motion</strong><small>Turn off most interface animations</small></span>

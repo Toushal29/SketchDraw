@@ -17,7 +17,7 @@ export function TouchToolBar(props: Props) {
     <div class="touch-tool-host">
       <Show when={props.open} fallback={
         <button class="tool-deck-reopen touch-tool-reopen" title="Show tools" aria-label="Show tools" onClick={props.onShow}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 18h16M8 11l4 4 4-4" /></svg>
         </button>
       }>
         <nav class="tool-deck touch-tool-bar" aria-label="Canvas tools">
@@ -30,8 +30,8 @@ export function TouchToolBar(props: Props) {
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d={props.expanded ? "M5 12h14" : "M12 5v14M5 12h14"} /></svg>
               <span>{props.expanded ? "Less" : "More"}</span>
             </button>
-            <button class="tool-collapse" title="Hide tools" aria-label="Hide tools" onClick={props.onHide}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 14 5-5 5 5" /></svg>
+            <button class="tool-collapse" aria-label="Hide toolbar" onClick={props.onHide}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16M8 13l4-4 4 4" /></svg>
             </button>
           </div>
         </nav>

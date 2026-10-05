@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -138,6 +139,67 @@ fn authorize_sketch_file(app: tauri::AppHandle, path: String) -> Result<String, 
         .map_err(|_| "The selected sketch path is not valid Unicode.".into())
 }
 
+fn is_recent_sketch_path(path: &str) -> bool {
+    if path.len() > 4096 || !path.to_lowercase().ends_with(".sketch") {
+        return false;
+    }
+    if path.starts_with("content://") {
+        return true;
+    }
+    let candidate = std::path::PathBuf::from(path);
+    candidate.is_absolute()
+        && candidate
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("sketch"))
+}
+
+#[tauri::command]
+fn load_recent_sketches(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Could not find app storage: {error}"))?
+        .join("recent-sketches.json");
+    let contents = match std::fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("Could not read recent sketches: {error}")),
+    };
+    let paths: Vec<String> = serde_json::from_str(&contents).unwrap_or_default();
+    let mut recent = Vec::new();
+    for path in paths.into_iter().filter(|path| is_recent_sketch_path(path)) {
+        if !recent.contains(&path) {
+            recent.push(path);
+        }
+        if recent.len() == 8 {
+            break;
+        }
+    }
+    Ok(recent)
+}
+
+#[tauri::command]
+fn save_recent_sketches(app: tauri::AppHandle, paths: Vec<String>) -> Result<(), String> {
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Could not find app storage: {error}"))?;
+    std::fs::create_dir_all(&directory)
+        .map_err(|error| format!("Could not create app storage: {error}"))?;
+    let mut recent = Vec::new();
+    for path in paths.into_iter().filter(|path| is_recent_sketch_path(path)) {
+        if !recent.contains(&path) {
+            recent.push(path);
+        }
+        if recent.len() == 8 {
+            break;
+        }
+    }
+    let contents = serde_json::to_vec(&recent).map_err(|error| error.to_string())?;
+    std::fs::write(directory.join("recent-sketches.json"), contents)
+        .map_err(|error| format!("Could not save recent sketches: {error}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -152,7 +214,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             take_startup_files,
             authorize_sketch_file,
-            atomic_save_sketch
+            atomic_save_sketch,
+            load_recent_sketches,
+            save_recent_sketches
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

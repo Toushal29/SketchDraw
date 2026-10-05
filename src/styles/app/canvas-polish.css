@@ -1,0 +1,230 @@
+/* Refined canvas chrome and note editing surfaces. */
+.topbar {
+    border-bottom-color: #e9ece7;
+    background: rgba(250, 251, 249, .96);
+    box-shadow: 0 2px 12px #26332908;
+}
+
+.topbar .brand-mark-image {
+    filter: drop-shadow(0 2px 3px #23332916);
+}
+
+.menu-dropdown > summary,
+.topbar .menu-dropdown > summary {
+    min-height: 34px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+
+.menu-dropdown > summary:hover,
+.menu-dropdown[open] > summary {
+    border-color: #e5eae3;
+    color: #3e5e45;
+    background: #f2f6f0;
+}
+
+.tool-deck {
+    gap: 7px;
+    padding: 7px;
+    border-color: #dfe6de;
+    background: rgba(249, 251, 248, .96);
+    box-shadow: 0 16px 42px #25342a20, 0 2px 8px #25342a0d;
+}
+
+.tool-cluster {
+    gap: 3px;
+    padding: 3px;
+    border-color: #e8ede7;
+    background: #f1f4f0;
+}
+
+.tool-cluster-canvas { background: transparent; }
+
+.tool-icon-button {
+    border: 1px solid transparent;
+    border-radius: 10px;
+}
+
+.tool-icon-button.selected {
+    border-color: #bfd3bf;
+    background: linear-gradient(180deg, #eff7ed, #e6f0e3);
+}
+
+.tool-options {
+    border-color: #dfe7de;
+    background: rgba(251, 253, 250, .985);
+    box-shadow: 0 18px 44px #24352926, 0 2px 8px #2435290d;
+}
+
+.tool-options button:focus-visible,
+.tool-icon-button:focus-visible,
+.canvas-options-trigger:focus-visible,
+.tool-collapse:focus-visible,
+.tool-deck-reopen:focus-visible,
+.style-pane button:focus-visible {
+    outline: 2px solid #6b9870;
+    outline-offset: 2px;
+}
+
+.style-pane.quick-style-mode,
+.style-pane.full-style-mode {
+    border-color: #dfe6de;
+    border-radius: 16px;
+    background: rgba(250, 252, 249, .965);
+    box-shadow: 0 16px 40px #25342a1b, 0 2px 8px #25342a0b;
+}
+
+.style-pane.full-style-mode > .full-inspector {
+    border-color: #dfe6de;
+    background: rgba(251, 253, 250, .985);
+}
+
+.style-pane .quick-style-icon {
+    border-radius: 10px;
+    background: linear-gradient(180deg, #fff, #f8faf7);
+}
+
+.style-pane .quick-style-icon:hover,
+.style-pane .quick-style-icon[aria-expanded="true"],
+.style-pane .quick-style-icon.active {
+    box-shadow: 0 3px 9px #31463212;
+}
+
+.full-inspector input:not([type="checkbox"]):not([type="radio"]),
+.full-inspector select,
+.full-inspector textarea {
+    border-radius: 9px;
+}
+
+.canvas-note-editor {
+    border-radius: 15px;
+    box-shadow: 0 18px 44px #25342a28, 0 3px 10px #25342a12;
+    transition: box-shadow .16s ease;
+}
+
+.canvas-note-editor:focus-within {
+    box-shadow: 0 18px 46px #25342a2c, 0 0 0 3px #789b791c;
+}
+
+.canvas-note-editor::after {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    width: 13px;
+    height: 13px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    border-radius: 0 0 5px;
+    color: #8090a078;
+    content: "";
+    pointer-events: none;
+}
+
+.canvas-note-editor.sticky::after { color: #9a87456e; }
+.canvas-note-editor.checklist::after { color: #728b766e; }
+
+.canvas-note-editor > header {
+    position: relative;
+    z-index: 1;
+}
+
+.canvas-note-editor > header button {
+    min-height: 25px;
+    transition: transform .14s ease, background .14s ease, box-shadow .14s ease;
+}
+
+.canvas-note-editor > header button:hover {
+    transform: translateY(-1px);
+    background: #fff;
+    box-shadow: 0 2px 6px #26332912;
+}
+
+.canvas-note-input {
+    min-width: 0;
+    border-radius: 6px;
+    caret-color: #426d4b;
+    scrollbar-color: #aebcaf transparent;
+}
+
+.canvas-note-input::selection { color: #263329; background: #bfdbbf; }
+
+.theme-dark .topbar {
+    border-bottom-color: #39423c;
+    background: rgba(31, 36, 33, .97);
+    box-shadow: 0 2px 12px #0003;
+}
+
+.theme-dark .menu-dropdown > summary:hover,
+.theme-dark .menu-dropdown[open] > summary {
+    border-color: #414c43;
+    color: #d2e2cf;
+    background: #2b342d;
+}
+
+.theme-dark .tool-deck {
+    border-color: #3c4840;
+    background: rgba(33, 39, 35, .97);
+    box-shadow: 0 16px 42px #0007;
+}
+
+.theme-dark .tool-cluster { border-color: #39453c; background: #29312b; }
+.theme-dark .tool-cluster-canvas { border-color: transparent; background: transparent; }
+
+.theme-dark .tool-icon-button.selected {
+    border-color: #587658;
+    background: linear-gradient(180deg, #3a4b3b, #324333);
+}
+
+.theme-dark .tool-options {
+    border-color: #414c43;
+    background: rgba(35, 42, 37, .99);
+}
+
+.theme-dark .style-pane.quick-style-mode,
+.theme-dark .style-pane.full-style-mode {
+    border-color: #3c4840;
+    background: rgba(32, 38, 34, .97);
+}
+
+.theme-dark .style-pane.full-style-mode > .full-inspector {
+    border-color: #414c43;
+    background: rgba(35, 42, 37, .99);
+}
+
+.theme-dark .canvas-note-editor:focus-within {
+    box-shadow: 0 18px 46px #0008, 0 0 0 3px #a7c8a51c;
+}
+
+.theme-dark .canvas-note-input::selection { color: #eff5ed; background: #405d43; }
+
+@media (prefers-reduced-motion: reduce) {
+    .tool-icon-button,
+    .tool-options button,
+    .menu-dropdown > summary,
+    .style-pane .quick-style-icon,
+    .canvas-note-editor,
+    .canvas-note-editor > header button {
+        transition: none;
+    }
+}
+
+
+/* Keep the canvas toolbar compact after all base and theme styles. */
+.tool-deck { gap: 5px; padding: 5px; border-radius: 16px; }
+.tool-cluster { gap: 2px; padding: 2px; border-radius: 12px; }
+.tool-icon-button { width: 38px; height: 44px; border-radius: 9px; }
+.tool-icon-button svg:not(.tool-family-caret) { width: 19px; height: 19px; }
+.tool-icon-button kbd { font-size: 7px; line-height: 8px; }
+.tool-family { height: 44px; }
+.canvas-utility-button { width: 38px; min-width: 38px; }
+.canvas-options-trigger { width: 36px; height: 36px; border-radius: 9px; }
+.tool-collapse, .tool-deck-reopen { width: 28px; height: 36px; border-radius: 9px; }
+
+@media (max-width: 760px) {
+    .tool-deck { gap: 3px; padding: 4px; }
+    .tool-cluster { gap: 1px; padding: 1px; }
+    .tool-icon-button { width: 35px; height: 42px; }
+    .tool-family { height: 42px; }
+}
+

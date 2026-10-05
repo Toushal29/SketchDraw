@@ -1,28 +1,172 @@
 /* Desktop and Windows window sizing; touch layouts override this in their own files. */
 .platform-windows .touch-gesture-menu { display: none !important; }
 
-/* Keep the shared touch toolbar frame from flattening the Windows canvas controls. */
+/* A single, flat toolbar with clear spacing between tool groups. */
 .platform-windows .touch-tool-bar {
     position: absolute;
     z-index: 12;
-    top: 18px;
+    top: 14px;
     right: auto;
     bottom: auto;
     left: 50%;
     display: flex;
     width: max-content;
-    max-width: calc(100% - 32px);
-    max-height: calc(100% - 36px);
-    flex-direction: row;
+    max-width: calc(100% - 92px);
+    max-height: calc(100% - 28px);
+    flex-flow: row wrap;
     align-items: center;
+    justify-content: center;
+    gap: 2px;
     overflow: visible;
+    padding: 5px;
+    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 15%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
+    box-shadow: 0 8px 24px #20282018, 0 1px 3px #2028200a;
+    backdrop-filter: blur(14px);
     transform: translateX(-50%);
 }
 
 .platform-windows .touch-tool-content,
 .platform-windows .touch-tool-actions { display: contents; }
 
-/* Keep the property rail beside the canvas, independent of touch breakpoints. */
+.platform-windows .tool-deck .tool-cluster {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 1px;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.platform-windows .tool-deck .tool-cluster + .tool-cluster,
+.platform-windows .tool-deck .paint-brush-family,
+.platform-windows .tool-deck .stencil-family,
+.platform-windows .tool-deck .touch-style-open {
+    margin-left: 3px;
+    padding-left: 7px;
+    border-left: 1px solid color-mix(in srgb, var(--toolbar-ink) 15%, transparent);
+}
+
+.platform-windows .tool-deck .tool-icon-button,
+.platform-windows .tool-deck .canvas-options-trigger {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    border-radius: 8px;
+}
+
+.platform-windows .tool-deck .tool-icon-button {
+    flex-direction: row;
+    gap: 0;
+}
+
+.platform-windows .tool-deck .tool-icon-button > svg:not(.tool-family-caret) {
+    width: 19px;
+    height: 19px;
+}
+
+.platform-windows .tool-deck .tool-icon-button kbd { display: none; }
+.platform-windows .tool-deck .tool-family { height: 36px; }
+.platform-windows .tool-deck .tool-family .tool-icon-button { width: 38px; min-width: 38px; height: 36px; }
+.platform-windows .tool-deck .tool-family .tool-family-caret { right: 1px; top: 12px; }
+.platform-windows .tool-deck .tool-cluster-canvas { background: transparent; }
+.platform-windows .tool-cluster-navigation { order: 0; }
+.platform-windows .tool-cluster-drawing { order: 1; }
+.platform-windows .paint-brush-family { order: 2; }
+.platform-windows .tool-cluster-laser { order: 3; }
+.platform-windows .tool-cluster-connectors { order: 4; }
+.platform-windows .tool-cluster-shapes { order: 5; }
+.platform-windows .tool-cluster-content { order: 6; }
+.platform-windows .stencil-family { order: 7; }
+.platform-windows .tool-cluster-history { order: 8; }
+.platform-windows .touch-tool-actions { order: 9; }
+
+.platform-windows .tool-deck .tool-icon-button.selected {
+    border-color: color-mix(in srgb, var(--ui-accent) 28%, transparent);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+    box-shadow: none;
+}
+
+/* Keep the hide action icon-only and parked at the toolbar's right edge. */
+.platform-windows .tool-deck .tool-collapse {
+    position: absolute;
+    top: 50%;
+    right: -47px;
+    display: grid !important;
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
+    border-radius: 11px;
+    color: var(--toolbar-ink);
+    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
+    box-shadow: 0 5px 16px #2028201a;
+    transform: translateY(-50%);
+}
+
+.platform-windows .tool-deck .tool-collapse:hover,
+.platform-windows .tool-deck-reopen:hover {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+}
+
+.platform-windows .tool-deck .tool-collapse svg,
+.platform-windows .tool-deck-reopen svg { width: 20px; height: 20px; }
+
+.platform-windows .tool-deck-reopen {
+    /* position: fixed;
+    z-index: 20;
+    top: 18px;
+    right: 18px;
+    left: auto;
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
+    border-radius: 12px;
+    color: var(--toolbar-ink);
+    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
+    box-shadow: 0 6px 20px #2028201a;
+    transform: none; */
+    position: fixed;
+    z-index: 20;
+    top: 50px;
+    /* right: auto; */
+    /* left: auto; */
+    display: grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    /* padding: 0px; */
+    border: 1px solid 
+color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
+    border-radius: 12px;
+    color: var(--toolbar-ink);
+    background: 
+color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
+    box-shadow: 0 6px 20px #2028201a;
+    transform: none;
+}
+
+.platform-windows .tool-collapse svg,
+.platform-windows .tool-deck-reopen svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .platform-windows .style-pane {
     top: 18px;
     right: auto;
@@ -31,8 +175,24 @@
     max-height: calc(100% - 36px);
 }
 
+.theme-dark.platform-windows .touch-tool-bar,
+.theme-dark.platform-windows .tool-deck .tool-collapse,
+.theme-dark.platform-windows .tool-deck-reopen {
+    border-color: color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
+    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
+}
+
 @media (min-width: 901px) and (pointer: fine) {
     body { min-width: 1000px; min-height: 680px; }
     .app-shell { min-width: 1000px; min-height: 680px; }
     .canvas-options-menu { left: 0; right: auto; }
+}
+
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+    .app-shell.platform-windows .tool-deck .tool-cluster { display: flex !important; flex-wrap: nowrap; }
+    .app-shell.platform-windows .tool-deck .tool-cluster .tool-icon-button,
+    .app-shell.platform-windows .tool-deck .tool-extra-family { display: flex !important; }
+    .app-shell.platform-windows .tool-deck .tool-collapse { display: grid !important; }
+    .app-shell.platform-windows .tool-deck .mobile-tools-toggle { display: none !important; }
+    .app-shell.platform-windows .touch-tool-bar { flex-wrap: wrap; overflow: visible; }
 }

@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getVersion } from "@tauri-apps/api/app";
@@ -20,13 +20,12 @@ import "./platform/mobile/touch-style.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
-import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, LayerFlags, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
-import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, isConnectable, BOX_ANCHORS, anchorPoint, nearestBinding, validReferences, textLayout, textElementBox, labelBox, textFont, extraFlowchartPath } from "./operations";
+import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
+import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, isConnectable, BOX_ANCHORS, anchorPoint, nearestBinding, validReferences, textLayout, labelBox, textFont } from "./operations";
 import type { NoteKind } from "./model";
 import { buildLibraryComponent, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, toggleChecklistContent, type LibraryComponentKind } from "./notes";
 import { parseSchema } from "./schema";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
-import { MermaidPreview } from "./MermaidPreview";
 import { GestureSettings, TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, readTouchGestureAction, readTouchTapAction, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./platform/mobile/GestureSettings";
 import { TouchPageMenu } from "./platform/mobile/TouchPageMenu";
 import { TouchFocusTools } from "./platform/mobile/TouchFocusTools";
@@ -38,6 +37,13 @@ import { DesktopPageTabs } from "./platform/windows/DesktopPageTabs";
 import { CanvasOptionsMenu } from "./components/CanvasOptionsMenu";
 import { AppSettingsMenu, type DisplayMetrics } from "./components/AppSettingsMenu";
 import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/PropertyPanelIcons";
+import { FLOWCHART_SHAPES, FLOWCHART_MENU_SHAPES } from "./features/diagrams/config";
+import { arrowHeadPoints, arrowHeadSvgPath, pointInPolygon, traceFlowchart, flowchartPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, connectorSvgPath, flowchartSvgPath, vectorFlowchartPath, flowchartSvgDetailPath, flowchartDatabaseRimPath } from "./features/canvas/geometry";
+import { unionBounds, elementBounds, distanceToSegment } from "./features/canvas/bounds";
+import { isRecord, normalizeElement, parseSketchFile } from "./features/files/parse-sketch";
+import { withSketchExtension, normalizeFileUri, isSketchPath, displayPathName } from "./features/files/paths";
+import { indentTextarea } from "./components/textarea-indent";
+import { ThicknessTuner } from "./components/ThicknessTuner";
 
 type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
 type TouchGesture = { fingerCount: 2 | 3; action: TouchGestureAction; initialDistance: number; initialZoom: number; initialPanX: number; initialPanY: number; initialMidpoint: Point; worldAnchor: Point };
@@ -83,28 +89,8 @@ const readWhiteboardStyle = (): WhiteboardStyle => {
   return stored === "plain" || stored === "lines" || stored === "dots" || stored === "small-dots" || stored === "ruled" || stored === "small-grid" || stored === "isometric" ? stored : "dots";
 };
 const FILL_SWATCHES = ["#f4a6a0", "#ffd166", "#b7e4c7", "#a8dadc", "#a0c4ff", "#cdb4db"];
-const FLOWCHART_SHAPES: { value: FlowchartShape; label: string; path: string }[] = [
-  { value: "process", label: "Process", path: "M5 5h14v14H5z" }, { value: "terminator", label: "Terminator", path: "M8 5h8a7 7 0 0 1 0 14H8A7 7 0 0 1 8 5z" },
-  { value: "decision", label: "Decision", path: "m12 3 9 9-9 9-9-9z" }, { value: "data", label: "Input / Output", path: "m8 5h13l-5 14H3z" },
-  { value: "document", label: "Document", path: "M5 5h14v12q-4-4-7 0t-7 0z" }, { value: "database", label: "Database", path: "M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3v10c0 1.7-3.6 3-8 3s-8-1.3-8-3V7m0 0c0 1.7 3.6 3 8 3s8-1.3 8-3" },
-  { value: "predefined-process", label: "Predefined process", path: "M6 5h12v14H6zM9 5v14m6-14v14" }, { value: "preparation", label: "Preparation", path: "M7 5h10l5 7-5 7H7l-5-7z" },
-  { value: "manual-input", label: "Manual input", path: "m4 8 3-3h13v14H4z" },
-];
-FLOWCHART_SHAPES.push(
-  { value: "connector", label: "On-page connector", path: "M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0" },
-  { value: "off-page", label: "Off-page connector", path: "M4 4h16v11l-8 6-8-6z" },
-  { value: "delay", label: "Delay", path: "M4 4h8a8 8 0 0 1 0 16H4z" },
-  { value: "manual-operation", label: "Manual operation", path: "M3 5h18l-4 14H7z" },
-  { value: "stored-data", label: "Stored data", path: "M7 5h14q-5 7 0 14H7C1 19 1 5 7 5z" },
-  { value: "cloud", label: "Cloud / external service", path: "M5 17a4 4 0 0 1 1-8 6 6 0 0 1 11-1 4.5 4.5 0 0 1 1 9z" },
-  { value: "star", label: "Star", path: "m12 2 3 7h7l-5.5 4.5 2 8L12 17l-6.5 4.5 2-8L2 9h7z" },
-  { value: "lightning", label: "Lightning", path: "m14 2-9 12h6l-1 8 9-12h-6z" },
-  { value: "heart", label: "Heart", path: "M12 21S3 15 3 8a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 7-9 13-9 13z" },
-  { value: "callout", label: "Callout", path: "M3 4h18v13H12l-5 4v-4H3z" },
-  { value: "gear", label: "Gear", path: "M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z" },
-);
-// Keep the legacy Gear path so older sketches still render it; it is not insertable in the current palettes.
-const FLOWCHART_MENU_SHAPES = FLOWCHART_SHAPES.filter(shape => !["star", "lightning", "heart", "callout", "gear"].includes(shape.value));
+const THICKNESS_PRESETS = [[1, "Ultra-thin"], [2, "Thin"], [4, "Default"], [5, "Medium"], [10, "Bold"]] as const;
+const ORIGINAL_INSPECTOR_THICKNESS_PRESETS = [[1, "Ultra-thin"], [2, "Thin"], [5, "Medium"], [10, "Bold"]] as const;
 const ARROW_ROUTES: { value: ArrowRoute; label: string; path: string }[] = [
   { value: "straight", label: "Straight", path: "M3 12h17m-6-6 6 6-6 6" }, { value: "elbow", label: "Elbow", path: "M4 5v14h15m-6-6 6 6-6 6" },
   { value: "forked", label: "Forked", path: "M3 12h8m0 0V5h9m-4-3 4 3-4 3m-5 4v7h9m-4-3 4 3-4 3" },
@@ -119,29 +105,6 @@ const ARROW_HEADS: { value: ArrowHead; label: string }[] = [
   { value: "none", label: "None" }, { value: "open", label: "Open" }, { value: "solid", label: "Solid" },
   { value: "thick", label: "Thick" }, { value: "dot", label: "Dot" }, { value: "diamond", label: "Diamond" }, { value: "bar", label: "Bar" },
 ];
-function arrowHeadPoints(tip: Point, angle: number, type: ArrowHead, thickness: number): Point[] {
-  const length = Math.max(10, thickness * (type === "thick" ? 5 : 3.5));
-  const pointAt = (distance: number, rotation: number): Point => ({ x: tip.x + Math.cos(angle + rotation) * distance, y: tip.y + Math.sin(angle + rotation) * distance });
-  if (type === "solid" || type === "thick") return [tip, pointAt(length, Math.PI - Math.PI / (type === "thick" ? 4 : 6)), pointAt(length, Math.PI + Math.PI / (type === "thick" ? 4 : 6))];
-  if (type === "diamond") return [tip, pointAt(length * .55, Math.PI - .45), pointAt(length, Math.PI), pointAt(length * .55, Math.PI + .45)];
-  if (type === "open" || type === "bar") return type === "bar" ? [pointAt(length * .45, Math.PI / 2), pointAt(length * .45, -Math.PI / 2)] : [pointAt(length, Math.PI - Math.PI / 6), pointAt(length, Math.PI + Math.PI / 6)];
-  return [];
-}
-function arrowHeadSvgPath(tip: Point, angle: number, type: ArrowHead, thickness: number): string {
-  const points = arrowHeadPoints(tip, angle, type, thickness);
-  if (type === "open") return `M ${tip.x} ${tip.y} L ${points[0].x} ${points[0].y} M ${tip.x} ${tip.y} L ${points[1].x} ${points[1].y}`;
-  if (type === "dot") { const radius = Math.max(3, thickness * 1.15); return `M ${tip.x - radius} ${tip.y} A ${radius} ${radius} 0 1 0 ${tip.x + radius} ${tip.y} A ${radius} ${radius} 0 1 0 ${tip.x - radius} ${tip.y} Z`; }
-  if (!points.length) return "";
-  return `M ${points.map(point => `${point.x} ${point.y}`).join(" L ")}${["solid", "thick", "diamond"].includes(type) ? " Z" : ""}`;
-}
-function pointInPolygon(point: Point, points: Point[]): boolean {
-  let inside = false;
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const a = points[i]; const b = points[j];
-    if ((a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
-  }
-  return inside;
-}
 function themeInk(color: string, activeTheme: Theme): string {
   const match = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(color);
   if (!match) return color;
@@ -158,489 +121,28 @@ function themeInk(color: string, activeTheme: Theme): string {
 function ArrowHeadIcon(props: { kind: ArrowHead }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h12" />{props.kind === "open" && <path d="m12 7 5 5-5 5" />}{props.kind === "solid" && <path d="m12 7 6 5-6 5z" fill="currentColor" />}{props.kind === "thick" && <path d="m10 5 9 7-9 7z" fill="currentColor" />}{props.kind === "dot" && <circle cx="17" cy="12" r="3" fill="currentColor" />}{props.kind === "diamond" && <path d="m17 7 5 5-5 5-5-5z" fill="currentColor" />}{props.kind === "bar" && <path d="M17 6v12" />}</svg>;
 }
-function traceFlowchart(ctx: CanvasRenderingContext2D, shape: FlowchartShape, x: number, y: number, w: number, h: number) {
-  const left = Math.min(x, x + w); const top = Math.min(y, y + h); const width = Math.abs(w); const height = Math.abs(h); const right = left + width; const bottom = top + height; const mid = (left + right) / 2;
-  ctx.beginPath();
-  if (width < 1 || height < 1) { ctx.rect(left, top, width, height); return; }
-  if (shape === "connector") ctx.ellipse(mid, top + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
-  else if (shape === "off-page") { ctx.moveTo(left, top); ctx.lineTo(right, top); ctx.lineTo(right, top + height * .65); ctx.lineTo(mid, bottom); ctx.lineTo(left, top + height * .65); ctx.closePath(); }
-  else if (shape === "manual-operation") { ctx.moveTo(left, top); ctx.lineTo(right, top); ctx.lineTo(right - width * .2, bottom); ctx.lineTo(left + width * .2, bottom); ctx.closePath(); }
-  else if (shape === "delay") { ctx.moveTo(left, top); ctx.lineTo(mid, top); ctx.bezierCurveTo(right + width / 6, top, right + width / 6, bottom, mid, bottom); ctx.lineTo(left, bottom); ctx.closePath(); }
-  else if (shape === "stored-data") { ctx.moveTo(left + width * .2, top); ctx.lineTo(right, top); ctx.bezierCurveTo(right - width * .25, top + height / 3, right - width * .25, bottom - height / 3, right, bottom); ctx.lineTo(left + width * .2, bottom); ctx.bezierCurveTo(left - width * .06, bottom, left - width * .06, top, left + width * .2, top); ctx.closePath(); }
-  else if (shape === "process") ctx.rect(left, top, width, height);
-  else if (shape === "terminator") { if (typeof ctx.roundRect === "function") ctx.roundRect(left, top, width, height, Math.min(height / 2, width / 2)); else ctx.ellipse(mid, top + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2); }
-  else if (shape === "decision") { ctx.moveTo(mid, top); ctx.lineTo(right, top + height / 2); ctx.lineTo(mid, bottom); ctx.lineTo(left, top + height / 2); ctx.closePath(); }
-  else if (shape === "data") { const inset = Math.min(width * .22, height * .42); ctx.moveTo(left + inset, top); ctx.lineTo(right, top); ctx.lineTo(right - inset, bottom); ctx.lineTo(left, bottom); ctx.closePath(); }
-  else if (shape === "document") { ctx.moveTo(left, top); ctx.lineTo(right, top); ctx.lineTo(right, bottom - height * .14); ctx.bezierCurveTo(right - width * .28, bottom - height * .32, left + width * .28, bottom - height * .01, left, bottom - height * .14); ctx.closePath(); }
-  else if (shape === "database") {
-    // Use explicit cubic curves rather than ellipse() here. The cylinder is
-    // redrawn for every preview/zoom frame; a self-contained path avoids the
-    // database's extra rim arc affecting the following canvas operation.
-    const ry = Math.min(height * .18, width * .25); const rx = width / 2; const k = .55228475;
-    ctx.moveTo(left, top + ry);
-    ctx.bezierCurveTo(left, top + ry - k * ry, mid - k * rx, top, mid, top);
-    ctx.bezierCurveTo(mid + k * rx, top, right, top + ry - k * ry, right, top + ry);
-    ctx.lineTo(right, bottom - ry);
-    ctx.bezierCurveTo(right, bottom - ry + k * ry, mid + k * rx, bottom, mid, bottom);
-    ctx.bezierCurveTo(mid - k * rx, bottom, left, bottom - ry + k * ry, left, bottom - ry);
-    ctx.closePath();
-  }
-  else if (shape === "predefined-process") { const inset = Math.min(width * .18, 12); ctx.rect(left, top, width, height); ctx.moveTo(left + inset, top); ctx.lineTo(left + inset, bottom); ctx.moveTo(right - inset, top); ctx.lineTo(right - inset, bottom); }
-  else if (shape === "preparation") { const inset = Math.min(width * .2, 18); ctx.moveTo(left + inset, top); ctx.lineTo(right - inset, top); ctx.lineTo(right, top + height / 2); ctx.lineTo(right - inset, bottom); ctx.lineTo(left + inset, bottom); ctx.lineTo(left, top + height / 2); ctx.closePath(); }
-  else { const inset = Math.min(width * .22, height * .45); ctx.moveTo(left + inset, top); ctx.lineTo(right, top); ctx.lineTo(right, bottom); ctx.lineTo(left, bottom); ctx.closePath(); }
-}
-function flowchartPathObject(shape: FlowchartShape, x: number, y: number, w: number, h: number) {
-  const left = Math.min(x, x + w); const top = Math.min(y, y + h);
-  const source = extraFlowchartPath(shape, left, top, Math.abs(w), Math.abs(h));
-  return source ? new Path2D(source) : undefined;
-}
-function traceFlowchartDetails(ctx: CanvasRenderingContext2D, shape: FlowchartShape, x: number, y: number, w: number, h: number) {
-  if (shape !== "database") return;
-  const left = Math.min(x, x + w); const top = Math.min(y, y + h); const width = Math.abs(w); const height = Math.abs(h);
-  if (width < 1 || height < 1) return;
-  const rim = flowchartDatabaseRimPath(left, top, width, height);
-  // Rendering uses a Path2D so the rim never replaces the current canvas path.
-  ctx.save();
-  ctx.stroke(rim);
-  ctx.restore();
-}
-function flowchartDatabaseRimPath(left: number, top: number, width: number, height: number): Path2D {
-  const ry = Math.min(height * .18, width * .25); const mid = left + width / 2; const right = left + width; const rx = width / 2; const k = .55228475;
-  const rim = new Path2D();
-  rim.moveTo(left, top + ry);
-  rim.bezierCurveTo(left, top + ry + k * ry, mid - k * rx, top + 2 * ry, mid, top + 2 * ry);
-  rim.bezierCurveTo(mid + k * rx, top + 2 * ry, right, top + ry + k * ry, right, top + ry);
-  return rim;
-}
-function connectorControls(element: ShapeElement, loop = false) {
-  const start = { x: element.x, y: element.y }; const end = { x: element.x + element.w, y: element.y + element.h };
-  const dx = end.x - start.x; const dy = end.y - start.y; const length = Math.max(1, Math.hypot(dx, dy)); const normal = { x: -dy / length, y: dx / length };
-  const bend = (loop ? .72 : .3) * length;
-  return { start, end, dx, dy, c1: element.routePoints?.[0] ?? { x: start.x + dx / 3 + normal.x * bend, y: start.y + dy / 3 + normal.y * bend }, c2: element.routePoints?.[1] ?? { x: start.x + dx * 2 / 3 + normal.x * bend, y: start.y + dy * 2 / 3 + normal.y * bend }, normal };
-}
-function curveControlPoints(element: ShapeElement, route: LineRoute | ArrowRoute): Point[] {
-  const defaults = connectorControls({ ...element, routePoints: undefined }, route === "loop");
-  const count = route === "curve" ? 1 : route === "curve2" ? 2 : route === "curve3" ? 3 : route === "loop" ? 2 : 0;
-  if (!count) return [];
-  const fallback = route === "curve" ? [defaults.c1] : route === "curve2" || route === "loop" ? [defaults.c1, defaults.c2] : [0.25, 0.5, 0.75].map((ratio) => ({ x: defaults.start.x + defaults.dx * ratio + defaults.normal.x * Math.max(1, Math.hypot(defaults.dx, defaults.dy) * 0.3), y: defaults.start.y + defaults.dy * ratio + defaults.normal.y * Math.max(1, Math.hypot(defaults.dx, defaults.dy) * 0.3) }));
-  return fallback.slice(0, count).map((point, index) => element.routePoints?.[index] ?? point);
-}
-function evaluateBezier(points: Point[], t: number): Point {
-  const work = points.map((point) => ({ ...point }));
-  for (let count = work.length - 1; count > 0; count--) for (let index = 0; index < count; index++) {
-    work[index] = { x: work[index].x + (work[index + 1].x - work[index].x) * t, y: work[index].y + (work[index + 1].y - work[index].y) * t };
-  }
-  return work[0];
-}
-function forkGeometry(element: ShapeElement) {
-  const { start, end, dx, dy, normal } = connectorControls(element);
-  const length = Math.max(1, Math.hypot(dx, dy)); const spread = Math.max(24, Math.min(36, length * .16));
-  const junction = element.routePoints?.[0] ?? { x: start.x + dx * .62, y: start.y + dy * .62 };
-  const upper = element.forkUpper?.end ?? { x: end.x + normal.x * spread, y: end.y + normal.y * spread };
-  const lower = element.forkLower?.end ?? { x: end.x - normal.x * spread, y: end.y - normal.y * spread };
-  const upperPath = [junction, ...(element.forkUpper?.routePoints ?? []), upper];
-  const lowerPath = [junction, ...(element.forkLower?.routePoints ?? []), lower];
-  return { start, end, junction, upper, lower, upperPath, lowerPath, normal };
-}
-function jaggedVertices(element: ShapeElement): Point[] {
-  const { start, end, normal } = connectorControls(element); const length = Math.hypot(element.w, element.h); const amplitude = Math.min(18, length * .13);
-  return [start, ...[.2, .4, .6, .8].map((t, index) => ({ x: start.x + element.w * t + normal.x * amplitude * (index % 2 ? -1 : 1), y: start.y + element.h * t + normal.y * amplitude * (index % 2 ? -1 : 1) })), end];
-}
-function connectorPolylines(element: ShapeElement, route: ArrowRoute | LineRoute, sampleCount = 49): Point[][] {
-  const key = `${route}:${sampleCount}`; const cache = connectorCache.get(element); const existing = cache?.get(key); if (existing) return existing;
-  const points = element.routePoints?.length && !["curve", "curve2", "curve3", "loop", "forked"].includes(route) ? [[{ x: element.x, y: element.y }, ...element.routePoints, { x: element.x + element.w, y: element.y + element.h }]] : route === "forked"
-    ? (() => { const fork = forkGeometry(element); return [[fork.start, fork.junction], fork.upperPath, fork.lowerPath]; })()
-    : route === "jagged" ? [jaggedVertices(element)]
-      : [Array.from({ length: sampleCount }, (_, index) => connectorPoint(element, route, index / (sampleCount - 1)))];
-  if (cache) cache.set(key, points); else connectorCache.set(element, new Map([[key, points]]));
-  return points;
-}
-function arrowHeadEntries(element: ShapeElement, route: ArrowRoute | LineRoute): { tip: Point; angle: number; kind: ArrowHead }[] {
-  const fork = element.type === "arrow" && route === "forked" ? forkGeometry(element) : undefined;
-  const entries: { tip: Point; angle: number; kind: ArrowHead }[] = [];
-  if ((element.startHead ?? "none") !== "none") {
-    const start = fork?.start ?? { x: element.x, y: element.y };
-    const angle = fork ? Math.atan2(fork.junction.y - start.y, fork.junction.x - start.x) + Math.PI : connectorTangent(element, route, false) + Math.PI;
-    entries.push({ tip: start, angle, kind: element.startHead ?? "none" });
-  }
-  if (fork) {
-    for (const [branch, points] of [[element.forkUpper, fork.upperPath], [element.forkLower, fork.lowerPath]] as const) {
-      const previous = points[points.length - 2] ?? fork.junction; const tip = points[points.length - 1];
-      entries.push({ tip, angle: Math.atan2(tip.y - previous.y, tip.x - previous.x), kind: branch?.endHead ?? element.endHead ?? "open" });
-    }
-  } else {
-    entries.push({ tip: { x: element.x + element.w, y: element.y + element.h }, angle: connectorTangent(element, route, true), kind: element.endHead ?? (element.type === "arrow" ? "open" : "none") });
-  }
-  return entries;
-}
-function connectorPoint(element: ShapeElement, route: ArrowRoute | LineRoute, t: number): Point {
-  const { start, end } = connectorControls(element, route === "loop");
-  if (route === "elbow") { const middle = { x: end.x, y: start.y }; return t < .5 ? { x: start.x + (middle.x - start.x) * t * 2, y: start.y } : { x: middle.x, y: middle.y + (end.y - middle.y) * (t - .5) * 2 }; }
-  if (route === "jagged") { const points = jaggedVertices(element); const scaled = t * (points.length - 1); const segment = Math.min(points.length - 2, Math.floor(scaled)); const local = scaled - segment; return { x: points[segment].x + (points[segment + 1].x - points[segment].x) * local, y: points[segment].y + (points[segment + 1].y - points[segment].y) * local }; }
-  if (route === "curve" || route === "curve2" || route === "curve3" || route === "loop") return evaluateBezier([start, ...curveControlPoints(element, route), end], t);
-  return { x: start.x + element.w * t, y: start.y + element.h * t };
-}
-function connectorTangent(element: ShapeElement, route: ArrowRoute | LineRoute, atEnd: boolean): number {
-  if (element.routePoints?.length && !["curve", "curve2", "curve3", "loop", "forked"].includes(route)) { const a = atEnd ? element.routePoints[element.routePoints.length - 1] : { x: element.x, y: element.y }; const b = atEnd ? { x: element.x + element.w, y: element.y + element.h } : element.routePoints[0]; return Math.atan2(b.y - a.y, b.x - a.x); }
-  if (route === "curve" || route === "curve2" || route === "curve3" || route === "loop") {
-    const controls = curveControlPoints(element, route); const a = atEnd ? controls[controls.length - 1] : { x: element.x, y: element.y }; const b = atEnd ? { x: element.x + element.w, y: element.y + element.h } : controls[0];
-    return Math.atan2(b.y - a.y, b.x - a.x);
-  }
-  if (route === "straight" || route === "forked") return Math.atan2(element.h, element.w);
-  if (route === "elbow") return atEnd ? Math.PI / 2 * Math.sign(element.h || 1) : element.w < 0 ? Math.PI : 0;
-  const before = connectorPoint(element, route, atEnd ? .99 : .01); const after = connectorPoint(element, route, atEnd ? 1 : .02);
-  return Math.atan2(after.y - before.y, after.x - before.x);
-}
-function traceConnector(ctx: CanvasRenderingContext2D, element: ShapeElement) {
-  const route: ArrowRoute | LineRoute = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
-  const { start, end, c1, c2 } = connectorControls(element, route === "loop");
-  ctx.beginPath(); ctx.moveTo(start.x, start.y);
-  if (element.routePoints?.length && !["curve", "curve2", "curve3", "loop", "forked"].includes(route)) { for (const point of element.routePoints) ctx.lineTo(point.x, point.y); ctx.lineTo(end.x, end.y); return; }
-  if (route === "curve") ctx.quadraticCurveTo(c1.x, c1.y, end.x, end.y);
-  else if (route === "curve2") { const [first, second] = curveControlPoints(element, route); ctx.bezierCurveTo(first.x, first.y, second.x, second.y, end.x, end.y); }
-  else if (route === "curve3") { for (let index = 1; index <= 64; index++) { const point = connectorPoint(element, route, index / 64); ctx.lineTo(point.x, point.y); } }
-  else if (route === "loop") ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
-  else if (route === "elbow") { ctx.lineTo(end.x, start.y); ctx.lineTo(end.x, end.y); }
-  else if (route === "jagged") { for (const point of jaggedVertices(element).slice(1)) ctx.lineTo(point.x, point.y); }
-  else if (route === "forked") { const fork = forkGeometry(element); ctx.lineTo(fork.junction.x, fork.junction.y); for (const branch of [fork.upperPath, fork.lowerPath]) { ctx.moveTo(branch[0].x, branch[0].y); for (const point of branch.slice(1)) ctx.lineTo(point.x, point.y); } }
-  else ctx.lineTo(end.x, end.y);
-}
-function connectorSvgPath(element: ShapeElement): string {
-  const route = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
-  return connectorPolylines(element, route).map((points) => `M ${points.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" L ")}`).join(" ");
-}
-function flowchartSvgPath(element: ShapeElement): string {
-  const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const width = Math.abs(element.w); const height = Math.abs(element.h); const right = left + width; const bottom = top + height; const middle = (left + right) / 2; const shape = element.flowchartShape ?? "process";
-  const extra = extraFlowchartPath(shape, left, top, width, height); if (extra) return extra;
-  if (shape === "terminator") { const radius = Math.min(width / 2, height / 2); return `M ${left + radius} ${top} H ${right - radius} A ${radius} ${radius} 0 0 1 ${right - radius} ${bottom} H ${left + radius} A ${radius} ${radius} 0 0 1 ${left + radius} ${top} Z`; }
-  if (shape === "decision") return `M ${middle} ${top} L ${right} ${top + height / 2} L ${middle} ${bottom} L ${left} ${top + height / 2} Z`;
-  if (shape === "data") { const inset = Math.min(width * .22, height * .42); return `M ${left + inset} ${top} H ${right} L ${right - inset} ${bottom} H ${left} Z`; }
-  if (shape === "document") return `M ${left} ${top} H ${right} V ${bottom - height * .14} C ${right - width * .28} ${bottom - height * .32}, ${left + width * .28} ${bottom - height * .01}, ${left} ${bottom - height * .14} Z`;
-  if (shape === "database") {
-    const ry = Math.min(height * .18, width * .25); const rx = width / 2; const k = .55228475;
-    return `M ${left} ${top + ry} C ${left} ${top + ry - k * ry}, ${middle - k * rx} ${top}, ${middle} ${top} C ${middle + k * rx} ${top}, ${right} ${top + ry - k * ry}, ${right} ${top + ry} V ${bottom - ry} C ${right} ${bottom - ry + k * ry}, ${middle + k * rx} ${bottom}, ${middle} ${bottom} C ${middle - k * rx} ${bottom}, ${left} ${bottom - ry + k * ry}, ${left} ${bottom - ry} Z`;
-  }
-  if (shape === "predefined-process") { const inset = Math.min(width * .18, 12); return `M ${left} ${top} H ${right} V ${bottom} H ${left} Z M ${left + inset} ${top} V ${bottom} M ${right - inset} ${top} V ${bottom}`; }
-  if (shape === "preparation") { const inset = Math.min(width * .2, 18); return `M ${left + inset} ${top} H ${right - inset} L ${right} ${top + height / 2} L ${right - inset} ${bottom} H ${left + inset} L ${left} ${top + height / 2} Z`; }
-  if (shape === "manual-input") return `M ${left + Math.min(width * .22, height * .45)} ${top} H ${right} V ${bottom} H ${left} V ${top + Math.min(width * .22, height * .45)} Z`;
-  return `M ${left} ${top} H ${right} V ${bottom} H ${left} Z`;
-}
-function vectorFlowchartPath(element: ShapeElement): string {
-  const x=element.x,y=element.y,w=element.w,h=element.h; const left=Math.min(x,x+w),top=Math.min(y,y+h),width=Math.abs(w),height=Math.abs(h),right=left+width,bottom=top+height,middle=left+width/2;
-  if(element.flowchartShape==="terminator"){const r=Math.min(width/2,height/2);return `M ${left+r} ${top} H ${right-r} Q ${right} ${top} ${right} ${top+r} V ${bottom-r} Q ${right} ${bottom} ${right-r} ${bottom} H ${left+r} Q ${left} ${bottom} ${left} ${bottom-r} V ${top+r} Q ${left} ${top} ${left+r} ${top} Z`;}
-  if(element.flowchartShape==="connector"){const rx=width/2,ry=height/2,k=.55228475;return `M ${middle+rx} ${top+ry} C ${middle+rx} ${top+ry+k*ry} ${middle+k*rx} ${top+height} ${middle} ${top+height} C ${middle-k*rx} ${top+height} ${left} ${top+ry+k*ry} ${left} ${top+ry} C ${left} ${top+ry-k*ry} ${middle-k*rx} ${top} ${middle} ${top} C ${middle+k*rx} ${top} ${right} ${top+ry-k*ry} ${right} ${top+ry} Z`;}
-  return flowchartSvgPath(element);
-}
-function flowchartSvgDetailPath(element: ShapeElement): string {
-  if ((element.flowchartShape ?? "process") !== "database") return "";
-  const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const width = Math.abs(element.w); const height = Math.abs(element.h); const ry = Math.min(height * .18, width * .25);
-  if (width < 1 || height < 1) return "";
-  const middle = left + width / 2; const right = left + width; const rx = width / 2; const k = .55228475;
-  return `M ${left} ${top + ry} C ${left} ${top + ry + k * ry}, ${middle - k * rx} ${top + 2 * ry}, ${middle} ${top + 2 * ry} C ${middle + k * rx} ${top + 2 * ry}, ${right} ${top + ry + k * ry}, ${right} ${top + ry}`;
-}
 const emptyCanvas = (): CanvasState => ({ zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff", boardColorFollowsTheme: true });
 const cloneElements = (items: Element[]): Element[] => JSON.parse(JSON.stringify(items)) as Element[];
-const boundsCache = new WeakMap<Element, Bounds>();
-const connectorCache = new WeakMap<ShapeElement, Map<string, Point[][]>>();
 let textMeasureContext: CanvasRenderingContext2D | null | undefined;
-const cacheBounds = (element: Element, bounds: Bounds): Bounds => { boundsCache.set(element, bounds); return bounds; };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function isColor(value: unknown): value is string {
-  return typeof value === "string" && /^#[\da-f]{6}$/i.test(value);
-}
-
-function isEmbeddedRasterImage(value: unknown): value is string {
-  return typeof value === "string" && /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z\d+/]+={0,2}$/i.test(value);
-}
-
-function finite(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-function boundsOfPoints(points: Point[], padding = 0): Bounds {
-  if (points.length === 0) return { x: 0, y: 0, w: 0, h: 0 };
-  let left = Infinity; let top = Infinity; let right = -Infinity; let bottom = -Infinity;
-  for (const point of points) { left = Math.min(left, point.x); top = Math.min(top, point.y); right = Math.max(right, point.x); bottom = Math.max(bottom, point.y); }
-  return { x: left - padding, y: top - padding, w: right - left + padding * 2, h: bottom - top + padding * 2 };
-}
-
-function unionBounds(boxes: Bounds[]): Bounds | undefined {
-  if (boxes.length === 0) return undefined;
-  let left = Infinity; let top = Infinity; let right = -Infinity; let bottom = -Infinity;
-  for (const box of boxes) { left = Math.min(left, box.x); top = Math.min(top, box.y); right = Math.max(right, box.x + box.w); bottom = Math.max(bottom, box.y + box.h); }
-  return { x: left, y: top, w: right - left, h: bottom - top };
-}
-
-function withSketchExtension(path: string): string {
-  // Native mobile pickers return security-scoped URIs rather than ordinary
-  // filesystem paths. The selected document type is enforced by the picker,
-  // and its content is validated when it is opened.
-  if (/^content:\/\//i.test(path)) return path;
-  path = normalizeFileUri(path);
-  if (!path.toLowerCase().endsWith(".sketch")) throw new Error("Choose a filename ending in .sketch in the save dialog.");
-  return path;
-}
-
-function normalizeFileUri(path: string): string {
-  if (!/^file:\/\//i.test(path)) return path;
-  try { return decodeURIComponent(new URL(path).pathname); } catch { return path; }
-}
-
-function isSketchPath(path: string): boolean {
-  if (/^content:\/\//i.test(path)) return true;
-  const normalized = normalizeFileUri(path);
-  const decoded = (() => { try { return decodeURIComponent(normalized); } catch { return normalized; } })();
-  return decoded.split(/[?#]/, 1)[0].toLowerCase().endsWith(".sketch");
-}
-
-function displayPathName(path: string): string {
-  let candidate = path.trim();
-  let uriPath = false;
-  if (/^file:\/\//i.test(candidate)) {
-    candidate = candidate.replace(/^file:\/\/([a-z]:[\\/])/i, "file:///$1");
-    try { candidate = new URL(candidate).pathname; uriPath = true; } catch { /* Keep the native picker path as a fallback. */ }
-  } else if (/^content:\/\//i.test(candidate)) {
-    try { candidate = new URL(candidate).pathname; uriPath = true; } catch { /* Keep the provider URI as a fallback. */ }
-  }
-  let decoded = candidate;
-  if (uriPath) {
-    decoded = decoded.split(/[?#]/, 1)[0];
-    try { decoded = decodeURIComponent(decoded); } catch { /* Retain malformed URI escapes as shown by the picker. */ }
-  }
-  decoded = decoded
-    .replace(/^\\\\\?\\/, "")
-    .replace(/^\/+([a-z]:[\\/])/i, "$1")
-    .replace(/[\\/]+$/, "");
-  return decoded.split(/[\\/]/).filter(Boolean).pop() || path;
-}
-
-function indentTextarea(event: KeyboardEvent, setValue: (value: string) => void) {
-  const textarea = event.currentTarget as HTMLTextAreaElement;
-  if (!(textarea instanceof HTMLTextAreaElement)) return;
-  event.preventDefault();
-  const value = textarea.value; const start = textarea.selectionStart; const end = textarea.selectionEnd;
-  const unit = "  ";
-  if (start === end) {
-    const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-    let next = value; let caret = start;
-    if (event.shiftKey) {
-      const lineEndAt = value.indexOf("\n", start); const lineEnd = lineEndAt < 0 ? value.length : lineEndAt;
-      const line = value.slice(lineStart, lineEnd); const match = /^(\t| {1,2})/.exec(line); const remove = match?.[0].length ?? 0;
-      if (remove) { next = value.slice(0, lineStart) + line.slice(remove) + value.slice(lineEnd); caret -= Math.min(remove, Math.max(0, start - lineStart)); }
-    } else { next = value.slice(0, start) + unit + value.slice(end); caret += unit.length; }
-    setValue(next);
-    requestAnimationFrame(() => { if (textarea.isConnected) textarea.setSelectionRange(caret, caret); });
-    return;
-  }
-  const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-  const blockEnd = end > lineStart && value[end - 1] === "\n" ? end - 1 : (value.indexOf("\n", end) < 0 ? value.length : value.indexOf("\n", end));
-  const lines = value.slice(lineStart, blockEnd).split("\n"); let firstDelta = 0; let totalDelta = 0;
-  const changed = lines.map((line, index) => {
-    if (event.shiftKey) {
-      const match = /^(\t| {1,2})/.exec(line); const next = match ? line.slice(match[0].length) : line; const delta = line.length - next.length;
-      if (index === 0) firstDelta = -delta; totalDelta -= delta; return next;
-    }
-    if (index === 0) firstDelta = unit.length; totalDelta += unit.length; return unit + line;
-  }).join("\n");
-  const next = value.slice(0, lineStart) + changed + value.slice(blockEnd);
-  setValue(next);
-  requestAnimationFrame(() => { if (textarea.isConnected) textarea.setSelectionRange(Math.max(lineStart, start + firstDelta), Math.max(lineStart, end + totalDelta)); });
-}
-
-function normalizeElement(value: unknown): Element | undefined {
-  if (!isRecord(value) || typeof value.type !== "string" || typeof value.id !== "string" || !value.id || value.id.length > 100) return undefined;
-  const flags: LayerFlags = {
-    id: value.id,
-    hidden: typeof value.hidden === "boolean" ? value.hidden : false,
-    locked: typeof value.locked === "boolean" ? value.locked : false,
-    rotation: finite(value.rotation) ? value.rotation : 0,
-    ...(typeof value.componentId === "string" ? { componentId: value.componentId } : {}),
-    ...(typeof value.componentRole === "string" ? { componentRole: value.componentRole } : {}),
-  };
-  if (value.type === "group") {
-    if (!Array.isArray(value.elements)) return undefined;
-    const children = value.elements.map(normalizeElement);
-    if (children.some((child) => !child)) return undefined;
-    const note = isRecord(value.note) && ["note", "sticky", "checklist"].includes(String(value.note.kind)) && typeof value.note.content === "string" && value.note.content.length <= 50000
-      && (value.note.title === undefined || typeof value.note.title === "string" && value.note.title.length <= 120)
-      && (value.note.width === undefined || finite(value.note.width) && value.note.width >= 180 && value.note.width <= 4000)
-      && (value.note.height === undefined || finite(value.note.height) && value.note.height >= 100 && value.note.height <= 1_000_000)
-      && (value.note.fontSize === undefined || finite(value.note.fontSize) && value.note.fontSize >= 8 && value.note.fontSize <= 32)
-      && (value.note.collapsed === undefined || typeof value.note.collapsed === "boolean")
-      ? { kind: value.note.kind as NoteKind, content: value.note.content, ...(typeof value.note.title === "string" ? { title: value.note.title } : {}), ...(finite(value.note.width) ? { width: value.note.width } : {}), ...(finite(value.note.height) ? { height: value.note.height } : {}), ...(finite(value.note.fontSize) ? { fontSize: Math.round(value.note.fontSize) } : {}), ...(typeof value.note.collapsed === "boolean" ? { collapsed: value.note.collapsed } : {}) } : undefined;
-    const mermaid = isRecord(value.mermaid) && typeof value.mermaid.source === "string" && value.mermaid.source.length <= 100_000
-      ? { source: value.mermaid.source } : undefined;
-    if ((value.note !== undefined && !note) || (value.mermaid !== undefined && !mermaid) || (note && mermaid)) return undefined;
-    return { type: "group", ...flags, elements: children as Element[], note, mermaid };
-  }
-  if (value.type === "freehand") {
-    if (!Array.isArray(value.points) || !value.points.every((point) => isRecord(point) && finite(point.x) && finite(point.y)) || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0) return undefined;
-    const points: StrokePoint[] = value.points.map((point) => ({ x: (point as Record<string, unknown>).x as number, y: (point as Record<string, unknown>).y as number, ...(finite((point as Record<string, unknown>).pressure) ? { pressure: Math.max(0, Math.min(1, (point as Record<string, unknown>).pressure as number)) } : {}), ...(finite((point as Record<string, unknown>).tiltX) ? { tiltX: Math.max(-90, Math.min(90, (point as Record<string, unknown>).tiltX as number)) } : {}), ...(finite((point as Record<string, unknown>).tiltY) ? { tiltY: Math.max(-90, Math.min(90, (point as Record<string, unknown>).tiltY as number)) } : {}) }));
-    return { type: "freehand", ...flags, points, color: value.color, thickness: value.thickness, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
-  }
-  if (value.type === "text") {
-    if (!finite(value.x) || !finite(value.y) || typeof value.text !== "string" || !isColor(value.color) || !finite(value.fontSize) || value.fontSize < 8) return undefined;
-    const fontFamily: FontFamily = ["hand", "serif", "mono"].includes(String(value.fontFamily)) ? value.fontFamily as FontFamily : "sans";
-    const textAlign = value.textAlign === "center" || value.textAlign === "right" || value.textAlign === "justify" ? value.textAlign : "left";
-    const listType = value.listType === "bullet" || value.listType === "number" ? value.listType : "none";
-    return { type: "text", ...flags, x: value.x, y: value.y, text: value.text, color: value.color, fontSize: value.fontSize, fontFamily, bold: value.bold === true, italic: value.italic === true, underline: value.underline === true, textAlign, listType, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
-  }
-  if (value.type === "image") {
-    if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w <= 0 || !finite(value.h) || value.h <= 0 || !isEmbeddedRasterImage(value.dataUrl) || !finite(value.sourceWidth) || value.sourceWidth <= 0 || !finite(value.sourceHeight) || value.sourceHeight <= 0) return undefined;
-    const cropX = finite(value.cropX) ? value.cropX : 0; const cropY = finite(value.cropY) ? value.cropY : 0;
-    const cropW = finite(value.cropW) ? value.cropW : value.sourceWidth; const cropH = finite(value.cropH) ? value.cropH : value.sourceHeight;
-    if (cropX < 0 || cropY < 0 || cropW <= 0 || cropH <= 0 || cropX + cropW > value.sourceWidth || cropY + cropH > value.sourceHeight) return undefined;
-    return { type: "image", ...flags, x: value.x, y: value.y, w: value.w, h: value.h, dataUrl: value.dataUrl, sourceWidth: value.sourceWidth, sourceHeight: value.sourceHeight, cropX, cropY, cropW, cropH, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
-  }
-  if (value.type === "schemaTable") {
-    if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w < 120 || !finite(value.h) || value.h < 45 || typeof value.name !== "string" || !value.name.trim() || value.name.length > 200 || typeof value.schemaDiagramId !== "string" || !value.schemaDiagramId || typeof value.schemaSource !== "string" || value.schemaSource.length > 500_000 || !Array.isArray(value.columns) || !value.columns.length || value.columns.length > 500) return undefined;
-    const columns: SchemaField[] = [];
-    for (let index = 0; index < value.columns.length; index++) {
-      const raw = value.columns[index];
-      if (!isRecord(raw) || typeof raw.name !== "string" || !raw.name.trim() || raw.name.length > 200 || typeof raw.dataType !== "string" || raw.dataType.length > 200) return undefined;
-      const id = typeof raw.id === "string" && raw.id.length <= 100 ? raw.id : `${value.id}:column:${index}`;
-      columns.push({ id, name: raw.name, dataType: raw.dataType, primaryKey: raw.primaryKey === true, foreignTable: typeof raw.foreignTable === "string" ? raw.foreignTable.slice(0, 200) : undefined, foreignColumn: typeof raw.foreignColumn === "string" ? raw.foreignColumn.slice(0, 200) : undefined, nullable: raw.nullable !== false });
-    }
-    const fontSize = finite(value.fontSize) ? Math.max(8, Math.min(48, value.fontSize)) : 14; const neededHeight = Math.max(42, fontSize * 2.8) + columns.length * Math.max(30, fontSize * 1.8);
-    const neededWidth = Math.max(180, ...columns.map(column => (column.name.length + (column.dataType ?? "type").length) * fontSize * .36 + 80));
-    return { type: "schemaTable", ...flags, x: value.x, y: value.y, w: Math.max(value.w, neededWidth), h: Math.max(value.h, neededHeight), name: value.name, columns, schemaDiagramId: value.schemaDiagramId, schemaSource: value.schemaSource, fontSize, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
-  }
-  if (["rectangle", "circle", "diamond", "triangle", "flowchart", "line", "arrow"].includes(value.type)) {
-    if (!finite(value.x) || !finite(value.y) || !finite(value.w) || !finite(value.h) || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0) return undefined;
-    if (value.schemaDiagramId !== undefined && typeof value.schemaDiagramId !== "string") return undefined;
-    const lineStyle: StrokeStyle = ["dashed", "dotted", "double"].includes(String(value.lineStyle)) ? value.lineStyle as StrokeStyle : "solid";
-    const edgeStyle: EdgeStyle = ["rounded", "pill", "cut"].includes(String(value.edgeStyle)) ? value.edgeStyle as EdgeStyle : "sharp";
-    const fillColor = isColor(value.fillColor) ? value.fillColor : undefined;
-    const fillOpacity = finite(value.fillOpacity) ? Math.max(0, Math.min(1, value.fillOpacity)) : 0.2;
-    const validHead = (head: unknown): head is ArrowHead => ["none", "open", "solid", "thick", "dot", "diamond", "bar"].includes(String(head));
-    const flowchartShape: FlowchartShape = FLOWCHART_SHAPES.some(shape => shape.value === value.flowchartShape) ? value.flowchartShape as FlowchartShape : "process";
-    const lineRoute: LineRoute = ["curve", "curve2", "curve3", "multi"].includes(String(value.lineRoute)) ? value.lineRoute as LineRoute : "straight";
-    const cornerRadius = finite(value.cornerRadius) ? Math.max(0, Math.min(100, value.cornerRadius)) : undefined;
-    const arrowRoute: ArrowRoute = ["elbow", "forked", "loop", "jagged"].includes(String(value.arrowRoute)) ? value.arrowRoute as ArrowRoute : "straight";
-    const binding = (raw: unknown): Binding | undefined => isRecord(raw) && typeof raw.elementId === "string" && isRecord(raw.anchor) && finite(raw.anchor.x) && finite(raw.anchor.y) && raw.anchor.x >= 0 && raw.anchor.x <= 1 && raw.anchor.y >= 0 && raw.anchor.y <= 1 && (raw.rowId === undefined || typeof raw.rowId === "string") ? { elementId: raw.elementId, anchor: { x: raw.anchor.x, y: raw.anchor.y }, ...(typeof raw.rowId === "string" ? { rowId: raw.rowId } : {}) } : undefined;
-    if ((value.startBinding && !binding(value.startBinding)) || (value.endBinding && !binding(value.endBinding))) return undefined;
-    const forkBranch = (raw: unknown) => {
-      if (raw === undefined) return undefined;
-      if (!isRecord(raw)) return null;
-      const end = raw.end === undefined ? undefined : isRecord(raw.end) && finite(raw.end.x) && finite(raw.end.y) ? { x: raw.end.x, y: raw.end.y } : null;
-      const routePoints = raw.routePoints === undefined ? undefined : Array.isArray(raw.routePoints) && raw.routePoints.length <= 100 && raw.routePoints.every(p => isRecord(p) && finite(p.x) && finite(p.y)) ? raw.routePoints as Point[] : null;
-      const endBinding = raw.endBinding === undefined ? undefined : binding(raw.endBinding) ?? null;
-      if (end === null || routePoints === null || endBinding === null) return null;
-      if (raw.endHead !== undefined && !validHead(raw.endHead)) return null;
-      return { end, routePoints, endHead: raw.endHead as ArrowHead | undefined, endBinding: endBinding as Binding | undefined };
-    };
-    const forkUpper = forkBranch(value.forkUpper); const forkLower = forkBranch(value.forkLower);
-    if (forkUpper === null || forkLower === null) return undefined;
-    if (value.routePoints !== undefined && (!Array.isArray(value.routePoints) || value.routePoints.length > 100 || !value.routePoints.every(p => isRecord(p) && finite(p.x) && finite(p.y)))) return undefined;
-    const labelText = value.label === undefined ? undefined : normalizeElement({ ...(isRecord(value.label) ? value.label : {}), type: "text", id: "label", x: 0, y: 0 });
-    if (value.label !== undefined && labelText?.type !== "text") return undefined;
-    const label: ShapeLabel | undefined = labelText?.type === "text" ? { ...labelText, verticalAlign: isRecord(value.label) && (value.label.verticalAlign === "top" || value.label.verticalAlign === "bottom") ? value.label.verticalAlign : "middle" } : undefined;
-    const storedRoutePoints = value.routePoints as Point[] | undefined;
-    const x = value.x as number; const y = value.y as number; const w = value.w as number; const h = value.h as number;
-    const controlBase: ShapeElement = { type: "line", x, y, w, h, color: value.color as string, thickness: value.thickness as number, lineRoute };
-    const normalizedRoutePoints = value.type !== "line" ? storedRoutePoints
-      : lineRoute === "multi" ? [0.2, 0.4, 0.6, 0.8].map((ratio, index) => storedRoutePoints?.[index] ?? { x: x + w * ratio, y: y + h * ratio })
-      : ["curve", "curve2", "curve3"].includes(lineRoute) ? curveControlPoints(controlBase, lineRoute).map((point, index) => storedRoutePoints?.[index] ?? point)
-      : storedRoutePoints;
-    return { type: value.type as ShapeElement["type"], ...flags, startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, forkUpper: forkUpper ?? undefined, forkLower: forkLower ?? undefined, label, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness: value.thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, lineRoute: value.type === "line" ? lineRoute : undefined, arrowRoute: value.type === "arrow" ? arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(typeof value.schemaDiagramId === "string" ? { schemaDiagramId: value.schemaDiagramId } : {}) };
-  }
-  return undefined;
-}
-
-function parseSketchFile(value: unknown): SketchFile | undefined {
-  if (!isRecord(value) || value.format !== "SketchDraw") return undefined;
-  const addLegacyElementIds = (item: unknown): unknown => {
-    if (!isRecord(item)) return item;
-    const next: Record<string, unknown> = { ...item, id: typeof item.id === "string" && item.id ? item.id : crypto.randomUUID() };
-    if (Array.isArray(item.elements)) next.elements = item.elements.map(addLegacyElementIds);
-    return next;
-  };
-  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, legacy: boolean): SketchPage | undefined => {
-    if (typeof id !== "string" || typeof name !== "string" || !isRecord(stateValue) || !Array.isArray(elementsValue)) return undefined;
-    const state = stateValue;
-    if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !isColor(state.backgroundColor)) return undefined;
-    const elements = elementsValue.map((element) => normalizeElement(legacy ? addLegacyElementIds(element) : element));
-    if (elements.some((element) => !element) || !validReferences(elements as Element[])) return undefined;
-    return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff" }, elements: elements as Element[] };
-  };
-  const sourcePages = Array.isArray(value.pages) ? value.pages : Array.isArray(value.elements) ? [{ id: crypto.randomUUID(), name: "Page 1", canvasState: value.canvasState, elements: value.elements }] : undefined;
-  if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100 || !Number.isInteger(value.version) || Number(value.version) < 1 || Number(value.version) > SKETCH_FORMAT_VERSION) return undefined;
-  const pages = sourcePages.map((page, index) => {
-    if (!isRecord(page)) return undefined;
-    const state = isRecord(page.canvasState) ? page.canvasState : {};
-    const migratedState = Number(value.version) < SKETCH_FORMAT_VERSION ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
-    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, Number(value.version) < 6);
-  });
-  if (pages.some((page) => !page)) return undefined;
-  const normalized = pages as SketchPage[];
-  if (new Set(normalized.map((page) => page.id)).size !== normalized.length) return undefined;
-  const activePageId = normalized.some((page) => page.id === value.activePageId) ? String(value.activePageId) : normalized[0].id;
-  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized };
-}
-
-function elementBounds(element: Element): Bounds {
-  const cached = boundsCache.get(element); if (cached) return cached;
-  if (element.type === "group") {
-    if (element.note) {
-      const surface = element.elements.find((child): child is ShapeElement => child.type === "rectangle");
-      if (surface) return cacheBounds(element, rotatedBounds({ x: surface.x, y: surface.y, w: Math.abs(surface.w), h: Math.abs(surface.h) }, element.rotation ?? 0));
-    }
-    return cacheBounds(element, unionBounds(element.elements.filter((child) => !child.hidden).map(elementBounds)) ?? { x: 0, y: 0, w: 0, h: 0 });
-  }
-  if (element.type === "image") return cacheBounds(element, rotatedBounds({ x: element.x, y: element.y, w: element.w, h: element.h }, element.rotation ?? 0));
-  if (element.type === "schemaTable") return cacheBounds(element, rotatedBounds({ x: element.x, y: element.y, w: element.w, h: element.h }, element.rotation ?? 0));
-  if (element.type === "text") {
-    return cacheBounds(element, rotatedBounds(textElementBox(element), element.rotation ?? 0));
-  }
-  if (element.type === "freehand") {
-    return cacheBounds(element, rotatedBounds(boundsOfPoints(element.points, element.thickness / 2), element.rotation ?? 0));
-  }
-  const x = Math.min(element.x, element.x + element.w);
-  const y = Math.min(element.y, element.y + element.h);
-  const w = Math.abs(element.w); const h = Math.abs(element.h);
-  if (element.type === "line" || element.type === "arrow") {
-    const route = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
-    const points = connectorPolylines(element, route, 33).flat();
-    for (const head of arrowHeadEntries(element, route)) {
-      points.push(...arrowHeadPoints(head.tip, head.angle, head.kind, element.thickness));
-      if (head.kind === "dot") { const radius = Math.max(3, element.thickness * 1.15); points.push({ x: head.tip.x - radius, y: head.tip.y - radius }, { x: head.tip.x + radius, y: head.tip.y + radius }); }
-    }
-    const doubleOffset = element.lineStyle === "double" ? Math.max(2.5, element.thickness * 1.2) : 0;
-    return cacheBounds(element, rotatedBounds(boundsOfPoints(points, element.thickness / 2 + doubleOffset), element.rotation ?? 0));
-  }
-  return cacheBounds(element, rotatedBounds({ x, y, w, h }, element.rotation ?? 0));
-}
-
-function rotatedBounds(bounds: Bounds, degrees: number): Bounds {
-  if (!degrees) return bounds;
-  const angle = degrees * Math.PI / 180; const cx = bounds.x + bounds.w / 2; const cy = bounds.y + bounds.h / 2;
-  const corners = [{ x: bounds.x, y: bounds.y }, { x: bounds.x + bounds.w, y: bounds.y }, { x: bounds.x + bounds.w, y: bounds.y + bounds.h }, { x: bounds.x, y: bounds.y + bounds.h }].map((point) => ({ x: cx + (point.x - cx) * Math.cos(angle) - (point.y - cy) * Math.sin(angle), y: cy + (point.x - cx) * Math.sin(angle) + (point.y - cy) * Math.cos(angle) }));
-  const xs = corners.map((point) => point.x); const ys = corners.map((point) => point.y); const x = Math.min(...xs); const y = Math.min(...ys);
-  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
-}
-
-function distanceToSegment(point: Point, start: Point, end: Point) {
-  const dx = end.x - start.x; const dy = end.y - start.y;
-  const lengthSquared = dx * dx + dy * dy;
-  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
-  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
-  return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
-}
+const MermaidPreview = lazy(async () => {
+  const module = await import("./MermaidPreview");
+  return { default: module.MermaidPreview };
+});
 
 function App() {
+  const isWindowsPlatform = () => typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
   const [elements, setElementsSignal] = createSignal<Element[]>([]);
   function setElements(next: Element[] | ((previous: Element[]) => Element[])) { return setElementsSignal(previous => resolveBindings(ensureIds(typeof next === "function" ? next(previous) : next))); }
   const [canvasState, setCanvasState] = createSignal<CanvasState>(emptyCanvas());
   const [pages, setPages] = createSignal<SketchPage[]>([]);
   const [activePageId, setActivePageId] = createSignal("");
   const [activePath, setActivePath] = createSignal<string>();
+  const [readOnlyView, setReadOnlyView] = createSignal(false);
   const [tool, setTool] = createSignal<Tool>("pen");
   const [color, setColor] = createSignal("#252525");
   const [thickness, setThickness] = createSignal(2);
+  const [thicknessPickerMode, setThicknessPickerMode] = createSignal<"presets" | "stepper">(readPreference("sketchdraw-thickness-picker", "presets") === "stepper" ? "stepper" : "presets");
+  const [showAdvancedThickness, setShowAdvancedThickness] = createSignal(false);
   const [penPressure, setPenPressure] = createSignal(true);
   const [penTilt, setPenTilt] = createSignal(true);
   const [penEraser, setPenEraser] = createSignal(true);
@@ -704,7 +206,6 @@ function App() {
   const [defaultUnderline, setDefaultUnderline] = createSignal(false);
   const [defaultTextAlign, setDefaultTextAlign] = createSignal<"left" | "center" | "right">("left");
   const [defaultListType, setDefaultListType] = createSignal<"none" | "bullet" | "number">("none");
-  const [showAdvancedThickness, setShowAdvancedThickness] = createSignal(false);
   const [toolBarOpen, setToolBarOpen] = createSignal(true);
   const [touchFocusMode, setTouchFocusMode] = createSignal(false);
   const [mobileToolsExpanded, setMobileToolsExpanded] = createSignal(false);
@@ -727,7 +228,7 @@ function App() {
   const [exportHeight, setExportHeight] = createSignal(1000);
   const [exportTransparent, setExportTransparent] = createSignal(false);
   const [textDraft, setTextDraft] = createSignal<TextDraft>();
-  const [textMode, setTextMode] = createSignal<"text" | NoteKind>("text");
+  const [textMode, setTextMode] = createSignal<"text" | "markdown" | "table" | NoteKind>("text");
   const [noteEditor, setNoteEditor] = createSignal<{ x: number; y: number; width: number; height: number; fontSize: number; kind: NoteKind; content: string; title: string; resized?: boolean; editingIndex?: number }>();
   const [noteEditorSession, setNoteEditorSession] = createSignal(0);
   let noteEditorTextarea: HTMLTextAreaElement | undefined;
@@ -758,7 +259,7 @@ function App() {
   })());
   const [systemDark, setSystemDark] = createSignal(window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
   const [recentFiles, setRecentFiles] = createSignal<string[]>((() => {
-    try { const value: unknown = JSON.parse(localStorage.getItem("sketchdraw-v6-recent-files") ?? "[]"); return Array.isArray(value) ? value.filter((path): path is string => typeof path === "string" && isSketchPath(path)).slice(0, 8) : []; }
+    try { const value: unknown = JSON.parse(localStorage.getItem("sketchdraw-v8-recent-files") ?? localStorage.getItem("sketchdraw-v6-recent-files") ?? "[]"); return Array.isArray(value) ? value.filter((path): path is string => typeof path === "string" && isSketchPath(path)).slice(0, 8) : []; }
     catch { return []; }
   })());
   createEffect(() => {
@@ -868,7 +369,7 @@ function App() {
       const bounds = elementBounds(item);
       if (property === "x" || property === "y") return moveElement(item, property === "x" ? value - bounds.x : 0, property === "y" ? value - bounds.y : 0);
       if (property === "rotation") return isConnector(item) || item.type === "group" ? item : { ...item, rotation: value % 360 };
-      if (item.type === "text") return { ...item, fontSize: Math.max(8, Math.min(160, item.fontSize * value / Math.max(1, bounds[property]))) };
+      if (item.type === "text") return { ...item, fontSize: Math.round(Math.max(8, Math.min(160, item.fontSize * value / Math.max(1, bounds[property])))) };
       if (item.type === "group" || item.type === "freehand" || isConnector(item)) return item;
       return { ...item, [property]: Math.max(2, value) };
     });
@@ -920,7 +421,7 @@ function App() {
     catch { if (clipboardItems.length) insertCopies(clipboardItems, at); else setError("Press Ctrl/Cmd+V to grant clipboard access."); }
   }
   function onContextMenu(event: MouseEvent) {
-    event.preventDefault(); if (!activePath()) return;
+    event.preventDefault(); if (!activePath() || readOnlyView()) return;
     commitTextDraft(); const rect = canvas.getBoundingClientRect(); const view = canvasState(); const point = { x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom };
     const hit = hitTest(point); if (hit !== undefined && !selectedIndices().includes(hit)) setSelectedIndices([hit]);
     if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false;
@@ -1042,6 +543,7 @@ function App() {
     tool() === "pen" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || tool() === "line" || tool() === "arrow" || tool() === "eraser" ||
     (tool() === "select" && !!focused && "thickness" in focused)
   ); };
+  const isPenBrushThicknessTarget = () => tool() === "pen" || (tool() === "select" && focusedElement()?.type === "freehand");
   const quickElementType = () => tool() === "select" ? focusedElement()?.type ?? "select" : tool();
   const quickShapeSelection = () => { const focused = focusedElement(); return focused && "thickness" in focused ? focused as ShapeElement : undefined; };
   const quickHasShapeFill = () => ["rectangle", "circle", "diamond", "triangle", "flowchart"].includes(quickElementType());
@@ -1057,8 +559,9 @@ function App() {
   const quickArrowHead = (end: "start" | "end") => { const focused = styleTargetElement(); if (focused && isConnector(focused)) return (end === "start" ? focused.startHead : focused.endHead) ?? (focused.type === "arrow" && end === "end" ? "open" : "none"); if (tool() === "line") return end === "start" ? defaultLineStartHead() : defaultLineEndHead(); return end === "start" ? defaultStartHead() : defaultEndHead(); };
   const renderedBoardColor = () => boardColorFollowsTheme() ? theme() === "dark" ? "#17191f" : "#ffffff" : boardColor();
   const updateStrokeColor = (value: string) => { const selected = styleTargetElement(); if (boardLocked() || selected?.locked) return; if (textDraft()?.shapeLabel) { updateLabel("color", value); return; } setColor(value); setTextDraft((draft) => draft ? { ...draft, color: value } : undefined); if (hasStyleSelection()) updateProperty("color", value); };
-  const updateThickness = (value: number) => { setThickness(value); if (hasStyleSelection()) updateProperty("thickness", value); };
-  const status = () => !activePath() ? "No file selected" : saving() ? "Saving…" : (dirty() || textDraft()) ? "Unsaved changes" : savedAt() ? `Saved ${savedAt()}` : "Saved locally";
+  const updateThickness = (value: number) => { const bounded = Math.max(1, Math.min(24, Math.round(value))); setThickness(bounded); if (hasStyleSelection()) updateProperty("thickness", bounded); };
+  const setThicknessPickerPreference = (mode: "presets" | "stepper") => { setThicknessPickerMode(mode); try { localStorage.setItem("sketchdraw-thickness-picker", mode); } catch { /* The setting still applies for this session. */ } };
+  const status = () => !activePath() ? "No file selected" : readOnlyView() ? "View only · changes are not saved" : saving() ? "Saving…" : (dirty() || textDraft()) ? "Unsaved changes" : savedAt() ? `Saved ${savedAt()}` : "Saved locally";
   function documentSnapshot(): SketchFile {
     const sourcePages = pages().length ? pages() : [{ id: "page-1", name: "Page 1", canvasState: canvasState(), elements: elements() }];
     const serializedPages = sourcePages.map((page) => {
@@ -1084,7 +587,7 @@ function App() {
     commitTextDraft(); rememberPageHistory(); storeCurrentPage();
     setElements(cloneElements(target.elements)); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false);
     setActivePageId(id); setSelectedIndices([]); setHoveredIndex(undefined); setTextDraft(undefined); setMarquee(undefined);
-    restorePageHistory(); setDirty(true);
+    restorePageHistory(); setDirty(!readOnlyView());
   }
   function addPage() {
     if (boardLocked()) return;
@@ -1107,10 +610,19 @@ function App() {
   };
   const strokePointFromPointer = (event: PointerEvent, point: Point): StrokePoint => event.pointerType !== "pen" ? point : {
     ...point,
-    ...(penPressure() ? { pressure: Math.max(0, Math.min(1, event.pressure)) } : {}),
+    ...(penPressure() ? { pressure: Math.max(0, Math.min(1, event.pressure > 0 ? event.pressure : .5)) } : {}),
     ...(penTilt() ? { tiltX: Math.max(-90, Math.min(90, event.tiltX)), tiltY: Math.max(-90, Math.min(90, event.tiltY)) } : {}),
   };
-  const snap = (point: Point): Point => snapToGrid() ? { x: Math.round(point.x / GRID_SIZE) * GRID_SIZE, y: Math.round(point.y / GRID_SIZE) * GRID_SIZE } : point;
+  const snap = (point: Point): Point => {
+    if (!snapToGrid()) return point;
+    if (whiteboardStyle() === "isometric") {
+      const rowStep = GRID_SIZE * Math.sqrt(3) / 2;
+      const row = Math.round(point.y / rowStep);
+      const phase = Math.abs(row % 2) === 1 ? GRID_SIZE / 2 : 0;
+      return { x: Math.round((point.x - phase) / GRID_SIZE) * GRID_SIZE + phase, y: row * rowStep };
+    }
+    return { x: Math.round(point.x / GRID_SIZE) * GRID_SIZE, y: Math.round(point.y / GRID_SIZE) * GRID_SIZE };
+  };
 
   function pushUndo(before: Element[]) {
     undoStack.push(before);
@@ -1176,11 +688,11 @@ function App() {
     const update = (element: Element): Element => {
       if (element.locked) return element;
       if (element.type === "group") return { ...element, elements: element.elements.map(update) };
-      if (element.type === "schemaTable" && property === "fontSize") { const size = Math.max(8, Math.min(48, Number(value))); const headerHeight = Math.max(42, size * 2.8); const rowHeight = Math.max(30, size * 1.8); const neededWidth = Math.max(180, ...element.columns.map(column => (column.name.length + (column.dataType ?? "type").length) * size * .36 + 80)); return { ...element, fontSize: size, w: Math.max(element.w, neededWidth), h: Math.max(element.h, headerHeight + element.columns.length * rowHeight) }; }
+      if (element.type === "schemaTable" && property === "fontSize") { const size = Math.max(8, Math.min(48, Math.round(Number(value)))); const headerHeight = Math.max(42, size * 2.8); const rowHeight = Math.max(30, size * 1.8); const neededWidth = Math.max(180, ...element.columns.map(column => (column.name.length + (column.dataType ?? "type").length) * size * .36 + 80)); return { ...element, fontSize: size, w: Math.max(element.w, neededWidth), h: Math.max(element.h, headerHeight + element.columns.length * rowHeight) }; }
       if (property === "color") return { ...element, color: String(value) } as Element;
       if (property === "opacity") return { ...element, opacity: Number(value) } as Element;
-      if (property === "thickness" && "thickness" in element) return { ...element, thickness: Number(value) } as Element;
-      if (element.type === "text" && property === "fontSize") return { ...element, fontSize: Number(value) };
+      if (property === "thickness" && "thickness" in element) return { ...element, thickness: Math.max(1, Math.round(Number(value))) } as Element;
+      if (element.type === "text" && property === "fontSize") return { ...element, fontSize: Math.max(8, Math.round(Number(value))) };
       if (element.type === "text" && property === "fontFamily") return { ...element, fontFamily: value as TextElement["fontFamily"] };
       if (element.type === "text" && ["bold", "italic", "underline", "textAlign", "listType"].includes(property)) return { ...element, [property]: value } as Element;
       if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart") {
@@ -1201,7 +713,12 @@ function App() {
       if (element.type === "arrow" && property === "forkUpperHead") return { ...element, forkUpper: { ...(element.forkUpper ?? {}), endHead: value as ArrowHead } };
       if (element.type === "arrow" && property === "forkLowerHead") return { ...element, forkLower: { ...(element.forkLower ?? {}), endHead: value as ArrowHead } };
       if (element.type === "flowchart" && property === "flowchartShape") return { ...element, flowchartShape: value as FlowchartShape };
-      if (isConnector(element) && (property === "startHead" || property === "endHead")) return { ...element, [property]: value as ArrowHead };
+      if (isConnector(element) && (property === "startHead" || property === "endHead")) {
+        const head = value as ArrowHead;
+        return element.type === "arrow" && property === "endHead" && element.arrowRoute === "forked"
+          ? { ...element, endHead: head, forkUpper: { ...(element.forkUpper ?? {}), endHead: head }, forkLower: { ...(element.forkLower ?? {}), endHead: head } }
+          : { ...element, [property]: head };
+      }
       return element;
     };
     setElements((items) => items.map((element, index) => indices.has(index) ? update(element) : element));
@@ -1264,13 +781,13 @@ function App() {
     if (textDraft() && textEditorElement?.isConnected) textEditorElement.focus();
   }
 
-  function openNoteEditor(point: Point, kind: NoteKind, editingIndex?: number) {
+  function openNoteEditor(point: Point, kind: NoteKind, editingIndex?: number, initial?: { content?: string; title?: string }) {
     if (boardLocked()) return;
     const existing = editingIndex === undefined ? undefined : elements()[editingIndex];
     if (existing?.locked) return;
     const group = existing?.type === "group" ? existing : undefined;
     const bounds = group ? elementBounds(group) : undefined;
-    setNoteEditor({ x: bounds?.x ?? point.x, y: bounds?.y ?? point.y, width: group?.note?.width ?? bounds?.w ?? (kind === "sticky" ? 296 : 340), height: group?.note?.height ?? bounds?.h ?? 190, fontSize: group?.note?.fontSize ?? 14, kind, content: group?.note?.content ?? (kind === "checklist" ? "- [ ] New task" : ""), title: group?.note?.title ?? defaultNoteTitle(kind), editingIndex });
+    setNoteEditor({ x: bounds?.x ?? point.x, y: bounds?.y ?? point.y, width: group?.note?.width ?? bounds?.w ?? (kind === "sticky" ? 296 : 340), height: group?.note?.height ?? bounds?.h ?? 190, fontSize: group?.note?.fontSize ?? 14, kind, content: group?.note?.content ?? initial?.content ?? (kind === "checklist" ? "- [ ] New task" : ""), title: group?.note?.title ?? initial?.title ?? defaultNoteTitle(kind), editingIndex });
     setNoteEditorSession(session => session + 1);
   }
 
@@ -1296,6 +813,15 @@ function App() {
     pushUndo(before); setSelectedIndices([index]); setTool("select"); setTextMode("text"); setDirty(true); setNoteEditor(undefined);
   }
 
+  function insertMarkdownTable() {
+    const draft = noteEditor(); if (!draft || draft.kind === "checklist" || !noteEditorTextarea) return;
+    const textarea = noteEditorTextarea; const start = textarea.selectionStart; const end = textarea.selectionEnd;
+    const table = "| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |\n| Cell | Cell |";
+    const content = draft.content.slice(0, start) + table + draft.content.slice(end);
+    setNoteEditor(current => current ? { ...current, content } : current);
+    requestAnimationFrame(() => { if (textarea.isConnected) { const caret = start + table.length; textarea.focus(); textarea.setSelectionRange(caret, caret); } });
+  }
+
   function toggleChecklist(index: number, row: number) {
     const previous = elements()[index];
     if (previous?.type !== "group" || previous.note?.kind !== "checklist" || boardLocked() || previous.locked) return;
@@ -1308,8 +834,9 @@ function App() {
 
   function toggleNoteCollapsed(index: number) {
     const previous = elements()[index];
-    if (previous?.type !== "group" || !previous.note || boardLocked() || previous.locked) return;
-    const bounds = elementBounds(previous); const before = cloneElements(elements());
+    const viewOnly = readOnlyView();
+    if (previous?.type !== "group" || !previous.note || !viewOnly && (boardLocked() || previous.locked)) return;
+    const bounds = elementBounds(previous); const before = viewOnly ? undefined : cloneElements(elements());
     const next = buildNoteGroup(bounds.x, bounds.y, previous.note.kind, previous.note.content, {
       width: previous.note.width ?? bounds.w,
       height: previous.note.height ?? Math.max(100, bounds.h),
@@ -1319,11 +846,11 @@ function App() {
     });
     const replacement: Element = { ...next, ...previous, note: next.note, elements: next.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
     setElements(items => items.map((item, current) => current === index ? replacement : item));
-    pushUndo(before); setSelectedIndices([index]); setDirty(true);
+    if (!viewOnly) { pushUndo(before!); setSelectedIndices([index]); setDirty(true); }
   }
 
   function handleCanvasDoubleClick(event: MouseEvent) {
-    if (boardLocked() || tool() === "text") return;
+    if (readOnlyView() || boardLocked() || tool() === "text") return;
     event.preventDefault();
     const rect = canvas.getBoundingClientRect(); const view = canvasState();
     const point = { x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom };
@@ -1345,7 +872,7 @@ function App() {
   }
 
   function classCardElements(draft: NonNullable<ReturnType<typeof classCardDraft>>): Element[] {
-    const fontSize = Math.max(8, Math.min(48, draft.fontSize));
+        const fontSize = Math.max(8, Math.min(48, Math.round(draft.fontSize)));
     const longest = Math.max(12, ...[draft.name, draft.attributes, draft.methods].flatMap(text => text.split(/\r?\n/).map(line => line.length)));
     const width = Math.max(230, Math.min(640, longest * fontSize * .62 + 32));
     const wrap = (text: string) => text.split(/\r?\n/).flatMap(line => {
@@ -1530,14 +1057,14 @@ function App() {
     const inset = sidebarVisible() ? 330 : 40; const availableWidth = Math.max(100, rect.width - inset - 40); const availableHeight = Math.max(100, rect.height - 180);
     const zoom = Math.max(0.02, Math.min(4, availableWidth / width, availableHeight / height));
     setCanvasState({ zoom, panX: inset + (availableWidth - width * zoom) / 2 - left * zoom, panY: 90 + (availableHeight - height * zoom) / 2 - top * zoom, backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() });
-    setDirty(true);
+    setDirty(!readOnlyView());
   }
 
   function resetZoomAndCenter() {
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect(); const current = canvasState();
     const centerWorld = { x: (rect.width / 2 - current.panX) / current.zoom, y: (rect.height / 2 - current.panY) / current.zoom };
-    setCanvasState({ zoom: 1, panX: rect.width / 2 - centerWorld.x, panY: rect.height / 2 - centerWorld.y, backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() }); setDirty(true);
+    setCanvasState({ zoom: 1, panX: rect.width / 2 - centerWorld.x, panY: rect.height / 2 - centerWorld.y, backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() }); setDirty(!readOnlyView());
   }
 
   function rectanglePathPoints(element: ShapeElement): Point[] {
@@ -1691,7 +1218,12 @@ function App() {
       const route = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
       if (element.lineStyle === "double") {
         const angle = Math.atan2(element.h, element.w); const offset = Math.max(2.5, element.thickness * 1.2);
-        for (const side of [-1, 1]) { ctx.save(); ctx.translate(-Math.sin(angle) * offset * side, Math.cos(angle) * offset * side); traceConnector(ctx, element); ctx.stroke(); ctx.restore(); }
+        const paths = doubleConnectorPolylines(element);
+        for (const side of [-1, 1]) {
+          ctx.save(); ctx.translate(-Math.sin(angle) * offset * side, Math.cos(angle) * offset * side); ctx.beginPath();
+          for (const points of paths) { if (!points.length) continue; ctx.moveTo(points[0].x, points[0].y); for (const point of points.slice(1)) ctx.lineTo(point.x, point.y); }
+          ctx.stroke(); ctx.restore();
+        }
       } else { traceConnector(ctx, element); ctx.stroke(); }
       if (element.type === "arrow" || element.type === "line") {
         for (const { tip, angle: direction, kind } of arrowHeadEntries(element, route)) {
@@ -1718,10 +1250,16 @@ function App() {
         };
         ctx.lineCap = "round"; ctx.lineJoin = "round";
         if (element.points.length === 1) stamp(element.points[0]);
+        let from = element.points[0];
         for (let index = 1; index < element.points.length; index++) {
-          const previous = element.points[index - 1]; const point = element.points[index]; ctx.beginPath(); ctx.lineWidth = (pointWidth(previous) + pointWidth(point)) / 2; ctx.moveTo(previous.x, previous.y); ctx.lineTo(point.x, point.y); ctx.stroke(); stamp(point);
+          const previous = element.points[index - 1]; const point = element.points[index];
+          const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
+          ctx.beginPath(); ctx.lineWidth = Math.max(.75, (pointWidth(previous) + pointWidth(point)) / 2); ctx.moveTo(from.x, from.y); ctx.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y); ctx.stroke();
+          from = mid;
         }
-        stamp(element.points[0]);
+        const lastPoint = element.points[element.points.length - 1];
+        ctx.beginPath(); ctx.lineWidth = Math.max(.75, pointWidth(lastPoint)); ctx.moveTo(from.x, from.y); ctx.lineTo(lastPoint.x, lastPoint.y); ctx.stroke();
+        if (element.points.length > 1) { stamp(element.points[0]); stamp(element.points[element.points.length - 1]); }
       } else {
         ctx.beginPath(); ctx.moveTo(element.points[0].x, element.points[0].y);
         for (let i = 1; i < element.points.length; i++) {
@@ -1867,7 +1405,7 @@ function App() {
       const a = Math.atan2(start.y - center.y, start.x - center.x); const b = Math.atan2(point.y - center.y, point.x - center.x);
       return { ...element, rotation: (element.rotation ?? 0) + (b - a) * 180 / Math.PI };
     }
-    if (element.type === "text") { const delta = handle.includes("e") || handle.includes("w") ? point.x - start.x : point.y - start.y; return { ...element, fontSize: Math.max(8, Math.min(160, element.fontSize + delta * 0.3)) }; }
+    if (element.type === "text") { const delta = handle.includes("e") || handle.includes("w") ? point.x - start.x : point.y - start.y; return { ...element, fontSize: Math.round(Math.max(8, Math.min(160, element.fontSize + delta * 0.3))) }; }
     const bounds = { x: Math.min(element.x, element.x + element.w), y: Math.min(element.y, element.y + element.h), w: Math.abs(element.w), h: Math.abs(element.h) }; let { x, y, w, h } = bounds; const dx = point.x - start.x; const dy = point.y - start.y;
     if (handle.includes("w")) { x += dx; w -= dx; } if (handle.includes("e")) w += dx;
     if (handle.includes("n")) { y += dy; h -= dy; } if (handle.includes("s")) h += dy;
@@ -1962,7 +1500,7 @@ function App() {
       event.preventDefault(); const bounds = canvas.getBoundingClientRect(); const px = event.clientX - bounds.left; const py = event.clientY - bounds.top;
       const old = canvasState(); const nextZoom = Math.max(0.02, Math.min(8, old.zoom * Math.exp(-event.deltaY * 0.001)));
       const worldX = (px - old.panX) / old.zoom; const worldY = (py - old.panY) / old.zoom;
-      setCanvasState({ zoom: nextZoom, panX: px - worldX * nextZoom, panY: py - worldY * nextZoom, backgroundColor: old.backgroundColor }); setDirty(true);
+      setCanvasState({ zoom: nextZoom, panX: px - worldX * nextZoom, panY: py - worldY * nextZoom, backgroundColor: old.backgroundColor }); setDirty(!readOnlyView());
     };
     canvas.addEventListener("wheel", wheel, { passive: false });
     onCleanup(() => { resize.disconnect(); canvas.removeEventListener("wheel", wheel); window.removeEventListener("resize", scheduleCanvasRender); window.visualViewport?.removeEventListener("resize", scheduleCanvasRender); });
@@ -2002,6 +1540,12 @@ function App() {
   });
 
   onMount(() => {
+    if (isTauri()) void invoke<string[]>("load_recent_sketches").then(paths => {
+      const combined = [...recentFiles(), ...paths].filter((path, index, all): path is string => typeof path === "string" && isSketchPath(path) && all.indexOf(path) === index).slice(0, 8);
+      setRecentFiles(combined);
+      try { localStorage.setItem("sketchdraw-v8-recent-files", JSON.stringify(combined)); } catch { /* Native storage remains the durable copy. */ }
+      if (combined.length) void invoke("save_recent_sketches", { paths: combined }).catch(() => undefined);
+    }).catch(() => undefined);
     void invoke<string[]>("take_startup_files").then((paths) => {
       const path = paths.find((candidate) => candidate.toLowerCase().endsWith(".sketch"));
       if (path) void loadFile(path);
@@ -2023,13 +1567,20 @@ function App() {
         if (exportOptionsOpen()) { event.preventDefault(); setExportOptionsOpen(false); return; }
         if (recoveryPrompt() || syncConflict()) return;
         if (textDraft()) commitTextDraft();
-        event.preventDefault(); setTool(isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform()) setStyleMenuMode("quick"); setTouchStylePanel(false); setQuickStylePopover(undefined); setSelectedIndices([]); setHoveredIndex(undefined); setMarquee(undefined); marqueeOrigin = undefined; resizeOrigin = undefined; moveOrigin = undefined; setPreview(undefined); drawing = false; setSpaceDown(false); setIsPanning(false); panOrigin = undefined;
+        event.preventDefault(); setTool(readOnlyView() ? "laser" : isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform() && !readOnlyView()) setStyleMenuMode("quick"); setTouchStylePanel(false); setQuickStylePopover(undefined); setSelectedIndices([]); setHoveredIndex(undefined); setMarquee(undefined); marqueeOrigin = undefined; resizeOrigin = undefined; moveOrigin = undefined; setPreview(undefined); drawing = false; setSpaceDown(false); setIsPanning(false); panOrigin = undefined;
         if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; return;
       }
       if (event.key === "F1") { event.preventDefault(); setHelpOpen(true); return; }
       if (recoveryPrompt() || syncConflict() || exportOptionsOpen() || showClearConfirm() || pageDialog() || schemaDialog() || mermaidDialog() || noteEditor() || contextMenu()) return;
       if (event.target instanceof HTMLElement && event.target.closest("details[open], .tool-options")) return;
       if (!activePath() || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
+      if (readOnlyView()) {
+        const key = event.key.toLowerCase();
+        if ((event.ctrlKey || event.metaKey) && key === "o") { event.preventDefault(); void openFile(); }
+        else if (key === "0") resetZoomAndCenter();
+        else if (key === "1") fitDocumentToViewport(elements());
+        return;
+      }
       if (event.code === "Space" && event.target instanceof HTMLElement && event.target.closest("button, summary, select, [role='menuitem']")) return;
       if (event.code === "Space") { if (!event.repeat) { event.preventDefault(); setSpaceDown(true); } return; }
       const key = event.key.toLowerCase();
@@ -2053,7 +1604,7 @@ function App() {
       if (key === "v") activateTool("select"); else if (key === "p") activateTool("pen"); else if (key === "y") activateTool("laser"); else if (key === "r") activateTool("rectangle"); else if (key === "c" || key === "o") activateTool("circle"); else if (key === "d") activateTool("diamond"); else if (key === "n") activateTool("triangle"); else if (key === "l") activateTool("line"); else if (key === "a") activateTool("arrow"); else if (key === "f") activateTool("flowchart"); else if (key === "t") activateTool("text"); else if (key === "b") activateTool("bucket"); else if (key === "e") activateTool("eraser"); else if (key === "x") activateTool("crop");
       else if (key === "delete" || key === "backspace") { event.preventDefault(); deleteSelected(); }
     };
-    const clipboardAllowed = (target: EventTarget | null) => activePath() && !pageDialog() && !schemaDialog() && !mermaidDialog() && !exportOptionsOpen() && !showClearConfirm() && !recoveryPrompt() && !syncConflict() && !noteEditor() && !(target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea")));
+    const clipboardAllowed = (target: EventTarget | null) => !readOnlyView() && activePath() && !pageDialog() && !schemaDialog() && !mermaidDialog() && !exportOptionsOpen() && !showClearConfirm() && !recoveryPrompt() && !syncConflict() && !noteEditor() && !(target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea")));
     const copy = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || !selectedElements().length) return; event.preventDefault(); event.clipboardData?.setData("text/plain", clipboardPayload()); clipboardItems = copyElements(selectedElements(), 0, 0); };
     const paste = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || boardLocked()) return; const raw = event.clipboardData?.getData("text/plain"); if (raw) { event.preventDefault(); pastePayload(raw); } };
     const cut = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || boardLocked()) return; copy(event); if (event.defaultPrevented) deleteSelected(); };
@@ -2074,7 +1625,7 @@ function App() {
     let closeInProgress = false;
     let unlistenClose: (() => void) | undefined;
     void getCurrentWindow().onCloseRequested(async (event) => {
-      if (!dirty() && !textDraft() && !saving()) return;
+      if (readOnlyView() || (!dirty() && !textDraft() && !saving())) return;
       event.preventDefault();
       if (closeInProgress) return;
       closeInProgress = true;
@@ -2142,6 +1693,7 @@ function App() {
   function restoreAppSettings() {
     setInterfaceScalePreference(1);
     setAutosavePreference(10);
+    setThicknessPickerPreference("presets");
     setReduceMotionPreference(false);
   }
   function setComponentAppearancePreference(value: "modern" | "simple") {
@@ -2216,12 +1768,12 @@ function App() {
     return snapshot;
   }
   function persistRecovery() {
-    if (!activePath() || (!dirty() && !textDraft())) return;
+    if (readOnlyView() || !activePath() || (!dirty() && !textDraft())) return;
     try { localStorage.setItem(recoveryKey(activePath()!), JSON.stringify({ savedAt: Date.now(), baselineRaw: lastSavedRaw, snapshot: recoverySnapshot() })); } catch { /* Recovery is best-effort if browser storage is unavailable. */ }
   }
 
   function applySnapshot(snapshot: SketchFile, path: string, rawText: string) {
-    pageHistories.clear(); setTextDraft(undefined); setPreview(undefined); setMarquee(undefined); drawing = false; moveOrigin = undefined; resizeOrigin = undefined;
+    pageHistories.clear(); setTextDraft(undefined); setNoteEditor(undefined); setContextMenu(undefined); setLayerPanelOpen(false); setTouchStylePanel(false); setQuickStylePopover(undefined); setCanvasOptionsOpen(false); setPaintBrushMenuOpen(false); setStencilMenuOpen(false); closeToolOptions(); setPreview(undefined); setMarquee(undefined); drawing = false; moveOrigin = undefined; resizeOrigin = undefined;
     const currentPage = snapshot.pages.find((page) => page.id === snapshot.activePageId) ?? snapshot.pages[0];
     setPages(snapshot.pages.map((page) => ({ ...page, elements: cloneElements(page.elements) })));
     setActivePageId(currentPage.id); setElements(cloneElements(currentPage.elements)); setCanvasState({ ...currentPage.canvasState });
@@ -2272,7 +1824,7 @@ function App() {
   }
 
   async function saveToPath(path: string, force = false) {
-    if (saveInFlight || recoveryPrompt()) return;
+    if (readOnlyView() || saveInFlight || recoveryPrompt()) return;
     commitTextDraft(); saveInFlight = true; setSaving(true);
     try {
       const snapshot = documentSnapshot();
@@ -2295,6 +1847,7 @@ function App() {
   }
 
   async function saveAs() {
+    if (readOnlyView()) return;
     if (!activePath()) { await createFile(); return; }
     if (nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
@@ -2305,14 +1858,15 @@ function App() {
   }
 
   function rememberFile(path: string) {
-    if (/^content:\/\//i.test(path)) return;
     path = normalizeFileUri(path);
     const updated = [path, ...recentFiles().filter((recent) => recent !== path)].slice(0, 8);
     setRecentFiles(updated);
-    try { localStorage.setItem("sketchdraw-v6-recent-files", JSON.stringify(updated)); } catch { /* Local storage may be disabled by the host. */ }
+    try { localStorage.setItem("sketchdraw-v8-recent-files", JSON.stringify(updated)); } catch { /* Native storage remains the durable copy. */ }
+    if (isTauri()) void invoke("save_recent_sketches", { paths: updated }).catch(() => undefined);
   }
 
   async function saveBeforeReplacingDocument(): Promise<boolean> {
+    if (readOnlyView()) return true;
     commitTextDraft();
     const path = activePath();
     if (!path) return true;
@@ -2335,6 +1889,7 @@ function App() {
       undoStack = []; redoStack = [];
       setPages([]); setActivePageId(""); setElements([]); setCanvasState(emptyCanvas());
       setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setActivePath(undefined);
+      setReadOnlyView(false);
       setDirty(false); setSavedAt(""); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false);
       setTextDraft(undefined); setPreview(undefined); setMarquee(undefined); setContextMenu(undefined); setLayerPanelOpen(false);
       setHistoryVersion(version => version + 1); lastSavedRaw = undefined; setError("");
@@ -2342,7 +1897,7 @@ function App() {
     } finally { setDocumentBusy(false); }
   }
 
-  async function loadFile(path: string) {
+  async function loadFile(path: string, viewOnly = false) {
     if (documentBusy()) return;
     setDocumentBusy(true);
     try {
@@ -2357,9 +1912,12 @@ function App() {
       if (!parsed) throw new Error("This file is invalid or uses an unsupported SketchDraw format.");
       const needsMigration = isRecord(raw) && raw.version !== SKETCH_FORMAT_VERSION;
       applySnapshot(parsed, authorizedPath, rawText);
+      setReadOnlyView(viewOnly);
+      if (viewOnly) { setTool("laser"); setSelectedIndices([]); setToolBarOpen(true); setMobileToolsExpanded(false); }
+      else if (tool() === "laser") setTool("pen");
       restoreOpenedViewAt100(authorizedPath, parsed.activePageId);
-      if (needsMigration) setDirty(true);
-      try {
+      if (needsMigration && !viewOnly) setDirty(true);
+      if (!viewOnly) try {
         const stored = localStorage.getItem(recoveryKey(authorizedPath));
         if (stored) {
           const entry: unknown = JSON.parse(stored);
@@ -2369,7 +1927,7 @@ function App() {
           else localStorage.removeItem(recoveryKey(authorizedPath));
         }
       } catch { /* Ignore malformed recovery data and leave the source file untouched. */ }
-      if (needsMigration && !recoveryPrompt()) await saveToPath(authorizedPath);
+      if (needsMigration && !viewOnly && !recoveryPrompt()) await saveToPath(authorizedPath);
     } catch (cause) { setError(`Could not open file: ${String(cause)}`); } finally { setDocumentBusy(false); }
   }
 
@@ -2380,6 +1938,16 @@ function App() {
       const selected = await open({ title: "Open SketchDraw file", multiple: false, filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
       if (!selected || Array.isArray(selected)) return;
       await loadFile(selected);
+    } catch (cause) { setError(`Could not choose file: ${String(cause)}`); } finally { setNativeBusy(false); }
+  }
+
+  async function openFileAsView() {
+    if (nativeBusy() || documentBusy()) return;
+    setNativeBusy(true);
+    try {
+      const selected = await open({ title: "Open SketchDraw as view only", multiple: false, filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
+      if (!selected || Array.isArray(selected)) return;
+      await loadFile(selected, true);
     } catch (cause) { setError(`Could not choose file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
@@ -2398,7 +1966,7 @@ function App() {
   }
 
   async function importImage() {
-    if (!activePath()) return;
+    if (!activePath() || readOnlyView()) return;
     if (nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     if (boardLocked()) { setNativeBusy(false); return; }
@@ -2445,12 +2013,13 @@ function App() {
       const contents = JSON.stringify(document, null, 2);
       if (/^content:\/\//i.test(path)) await writeTextFile(path, contents);
       else await invoke("atomic_save_sketch", { path: normalizeFileUri(path), contents, expected: null });
-      pageHistories.clear(); setPages([page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setActivePath(path); rememberFile(path); setDirty(false); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setBoardLocked(false); setError(""); lastSavedRaw = contents;
+      pageHistories.clear(); setPages([page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setActivePath(path); setReadOnlyView(false); setTool("pen"); rememberFile(path); setDirty(false); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setBoardLocked(false); setError(""); lastSavedRaw = contents;
       undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1);
     } catch (cause) { setError(`Could not create SketchDraw file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
   function openExportOptions(format: "png" | "svg" | "pdf") {
+    if (readOnlyView()) return;
     setExportFormat(format);
     setExportOptionsOpen(true);
     requestAnimationFrame(renderExportPreview);
@@ -2827,8 +2396,8 @@ function App() {
     const summary = summaryRows ? `${summaryRows.filter(row => row.done).length} of ${summaryRows.length} tasks` : meta.content.split(/\r?\n/).find(line => line.trim() && !/^\s*```/.test(line))?.trim() || "Empty card";
     const chevron = collapsed ? `M ${x + width - 26} ${y + 30} l5 5 5 -5` : `M ${x + width - 26} ${y + 23} l5 -5 5 5`;
     const radius = simple ? 0 : 12; const accent = simple ? "" : `<path d="M ${x + 2} ${y + 13} v ${Math.max(0, height - 26)}" stroke="${palette.accent}" stroke-width="3" stroke-linecap="round"/>`;
-    const toggleY = collapsed ? y + 20 : y + 11; const separator = collapsed ? "" : `<path d="M ${x + 14} ${y + 47} H ${x + width - 14}" stroke="${palette.rule}"/>`;
-    return `<g><defs><clipPath id="${clipId}"><rect x="${x + 8}" y="${y + 49}" width="${Math.max(0, width - 16)}" height="${Math.max(0, height - 57)}"/></clipPath></defs><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${palette.surface}" stroke="${palette.border}"/>${accent}<text x="${x + 16}" y="${y + 13}" dominant-baseline="hanging" font-family="sans-serif" font-size="13" font-weight="600" fill="${palette.ink}">${title}</text>${collapsed ? `<text x="${x + 16}" y="${y + 37}" dominant-baseline="hanging" font-family="sans-serif" font-size="10" fill="${palette.muted}">${escapeXml(summary.slice(0, 80))}</text>` : ""}<rect x="${x + width - 38}" y="${toggleY}" width="24" height="24" rx="${simple ? 0 : 7}" fill="${palette.soft}" stroke="${palette.rule}"/><path d="${chevron}" fill="none" stroke="${palette.muted}" stroke-width="1.5"/>${separator}${collapsed ? "" : `<g clip-path="url(#${clipId})">${body}</g>`}</g>`;
+    const toggleY = collapsed ? y + 6 : y + 11; const separator = collapsed ? "" : `<path d="M ${x + 14} ${y + 47} H ${x + width - 14}" stroke="${palette.rule}"/>`;
+    return `<g><defs><clipPath id="${clipId}"><rect x="${x + 8}" y="${y + 49}" width="${Math.max(0, width - 16)}" height="${Math.max(0, height - 57)}"/></clipPath></defs><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${palette.surface}" stroke="${palette.border}"/>${accent}<text x="${x + 14}" y="${y + (collapsed ? 8 : 13)}" dominant-baseline="hanging" font-family="sans-serif" font-size="${collapsed ? 12 : 13}" font-weight="600" fill="${palette.ink}">${title}</text>${collapsed ? `<text x="${x + 14}" y="${y + 31}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" fill="${palette.muted}">${escapeXml(summary.slice(0, 80))}</text>` : ""}<rect x="${x + width - 36}" y="${toggleY}" width="24" height="24" rx="${simple ? 0 : 7}" fill="${palette.soft}" stroke="${palette.rule}"/><path d="${chevron}" fill="none" stroke="${palette.muted}" stroke-width="1.5"/>${separator}${collapsed ? "" : `<g clip-path="url(#${clipId})">${body}</g>`}</g>`;
   }
 
   function elementToSvg(element: Element): string {
@@ -2971,21 +2540,27 @@ function App() {
       panY = anchor.y - rect.top - touchGesture.worldAnchor.y * zoom;
     }
     setCanvasState({ ...current, zoom, panX, panY });
-    setDirty(true);
+    setDirty(!readOnlyView());
   }
 
   function beginCanvasInteraction(event: PointerEvent) {
     if (!activePath()) return;
     if (noteEditor()) saveNoteEditor();
     setContextMenu(undefined); penEraserDrawing = false;
-    const isPenEraser = penEraser() && event.pointerType === "pen" && (event.button === 5 || (event.buttons & 32) !== 0);
+    const isPenEraser = !readOnlyView() && penEraser() && event.pointerType === "pen" && (event.button === 5 || (event.buttons & 32) !== 0);
     if (textDraft()) { commitTextDraft(); if (tool() === "text" && !isPenEraser) return; }
     if (!isPenEraser && (event.button === 1 || spaceDown() || tool() === "pan")) {
       event.preventDefault(); setIsPanning(true); panOrigin = { x: event.clientX, y: event.clientY, panX: canvasState().panX, panY: canvasState().panY }; canvas.setPointerCapture(event.pointerId); return;
     }
     if (event.button !== 0 && !isPenEraser) return;
     const point = toWorld(event);
-    if (boardLocked()) return;
+    if (readOnlyView() && tool() === "laser") {
+      const hit = hitTest(point); const target = hit === undefined ? undefined : elements()[hit];
+      if (hit !== undefined && target?.type === "group" && target.note && noteCollapseHit(target, point)) {
+        toggleNoteCollapsed(hit); canvas.setPointerCapture(event.pointerId); return;
+      }
+    }
+    if (boardLocked() && tool() !== "laser") return;
     if (isPenEraser) { event.preventDefault(); penEraserDrawing = true; drawing = true; eraseAtPoint(point); canvas.setPointerCapture(event.pointerId); return; }
     if (tool() === "select") {
       const handle = findTransformHandle(point);
@@ -3025,7 +2600,9 @@ function App() {
       const activeTextMode = textMode();
       if (activeTextMode !== "text") {
         const hit = hitTest(point); const element = hit === undefined ? undefined : elements()[hit];
-        if (element?.type === "group" && element.note?.kind === activeTextMode) openNoteEditor(point, element.note.kind, hit);
+        if (element?.type === "group" && element.note && (activeTextMode === "markdown" || activeTextMode === "table" || element.note.kind === activeTextMode)) openNoteEditor(point, element.note.kind, hit);
+        else if (activeTextMode === "markdown") openNoteEditor(point, "note", undefined, { title: "Markdown" });
+        else if (activeTextMode === "table") openNoteEditor(point, "note", undefined, { title: "Markdown table", content: "| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |\n| Cell | Cell |" });
         else openNoteEditor(point, activeTextMode);
         return;
       }
@@ -3068,6 +2645,7 @@ function App() {
 
   function pointerDown(event: PointerEvent) {
     if (!activePath()) return;
+    if (event.pointerType === "pen") event.preventDefault();
     if (event.pointerType === "touch" && activePenPointerId !== undefined && !drawing && !panOrigin && !resizeOrigin && !moveOrigin && !marqueeOrigin) activePenPointerId = undefined;
     if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
     if (event.pointerType === "pen") {
@@ -3099,7 +2677,7 @@ function App() {
         touchTapTracker.maxFingers = Math.max(touchTapTracker.maxFingers, Math.min(3, touchPointers.size));
       }
       if (startTouchGesture(event)) return;
-      if (touchPointers.size === 1 && (oneFingerTapAction() !== "none" || oneFingerDragAction() === "pan")) {
+      if (touchPointers.size === 1 && !readOnlyView() && (oneFingerTapAction() !== "none" || oneFingerDragAction() === "pan")) {
         event.preventDefault();
         try { canvas.setPointerCapture(event.pointerId); } catch { /* The pointer can be canceled before capture. */ }
         return;
@@ -3123,7 +2701,7 @@ function App() {
       if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > TOUCH_DRAG_THRESHOLD && touchTapTracker) {
         const tap = touchTapTracker;
         tap.canceled = true;
-        if (tap.maxFingers === 1 && !tap.deferredInteractionStarted && (oneFingerTapAction() !== "none" || oneFingerDragAction() === "pan")) {
+        if (!readOnlyView() && tap.maxFingers === 1 && !tap.deferredInteractionStarted && (oneFingerTapAction() !== "none" || oneFingerDragAction() === "pan")) {
           tap.deferredInteractionStarted = true;
           if (oneFingerDragAction() === "pan") beginTouchPan(tap.initialEvent);
           else beginCanvasInteraction(tap.initialEvent);
@@ -3137,7 +2715,7 @@ function App() {
       setMarquee((current) => current ? { ...current, end } : undefined); return;
     }
     if (panOrigin) {
-      setCanvasState({ ...canvasState(), panX: panOrigin.panX + event.clientX - panOrigin.x, panY: panOrigin.panY + event.clientY - panOrigin.y }); setDirty(true);
+      setCanvasState({ ...canvasState(), panX: panOrigin.panX + event.clientX - panOrigin.x, panY: panOrigin.panY + event.clientY - panOrigin.y }); setDirty(!readOnlyView());
       return;
     }
     if (resizeOrigin) {
@@ -3156,7 +2734,7 @@ function App() {
       return;
     }
     if (!drawing) {
-      const point = toWorld(event); const hit = tool() === "select" ? hitTest(point) : undefined;
+      const point = toWorld(event); const hit = tool() === "select" || readOnlyView() ? hitTest(point) : undefined;
       setHoveredIndex(hit);
       const target = hit === undefined ? undefined : elements()[hit];
       setNoteToggleHovered(target?.type === "group" && !!target.note && noteCollapseHit(target, point));
@@ -3166,8 +2744,11 @@ function App() {
     const raw = toWorld(event); const port = activeDrawingTool === "line" || activeDrawingTool === "arrow" ? nearestBinding(elements(), raw, 18 / canvasState().zoom) : undefined; setAttachmentHint(port?.point); const point = port?.point ?? (activeDrawingTool === "pen" ? raw : snap(raw));
     if (activeDrawingTool === "pen") {
       if (event.pointerType === "pen") {
+        event.preventDefault();
         const bounds = canvas.getBoundingClientRect(); const state = canvasState();
-        for (const sample of event.getCoalescedEvents?.() ?? []) appendStrokeSample(sample, { x: (sample.clientX - bounds.left - state.panX) / state.zoom, y: (sample.clientY - bounds.top - state.panY) / state.zoom });
+        let samples: PointerEvent[] = [];
+        try { samples = event.getCoalescedEvents?.() ?? []; } catch { /* Some Android WebViews expose this API without implementing it. */ }
+        for (const sample of samples) appendStrokeSample(sample, { x: (sample.clientX - bounds.left - state.panX) / state.zoom, y: (sample.clientY - bounds.top - state.panY) / state.zoom });
       }
       appendStrokeSample(event, point);
     }
@@ -3278,7 +2859,7 @@ function App() {
       if (touchPointers.size === 0) {
         const tap = touchTapTracker;
         touchTapTracker = undefined;
-        if (tap && !tap.canceled && performance.now() - tap.startedAt <= 500) {
+        if (!readOnlyView() && tap && !tap.canceled && performance.now() - tap.startedAt <= 500) {
           if (tap.maxFingers === 1 && oneFingerTapAction() !== "none") { runTouchTapAction(oneFingerTapAction()); handledTapAction = true; }
           else if (tap.maxFingers === 2 && twoFingerTapAction() !== "none") { runTouchTapAction(twoFingerTapAction()); handledTapAction = true; }
           else if (tap.maxFingers === 3 && threeFingerTapAction() !== "none") { runTouchTapAction(threeFingerTapAction()); handledTapAction = true; }
@@ -3322,7 +2903,8 @@ function App() {
     if (!drawing) return;
     if (penEraserDrawing) { penEraserDrawing = false; drawing = false; return; }
     if (tool() === "eraser") { drawing = false; return; }
-    if (activeDrawingTool === "pen" && event.pointerType === "pen") {
+    if (activeDrawingTool === "pen") {
+      if (event.pointerType === "pen") event.preventDefault();
       const end = toWorld(event); const last = currentPoints[currentPoints.length - 1];
       if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= .3) {
         currentPoints.push(tool() === "pen" ? { ...end, pressure: last.pressure, tiltX: last.tiltX, tiltY: last.tiltY } : end);
@@ -3383,7 +2965,16 @@ function App() {
     { value: "eraser", label: "Eraser", key: "E", path: "M3 14l9-10 9 9-8 8H7zM12 18l5-5" },
     { value: "crop", label: "Crop image", key: "X", path: "M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 8h8v8H8z" },
   ];
-  const toolGroups: { id: string; label: string; tools: Tool[] }[] = [
+  const toolGroups: { id: string; label: string; tools: Tool[] }[] = readOnlyView() ? [
+    { id: "laser", label: "Laser pointer", tools: ["laser"] },
+  ] : isWindowsPlatform() ? [
+    { id: "navigation", label: "Navigation", tools: ["select", "pan"] },
+    { id: "drawing", label: "Drawing", tools: ["pen", "eraser"] },
+    { id: "laser", label: "Laser", tools: ["laser"] },
+    { id: "connectors", label: "Connectors", tools: ["line", "arrow"] },
+    { id: "shapes", label: "Shapes", tools: ["rectangle", "circle", "diamond", "triangle", "flowchart"] },
+    { id: "content", label: "Text and image tools", tools: ["text", "bucket", "crop"] },
+  ] : [
     { id: "navigation", label: "Navigation", tools: ["select", "pan"] },
     { id: "drawing", label: "Drawing", tools: ["pen", "laser"] },
     { id: "connectors", label: "Connectors", tools: ["line", "arrow"] },
@@ -3412,6 +3003,21 @@ function App() {
     const replacement: Element = { ...rebuilt, ...previous, note: rebuilt.note, elements: rebuilt.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
     setElements(items => items.map((item, current) => current === index ? replacement : item)); pushUndo(before); setDirty(true);
   }
+  function convertSelectedTextToMarkdown() {
+    const index = primarySelection(); const previous = index === undefined ? undefined : elements()[index];
+    if (index === undefined || previous?.type !== "text" || previous.locked || boardLocked()) return;
+    const bounds = elementBounds(previous); const before = cloneElements(elements());
+    const markdown = buildNoteGroup(previous.x, previous.y, "note", previous.text, { width: Math.max(260, Math.min(800, bounds.w + 32)), fontSize: Math.max(8, Math.min(32, previous.fontSize)), title: "Markdown" });
+    const replacement: Element = { ...markdown, id: previous.id, rotation: previous.rotation, locked: previous.locked, hidden: previous.hidden };
+    setElements(items => items.map((item, current) => current === index ? replacement : item)); pushUndo(before); setSelectedIndices([index]); setTool("select"); setDirty(true);
+  }
+  function convertSelectedMarkdownToText() {
+    const index = primarySelection(); const previous = index === undefined ? undefined : elements()[index];
+    if (index === undefined || previous?.type !== "group" || previous.note?.kind !== "note" || previous.locked || boardLocked()) return;
+    const bounds = elementBounds(previous); const before = cloneElements(elements());
+    const plain: TextElement = { type: "text", id: previous.id, x: bounds.x + 14, y: bounds.y + 58, text: previous.note.content, color: theme() === "dark" ? "#f4f4f2" : "#252525", fontSize: previous.note.fontSize ?? 14, fontFamily: "sans", textAlign: "left", listType: "none", rotation: previous.rotation, locked: previous.locked, hidden: previous.hidden };
+    setElements(items => items.map((item, current) => current === index ? plain : item)); pushUndo(before); setSelectedIndices([index]); setTool("select"); setDirty(true);
+  }
   const adjustQuickFont = (delta: number) => {
     if (noteEditor() || quickHasNoteCard()) { setSelectedNoteFontSize(quickCardFontSize() + delta); return; }
     const focused = focusedElement();
@@ -3422,6 +3028,7 @@ function App() {
   const setTextFormat = (property: "bold" | "italic" | "underline" | "textAlign" | "listType" | "fontSize" | "fontFamily", value: boolean | string | number) => {
     if (boardLocked() || focusedElement()?.locked) return;
     if (property === "fontSize" && (!Number.isFinite(Number(value)) || Number(value) < 8 || Number(value) > 160)) return;
+    if (property === "fontSize") value = Math.round(Number(value));
     if (property === "fontSize" && (noteEditor() || quickHasNoteCard())) { setSelectedNoteFontSize(Number(value)); return; }
     if (property === "fontSize" && focusedElement()?.componentId?.startsWith("uml-class:")) { resizeClassCardFont(focusedElement()!.componentId!, Number(value)); return; }
     if (property === "fontSize" && focusedElement()?.type === "schemaTable") { updateProperty("fontSize", Math.max(8, Math.min(48, Number(value)))); return; }
@@ -3481,7 +3088,6 @@ function App() {
     if (!isCompactTouchLayout() || isWindowsPlatform()) return;
     [menu, viewMenu, gestureMenu, helpMenu, appSettingsMenu].forEach(details => { if (details?.open) alignTouchMenuPopover(details); });
   };
-  const isWindowsPlatform = () => typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
   const toggleTouchFocusMode = async (enabled = !touchFocusMode()) => {
     if (!isCompactTouchLayout() || isWindowsPlatform()) return;
     if (enabled === touchFocusMode()) return;
@@ -3522,12 +3128,13 @@ function App() {
     focusModeUsedDocumentFullscreen = false;
   };
   const chooseFocusTool = (value: "pen" | "laser" | "eraser") => {
+    if (readOnlyView()) { setTool("laser"); return; }
     setQuickStylePopover(undefined);
     closeToolOptions();
     if (value === "pen") setBrushMode("fine");
     setTool(value);
   };
-  const activateTool = (next: Tool) => { commitTextDraft(); setQuickStylePopover(undefined); setTouchStylePanel(false); closeToolOptions(); if (next === "text") setTextMode("text"); const switchFromBrush = next === "pen" && tool() === "pen" && brushMode() !== "fine"; const chosen = switchFromBrush ? "pen" : tool() === next ? (isWindowsPlatform() ? "pan" : "select") : next; if (next === "pen" && chosen === "pen") setBrushMode("fine"); setTool(chosen); if (chosen === "select") setStyleMenuMode("quick"); if (chosen !== "select" && chosen !== "pan") { setSelectedIndices([]); setSidebarTab("properties"); } };
+  const activateTool = (next: Tool) => { if (readOnlyView()) { setTool("laser"); return; } commitTextDraft(); setQuickStylePopover(undefined); setTouchStylePanel(false); closeToolOptions(); if (next === "text") setTextMode("text"); const switchFromBrush = next === "pen" && tool() === "pen" && brushMode() !== "fine"; const chosen = switchFromBrush ? "pen" : tool() === next ? (isWindowsPlatform() ? "pan" : "select") : next; if (next === "pen" && chosen === "pen") setBrushMode("fine"); setTool(chosen); if (chosen === "select") setStyleMenuMode("quick"); if (chosen !== "select" && chosen !== "pan") { setSelectedIndices([]); setSidebarTab("properties"); } };
   const toggleTouchStylePanel = () => setTouchStylePanel(open => !open);
   const toggleQuickProperties = () => {
     if (isWindowsPlatform() || !isCompactTouchLayout()) { toggleSidebar(); return; }
@@ -3543,6 +3150,8 @@ function App() {
     if (value === "flowchart") return <div class="tool-family flowchart-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options flowchart-options" role="menu" aria-label="Flowchart symbols">{FLOWCHART_MENU_SHAPES.map((shape) => <button class={flowchartShape() === shape.value ? "active" : ""} role="menuitem" title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setFlowchartShape(shape.value); setTool("flowchart"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div></div>;
     if (value === "text") return <div class="tool-family text-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options text-options" role="menu" aria-label="Text and note tools">
       <button role="menuitem" title="Place plain text" onClick={() => { closeToolOptions(); setTextMode("text"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M4 6h16M12 6v13m-4 0h8"/></svg><span>Text</span></button>
+      <button role="menuitem" title="Write an editable, collapsible Markdown card" onClick={() => { closeToolOptions(); setTextMode("markdown"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M3 6h18M5 11h4l3 4 3-4h4M5 19h14"/><path d="m18 2 3 3-3 3"/></svg><span>Markdown text</span></button>
+      <button role="menuitem" title="Insert an editable Markdown table card" onClick={() => { closeToolOptions(); setTextMode("table"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 10h18M3 15h18M10 4v16M16 4v16"/></svg><span>Table</span></button>
       <button role="menuitem" title="Add a note; supports fenced, syntax-highlighted code blocks" onClick={() => { closeToolOptions(); setTextMode("note"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M5 4h14v13l-4 3H5zM8 9h8M8 13h6"/></svg><span>Note + code</span></button>
       <button role="menuitem" title="Add a sticky note" onClick={() => { closeToolOptions(); setTextMode("sticky"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M5 4h14v12l-5 5H5zM14 16v5m-6-12h8m-8 4h6"/></svg><span>Sticky note</span></button>
       <button role="menuitem" title="Add an interactive checklist" onClick={() => { closeToolOptions(); setTextMode("checklist"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="m4 6 2 2 3-4M12 6h8M4 14l2 2 3-4m3 2h8"/></svg><span>Checklist</span></button>
@@ -3553,24 +3162,26 @@ function App() {
     return button;
   };
   return (
-    <main class={`app-shell theme-${theme()}`} classList={{ "mobile-tools-expanded": mobileToolsExpanded(), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform() }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
+    <main class={`app-shell theme-${theme()}`} classList={{ "mobile-tools-expanded": mobileToolsExpanded(), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "read-only-view": readOnlyView() }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
       <header class="topbar">
-        <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={activePath() ? fileName() : "SketchDraw"}>{activePath() ? fileName() : "SketchDraw"}</span></div></div>
+        <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={activePath() ? fileName() : "SketchDraw"}>{activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
         <nav class="app-menus" aria-label="Application menus">
           <TouchMenuBar settings={<AppSettingsMenu
             interfaceScale={interfaceScale()}
             autosaveSeconds={autosaveSeconds()}
+            thicknessPickerMode={thicknessPickerMode()}
             reduceMotion={reduceMotion()}
             displayMetrics={displayMetrics()}
             onInterfaceScaleChange={setInterfaceScalePreference}
             onAutosaveChange={setAutosavePreference}
+            onThicknessPickerModeChange={setThicknessPickerPreference}
             onReduceMotionChange={setReduceMotionPreference}
             onRestoreDefaults={restoreAppSettings}
             detailsRef={element => { appSettingsMenu = element; }}
             onToggle={() => alignTouchMenuPopover(appSettingsMenu)}
           />}>
           <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{activePath() ? fileName() : "No file open"}</div>
-            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>Ctrl+S</kbd></button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><div class="menu-separator" /><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Export PDF...</button><button disabled={!activePath()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !elements().length || boardLocked()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
+            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>Ctrl+S</kbd></button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><div class="menu-separator" /><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Export PDF...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
           </div></details>
           <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={() => { alignViewSettingsPopover(); alignTouchMenuPopover(viewMenu); }}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>View</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover view-popover view-settings-popover">
             <header class="view-menu-heading"><div><strong>View settings</strong><span>Adjust the interface or canvas</span></div></header>
@@ -3592,7 +3203,7 @@ function App() {
           <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><div class="menu-separator" /><button disabled={updateCheck() === "checking"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Could not check for a newer version.</span></Show></div></details>
           </TouchMenuBar>
         </nav>
-        <Show when={activePath()}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} /></Show>
+        <Show when={activePath()}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} /></Show>
 
         <Show when={activePath()}><div class="top-actions"><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
       </header>
@@ -3631,12 +3242,13 @@ function App() {
 </section></>}>
         <>
           <section class="canvas-wrap" ref={canvasWrap}>
-            <Show when={touchFocusMode()}><TouchFocusTools tool={tool()} onSelect={chooseFocusTool} onExit={() => void toggleTouchFocusMode(false)} /></Show>
+            <Show when={touchFocusMode()}><TouchFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={chooseFocusTool} onExit={() => void toggleTouchFocusMode(false)} /></Show>
             <Show when={touchStylePanel() && !isWindowsPlatform() && isCompactTouchLayout()}><TouchStylePanel
               tool={tool()}
               styleName={quickElementType()}
               supportsStroke={showStrokeControls()}
               supportsWidth={showThicknessControls()}
+              thicknessPickerMode={thicknessPickerMode()}
               isLine={quickElementType() === "line"}
               isArrow={quickElementType() === "arrow"}
               isFlowchart={quickElementType() === "flowchart"}
@@ -3710,13 +3322,13 @@ function App() {
               onBucketColorChange={setFillColor}
             /></Show>
             <Show when={noteEditor()}>{draft => <div class={`canvas-note-editor ${draft().kind} ${componentAppearance()}`} role="group" aria-label={`${draft().kind} canvas editor`} style={{ left: `${canvasState().panX + draft().x * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${Math.max(220, draft().width * canvasState().zoom)}px`, height: `${Math.max(130, draft().height * canvasState().zoom)}px`, background: noteCardPalette(draft().kind, theme(), componentAppearance()).surface, "border-color": noteCardPalette(draft().kind, theme(), componentAppearance()).border, color: noteCardPalette(draft().kind, theme(), componentAppearance()).ink }} onPointerDown={event => { const rect = event.currentTarget.getBoundingClientRect(); resizingNoteEditor = event.clientX >= rect.right - 22 && event.clientY >= rect.bottom - 22; event.stopPropagation(); }} onPointerUp={event => { if (resizingNoteEditor) { const rect = event.currentTarget.getBoundingClientRect(); const zoom = canvasState().zoom; setNoteEditor(current => current ? { ...current, width: Math.max(180, Math.min(4000, rect.width / zoom)), height: Math.max(100, Math.min(1_000_000, rect.height / zoom)), resized: true } : current); } resizingNoteEditor = false; }}>
-              <header><span>{draft().kind === "sticky" ? "STICKY NOTE" : draft().kind === "checklist" ? "CHECKLIST" : "NOTE + CODE"}</span><small class="editor-key-hint">Tab indents</small><button type="button" onClick={saveNoteEditor} title="Save to canvas" aria-label="Save note to canvas">Done &#10003;</button></header>
+              <header><span>{draft().kind === "sticky" ? "STICKY NOTE" : draft().kind === "checklist" ? "CHECKLIST" : draft().title.toLowerCase().includes("markdown") ? "MARKDOWN" : "NOTE + CODE"}</span><small class="editor-key-hint">Tab indents</small><Show when={draft().kind === "note"}><button type="button" class="editor-insert-table" onClick={insertMarkdownTable} title="Insert an editable Markdown table">Insert table</button></Show><button type="button" onClick={saveNoteEditor} title="Save to canvas" aria-label="Save note to canvas">Done &#10003;</button></header>
               <div class="note-card-details"><label>Title<input aria-label="Card title" maxlength="120" value={draft().title} onInput={event => setNoteEditor(current => current ? { ...current, title: event.currentTarget.value } : undefined)} /></label></div>
-              <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Note and code content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write here…\n\nUse fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); if (event.key === "Escape" && isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } } }} />
+              <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown and note content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write Markdown…\n\nUse # headings, **bold**, lists, tables, and fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); if (event.key === "Escape" && isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } } }} />
             </div>}</Show>
-            <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() ? "not-allowed" : tool() === "select" ? noteToggleHovered() ? "pointer" : hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
+            <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
             <Show when={deletableSelectionCount() > 1}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected elements`} aria-label={`Delete ${deletableSelectionCount()} selected elements`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
-            <DesktopPageTabs pages={pages()} activePageId={activePageId()} boardLocked={boardLocked()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} />
+            <DesktopPageTabs pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} />
             <TouchToolBar open={toolBarOpen()} expanded={mobileToolsExpanded()} styleOpen={touchStylePanel()} onShow={() => setToolBarOpen(true)} onHide={() => setToolBarOpen(false)} onToggleExpanded={() => setMobileToolsExpanded(value => !value)} onToggleStyle={toggleTouchStylePanel}><>
               <div class="tool-cluster tool-cluster-canvas mobile-cluster-has-essential" role="group" aria-label="Canvas view">
               <CanvasOptionsMenu
@@ -3825,8 +3437,17 @@ function App() {
                     </Show>
                     <Show when={quickStylePopover() === "thickness"}>
                       <div class="quick-style-popover thickness-popover" aria-label={tool() === "eraser" ? "Eraser size" : "Stroke width"}>
-                        <div class="quick-thickness-presets">{([[1, "Ultra-thin"], [2, "Thin"], [4, "Default"], [5, "Medium"], [10, "Bold"]] as const).map(([value, label]) => <button class={selectedThickness() === value ? "active" : ""} aria-label={`${label} ${value} pixels`} title={`${label}, ${value}px`} onClick={() => { updateThickness(value); setQuickStylePopover(undefined); }}><i style={{ height: `${value}px` }} /></button>)}</div>
-                        <input aria-label="Custom size" type="range" min="1" max="20" step="1" value={selectedThickness()} onInput={(event) => updateThickness(Number(event.currentTarget.value))} />
+                        <Show when={isPenBrushThicknessTarget()} fallback={<>
+                          <div class="quick-thickness-presets">{THICKNESS_PRESETS.map(([value, label]) => <button class={selectedThickness() === value ? "active" : ""} aria-label={`${label} ${value} pixels`} title={`${label}, ${value}px`} onClick={() => { updateThickness(value); setQuickStylePopover(undefined); }}><i style={{ height: `${value}px` }} /></button>)}</div>
+                          <input aria-label="Custom size" type="range" min="1" max="20" step="1" value={selectedThickness()} onInput={event => updateThickness(Number(event.currentTarget.value))} />
+                        </>}>
+                          <Show when={thicknessPickerMode() === "presets"}>
+                            <div class="quick-thickness-presets">{THICKNESS_PRESETS.map(([value, label]) => <button class={selectedThickness() === value ? "active" : ""} aria-label={`${label} ${value} pixels`} title={`${label}, ${value}px`} onClick={() => updateThickness(value)}><i style={{ height: `${value}px` }} /><small>{value}</small></button>)}</div>
+                          </Show>
+                          <Show when={thicknessPickerMode() === "stepper"}>
+                            <ThicknessTuner value={selectedThickness()} color={themeInk(selectedColor(), theme())} onChange={updateThickness} />
+                          </Show>
+                        </Show>
                       </div>
                     </Show>
                     <Show when={quickStylePopover() === "penInput" && tool() === "pen"}><div class="quick-style-popover pen-input-popover" aria-label="Stylus input options"><strong>Pen options</strong><label><input type="checkbox" checked={penPressure()} onChange={event => setPenPressure(event.currentTarget.checked)} /> Pressure width</label><label><input type="checkbox" checked={penTilt()} onChange={event => setPenTilt(event.currentTarget.checked)} /> Tilt shaping</label><label><input type="checkbox" checked={penEraser()} onChange={event => setPenEraser(event.currentTarget.checked)} /> Eraser end</label><small>Uses pressure, tilt, and eraser data reported by a compatible stylus.</small></div></Show>
@@ -3847,11 +3468,28 @@ function App() {
               <div class="full-style-heading"><strong>Properties</strong><button onClick={() => { setStyleMenuMode("quick"); setQuickStylePopover(undefined); }}>Quick style</button></div>
 
               <Show when={sidebarTab() === "properties"}>
-                <Show when={selectedNoteCard()}>{card => <section class="pane-section note-card-properties"><div class="pane-heading">{card().note?.kind === "sticky" ? "Sticky note" : card().note?.kind === "checklist" ? "Checklist" : "Note + code"}<button class="note-collapse-action" disabled={boardLocked() || card().locked} onClick={() => { const index = primarySelection(); if (index !== undefined) toggleNoteCollapsed(index); }}>{card().note?.collapsed ? "Expand" : "Collapse"}</button></div><label class="property-label">Title<input aria-label="Card title" maxlength="120" value={card().note?.title ?? defaultNoteTitle(card().note!.kind)} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label><p class="bucket-help">Resize the card to change its layout; text size stays fixed.</p></section>}</Show>
-                <Show when={focusedElement()?.type === "schemaTable"}><section class="pane-section"><div class="pane-heading">Table schema</div><label class="property-label">Font size<input type="number" min="8" max="48" value={(focusedElement() as SchemaTableElement | undefined)?.fontSize ?? 14} onChange={event => updateProperty("fontSize", Number(event.currentTarget.value))} /></label><p class="bucket-help">The table grows to keep every row legible.</p></section></Show>
+                <Show when={selectedNoteCard()}>{card => <section class="pane-section note-card-properties"><div class="pane-heading">{card().note?.kind === "sticky" ? "Sticky note" : card().note?.kind === "checklist" ? "Checklist" : card().note?.title?.toLowerCase().includes("markdown") ? "Markdown" : "Note + code"}<button class="note-collapse-action" disabled={boardLocked() || card().locked} onClick={() => { const index = primarySelection(); if (index !== undefined) toggleNoteCollapsed(index); }}>{card().note?.collapsed ? "Expand" : "Collapse"}</button></div><label class="property-label">Title<input aria-label="Card title" maxlength="120" value={card().note?.title ?? defaultNoteTitle(card().note!.kind)} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label><Show when={card().note?.kind === "note"}><button class="quiet-button" disabled={boardLocked() || card().locked} onClick={convertSelectedMarkdownToText}>Convert to plain text</button></Show><p class="bucket-help">Double-click to edit Markdown and notes. Resize to change the layout; text size stays fixed.</p></section>}</Show>
+                <Show when={focusedElement()?.type === "text"}><section class="pane-section"><div class="pane-heading">Text</div><button class="quiet-button" disabled={boardLocked() || focusedElement()?.locked} onClick={convertSelectedTextToMarkdown}>Convert to Markdown card</button><p class="bucket-help">The text remains editable in a collapsible Markdown card.</p></section></Show>
+      <Show when={focusedElement()?.type === "schemaTable"}><section class="pane-section"><div class="pane-heading">Table schema</div><label class="property-label">Font size<input type="number" min="8" max="48" step="1" value={(focusedElement() as SchemaTableElement | undefined)?.fontSize ?? 14} onChange={event => updateProperty("fontSize", Math.round(Number(event.currentTarget.value)))} /></label><p class="bucket-help">The table grows to keep every row legible.</p></section></Show>
                 <Show when={showStrokeControls()}><section class="pane-section"><div class="pane-heading">{tool() === "text" || focusedElement()?.type === "text" ? "Text color" : "Stroke color"}</div><div class="swatch-list stroke-swatches">{swatches.map((swatch) => <button class={`color-swatch ${selectedColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Set color ${swatch}`} title={swatch} onClick={() => updateStrokeColor(swatch)} />)}<label class="custom-color-swatch stroke-custom-swatch" title="Custom stroke color"><input aria-label="Custom stroke color" type="color" value={selectedColor()} onInput={(event) => updateStrokeColor(event.currentTarget.value)} /></label></div></section></Show>
-                <Show when={showThicknessControls()}><section class="pane-section"><div class="pane-heading">Stroke width <span>{selectedThickness()} px</span></div><div class="preset-list">{([[1, "Ultra-thin"], [2, "Thin"], [5, "Medium"], [10, "Bold"]] as const).map(([value, label]) => <button class={`preset-button ${selectedThickness() === value ? "active" : ""}`} onClick={() => updateThickness(value)} title={`${label}, ${value}px`}><span class="stroke-indicator" style={{ height: `${Math.max(1, value)}px` }} /><small>{label}</small><small>{value}px</small></button>)}</div><button class="advanced-toggle" aria-expanded={showAdvancedThickness()} onClick={() => setShowAdvancedThickness((visible) => !visible)}>Custom width <span>{showAdvancedThickness() ? "−" : "+"}</span></button><Show when={showAdvancedThickness()}><input class="pane-slider" aria-label="Custom stroke thickness" type="range" min="1" max="24" value={selectedThickness()} onInput={(event) => updateThickness(Number(event.currentTarget.value))} /></Show></section></Show>
-                <Show when={tool() === "text" || selectedText() || focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Text formatting</div><div class="format-row"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button></div><label class="property-label">Font size<input type="number" min="8" max="160" value={selectedText()?.fontSize ?? defaultFontSize()} onInput={(event) => setTextFormat("fontSize", Number(event.currentTarget.value))} /></label><div class="property-label">Font family<div class="choice-deck"><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "sans" ? "active" : ""} title="Modern sans-serif" aria-label="Modern sans-serif font" onClick={() => setTextFormat("fontFamily", "sans")}><span class="font-sans-icon">Aa</span><small>Sans</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""} title="Handwritten" aria-label="Handwritten font" onClick={() => setTextFormat("fontFamily", "hand")}><span class="font-hand-icon">Aa</span><small>Hand</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "serif" ? "active" : ""} title="Serif" aria-label="Serif font" onClick={() => setTextFormat("fontFamily", "serif")}><span style={{ "font-family": "Georgia,serif" }}>Aa</span><small>Serif</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "mono" ? "active" : ""} title="Monospaced" aria-label="Monospaced font" onClick={() => setTextFormat("fontFamily", "mono")}><span style={{ "font-family": "monospace" }}>Aa</span><small>Mono</small></button></div></div><div class="property-label">Alignment<div class="choice-deck compact"><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "left" ? "active" : ""} title="Align left" aria-label="Align left" onClick={() => setTextFormat("textAlign", "left")}><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "center" ? "active" : ""} title="Align center" aria-label="Align center" onClick={() => setTextFormat("textAlign", "center")}><svg viewBox="0 0 24 24"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "right" ? "active" : ""} title="Align right" aria-label="Align right" onClick={() => setTextFormat("textAlign", "right")}><svg viewBox="0 0 24 24"><path d="M4 5h16M9 10h11M4 15h16M9 20h11"/></svg></button></div></div><div class="property-label">Paragraphs<div class="choice-deck compact"><button class={(selectedText()?.listType ?? defaultListType()) === "none" ? "active" : ""} title="Plain paragraphs" aria-label="Plain paragraphs" onClick={() => setTextFormat("listType", "none")}><svg viewBox="0 0 24 24"><path d="M5 6h15M5 12h15M5 18h15"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "bullet" ? "active" : ""} title="Bulleted list" aria-label="Bulleted list" onClick={() => setTextFormat("listType", "bullet")}><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "number" ? "active" : ""} title="Numbered list" aria-label="Numbered list" onClick={() => setTextFormat("listType", "number")}><svg viewBox="0 0 24 24"><path d="M4 5h2v3M4 8h3M4 12h3l-3 3h3M10 6h10M10 12h10M10 18h10"/></svg></button></div></div></section></Show>
+                    <Show when={showThicknessControls()}>
+                    <section class="pane-section">
+                      <div class="pane-heading">Stroke width <span>{selectedThickness()} px</span></div>
+                      <Show when={isPenBrushThicknessTarget()} fallback={<>
+                        <div class="preset-list">{ORIGINAL_INSPECTOR_THICKNESS_PRESETS.map(([value, label]) => <button class={`preset-button ${selectedThickness() === value ? "active" : ""}`} onClick={() => updateThickness(value)} title={`${label}, ${value}px`}><span class="stroke-indicator" style={{ height: `${Math.max(1, value)}px` }} /><small>{label}</small><small>{value}px</small></button>)}</div>
+                        <button class="advanced-toggle" aria-expanded={showAdvancedThickness()} onClick={() => setShowAdvancedThickness(visible => !visible)}>Custom width <span>{showAdvancedThickness() ? "−" : "+"}</span></button>
+                        <Show when={showAdvancedThickness()}><input class="pane-slider" aria-label="Custom stroke thickness" type="range" min="1" max="24" value={selectedThickness()} onInput={event => updateThickness(Number(event.currentTarget.value))} /></Show>
+                      </>}>
+                        <Show when={thicknessPickerMode() === "presets"}>
+                          <div class="preset-list">{THICKNESS_PRESETS.map(([value, label]) => <button class={`preset-button ${selectedThickness() === value ? "active" : ""}`} onClick={() => updateThickness(value)} title={`${label}, ${value}px`}><span class="stroke-indicator" style={{ height: `${Math.max(1, value)}px` }} /><small>{label}</small><small>{value}px</small></button>)}</div>
+                        </Show>
+                        <Show when={thicknessPickerMode() === "stepper"}>
+                          <ThicknessTuner value={selectedThickness()} color={themeInk(selectedColor(), theme())} sliderClassName="pane-slider" onChange={updateThickness} />
+                        </Show>
+                      </Show>
+                    </section>
+                  </Show>
+                <Show when={tool() === "text" || selectedText() || focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Text formatting</div><div class="format-row"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button></div><label class="property-label">Font size<input type="number" min="8" max="160" step="1" value={selectedText()?.fontSize ?? defaultFontSize()} onInput={(event) => setTextFormat("fontSize", Math.round(Number(event.currentTarget.value)))} /></label><div class="property-label">Font family<div class="choice-deck"><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "sans" ? "active" : ""} title="Modern sans-serif" aria-label="Modern sans-serif font" onClick={() => setTextFormat("fontFamily", "sans")}><span class="font-sans-icon">Aa</span><small>Sans</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""} title="Handwritten" aria-label="Handwritten font" onClick={() => setTextFormat("fontFamily", "hand")}><span class="font-hand-icon">Aa</span><small>Hand</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "serif" ? "active" : ""} title="Serif" aria-label="Serif font" onClick={() => setTextFormat("fontFamily", "serif")}><span style={{ "font-family": "Georgia,serif" }}>Aa</span><small>Serif</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "mono" ? "active" : ""} title="Monospaced" aria-label="Monospaced font" onClick={() => setTextFormat("fontFamily", "mono")}><span style={{ "font-family": "monospace" }}>Aa</span><small>Mono</small></button></div></div><div class="property-label">Alignment<div class="choice-deck compact"><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "left" ? "active" : ""} title="Align left" aria-label="Align left" onClick={() => setTextFormat("textAlign", "left")}><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "center" ? "active" : ""} title="Align center" aria-label="Align center" onClick={() => setTextFormat("textAlign", "center")}><svg viewBox="0 0 24 24"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "right" ? "active" : ""} title="Align right" aria-label="Align right" onClick={() => setTextFormat("textAlign", "right")}><svg viewBox="0 0 24 24"><path d="M4 5h16M9 10h11M4 15h16M9 20h11"/></svg></button></div></div><div class="property-label">Paragraphs<div class="choice-deck compact"><button class={(selectedText()?.listType ?? defaultListType()) === "none" ? "active" : ""} title="Plain paragraphs" aria-label="Plain paragraphs" onClick={() => setTextFormat("listType", "none")}><svg viewBox="0 0 24 24"><path d="M5 6h15M5 12h15M5 18h15"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "bullet" ? "active" : ""} title="Bulleted list" aria-label="Bulleted list" onClick={() => setTextFormat("listType", "bullet")}><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "number" ? "active" : ""} title="Numbered list" aria-label="Numbered list" onClick={() => setTextFormat("listType", "number")}><svg viewBox="0 0 24 24"><path d="M4 5h2v3M4 8h3M4 12h3l-3 3h3M10 6h10M10 12h10M10 18h10"/></svg></button></div></div></section></Show>
                 <Show when={focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Shape label</div>
                   <button class="quiet-button" disabled={boardLocked() || focusedElement()?.locked} onClick={() => { const index = primarySelection(); if (index !== undefined) editShapeLabel(index); }}>Edit label</button>
                   <label class="property-label">Font color<input type="color" value={textDraft()?.shapeLabel ? textDraft()!.color : selectedLabel()?.color ?? color()} onInput={event => updateLabel("color", event.currentTarget.value)} /></label>
@@ -3890,7 +3528,7 @@ function App() {
         <button role="menuitem" disabled={!selectedIndices().length} onClick={() => { setExportScope("selection"); openExportOptions("png"); }}>Export selection…</button>
         <button role="menuitem" disabled={boardLocked() || !selectedIndices().length} onClick={deleteSelected}>Delete <kbd>Del</kbd></button>
       </div>}</Show>
-      <Show when={classCardDraft()}>{draft => <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setClassCardDraft(undefined); }}><section class="confirm-dialog class-card-dialog" role="dialog" aria-modal="true" aria-labelledby="class-card-title"><header><div><span class="eyebrow">UML CLASS CARD</span><h2 id="class-card-title">{draft().componentId ? "Edit class card" : "Create a class card"}</h2></div><button class="help-close" aria-label="Close class card editor" onClick={() => setClassCardDraft(undefined)}>&times;</button></header><p>Enter the class name, attributes, and methods. The card grows to fit its content; its sections stay independently editable on the canvas.</p><label>Class name<input autofocus value={draft().name} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label>Attributes<textarea rows="4" placeholder={"+ id: UUID\n- name: string"} value={draft().attributes} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label>Methods<textarea rows="3" placeholder={"+ create()\n- validate()"} value={draft().methods} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><label>Font size<input type="number" min="8" max="48" value={draft().fontSize} onChange={event => setClassCardDraft(value => value ? { ...value, fontSize: Number(event.currentTarget.value) } : value)} /></label><div><button class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button class="save-button" onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></section></div>}</Show>
+      <Show when={classCardDraft()}>{draft => <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setClassCardDraft(undefined); }}><section class="confirm-dialog class-card-dialog" role="dialog" aria-modal="true" aria-labelledby="class-card-title"><header><div><span class="eyebrow">UML CLASS CARD</span><h2 id="class-card-title">{draft().componentId ? "Edit class card" : "Create a class card"}</h2></div><button class="help-close" aria-label="Close class card editor" onClick={() => setClassCardDraft(undefined)}>&times;</button></header><p>Enter the class name, attributes, and methods. The card grows to fit its content; its sections stay independently editable on the canvas.</p><label>Class name<input autofocus value={draft().name} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label>Attributes<textarea rows="4" placeholder={"+ id: UUID\n- name: string"} value={draft().attributes} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label>Methods<textarea rows="3" placeholder={"+ create()\n- validate()"} value={draft().methods} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><label>Font size<input type="number" min="8" max="48" step="1" value={draft().fontSize} onChange={event => setClassCardDraft(value => value ? { ...value, fontSize: Math.round(Number(event.currentTarget.value)) } : value)} /></label><div><button class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button class="save-button" onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></section></div>}</Show>
       <Show when={mermaidDialog()}>
         <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) closeMermaidDialog(); }}>
           <section class="confirm-dialog schema-dialog mermaid-dialog" role="dialog" aria-modal="true" aria-labelledby="mermaid-title">
@@ -3898,7 +3536,9 @@ function App() {
             <p>Paste Mermaid flowchart code. The preview updates as you type. SketchDraw stores the source in the .sketch file and creates native shapes and connectors. Double-click the diagram to edit its source. Subgraphs, node labels, decisions, solid, dashed, dotted, thick, bidirectional and endpoint-marked connectors are supported.</p>
             <div class="mermaid-editor-layout">
               <textarea autofocus class="mermaid-input" aria-label="Mermaid flowchart source" value={mermaidInput()} placeholder={'flowchart TD\n  subgraph Auth[Authentication]\n    Start([Start]) --> Check{Ready?}\n    Check -.->|retry| Start\n  end\n  Check ==> Done[Finish]'} onInput={event => { setMermaidInput(event.currentTarget.value); setMermaidError(""); }} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, setMermaidInput); }} />
-              <MermaidPreview source={mermaidInput()} />
+              <Suspense fallback={<div class="mermaid-preview-loading" role="status">Loading live preview…</div>}>
+                <MermaidPreview source={mermaidInput()} />
+              </Suspense>
             </div>
             <Show when={mermaidError()}><p class="schema-error" role="alert">{mermaidError()}</p></Show>
             <div class="mermaid-dialog-footer"><span>Up to 200 nodes, 500 connectors and 50 subgraphs</span><div><button class="quiet-button" onClick={closeMermaidDialog}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={insertMermaidDiagram}>{mermaidEditingDiagram() ? "Update diagram" : "Generate canvas diagram"}</button></div></div>

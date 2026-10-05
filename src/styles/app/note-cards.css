@@ -1,0 +1,239 @@
+/* Compact content families keep notes and diagram starters close to the text and shape tools. */
+.tool-family.options-open .text-options {
+    left: auto;
+    right: 0;
+    transform: none;
+    width: 334px;
+    grid-template-columns: repeat(4, minmax(68px, 1fr));
+}
+
+.stencil-family > .tool-icon-button {
+    width: 42px;
+}
+
+.tool-family.options-open .stencil-options {
+    left: auto;
+    right: 0;
+    transform: none;
+    display: grid;
+    width: 326px;
+    max-width: calc(100vw - 24px);
+    max-height: min(70vh, 620px);
+    grid-template-columns: repeat(3, minmax(72px, 1fr));
+    overflow-y: auto;
+}
+
+.tool-options-heading {
+    grid-column: 1 / -1;
+    padding: 3px 6px 0;
+    color: #778579;
+    font-size: 9px;
+    font-weight: 750;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.tool-options-heading.stencil-heading {
+    margin-top: 5px;
+    padding-top: 10px;
+    border-top: 1px solid #e4e9e2;
+}
+
+.stencil-options button.stencil-template {
+    min-height: 88px;
+    padding: 10px 8px;
+    border-color: #edf0eb;
+    background: linear-gradient(180deg, #ffffff 0%, #f8faf7 100%);
+}
+
+.stencil-options button.stencil-template svg {
+    width: 30px;
+    height: 30px;
+    stroke-width: 1.65;
+}
+
+.stencil-options button.stencil-template:hover {
+    --stencil-icon-bg: #eff6ed;
+    border-color: #cbdcc9;
+    background: #eff6ed;
+}
+
+.canvas-note-editor {
+    position: absolute;
+    z-index: 6;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 9px 11px 10px;
+    min-width: 220px;
+    min-height: 130px;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+    resize: both;
+    border: 1px solid #c8d7eb;
+    border-radius: 13px;
+    color: #303d4c;
+    background: #edf3fb;
+    box-shadow: 0 14px 36px #28384924, 0 2px 8px #28384910;
+}
+
+.canvas-note-editor.sticky {
+    border-color: #e0cc73;
+    color: #514724;
+    background: #fff1a8;
+}
+
+.canvas-note-editor.checklist {
+    border-color: #d5e2d6;
+    color: #33423a;
+    background: #f3f8f3;
+}
+
+.canvas-note-editor > header {
+    display: flex;
+    min-height: 24px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: #718094;
+    font: 750 10px/1 'DM Mono', monospace;
+    letter-spacing: .09em;
+}
+
+.canvas-note-editor.sticky > header { color: #837539; }
+.canvas-note-editor.checklist > header { color: #718575; }
+
+.canvas-note-editor .editor-key-hint {
+    margin-right: auto;
+    padding: 4px 7px;
+    border: 1px solid #d7e0ea;
+    border-radius: 999px;
+    color: #718094;
+    background: #ffffff75;
+    font: 600 9px/1 'DM Sans', sans-serif;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.canvas-note-editor > header button {
+    padding: 4px 8px;
+    border: 1px solid #c8d7eb;
+    border-radius: 7px;
+    color: #405b76;
+    background: #ffffffa8;
+    font: 650 10px 'DM Sans', sans-serif;
+    letter-spacing: 0;
+    cursor: pointer;
+}
+
+.canvas-note-editor.sticky > header button { border-color: #e1d28a; color: #665a2c; }
+.canvas-note-editor.checklist > header button { border-color: #d5e2d6; color: #52735c; }
+
+.canvas-note-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 0;
+    flex: 1;
+    resize: none;
+    padding: 4px 2px;
+    border: 0;
+    outline: 0;
+    color: inherit;
+    background: transparent;
+    font: 13px/1.55 'Cascadia Mono', Consolas, monospace;
+    tab-size: 2;
+    overflow: auto;
+}
+
+.canvas-note-input::placeholder { color: #8592a0; opacity: .75; }
+.canvas-note-editor.sticky .canvas-note-input::placeholder { color: #9b8b4b; }
+
+.theme-dark .canvas-note-editor {
+    border-color: #465568;
+    color: #d7e1ed;
+    background: #253140;
+    box-shadow: 0 8px 24px #0007;
+}
+
+.theme-dark .canvas-note-editor > header { color: #a4b2c3; }
+.theme-dark .canvas-note-editor > header button { border-color: #465568; color: #d7e1ed; background: #334153; }
+.theme-dark .canvas-note-editor .editor-key-hint { border-color: #465568; color: #a4b2c3; background: #334153; }
+
+.schema-dialog {
+    display: grid;
+    width: min(700px, 100%);
+    gap: 12px;
+}
+
+.schema-dialog > header,
+.schema-dialog-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.schema-dialog h2 { margin: 3px 0 0; }
+.schema-dialog > p { margin: 0; }
+
+.schema-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 300px;
+    resize: vertical;
+    padding: 14px;
+    border: 1px solid #dce3dd;
+    border-radius: 10px;
+    outline: none;
+    color: #29352e;
+    background: #fbfcfa;
+    font: 12px/1.6 'Cascadia Mono', Consolas, monospace;
+    tab-size: 2;
+    white-space: pre;
+    overflow: auto;
+}
+
+.schema-input:focus { border-color: #87a987; box-shadow: 0 0 0 3px #789b791c; }
+
+.schema-dialog-footer > span { color: var(--muted); font-size: 11px; }
+.schema-dialog-footer > div { display: flex; gap: 8px; }
+.schema-error { margin: 0; color: #a14642; font-size: 12px; }
+
+.pen-input-popover {
+    display: grid;
+    min-width: 192px;
+    gap: 9px;
+    color: #414c44;
+    font-size: 12px;
+}
+
+.pen-input-popover > strong { color: #526d59; font-size: 11px; }
+.pen-input-popover > label { display: flex; align-items: center; gap: 8px; }
+.pen-input-popover input { accent-color: #63896b; }
+.pen-input-popover > small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+
+.theme-dark .schema-input { border-color: #424b4a; color: #e0e5df; background: #202522; }
+.theme-dark .schema-error { color: #f0b1aa; }
+.theme-dark .pen-input-popover { color: #d5ddd6; }
+
+.theme-dark .tool-options-heading {
+    color: #a6b2a5;
+}
+
+.theme-dark .tool-options-heading.stencil-heading {
+    border-color: #465047;
+}
+
+@media (max-width: 760px) {
+    .tool-family.options-open .text-options,
+    .tool-family.options-open .stencil-options {
+        left: auto;
+        right: 0;
+        width: min(326px, calc(100vw - 24px));
+    }
+
+    .schema-dialog-footer { align-items: flex-start; flex-direction: column; }
+}
+
