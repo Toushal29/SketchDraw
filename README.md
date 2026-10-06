@@ -4,7 +4,7 @@
 
 SketchDraw is a local-first whiteboard for Windows, Android, and iOS, with a responsive workspace for desktop, tablet, and phone screens. Use it for flowcharts, diagrams, and visual notes. Each project is a portable `.sketch` file you choose where to save. Keep it on your device or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
 
-**Current release: Windows 7.1.0 · Android 2.0.0 · Document format: version 7 · Copyright © 2026 Toushal Sampat**
+**Current release: Windows 7.2.0 · Android 2.2.0 · Document format: version 7 · Copyright © 2026 Toushal Sampat**
 
 > SketchDraw saves version 7 `.sketch` documents on both platforms. Recognizable earlier SketchDraw JSON versions (1-6) are migrated to v7 when opened and saved back to the same `.sketch` file; unrelated or malformed files remain unsupported. The `.sketch` extension stays the same.
 
