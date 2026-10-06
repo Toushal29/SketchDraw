@@ -1,0 +1,230 @@
+/* Neutral charcoal surfaces across the app chrome and its controls. */
+.app-shell.theme-dark {
+    --dark-ui-base: #1d222a;
+    --dark-ui-surface: #222831;
+    --dark-ui-raised: #29313c;
+    --dark-ui-inset: #191e26;
+    --dark-ui-border: #3b4552;
+    --dark-ui-border-soft: #323b47;
+    --dark-ui-ink: #e0e5ed;
+    --dark-ui-muted: #a6afbc;
+    --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 24%, #28313d);
+    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 58%, #8a9bad);
+    --ui-accent-ink: color-mix(in srgb, var(--ui-accent) 54%, #f0f4f8);
+    background: #181d24;
+    color: var(--dark-ui-ink);
+}
+
+.app-shell.theme-dark > .topbar,
+.app-shell.theme-dark .touch-tool-bar,
+.app-shell.theme-dark .page-tabs,
+.app-shell.theme-dark .touch-page-control > summary,
+.app-shell.theme-dark .touch-pages-popover,
+.app-shell.theme-dark .floating-layer-panel,
+.app-shell.theme-dark .style-pane.quick-style-mode,
+.app-shell.theme-dark .style-pane.full-style-mode,
+.app-shell.theme-dark .style-pane.full-style-mode > .full-inspector,
+.app-shell.theme-dark .full-inspector .full-style-heading,
+.app-shell.theme-dark .tool-deck,
+.app-shell.theme-dark .tool-options,
+.app-shell.theme-dark .canvas-options-menu,
+.app-shell.theme-dark .system-menu-popover,
+.app-shell.theme-dark .view-settings-popover,
+.app-shell.theme-dark .gesture-settings-popover,
+.app-shell.theme-dark .app-settings-popover,
+.app-shell.theme-dark .quick-style-popover,
+.app-shell.theme-dark .thickness-popover,
+.app-shell.theme-dark .quick-brush-picker,
+.app-shell.theme-dark .export-options,
+.app-shell.theme-dark .pdf-settings,
+.app-shell.theme-dark .help-dialog,
+.app-shell.theme-dark .schema-dialog,
+.app-shell.theme-dark .mermaid-dialog,
+.app-shell.theme-dark .confirm-dialog,
+.app-shell.theme-dark .recent-dashboard,
+.app-shell.theme-dark .mobile-home-recent,
+.app-shell.theme-dark .mobile-home-action {
+    border-color: var(--dark-ui-border);
+    color: var(--dark-ui-ink);
+    background-color: var(--dark-ui-surface);
+}
+
+.app-shell.theme-dark > .topbar,
+.app-shell.theme-dark .touch-tool-bar,
+.app-shell.theme-dark .tool-deck,
+.app-shell.theme-dark .system-menu-popover,
+.app-shell.theme-dark .view-settings-popover,
+.app-shell.theme-dark .gesture-settings-popover,
+.app-shell.theme-dark .app-settings-popover,
+.app-shell.theme-dark .quick-style-popover,
+.app-shell.theme-dark .thickness-popover,
+.app-shell.theme-dark .help-dialog,
+.app-shell.theme-dark .confirm-dialog,
+.app-shell.theme-dark .recent-dashboard,
+.app-shell.theme-dark .mobile-home-recent {
+    box-shadow: 0 16px 42px #0008;
+}
+
+.app-shell.theme-dark .tool-cluster {
+    border-color: var(--dark-ui-border-soft);
+    background: var(--dark-ui-raised);
+}
+
+.app-shell.theme-dark .tool-cluster-canvas { border-color: transparent; background: transparent; }
+.app-shell.theme-dark .tool-icon-button.selected,
+.app-shell.theme-dark .canvas-options-trigger.active,
+.app-shell.theme-dark .canvas-options-trigger:hover {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+    box-shadow: none;
+}
+
+.app-shell.theme-dark .tool-options button,
+.app-shell.theme-dark .canvas-options-grid button,
+.app-shell.theme-dark .view-panel-tabs button,
+.app-shell.theme-dark .component-setting-section .component-style-options button,
+.app-shell.theme-dark .app-setting-choices button,
+.app-shell.theme-dark .gesture-action-card,
+.app-shell.theme-dark .gesture-action-card select,
+.app-shell.theme-dark .app-setting-field select,
+.app-shell.theme-dark .app-display-info,
+.app-shell.theme-dark .toolbar-color-options .named-color-choice,
+.app-shell.theme-dark .board-color-choice,
+.app-shell.theme-dark .whiteboard-style-choice,
+.app-shell.theme-dark .theme-options button,
+.app-shell.theme-dark .accent-choice,
+.app-shell.theme-dark .touch-page-more-menu {
+    border-color: var(--dark-ui-border);
+    color: var(--dark-ui-ink);
+    background-color: var(--dark-ui-raised);
+}
+
+.app-shell.theme-dark .tool-options button:hover,
+.app-shell.theme-dark .tool-options button.active,
+.app-shell.theme-dark .canvas-options-grid button:hover:not(:disabled),
+.app-shell.theme-dark .canvas-options-grid button.active,
+.app-shell.theme-dark .view-panel-tabs button.active,
+.app-shell.theme-dark .component-setting-section .component-style-options button.active,
+.app-shell.theme-dark .app-setting-choices button.active,
+.app-shell.theme-dark .accent-choice.active,
+.app-shell.theme-dark .board-color-choice.active,
+.app-shell.theme-dark .whiteboard-style-choice.active,
+.app-shell.theme-dark .theme-options button.active {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+}
+
+.app-shell.theme-dark .view-menu-section,
+.app-shell.theme-dark .app-settings-heading,
+.app-shell.theme-dark .app-setting-toggle,
+.app-shell.theme-dark .app-settings-heading,
+.app-shell.theme-dark .view-panel-tabs,
+.app-shell.theme-dark .gesture-menu-heading,
+.app-shell.theme-dark .gesture-action-card,
+.app-shell.theme-dark .component-setting-section,
+.app-shell.theme-dark .toolbar-setting-section,
+.app-shell.theme-dark .pattern-setting-section,
+.app-shell.theme-dark .pdf-setting-section,
+.app-shell.theme-dark .help-dialog > header,
+.app-shell.theme-dark .help-dialog > footer,
+.app-shell.theme-dark .full-inspector .pane-section {
+    border-color: var(--dark-ui-border-soft);
+}
+
+.app-shell.theme-dark :is(.view-menu-heading > div > span, .view-section-heading > span:last-child,
+.app-settings-heading small, .app-setting-field, .app-setting-field > small,
+.app-setting-toggle small, .app-display-info small, .gesture-menu-heading p,
+.gesture-card-copy small, .gesture-menu-note, .board-custom-choice,
+.view-panel-tabs button, .app-display-info > strong) {
+    color: var(--dark-ui-muted);
+}
+
+.app-shell.theme-dark .paper-pattern-swatch {
+    border-color: var(--dark-ui-border);
+    background-color: var(--dark-ui-inset);
+}
+.app-shell.theme-dark .paper-pattern-swatch.dots { background-image: radial-gradient(#697482 1px, transparent 1.2px); }
+.app-shell.theme-dark .paper-pattern-swatch.small-dots { background-image: radial-gradient(#697482 .7px, transparent .9px); }
+.app-shell.theme-dark .paper-pattern-swatch.lines,
+.app-shell.theme-dark .paper-pattern-swatch.small-grid { background-image: linear-gradient(#3c4652 1px, transparent 1px), linear-gradient(90deg, #3c4652 1px, transparent 1px); }
+.app-shell.theme-dark .paper-pattern-swatch.ruled { background-image: linear-gradient(transparent 5px, #3c4652 5px, #3c4652 6px, transparent 6px); }
+.app-shell.theme-dark .paper-pattern-swatch.isometric { background-image: repeating-linear-gradient(0deg, transparent 0 7px, #3c4652 7px 8px), repeating-linear-gradient(60deg, transparent 0 7px, #3c4652 7px 8px), repeating-linear-gradient(120deg, transparent 0 7px, #3c4652 7px 8px); }
+
+.app-shell.theme-dark .app-display-info,
+.app-shell.theme-dark .gesture-action-card,
+.app-shell.theme-dark .view-panel-tabs button,
+.app-shell.theme-dark .quick-style-heading,
+.app-shell.theme-dark .full-style-heading,
+.app-shell.theme-dark .pdf-setting-heading,
+.app-shell.theme-dark .help-guide > section,
+.app-shell.theme-dark .mobile-home-action-icon,
+.app-shell.theme-dark .mobile-home-file-icon,
+.app-shell.theme-dark .mobile-home-empty-icon,
+.app-shell.theme-dark .mobile-home-count {
+    background-color: var(--dark-ui-raised);
+}
+
+.app-shell.theme-dark .mobile-home-action.primary {
+    border-color: var(--ui-accent-border);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 26%, var(--dark-ui-raised)), var(--dark-ui-surface) 78%);
+}
+
+.app-shell.theme-dark .quick-style-icon,
+.app-shell.theme-dark .quick-text-size,
+.app-shell.theme-dark .quick-text-format,
+.app-shell.theme-dark .quick-fill-toggle,
+.app-shell.theme-dark .quick-arrow-heads button,
+.app-shell.theme-dark .quick-line-styles button,
+.app-shell.theme-dark .quick-routes button,
+.app-shell.theme-dark .quick-text-size button,
+.app-shell.theme-dark .quick-text-format button,
+.app-shell.theme-dark .quick-style-heading button,
+.app-shell.theme-dark .note-card-details select,
+.app-shell.theme-dark .note-card-details input,
+.app-shell.theme-dark .full-inspector input:not([type="checkbox"]):not([type="radio"]),
+.app-shell.theme-dark .full-inspector select,
+.app-shell.theme-dark .full-inspector textarea,
+.app-shell.theme-dark .schema-input,
+.app-shell.theme-dark .note-collapse-action {
+    border-color: var(--dark-ui-border);
+    color: var(--dark-ui-ink);
+    background: var(--dark-ui-raised);
+}
+
+.app-shell.theme-dark .quick-style-icon:hover,
+.app-shell.theme-dark .quick-style-icon[aria-expanded="true"],
+.app-shell.theme-dark .quick-style-icon.active,
+.app-shell.theme-dark .quick-line-styles button.active,
+.app-shell.theme-dark .quick-routes button.active,
+.app-shell.theme-dark .quick-arrow-heads button.active,
+.app-shell.theme-dark .quick-arrow-heads button:hover {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+}
+
+.app-shell.theme-dark .gesture-action-card { background: var(--dark-ui-raised); }
+.app-shell.theme-dark .canvas-note-editor { border-color: var(--dark-ui-border); background: var(--dark-ui-surface); }
+.app-shell.theme-dark .canvas-note-editor:focus-within { box-shadow: 0 18px 46px #0008, 0 0 0 3px color-mix(in srgb, var(--ui-accent) 18%, transparent); }
+.app-shell.theme-dark .welcome-card,
+.app-shell.theme-dark .recent-dashboard,
+.app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-screen,
+.app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-recent,
+.app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-action { background: var(--dark-ui-surface); }
+.app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-action.primary {
+    border-color: var(--ui-accent-border);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 26%, var(--dark-ui-raised)), var(--dark-ui-surface) 78%);
+}
+.app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-action-icon,
+.app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-file-icon,
+.app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-empty-icon,
+.app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-count {
+    border-color: var(--dark-ui-border);
+    color: var(--dark-ui-muted);
+    background: var(--dark-ui-raised);
+}
+.app-shell.theme-dark:not(.platform-windows) > .canvas-wrap { background: #151a21; }
+.app-shell.theme-dark .canvas-note-input::selection { color: #f1f4f8; background: color-mix(in srgb, var(--ui-accent) 46%, #27313d); }
+

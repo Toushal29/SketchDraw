@@ -12,15 +12,15 @@ type Props = {
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
   mobileButtonChoices: boolean;
-  mobileOrientation: "landscape" | "portrait";
-  showOrientationSetting: boolean;
-  orientationMessage?: string;
+  androidAllFilesAccessAvailable: boolean;
+  androidAllFilesAccessGranted: boolean;
+  showAndroidAllFilesAccess: boolean;
   reduceMotion: boolean;
   displayMetrics: DisplayMetrics;
   onInterfaceScaleChange: (scale: number) => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: "presets" | "stepper") => void;
-  onMobileOrientationChange: (orientation: "landscape" | "portrait") => void;
+  onRequestAndroidAllFilesAccess: () => void;
   onReduceMotionChange: (reduce: boolean) => void;
   onRestoreDefaults: () => void;
   detailsRef?: (element: HTMLDetailsElement) => void;
@@ -69,13 +69,10 @@ export function AppSettingsMenu(props: Props) {
           </Show>
           <small>Choose presets or fine tuning for pen and paint brushes. Other tools keep their existing controls.</small>
         </div>
-        {props.showOrientationSetting && <div class="app-setting-field">
-          <span>Mobile orientation</span>
-          <Show when={props.mobileButtonChoices} fallback={<select aria-label="Mobile orientation" value={props.mobileOrientation} onChange={event => props.onMobileOrientationChange(event.currentTarget.value as "landscape" | "portrait")}><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>}>
-            <SettingChoices label="Mobile orientation" value={props.mobileOrientation} options={[{ value: "landscape", label: "Landscape" }, { value: "portrait", label: "Portrait" }]} onChange={props.onMobileOrientationChange} />
-          </Show>
-          <small>Choose the screen direction for this device. The touch workspace rearranges to fit.</small>
-          {props.orientationMessage && <small class="orientation-setting-message" role="status">{props.orientationMessage}</small>}
+        {props.showAndroidAllFilesAccess && <div class="app-setting-field app-android-storage-setting">
+          <span>Android all files access <strong>{!props.androidAllFilesAccessAvailable ? "Unavailable" : props.androidAllFilesAccessGranted ? "Allowed" : "Not allowed"}</strong></span>
+          <small>{props.androidAllFilesAccessAvailable ? "Android manages this special permission in Settings. You can allow or deny broad shared-storage access there. SketchDraw can still open and save files through Android's document picker when this is off." : "This special Android setting is available on Android 11 and later. The document picker remains available on this device."}</small>
+          <button type="button" class="app-settings-reset" disabled={!props.androidAllFilesAccessAvailable} onClick={props.onRequestAndroidAllFilesAccess}>{props.androidAllFilesAccessGranted ? "Manage storage access" : "Choose storage access"}</button>
         </div>}
         <label class="app-setting-toggle">
           <span><strong>Reduce motion</strong><small>Turn off most interface animations</small></span>

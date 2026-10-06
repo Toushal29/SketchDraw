@@ -45,8 +45,11 @@ export function TouchQuickStyleControls(props: Props): JSX.Element {
   const panelPosition = (button: HTMLButtonElement | undefined, maxWidth: number) => {
     if (!button || props.orientation === "portrait") return undefined;
     const bounds = button.getBoundingClientRect();
-    const panelWidth = Math.min(maxWidth, window.innerWidth - 16);
-    const left = Math.max(8, Math.min(bounds.left, window.innerWidth - panelWidth - 8));
+    const shell = document.querySelector<HTMLElement>(".app-shell");
+    const dockOnLeft = shell?.classList.contains("mobile-toolbar-left") ?? true;
+    const panelWidth = Math.min(maxWidth, window.innerWidth - 76);
+    const preferredLeft = dockOnLeft ? Math.max(58, bounds.left) : 8;
+    const left = Math.max(8, Math.min(preferredLeft, window.innerWidth - panelWidth - 8));
     const top = Math.max(8, Math.min(bounds.bottom + 6, window.innerHeight - 110));
     return { top: `${top}px`, left: `${left}px` };
   };

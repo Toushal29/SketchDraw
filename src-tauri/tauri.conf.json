@@ -15,8 +15,8 @@
         "title": "SketchDraw",
         "width": 1360,
         "height": 820,
-        "minWidth": 1000,
-        "minHeight": 680
+        "minWidth": 1200,
+        "minHeight": 800
       }
     ],
     "security": {

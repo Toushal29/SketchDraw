@@ -156,7 +156,7 @@
         transform: none !important;
     }
 
-    /* Keep the selected tools on one row. Narrow phones get the essentials; wider tablets get more. */
+    /* Keep the complete tool rail on one row and let narrow screens scroll it. */
     .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-bar {
         top: max(6px, env(safe-area-inset-top));
         right: max(6px, env(safe-area-inset-right));
@@ -187,9 +187,13 @@
         flex-direction: row;
         flex-wrap: nowrap;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-start;
         gap: 1px;
-        overflow: hidden;
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
         touch-action: pan-x;
     }
 
@@ -253,19 +257,7 @@
     .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-actions .mobile-tools-toggle svg,
     .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-actions .tool-collapse svg { width: 17px; height: 17px; }
 
-    @media (max-width: 419px) {
-        .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-icon-button:not(.mobile-tool-essential):not(.mobile-tool-current),
-        .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .canvas-options-family,
-        .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content > .tool-extra-family,
-        .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family:not(.mobile-tool-essential-family):not(.mobile-tool-current-family) { display: none !important; }
-        .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content > .tool-cluster-history .canvas-utility-button { display: none !important; }
-    }
-
     @media (min-width: 420px) and (max-width: 599px) {
-        .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-icon-button:not(.mobile-tool-essential):not(.mobile-tool-current),
-        .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .canvas-options-family,
-        .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content > .tool-extra-family,
-        .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family:not(.mobile-tool-essential-family):not(.mobile-tool-current-family) { display: none !important; }
         .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-icon-button,
         .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .canvas-options-trigger,
         .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family,
@@ -298,6 +290,18 @@
 
         .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .canvas-options-family,
         .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content > .tool-extra-family { display: grid !important; }
+    }
+
+    /* Keep every tool available in the portrait rail; narrow screens scroll sideways. */
+    .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content > .tool-cluster {
+        display: flex !important;
+        flex: 0 0 auto;
+    }
+    .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-icon-button,
+    .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .canvas-options-trigger,
+    .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family,
+    .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family > .tool-icon-button {
+        display: grid !important;
     }
 
     .app-shell.mobile-orientation-portrait:not(.platform-windows).mobile-tools-expanded .touch-tool-bar {
@@ -367,6 +371,269 @@
         top: calc(var(--portrait-toolbar-height) + 8px);
         right: max(10px, env(safe-area-inset-right));
         bottom: auto;
+        left: auto;
+    }
+
+    /* Keep every tool in the landscape dock and scroll the full tool list vertically. */
+    .app-shell:not(.mobile-orientation-portrait):not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content {
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+    }
+    .app-shell:not(.mobile-orientation-portrait):not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content > .tool-cluster {
+        display: flex !important;
+        flex: 0 0 auto;
+    }
+    .app-shell:not(.mobile-orientation-portrait):not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-icon-button,
+    .app-shell:not(.mobile-orientation-portrait):not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .canvas-options-trigger,
+    .app-shell:not(.mobile-orientation-portrait):not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family,
+    .app-shell:not(.mobile-orientation-portrait):not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family > .tool-icon-button {
+        display: grid !important;
+    }
+
+    /* The toolbar edge is independent of screen orientation. */
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows) { --mobile-horizontal-toolbar-height: 78px; }
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-bar {
+        box-sizing: border-box;
+        right: max(6px, env(safe-area-inset-right));
+        left: max(6px, env(safe-area-inset-left));
+        width: auto;
+        max-width: none;
+        min-height: var(--mobile-horizontal-toolbar-height);
+        height: var(--mobile-horizontal-toolbar-height);
+        max-height: var(--mobile-horizontal-toolbar-height);
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+        padding: 4px 5px;
+        overflow: hidden;
+        border-radius: 14px;
+        transform: none;
+        touch-action: pan-x;
+    }
+    .app-shell.mobile-toolbar-top:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-bar {
+        top: max(6px, env(safe-area-inset-top));
+        bottom: auto;
+    }
+    .app-shell.mobile-toolbar-bottom:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-bar {
+        top: auto;
+        bottom: max(6px, env(safe-area-inset-bottom));
+    }
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content {
+        box-sizing: border-box;
+        display: flex;
+        width: 100%;
+        height: 36px;
+        min-height: 0;
+        flex: 1 1 auto;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 1px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x;
+    }
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content > .tool-cluster {
+        width: auto;
+        min-width: 0;
+        flex: 0 0 auto;
+        flex-direction: row;
+        align-items: center;
+        gap: 1px;
+        padding: 0;
+        border: 0;
+    }
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-icon-button,
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .canvas-options-trigger,
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family,
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family > .tool-icon-button {
+        box-sizing: border-box;
+        width: clamp(23px, calc((100vw - 40px) / 11), 32px);
+        min-width: clamp(23px, calc((100vw - 40px) / 11), 32px);
+        height: 34px;
+        min-height: 34px;
+        border-radius: 9px;
+    }
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-actions {
+        display: flex;
+        height: 29px;
+        min-height: 29px;
+        flex: 0 0 29px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 3px;
+        padding: 2px 1px 0;
+        border-top: 1px solid var(--touch-line);
+    }
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-actions .touch-style-open,
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-actions .mobile-tools-toggle,
+    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-actions .tool-collapse {
+        box-sizing: border-box;
+        display: grid;
+        width: 29px;
+        min-width: 29px;
+        height: 26px;
+        min-height: 26px;
+        place-items: center;
+        padding: 0;
+        border-radius: 8px;
+    }
+    .app-shell.mobile-toolbar-top:not(.platform-windows) .touch-tool-reopen {
+        top: max(6px, env(safe-area-inset-top));
+        right: auto;
+        bottom: auto;
+        left: max(6px, env(safe-area-inset-left));
+        transform: none;
+    }
+    .app-shell.mobile-toolbar-bottom:not(.platform-windows) .touch-tool-reopen {
+        top: auto;
+        right: auto;
+        bottom: max(6px, env(safe-area-inset-bottom));
+        left: max(6px, env(safe-area-inset-left));
+        transform: none;
+    }
+
+    .app-shell.mobile-toolbar-vertical:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-bar {
+        top: max(10px, env(safe-area-inset-top));
+        right: auto;
+        bottom: max(10px, env(safe-area-inset-bottom));
+        left: max(8px, env(safe-area-inset-left));
+        box-sizing: border-box;
+        width: 50px;
+        max-width: 50px;
+        min-height: 0;
+        height: auto;
+        max-height: none;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 5px;
+        padding: 5px;
+        overflow: hidden;
+        border-radius: 18px;
+        transform: none;
+        touch-action: auto;
+    }
+    .app-shell.mobile-toolbar-right:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-bar {
+        right: max(8px, env(safe-area-inset-right));
+        left: auto;
+    }
+    .app-shell.mobile-toolbar-vertical:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        flex: 1 1 auto;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+    }
+    .app-shell.mobile-toolbar-vertical:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content > .tool-cluster {
+        display: flex !important;
+        width: 100%;
+        flex: 0 0 auto;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: 2px 0;
+        border: 0;
+        border-top: 1px solid var(--touch-line);
+        border-radius: 0;
+        background: transparent;
+    }
+    .app-shell.mobile-toolbar-vertical:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content > .tool-cluster:first-child { border-top: 0; }
+    .app-shell.mobile-toolbar-vertical:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-icon-button,
+    .app-shell.mobile-toolbar-vertical:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .canvas-options-trigger,
+    .app-shell.mobile-toolbar-vertical:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family,
+    .app-shell.mobile-toolbar-vertical:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-content .tool-family > .tool-icon-button {
+        display: grid !important;
+        box-sizing: border-box;
+        width: 40px;
+        min-width: 40px;
+        height: 42px;
+        min-height: 42px;
+        border-radius: 12px;
+    }
+    .app-shell.mobile-toolbar-vertical:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-actions {
+        display: grid;
+        flex: 0 0 auto;
+        gap: 2px;
+        padding-top: 4px;
+        border-top: 1px solid var(--touch-line);
+    }
+    .app-shell.mobile-toolbar-left:not(.platform-windows) .touch-tool-reopen {
+        top: max(10px, env(safe-area-inset-top));
+        right: auto;
+        bottom: auto;
+        left: max(8px, env(safe-area-inset-left));
+        transform: none;
+    }
+    .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-tool-reopen {
+        top: max(10px, env(safe-area-inset-top));
+        right: max(8px, env(safe-area-inset-right));
+        bottom: auto;
+        left: auto;
+        transform: none;
+    }
+    .app-shell.mobile-toolbar-bottom:not(.platform-windows) .canvas-zoom-reset {
+        top: auto;
+        right: max(10px, env(safe-area-inset-right));
+        bottom: calc(var(--mobile-horizontal-toolbar-height, 78px) + max(12px, env(safe-area-inset-bottom)));
+        left: auto;
+        transform: none;
+    }
+    .app-shell.mobile-toolbar-right:not(.platform-windows) .canvas-zoom-reset {
+        right: auto;
+        left: calc(50px + max(10px, env(safe-area-inset-left)));
+    }
+
+    .app-shell.mobile-toolbar-horizontal.mobile-tools-expanded:not(.platform-windows) .touch-tool-bar {
+        right: max(6px, env(safe-area-inset-right));
+        left: max(6px, env(safe-area-inset-left));
+        width: auto;
+        max-width: none;
+        max-height: min(72dvh, calc(100dvh - 20px));
+        flex-direction: row;
+        align-items: flex-start;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+    .app-shell.mobile-toolbar-top.mobile-tools-expanded:not(.platform-windows) .touch-tool-bar {
+        top: max(6px, env(safe-area-inset-top));
+        bottom: auto;
+    }
+    .app-shell.mobile-toolbar-bottom.mobile-tools-expanded:not(.platform-windows) .touch-tool-bar {
+        top: auto;
+        bottom: max(6px, env(safe-area-inset-bottom));
+    }
+    .app-shell.mobile-toolbar-vertical.mobile-tools-expanded:not(.platform-windows) .touch-tool-bar {
+        top: max(10px, env(safe-area-inset-top));
+        right: auto;
+        bottom: max(10px, env(safe-area-inset-bottom));
+        left: max(8px, env(safe-area-inset-left));
+        width: min(580px, calc(100vw - max(16px, env(safe-area-inset-left) + env(safe-area-inset-right))));
+        max-width: calc(100vw - max(16px, env(safe-area-inset-left) + env(safe-area-inset-right)));
+        max-height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        flex-direction: row;
+        align-items: flex-start;
+        overflow: auto;
+    }
+    .app-shell.mobile-toolbar-right.mobile-tools-expanded:not(.platform-windows) .touch-tool-bar {
+        right: max(8px, env(safe-area-inset-right));
         left: auto;
     }
 

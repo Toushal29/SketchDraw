@@ -5,6 +5,7 @@ use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
 mod orientation;
+mod android_documents;
 
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const CURRENT_SKETCH_FORMAT_VERSION: u64 = 7;
@@ -116,6 +117,12 @@ fn take_startup_files(files: tauri::State<'_, StartupFiles>) -> Vec<String> {
 
 #[tauri::command]
 fn authorize_sketch_file(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    if path.to_lowercase().starts_with("content://") {
+        app.fs_scope()
+            .allow_file(std::path::PathBuf::from(&path))
+            .map_err(|error| format!("Could not grant access to the selected sketch: {error}"))?;
+        return Ok(path);
+    }
     let candidate = std::path::PathBuf::from(path);
     let is_sketch = candidate
         .extension()
@@ -142,11 +149,16 @@ fn authorize_sketch_file(app: tauri::AppHandle, path: String) -> Result<String, 
 }
 
 fn is_recent_sketch_path(path: &str) -> bool {
-    if path.len() > 4096 || !path.to_lowercase().ends_with(".sketch") {
+    if path.len() > 4096 {
         return false;
     }
+    // SAF document providers return opaque content URIs whose IDs rarely end
+    // in the original filename extension. The picker already filtered these.
     if path.starts_with("content://") {
         return true;
+    }
+    if !path.to_lowercase().ends_with(".sketch") {
+        return false;
     }
     let candidate = std::path::PathBuf::from(path);
     candidate.is_absolute()
@@ -170,6 +182,9 @@ fn load_recent_sketches(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     let paths: Vec<String> = serde_json::from_str(&contents).unwrap_or_default();
     let mut recent = Vec::new();
     for path in paths.into_iter().filter(|path| is_recent_sketch_path(path)) {
+        if path.to_lowercase().starts_with("content://") {
+            let _ = app.fs_scope().allow_file(std::path::PathBuf::from(&path));
+        }
         if !recent.contains(&path) {
             recent.push(path);
         }
@@ -213,6 +228,7 @@ pub fn run() {
         )))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(android_documents::init())
         .plugin(orientation::init())
         .invoke_handler(tauri::generate_handler![
             take_startup_files,
@@ -220,7 +236,11 @@ pub fn run() {
             atomic_save_sketch,
             load_recent_sketches,
             save_recent_sketches,
-            orientation::set_mobile_orientation
+            orientation::set_mobile_orientation,
+            android_documents::pick_sketch_document,
+            android_documents::create_sketch_document,
+            android_documents::has_all_files_access,
+            android_documents::open_all_files_access_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -8,7 +8,6 @@ import "./App.css";
 import "./styles/platform-responsive.css";
 import "./styles/tools.css";
 import "./platform/mobile/workspace.css";
-import "./styles/view-menu.css";
 import "./platform/mobile/overrides.css";
 import "./platform/mobile/mobile.css";
 import "./platform/windows/windows.css";
@@ -19,6 +18,9 @@ import "./platform/mobile/touch-bars.css";
 import "./platform/mobile/touch-style.css";
 import "./platform/mobile/orientation.css";
 import "./platform/mobile/quick-style.css";
+import "./styles/dark-theme-refresh.css";
+import "./styles/view-menu.css";
+import "./styles/menu-panels.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
@@ -134,8 +136,21 @@ const MermaidPreview = lazy(async () => {
 
 function App() {
   const isWindowsPlatform = () => typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
+  const isAndroidPlatform = () => isTauri() && typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
+  async function chooseSketchDocument() {
+    if (isAndroidPlatform()) return invoke<string | null>("pick_sketch_document");
+    const selected = await open({ title: "Open SketchDraw file", multiple: false, pickerMode: "document", filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
+    return typeof selected === "string" ? selected : null;
+  }
+  async function createSketchDocument(fileName: string) {
+    if (isAndroidPlatform()) return invoke<string | null>("create_sketch_document", { fileName });
+    return save({ title: "Create SketchDraw file", defaultPath: fileName, filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
+  }
   const [elements, setElementsSignal] = createSignal<Element[]>([]);
   function setElements(next: Element[] | ((previous: Element[]) => Element[])) { return setElementsSignal(previous => resolveBindings(ensureIds(typeof next === "function" ? next(previous) : next))); }
+  // Pointer drags run once per display frame. Keep their immutable preview
+  // updates cheap, then validate identities and connector bindings on release.
+  function setElementsTransient(next: Element[] | ((previous: Element[]) => Element[])) { return setElementsSignal(next); }
   const [canvasState, setCanvasState] = createSignal<CanvasState>(emptyCanvas());
   const [pages, setPages] = createSignal<SketchPage[]>([]);
   const [activePageId, setActivePageId] = createSignal("");
@@ -194,6 +209,14 @@ function App() {
   const [autosaveSeconds, setAutosaveSeconds] = createSignal<5 | 10>(readPreference("sketchdraw-autosave-seconds", "10") === "5" ? 5 : 10);
   const [interfaceScale, setInterfaceScale] = createSignal((() => { const value = Number(readPreference("sketchdraw-interface-scale", "1")); return [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4].includes(value) ? value : 1; })());
   const [mobileOrientation, setMobileOrientation] = createSignal(readPreference("sketchdraw-mobile-orientation", "landscape") === "portrait" ? "portrait" as const : "landscape" as const);
+  const [toolbarPosition, setToolbarPosition] = createSignal<"top" | "bottom" | "left" | "right">((() => {
+    const saved = readPreference("sketchdraw-toolbar-position", "");
+    if (saved === "top" || saved === "bottom" || saved === "left" || saved === "right") return saved;
+    if (saved === "down") return "bottom";
+    return mobileOrientation() === "portrait" ? "top" : "left";
+  })());
+  const [androidAllFilesAccessAvailable, setAndroidAllFilesAccessAvailable] = createSignal(false);
+  const [androidAllFilesAccessGranted, setAndroidAllFilesAccessGranted] = createSignal(false);
   const [orientationMessage, setOrientationMessage] = createSignal("");
   const [reduceMotion, setReduceMotion] = createSignal(readPreference("sketchdraw-reduce-motion", "false") === "true");
   const [displayMetrics, setDisplayMetrics] = createSignal<DisplayMetrics>(readDisplayMetrics());
@@ -254,6 +277,7 @@ function App() {
   const [spaceDown, setSpaceDown] = createSignal(false);
   const [historyVersion, setHistoryVersion] = createSignal(0);
   const imageCache = new Map<string, HTMLImageElement>();
+  const textLinesCache = new WeakMap<TextElement, string[]>();
   const [themeMode, setThemeMode] = createSignal<ThemeMode>((() => {
     try { const saved = localStorage.getItem("sketchdraw-theme"); return saved === "light" || saved === "dark" ? saved : "system"; }
     catch { return "system"; }
@@ -290,6 +314,8 @@ function App() {
   let drawing = false;
   let activeDrawingTool: Preview["type"] = "pen";
   let currentPoints: StrokePoint[] = [];
+  type StrokePathCache = { length: number; pressureAware: boolean; path?: Path2D; pressurePaths: Map<number, Path2D> };
+  const strokePathCache = new WeakMap<StrokePoint[], StrokePathCache>();
   let penEraserDrawing = false;
   let laserTimer: number | undefined;
   let saveInFlight = false;
@@ -303,7 +329,7 @@ function App() {
   let touchTapTracker: TouchTapTracker | undefined;
   let focusModeWasFullscreen: boolean | undefined;
   let focusModeUsedDocumentFullscreen = false;
-  let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean } | undefined;
+  let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; snapTargets: { x: number[]; y: number[] }; targets: Map<string, Element> } | undefined;
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number } | undefined;
   let resizeOrigin: { index: number; handle: string; start: Point; original: Element; before: Element[]; moved: boolean } | undefined;
   const [nativeBusy, setNativeBusy] = createSignal(false);
@@ -1166,7 +1192,12 @@ function App() {
 
   function hitTest(point: Point): number | undefined {
     const zoom = canvasState().zoom;
-    for (let index = elements().length - 1; index >= 0; index--) if (hitElement(elements()[index], point, zoom)) return index;
+    const tolerance = 12 / zoom;
+    for (let index = elements().length - 1; index >= 0; index--) {
+      const element = elements()[index]; const bounds = elementBounds(element);
+      if (!intersectsBounds(point.x - tolerance, point.y - tolerance, point.x + tolerance, point.y + tolerance, bounds)) continue;
+      if (hitElement(element, point, zoom)) return index;
+    }
     return undefined;
   }
 
@@ -1178,10 +1209,73 @@ function App() {
     return element;
   }
 
-  function drawElement(ctx: CanvasRenderingContext2D, element: Element) {
+  function strokePaths(points: StrokePoint[]): StrokePathCache | undefined {
+    if (typeof Path2D === "undefined") return undefined;
+    let cache = strokePathCache.get(points);
+    if (cache && points.length < cache.length) cache = undefined;
+    if (!cache) {
+      cache = { length: 0, pressureAware: false, path: new Path2D(), pressurePaths: new Map() };
+      strokePathCache.set(points, cache);
+    }
+    for (let index = cache.length; index < points.length; index++) {
+      const point = points[index];
+      const hasPressure = point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined;
+      if (hasPressure && !cache.pressureAware && index > 0) {
+        cache = { length: 0, pressureAware: true, pressurePaths: new Map() };
+        strokePathCache.set(points, cache);
+        index = -1;
+        continue;
+      }
+      cache.pressureAware ||= hasPressure;
+      if (index === 0) {
+        if (!cache.pressureAware) cache.path!.moveTo(point.x, point.y);
+        cache.length = 1;
+        continue;
+      }
+      const previous = points[index - 1];
+      const from = index === 1 ? points[0] : { x: (points[index - 2].x + previous.x) / 2, y: (points[index - 2].y + previous.y) / 2 };
+      const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
+      if (cache.pressureAware) {
+        const widthFactor = Math.max(.05, Math.round((stylusStrokeWidth(previous, 1) + stylusStrokeWidth(point, 1)) / 2 * 20) / 20);
+        let path = cache.pressurePaths.get(widthFactor);
+        if (!path) { path = new Path2D(); cache.pressurePaths.set(widthFactor, path); }
+        path.moveTo(from.x, from.y); path.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
+      } else {
+        cache.path!.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
+      }
+      cache.length = index + 1;
+    }
+    return cache;
+  }
+
+  function intersectsBounds(left: number, top: number, right: number, bottom: number, bounds: Bounds) {
+    return bounds.x <= right && bounds.x + bounds.w >= left && bounds.y <= bottom && bounds.y + bounds.h >= top;
+  }
+
+  function resolveDraggedConnector(element: Element, index: number, drag: NonNullable<typeof moveOrigin>): Element {
+    if (!isConnector(element) || drag.indices.includes(index)) return element;
+    const movedPoint = (binding?: Binding) => {
+      const target = binding ? drag.targets.get(binding.elementId) : undefined;
+      if (!binding || !target || !isConnectable(target)) return undefined;
+      const point = anchorPoint(target, binding.anchor, binding.rowId);
+      return { x: point.x + drag.dx, y: point.y + drag.dy };
+    };
+    const moveBranch = (branch: ShapeElement["forkUpper"]) => {
+      if (!branch?.endBinding) return branch;
+      const end = movedPoint(branch.endBinding);
+      return end ? { ...branch, end } : branch;
+    };
+    const start = movedPoint(element.startBinding); const end = movedPoint(element.endBinding);
+    const forkUpper = moveBranch(element.forkUpper); const forkLower = moveBranch(element.forkLower);
+    if (!start && !end && forkUpper === element.forkUpper && forkLower === element.forkLower) return element;
+    const x = start?.x ?? element.x; const y = start?.y ?? element.y;
+    return { ...element, x, y, w: (end?.x ?? element.x + element.w) - x, h: (end?.y ?? element.y + element.h) - y, forkUpper, forkLower };
+  }
+
+  function drawElement(ctx: CanvasRenderingContext2D, element: Element, viewport?: Bounds) {
     if (element.hidden) return;
     element = simpleComponentElement(element);
-    if (element.type === "group") { if (element.note) { drawNoteCard(ctx, element, theme(), componentAppearance()); return; } for (const child of element.elements) drawElement(ctx, child); return; }
+    if (element.type === "group") { if (element.note) { drawNoteCard(ctx, element, theme(), componentAppearance()); return; } for (const child of element.elements) if (!viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, child, viewport); return; }
     const elementBox = elementBounds(element); const centerX = elementBox.x + elementBox.w / 2; const centerY = elementBox.y + elementBox.h / 2;
     if (element.rotation) { ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
     if (element.type === "image") {
@@ -1197,7 +1291,8 @@ function App() {
       if (textDraft()?.editingIndex !== undefined && elements()[textDraft()!.editingIndex!]?.id === element.id) { if (element.rotation) ctx.restore(); return; }
       ctx.save(); ctx.globalAlpha = element.opacity ?? 1; ctx.fillStyle = themeInk(element.color, theme());
       ctx.font = (element.italic ? "italic " : "") + (element.bold ? "700 " : "400 ") + element.fontSize + "px " + fontCss(element.fontFamily); ctx.textBaseline = "top"; ctx.textAlign = element.textAlign === "justify" ? "left" : element.textAlign ?? "left";
-      const lines = element.text.split(/\r?\n/).map((line, index) => element.listType === "bullet" ? "• " + line : element.listType === "number" ? (index + 1) + ". " + line : line);
+      let lines = textLinesCache.get(element);
+      if (!lines) { lines = element.text.split(/\r?\n/).map((line, index) => element.listType === "bullet" ? "• " + line : element.listType === "number" ? (index + 1) + ". " + line : line); textLinesCache.set(element, lines); }
       lines.forEach((line, index) => { const y = element.y + index * element.fontSize * 1.25; ctx.fillText(line, element.x, y); if (element.underline) { const measured = ctx.measureText(line).width; const startX = element.textAlign === "center" ? element.x - measured / 2 : element.textAlign === "right" ? element.x - measured : element.x; ctx.fillRect(startX, y + element.fontSize * 1.06, measured, Math.max(1, element.fontSize / 18)); } }); ctx.restore(); if (element.rotation) ctx.restore(); return;
     }
     if (element.type === "schemaTable") {
@@ -1208,7 +1303,12 @@ function App() {
       ctx.save(); ctx.beginPath(); ctx.roundRect(left, top, width, headerHeight + (simple ? 0 : 8), simple ? 0 : [10, 10, 0, 0]); ctx.clip(); ctx.fillStyle = header; ctx.fillRect(left, top, width, headerHeight); ctx.restore();
       ctx.beginPath(); ctx.moveTo(left, top + headerHeight); ctx.lineTo(left + width, top + headerHeight); ctx.strokeStyle = border; ctx.lineWidth = 1; ctx.stroke();
       ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillStyle = simple ? (dark ? "#f3f3f3" : "#222222") : (dark ? "#d8e8f5" : "#36556e"); ctx.font = `600 ${fontSize}px ${fontCss("sans")}`;
-      const fitText = (value: string, maxWidth: number) => { let text = value; while (text && ctx.measureText(text).width > maxWidth) text = text.slice(0, -1); return text === value ? text : text.slice(0, -1) + "…"; };
+      const fitText = (value: string, maxWidth: number) => {
+        if (ctx.measureText(value).width <= maxWidth) return value;
+        let low = 0; let high = value.length;
+        while (low < high) { const middle = Math.ceil((low + high) / 2); if (ctx.measureText(value.slice(0, middle) + "…").width <= maxWidth) low = middle; else high = middle - 1; }
+        return value.slice(0, low) + "…";
+      };
       ctx.fillText(fitText(element.name, width - 26), left + 14, top + headerHeight / 2);
       element.columns.forEach((column, index) => {
         const rowTop = top + headerHeight + index * rowHeight; const middle = rowTop + rowHeight / 2;
@@ -1252,7 +1352,8 @@ function App() {
     }
     if (element.type === "freehand") {
       if (!element.points.length) { ctx.restore(); return; }
-      const pressureAware = element.points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined);
+      const cache = strokePaths(element.points);
+      const pressureAware = cache?.pressureAware ?? element.points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined);
       if (pressureAware) {
         const pointWidth = (point: StrokePoint) => stylusStrokeWidth(point, element.thickness);
         ctx.fillStyle = renderedInk;
@@ -1262,14 +1363,19 @@ function App() {
         };
         ctx.lineCap = "round"; ctx.lineJoin = "round";
         if (element.points.length === 1) stamp(element.points[0]);
-        let from = element.points[0];
-        for (let index = 1; index < element.points.length; index++) {
-          const previous = element.points[index - 1]; const point = element.points[index];
-          const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
-          ctx.beginPath(); ctx.lineWidth = Math.max(.75, (pointWidth(previous) + pointWidth(point)) / 2); ctx.moveTo(from.x, from.y); ctx.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y); ctx.stroke();
-          from = mid;
+        if (cache) for (const [widthFactor, path] of cache.pressurePaths) { ctx.lineWidth = Math.max(.75, widthFactor * element.thickness); ctx.stroke(path); }
+        else {
+          let from = element.points[0];
+          for (let index = 1; index < element.points.length; index++) {
+            const previous = element.points[index - 1]; const point = element.points[index];
+            const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
+            ctx.beginPath(); ctx.lineWidth = Math.max(.75, (pointWidth(previous) + pointWidth(point)) / 2); ctx.moveTo(from.x, from.y); ctx.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y); ctx.stroke();
+            from = mid;
+          }
         }
         const lastPoint = element.points[element.points.length - 1];
+        const previous = element.points.length > 1 ? element.points[element.points.length - 2] : lastPoint;
+        const from = element.points.length > 1 ? { x: (previous.x + lastPoint.x) / 2, y: (previous.y + lastPoint.y) / 2 } : lastPoint;
         ctx.beginPath(); ctx.lineWidth = Math.max(.75, pointWidth(lastPoint)); ctx.moveTo(from.x, from.y); ctx.lineTo(lastPoint.x, lastPoint.y); ctx.stroke();
         if (element.points.length > 1) { stamp(element.points[0]); stamp(element.points[element.points.length - 1]); }
       } else {
@@ -1278,13 +1384,20 @@ function App() {
           ctx.beginPath(); ctx.arc(point.x, point.y, Math.max(.5, element.thickness / 2), 0, Math.PI * 2); ctx.fillStyle = renderedInk; ctx.fill();
           ctx.restore(); if (element.rotation) ctx.restore(); return;
         }
-        ctx.beginPath(); ctx.moveTo(element.points[0].x, element.points[0].y);
-        for (let i = 1; i < element.points.length; i++) {
-          const previous = element.points[i - 1]; const point = element.points[i];
-          const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
-          ctx.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
+        const last = element.points[element.points.length - 1];
+        if (cache?.path) ctx.stroke(cache.path);
+        else {
+          ctx.beginPath(); ctx.moveTo(element.points[0].x, element.points[0].y);
+          for (let i = 1; i < element.points.length; i++) {
+            const previous = element.points[i - 1]; const point = element.points[i];
+            const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
+            ctx.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
+          }
+          ctx.stroke();
         }
-        const last = element.points[element.points.length - 1]; ctx.lineTo(last.x, last.y); ctx.stroke();
+        const previous = element.points.length > 1 ? element.points[element.points.length - 2] : last;
+        const from = element.points.length > 1 ? { x: (previous.x + last.x) / 2, y: (previous.y + last.y) / 2 } : last;
+        ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(last.x, last.y); ctx.stroke();
       }
       ctx.restore(); if (element.rotation) ctx.restore(); return;
     } else if (element.type === "rectangle") {
@@ -1439,10 +1552,20 @@ function App() {
     if (!transparent) { ctx.fillStyle = renderedBoardColor(); ctx.fillRect(0, 0, width, height); }
     const state = viewOverride ?? canvasState(); if (!transparent && includeGrid) drawGrid(ctx, width, height, state);
     ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
+    const padding = 16 / state.zoom;
+    const viewport = { x: -state.panX / state.zoom - padding, y: -state.panY / state.zoom - padding, w: width / state.zoom + padding * 2, h: height / state.zoom + padding * 2 };
     const selected = selectedSet();
+    const drag = includeSelection && sourceItems === elements() && moveOrigin?.moved ? moveOrigin : undefined;
     sourceItems.forEach((element, index) => {
       if (element.hidden) return;
-      drawElement(ctx, element);
+      const moved = !!drag?.indices.includes(index);
+      const drawnElement = drag ? resolveDraggedConnector(element, index, drag) : element;
+      const bounds = elementBounds(moved ? element : drawnElement);
+      const visibleBounds = moved ? { ...bounds, x: bounds.x + drag!.dx, y: bounds.y + drag!.dy } : bounds;
+      if (!intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) return;
+      ctx.save(); if (moved) ctx.translate(drag!.dx, drag!.dy);
+      const drawViewport = moved ? { ...viewport, x: viewport.x - drag!.dx, y: viewport.y - drag!.dy } : viewport;
+      drawElement(ctx, drawnElement, drawViewport);
       const isSelected = selected.has(index);
       if (includeSelection && (isSelected || hoveredIndex() === index) && isConnector(element)) {
         ctx.save(); ctx.strokeStyle = "#548ce8"; ctx.globalAlpha = .65; ctx.lineWidth = (isSelected ? 2 : 1) / state.zoom; traceConnector(ctx, element); ctx.stroke();
@@ -1454,14 +1577,21 @@ function App() {
         ctx.strokeRect(bounds.x - padding, bounds.y - padding, Math.max(bounds.w + padding * 2, 2 / state.zoom), Math.max(bounds.h + padding * 2, 2 / state.zoom)); ctx.restore();
         if (isSelected && !element.locked && selected.size === 1 && tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed) && element.type !== "freehand") drawTransformHandles(ctx, bounds, state.zoom, element.type !== "group");
       }
+      ctx.restore();
     });
     if (includeSelection && (tool() === "arrow" || tool() === "line" || resizeOrigin && isConnector(resizeOrigin.original))) {
-      const ports = (items: Element[]) => { for (const item of items) { if (item.hidden || item.locked) continue; if (item.type === "group") { ports(item.elements); continue; } if (!isConnectable(item)) continue;
+      const ports = (items: Element[]) => { for (const item of items) {
+        const moved = !!drag?.targets.has(item.id ?? ""); const bounds = elementBounds(item);
+        const visibleBounds = moved ? { ...bounds, x: bounds.x + drag!.dx, y: bounds.y + drag!.dy } : bounds;
+        if (item.hidden || item.locked || !intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) continue;
+        if (item.type === "group") { ports(item.elements); continue; } if (!isConnectable(item)) continue;
+        if (moved) { ctx.save(); ctx.translate(drag!.dx, drag!.dy); }
         const anchors: { anchor: Point; rowId?: string }[] = [
           ...BOX_ANCHORS.map(anchor => ({ anchor })),
           ...(item.type === "schemaTable" ? item.columns.flatMap(column => [{ anchor: { x: 0, y: .5 }, rowId: column.id }, { anchor: { x: 1, y: .5 }, rowId: column.id }]) : []),
         ];
         for (const { anchor, rowId } of anchors) { const point = anchorPoint(item, anchor, rowId); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
+        if (moved) ctx.restore();
       } }; ctx.save(); ctx.fillStyle = "#5d94e7"; ctx.globalAlpha = .7; ports(elements()); const hint = attachmentHint(); if (hint) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(hint.x, hint.y, 8 / state.zoom, 0, Math.PI * 2); ctx.strokeStyle = "#2675f5"; ctx.lineWidth = 2 / state.zoom; ctx.stroke(); } ctx.restore();
     }
     const guides = alignmentGuides();
@@ -1511,6 +1641,8 @@ function App() {
   createEffect(() => {
     if (!activePath() || !canvas) return;
     const resize = new ResizeObserver(scheduleCanvasRender); resize.observe(canvas);
+    const rawPen = (event: PointerEvent) => pointerRawUpdate(event);
+    canvas.addEventListener("pointerrawupdate", rawPen as EventListener);
     window.addEventListener("resize", scheduleCanvasRender);
     window.visualViewport?.addEventListener("resize", scheduleCanvasRender);
     const wheel = (event: WheelEvent) => {
@@ -1520,7 +1652,7 @@ function App() {
       setCanvasState({ zoom: nextZoom, panX: px - worldX * nextZoom, panY: py - worldY * nextZoom, backgroundColor: old.backgroundColor }); setDirty(!readOnlyView());
     };
     canvas.addEventListener("wheel", wheel, { passive: false });
-    onCleanup(() => { resize.disconnect(); canvas.removeEventListener("wheel", wheel); window.removeEventListener("resize", scheduleCanvasRender); window.visualViewport?.removeEventListener("resize", scheduleCanvasRender); });
+    onCleanup(() => { resize.disconnect(); canvas.removeEventListener("wheel", wheel); canvas.removeEventListener("pointerrawupdate", rawPen as EventListener); window.removeEventListener("resize", scheduleCanvasRender); window.visualViewport?.removeEventListener("resize", scheduleCanvasRender); });
   });
   createEffect(() => {
     const items = elements();
@@ -1558,6 +1690,7 @@ function App() {
 
   onMount(() => {
     if (isTauri() && /android/i.test(navigator.userAgent)) {
+      void refreshAndroidAllFilesAccess();
       void invoke("set_mobile_orientation", { orientation: mobileOrientation() }).catch(() => setOrientationMessage("Rotate the device manually if its saved orientation is not applied."));
     }
     if (isTauri()) void invoke<string[]>("load_recent_sketches").then(paths => {
@@ -1631,6 +1764,7 @@ function App() {
     document.addEventListener("copy", copy); document.addEventListener("paste", paste); document.addEventListener("cut", cut);
     onCleanup(() => { document.removeEventListener("copy", copy); document.removeEventListener("paste", paste); document.removeEventListener("cut", cut); });
     const keyUp = (event: KeyboardEvent) => { if (event.code === "Space") setSpaceDown(false); };
+    const refreshStorageAccessOnReturn = () => { if (!document.hidden) void refreshAndroidAllFilesAccess(); };
     const blur = () => {
       setSpaceDown(false);
       activePenPointerId = undefined; ignoredTouchPointers.clear(); touchPointers.clear(); touchGesture = undefined; touchTapTracker = undefined;
@@ -1667,7 +1801,7 @@ function App() {
         closeInProgress = false;
       }
     }).then((unlisten) => { unlistenClose = unlisten; }).catch((cause) => setError(`Could not prepare safe closing: ${String(cause)}`));
-    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("blur", blur); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", alignOpenTouchMenus); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", alignOpenTouchMenus); window.addEventListener("orientationchange", updateDisplayMetrics);
+    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("blur", blur); window.addEventListener("focus", refreshStorageAccessOnReturn); document.addEventListener("visibilitychange", refreshStorageAccessOnReturn); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", alignOpenTouchMenus); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", alignOpenTouchMenus); window.addEventListener("orientationchange", updateDisplayMetrics);
     document.addEventListener("pointerdown", outsideClick); document.addEventListener("keydown", closeMenuOnEscape);
     let autosaveTimer: number | undefined;
     const scheduleAutosave = () => {
@@ -1682,7 +1816,7 @@ function App() {
     };
     restartAutosave = () => { if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); scheduleAutosave(); };
     scheduleAutosave();
-    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("blur", blur); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", alignOpenTouchMenus); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", alignOpenTouchMenus); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
+    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("blur", blur); window.removeEventListener("focus", refreshStorageAccessOnReturn); document.removeEventListener("visibilitychange", refreshStorageAccessOnReturn); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", alignOpenTouchMenus); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", alignOpenTouchMenus); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
   });
 
   function setThemePreference(mode: ThemeMode) {
@@ -1727,12 +1861,30 @@ function App() {
       setOrientationMessage("This device could not switch orientation. Rotate it manually or check its rotation lock.");
     }
   }
+  function setToolbarPositionPreference(position: "top" | "bottom" | "left" | "right") {
+    setToolbarPosition(position);
+    try { localStorage.setItem("sketchdraw-toolbar-position", position); } catch { /* Position still applies for this session. */ }
+  }
   function restoreAppSettings() {
     setInterfaceScalePreference(1);
     setAutosavePreference(10);
     setThicknessPickerPreference("presets");
     setReduceMotionPreference(false);
+    setToolbarPositionPreference("left");
     void setMobileOrientationPreference("landscape");
+  }
+  async function refreshAndroidAllFilesAccess() {
+    if (!isAndroidPlatform()) return;
+    try {
+      const status = await invoke<{ available: boolean; granted: boolean }>("has_all_files_access");
+      setAndroidAllFilesAccessAvailable(status.available);
+      setAndroidAllFilesAccessGranted(status.granted);
+    } catch { setAndroidAllFilesAccessAvailable(false); setAndroidAllFilesAccessGranted(false); }
+  }
+  async function requestAndroidAllFilesAccess() {
+    if (!isAndroidPlatform()) return;
+    try { await invoke("open_all_files_access_settings"); }
+    catch (cause) { setError(String(cause)); }
   }
   function setComponentAppearancePreference(value: "modern" | "simple") {
     setComponentAppearance(value);
@@ -1890,8 +2042,12 @@ function App() {
     if (nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
-      const path = await save({ title: "Save SketchDraw file", defaultPath: "Untitled.sketch", filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
-      if (path) await saveToPath(withSketchExtension(path));
+      const selected = await createSketchDocument("Untitled.sketch");
+      if (selected) {
+        const path = withSketchExtension(selected);
+        if (/^content:\/\//i.test(path)) await invoke("authorize_sketch_file", { path });
+        await saveToPath(path);
+      }
     } catch (cause) { setError(`Could not choose save location: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
@@ -1901,6 +2057,13 @@ function App() {
     setRecentFiles(updated);
     try { localStorage.setItem("sketchdraw-v8-recent-files", JSON.stringify(updated)); } catch { /* Native storage remains the durable copy. */ }
     if (isTauri()) void invoke("save_recent_sketches", { paths: updated }).catch(() => undefined);
+  }
+
+  function nextUntitledFileName() {
+    let sequence = 1;
+    try { sequence = Math.max(1, Number(localStorage.getItem("sketchdraw-untitled-sequence")) || 1); } catch { /* The system picker still supplies a unique copy name if browser storage is unavailable. */ }
+    try { localStorage.setItem("sketchdraw-untitled-sequence", String(sequence + 1)); } catch { /* Best effort. */ }
+    return sequence === 1 ? "Untitled.sketch" : `Untitled ${sequence}.sketch`;
   }
 
   async function saveBeforeReplacingDocument(): Promise<boolean> {
@@ -1943,7 +2106,7 @@ function App() {
       if (!await saveBeforeReplacingDocument()) return;
       // Android content URIs carry a temporary picker grant; ordinary and iOS
       // file paths use the app's authorization and atomic-save flow.
-      const authorizedPath = /^content:\/\//i.test(path) ? path : await invoke<string>("authorize_sketch_file", { path: normalizeFileUri(path) });
+      const authorizedPath = await invoke<string>("authorize_sketch_file", { path: normalizeFileUri(path) });
       const rawText = await readTextFile(authorizedPath);
       const raw: unknown = JSON.parse(rawText);
       const parsed = parseSketchFile(raw);
@@ -1951,6 +2114,7 @@ function App() {
       const needsMigration = isRecord(raw) && raw.version !== SKETCH_FORMAT_VERSION;
       applySnapshot(parsed, authorizedPath, rawText);
       setReadOnlyView(viewOnly);
+      rememberFile(authorizedPath);
       if (viewOnly) { setTool("laser"); setSelectedIndices([]); setToolBarOpen(true); setMobileToolsExpanded(false); }
       else if (tool() === "laser") setTool("pen");
       restoreOpenedViewAt100(authorizedPath, parsed.activePageId);
@@ -1973,8 +2137,8 @@ function App() {
     if (nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
-      const selected = await open({ title: "Open SketchDraw file", multiple: false, filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
-      if (!selected || Array.isArray(selected)) return;
+      const selected = await chooseSketchDocument();
+      if (!selected) return;
       await loadFile(selected);
     } catch (cause) { setError(`Could not choose file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
@@ -1983,8 +2147,8 @@ function App() {
     if (nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
-      const selected = await open({ title: "Open SketchDraw as view only", multiple: false, filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
-      if (!selected || Array.isArray(selected)) return;
+      const selected = await chooseSketchDocument();
+      if (!selected) return;
       await loadFile(selected, true);
     } catch (cause) { setError(`Could not choose file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
@@ -2042,10 +2206,11 @@ function App() {
     if (nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
-      const selected = await save({ title: "Create SketchDraw file", defaultPath: "Untitled.sketch", filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
+      const selected = await createSketchDocument(nextUntitledFileName());
       if (!selected) return;
       if (!await saveBeforeReplacingDocument()) return;
       const path = withSketchExtension(selected);
+      if (/^content:\/\//i.test(path)) await invoke("authorize_sketch_file", { path });
       const page: SketchPage = { id: "page-1", name: "Page 1", canvasState: emptyCanvas(), elements: [] };
       const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page] };
       const contents = JSON.stringify(document, null, 2);
@@ -2616,7 +2781,7 @@ function App() {
     if (isPenEraser) { event.preventDefault(); penEraserDrawing = true; drawing = true; eraseAtPoint(point); canvas.setPointerCapture(event.pointerId); return; }
     if (tool() === "select") {
       const handle = findTransformHandle(point);
-      if (handle) { const original = elements()[handle.index]; resizeOrigin = { ...handle, start: point, original: cloneElements([original])[0], before: cloneElements(elements()), moved: false }; canvas.setPointerCapture(event.pointerId); return; }
+      if (handle) { const original = elements()[handle.index]; resizeOrigin = { ...handle, start: point, original, before: elements(), moved: false }; canvas.setPointerCapture(event.pointerId); return; }
       const hit = hitTest(point);
       if (hit !== undefined) {
         const target = elements()[hit];
@@ -2632,7 +2797,10 @@ function App() {
         setSelectedIndices(next);
         setSidebarTab("properties");
         const movable = next.filter((index) => { const element = elements()[index]; return !!element && canMoveElement(element); });
-        if (movable.includes(hit)) moveOrigin = { indices: movable, point, before: cloneElements(elements()), moved: false };
+        if (movable.includes(hit)) {
+          const before = elements();
+          moveOrigin = { indices: movable, point, before, moved: false, dx: 0, dy: 0, snapTargets: collectSnapTargets(movable, before), targets: collectMoveTargets(movable, before) };
+        }
       } else {
         if (!event.shiftKey) setSelectedIndices([]);
         marqueeOrigin = { point, additive: event.shiftKey, moved: false };
@@ -2644,7 +2812,7 @@ function App() {
       const handle = findTransformHandle(point);
       if (handle && isConnector(elements()[handle.index])) {
         const original = elements()[handle.index];
-        resizeOrigin = { ...handle, start: point, original: cloneElements([original])[0], before: cloneElements(elements()), moved: false };
+        resizeOrigin = { ...handle, start: point, original, before: elements(), moved: false };
         canvas.setPointerCapture(event.pointerId); return;
       }
     }
@@ -2688,7 +2856,7 @@ function App() {
 
   function cancelCanvasInteraction() {
     if (resizeOrigin) setElements(resizeOrigin.before);
-    if (moveOrigin) setElements(moveOrigin.before);
+    if (moveOrigin) { moveOrigin = undefined; scheduleCanvasRender(); }
     drawing = false; currentPoints = []; penEraserDrawing = false;
     setPreview(undefined); setMarquee(undefined); setAttachmentHint(undefined); setAlignmentGuides(undefined);
     resizeOrigin = undefined; moveOrigin = undefined; marqueeOrigin = undefined; panOrigin = undefined;
@@ -2740,8 +2908,23 @@ function App() {
 
   function appendStrokeSample(event: PointerEvent, point: Point) {
     const previous = currentPoints[currentPoints.length - 1];
-    if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * canvasState().zoom < .3) return;
+    if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * canvasState().zoom < .05) return;
     currentPoints.push(tool() === "pen" ? strokePointFromPointer(event, point) : point);
+  }
+
+  function appendPenSamples(event: PointerEvent, appendTerminal = true) {
+    const bounds = canvas.getBoundingClientRect(); const state = canvasState();
+    let samples: PointerEvent[] = [];
+    try { samples = event.getCoalescedEvents?.() ?? []; } catch { /* Some Android WebViews expose this API without implementing it. */ }
+    for (const sample of samples) appendStrokeSample(sample, { x: (sample.clientX - bounds.left - state.panX) / state.zoom, y: (sample.clientY - bounds.top - state.panY) / state.zoom });
+    if (appendTerminal) appendStrokeSample(event, { x: (event.clientX - bounds.left - state.panX) / state.zoom, y: (event.clientY - bounds.top - state.panY) / state.zoom });
+  }
+
+  function pointerRawUpdate(event: PointerEvent) {
+    if (event.pointerType !== "pen" || !drawing || activePenPointerId !== event.pointerId || activeDrawingTool !== "pen" || !preview()) return;
+    const previousLength = currentPoints.length;
+    appendPenSamples(event);
+    if (currentPoints.length !== previousLength) scheduleCanvasRender();
   }
 
   function pointerMove(event: PointerEvent) {
@@ -2773,15 +2956,14 @@ function App() {
     if (resizeOrigin) {
       const point = toWorld(event); if (Math.hypot(point.x - resizeOrigin.start.x, point.y - resizeOrigin.start.y) > 0.5) resizeOrigin.moved = true;
       const resized = resizeElement(resizeOrigin.original, resizeOrigin.handle, resizeOrigin.start, point);
-      setElements(resizeOrigin.before.map((element, index) => index === resizeOrigin!.index ? resized : element)); setDirty(true); return;
+      setElementsTransient(resizeOrigin.before.map((element, index) => index === resizeOrigin!.index ? resized : element)); setDirty(true); return;
     }
     if (moveOrigin) {
       const point = toWorld(event); const dx = point.x - moveOrigin.point.x; const dy = point.y - moveOrigin.point.y;
       if (Math.hypot(dx, dy) > 0.5) moveOrigin.moved = true;
       if (moveOrigin.moved) {
-        const { indices, before } = moveOrigin; const selected = new Set(indices);
-        const snapped = snapTranslation(indices, before, dx, dy);
-        setElements(before.map((element, itemIndex) => selected.has(itemIndex) ? moveElement(element, snapped.dx, snapped.dy) : element)); setDirty(true);
+        const snapped = snapTranslation(moveOrigin.indices, moveOrigin.before, dx, dy, moveOrigin.snapTargets);
+        moveOrigin.dx = snapped.dx; moveOrigin.dy = snapped.dy; scheduleCanvasRender(); setDirty(true);
       }
       return;
     }
@@ -2797,12 +2979,8 @@ function App() {
     if (activeDrawingTool === "pen") {
       if (event.pointerType === "pen") {
         event.preventDefault();
-        const bounds = canvas.getBoundingClientRect(); const state = canvasState();
-        let samples: PointerEvent[] = [];
-        try { samples = event.getCoalescedEvents?.() ?? []; } catch { /* Some Android WebViews expose this API without implementing it. */ }
-        for (const sample of samples) appendStrokeSample(sample, { x: (sample.clientX - bounds.left - state.panX) / state.zoom, y: (sample.clientY - bounds.top - state.panY) / state.zoom });
-      }
-      appendStrokeSample(event, point);
+        appendPenSamples(event);
+      } else appendStrokeSample(event, point);
     }
     setPreview((previous) => previous ? { ...previous, end: point } : undefined);
   }
@@ -2822,28 +3000,49 @@ function App() {
     return !element.locked && (element.type !== "group" || element.elements.every(canMoveElement));
   }
 
-  function snapTranslation(indices: number[], before: Element[], dx: number, dy: number) {
+  function collectSnapTargets(indices: number[], before: Element[]) {
+    const selected = new Set(indices); const x: number[] = []; const y: number[] = [];
+    for (let index = 0; index < before.length; index++) {
+      const element = before[index]; if (selected.has(index) || element.hidden) continue;
+      const box = elementBounds(element);
+      x.push(box.x, box.x + box.w / 2, box.x + box.w); y.push(box.y, box.y + box.h / 2, box.y + box.h);
+    }
+    x.sort((left, right) => left - right); y.sort((left, right) => left - right);
+    return { x, y };
+  }
+
+  function collectMoveTargets(indices: number[], before: Element[]) {
+    const selected = new Set(indices); const targets = new Map<string, Element>();
+    const visit = (element: Element) => { if (element.id) targets.set(element.id, element); if (element.type === "group") element.elements.forEach(visit); };
+    for (let index = 0; index < before.length; index++) if (selected.has(index)) visit(before[index]);
+    return targets;
+  }
+
+  function snapTranslation(indices: number[], before: Element[], dx: number, dy: number, snapTargets: { x: number[]; y: number[] }) {
     const selected = new Set(indices); const moving = unionBounds(before.flatMap((element, index) => selected.has(index) && !element.hidden ? [elementBounds(element)] : []));
     if (!moving) { setAlignmentGuides(undefined); return { dx, dy }; }
     if (snapToGrid()) { dx = Math.round((moving.x + dx) / GRID_SIZE) * GRID_SIZE - moving.x; dy = Math.round((moving.y + dy) / GRID_SIZE) * GRID_SIZE - moving.y; }
-    if (!snapToObjects() || !before.some((element, index) => !selected.has(index) && !element.hidden)) { setAlignmentGuides(undefined); return { dx, dy }; }
+    if (!snapToObjects() || (!snapTargets.x.length && !snapTargets.y.length)) { setAlignmentGuides(undefined); return { dx, dy }; }
     const left = moving.x; const top = moving.y; const right = moving.x + moving.w; const bottom = moving.y + moving.h;
     const movingX = [left, (left + right) / 2, right]; const movingY = [top, (top + bottom) / 2, bottom];
     const threshold = 8 / canvasState().zoom;
-    const closest = (axis: "x" | "y", movingValues: number[], delta: number) => {
+    const closest = (targets: number[], movingValues: number[], delta: number) => {
       let best: { correction: number; guide: number } | undefined;
-      for (let index = 0; index < before.length; index++) {
-        const element = before[index]; if (selected.has(index) || element.hidden) continue;
-        const box = elementBounds(element); const targets = axis === "x" ? [box.x, box.x + box.w / 2, box.x + box.w] : [box.y, box.y + box.h / 2, box.y + box.h];
-        for (const source of movingValues) for (const target of targets) {
+      for (const source of movingValues) {
+        const value = source + delta; let low = 0; let high = targets.length;
+        while (low < high) { const middle = (low + high) >>> 1; if (targets[middle] < value) low = middle + 1; else high = middle; }
+        for (const index of [low - 1, low]) {
+          if (index < 0 || index >= targets.length) continue;
+          const target = targets[index];
           const correction = target - (source + delta);
           if (Math.abs(correction) <= threshold && (!best || Math.abs(correction) < Math.abs(best.correction))) best = { correction, guide: target };
         }
       }
       return best;
     };
-    const x = closest("x", movingX, dx); const y = closest("y", movingY, dy);
-    setAlignmentGuides(x || y ? { x: x?.guide, y: y?.guide } : undefined);
+    const x = closest(snapTargets.x, movingX, dx); const y = closest(snapTargets.y, movingY, dy);
+    const nextGuides = x || y ? { x: x?.guide, y: y?.guide } : undefined;
+    setAlignmentGuides(current => current?.x === nextGuides?.x && current?.y === nextGuides?.y ? current : nextGuides);
     return { dx: dx + (x?.correction ?? 0), dy: dy + (y?.correction ?? 0) };
   }
 
@@ -2950,15 +3149,24 @@ function App() {
       }
       marqueeOrigin = undefined; setMarquee(undefined); return;
     }
-    if (resizeOrigin) { if (resizeOrigin.moved) pushUndo(resizeOrigin.before); resizeOrigin = undefined; return; }
-    if (moveOrigin) { if (moveOrigin.moved) pushUndo(moveOrigin.before); moveOrigin = undefined; setAlignmentGuides(undefined); return; }
+    if (resizeOrigin) { const origin = resizeOrigin; if (origin.moved) { setElements(elements()); pushUndo(origin.before); } resizeOrigin = undefined; return; }
+    if (moveOrigin) {
+      const origin = moveOrigin;
+      if (origin.moved) {
+        const selected = new Set(origin.indices);
+        setElements(origin.before.map((element, index) => selected.has(index) ? moveElement(element, origin.dx, origin.dy) : element));
+        pushUndo(origin.before);
+      }
+      moveOrigin = undefined; setAlignmentGuides(undefined); scheduleCanvasRender(); return;
+    }
     if (!drawing) return;
     if (penEraserDrawing) { penEraserDrawing = false; drawing = false; return; }
     if (tool() === "eraser") { drawing = false; return; }
     if (activeDrawingTool === "pen") {
       if (event.pointerType === "pen") event.preventDefault();
+      if (event.pointerType === "pen") appendPenSamples(event, false);
       const end = toWorld(event); const last = currentPoints[currentPoints.length - 1];
-      if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= .3) {
+      if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= .05) {
         currentPoints.push(tool() === "pen" ? { ...end, pressure: last.pressure, tiltX: last.tiltX, tiltY: last.tiltY } : end);
       }
     }
@@ -3033,7 +3241,8 @@ function App() {
     { id: "shapes", label: "Shapes", tools: ["rectangle", "circle", "diamond", "triangle", "flowchart"] },
     { id: "content", label: "Text and image tools", tools: ["text", "bucket", "eraser", "crop"] },
   ];
-  const mobileEssentialTools = new Set<Tool>(["select", "pan", "pen", "laser", "line", "arrow", "rectangle", "text", "eraser"]);
+  const mobileEssentialTools = new Set<Tool>(["select", "pan", "pen", "eraser", "laser"]);
+  const renderToolValue = (value: Tool) => { const item = tools.find(candidate => candidate.value === value); return item ? renderToolbarTool(item) : null; };
   const swatches = ["#252525", "#e76b62", "#6b91c9", "#74a582", "#d8a448", "#a581bb", "#e5915b"];
   const helpShortcuts: [string, string][] = [["V", "Select tool"], ["Space", "Hold to pan"], ["P", "Fine pen"], ["Y", "Laser pointer"], ["R", "Rectangle"], ["C / O", "Circle"], ["D", "Diamond"], ["N", "Triangle"], ["L", "Line"], ["A", "Arrow"], ["F", "Flowchart symbol"], ["T", "Text"], ["B", "Fill bucket"], ["E", "Eraser"], ["X", "Image crop"], ["Esc", "Pan tool and clear selection"], ["G", "Toggle grid"], ["Shift+G", "Snap to grid"], ["Shift+O", "Snap to objects"], ["K", "Lock canvas"], ["0", "Center view at 100%"], ["1 / 2", "Fit drawing / selection"], ["Ctrl / Cmd + N", "New sketch"], ["Ctrl / Cmd + O", "Open sketch"], ["Ctrl / Cmd + S", "Save"], ["Ctrl / Cmd + Z", "Undo"], ["Ctrl / Cmd + Y", "Redo"], ["Ctrl / Cmd + C / X / V", "Copy / cut / paste"], ["Ctrl / Cmd + D", "Duplicate selection"], ["Ctrl / Cmd + A", "Select all"], ["Ctrl / Cmd + G", "Group selection"], ["Ctrl / Cmd + Shift + G", "Ungroup"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge by 1 px"], ["Shift+Arrow", "Nudge by 10 px"], ["F1", "Open Help"]];
   const updateTextDraft = (value: string) => setTextDraft((draft) => draft ? { ...draft, value } : undefined);
@@ -3220,7 +3429,7 @@ function App() {
     return button;
   };
   return (
-    <main class={`app-shell theme-${theme()}`} classList={{ "mobile-tools-expanded": mobileToolsExpanded(), "mobile-orientation-portrait": mobileOrientation() === "portrait", "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "read-only-view": readOnlyView() }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
+    <main class={`app-shell theme-${theme()}`} classList={{ "mobile-tools-expanded": mobileToolsExpanded(), "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "read-only-view": readOnlyView() }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
       <header class="topbar">
         <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={activePath() ? fileName() : "SketchDraw"}>{activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
         <nav class="app-menus" aria-label="Application menus">
@@ -3229,15 +3438,15 @@ function App() {
             autosaveSeconds={autosaveSeconds()}
             thicknessPickerMode={thicknessPickerMode()}
             mobileButtonChoices={!isWindowsPlatform() && isCompactTouchLayout()}
-            mobileOrientation={mobileOrientation()}
-            showOrientationSetting={!isWindowsPlatform() && isCompactTouchLayout()}
-            orientationMessage={orientationMessage()}
+            androidAllFilesAccessAvailable={androidAllFilesAccessAvailable()}
+            androidAllFilesAccessGranted={androidAllFilesAccessGranted()}
+            showAndroidAllFilesAccess={isAndroidPlatform() && isCompactTouchLayout()}
             reduceMotion={reduceMotion()}
             displayMetrics={displayMetrics()}
             onInterfaceScaleChange={setInterfaceScalePreference}
             onAutosaveChange={setAutosavePreference}
             onThicknessPickerModeChange={setThicknessPickerPreference}
-            onMobileOrientationChange={orientation => void setMobileOrientationPreference(orientation)}
+            onRequestAndroidAllFilesAccess={() => void requestAndroidAllFilesAccess()}
             onReduceMotionChange={setReduceMotionPreference}
             onRestoreDefaults={restoreAppSettings}
             detailsRef={element => { appSettingsMenu = element; }}
@@ -3251,6 +3460,30 @@ function App() {
             <nav class="view-panel-tabs" aria-label="View settings sections"><button class={viewPanelSection() === "interface" ? "active" : ""} aria-pressed={viewPanelSection() === "interface"} onClick={() => setViewPanelSection("interface")}>Interface</button><button class={viewPanelSection() === "canvas" ? "active" : ""} aria-pressed={viewPanelSection() === "canvas"} onClick={() => setViewPanelSection("canvas")}>Canvas</button></nav>
             <div class="view-panel-pages">
               <div class="view-panel-page interface-page" classList={{ active: viewPanelSection() === "interface" }}>
+                <Show when={!isWindowsPlatform() && isCompactTouchLayout()}>
+                  <section class="view-menu-section mobile-layout-section">
+                    <div class="view-section-heading"><span class="menu-section-title">Mobile layout</span><span>Orientation and toolbar position</span></div>
+                    <div class="mobile-layout-controls">
+                      <div class="mobile-layout-control">
+                        <span>Orientation</span>
+                        <div class="view-choice-group" role="group" aria-label="Mobile orientation">
+                          <button class={mobileOrientation() === "portrait" ? "active" : ""} aria-pressed={mobileOrientation() === "portrait"} onClick={() => void setMobileOrientationPreference("portrait")}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="2.5" width="9" height="15" rx="1.5" /></svg><span>Portrait</span></button>
+                          <button class={mobileOrientation() === "landscape" ? "active" : ""} aria-pressed={mobileOrientation() === "landscape"} onClick={() => void setMobileOrientationPreference("landscape")}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="5.5" width="15" height="9" rx="1.5" /></svg><span>Landscape</span></button>
+                        </div>
+                        <Show when={orientationMessage()}><small class="orientation-setting-message" role="status">{orientationMessage()}</small></Show>
+                      </div>
+
+                      <div class="mobile-layout-control">
+                        <span>Toolbar position</span>
+                        <div class="view-choice-group toolbar-position-options" role="group" aria-label="Toolbar position">
+                          {([{ value: "top", label: "Top", path: "M4 7h12M6 11h8M8 15h4" }, { value: "bottom", label: "Bottom", path: "M4 13h12M6 9h8M8 5h4" }, { value: "left", label: "Left", path: "M7 4v12M11 6v8M15 8v4" }, { value: "right", label: "Right", path: "M13 4v12M9 6v8M5 8v4" }] as const).map(option => <button class={toolbarPosition() === option.value ? "active" : ""} aria-pressed={toolbarPosition() === option.value} onClick={() => setToolbarPositionPreference(option.value)} title={`${option.label} toolbar`}><svg viewBox="0 0 20 20" aria-hidden="true"><path d={option.path} /></svg><span>{option.label}</span></button>)}
+                        </div>
+                        <small>The toolbar scrolls along the selected edge.</small>
+                      </div>
+
+                    </div>
+                  </section>
+                </Show>
                 <section class="view-menu-section theme-setting-section"><span class="menu-section-title">Application theme</span><div class="theme-options"><button class={themeMode() === "system" ? "active" : ""} aria-pressed={themeMode() === "system"} onClick={() => closeSystemMenu(() => setThemePreference("system"))} title="Use system theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z"/></svg><span>System</span></button><button class={themeMode() === "light" ? "active" : ""} aria-pressed={themeMode() === "light"} onClick={() => closeSystemMenu(() => setThemePreference("light"))} title="Light theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l-1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Light</span></button><button class={themeMode() === "dark" ? "active" : ""} aria-pressed={themeMode() === "dark"} onClick={() => closeSystemMenu(() => setThemePreference("dark"))} title="Dark theme"><svg viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5z"/></svg><span>Dark</span></button></div></section>
                 <section class="view-menu-section accent-setting-section"><div class="view-section-heading"><span class="menu-section-title">Accent color</span><span>Tools &amp; highlights</span></div><div class="accent-palette">{UI_ACCENTS.map(option => <button class={`accent-choice ${accentColor() === option.value ? "active" : ""}`} aria-pressed={accentColor() === option.value} title={`${option.label} accent`} onClick={() => setAccentPreference(option.value)}><i style={{ background: option.value }} /><span>{option.label}</span></button>)}<label class="accent-choice custom-accent-choice" title="Choose a custom accent"><input aria-label="Custom accent color" type="color" value={accentColor()} onInput={event => setAccentPreference(event.currentTarget.value)} /><i style={{ background: accentColor() }} /><span>Custom</span></label></div></section>
                 <section class="view-menu-section toolbar-setting-section"><span class="menu-section-title">Toolbar surface</span><div class="toolbar-color-options"><button class="named-color-choice" classList={{ active: toolbarColorChoice() === "auto" }} aria-pressed={toolbarColorChoice() === "auto"} onClick={() => setToolbarColorPreference("auto")} title="Match the application theme"><i class="toolbar-auto-dot" /><span>Auto</span></button>{TOOLBAR_COLORS.map(option => <button class="named-color-choice" classList={{ active: toolbarColorChoice() === option.value }} aria-pressed={toolbarColorChoice() === option.value} onClick={() => setToolbarColorPreference(option.value)} title={option.label}><i style={{ background: option.value }} /><span>{option.label}</span></button>)}<label class="named-color-choice custom-toolbar-choice" title="Custom toolbar color"><input aria-label="Custom toolbar color" type="color" value={toolbarColor()} onInput={event => setToolbarColorPreference(event.currentTarget.value)} /><i style={{ background: toolbarColor() }} /><span>Custom</span></label></div></section>
@@ -3393,8 +3626,8 @@ function App() {
             <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
             <Show when={deletableSelectionCount() > 1}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected elements`} aria-label={`Delete ${deletableSelectionCount()} selected elements`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
             <DesktopPageTabs pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} />
-            <TouchToolBar open={toolBarOpen()} expanded={mobileToolsExpanded()} styleOpen={touchStylePanel()} quickStyles={<Show when={!isWindowsPlatform() && mobileOrientation() === "portrait" && isCompactTouchLayout()}><TouchQuickStyleControls
-              orientation={mobileOrientation()}
+            <TouchToolBar open={toolBarOpen()} expanded={mobileToolsExpanded()} styleOpen={touchStylePanel()} quickStyles={<Show when={!isWindowsPlatform() && isCompactTouchLayout()}><TouchQuickStyleControls
+              orientation={toolbarPosition() === "top" || toolbarPosition() === "bottom" ? "portrait" : "landscape"}
               showColor={showStrokeControls() || tool() === "bucket" || tool() === "laser"}
               color={tool() === "laser" ? laserColor() : tool() === "bucket" ? fillColor() : selectedColor()}
               colorLabel={tool() === "laser" ? "Laser color" : tool() === "bucket" ? "Bucket fill color" : tool() === "text" ? "Text color" : "Stroke color"}
@@ -3451,24 +3684,6 @@ function App() {
                 <button class={`tool-icon-button canvas-utility-button mobile-tool-extra ${boardLocked() ? "selected" : ""}`} title={`Canvas ${boardLocked() ? "locked" : "unlocked"} (K)`} aria-label={boardLocked() ? "Unlock canvas" : "Lock canvas"} aria-pressed={boardLocked()} onClick={() => setBoardLocked(value => !value)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button>
               </div>
             </></TouchToolBar>
-            <Show when={!isWindowsPlatform() && mobileOrientation() === "landscape" && isCompactTouchLayout()}>
-              <TouchQuickStyleControls
-                orientation="landscape"
-                showColor={showStrokeControls() || tool() === "bucket" || tool() === "laser"}
-                color={tool() === "laser" ? laserColor() : tool() === "bucket" ? fillColor() : selectedColor()}
-                colorLabel={tool() === "laser" ? "Laser color" : tool() === "bucket" ? "Bucket fill color" : tool() === "text" ? "Text color" : "Stroke color"}
-                colors={["#202124", "#e45454", "#ddb43c", "#5eaa72", "#3d91bd"]}
-                showWidth={showThicknessControls() || tool() === "laser"}
-                width={tool() === "laser" ? laserThickness() : selectedThickness()}
-                widthLabel={tool() === "laser" ? "Laser thickness" : tool() === "eraser" ? "Eraser size" : "Stroke width"}
-                previewColor={tool() === "laser" ? laserColor() : selectedColor()}
-                widthMode={tool() === "laser" ? "slider" : isPenBrushThicknessTarget() && thicknessPickerMode() === "stepper" ? "fine" : "presets"}
-                presets={(isPenBrushThicknessTarget() ? THICKNESS_PRESETS : ORIGINAL_INSPECTOR_THICKNESS_PRESETS).map(([value, label]) => ({ value, label }))}
-                disabled={tool() !== "laser" && (boardLocked() || !!focusedElement()?.locked)}
-                onColorChange={value => { if (tool() === "laser") { setLaserPreference("rainbow", "false"); setLaserPreference("color", value); } else if (tool() === "bucket") setFillColor(value); else if (selectedLabel() && !textDraft()) updateLabel("color", value); else updateStrokeColor(value); }}
-                onWidthChange={value => { if (tool() === "laser") setLaserPreference("thickness", String(value)); else updateThickness(value); }}
-              />
-            </Show>
             <Show when={layerPanelOpen()}>
               <aside class="floating-layer-panel" aria-label="Layers">
                 <header><strong>Layers</strong><span>{elements().length}</span><button class="pane-close-icon" aria-label="Close layers" title="Close layers" onClick={() => setLayerPanelOpen(false)}>&times;</button></header>

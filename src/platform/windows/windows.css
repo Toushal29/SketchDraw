@@ -162,8 +162,8 @@
 }
 
 @media (min-width: 901px) and (pointer: fine) {
-    body { min-width: 1000px; min-height: 680px; }
-    .app-shell { min-width: 1000px; min-height: 680px; }
+    body { min-width: 1200px; min-height: 800px; }
+    .app-shell { min-width: 1200px; min-height: 800px; }
     .canvas-options-menu { left: 0; right: auto; }
 }
 
