@@ -11,7 +11,7 @@ type Props = {
   interfaceScale: number;
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
-  mobileButtonChoices: boolean;
+  buttonChoices: boolean;
   androidAllFilesAccessAvailable: boolean;
   androidAllFilesAccessGranted: boolean;
   showAndroidAllFilesAccess: boolean;
@@ -51,20 +51,20 @@ export function AppSettingsMenu(props: Props) {
         <header class="app-settings-heading"><strong>App settings</strong><small>Adjust SketchDraw for this device</small></header>
         <div class="app-setting-field">
           <span>Interface scale <strong>{Math.round(props.interfaceScale * 100)}%</strong></span>
-          <Show when={props.mobileButtonChoices} fallback={<select aria-label="Interface scale" value={props.interfaceScale} onChange={event => props.onInterfaceScaleChange(Number(event.currentTarget.value))}>{interfaceScales.map(scale => <option value={scale}>{Math.round(scale * 100)}%</option>)}</select>}>
+          <Show when={props.buttonChoices} fallback={<select aria-label="Interface scale" value={props.interfaceScale} onChange={event => props.onInterfaceScaleChange(Number(event.currentTarget.value))}>{interfaceScales.map(scale => <option value={scale}>{Math.round(scale * 100)}%</option>)}</select>}>
             <SettingChoices label="Interface scale" value={props.interfaceScale} options={interfaceScales.map(scale => ({ value: scale, label: `${Math.round(scale * 100)}%` }))} onChange={props.onInterfaceScaleChange} />
           </Show>
           <small>Changes the app's control and text size. Device display resolution is managed by system settings.</small>
         </div>
         <div class="app-setting-field">
           <span>Autosave interval</span>
-          <Show when={props.mobileButtonChoices} fallback={<select aria-label="Autosave interval" value={props.autosaveSeconds} onChange={event => props.onAutosaveChange(Number(event.currentTarget.value) as 5 | 10)}><option value={5}>Every 5 seconds</option><option value={10}>Every 10 seconds</option></select>}>
+          <Show when={props.buttonChoices} fallback={<select aria-label="Autosave interval" value={props.autosaveSeconds} onChange={event => props.onAutosaveChange(Number(event.currentTarget.value) as 5 | 10)}><option value={5}>Every 5 seconds</option><option value={10}>Every 10 seconds</option></select>}>
             <SettingChoices label="Autosave interval" value={props.autosaveSeconds} options={[{ value: 5, label: "5 sec" }, { value: 10, label: "10 sec" }]} onChange={props.onAutosaveChange} />
           </Show>
         </div>
         <div class="app-setting-field">
           <span>Pen and brush thickness controls</span>
-          <Show when={props.mobileButtonChoices} fallback={<select aria-label="Pen and brush thickness controls" value={props.thicknessPickerMode} onChange={event => props.onThicknessPickerModeChange(event.currentTarget.value as "presets" | "stepper")}><option value="presets">Preset thicknesses</option><option value="stepper">Fine tune with slider</option></select>}>
+          <Show when={props.buttonChoices} fallback={<select aria-label="Pen and brush thickness controls" value={props.thicknessPickerMode} onChange={event => props.onThicknessPickerModeChange(event.currentTarget.value as "presets" | "stepper")}><option value="presets">Preset thicknesses</option><option value="stepper">Fine tune with slider</option></select>}>
             <SettingChoices label="Pen and brush thickness controls" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} />
           </Show>
           <small>Choose presets or fine tuning for pen and paint brushes. Other tools keep their existing controls.</small>
@@ -80,7 +80,7 @@ export function AppSettingsMenu(props: Props) {
         </label>
         <section class="app-display-info" aria-label="Display information">
           <strong>Current display</strong>
-          <span>{props.displayMetrics.physicalWidth} × {props.displayMetrics.physicalHeight} px</span>
+          <span>{props.displayMetrics.physicalWidth} x {props.displayMetrics.physicalHeight} px</span>
           <small>App viewport: {props.displayMetrics.viewportWidth} × {props.displayMetrics.viewportHeight} CSS px</small>
         </section>
         <button class="app-settings-reset" onClick={props.onRestoreDefaults}>Restore app defaults</button>

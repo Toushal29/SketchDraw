@@ -15,6 +15,9 @@
     color: var(--dark-ui-ink);
 }
 
+.app-shell.theme-light { color-scheme: light; }
+.app-shell.theme-dark { color-scheme: dark; }
+
 .app-shell.theme-dark > .topbar,
 .app-shell.theme-dark .touch-tool-bar,
 .app-shell.theme-dark .page-tabs,
@@ -64,6 +67,15 @@
 .app-shell.theme-dark .mobile-home-recent {
     box-shadow: 0 16px 42px #0008;
 }
+
+.app-shell.theme-dark .system-menu-popover button { color: var(--dark-ui-ink); }
+.app-shell.theme-dark .system-menu-popover button:hover:not(:disabled) { background: var(--dark-ui-raised); }
+.app-shell.theme-dark .system-menu-popover kbd { color: var(--dark-ui-muted); }
+.app-shell.theme-dark .system-menu-popover .menu-file-label {
+    border-color: var(--dark-ui-border-soft);
+    color: var(--dark-ui-muted);
+}
+.app-shell.theme-dark .system-menu-popover .menu-separator { background: var(--dark-ui-border-soft); }
 
 .app-shell.theme-dark .tool-cluster {
     border-color: var(--dark-ui-border-soft);

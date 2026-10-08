@@ -6,6 +6,9 @@
   "scripts": {
     "start": "vite --configLoader native",
     "dev": "vite --configLoader native",
+    "dev:windows": "node scripts/dev-windows.mjs",
+    "dev:windows:server": "vite --configLoader native --port 28649 --strictPort",
+    "dev:android": "tauri android dev",
     "build": "vite build --configLoader native",
     "serve": "vite preview",
     "tauri": "tauri"

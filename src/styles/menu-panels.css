@@ -174,8 +174,8 @@
 .gesture-action-card select { min-height: 40px; padding: 6px 26px 6px 8px; }
 .gesture-menu-note { margin: 0; padding: 0 3px; color: var(--panel-muted); font-size: 9px; line-height: 1.4; }
 
-.app-shell.theme-dark:not(.platform-windows) .app-settings-popover,
-.app-shell.theme-dark:not(.platform-windows) .gesture-settings-popover {
+.app-shell.theme-dark .app-settings-popover,
+.app-shell.theme-dark .gesture-settings-popover {
     --panel-ink: #e7ebf2;
     --panel-muted: #a7b0be;
     --panel-line: #3b4552;
@@ -187,23 +187,23 @@
     background: var(--panel-surface);
     box-shadow: 0 26px 72px #0009, 0 2px 8px #0006;
 }
-.app-shell.theme-dark:not(.platform-windows) .app-setting-field { border-color: var(--panel-line); color: var(--panel-ink); background: var(--panel-surface); }
-.app-shell.theme-dark:not(.platform-windows) .app-setting-field > span,
-.app-shell.theme-dark:not(.platform-windows) .app-setting-toggle > span,
-.app-shell.theme-dark:not(.platform-windows) .app-display-info > span,
-.app-shell.theme-dark:not(.platform-windows) .gesture-card-copy strong { color: var(--panel-ink); }
-.app-shell.theme-dark:not(.platform-windows) .app-setting-field select,
-.app-shell.theme-dark:not(.platform-windows) .gesture-action-card select { border-color: var(--panel-line); color: var(--panel-ink); background: #252c36; }
-.app-shell.theme-dark:not(.platform-windows) .app-setting-choices button { border-color: var(--panel-line); color: var(--panel-muted); background: #252c36; }
-.app-shell.theme-dark:not(.platform-windows) .app-setting-choices button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-.app-shell.theme-dark:not(.platform-windows) .app-setting-toggle,
-.app-shell.theme-dark:not(.platform-windows) .app-display-info { border-color: var(--panel-line); background: var(--panel-well); }
-.app-shell.theme-dark:not(.platform-windows) .gesture-menu-heading { border-color: var(--panel-line); }
-.app-shell.theme-dark:not(.platform-windows) .gesture-menu-tabs { border-color: var(--panel-line); background: var(--panel-well); }
-.app-shell.theme-dark:not(.platform-windows) .gesture-menu-tabs button.active { border-color: #465160; color: var(--panel-ink); background: #29313c; }
-.app-shell.theme-dark:not(.platform-windows) .gesture-action-card { border-color: var(--panel-line); background: #252c36; }
-.app-shell.theme-dark:not(.platform-windows) .app-settings-reset { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-.app-shell.theme-dark:not(.platform-windows) .orientation-setting-message { color: #f0b083 !important; }
+.app-shell.theme-dark .app-setting-field { border-color: var(--panel-line); color: var(--panel-ink); background: var(--panel-surface); }
+.app-shell.theme-dark .app-setting-field > span,
+.app-shell.theme-dark .app-setting-toggle > span,
+.app-shell.theme-dark .app-display-info > span,
+.app-shell.theme-dark .gesture-card-copy strong { color: var(--panel-ink); }
+.app-shell.theme-dark .app-setting-field select,
+.app-shell.theme-dark .gesture-action-card select { border-color: var(--panel-line); color: var(--panel-ink); background: #252c36; }
+.app-shell.theme-dark .app-setting-choices button { border-color: var(--panel-line); color: var(--panel-muted); background: #252c36; }
+.app-shell.theme-dark .app-setting-choices button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+.app-shell.theme-dark .app-setting-toggle,
+.app-shell.theme-dark .app-display-info { border-color: var(--panel-line); background: var(--panel-well); }
+.app-shell.theme-dark .gesture-menu-heading { border-color: var(--panel-line); }
+.app-shell.theme-dark .gesture-menu-tabs { border-color: var(--panel-line); background: var(--panel-well); }
+.app-shell.theme-dark .gesture-menu-tabs button.active { border-color: #465160; color: var(--panel-ink); background: #29313c; }
+.app-shell.theme-dark .gesture-action-card { border-color: var(--panel-line); background: #252c36; }
+.app-shell.theme-dark .app-settings-reset { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+.app-shell.theme-dark .orientation-setting-message { color: #f0b083 !important; }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) .app-menus .settings-menu-dropdown .app-settings-popover,

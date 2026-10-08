@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "com.toush.sketchdraw.dev",
+  "build": {
+    "beforeDevCommand": "npm run dev:windows:server",
+    "devUrl": "http://localhost:28649"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "SketchDraw Dev",
+        "width": 1360,
+        "height": 820,
+        "minWidth": 1200,
+        "minHeight": 800,
+        "dataDirectory": "webview-data-dev"
+      }
+    ],
+    "security": {
+      "devCsp": {
+        "default-src": "'self' http://localhost:28649",
+        "connect-src": "ipc: http://ipc.localhost http://localhost:28649 ws://localhost:28650 https://api.github.com",
+        "img-src": "'self' http://localhost:28649 data: blob:",
+        "style-src": "'self' 'unsafe-inline' http://localhost:28649",
+        "font-src": "'self' http://localhost:28649 data:",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'self'"
+      }
+    }
+  }
+}

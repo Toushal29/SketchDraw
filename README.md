@@ -106,6 +106,7 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 
 - **Writing and schema editing:** Resize note, sticky-note, and checklist cards from their canvas handles. Give each card a custom title; card colors follow the app light/dark appearance. Set text size from 8-32 px; it stays fixed when resizing, collapsing, and reopening, and the quick-style font controls update the selected card. Collapsed cards keep their title and show a short content or task-progress summary. Cards render their content in one grouped canvas object to keep dense boards lighter. `Tab` and `Shift+Tab` indent or outdent selected lines in these editors, including fenced code, and in the SQL/JSON schema input.
 - **File-based projects:** Create, open, and automatically save version 7 `.sketch` files. Choose a 5- or 10-second autosave interval from the File menu; manual saves remain immediate. Opening a recognized version 1-6 SketchDraw file migrates it to v7 and saves it to the same `.sketch` path, unless a recovery copy or external file change needs attention. Native saves write and flush a temporary file beside the destination before replacing it. Up to eight recent file paths are stored locally and restored when the app reopens. Opening a document restores the saved center of the view at 100% zoom; use Fit drawing when you want to frame every object.
+- **Windows workspace tools:** Windows adds optional canvas rulers, a toggleable minimap, configurable keyboard shortcuts, object-style copy/paste, a `Ctrl+K` command palette, presentation mode, and multiple open `.sketch` tabs. Custom stencils can be saved on the device and imported or exported as `.sketchlib` libraries. These controls are kept in the Windows platform layer; phone and tablet layouts do not show them.
 - **Drawing tools:** Fine pen is an independent toolbar tool. The Paint brushes menu offers pencil, soft brush, marker, highlighter, and chalk presets. In App Settings, choose either preset thicknesses or integer fine tuning with a preview, step buttons, and a slider for pen and paint brushes; other tools keep their existing thickness presets. The transient laser pointer has adjustable thickness, fade duration, preset or custom color, and rainbow trails. Draw lines, arrows, rectangles, circles, diamonds, triangles, flowchart symbols, and formatted text; fill shapes with the bucket, erase marks, and import/crop images. Rectangles support sharp, rounded, pill, and cut corners with adjustable radius or cut size. The Shape & Component Library adds cloud, star, lightning, heart, and callout symbols alongside UML, ER, and architecture building blocks.
 - **Flowchart symbols:** Process, Terminator, Decision, Input/Output, Document, Database, Predefined Process, Preparation, Manual Input, On-page Connector, Off-page Connector, Delay, Manual Operation, Stored Data, and Cloud. Star, Lightning, Heart, and Callout are available from the Shape & Component Library.
 - **Connectors:** Straight lines, one-, two-, and three-control-point curves, and multi-point lines with four editable interior points; straight, elbow, forked, loop, and jagged arrows; solid, dashed, dotted, or double strokes; configurable arrowheads on lines and arrows; shape attachment points; and draggable route handles. Forked arrows have independent branch endpoints, routes, arrowheads, and shape attachments. Newly drawn connectors show their handles while keeping the current drawing tool active.
@@ -124,8 +125,10 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 - **Whiteboard paper:** Choose plain, dots, fine dots, grid, fine grid, ruled, or isometric paper from View settings on Windows, phones, and tablets.
 - **Group erase:** Select several objects and use the floating **Delete** action, the Selection inspector, or the Delete key to remove them together in one undoable operation.
 - **Images:** Imported images are embedded in the project file and can be cropped on the canvas.
+- **Import formats:** Windows imports SVG artwork as an embedded PNG image. Mermaid flowcharts, SQL/JSON schemas, and common raster image formats are also supported.
 - **Pages and history:** Add, rename, duplicate, reorder, and delete pages. Undo and redo history is maintained per page during the session.
-- **Recovery and conflict checks:** Unsaved work is recoverable from local app storage. Before autosaving, SketchDraw checks for external changes to the open file and offers conflict choices.
+- **Windows shared-folder updates:** When a Windows app has a local `.sketch` file open (including one inside a OneDrive, Google Drive, or similar synced folder), it checks for file changes every 1.6 seconds. Independent object and page edits are merged; if two devices changed the same object, the later recorded edit wins. The app then saves the merged document through the existing atomic-save check. Cloud-provider sign-in and device-to-device transfer remain the provider's responsibility, so updates arrive when that provider synchronizes the folder. Unsaved work is recoverable from local app storage. The phone and tablet sync workflow remains unchanged.
+- **Print preview:** Preview paper size, margins, orientation, page breaks, and tiled output before exporting a PDF.
 - **Export:** Review a live preview before exporting PNG, SVG, or PDF. Fit-to-page PDFs keep diagram paths vector-native and text selectable, embed imported images, and preserve open, solid, dot, bar, diamond, and fork arrowheads. They support current page, all pages, or a chosen page range. Configure A4, Letter, A3, Legal, Tabloid, or custom page sizes; orientation; margins; headers, footers, page numbers, bleed, crop marks; RGB, CMYK, or grayscale output. Tiled poster PDFs use high-resolution raster pages with 150/300 DPI and adjustable overlap. PNG and SVG support transparent backgrounds.
 - **Appearance and accents:** Follow the system light/dark appearance or choose a mode and whiteboard color. The View menu groups application theme, component style, toolbar surface, tool accent, and canvas colors in one compact panel. Set the toolbar surface to Auto to follow light/dark mode, or choose a fixed preset or custom color. Switch diagram and note cards between modern and simple monochrome styling. Whiteboard colors appear as compact named swatches. Neutral black and white strokes adapt to the active theme.
 - **Focused interface:** Windows uses a simple, flat tool bar with pen, eraser, paint brushes, and laser grouped together, plus a compact contextual Properties panel. Touch layouts keep common actions close by and adapt the dock to landscape or portrait screens.
@@ -139,9 +142,9 @@ The current library provides reusable component presets. Deeper modeling interac
 
 ## File format
 
-SketchDraw uses a JSON-based **version 7** format in `.sketch` files. Recognizable version 1-6 SketchDraw JSON documents are normalized to v7 when opened and saved back to their existing `.sketch` path. Missing page settings and legacy element IDs receive safe defaults. Version 7 adds stored Mermaid source to editable flowchart components. The loader retains support for the existing elements and groups from older files. `.sketchdraw` files and malformed or unrelated files remain unsupported. Renaming an old file does not convert it; opening it in SketchDraw does. The file extension remains `.sketch`.
+SketchDraw uses a JSON-based **version 7** format in `.sketch` files. Recognizable version 1-6 SketchDraw JSON documents are normalized to v7 when opened and saved back to their existing `.sketch` path. Missing page settings and legacy element IDs receive safe defaults. Version 7 adds stored Mermaid source to editable flowchart components. Windows may add optional edit-clock metadata used by shared-folder merging; phone and tablet apps preserve that metadata without showing or using the Windows tools. The loader retains support for the existing elements and groups from older files. `.sketchdraw` files and malformed or unrelated files remain unsupported. Renaming an old file does not convert it; opening it in SketchDraw does. The file extension remains `.sketch`.
 
-SketchDraw has no shared online workspaces, collaborative sessions, live cursors, or background document uploads. If you place a `.sketch` file inside a cloud-sync folder, synchronization is handled by that provider; conflict checks reduce accidental overwrites but do not provide distributed locking.
+SketchDraw does not host online workspaces or live cursors. Windows shared-file updates use the local file path and the sync service already managing that folder; there is no SketchDraw server or cloud account. Same-object conflicts use last-recorded-edit-wins metadata, so devices should have reasonably accurate system clocks. The file is still a single portable `.sketch` document, and offline changes merge after the sync provider delivers them.
 
 ## Download and install
 
@@ -171,7 +174,7 @@ See the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for pla
 
 ```sh
 npm ci
-npm run tauri -- dev
+npm run dev:windows
 ```
 
 Build the frontend with `npm run build`, or create a desktop bundle with:
@@ -194,7 +197,7 @@ Tauri mobile targets need their platform toolchains and a one-time native projec
 
 ```sh
 npm run tauri -- android init
-npm run tauri -- android dev
+npm run dev:android
 ```
 
 Build an Android package with `npm run tauri -- android build`. iOS setup and builds require macOS with Xcode:
