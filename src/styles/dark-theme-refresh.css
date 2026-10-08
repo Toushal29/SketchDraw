@@ -65,7 +65,6 @@
 .app-shell.theme-dark .confirm-dialog,
 .app-shell.theme-dark .recent-dashboard,
 .app-shell.theme-dark .mobile-home-recent {
-    box-shadow: 0 16px 42px #0008;
 }
 
 .app-shell.theme-dark .system-menu-popover button { color: var(--dark-ui-ink); }
@@ -89,7 +88,6 @@
     border-color: var(--ui-accent-border);
     color: var(--ui-accent-ink);
     background: var(--ui-accent-soft);
-    box-shadow: none;
 }
 
 .app-shell.theme-dark .tool-options button,
@@ -219,7 +217,7 @@
 
 .app-shell.theme-dark .gesture-action-card { background: var(--dark-ui-raised); }
 .app-shell.theme-dark .canvas-note-editor { border-color: var(--dark-ui-border); background: var(--dark-ui-surface); }
-.app-shell.theme-dark .canvas-note-editor:focus-within { box-shadow: 0 18px 46px #0008, 0 0 0 3px color-mix(in srgb, var(--ui-accent) 18%, transparent); }
+.app-shell.theme-dark .canvas-note-editor:focus-within { }
 .app-shell.theme-dark .welcome-card,
 .app-shell.theme-dark .recent-dashboard,
 .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-screen,

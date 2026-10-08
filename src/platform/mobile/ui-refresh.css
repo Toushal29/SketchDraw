@@ -14,7 +14,6 @@
         --touch-line: color-mix(in srgb, var(--toolbar-ink, #526057) 13%, transparent);
         --touch-muted: color-mix(in srgb, var(--toolbar-ink, #526057) 62%, transparent);
         --touch-glass: color-mix(in srgb, var(--toolbar-surface, #fff) 96%, transparent);
-        --touch-shadow: 0 12px 34px #19261d20, 0 2px 8px #19261d0a;
         background: #edf1ed;
         color: #26342c;
         -webkit-tap-highlight-color: transparent;
@@ -43,7 +42,6 @@
         padding: max(6px, env(safe-area-inset-top)) max(9px, env(safe-area-inset-right)) 7px max(9px, env(safe-area-inset-left));
         border-bottom: 1px solid var(--touch-line);
         background: var(--touch-glass);
-        box-shadow: 0 3px 14px #24352a08;
         /* Keep fixed menu panels positioned against the viewport. */
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
@@ -211,7 +209,6 @@
         border-color: var(--touch-line);
         border-radius: 16px;
         background: var(--toolbar-surface, #fff);
-        box-shadow: var(--touch-shadow);
     }
 
     .app-shell.home-screen-active:not(.platform-windows) .header-leading { grid-column: 1 / -1; }
@@ -238,7 +235,6 @@
         border-radius: 17px;
         color: var(--toolbar-ink, #344239);
         background: var(--toolbar-surface, #fff);
-        box-shadow: var(--touch-shadow);
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
     }
@@ -312,7 +308,6 @@
         border-color: var(--touch-line);
         border-radius: 22px;
         background: var(--toolbar-surface, #fff);
-        box-shadow: 0 8px 30px #24352a0b;
     }
 
     .app-shell.home-screen-active:not(.platform-windows) .welcome-symbol {
@@ -346,7 +341,6 @@
         border-color: var(--touch-line);
         border-radius: 20px;
         background: var(--toolbar-surface, #fff);
-        box-shadow: 0 8px 30px #24352a0b;
     }
 
     .app-shell.home-screen-active:not(.platform-windows) .recent-heading { padding-bottom: 10px; }
@@ -401,7 +395,6 @@
         border: 1px solid var(--touch-line);
         border-radius: 17px;
         background: var(--touch-glass);
-        box-shadow: 0 10px 28px #19261d1c;
         /* Fixed option menus must stay attached to the viewport, not this dock. */
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
@@ -482,7 +475,6 @@
         border: 1px solid var(--touch-line);
         border-radius: 16px;
         background: var(--toolbar-surface, #fff);
-        box-shadow: var(--touch-shadow);
     }
 
     .app-shell:not(.platform-windows) .canvas-options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
@@ -503,7 +495,6 @@
         border-radius: 13px;
         color: var(--toolbar-ink, #46534a);
         background: var(--touch-glass);
-        box-shadow: 0 5px 18px #19261d12;
         transform: none;
     }
 
@@ -527,7 +518,6 @@
         border: 1px solid var(--touch-line);
         border-radius: 15px;
         background: var(--touch-glass);
-        box-shadow: 0 6px 20px #19261d14;
         /* The advanced inspector is fixed to the screen from inside this pane. */
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
@@ -614,7 +604,6 @@
         border: 1px solid var(--touch-line);
         border-radius: 15px;
         background: var(--toolbar-surface, #fff);
-        box-shadow: var(--touch-shadow);
         transform: translateY(-50%);
     }
 
@@ -638,7 +627,6 @@
         border-radius: 20px;
         color: var(--toolbar-ink, #344239);
         background: var(--toolbar-surface, #fff);
-        box-shadow: 0 18px 54px #101a1440;
     }
 
     .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-style-heading {
@@ -667,7 +655,6 @@
         border-radius: 18px;
         color: var(--toolbar-ink, #344239);
         background: var(--toolbar-surface, #fff);
-        box-shadow: var(--touch-shadow);
     }
 
     .app-shell:not(.platform-windows) .selection-delete-action {
@@ -676,7 +663,6 @@
         bottom: max(62px, calc(env(safe-area-inset-bottom) + 58px));
         min-height: 42px;
         border-radius: 13px;
-        box-shadow: var(--touch-shadow);
     }
 
     .app-shell:not(.platform-windows) .confirm-backdrop {
@@ -695,7 +681,6 @@
         overflow-y: auto;
         border: 1px solid var(--touch-line);
         border-radius: 21px;
-        box-shadow: 0 20px 60px #07100a55;
     }
 
     .app-shell:not(.platform-windows) .help-dialog { width: min(760px, 100%); }
@@ -804,7 +789,6 @@
         -webkit-overflow-scrolling: touch;
         border: 1px solid var(--touch-line);
         border-radius: 18px;
-        box-shadow: var(--touch-shadow);
     }
 
     .app-shell:not(.platform-windows) .settings-menu-dropdown > summary:focus-visible,
@@ -880,7 +864,6 @@
         border-radius: 16px;
         color: var(--toolbar-ink, #46534a);
         background: color-mix(in srgb, var(--toolbar-surface, #fff) 94%, transparent);
-        box-shadow: 0 8px 28px #15211722;
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
     }
@@ -924,7 +907,7 @@
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell.theme-dark:not(.platform-windows) { background: #171d19; color: #e3ebe4; }
-    .app-shell.theme-dark:not(.platform-windows) > .topbar { border-color: #39443c; background: color-mix(in srgb, var(--toolbar-surface, #202722) 94%, transparent); box-shadow: 0 3px 16px #0002; }
+    .app-shell.theme-dark:not(.platform-windows) > .topbar { border-color: #39443c; background: color-mix(in srgb, var(--toolbar-surface, #202722) 94%, transparent); }
     .app-shell.theme-dark:not(.platform-windows) .topbar .brand,
     .app-shell.theme-dark:not(.platform-windows) .topbar .menu-dropdown > summary,
     .app-shell.theme-dark:not(.platform-windows) .touch-page-control > summary { color: #d9e2da; }
@@ -937,7 +920,7 @@
     .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode { border-color: #3e4a41; color: #d9e2da; background: color-mix(in srgb, var(--toolbar-surface, #242c26) 95%, transparent); }
     .app-shell.theme-dark:not(.platform-windows) > .canvas-wrap { background: #131915; }
     .app-shell.theme-dark:not(.platform-windows) .welcome-card,
-    .app-shell.theme-dark:not(.platform-windows) .recent-dashboard { border-color: #39443c; background: linear-gradient(145deg, #252d27, #202722); box-shadow: 0 10px 28px #0002; }
+    .app-shell.theme-dark:not(.platform-windows) .recent-dashboard { border-color: #39443c; background: linear-gradient(145deg, #252d27, #202722); }
     .app-shell.theme-dark:not(.platform-windows) .welcome-intro h1,
     .app-shell.theme-dark:not(.platform-windows) .recent-heading h2,
     .app-shell.theme-dark:not(.platform-windows) .recent-file-name { color: #e1e9e2; }

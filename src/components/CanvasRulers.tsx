@@ -31,19 +31,19 @@ function ticks(size: number, zoom: number, pan: number): Tick[] {
   }).filter(tick => tick.position >= 0 && tick.position <= size);
 }
 
-export function Rulers(props: Props) {
+export function CanvasRulers(props: Props) {
   const horizontal = () => ticks(props.width, props.zoom, props.panX);
   const vertical = () => ticks(props.height, props.zoom, props.panY);
-  return <div class="windows-rulers" aria-label="Canvas rulers in drawing units">
-    <svg class="windows-ruler-top" width={props.width} height="20" aria-hidden="true">
+  return <div class="canvas-rulers" aria-label="Canvas rulers in drawing units">
+    <svg class="canvas-ruler-top" width={props.width} height="20" aria-hidden="true">
       <rect width="100%" height="100%" />
       <For each={horizontal()}>{tick => <><path d={`M${tick.position} 20V${tick.major ? 10 : 15}`} />{tick.label && <text x={tick.position + 3} y="9">{tick.label}</text>}</>}</For>
       <text class="ruler-unit" x="5" y="18">px</text>
     </svg>
-    <svg class="windows-ruler-left" width="20" height={props.height} aria-hidden="true">
+    <svg class="canvas-ruler-left" width="20" height={props.height} aria-hidden="true">
       <rect width="100%" height="100%" />
       <For each={vertical()}>{tick => <><path d={`M20 ${tick.position}H${tick.major ? 10 : 15}`} />{tick.label && <text text-anchor="middle" transform={`rotate(-90 10 ${tick.position})`} x="10" y={tick.position + 3}>{tick.label}</text>}</>}</For>
     </svg>
-    <i class="windows-ruler-corner" />
+    <i class="canvas-ruler-corner" />
   </div>;
 }

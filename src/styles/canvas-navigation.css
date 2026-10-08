@@ -1,0 +1,48 @@
+.canvas-rulers { position: absolute; z-index: 8; inset: 0; pointer-events: none; }
+.canvas-ruler-top,
+.canvas-ruler-left { position: absolute; display: block; overflow: hidden; color: var(--toolbar-ink); background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent); }
+.canvas-ruler-top { top: 0; left: 0; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 14%, transparent); }
+.canvas-ruler-left { top: 0; left: 0; border-right: 1px solid color-mix(in srgb, var(--toolbar-ink) 14%, transparent); }
+.canvas-ruler-top rect,
+.canvas-ruler-left rect { fill: color-mix(in srgb, var(--toolbar-surface) 96%, transparent); }
+.canvas-ruler-top path,
+.canvas-ruler-left path { shape-rendering: crispEdges; stroke: color-mix(in srgb, var(--toolbar-ink) 40%, transparent); stroke-width: .75; }
+.canvas-ruler-top text,
+.canvas-ruler-left text { fill: color-mix(in srgb, var(--toolbar-ink) 76%, transparent); font: 8px "Segoe UI", sans-serif; }
+.canvas-ruler-top .ruler-unit { font-weight: 700; }
+.canvas-ruler-corner { position: absolute; top: 0; left: 0; width: 20px; height: 20px; border-right: 1px solid color-mix(in srgb, var(--toolbar-ink) 14%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 14%, transparent); background: var(--toolbar-surface); }
+.canvas-minimap { position: absolute; z-index: 11; right: 16px; bottom: 18px; width: 224px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent); border-radius: 10px; color: var(--toolbar-ink); background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent); backdrop-filter: blur(12px); }
+.canvas-minimap header { display: flex; height: 30px; align-items: center; justify-content: space-between; padding: 0 8px 0 10px; color: var(--toolbar-ink); font-size: 11px; }
+.canvas-minimap header button { display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 5px; color: inherit; background: transparent; cursor: pointer; font-size: 17px; }
+.canvas-minimap header button:hover { background: color-mix(in srgb, var(--toolbar-ink) 9%, transparent); }
+.canvas-minimap svg { display: block; width: 100%; height: 144px; cursor: crosshair; touch-action: none; }
+.minimap-board { fill: color-mix(in srgb, var(--toolbar-surface) 99%, white); stroke: color-mix(in srgb, var(--toolbar-ink) 15%, transparent); }
+.minimap-object { fill: color-mix(in srgb, var(--ui-accent) 26%, transparent); stroke: color-mix(in srgb, var(--ui-accent) 78%, transparent); stroke-width: .7; }
+.minimap-image { fill: color-mix(in srgb, #8a72d8 28%, transparent); stroke: #806bd0; }
+.minimap-freehand { fill: color-mix(in srgb, #43a684 30%, transparent); stroke: #43a684; }
+.minimap-viewport { fill: color-mix(in srgb, var(--ui-accent) 10%, transparent); stroke: var(--ui-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.app-shell.presentation-mode > .canvas-wrap { position: fixed; z-index: 60; inset: 0; width: 100vw; height: 100dvh; min-height: 100dvh; }
+.app-shell.presentation-mode .topbar,
+.app-shell.presentation-mode .touch-tool-bar,
+.app-shell.presentation-mode .tool-deck,
+.app-shell.presentation-mode .style-pane,
+.app-shell.presentation-mode .desktop-page-tabs,
+.app-shell.presentation-mode .touch-page-control,
+.app-shell.presentation-mode .canvas-zoom-reset,
+.app-shell.presentation-mode .selection-delete-action,
+.app-shell.presentation-mode .floating-layer-panel { display: none !important; }
+.app-shell.presentation-mode .canvas-rulers,
+.app-shell.presentation-mode .canvas-minimap { display: none !important; }
+.canvas-presentation-controls { position: absolute; z-index: 30; top: max(16px, env(safe-area-inset-top)); left: 50%; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 24px); padding: 7px 10px; border: 1px solid #ffffff30; border-radius: 10px; color: #fff; background: #171d25e8; transform: translateX(-50%); }
+.canvas-presentation-controls button { min-width: 36px; height: 34px; border: 0; border-radius: 6px; color: inherit; background: #ffffff16; cursor: pointer; touch-action: manipulation; }
+.canvas-presentation-controls button:hover:not(:disabled) { background: #ffffff2b; }
+.canvas-presentation-controls button:disabled { opacity: .35; cursor: default; }
+.canvas-presentation-controls span { max-width: min(42vw, 240px); overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.live-sync-indicator { display: inline-flex; align-items: center; gap: 6px; color: var(--toolbar-ink); opacity: .8; font-size: 10px; white-space: nowrap; }
+.live-sync-indicator i { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #2c9d69; }
+.theme-dark .live-sync-indicator i { background: #55c58c; }
+
+@media (max-width: 720px), (pointer: coarse) and (max-width: 1100px) {
+    .canvas-minimap { right: max(8px, env(safe-area-inset-right)); bottom: max(58px, calc(env(safe-area-inset-bottom) + 52px)); width: min(188px, 48vw); }
+    .canvas-minimap svg { height: 112px; }
+}

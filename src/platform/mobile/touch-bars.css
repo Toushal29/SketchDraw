@@ -88,7 +88,6 @@
         border: 1px solid var(--touch-line);
         border-radius: 17px;
         background: var(--toolbar-surface, #fff);
-        box-shadow: var(--touch-shadow);
     }
     .app-shell:not(.platform-windows) .touch-menu-bar .view-settings-popover { width: min(456px, calc(100vw - 16px)); }
     .app-shell:not(.platform-windows) .touch-menu-bar .gesture-settings-popover { width: min(520px, calc(100vw - 16px)); }
@@ -130,7 +129,6 @@
         border: 1px solid var(--touch-line);
         border-radius: 18px;
         background: var(--touch-glass);
-        box-shadow: var(--touch-shadow);
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
     }
@@ -198,7 +196,6 @@
         border-color: var(--ui-accent-border);
         color: var(--ui-accent-ink);
         background: var(--ui-accent-soft);
-        box-shadow: 0 2px 9px color-mix(in srgb, var(--ui-accent) 14%, transparent);
     }
     .app-shell:not(.platform-windows) .tool-family.options-open .tool-options,
     .app-shell:not(.platform-windows) .canvas-options-family.options-open .canvas-options-menu {

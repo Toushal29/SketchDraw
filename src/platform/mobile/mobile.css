@@ -51,7 +51,6 @@
         border-radius: 13px;
         color: var(--toolbar-ink, #59645a);
         background: color-mix(in srgb, var(--toolbar-surface, #fff) 98%, transparent);
-        box-shadow: 0 14px 38px #1c281c2e;
         backdrop-filter: blur(16px);
     }
     .touch-pages-popover > header,
@@ -71,7 +70,7 @@
     .touch-page-rename,
     .touch-page-more > summary { display: grid; min-width: 64px; min-height: 30px; place-items: center; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 12%, transparent); border-radius: 8px; color: var(--toolbar-ink, #59645a); background: transparent; list-style: none; cursor: pointer; }
     .touch-page-more { position: relative; }
-    .touch-page-more-menu { position: absolute; z-index: 2; right: 0; bottom: calc(100% + 4px); display: grid; width: 150px; gap: 2px; padding: 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 15%, transparent); border-radius: 10px; background: var(--toolbar-surface, #fff); box-shadow: 0 8px 22px #1c281c26; }
+    .touch-page-more-menu { position: absolute; z-index: 2; right: 0; bottom: calc(100% + 4px); display: grid; width: 150px; gap: 2px; padding: 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 15%, transparent); border-radius: 10px; background: var(--toolbar-surface, #fff); }
     .touch-page-more-menu button { padding: 5px 7px; color: var(--toolbar-ink, #59645a); background: transparent; text-align: left; }
     .touch-page-more-menu button:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 9%, transparent); }
 

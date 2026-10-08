@@ -1,4 +1,5 @@
 @import "./styles/app/foundation.css";
+@import "./styles/canvas-navigation.css";
 @import "./styles/app/inspector.css";
 @import "./styles/app/menus.css";
 @import "./styles/app/canvas-tools.css";

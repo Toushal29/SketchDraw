@@ -22,7 +22,6 @@
     border: 1px solid color-mix(in srgb, var(--toolbar-ink) 15%, transparent);
     border-radius: 10px;
     background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
-    box-shadow: 0 8px 24px #20282018, 0 1px 3px #2028200a;
     backdrop-filter: blur(14px);
     transform: translateX(-50%);
 }
@@ -89,7 +88,6 @@
     border-color: color-mix(in srgb, var(--ui-accent) 28%, transparent);
     color: var(--ui-accent-ink);
     background: var(--ui-accent-soft);
-    box-shadow: none;
 }
 
 /* Keep the hide action icon-only and parked at the toolbar's right edge. */
@@ -107,7 +105,6 @@
     border-radius: 11px;
     color: var(--toolbar-ink);
     background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
-    box-shadow: 0 5px 16px #2028201a;
     transform: translateY(-50%);
 }
 
@@ -133,7 +130,6 @@
     border-radius: 12px;
     color: var(--toolbar-ink);
     background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
-    box-shadow: 0 6px 20px #2028201a;
     transform: none;
 }
 
@@ -175,30 +171,7 @@
     .app-shell.platform-windows .touch-tool-bar { flex-wrap: wrap; overflow: visible; }
 }
 
-/* Windows-only canvas navigation and desktop workspaces. */
-.platform-windows .windows-rulers { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
-.platform-windows .windows-ruler-top,
-.platform-windows .windows-ruler-left { position: absolute; display: block; overflow: hidden; background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent); color: var(--toolbar-ink); }
-.platform-windows .windows-ruler-top { top: 0; left: 0; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 14%, transparent); }
-.platform-windows .windows-ruler-left { top: 0; left: 0; border-right: 1px solid color-mix(in srgb, var(--toolbar-ink) 14%, transparent); }
-.platform-windows .windows-ruler-top rect,
-.platform-windows .windows-ruler-left rect { fill: color-mix(in srgb, var(--toolbar-surface) 96%, transparent); }
-.platform-windows .windows-ruler-top path,
-.platform-windows .windows-ruler-left path { shape-rendering: crispEdges; stroke: color-mix(in srgb, var(--toolbar-ink) 40%, transparent); stroke-width: .75; }
-.platform-windows .windows-ruler-top text,
-.platform-windows .windows-ruler-left text { fill: color-mix(in srgb, var(--toolbar-ink) 76%, transparent); font: 8px "Segoe UI", sans-serif; }
-.platform-windows .windows-ruler-top .ruler-unit { font-weight: 700; }
-.platform-windows .windows-ruler-corner { position: absolute; top: 0; left: 0; width: 20px; height: 20px; border-right: 1px solid color-mix(in srgb, var(--toolbar-ink) 14%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 14%, transparent); background: var(--toolbar-surface); }
-.platform-windows .windows-minimap { position: absolute; z-index: 11; right: 16px; bottom: 18px; width: 224px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent); box-shadow: 0 8px 24px #20282020; backdrop-filter: blur(12px); }
-.platform-windows .windows-minimap header { display: flex; height: 30px; align-items: center; justify-content: space-between; padding: 0 8px 0 10px; color: var(--toolbar-ink); font-size: 11px; }
-.platform-windows .windows-minimap header button { display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; font-size: 17px; }
-.platform-windows .windows-minimap header button:hover { background: color-mix(in srgb, var(--toolbar-ink) 9%, transparent); }
-.platform-windows .windows-minimap svg { display: block; width: 100%; height: 144px; cursor: crosshair; touch-action: none; }
-.platform-windows .minimap-board { fill: color-mix(in srgb, var(--toolbar-surface) 99%, white); stroke: color-mix(in srgb, var(--toolbar-ink) 15%, transparent); }
-.platform-windows .minimap-object { fill: color-mix(in srgb, var(--ui-accent) 26%, transparent); stroke: color-mix(in srgb, var(--ui-accent) 78%, transparent); stroke-width: .7; }
-.platform-windows .minimap-image { fill: color-mix(in srgb, #8a72d8 28%, transparent); stroke: #806bd0; }
-.platform-windows .minimap-freehand { fill: color-mix(in srgb, #43a684 30%, transparent); stroke: #43a684; }
-.platform-windows .minimap-viewport { fill: color-mix(in srgb, var(--ui-accent) 10%, transparent); stroke: var(--ui-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+/* Windows-only desktop document tabs and focus controls. */
 .app-shell.platform-windows .windows-document-tabs {
     --tab-ink: var(--toolbar-ink);
     --tab-line: color-mix(in srgb, var(--toolbar-ink) 13%, transparent);
@@ -218,8 +191,8 @@
     background: var(--tab-surface);
     scrollbar-width: thin;
 }
-.app-shell.platform-windows .windows-document-tab { display: flex; min-width: 110px; max-width: 220px; align-items: center; overflow: hidden; border-radius: 6px; color: var(--tab-ink); transition: color .14s ease, background-color .14s ease, box-shadow .14s ease; }
-.app-shell.platform-windows .windows-document-tab.active { color: var(--tab-ink); background: var(--tab-active); box-shadow: inset 0 -2px var(--ui-accent); }
+.app-shell.platform-windows .windows-document-tab { display: flex; min-width: 110px; max-width: 220px; align-items: center; overflow: hidden; border-radius: 6px; color: var(--tab-ink); transition: color .14s ease, background-color .14s ease; }
+.app-shell.platform-windows .windows-document-tab.active { color: var(--tab-ink); background: var(--tab-active); }
 .app-shell.platform-windows .windows-document-tab button { flex: 0 0 auto; border: 0; color: inherit; background: transparent; cursor: pointer; }
 .app-shell.platform-windows .windows-document-tab-name { flex: 1 1 auto !important; min-width: 0; overflow: hidden; padding: 5px 7px; color: inherit !important; text-align: left; text-overflow: ellipsis; white-space: nowrap; font: 550 11px system-ui, sans-serif; }
 .app-shell.platform-windows .windows-document-tab-close { display: grid; width: 23px; min-width: 23px; height: 23px; place-items: center; margin-right: 3px; padding: 0; border-radius: 6px !important; color: inherit !important; opacity: .7; }
@@ -230,14 +203,12 @@
 .app-shell.platform-windows .windows-command-backdrop,
 .app-shell.platform-windows .windows-dialog-backdrop { position: fixed; z-index: 120; inset: 0; display: grid; place-items: start center; padding: 12vh 18px 24px; background: #10161db8; backdrop-filter: blur(5px); }
 .app-shell.platform-windows .windows-dialog-backdrop { place-items: center; overflow-y: auto; padding: 24px; }
-.platform-windows .windows-style-transfer { display: flex; gap: 6px; margin-top: 8px; }
-.platform-windows .windows-style-transfer button { min-height: 30px; padding: 4px 8px; font-size: 11px; }
 .app-shell.platform-windows .auto-route-toggle { display: flex; min-height: 48px; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--setting-line, #dce2e8); border-radius: 9px; color: var(--toolbar-ink); background: color-mix(in srgb, var(--toolbar-ink) 3%, var(--toolbar-surface)); cursor: pointer; }
 .app-shell.platform-windows .auto-route-toggle input { width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--ui-accent); }
 .app-shell.platform-windows .auto-route-toggle > span { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .app-shell.platform-windows .auto-route-toggle strong { font-size: 11px; font-weight: 650; }
 .app-shell.platform-windows .auto-route-toggle small { color: color-mix(in srgb, var(--toolbar-ink) 62%, transparent); font-size: 9px; }
-.app-shell.platform-windows .windows-canvas-options .canvas-options-grid button { min-height: 38px; }
+.app-shell.platform-windows .canvas-tools-options .canvas-options-grid button { min-height: 38px; }
 .platform-windows.windows-presentation-mode .topbar,
 .platform-windows.windows-presentation-mode .touch-tool-bar,
 .platform-windows.windows-presentation-mode .tool-deck,
@@ -255,27 +226,16 @@
 .app-shell.platform-windows.windows-fullscreen-mode .selection-delete-action,
 .app-shell.platform-windows.windows-fullscreen-mode .floating-layer-panel { display: none !important; }
 .app-shell.platform-windows.windows-fullscreen-mode > .canvas-wrap { position: fixed; z-index: 60; inset: 0; width: 100vw; height: 100dvh; min-height: 100dvh; }
-.app-shell.platform-windows.windows-fullscreen-mode .windows-rulers,
-.app-shell.platform-windows.windows-fullscreen-mode .windows-minimap { display: none !important; }
+.app-shell.platform-windows.windows-fullscreen-mode .canvas-rulers,
+.app-shell.platform-windows.windows-fullscreen-mode .canvas-minimap { display: none !important; }
 .app-shell.platform-windows.windows-fullscreen-mode .windows-focus-tools { display: flex; }
-.app-shell.platform-windows .windows-focus-tools { position: fixed; z-index: 80; top: 14px; left: 50%; display: none; align-items: center; gap: 4px; padding: 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink) 15%, transparent); border-radius: 12px; color: var(--toolbar-ink); background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent); box-shadow: 0 8px 28px #10182026; backdrop-filter: blur(16px); transform: translateX(-50%); }
+.app-shell.platform-windows .windows-focus-tools { position: fixed; z-index: 80; top: 14px; left: 50%; display: none; align-items: center; gap: 4px; padding: 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink) 15%, transparent); border-radius: 12px; color: var(--toolbar-ink); background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent); backdrop-filter: blur(16px); transform: translateX(-50%); }
 .app-shell.platform-windows .windows-focus-tools button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; }
 .app-shell.platform-windows .windows-focus-tools button:hover,
 .app-shell.platform-windows .windows-focus-tools button.active { color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
 .app-shell.platform-windows .windows-focus-tools button:disabled { opacity: .35; cursor: not-allowed; }
 .app-shell.platform-windows .windows-focus-tools svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .app-shell.platform-windows .windows-focus-divider { width: 1px; height: 22px; margin: 0 3px; background: color-mix(in srgb, var(--toolbar-ink) 16%, transparent); }
-.platform-windows.windows-presentation-mode > .canvas-wrap { position: fixed; z-index: 60; inset: 0; width: 100vw; height: 100vh; }
-.platform-windows .windows-presentation-controls { position: absolute; z-index: 30; top: 18px; left: 50%; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid #ffffff30; border-radius: 10px; background: #171d25d9; color: #fff; box-shadow: 0 6px 24px #0003; transform: translateX(-50%); }
-.platform-windows .windows-presentation-controls button { min-width: 32px; height: 30px; border: 0; border-radius: 6px; background: #ffffff16; color: inherit; cursor: pointer; }
-.platform-windows .windows-presentation-controls button:hover { background: #ffffff2b; }
-.platform-windows .windows-presentation-controls span { min-width: 70px; text-align: center; font-size: 12px; }
-.app-shell.platform-windows { --windows-header-ink: #343c37; }
-.app-shell.platform-windows.theme-dark { --windows-header-ink: var(--dark-ui-ink, #e0e5ed); }
-.app-shell.platform-windows .windows-live-sync-indicator { display: inline-flex; align-items: center; gap: 7px; color: var(--windows-header-ink); opacity: .86; font-size: 10px; white-space: nowrap; transition: color .14s ease, opacity .14s ease; }
-.app-shell.platform-windows .windows-live-sync-indicator i { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #2c9d69; box-shadow: 0 0 0 3px color-mix(in srgb, #2c9d69 16%, transparent); }
-.app-shell.platform-windows.theme-dark .windows-live-sync-indicator i { background: #55c58c; box-shadow: 0 0 0 3px color-mix(in srgb, #55c58c 20%, transparent); }
-
 /* Windows settings use direct choices and inherit the current toolbar theme. */
 .app-shell.platform-windows .app-settings-popover {
     --setting-ink: var(--toolbar-ink);
@@ -288,7 +248,6 @@
     border-color: var(--setting-line);
     color: var(--setting-ink);
     background: var(--toolbar-surface);
-    box-shadow: 0 16px 42px #18231b30;
 }
 .app-shell.platform-windows .app-settings-heading { padding: 0 2px 8px; border-color: var(--setting-line); }
 .app-shell.platform-windows .app-settings-heading strong,
@@ -309,7 +268,7 @@
 .app-shell.platform-windows .app-display-info > span { color: var(--setting-ink); }
 .app-shell.platform-windows .app-settings-reset { min-height: 34px; border-color: var(--ui-accent-border); border-radius: 8px; color: var(--ui-accent-ink); background: var(--ui-accent-soft); cursor: pointer; }
 .app-shell.platform-windows .app-settings-reset:disabled { opacity: .45; cursor: not-allowed; }
-.app-shell.platform-windows.theme-dark .app-settings-popover { box-shadow: 0 18px 48px #0008; }
+.app-shell.platform-windows.theme-dark .app-settings-popover { }
 
 /* Windows view settings are one unified sheet with every control in view. */
 .app-shell.platform-windows .view-menu-dropdown .view-settings-popover {
@@ -354,7 +313,6 @@
     border-color: color-mix(in srgb, var(--view-line) 88%, transparent);
     border-radius: 11px;
     background: var(--view-panel);
-    box-shadow: none;
 }
 
 .app-shell.platform-windows .windows-view-sheet .theme-setting-section { order: 1; }
@@ -448,7 +406,7 @@
     color: var(--dialog-muted);
     background: var(--dialog-well);
 }
-.app-shell.platform-windows .windows-shortcut-filter:focus-within { border-color: var(--ui-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent) 16%, transparent); }
+.app-shell.platform-windows .windows-shortcut-filter:focus-within { border-color: var(--ui-accent); }
 .app-shell.platform-windows .windows-shortcut-filter svg { width: 17px; height: 17px; flex: 0 0 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
 .app-shell.platform-windows .windows-shortcut-filter input { box-sizing: border-box; width: 100%; min-width: 0; height: 40px; padding: 0; border: 0; outline: 0; color: var(--dialog-ink); background: transparent; font: 450 12px system-ui, sans-serif; }
 .app-shell.platform-windows .windows-shortcut-filter input::placeholder { color: var(--dialog-muted); }
@@ -492,7 +450,7 @@
     font: 600 11px/1.3 ui-monospace, Consolas, monospace;
     text-align: center;
 }
-.app-shell.platform-windows .windows-shortcut-row input.capturing { border-color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 10%, var(--dialog-surface)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent) 18%, transparent); }
+.app-shell.platform-windows .windows-shortcut-row input.capturing { border-color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 10%, var(--dialog-surface)); }
 .app-shell.platform-windows .windows-shortcut-row input:focus-visible { outline: none; }
 .app-shell.platform-windows .windows-shortcut-empty { margin: 0; padding: 28px 12px; color: var(--dialog-muted); text-align: center; font-size: 12px; }
 .app-shell.platform-windows .windows-shortcut-dialog > footer {
@@ -552,7 +510,6 @@
     border-radius: 17px;
     background: var(--toolbar-surface);
     color: var(--toolbar-ink);
-    box-shadow: 0 28px 90px #08111db0, 0 3px 10px #08111d26;
 }
 .app-shell.platform-windows .windows-command-search {
     display: flex;
@@ -642,7 +599,6 @@
     border: 1px solid #e0e5ef;
     border-radius: 22px;
     background: linear-gradient(145deg, #fff 0%, #fbfcff 72%, #f5f7fb 100%);
-    box-shadow: 0 16px 46px #26324a0b, 0 2px 7px #26324a08;
 }
 .app-shell.platform-windows.home-screen-active .welcome-symbol {
     width: 42px;
@@ -652,15 +608,14 @@
     border-radius: 12px;
     color: #596aa7;
     background: #eef1fb;
-    box-shadow: none;
 }
 .app-shell.platform-windows.home-screen-active .welcome-intro .eyebrow,
 .app-shell.platform-windows.home-screen-active .recent-heading .eyebrow { color: #78849a; }
 .app-shell.platform-windows.home-screen-active .welcome-intro h1 { color: #202b40; font-size: clamp(34px, 3.3vw, 48px); letter-spacing: -2px; }
 .app-shell.platform-windows.home-screen-active .welcome-intro h1 em { color: #5d6eb0; }
 .app-shell.platform-windows.home-screen-active .welcome-intro .welcome-copy { color: #69758a; font-size: 13px; line-height: 1.65; }
-.app-shell.platform-windows.home-screen-active .welcome-actions .save-button { border-color: #5366a9; color: #fff; background: #5366a9; box-shadow: 0 4px 12px #5366a926; }
-.app-shell.platform-windows.home-screen-active .welcome-actions .save-button:hover { background: #465995; box-shadow: 0 7px 17px #5366a933; }
+.app-shell.platform-windows.home-screen-active .welcome-actions .save-button { border-color: #5366a9; color: #fff; background: #5366a9; }
+.app-shell.platform-windows.home-screen-active .welcome-actions .save-button:hover { background: #465995; }
 .app-shell.platform-windows.home-screen-active .welcome-actions .quiet-button { border-color: #dfe4ed; color: #46536b; background: #fff; }
 .app-shell.platform-windows.home-screen-active .welcome-actions .quiet-button:hover { border-color: #cbd3e3; background: #f7f8fc; }
 .app-shell.platform-windows.home-screen-active .welcome-intro .file-hint { color: #77839a; }
@@ -673,12 +628,11 @@
     border-radius: 17px;
     background-color: #edf1f8;
     background-image: radial-gradient(#aab6ca 1px, transparent 1px);
-    box-shadow: inset 0 1px #ffffffb8;
 }
 .app-shell.platform-windows.home-screen-active .welcome-visual::before { background: linear-gradient(135deg, #f4f6fbe0, #f0f3f9b8 65%, #e8edf6d9); }
 .app-shell.platform-windows.home-screen-active .welcome-visual-topline { color: #6b7890; }
 .app-shell.platform-windows.home-screen-active .welcome-visual-topline i,
-.app-shell.platform-windows.home-screen-active .welcome-dot { background: #7084bd; box-shadow: 0 0 0 3px #7084bd20; }
+.app-shell.platform-windows.home-screen-active .welcome-dot { background: #7084bd; }
 .app-shell.platform-windows.home-screen-active .welcome-visual-topline b { color: #8994a8; }
 .app-shell.platform-windows.home-screen-active .welcome-wire { stroke: #94a3bc; }
 .app-shell.platform-windows.home-screen-active .welcome-wire-arrow { stroke: #798cab; }
@@ -699,13 +653,12 @@
     border-color: #e0e5ed;
     border-radius: 19px;
     background: #ffffffeb;
-    box-shadow: 0 13px 38px #26324a0a;
 }
 .app-shell.platform-windows.home-screen-active .recent-heading h2 { color: #253148; font-family: 'DM Sans', sans-serif; font-size: 21px; font-weight: 650; }
 .app-shell.platform-windows.home-screen-active .recent-heading > p { color: #818ba0; }
 .app-shell.platform-windows.home-screen-active .recent-count { border-color: #e1e5ed; color: #5e6fa7; background: #f2f4fa; }
 .app-shell.platform-windows.home-screen-active .recent-file { border-color: #e8ebf1; border-radius: 10px; background: #fff; }
-.app-shell.platform-windows.home-screen-active .recent-file:hover { border-color: #cbd4e7; background: #f9faff; box-shadow: 0 5px 14px #26324a0d; }
+.app-shell.platform-windows.home-screen-active .recent-file:hover { border-color: #cbd4e7; background: #f9faff; }
 .app-shell.platform-windows.home-screen-active .recent-file-icon { border-color: #e2e7f0; color: #6075a7; background: #f1f4fa; }
 .app-shell.platform-windows.home-screen-active .recent-file-name { color: #344057; }
 .app-shell.platform-windows.home-screen-active .recent-file-path { color: #8a94a6; }
@@ -715,11 +668,11 @@
 .app-shell.platform-windows.home-screen-active .recent-empty span { color: #7e899d; }
 .app-shell.platform-windows.home-screen-active .recent-empty .quiet-button { border-color: #dfe4ed; color: #51638e; background: #fff; }
 .app-shell.platform-windows.home-screen-active .recent-footnote { border-color: #e8ebf1; color: #8993a4; }
-.app-shell.platform-windows.home-screen-active .recent-footnote-dot { background: #7184b7; box-shadow: 0 0 0 3px #7184b71c; }
+.app-shell.platform-windows.home-screen-active .recent-footnote-dot { background: #7184b7; }
 
 .app-shell.platform-windows.theme-dark.home-screen-active { color: #e8ebf3; background: #181c25; }
 .app-shell.platform-windows.theme-dark.home-screen-active .welcome-card,
-.app-shell.platform-windows.theme-dark.home-screen-active .recent-dashboard { border-color: #343c4d; background: linear-gradient(145deg, #242a36, #202632); box-shadow: 0 18px 48px #0004; }
+.app-shell.platform-windows.theme-dark.home-screen-active .recent-dashboard { border-color: #343c4d; background: linear-gradient(145deg, #242a36, #202632); }
 .app-shell.platform-windows.theme-dark.home-screen-active .welcome-symbol { border-color: #414b65; color: #c0c9f2; background: #2c3448; }
 .app-shell.platform-windows.theme-dark.home-screen-active .welcome-intro .eyebrow,
 .app-shell.platform-windows.theme-dark.home-screen-active .recent-heading .eyebrow { color: #a0aac0; }

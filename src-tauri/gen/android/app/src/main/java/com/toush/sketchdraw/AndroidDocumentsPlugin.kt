@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import android.provider.DocumentsContract
 import androidx.activity.result.ActivityResult
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
@@ -18,6 +19,12 @@ import org.json.JSONObject
 
 @InvokeArg
 internal class CreateSketchDocumentArgs {
+  var fileName: String? = null
+}
+
+@InvokeArg
+internal class RenameSketchDocumentArgs {
+  var uri: String? = null
   var fileName: String? = null
 }
 
@@ -95,6 +102,32 @@ class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) 
       )
     }
     startActivityForResult(invoke, intent, "createSketchDocumentResult")
+  }
+
+  @Command
+  fun renameSketchDocument(invoke: Invoke) {
+    try {
+      val args = invoke.parseArgs(RenameSketchDocumentArgs::class.java)
+      val uri = Uri.parse(args.uri ?: throw IllegalArgumentException("The sketch path is missing."))
+      val requestedName = args.fileName?.trim() ?: ""
+      if (uri.scheme != "content" || requestedName.isBlank() || requestedName.length > 180 || requestedName.any { it.isISOControl() || it in "<>:\"/\\|?*" } || requestedName.endsWith('.') || requestedName.endsWith(' ')) {
+        throw IllegalArgumentException("Enter a valid sketch file name.")
+      }
+      val fileName = if (requestedName.endsWith(".sketch", ignoreCase = true)) requestedName else "$requestedName.sketch"
+      val renamed = DocumentsContract.renameDocument(activity.contentResolver, uri, fileName)
+        ?: throw IllegalStateException("The document provider did not rename this file.")
+      try {
+        activity.contentResolver.takePersistableUriPermission(
+          renamed,
+          Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+        )
+      } catch (_: SecurityException) {
+        // The original persisted grant can remain valid when a provider reuses its document URI.
+      }
+      resolveUri(invoke, renamed.toString())
+    } catch (error: Exception) {
+      invoke.reject(error.message ?: "Could not rename this sketch.")
+    }
   }
 
   @ActivityCallback

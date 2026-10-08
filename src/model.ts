@@ -23,9 +23,20 @@ export type Element = FreehandElement | ShapeElement | TextElement | ImageElemen
 export type Tool = "select" | "pan" | "pen" | "laser" | "rectangle" | "circle" | "diamond" | "triangle" | "flowchart" | "line" | "arrow" | "text" | "bucket" | "eraser" | "crop";
 export type CanvasState = { zoom: number; panX: number; panY: number; backgroundColor: string; boardColorFollowsTheme?: boolean };
 export type SketchPage = { id: string; name: string; canvasState: CanvasState; elements: Element[] };
+export type ProjectNote = { id: string; title: string; content: string; createdAt: number; updatedAt: number };
+export type ProjectTaskStatus = "backlog" | "inProgress" | "done";
+export type ProjectTaskPriority = "low" | "medium" | "high";
+export type ProjectTask = { id: string; title: string; description: string; status: ProjectTaskStatus; priority: ProjectTaskPriority; startDate?: string; dueDate?: string; dependsOn?: string[]; createdAt: number; updatedAt: number };
+export type ProjectMilestone = { id: string; title: string; description: string; date: string; completed: boolean; createdAt: number; updatedAt: number };
+export type ProjectLogKind = "decision" | "question" | "risk";
+export type ProjectLogEntry = { id: string; kind: ProjectLogKind; title: string; details: string; owner: string; nextStep: string; riskLevel?: ProjectTaskPriority; resolved: boolean; createdAt: number; updatedAt: number };
+export type ProjectFileEntry =
+  | { id: string; kind: "attachment"; name: string; mimeType: string; dataUrl: string; size: number; createdAt: number }
+  | { id: string; kind: "link"; name: string; url: string; createdAt: number };
+export type ProjectWorkspaceData = { name: string; description: string; notes: ProjectNote[]; tasks: ProjectTask[]; milestones: ProjectMilestone[]; logEntries: ProjectLogEntry[]; files: ProjectFileEntry[] };
 export const SKETCH_FORMAT_VERSION = 7 as const;
 export type WindowsSyncMetadata = { version: 1; updatedAt: number; deviceId: string; clocks: Record<string, number>; tombstones: Record<string, number> };
-export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; windowsSync?: WindowsSyncMetadata };
+export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; project?: ProjectWorkspaceData; windowsSync?: WindowsSyncMetadata };
 export type Preview = { type: Exclude<Tool, "select" | "pan" | "laser" | "text" | "bucket" | "eraser" | "crop">; start: Point; end: Point; color: string; thickness: number; opacity?: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute };
 export type Bounds = { x: number; y: number; w: number; h: number };
 export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; shapeLabel?: boolean; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };

@@ -22,7 +22,6 @@
     border-radius: 20px;
     color: var(--view-ink);
     background: var(--view-panel);
-    box-shadow: 0 24px 70px #1822302b, 0 3px 10px #18223012;
 }
 
 .view-menu-heading {
@@ -57,14 +56,13 @@
     background: transparent;
     font: 650 11px/1.2 system-ui, sans-serif;
     cursor: pointer;
-    transition: color .14s ease, background .14s ease, border-color .14s ease, box-shadow .14s ease;
+    transition: color .14s ease, background .14s ease, border-color .14s ease;
 }
 .view-panel-tabs button:hover { color: var(--view-ink); background: var(--view-hover); }
 .view-panel-tabs button.active {
     border-color: var(--view-line);
     color: var(--view-ink);
     background: var(--view-panel);
-    box-shadow: 0 1px 3px #18223012;
 }
 .view-panel-tabs button:focus-visible,
 .view-settings-popover button:focus-visible,
@@ -198,7 +196,7 @@
 }
 .accent-choice.active > i,
 .named-color-choice.active > i,
-.board-color-choice.active > i { box-shadow: 0 0 0 2px var(--ui-accent-border); }
+.board-color-choice.active > i { }
 .accent-choice span,
 .named-color-choice span,
 .board-color-choice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -266,10 +264,9 @@
     border-color: var(--view-line);
     color: var(--view-ink);
     background: var(--view-panel);
-    box-shadow: 0 26px 72px #0009, 0 2px 8px #0006;
 }
 .app-shell.theme-dark .view-panel-tabs { border-color: var(--view-line); background: var(--view-well); }
-.app-shell.theme-dark .view-panel-tabs button.active { border-color: #465160; background: #29313c; box-shadow: 0 1px 3px #0005; }
+.app-shell.theme-dark .view-panel-tabs button.active { border-color: #465160; background: #29313c; }
 .app-shell.theme-dark .view-menu-section { border-color: var(--view-line); background: var(--view-panel); }
 .app-shell.theme-dark .mobile-layout-section { background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 14%, #222831), #222831 70%); }
 .app-shell.theme-dark .view-choice-group button,

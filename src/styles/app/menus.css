@@ -136,7 +136,6 @@
     overflow: hidden;
     border: 2px solid #fff;
     border-radius: 6px;
-    box-shadow: 0 0 0 1px #dcdad3;
     cursor: pointer;
 }
 
@@ -243,7 +242,6 @@
     border: 1px solid #e5e4df;
     border-radius: 9px;
     background: rgba(255, 255, 255, .94);
-    box-shadow: 0 5px 20px #27281f12;
 }
 
 .theme-dark .tool-collapse,
@@ -420,7 +418,6 @@
     border-radius: 14px;
     color: #3e403a;
     background: #fff;
-    box-shadow: 0 18px 55px #0003;
 }
 
 .confirm-dialog h2 {
@@ -511,7 +508,6 @@
     border: 1px solid #e5e4df;
     border-radius: 10px;
     background: rgba(255, 255, 255, .94);
-    box-shadow: 0 5px 20px #27281f12;
     backdrop-filter: blur(12px);
 }
 
@@ -712,7 +708,6 @@
     border: 1px solid #d8dce3;
     border-radius: 10px;
     background: #fff;
-    box-shadow: 0 8px 30px #0002;
 }
 
 .page-actions button,
@@ -748,7 +743,6 @@
     background: #fff;
     border: 1px solid #d8dce3;
     border-radius: 12px;
-    box-shadow: 0 12px 36px #0003;
 }
 
 .canvas-context-menu kbd {

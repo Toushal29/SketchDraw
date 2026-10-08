@@ -76,7 +76,6 @@
     border-radius: 13px;
     color: #303d4c;
     background: #edf3fb;
-    box-shadow: 0 14px 36px #28384924, 0 2px 8px #28384910;
 }
 
 .canvas-note-editor.sticky {
@@ -154,7 +153,6 @@
     border-color: #465568;
     color: #d7e1ed;
     background: #253140;
-    box-shadow: 0 8px 24px #0007;
 }
 
 .theme-dark .canvas-note-editor > header { color: #a4b2c3; }
@@ -195,7 +193,7 @@
     overflow: auto;
 }
 
-.schema-input:focus { border-color: #87a987; box-shadow: 0 0 0 3px #789b791c; }
+.schema-input:focus { border-color: #87a987; }
 
 .schema-dialog-footer > span { color: var(--muted); font-size: 11px; }
 .schema-dialog-footer > div { display: flex; gap: 8px; }

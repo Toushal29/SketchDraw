@@ -21,6 +21,7 @@ import "./styles/dark-theme-refresh.css";
 import "./styles/view-menu.css";
 import "./styles/menu-panels.css";
 import "./platform/windows/windows.css";
+import "./features/project/project-workspace.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
@@ -54,6 +55,9 @@ import type { PaletteCommand } from "./platform/windows/CommandPalette";
 import { createWindowsSyncMetadata, getWindowsDeviceId, mergeLatestSnapshots } from "./platform/windows/sync";
 import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, loadWindowsShortcuts, matchesWindowsShortcut, normalizeShortcut, type WindowsShortcutId, type WindowsShortcutMap } from "./platform/windows/shortcuts";
 import { autoRoutePoints } from "./platform/windows/connector-routing";
+import { ProjectWorkspace } from "./features/project/ProjectWorkspace";
+import { createProjectWorkspace } from "./features/project/project-data";
+import type { ProjectWorkspaceData } from "./model";
 
 type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
 type TouchGesture = { fingerCount: 2 | 3; action: TouchGestureAction; initialDistance: number; initialZoom: number; initialPanX: number; initialPanY: number; initialMidpoint: Point; worldAnchor: Point };
@@ -144,8 +148,8 @@ const MermaidPreview = lazy(async () => {
 const WindowsCommandPalette = lazy(async () => { const module = await import("./platform/windows/CommandPalette"); return { default: module.CommandPalette }; });
 const WindowsDocumentTabs = lazy(async () => { const module = await import("./platform/windows/DocumentTabs"); return { default: module.DocumentTabs }; });
 const WindowsKeyboardShortcutsDialog = lazy(async () => { const module = await import("./platform/windows/KeyboardShortcutsDialog"); return { default: module.KeyboardShortcutsDialog }; });
-const WindowsMinimap = lazy(async () => { const module = await import("./platform/windows/Minimap"); return { default: module.Minimap }; });
-const WindowsRulers = lazy(async () => { const module = await import("./platform/windows/Rulers"); return { default: module.Rulers }; });
+const CanvasMinimap = lazy(async () => { const module = await import("./components/CanvasMinimap"); return { default: module.CanvasMinimap }; });
+const CanvasRulers = lazy(async () => { const module = await import("./components/CanvasRulers"); return { default: module.CanvasRulers }; });
 const WindowsFocusTools = lazy(async () => { const module = await import("./platform/windows/WindowsFocusTools"); return { default: module.WindowsFocusTools }; });
 
 function App() {
@@ -179,6 +183,11 @@ function App() {
   const [pages, setPages] = createSignal<SketchPage[]>([]);
   const [activePageId, setActivePageId] = createSignal("");
   const [activePath, setActivePath] = createSignal<string>();
+  const [renameFileOpen, setRenameFileOpen] = createSignal(false);
+  const [renameFileName, setRenameFileName] = createSignal("");
+  const [renameFileError, setRenameFileError] = createSignal("");
+  const [projectWorkspaceData, setProjectWorkspaceData] = createSignal<ProjectWorkspaceData>(createProjectWorkspace());
+  const [projectWorkspaceOpen, setProjectWorkspaceOpen] = createSignal(false);
   const [readOnlyView, setReadOnlyView] = createSignal(false);
   const [tool, setTool] = createSignal<Tool>("pen");
   const [color, setColor] = createSignal("#252525");
@@ -202,9 +211,9 @@ function App() {
   const [hoveredIndex, setHoveredIndex] = createSignal<number>();
   const [noteToggleHovered, setNoteToggleHovered] = createSignal(false);
   const [showGrid, setShowGrid] = createSignal(true);
-  const [showMinimap, setShowMinimap] = createSignal(isWindowsPlatform() && readPreference("sketchdraw-windows-minimap", "true") !== "false");
-  const [showRulers, setShowRulers] = createSignal(isWindowsPlatform() && readPreference("sketchdraw-windows-rulers", "false") === "true");
-  const [showAlignmentGuides, setShowAlignmentGuides] = createSignal(!isWindowsPlatform() || readPreference("sketchdraw-windows-guides", "true") !== "false");
+  const [showMinimap, setShowMinimap] = createSignal(readPreference("sketchdraw-canvas-minimap", readPreference("sketchdraw-windows-minimap", isWindowsPlatform() ? "true" : "false")) !== "false");
+  const [showRulers, setShowRulers] = createSignal(readPreference("sketchdraw-canvas-rulers", readPreference("sketchdraw-windows-rulers", "false")) === "true");
+  const [showAlignmentGuides, setShowAlignmentGuides] = createSignal(readPreference("sketchdraw-canvas-guides", readPreference("sketchdraw-windows-guides", "true")) !== "false");
   const [commandPaletteOpen, setCommandPaletteOpen] = createSignal(false);
   const [shortcutDialogOpen, setShortcutDialogOpen] = createSignal(false);
   const [shortcuts, setShortcuts] = createSignal<WindowsShortcutMap>(isWindowsPlatform() ? loadWindowsShortcuts() : { ...DEFAULT_WINDOWS_SHORTCUTS });
@@ -506,7 +515,7 @@ function App() {
       : [...common, "color", "thickness", "fillColor", "fillOpacity", "lineStyle", "edgeStyle", "cornerRadius", "flowchartShape", "lineRoute", "arrowRoute", "startHead", "endHead"];
     const style = Object.fromEntries(allowed.flatMap(key => key in source ? [[key, (source as unknown as Record<string, unknown>)[key]]] : []));
     setCopiedObjectStyle({ type: source.type, style });
-    try { localStorage.setItem("sketchdraw-windows-copied-style", JSON.stringify({ type: source.type, style })); } catch { /* The in-memory copy stays available for this session. */ }
+    try { localStorage.setItem("sketchdraw-copied-object-style", JSON.stringify({ type: source.type, style })); } catch { /* The in-memory copy stays available for this session. */ }
   }
 
   function pasteObjectStyle() {
@@ -692,13 +701,19 @@ function App() {
   const updateThickness = (value: number) => { const bounded = Math.max(1, Math.min(24, Math.round(value))); setThickness(bounded); if (hasStyleSelection()) updateProperty("thickness", bounded); };
   const setThicknessPickerPreference = (mode: "presets" | "stepper") => { setThicknessPickerMode(mode); try { localStorage.setItem("sketchdraw-thickness-picker", mode); } catch { /* The setting still applies for this session. */ } };
   const status = () => !activePath() ? "No file selected" : readOnlyView() ? "View only · changes are not saved" : saving() ? "Saving…" : (dirty() || textDraft()) ? "Unsaved changes" : savedAt() ? `Saved ${savedAt()}` : "Saved locally";
-  function observeWindowsSync(serializedPages: SketchPage[]) {
-    if (!isWindowsPlatform() || !activePath()) return;
+  function observeFileSync(serializedPages: SketchPage[], project: ProjectWorkspaceData) {
+    if (!activePath()) return;
     const current = new Map<string, string>();
     for (const page of serializedPages) {
       current.set(`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState }));
       for (const element of page.elements) if (element.id) current.set(`e:${page.id}:${element.id}`, JSON.stringify(element));
     }
+    current.set("w:meta", JSON.stringify({ name: project.name, description: project.description }));
+    for (const note of project.notes) current.set(`w:n:${note.id}`, JSON.stringify(note));
+    for (const task of project.tasks) current.set(`w:t:${task.id}`, JSON.stringify(task));
+    for (const milestone of project.milestones) current.set(`w:m:${milestone.id}`, JSON.stringify(milestone));
+    for (const entry of project.logEntries) current.set(`w:l:${entry.id}`, JSON.stringify(entry));
+    for (const file of project.files) current.set(`w:f:${file.id}`, JSON.stringify(file));
     const now = Date.now();
     const previous = windowsSyncMetadata() ?? createWindowsSyncMetadata();
     const clocks = { ...previous.clocks };
@@ -724,16 +739,17 @@ function App() {
       const state = isCurrent ? canvasState() : page.canvasState;
       return { id: page.id, name: page.name, canvasState: { ...state, backgroundColor: isCurrent ? renderedBoardColor() : (state.boardColorFollowsTheme ? (theme() === "dark" ? "#17191f" : "#ffffff") : state.backgroundColor), boardColorFollowsTheme: state.boardColorFollowsTheme ?? true }, elements: normalized as Element[] };
     });
-    observeWindowsSync(serializedPages);
-    return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: activePageId() || serializedPages[0].id, pages: serializedPages, ...(windowsSyncMetadata() ? { windowsSync: windowsSyncMetadata() } : {}) };
+    const project = projectWorkspaceData();
+    observeFileSync(serializedPages, project);
+    return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: activePageId() || serializedPages[0].id, pages: serializedPages, project, ...(windowsSyncMetadata() ? { windowsSync: windowsSyncMetadata() } : {}) };
   }
   function snapshotRaw(snapshot: SketchFile) { return JSON.stringify(snapshot, null, 2); }
   createEffect(() => {
-    const path = activePath(); const currentPages = pages(); const currentPageId = activePageId(); const currentElements = elements(); const currentState = canvasState();
-    if (!isWindowsPlatform() || !path || !currentPages.length || !currentPageId) return;
+    const path = activePath(); const currentPages = pages(); const currentPageId = activePageId(); const currentElements = elements(); const currentState = canvasState(); const currentProject = projectWorkspaceData();
+    if (!path || !currentPages.length || !currentPageId) return;
     if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer);
     const observedPages = currentPages.map(page => page.id === currentPageId ? { ...page, elements: currentElements, canvasState: currentState } : page);
-    syncObservationTimer = window.setTimeout(() => observeWindowsSync(observedPages), 250);
+    syncObservationTimer = window.setTimeout(() => observeFileSync(observedPages, currentProject), 250);
   });
   function storeCurrentPage() {
     const id = activePageId();
@@ -1734,7 +1750,7 @@ function App() {
       } }; ctx.save(); ctx.fillStyle = "#5d94e7"; ctx.globalAlpha = .7; ports(elements()); const hint = attachmentHint(); if (hint) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(hint.x, hint.y, 8 / state.zoom, 0, Math.PI * 2); ctx.strokeStyle = "#2675f5"; ctx.lineWidth = 2 / state.zoom; ctx.stroke(); } ctx.restore();
     }
     const guides = alignmentGuides();
-    if (includeSelection && guides && (!isWindowsPlatform() || showAlignmentGuides())) {
+    if (includeSelection && guides && showAlignmentGuides()) {
       const left = -state.panX / state.zoom; const top = -state.panY / state.zoom; const right = (width - state.panX) / state.zoom; const bottom = (height - state.panY) / state.zoom;
       ctx.save(); ctx.strokeStyle = "#668fd0"; ctx.globalAlpha = .85; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([5 / state.zoom, 4 / state.zoom]); ctx.beginPath();
       if (guides.x !== undefined) { ctx.moveTo(guides.x, top); ctx.lineTo(guides.x, bottom); }
@@ -1809,10 +1825,10 @@ function App() {
   });
 
   createEffect(() => {
-    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setSchemaDialog(false); setMermaidDialog(false); setShowClearConfirm(false); setContextMenu(undefined); closeToolOptions(); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (portraitMenu) portraitMenu.open = false; }
+    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setRenameFileOpen(false); setSchemaDialog(false); setMermaidDialog(false); setShowClearConfirm(false); setContextMenu(undefined); closeToolOptions(); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (portraitMenu) portraitMenu.open = false; }
   });
   createEffect(() => {
-    const open = pageDialog() || schemaDialog() || mermaidDialog() || exportOptionsOpen() || showClearConfirm() || recoveryPrompt() || syncConflict() || helpOpen() || (isWindowsPlatform() && shortcutDialogOpen());
+    const open = pageDialog() || renameFileOpen() || schemaDialog() || mermaidDialog() || exportOptionsOpen() || showClearConfirm() || recoveryPrompt() || syncConflict() || helpOpen() || (isWindowsPlatform() && shortcutDialogOpen());
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     const frame = requestAnimationFrame(() => { const dialog = document.querySelector<HTMLElement>("[aria-modal='true']"); (dialog?.querySelector<HTMLElement>("[autofocus], input, button") ?? dialog)?.focus(); });
@@ -1853,6 +1869,7 @@ function App() {
         if (noteEditor()) { event.preventDefault(); saveNoteEditor(); if (isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } return; }
         if (schemaDialog()) { event.preventDefault(); setSchemaDialog(false); return; }
         if (mermaidDialog()) { event.preventDefault(); setMermaidDialog(false); return; }
+        if (renameFileOpen()) { event.preventDefault(); setRenameFileOpen(false); return; }
         if (pageDialog()) { event.preventDefault(); setPageDialog(undefined); return; }
         if (helpOpen()) { event.preventDefault(); setHelpOpen(false); return; }
         if (contextMenu()) { event.preventDefault(); setContextMenu(undefined); return; }
@@ -1869,7 +1886,7 @@ function App() {
         if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; return;
       }
       if (event.key === "F1") { event.preventDefault(); setHelpOpen(true); return; }
-      if (recoveryPrompt() || syncConflict() || exportOptionsOpen() || showClearConfirm() || pageDialog() || schemaDialog() || mermaidDialog() || noteEditor() || contextMenu()) return;
+      if (recoveryPrompt() || syncConflict() || exportOptionsOpen() || showClearConfirm() || pageDialog() || renameFileOpen() || schemaDialog() || mermaidDialog() || noteEditor() || contextMenu()) return;
       if (event.target instanceof HTMLElement && event.target.closest("details[open], .tool-options")) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
       if (isWindowsPlatform()) {
@@ -2121,15 +2138,23 @@ function App() {
     const currentPage = snapshot.pages.find((page) => page.id === snapshot.activePageId) ?? snapshot.pages[0];
     setPages(snapshot.pages.map((page) => ({ ...page, elements: cloneElements(page.elements) })));
     setActivePageId(currentPage.id); setElements(cloneElements(currentPage.elements)); setCanvasState({ ...currentPage.canvasState });
+    const project = snapshot.project ?? createProjectWorkspace(displayPathName(path).replace(/\.sketch$/i, ""));
+    setProjectWorkspaceData(project);
     setBoardColor(currentPage.canvasState.backgroundColor); setBoardColorFollowsTheme(currentPage.canvasState.boardColorFollowsTheme ?? false);
-    const syncMeta = snapshot.windowsSync ?? (isWindowsPlatform() ? createWindowsSyncMetadata() : undefined);
+    const syncMeta = snapshot.windowsSync ?? createWindowsSyncMetadata();
     if (syncMeta && !snapshot.windowsSync) {
       const now = Date.now();
       for (const page of snapshot.pages) { syncMeta.clocks[`p:${page.id}`] = now; for (const element of page.elements) if (element.id) syncMeta.clocks[`e:${page.id}:${element.id}`] = now; }
+      syncMeta.clocks["w:meta"] = now;
+      for (const note of project.notes) syncMeta.clocks[`w:n:${note.id}`] = now;
+      for (const task of project.tasks) syncMeta.clocks[`w:t:${task.id}`] = now;
+      for (const milestone of project.milestones) syncMeta.clocks[`w:m:${milestone.id}`] = now;
+      for (const entry of project.logEntries) syncMeta.clocks[`w:l:${entry.id}`] = now;
+      for (const file of project.files) syncMeta.clocks[`w:f:${file.id}`] = now;
     }
     setWindowsSyncMetadata(syncMeta);
-    syncObserved = syncMeta ? new Map(snapshot.pages.flatMap(page => [[`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState })] as [string, string], ...page.elements.flatMap(element => element.id ? [[`e:${page.id}:${element.id}`, JSON.stringify(element)] as [string, string]] : [])])) : new Map();
-    setActivePath(path); rememberFile(path); setDirty(isWindowsPlatform() && !snapshot.windowsSync); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); lastSavedRaw = rawText;
+    syncObserved = syncMeta ? new Map([...snapshot.pages.flatMap(page => [[`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState })] as [string, string], ...page.elements.flatMap(element => element.id ? [[`e:${page.id}:${element.id}`, JSON.stringify(element)] as [string, string]] : [])]), ["w:meta", JSON.stringify({ name: project.name, description: project.description })] as [string, string], ...project.notes.map(note => [`w:n:${note.id}`, JSON.stringify(note)] as [string, string]), ...project.tasks.map(task => [`w:t:${task.id}`, JSON.stringify(task)] as [string, string]), ...project.milestones.map(item => [`w:m:${item.id}`, JSON.stringify(item)] as [string, string]), ...project.logEntries.map(item => [`w:l:${item.id}`, JSON.stringify(item)] as [string, string]), ...project.files.map(item => [`w:f:${item.id}`, JSON.stringify(item)] as [string, string])]) : new Map();
+    setActivePath(path); rememberFile(path); setDirty(!snapshot.windowsSync); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); lastSavedRaw = rawText;
     undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1); setError("");
   }
 
@@ -2215,6 +2240,64 @@ function App() {
     if (isTauri()) void invoke("save_recent_sketches", { paths: updated }).catch(() => undefined);
   }
 
+  function replaceRecentFilePath(previousPath: string, nextPath: string) {
+    const normalizedPrevious = normalizeFileUri(previousPath);
+    const normalizedNext = normalizeFileUri(nextPath);
+    const updated = [normalizedNext, ...recentFiles().filter(path => normalizeFileUri(path) !== normalizedPrevious && normalizeFileUri(path) !== normalizedNext)].slice(0, 8);
+    setRecentFiles(updated);
+    try { localStorage.setItem("sketchdraw-v8-recent-files", JSON.stringify(updated)); } catch { /* Native storage remains the durable copy. */ }
+    if (isTauri()) void invoke("save_recent_sketches", { paths: updated }).catch(() => undefined);
+  }
+
+  function openRenameFileDialog() {
+    const path = activePath();
+    if (!path || readOnlyView() || documentBusy() || nativeBusy()) return;
+    setRenameFileName(displayPathName(path).replace(/\.sketch$/i, ""));
+    setRenameFileError("");
+    setRenameFileOpen(true);
+  }
+
+  async function confirmRenameFile() {
+    const path = activePath();
+    const name = renameFileName().trim();
+    if (!path || !name || readOnlyView() || documentBusy() || nativeBusy()) return;
+    if (/[<>:"/\\|?*\u0000-\u001f]/.test(name) || name.endsWith(".") || name.endsWith(" ")) {
+      setRenameFileError("Use a file name without path separators, reserved characters, or a trailing dot or space.");
+      return;
+    }
+    setRenameFileError("");
+    setDocumentBusy(true);
+    setNativeBusy(true);
+    try {
+      while (saveInFlight) await new Promise<void>(resolve => window.setTimeout(resolve, 30));
+      if (activePath() !== path) return;
+      commitTextDraft();
+      if (syncConflict()) return;
+      if (dirty()) {
+        await saveToPath(path);
+        if (dirty() || syncConflict()) {
+          setRenameFileError(syncConflict() ? "This file changed in the shared folder. Resolve that update before renaming it." : error() || "The latest sketch changes could not be saved, so the file was not renamed.");
+          return;
+        }
+      }
+      const fileName = name.toLowerCase().endsWith(".sketch") ? name : `${name}.sketch`;
+      const renamedPath = /^content:\/\//i.test(path)
+        ? await invoke<string>("rename_sketch_document", { uri: path, fileName })
+        : await invoke<string>("rename_sketch_file", { path: normalizeFileUri(path), fileName });
+      setActivePath(renamedPath);
+      setOpenSketchPaths(paths => paths.map(item => normalizeFileUri(item) === normalizeFileUri(path) ? renamedPath : item));
+      replaceRecentFilePath(path, renamedPath);
+      try { localStorage.removeItem(recoveryKey(path)); } catch { /* Best effort. */ }
+      setRenameFileOpen(false);
+      setError("");
+    } catch (cause) {
+      setRenameFileError(String(cause));
+    } finally {
+      setNativeBusy(false);
+      setDocumentBusy(false);
+    }
+  }
+
   function nextUntitledFileName() {
     let sequence = 1;
     try { sequence = Math.max(1, Number(localStorage.getItem("sketchdraw-untitled-sequence")) || 1); } catch { /* The system picker still supplies a unique copy name if browser storage is unavailable. */ }
@@ -2246,6 +2329,7 @@ function App() {
       pageHistories.clear();
       undoStack = []; redoStack = [];
       setPages([]); setActivePageId(""); setElements([]); setCanvasState(emptyCanvas());
+      setProjectWorkspaceData(createProjectWorkspace()); setProjectWorkspaceOpen(false);
       setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setActivePath(undefined);
       setReadOnlyView(false);
       setDirty(false); setSavedAt(""); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false);
@@ -2272,6 +2356,7 @@ function App() {
     try {
       if (!isSketchPath(path)) throw new Error("Only .sketch documents are supported.");
       if (!await saveBeforeReplacingDocument()) return;
+      setProjectWorkspaceOpen(false);
       // Android content URIs carry a temporary picker grant; ordinary and iOS
       // file paths use the app's authorization and atomic-save flow.
       const authorizedPath = await invoke<string>("authorize_sketch_file", { path: normalizeFileUri(path) });
@@ -2306,7 +2391,7 @@ function App() {
     const path = activePath();
     const baselineRaw = lastSavedRaw;
     const wasReadOnly = readOnlyView();
-    if (!isWindowsPlatform() || !path || !baselineRaw || /^content:\/\//i.test(path) || document.hidden || documentBusy() || recoveryPrompt() || saveInFlight || drawing || moveOrigin || resizeOrigin || textDraft()) return;
+    if (!path || !baselineRaw || document.hidden || documentBusy() || recoveryPrompt() || saveInFlight || drawing || moveOrigin || resizeOrigin || textDraft()) return;
     try {
       const remoteRaw = await readTextFile(path);
       if (activePath() !== path || lastSavedRaw !== baselineRaw || remoteRaw === baselineRaw) return;
@@ -2381,7 +2466,7 @@ function App() {
   }
 
   async function togglePresentationMode(enabled = !presentationMode()) {
-    if (!isWindowsPlatform() || enabled === presentationMode()) return;
+    if (enabled === presentationMode()) return;
     if (enabled) {
       if (windowsFullscreenMode()) await toggleWindowsFullscreen(false);
       commitTextDraft();
@@ -2465,7 +2550,7 @@ function App() {
   }
 
   async function importSvg() {
-    if (!isWindowsPlatform() || !activePath() || readOnlyView() || nativeBusy() || documentBusy() || boardLocked()) return;
+    if (!activePath() || readOnlyView() || nativeBusy() || documentBusy() || boardLocked()) return;
     setNativeBusy(true);
     try {
       const selected = await open({ title: "Import SVG artwork", multiple: false, filters: [{ name: "SVG image", extensions: ["svg"] }] });
@@ -2532,15 +2617,27 @@ function App() {
       const path = withSketchExtension(selected);
       if (/^content:\/\//i.test(path)) await invoke("authorize_sketch_file", { path });
       const page: SketchPage = { id: "page-1", name: "Page 1", canvasState: emptyCanvas(), elements: [] };
-      const windowsSync = isWindowsPlatform() ? createWindowsSyncMetadata() : undefined;
-      if (windowsSync) windowsSync.clocks[`p:${page.id}`] = windowsSync.updatedAt;
-      const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page], ...(windowsSync ? { windowsSync } : {}) };
+      const project = createProjectWorkspace(displayPathName(path).replace(/\.sketch$/i, ""));
+      const windowsSync = createWindowsSyncMetadata();
+      if (windowsSync) { windowsSync.clocks[`p:${page.id}`] = windowsSync.updatedAt; windowsSync.clocks["w:meta"] = windowsSync.updatedAt; }
+      const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page], project, ...(windowsSync ? { windowsSync } : {}) };
       const contents = JSON.stringify(document, null, 2);
       if (/^content:\/\//i.test(path)) await writeTextFile(path, contents);
       else await invoke("atomic_save_sketch", { path: normalizeFileUri(path), contents, expected: null });
-      pageHistories.clear(); setPages([page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setActivePath(path); setReadOnlyView(false); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); setWindowsSyncMetadata(windowsSync); syncObserved = new Map([[`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState })]]); setDirty(false); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setBoardLocked(false); setError(""); lastSavedRaw = contents;
+      pageHistories.clear(); setPages([page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setProjectWorkspaceData(project); setProjectWorkspaceOpen(false); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setActivePath(path); setReadOnlyView(false); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); setWindowsSyncMetadata(windowsSync); syncObserved = new Map([[`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState })], ["w:meta", JSON.stringify({ name: project.name, description: project.description })]]); setDirty(false); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setBoardLocked(false); setError(""); lastSavedRaw = contents;
       undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1);
     } catch (cause) { setError(`Could not create SketchDraw file: ${String(cause)}`); } finally { setNativeBusy(false); }
+  }
+
+  async function createProjectFromHome() {
+    const startingPath = activePath();
+    await createFile();
+    if (activePath() && activePath() !== startingPath) setProjectWorkspaceOpen(true);
+  }
+
+  async function openRecentProject(path: string) {
+    await loadFile(path);
+    if (activePath()) setProjectWorkspaceOpen(true);
   }
 
   function openExportOptions(format: "png" | "svg" | "pdf") {
@@ -3803,9 +3900,9 @@ function App() {
       { id: "export-pdf", label: "Print preview and export PDF", category: "Export", keywords: "page breaks margins", run: () => openExportOptions("pdf") },
       { id: "export-png", label: "Export PNG", category: "Export", run: () => openExportOptions("png") },
       { id: "toggle-grid", label: "Toggle canvas grid", category: "View", shortcut: shortcuts().toggleGrid, run: () => setShowGrid(value => !value) },
-      { id: "toggle-rulers", label: "Toggle canvas rulers", category: "View", run: () => { const value = !showRulers(); setShowRulers(value); try { localStorage.setItem("sketchdraw-windows-rulers", String(value)); } catch { /* Applied for this session. */ } } },
-      { id: "toggle-minimap", label: "Toggle minimap", category: "View", run: () => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-windows-minimap", String(value)); } catch { /* Applied for this session. */ } } },
-      { id: "toggle-guides", label: "Toggle alignment guides", category: "View", run: () => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-windows-guides", String(value)); } catch { /* Applied for this session. */ } } },
+      { id: "toggle-rulers", label: "Toggle canvas rulers", category: "View", run: () => { const value = !showRulers(); setShowRulers(value); try { localStorage.setItem("sketchdraw-canvas-rulers", String(value)); } catch { /* Applied for this session. */ } } },
+      { id: "toggle-minimap", label: "Toggle minimap", category: "View", run: () => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-canvas-minimap", String(value)); } catch { /* Applied for this session. */ } } },
+      { id: "toggle-guides", label: "Toggle alignment guides", category: "View", run: () => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-canvas-guides", String(value)); } catch { /* Applied for this session. */ } } },
       { id: "fullscreen", label: "Toggle full screen focus mode", category: "View", run: () => void toggleWindowsFullscreen() },
       { id: "snap-grid", label: "Toggle grid snapping", category: "View", shortcut: shortcuts().snapGrid, run: () => setSnapToGrid(value => !value) },
       { id: "snap-objects", label: "Toggle object snapping and alignment guides", category: "View", shortcut: shortcuts().snapObjects, run: () => setSnapToObjects(value => !value) },
@@ -3832,7 +3929,7 @@ function App() {
   });
 
   return (
-    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-tools-expanded": mobileToolsExpanded(), "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
+    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-tools-expanded": mobileToolsExpanded(), "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
       <header class="topbar">
         <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={activePath() ? fileName() : "SketchDraw"}>{activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
         <nav class="app-menus" aria-label="Application menus">
@@ -3856,7 +3953,7 @@ function App() {
             onToggle={() => alignTouchMenuPopover(appSettingsMenu)}
           />}>
           <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{activePath() ? fileName() : "No file open"}</div>
-            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>Ctrl+S</kbd></button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><Show when={isWindowsPlatform()}><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button></Show><div class="menu-separator" /><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
+            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>Ctrl+S</kbd></button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><div class="menu-separator" /><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
           </div></details>
           <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={() => { alignViewSettingsPopover(); alignTouchMenuPopover(viewMenu); }}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>View</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover view-popover view-settings-popover">
             <header class="view-menu-heading"><div><strong>View settings</strong><span>{isWindowsPlatform() ? "Appearance and canvas settings" : "Adjust the interface or canvas"}</span></div></header>
@@ -3906,9 +4003,17 @@ function App() {
         <Show when={activePath()}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} /></Show>
         <Show when={isWindowsPlatform() && activePath() && openSketchPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openSketchPaths()} activePath={activePath()} displayName={path => displayPathName(path)} onSelect={path => { if (path !== activePath()) void loadFile(path); }} onClose={path => void closeSketchTab(path)} /></Suspense></Show>
 
-        <Show when={activePath()}><div class="top-actions"><Show when={isWindowsPlatform()}><span class="windows-live-sync-indicator" title="Checks this local sketch file for cloud-folder changes every 1.6 seconds. The folder provider sends changes between devices."><i />Live file updates</span></Show><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
+        <Show when={activePath()}><button class="project-workspace-launch" onClick={() => setProjectWorkspaceOpen(true)} title="Open project home, notes, tasks, and Kanban" aria-label="Open project workspace"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5.5h5l1.5 1.7H17v8.3H3zM3 8h14" /><path d="M6 11h3m-3 2.5h6" /></svg><span>Project</span></button></Show>
+        <Show when={activePath()}><div class="top-actions"><span class="live-sync-indicator" title="Checks this open .sketch file for changes from another device every 1.6 seconds. Changes are merged after your cloud folder syncs."><i />Live file updates</span><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
       </header>
-      <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayPathName} onCreate={createFile} onOpen={openFile} onOpenRecent={loadFile} /><section class="welcome-screen">
+      <Show when={projectWorkspaceOpen() && activePath()}><ProjectWorkspace
+        fileName={displayPathName(activePath()!)}
+        data={projectWorkspaceData()}
+        editable={!readOnlyView()}
+        onChange={data => { if (!readOnlyView()) { setProjectWorkspaceData(data); setDirty(true); } }}
+        onClose={() => setProjectWorkspaceOpen(false)}
+      /></Show>
+      <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayPathName} onCreate={createFile} onNewProject={createProjectFromHome} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentProject={openRecentProject} /><section class="welcome-screen">
   <div class="welcome-card">
     <div class="welcome-intro">
       <div class="welcome-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg></div>
@@ -3935,6 +4040,18 @@ function App() {
   </div>
   <div class="recent-dashboard">
     <div class="recent-heading"><span class="eyebrow">YOUR WORKSPACE</span><div class="recent-heading-row"><h2>Recent sketches</h2><span class="recent-count">{recentFiles().length}</span></div><p>Pick up right where you left off.</p></div>
+    <section class="home-project-hub" aria-labelledby="home-project-title">
+      <span class="home-project-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5h6l2 2h8v9H4zM4 10h16M8 13h3m-3 2.5h7" /></svg></span>
+      <div class="home-project-copy">
+        <span class="eyebrow">PROJECT SPACE</span>
+        <h2 id="home-project-title">A home for each project</h2>
+        <p>Keep notes, tasks, schedules, decisions, and reference files beside the sketch.</p>
+      </div>
+      <div class="home-project-actions">
+        <button class="save-button" onClick={() => void createProjectFromHome()}>New project <span aria-hidden="true">&rarr;</span></button>
+        <Show when={recentFiles().length > 0}><button class="quiet-button" onClick={() => void openRecentProject(recentFiles()[0])}>Open recent <span aria-hidden="true">&rarr;</span></button></Show>
+      </div>
+    </section>
     <Show when={recentFiles().length > 0} fallback={<div class="recent-empty"><div class="recent-empty-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></div><strong>Your next idea starts here</strong><span>Open a sketch from your device to see it in this list.</span><button class="quiet-button" onClick={openFile}>Browse sketches <span aria-hidden="true">&rarr;</span></button></div>}>
       <div class="recent-list">{recentFiles().map((path) => <button class="recent-file" onClick={() => void loadFile(path)}><span class="recent-file-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span><span class="recent-file-name">{displayPathName(path)}</span><span class="recent-file-path">{path}</span><span class="recent-open">Open <span aria-hidden="true">&rarr;</span></span></button>)}</div>
     </Show>
@@ -3942,7 +4059,7 @@ function App() {
   </div>
 </section></>}>
         <>
-          <section class="canvas-wrap" ref={canvasWrap} classList={{ "windows-rulers-visible": isWindowsPlatform() && showRulers(), "windows-minimap-visible": isWindowsPlatform() && showMinimap() }}>
+          <section class="canvas-wrap" ref={canvasWrap} classList={{ "canvas-rulers-visible": showRulers(), "canvas-minimap-visible": showMinimap() }}>
             <Show when={touchFocusMode()}><TouchFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={chooseFocusTool} onExit={() => void toggleTouchFocusMode(false)} /></Show>
             <Show when={isWindowsPlatform() && windowsFullscreenMode()}><WindowsFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={selectedTool => { if (readOnlyView() && selectedTool !== "select" && selectedTool !== "laser") { setTool("laser"); return; } if (selectedTool === "select") { setTool("select"); setStyleMenuMode("quick"); } else activateTool(selectedTool); }} onExit={() => void toggleWindowsFullscreen(false)} /></Show>
             <Show when={touchStylePanel() && !isWindowsPlatform() && isCompactTouchLayout()}><TouchStylePanel
@@ -4029,9 +4146,9 @@ function App() {
               <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown and note content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write Markdown…\n\nUse # headings, **bold**, lists, tables, and fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); if (event.key === "Escape" && isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } } }} />
             </div>}</Show>
             <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
-            <Show when={isWindowsPlatform() && showRulers()}><Suspense fallback={null}><WindowsRulers width={canvasWrap.clientWidth} height={canvasWrap.clientHeight} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} /></Suspense></Show>
-            <Show when={isWindowsPlatform() && showMinimap()}><Suspense fallback={null}><WindowsMinimap elements={elements()} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} viewportWidth={canvas.clientWidth} viewportHeight={canvas.clientHeight} onNavigate={center => setCanvasState(current => ({ ...current, panX: canvas.clientWidth / 2 - center.x * current.zoom, panY: canvas.clientHeight / 2 - center.y * current.zoom }))} onClose={() => { setShowMinimap(false); try { localStorage.setItem("sketchdraw-windows-minimap", "false"); } catch { /* The current view still updates. */ } }} /></Suspense></Show>
-            <Show when={isWindowsPlatform() && presentationMode()}><div class="windows-presentation-controls"><button title="Previous page (Left Arrow)" onClick={() => changePresentationPage(-1)}>‹</button><span>{currentPage()?.name ?? "Sketch"}</span><button title="Next page (Right Arrow)" onClick={() => changePresentationPage(1)}>›</button><button title="Exit presentation (Esc)" onClick={() => void togglePresentationMode(false)}>Exit</button></div></Show>
+            <Show when={showRulers()}><Suspense fallback={null}><CanvasRulers width={canvasWrap.clientWidth} height={canvasWrap.clientHeight} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} /></Suspense></Show>
+            <Show when={showMinimap()}><Suspense fallback={null}><CanvasMinimap elements={elements()} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} viewportWidth={canvas.clientWidth} viewportHeight={canvas.clientHeight} onNavigate={center => setCanvasState(current => ({ ...current, panX: canvas.clientWidth / 2 - center.x * current.zoom, panY: canvas.clientHeight / 2 - center.y * current.zoom }))} onClose={() => { setShowMinimap(false); try { localStorage.setItem("sketchdraw-canvas-minimap", "false"); } catch { /* The current view still updates. */ } }} /></Suspense></Show>
+            <Show when={presentationMode()}><div class="canvas-presentation-controls"><button title="Previous page" aria-label="Previous page" disabled={pages().findIndex(page => page.id === activePageId()) <= 0} onClick={() => changePresentationPage(-1)}>‹</button><span>{currentPage()?.name ?? "Sketch"}</span><button title="Next page" aria-label="Next page" disabled={pages().findIndex(page => page.id === activePageId()) >= pages().length - 1} onClick={() => changePresentationPage(1)}>›</button><button title="Exit presentation mode" onClick={() => void togglePresentationMode(false)}>Exit</button></div></Show>
             <Show when={deletableSelectionCount() > 1}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected elements`} aria-label={`Delete ${deletableSelectionCount()} selected elements`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
             <DesktopPageTabs pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} />
             <TouchToolBar open={toolBarOpen()} expanded={mobileToolsExpanded()} styleOpen={touchStylePanel()} quickStyles={<Show when={!isWindowsPlatform() && isCompactTouchLayout()}><TouchQuickStyleControls
@@ -4069,16 +4186,17 @@ function App() {
                 onToggleSnapToGrid={() => setSnapToGrid(value => !value)}
                 onToggleSnapToObjects={() => setSnapToObjects(value => !value)}
                 onGroupSelection={() => { groupSelection(); setCanvasOptionsOpen(false); }}
-                windowsControls={isWindowsPlatform() ? {
+                canvasTools={{
                   showRulers: showRulers(),
                   showAlignmentGuides: showAlignmentGuides(),
                   showMinimap: showMinimap(),
-                  fullscreen: windowsFullscreenMode(),
-                  onToggleRulers: () => { const value = !showRulers(); setShowRulers(value); try { localStorage.setItem("sketchdraw-windows-rulers", String(value)); } catch { /* Current session still uses this setting. */ } },
-                  onToggleAlignmentGuides: () => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-windows-guides", String(value)); } catch { /* Current session still uses this setting. */ } },
-                  onToggleMinimap: () => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-windows-minimap", String(value)); } catch { /* Current session still uses this setting. */ } },
-                  onToggleFullscreen: () => void toggleWindowsFullscreen(),
-                } : undefined}
+                  presentation: presentationMode(),
+                  onTogglePresentation: () => void togglePresentationMode(),
+                  ...(isWindowsPlatform() ? { fullscreen: windowsFullscreenMode(), onToggleFullscreen: () => void toggleWindowsFullscreen() } : {}),
+                  onToggleRulers: () => { const value = !showRulers(); setShowRulers(value); try { localStorage.setItem("sketchdraw-canvas-rulers", String(value)); } catch { /* Current session still uses this setting. */ } },
+                  onToggleAlignmentGuides: () => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-canvas-guides", String(value)); } catch { /* Current session still uses this setting. */ } },
+                  onToggleMinimap: () => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-canvas-minimap", String(value)); } catch { /* Current session still uses this setting. */ } },
+                }}
               />
               <button class="tool-icon-button mobile-tool-essential touch-focus-entry" aria-label={isWindowsPlatform() && windowsFullscreenMode() ? "Exit full screen focus mode" : "Enter full screen focus mode"} title={isWindowsPlatform() && windowsFullscreenMode() ? "Exit full screen focus mode" : "Full screen focus mode"} onClick={() => isWindowsPlatform() ? void toggleWindowsFullscreen() : void toggleTouchFocusMode(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button>
               </div>
@@ -4235,7 +4353,7 @@ function App() {
                   <Show when={focusedElement() && isConnector(focusedElement()!)}><div class="precision-grid">{(["start", "end"] as const).flatMap(end => (["x", "y"] as const).map(axis => <label>{end} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(((focusedElement() as ShapeElement)[axis] + (end === "end" ? (focusedElement() as ShapeElement)[axis === "x" ? "w" : "h"] : 0)) * 100) / 100} onChange={event => setEndpoint(end, axis, Number(event.currentTarget.value))} /></label>))}</div><Show when={focusedElement()?.type === "arrow" && (focusedElement() as ShapeElement).arrowRoute === "forked"}><div class="precision-grid">{(["upper", "lower"] as const).flatMap(branch => (["x", "y"] as const).map(axis => <label>{branch} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(forkGeometry(focusedElement() as ShapeElement)[branch] [axis] * 100) / 100} onChange={event => setForkEndpoint(branch, axis, Number(event.currentTarget.value))} /></label>))}</div></Show><p class="bucket-help">Drag the circular endpoints to resize or attach. Fork branches have separate endpoints and attachment points.</p><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, startBinding: undefined, endBinding: undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, endBinding: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, endBinding: undefined } : undefined } : item)}>Detach endpoints</button><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, routePoints: undefined, routeWaypoints: item.autoRoute ? [] : undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, routePoints: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, routePoints: undefined } : undefined } : item)}>Reset route</button></Show>
                 </section></Show>
                 <Show when={selectedIndices().length > 1}><section class="pane-section"><div class="pane-heading">Align & distribute</div><div class="alignment-grid">{(["left", "center", "right", "top", "middle", "bottom", "horizontal", "vertical"] as const).map(command => <button disabled={boardLocked() || ((command === "horizontal" || command === "vertical") && selectedIndices().length < 3)} title={command === "horizontal" || command === "vertical" ? `Distribute ${command} gaps` : `Align ${command}`} onClick={() => alignSelection(command)}>{command}</button>)}</div></section></Show>
-                <Show when={!!selectedIndices().length && !selectedNoteCard()}><section class="pane-section"><div class="pane-heading">Selection</div><label class="property-label">Opacity <input disabled={selectedIndices().every((index) => !elements()[index] || elements()[index].locked)} type="range" min="10" max="100" value={Math.round(selectedOpacity() * 100)} onInput={(event) => updateProperty("opacity", Number(event.currentTarget.value) / 100)} /></label><Show when={isWindowsPlatform()}><div class="windows-style-transfer"><button class="quiet-button" disabled={!selectedElements().length} onClick={copyObjectStyle} title={`Copy style (${shortcuts().copyStyle})`}>Copy style</button><button class="quiet-button" disabled={!copiedObjectStyle() || boardLocked()} onClick={pasteObjectStyle} title={`Paste style (${shortcuts().pasteStyle})`}>Paste style</button></div></Show><Show when={!groupSelected() && !(focusedElement() && isConnector(focusedElement()!))}><div class="rotation-controls"><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(-15)} title="Rotate counterclockwise by 15 degrees">−15°</button><button disabled={focusedElement()?.locked} onClick={resetSelectionRotation} title="Reset rotation to zero">Reset 0°</button><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(15)} title="Rotate clockwise by 15 degrees">+15°</button></div></Show></section></Show>
+                <Show when={!!selectedIndices().length && !selectedNoteCard()}><section class="pane-section"><div class="pane-heading">Selection</div><label class="property-label">Opacity <input disabled={selectedIndices().every((index) => !elements()[index] || elements()[index].locked)} type="range" min="10" max="100" value={Math.round(selectedOpacity() * 100)} onInput={(event) => updateProperty("opacity", Number(event.currentTarget.value) / 100)} /></label><div class="object-style-transfer"><button class="quiet-button" disabled={!selectedElements().length} onClick={copyObjectStyle} title={`Copy style (${shortcuts().copyStyle})`}>Copy style</button><button class="quiet-button" disabled={!copiedObjectStyle() || boardLocked()} onClick={pasteObjectStyle} title={`Paste style (${shortcuts().pasteStyle})`}>Paste style</button></div><Show when={!groupSelected() && !(focusedElement() && isConnector(focusedElement()!))}><div class="rotation-controls"><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(-15)} title="Rotate counterclockwise by 15 degrees">−15°</button><button disabled={focusedElement()?.locked} onClick={resetSelectionRotation} title="Reset rotation to zero">Reset 0°</button><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(15)} title="Rotate clockwise by 15 degrees">+15°</button></div></Show></section></Show>
                 <Show when={selectedIndices().length > 1 && !groupSelected()}><div class="multi-selection-actions"><button class="pane-group-button" onClick={groupSelection}>Group {selectedIndices().length} elements <kbd>Ctrl+G</kbd></button><button class="pane-delete-button" disabled={boardLocked() || !deletableSelectionCount()} onClick={deleteSelected}>Delete {deletableSelectionCount()}</button></div></Show>
               </Show>
 
@@ -4277,6 +4395,7 @@ function App() {
       </Show>
       <Show when={schemaDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) { setSchemaDialog(false); setSchemaEditingDiagram(undefined); } }}><section class="confirm-dialog schema-dialog" role="dialog" aria-modal="true" aria-labelledby="schema-title"><header><div><span class="eyebrow">DATABASE SCHEMA VISUALIZER</span><h2 id="schema-title">{schemaEditingDiagram() ? "Update linked table cards" : "Generate linked table cards"}</h2></div><button class="help-close" aria-label="Close schema visualizer" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>&times;</button></header><p>Paste SQL <code>CREATE TABLE</code> statements or JSON with a <code>tables</code> array. Primary and foreign keys become labeled rows with connectors anchored to those rows. Double-click any generated table to edit this source and regenerate the diagram. Press Tab to indent and Shift+Tab to outdent.</p><textarea autofocus class="schema-input" aria-label="SQL or JSON schema" value={schemaInput()} placeholder={'CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  name VARCHAR(80) NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  user_id INTEGER REFERENCES users(id)\n);'} onInput={event => { setSchemaInput(event.currentTarget.value); setSchemaError(""); }} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, setSchemaInput); }} /><Show when={schemaError()}><p class="schema-error" role="alert">{schemaError()}</p></Show><div class="schema-dialog-footer"><span>Up to 50 tables per import</span><div><button class="quiet-button" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={insertSchemaVisual}>{schemaEditingDiagram() ? "Update diagram" : "Add to canvas"}</button></div></div></section></div></Show>
       <Show when={pageDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setPageDialog(undefined); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="page-dialog-title"><h2 id="page-dialog-title">{pageDialog() === "rename" ? "Rename page" : "Delete page?"}</h2><Show when={pageDialog() === "rename"} fallback={<p>Delete “{currentPage()?.name}” and its contents? This page deletion cannot be undone.</p>}><label>Page name<input autofocus maxlength="80" value={pageName()} onInput={event => setPageName(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter" && pageName().trim()) confirmPageDialog(); }} /></label></Show><div><button class="quiet-button" onClick={() => setPageDialog(undefined)}>Cancel</button><button class={pageDialog() === "delete" ? "danger-button" : "save-button"} disabled={boardLocked() || (pageDialog() === "rename" && !pageName().trim())} onClick={confirmPageDialog}>{pageDialog() === "rename" ? "Rename" : "Delete page"}</button></div></section></div></Show>
+      <Show when={renameFileOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setRenameFileOpen(false); }}><section class="confirm-dialog rename-file-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-file-title"><h2 id="rename-file-title">Rename sketch file</h2><p>Choose a new name for <strong>{displayPathName(activePath() ?? "")}</strong>. The <code>.sketch</code> extension is kept automatically.</p><Show when={renameFileError()}><p class="rename-file-error" role="alert">{renameFileError()}</p></Show><label>File name<input autofocus maxlength="180" value={renameFileName()} onInput={event => setRenameFileName(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter" && renameFileName().trim()) void confirmRenameFile(); }} /></label><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setRenameFileOpen(false)}>Cancel</button><button class="save-button" disabled={!renameFileName().trim() || nativeBusy() || documentBusy()} onClick={() => void confirmRenameFile()}>{nativeBusy() ? "Renaming…" : "Rename file"}</button></div></section></div></Show>
       <Show when={exportOptionsOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setExportOptionsOpen(false); }}><section class="confirm-dialog export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-title">
         <header class="export-heading"><div><span class="eyebrow">EXPORT PREVIEW</span><h2 id="export-title">Export {exportFormat().toUpperCase()}</h2></div><button class="help-close" aria-label="Close export dialog" onClick={() => setExportOptionsOpen(false)}>&times;</button></header>
         <div class="export-layout"><div class="export-controls"><p>Choose what to export and review the result before saving.</p>

@@ -1,6 +1,6 @@
 import { For, createMemo } from "solid-js";
-import type { Element, Point } from "../../model";
-import { elementBounds, unionBounds } from "../../features/canvas/bounds";
+import type { Element, Point } from "../model";
+import { elementBounds, unionBounds } from "../features/canvas/bounds";
 
 const WIDTH = 224;
 const HEIGHT = 144;
@@ -17,7 +17,7 @@ type Props = {
   onClose: () => void;
 };
 
-export function Minimap(props: Props) {
+export function CanvasMinimap(props: Props) {
   const bounds = createMemo(() => {
     const zoom = Math.max(.02, props.zoom);
     const viewport = { x: -props.panX / zoom, y: -props.panY / zoom, w: props.viewportWidth / zoom, h: props.viewportHeight / zoom };
@@ -39,7 +39,7 @@ export function Minimap(props: Props) {
     props.onNavigate({ x: bounds().x + (x - PAD) / scale(), y: bounds().y + (y - PAD) / scale() });
   }
 
-  return <aside class="windows-minimap" aria-label="Board minimap">
+  return <aside class="canvas-minimap" aria-label="Board minimap">
     <header><strong>Minimap</strong><button type="button" aria-label="Close minimap" title="Close minimap" onClick={props.onClose}>×</button></header>
     <svg ref={svg} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Click or drag to navigate the board"
       onPointerDown={event => { pointerDown = true; event.currentTarget.setPointerCapture(event.pointerId); navigate(event); }}

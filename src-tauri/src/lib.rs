@@ -4,8 +4,8 @@ use std::sync::Mutex;
 use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
-mod orientation;
 mod android_documents;
+mod orientation;
 
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const CURRENT_SKETCH_FORMAT_VERSION: u64 = 7;
@@ -13,9 +13,7 @@ const CURRENT_SKETCH_FORMAT_VERSION: u64 = 7;
 fn validate_sketch_document(contents: &str) -> Result<(), String> {
     let document: serde_json::Value = serde_json::from_str(contents).map_err(|e| e.to_string())?;
     if document.get("format").and_then(serde_json::Value::as_str) != Some("SketchDraw")
-        || document
-            .get("version")
-            .and_then(serde_json::Value::as_u64)
+        || document.get("version").and_then(serde_json::Value::as_u64)
             != Some(CURRENT_SKETCH_FORMAT_VERSION)
     {
         return Err(format!(
@@ -148,6 +146,83 @@ fn authorize_sketch_file(app: tauri::AppHandle, path: String) -> Result<String, 
         .map_err(|_| "The selected sketch path is not valid Unicode.".into())
 }
 
+#[tauri::command]
+fn rename_sketch_file(
+    app: tauri::AppHandle,
+    path: String,
+    file_name: String,
+) -> Result<String, String> {
+    if path.to_lowercase().starts_with("content://") {
+        return Err(
+            "Android document provider files must be renamed through the document picker.".into(),
+        );
+    }
+    let source = std::path::PathBuf::from(path);
+    if !source.is_absolute()
+        || !source
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("sketch"))
+        || !app.fs_scope().is_allowed(&source)
+    {
+        return Err("The selected .sketch file is not authorized for renaming.".into());
+    }
+    let source = source
+        .canonicalize()
+        .map_err(|error| format!("Could not access the selected sketch: {error}"))?;
+    let mut name = file_name.trim().to_owned();
+    if name.is_empty()
+        || name.len() > 180
+        || name
+            .chars()
+            .any(|character| character.is_control() || "<>:\"/\\|?*".contains(character))
+    {
+        return Err(
+            "Enter a valid file name without path separators or reserved characters.".into(),
+        );
+    }
+    name = name.trim_end_matches([' ', '.']).to_owned();
+    if name.is_empty() || name == "." || name == ".." {
+        return Err("Enter a valid file name.".into());
+    }
+    let stem = name
+        .strip_suffix(".sketch")
+        .or_else(|| name.strip_suffix(".SKETCH"))
+        .unwrap_or(&name);
+    if stem.is_empty()
+        || [
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+            "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        ]
+        .iter()
+        .any(|reserved| stem.eq_ignore_ascii_case(reserved))
+    {
+        return Err("That name is reserved by Windows. Choose another name.".into());
+    }
+    if !name.to_lowercase().ends_with(".sketch") {
+        name.push_str(".sketch");
+    }
+    let parent = source.parent().ok_or("The sketch has no parent folder.")?;
+    let destination = parent.join(name);
+    if destination == source {
+        return Ok(source
+            .into_os_string()
+            .into_string()
+            .map_err(|_| "The sketch path is not valid Unicode.".to_owned())?);
+    }
+    if destination.exists() {
+        return Err("A file with that name already exists in this folder.".into());
+    }
+    app.fs_scope()
+        .allow_file(&destination)
+        .map_err(|error| format!("Could not authorize the renamed sketch: {error}"))?;
+    std::fs::rename(&source, &destination)
+        .map_err(|error| format!("Could not rename the sketch: {error}"))?;
+    destination
+        .into_os_string()
+        .into_string()
+        .map_err(|_| "The renamed sketch path is not valid Unicode.".into())
+}
+
 fn is_recent_sketch_path(path: &str) -> bool {
     if path.len() > 4096 {
         return false;
@@ -233,12 +308,14 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             take_startup_files,
             authorize_sketch_file,
+            rename_sketch_file,
             atomic_save_sketch,
             load_recent_sketches,
             save_recent_sketches,
             orientation::set_mobile_orientation,
             android_documents::pick_sketch_document,
             android_documents::create_sketch_document,
+            android_documents::rename_sketch_document,
             android_documents::has_all_files_access,
             android_documents::open_all_files_access_settings
         ])
@@ -257,8 +334,7 @@ mod tests {
 
     #[test]
     fn rejects_older_sketch_format_with_current_version_hint() {
-        let error = validate_sketch_document(r#"{"format":"SketchDraw","version":6}"#)
-            .unwrap_err();
+        let error = validate_sketch_document(r#"{"format":"SketchDraw","version":6}"#).unwrap_err();
         assert_eq!(error, "Only SketchDraw format v7 can be saved.");
     }
 }

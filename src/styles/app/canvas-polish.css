@@ -2,7 +2,6 @@
 .topbar {
     border-bottom-color: #e9ece7;
     background: rgba(250, 251, 249, .96);
-    box-shadow: 0 2px 12px #26332908;
 }
 
 .topbar .brand-mark-image {
@@ -29,7 +28,6 @@
     padding: 7px;
     border-color: #dfe6de;
     background: rgba(249, 251, 248, .96);
-    box-shadow: 0 16px 42px #25342a20, 0 2px 8px #25342a0d;
 }
 
 .tool-cluster {
@@ -54,7 +52,6 @@
 .tool-options {
     border-color: #dfe7de;
     background: rgba(251, 253, 250, .985);
-    box-shadow: 0 18px 44px #24352926, 0 2px 8px #2435290d;
 }
 
 .tool-options button:focus-visible,
@@ -72,7 +69,6 @@
     border-color: #dfe6de;
     border-radius: 16px;
     background: rgba(250, 252, 249, .965);
-    box-shadow: 0 16px 40px #25342a1b, 0 2px 8px #25342a0b;
 }
 
 .style-pane.full-style-mode > .full-inspector {
@@ -88,7 +84,6 @@
 .style-pane .quick-style-icon:hover,
 .style-pane .quick-style-icon[aria-expanded="true"],
 .style-pane .quick-style-icon.active {
-    box-shadow: 0 3px 9px #31463212;
 }
 
 .full-inspector input:not([type="checkbox"]):not([type="radio"]),
@@ -99,12 +94,9 @@
 
 .canvas-note-editor {
     border-radius: 15px;
-    box-shadow: 0 18px 44px #25342a28, 0 3px 10px #25342a12;
-    transition: box-shadow .16s ease;
 }
 
 .canvas-note-editor:focus-within {
-    box-shadow: 0 18px 46px #25342a2c, 0 0 0 3px #789b791c;
 }
 
 .canvas-note-editor::after {
@@ -131,13 +123,12 @@
 
 .canvas-note-editor > header button {
     min-height: 25px;
-    transition: transform .14s ease, background .14s ease, box-shadow .14s ease;
+    transition: transform .14s ease, background .14s ease;
 }
 
 .canvas-note-editor > header button:hover {
     transform: translateY(-1px);
     background: #fff;
-    box-shadow: 0 2px 6px #26332912;
 }
 
 .canvas-note-input {
@@ -152,7 +143,6 @@
 .theme-dark .topbar {
     border-bottom-color: #39423c;
     background: rgba(31, 36, 33, .97);
-    box-shadow: 0 2px 12px #0003;
 }
 
 .theme-dark .menu-dropdown > summary:hover,
@@ -165,7 +155,6 @@
 .theme-dark .tool-deck {
     border-color: #3c4840;
     background: rgba(33, 39, 35, .97);
-    box-shadow: 0 16px 42px #0007;
 }
 
 .theme-dark .tool-cluster { border-color: #39453c; background: #29312b; }
@@ -193,7 +182,6 @@
 }
 
 .theme-dark .canvas-note-editor:focus-within {
-    box-shadow: 0 18px 46px #0008, 0 0 0 3px #a7c8a51c;
 }
 
 .theme-dark .canvas-note-input::selection { color: #eff5ed; background: #405d43; }

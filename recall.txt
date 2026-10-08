@@ -82,3 +82,24 @@ package.json
   "description": "A local-first desktop whiteboard for portable SketchDraw files.",
   "type": "module",
 ```
+
+
+
+
+
+
+-----------------------------------------
+New project and planning screens
+- Reusable project templates: start from a project plan, product roadmap, event plan, study plan, or meeting workspace.
+Let users switch between board, timeline, list, and calendar views of the same tasks. That makes planning feel like one coherent feature rather than a collection of separate tools.
+
+
+
+Features beyond planning
+- Notes and lightweight documents: write meeting notes, briefs, specs, and research notes linked to tasks or sketches.
+- Knowledge base: connect notes and projects with backlinks, tags, and full-text search.
+- Meeting mode: prepare an agenda, keep notes, track decisions, and capture follow-up tasks.
+- Review mode: add comments and annotations to project items, then resolve them.
+- Activity and restore history: see what changed and recover an earlier project state, useful when a shared folder syncs edits across devices.
+- Interactive presentations: add speaker notes and link slides or canvas areas into a guided walkthrough.
+- Focus tools: a task timer, daily priorities, and a “next action” view.

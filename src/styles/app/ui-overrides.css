@@ -155,7 +155,6 @@
     width: 25px;
     height: 25px;
     border: 2px solid #fff;
-    box-shadow: 0 0 0 1px #dcdad3;
 }
 
 .accent-colors .ui-accent-swatch.active {
@@ -165,7 +164,6 @@
 
 .theme-dark .accent-colors .ui-accent-swatch {
     border-color: #2b302c;
-    box-shadow: 0 0 0 1px #515a52;
 }
 
 .theme-dark .connector-route-buttons button.active,
@@ -198,7 +196,6 @@
     border-radius: 13px;
     color: #343832;
     background: rgba(255, 255, 252, .98);
-    box-shadow: 0 16px 42px #0002;
 }
 
 .floating-layer-panel>header {
@@ -240,7 +237,6 @@
     border-color: #414a44;
     color: #e0e7e0;
     background: rgba(34, 41, 37, .985);
-    box-shadow: 0 18px 48px #0007;
 }
 
 .theme-dark .floating-layer-panel>header {
@@ -489,7 +485,6 @@
     gap: 6px;
     padding: 8px;
     border-radius: 3px;
-    box-shadow: none;
 }
 
 .canvas-note-editor.simple>header {
@@ -500,18 +495,15 @@
 .canvas-note-editor.simple .note-card-details input,
 .canvas-note-editor.simple .canvas-note-input {
     border-radius: 2px;
-    box-shadow: none;
 }
 
 .canvas-note-editor.simple>header button {
     border-radius: 3px;
-    box-shadow: none;
 }
 
 .canvas-note-editor.simple.sticky,
 .canvas-note-editor.simple.checklist {
     border-radius: 3px;
-    box-shadow: none;
 }
 
 .theme-dark .laser-settings-popover output {
@@ -606,7 +598,6 @@
     padding: 10px;
     border: 1px solid #e3e6df;
     border-radius: 14px;
-    box-shadow: 0 18px 44px #1e28201f;
 }
 
 .view-menu-heading {
@@ -941,7 +932,6 @@
 
 .mermaid-input:focus {
     border-color: #87a987;
-    box-shadow: 0 0 0 3px #789b791c;
 }
 
 .mermaid-preview-panel {
@@ -1154,7 +1144,6 @@
     border: 1px solid #e8ede8;
     border-radius: 12px;
     background: linear-gradient(180deg, #fff, #fbfcfa);
-    box-shadow: 0 2px 7px #29372b08;
 }
 
 .full-inspector .pane-section:hover {
@@ -1196,7 +1185,6 @@
 .theme-dark .full-inspector .pane-section {
     border-color: #414b43;
     background: linear-gradient(180deg, #2b332d, #282f2a);
-    box-shadow: 0 2px 7px #0002;
 }
 
 .theme-dark .full-inspector .pane-section:hover {

@@ -3,6 +3,7 @@ import type { ArrowHead, ArrowRoute, Binding, EdgeStyle, Element, FlowchartShape
 import { validReferences } from "../../operations";
 import { curveControlPoints } from "../canvas/geometry";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
+import { normalizeProjectWorkspace } from "../project/project-data";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -159,5 +160,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
   const windowsSync = sync?.version === 1 && finite(sync.updatedAt) && sync.updatedAt >= 0 && typeof sync.deviceId === "string" && sync.deviceId.length <= 100
     ? { version: 1 as const, updatedAt: sync.updatedAt, deviceId: sync.deviceId, clocks: validClockMap(sync.clocks), tombstones: validClockMap(sync.tombstones) }
     : undefined;
-  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized, ...(windowsSync ? { windowsSync } : {}) };
+  const project = value.project === undefined ? undefined : normalizeProjectWorkspace(value.project);
+  if (value.project !== undefined && !project) return undefined;
+  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized, ...(project ? { project } : {}), ...(windowsSync ? { windowsSync } : {}) };
 }
