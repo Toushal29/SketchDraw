@@ -204,10 +204,10 @@ fn rename_sketch_file(
     let parent = source.parent().ok_or("The sketch has no parent folder.")?;
     let destination = parent.join(name);
     if destination == source {
-        return Ok(source
+        return source
             .into_os_string()
             .into_string()
-            .map_err(|_| "The sketch path is not valid Unicode.".to_owned())?);
+            .map_err(|_| "The sketch path is not valid Unicode.".to_owned());
     }
     if destination.exists() {
         return Err("A file with that name already exists in this folder.".into());

@@ -4,7 +4,7 @@
 
 SketchDraw is an offline-first project workspace for Windows, Android, and iOS. Draw diagrams, plan work, and keep notes and tasks together in one portable `.sketch` file. Save locally or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
 
-**Current release: Windows 7.2.0 · Android 2.2.0 · Document format: version 8 · Copyright © 2026 Toushal Sampat**
+**Current release: Windows 8.0.0 · Android 3.0.0 · Document format: version 8 · Copyright © 2026 Toushal Sampat**
 
 > SketchDraw saves version 8 `.sketch` documents on both platforms. Version 8 stores Canvas, Planning, and Library in separate sections. SketchDraw versions 1-7 are migrated to v8 when opened and saved back to the same `.sketch` file; the established extension remains unchanged.
 
@@ -30,6 +30,14 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 
 *Mobile and tablet workspaces: Landscape uses a vertical tool dock with a horizontal quick-style strip immediately left of the zoom reset button, a drop-down row of color presets, and a visible stroke control; Portrait moves the tools into a responsive horizontal rail at the top of the canvas, puts quick controls beside the advanced style button, and groups non-File menus under Menu. Choose an orientation in App Settings on supported devices.*
 
+![Project Home with prioritized tasks, recent notes, and project tool shortcuts](docs/screenshots/project-home-preview.svg)
+
+*Project Home brings next actions, recent notes, project dates, and shortcuts together. Task priority and due dates stay visible in the overview.*
+
+![Personal Library Notepad with the note editor, note list, and export controls](docs/screenshots/library-notepad-preview.svg)
+
+*The Library opens to a focused Notepad. Open the notes list to select, delete, or export notes without a second writing area.*
+
 ![Markdown text editor, insert-table action, and rendered editable table card](docs/screenshots/markdown-tables-preview.svg)
 
 *Markdown text preview: edit headings, lists, code, and tables in a collapsible card; start a table from the Text menu or insert one into an existing Markdown card.*
@@ -42,9 +50,9 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 
 *Properties preview: focused controls for the selected item; Layers opens in a separate panel from the canvas toolbar.*
 
-![Separate Layers panel with forward/backward arrows and visibility and lock controls on each row](docs/screenshots/layers-panel-preview.svg)
+![Compact Layers panel with one grouped layer per drawing tool](docs/screenshots/layers-panel-preview.svg)
 
-*Layers preview: move an object forward or backward with the row arrows, with visibility and lock controls beside each layer.*
+*Layers now show one row for each tool type in use. Selecting, reordering, hiding, or locking a row applies to every object made with that tool.*
 
 ![View settings with Auto, named, and custom toolbar surface choices and light/dark examples](docs/screenshots/toolbar-auto-preview.svg)
 
@@ -111,7 +119,7 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 - **Drawing tools:** Draw with pen, fine pen, pencil, soft brush, marker, highlighter, chalk, or a temporary laser pointer. Create and fill geometric shapes, crop imported images, and adjust stroke, fill, opacity, corners, and text styling.
 - **Flowchart symbols:** Build diagrams with process, terminator, decision, input/output, document, database, preparation, manual input, connector, delay, stored-data, and cloud shapes. Symbols remain editable after placement.
 - **Connectors:** Draw straight or curved lines, multi-point lines, and straight, elbow, forked, loop, or jagged arrows. Attach endpoints to shapes, choose line and arrowhead styles, and drag route handles. Windows also offers automatic obstacle routing with editable waypoints.
-- **Selection and layers:** Move, resize, rotate, group, duplicate, align, distribute, and reorder objects. Copy and paste objects or their styles, edit precise values, and lock or hide individual layers. Undo and redo history is kept per page for the current session.
+- **Selection and layers:** Move, resize, rotate, group, duplicate, align, and distribute objects. Copy and paste objects or their styles, and edit precise values. Layers group all objects by drawing tool, so each tool has one selectable, reorderable, hideable, and lockable layer. Undo and redo history is kept per page for the current session.
 - **Canvas navigation:** Pan, zoom, fit the full drawing, or zoom to a selection. Set the board color and paper pattern, use grid and object snapping, and open Canvas options for rulers, alignment guides, and an optional minimap.
 - **Pages and project files:** Keep up to 100 named canvas pages plus planning and library records in one portable version 8 `.sketch` file. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, recovery can restore interrupted edits, and up to eight recent file paths appear on Home. Recognized version 1-7 SketchDraw files are migrated when opened and saved.
 - **Text and note cards:** Add plain text, Markdown, tables, code notes, notes, sticky notes, and checklists to the canvas. Markdown supports headings, lists, tables, and syntax-colored code blocks. Resize, title, format, collapse, expand, and edit cards in place; collapsed cards retain a short content or progress summary.
@@ -152,7 +160,7 @@ For a Windows x64 NSIS installer, run the build command below with `--bundles ns
 
 ## Changing the app version
 
-For a release, update the Windows version in `package.json`, the root package entry in `package-lock.json`, `[package].version` in `src-tauri/Cargo.toml`, and the top-level `version` in `src-tauri/tauri.conf.json`. Set the Android version name and increase its version code in `src-tauri/tauri.android.conf.json`. Regenerate lock files with `npm install --package-lock-only` and `cargo check --manifest-path src-tauri/Cargo.toml` rather than editing generated dependency data by hand. Update the release tag and current release details. The document format version is independent of the app version; change it only when intentionally introducing a new file schema.
+Windows and Android use separate release versions. Set the Windows version in `package.json`, the root package entry in `package-lock.json`, `[package].version` in `src-tauri/Cargo.toml`, and the top-level `version` in `src-tauri/tauri.conf.json`. Set Android's version name and increase its version code in `src-tauri/tauri.android.conf.json`. Regenerate lock files with `npm install --package-lock-only` and `cargo check --manifest-path src-tauri/Cargo.toml` rather than editing generated dependency data by hand. Update the release tag and current release details. The document format version is independent of either app version; change it only when intentionally introducing a new file schema.
 
 ## Copyright and ownership
 

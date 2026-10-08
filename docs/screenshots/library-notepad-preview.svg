@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 640" role="img" aria-labelledby="title desc">
+  <title id="title">SketchDraw Library Notepad with a note list and Markdown export</title>
+  <desc id="desc">The personal library opens to a focused note editor; its Notes dialog lists saved notes and provides open, delete, and export actions.</desc>
+  <rect width="1120" height="640" rx="20" fill="#f3f5f3"/>
+  <rect x="24" y="24" width="1072" height="592" rx="16" fill="#fff" stroke="#e1e6e1"/>
+  <rect x="24" y="24" width="1072" height="54" rx="16" fill="#fbfcfb"/>
+  <path d="M24 78h1072" stroke="#e5e9e5"/>
+  <text x="50" y="57" fill="#334238" font-family="Segoe UI,Arial,sans-serif" font-size="13" font-weight="700">Personal library</text>
+  <g font-family="Segoe UI,Arial,sans-serif" font-size="10">
+    <rect x="230" y="36" width="90" height="28" rx="8" fill="#e8efe9"/><text x="275" y="54" text-anchor="middle" fill="#42634a" font-weight="700">Notepad  6</text>
+    <text x="352" y="54" fill="#657168">Study</text><text x="426" y="54" fill="#657168">Wiki</text><text x="482" y="54" fill="#657168">Journal</text><text x="556" y="54" fill="#657168">Writing</text><text x="633" y="54" fill="#657168">Research</text><text x="714" y="54" fill="#657168">Media log</text>
+  </g>
+  <text x="60" y="121" fill="#77827a" font-family="Segoe UI,Arial,sans-serif" font-size="9" letter-spacing="1.6">FAST CAPTURE</text>
+  <text x="60" y="151" fill="#29372e" font-family="Segoe UI,Arial,sans-serif" font-size="24" font-weight="650">Notepad</text>
+  <text x="60" y="173" fill="#77827a" font-family="Segoe UI,Arial,sans-serif" font-size="11">A single, focused space for quick notes saved with this document.</text>
+  <rect x="838" y="127" width="90" height="34" rx="9" fill="#fff" stroke="#dfe5df"/>
+  <text x="873" y="148" text-anchor="middle" fill="#4e5c52" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="650">Notes</text><rect x="899" y="136" width="18" height="16" rx="8" fill="#f0f3f0"/><text x="908" y="147" text-anchor="middle" fill="#6d786f" font-family="Segoe UI,Arial,sans-serif" font-size="9">6</text>
+  <rect x="938" y="127" width="115" height="34" rx="9" fill="#41634a"/><text x="995" y="148" text-anchor="middle" fill="#fff" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="650">New note</text>
+  <rect x="60" y="204" width="640" height="360" rx="13" fill="#fff" stroke="#e1e6e1"/>
+  <text x="84" y="236" fill="#77827a" font-family="Segoe UI,Arial,sans-serif" font-size="9" letter-spacing="1.6">NOTE</text>
+  <text x="676" y="236" text-anchor="end" fill="#858f87" font-family="Segoe UI,Arial,sans-serif" font-size="9">Updated today, 10:24</text>
+  <rect x="604" y="248" width="72" height="28" rx="7" fill="#fff" stroke="#dfe5df"/><text x="640" y="266" text-anchor="middle" fill="#526057" font-family="Segoe UI,Arial,sans-serif" font-size="9">Export note</text>
+  <path d="M84 290h592" stroke="#edf0ed"/>
+  <text x="84" y="326" fill="#29372e" font-family="Segoe UI,Arial,sans-serif" font-size="19" font-weight="600">Research ideas</text>
+  <text x="84" y="363" fill="#46534a" font-family="Segoe UI,Arial,sans-serif" font-size="12">Questions to follow up</text>
+  <text x="84" y="392" fill="#737e76" font-family="Segoe UI,Arial,sans-serif" font-size="11">• Compare the new paper textures on a tablet.</text>
+  <text x="84" y="414" fill="#737e76" font-family="Segoe UI,Arial,sans-serif" font-size="11">• Try the project board with a sample .sketch file.</text>
+  <text x="84" y="436" fill="#737e76" font-family="Segoe UI,Arial,sans-serif" font-size="11">• Keep the canvas tools easy to reach in portrait.</text>
+  <rect x="720" y="190" width="342" height="390" rx="14" fill="#fff" stroke="#dfe5df"/>
+  <text x="745" y="219" fill="#77827a" font-family="Segoe UI,Arial,sans-serif" font-size="9" letter-spacing="1.4">THIS DOCUMENT</text>
+  <text x="745" y="246" fill="#29372e" font-family="Segoe UI,Arial,sans-serif" font-size="19" font-weight="650">Your notes</text>
+  <text x="745" y="266" fill="#77827a" font-family="Segoe UI,Arial,sans-serif" font-size="10">Open, export, or remove notes from this document.</text>
+  <path d="M745 281h292" stroke="#e8ece8"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <rect x="738" y="291" width="306" height="67" rx="9" fill="#edf3fa" stroke="#b8c8dd"/>
+    <text x="755" y="314" fill="#344239" font-size="11" font-weight="650">Research ideas</text><text x="755" y="333" fill="#7a847d" font-size="9">Questions to follow up</text><text x="755" y="348" fill="#8a938c" font-size="8">Today</text>
+    <rect x="1010" y="311" width="26" height="26" rx="7" fill="#fff"/><path d="M1018 318h10m-8 0 .6 10h4.8l.6-10m-5-2v-2h4v2" fill="none" stroke="#8b605d" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="738" y="365" width="306" height="67" rx="9" fill="#fff" stroke="#e3e8e3"/>
+    <text x="755" y="388" fill="#344239" font-size="11" font-weight="650">Project sketch</text><text x="755" y="407" fill="#7a847d" font-size="9">Notes for next review</text><text x="755" y="422" fill="#8a938c" font-size="8">Yesterday</text>
+    <rect x="1010" y="385" width="26" height="26" rx="7" fill="#f7f9f7"/><path d="M1018 392h10m-8 0 .6 10h4.8l.6-10m-5-2v-2h4v2" fill="none" stroke="#8b605d" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="738" y="439" width="306" height="67" rx="9" fill="#fff" stroke="#e3e8e3"/>
+    <text x="755" y="462" fill="#344239" font-size="11" font-weight="650">Color palette</text><text x="755" y="481" fill="#7a847d" font-size="9">Muted greens and warm neutrals</text><text x="755" y="496" fill="#8a938c" font-size="8">Jun 4</text>
+    <rect x="1010" y="459" width="26" height="26" rx="7" fill="#f7f9f7"/><path d="M1018 466h10m-8 0 .6 10h4.8l.6-10m-5-2v-2h4v2" fill="none" stroke="#8b605d" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <path d="M738 520h306" stroke="#e8ece8"/>
+  <text x="746" y="548" fill="#78837b" font-family="Segoe UI,Arial,sans-serif" font-size="9">6 notes</text>
+  <rect x="824" y="530" width="82" height="30" rx="8" fill="#fff" stroke="#dfe5df"/><text x="865" y="549" text-anchor="middle" fill="#4d5b51" font-family="Segoe UI,Arial,sans-serif" font-size="9">Export all</text>
+  <rect x="914" y="530" width="110" height="30" rx="8" fill="#41634a"/><text x="969" y="549" text-anchor="middle" fill="#fff" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="650">New note</text>
+</svg>

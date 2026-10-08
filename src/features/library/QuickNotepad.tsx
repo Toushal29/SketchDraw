@@ -83,7 +83,7 @@ export function QuickNotepad(props: Props) {
     <Show when={notesOpen()}>
       <div class="quick-notes-backdrop" role="presentation" onPointerDown={event => { if (event.target === event.currentTarget) setNotesOpen(false); }}>
         <section class="quick-notes-modal" role="dialog" aria-modal="true" aria-labelledby="quick-notes-title">
-          <header><div><span class="library-eyebrow">THIS DOCUMENT</span><h3 id="quick-notes-title">Your notes</h3><p>Open, export, or remove notes from this document.</p></div><button type="button" class="quick-notes-close" aria-label="Close notes" onClick={() => setNotesOpen(false)}>×</button></header>
+          <header><div><span class="library-eyebrow">THIS DOCUMENT</span><h3 id="quick-notes-title">Your notes</h3><p>Open, export, or remove notes from this document.</p></div><button type="button" class="quick-notes-close" aria-label="Close notes" onClick={() => setNotesOpen(false)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg></button></header>
           <Show when={props.notes.length > 0} fallback={<div class="quick-notes-modal-empty">No notes yet. Create one to get started.</div>}>
             <div class="quick-notes-modal-list"><For each={props.notes}>{item =>
               <article class="quick-notes-modal-row" classList={{ active: note()?.id === item.id }}>

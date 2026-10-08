@@ -46,6 +46,7 @@ import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/Proper
 import { FLOWCHART_SHAPES, FLOWCHART_MENU_SHAPES } from "./features/diagrams/config";
 import { arrowHeadPoints, arrowHeadSvgPath, pointInPolygon, traceFlowchart, flowchartPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, connectorSvgPath, flowchartSvgPath, vectorFlowchartPath, flowchartSvgDetailPath, flowchartDatabaseRimPath } from "./features/canvas/geometry";
 import { unionBounds, elementBounds, distanceToSegment } from "./features/canvas/bounds";
+import { getToolLayers, reorderToolLayer, toggleToolLayer } from "./features/canvas/tool-layers";
 import { isRecord, normalizeElement, parseSketchFile } from "./features/files/parse-sketch";
 import { withSketchExtension, normalizeFileUri, isSketchPath, displayPathName } from "./features/files/paths";
 import { indentTextarea } from "./components/textarea-indent";
@@ -86,6 +87,15 @@ function compareReleaseVersions(left: string, right: string): number {
   if (!a || !b) throw new Error("GitHub returned a release tag that is not a three-part version.");
   for (let index = 0; index < 3; index++) if (a[index] !== b[index]) return a[index] > b[index] ? 1 : -1;
   return 0;
+}
+
+function releaseVersionForPlatform(release: Record<string, unknown>): string {
+  const tag = release.tag_name as string;
+  const userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent.toLowerCase();
+  const platform = userAgent.includes("android") ? "Android" : isWindowsPlatform() ? "Windows" : undefined;
+  if (!platform || typeof release.body !== "string") return tag;
+  const marker = new RegExp(`^\\s*${platform}\\s*:\\s*(v?\\d+\\.\\d+\\.\\d+)\\s*$`, "im").exec(release.body);
+  return marker?.[1] ?? tag;
 }
 
 const GRID_SIZE = 24;
@@ -169,6 +179,7 @@ function App() {
     return save({ title: "Create SketchDraw file", defaultPath: fileName, filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
   }
   const [elements, setElementsSignal] = createSignal<Element[]>([]);
+  const toolLayers = createMemo(() => getToolLayers(elements()));
   function withWindowsRouteSnapshots(items: Element[]): Element[] {
     if (!isWindowsPlatform()) return items;
     const refresh = (item: Element): Element => {
@@ -2591,8 +2602,9 @@ function App() {
       const release: unknown = await response.json();
       if (!isRecord(release) || typeof release.tag_name !== "string") throw new Error("GitHub returned an incomplete release record.");
       const currentVersion = await getVersion();
-      setUpdateVersion(release.tag_name);
-      setUpdateCheck(compareReleaseVersions(release.tag_name, currentVersion) > 0 ? "available" : "current");
+      const releaseVersion = releaseVersionForPlatform(release);
+      setUpdateVersion(releaseVersion);
+      setUpdateCheck(compareReleaseVersions(releaseVersion, currentVersion) > 0 ? "available" : "current");
     } catch (cause) { setUpdateCheck("error"); setError(`Update check failed: ${String(cause)}`); }
   }
 
@@ -2661,18 +2673,22 @@ function App() {
     pushUndo(cloneElements(elements())); setElements(items => [...items, item]); imageCache.set(dataUrl, new Image()); imageCache.get(dataUrl)!.src = dataUrl; setSelectedIndices([elements().length - 1]); setDirty(true);
   }
 
-  function toggleLayer(index: number, property: "hidden" | "locked") {
+  function toggleLayer(key: Element["type"], property: "hidden" | "locked") {
     if (boardLocked()) return;
-    const before = cloneElements(elements()); setElements((items) => items.map((element, current) => current === index ? { ...element, [property]: !element[property] } as Element : element)); pushUndo(before); setDirty(true);
+    const before = cloneElements(elements());
+    setElements(items => toggleToolLayer(items, key, property));
+    pushUndo(before); setDirty(true);
   }
 
-  function moveLayerTo(sourceRow: number, targetRow: number) {
-    const current = elements(); const visibleIndices = current.map((_, index) => index).reverse();
-    if (boardLocked() || sourceRow === targetRow || sourceRow < 0 || sourceRow >= visibleIndices.length || targetRow < 0 || targetRow >= visibleIndices.length) return;
-    const visible = visibleIndices.map(index => current[index]); const selectedIds = selectedIndices().map(index => current[index]?.id).filter((id): id is string => !!id);
-    const before = cloneElements(current); const [moved] = visible.splice(sourceRow, 1); visible.splice(targetRow, 0, moved);
-    const reordered = visible.reverse(); const nextIndex = new Map(reordered.flatMap((element, index) => element.id ? [[element.id, index] as const] : []));
-    setElements(reordered); setSelectedIndices(selectedIds.flatMap(id => { const index = nextIndex.get(id); return index === undefined ? [] : [index]; })); pushUndo(before); setDirty(true);
+  function moveLayerTo(key: Element["type"], targetRow: number) {
+    if (boardLocked()) return;
+    const current = elements();
+    const reordered = reorderToolLayer(current, key, targetRow);
+    if (reordered === current) return;
+    const selectedObjects = new Set(selectedIndices().map(index => current[index]).filter((item): item is Element => !!item));
+    const nextIndices = reordered.flatMap((item, index) => selectedObjects.has(item) ? [index] : []);
+    const before = cloneElements(current);
+    setElements(reordered); setSelectedIndices(nextIndices); pushUndo(before); setDirty(true);
   }
 
   async function createFile() {
@@ -4280,22 +4296,32 @@ function App() {
               </div>
             </></TouchToolBar>
             <Show when={layerPanelOpen()}>
-              <aside class="floating-layer-panel" aria-label="Layers">
-                <header><strong>Layers</strong><span>{elements().length}</span><button class="pane-close-icon" aria-label="Close layers" title="Close layers" onClick={() => setLayerPanelOpen(false)}>&times;</button></header>
-                <div class="layer-list">
-                  {[...elements().keys()].reverse().map((index, rowIndex) => {
-                    const element = elements()[index];
-                    const label = element.type === "text" ? "Text: " + (element.text.slice(0, 18) || "Empty") : element.type === "group" ? element.mermaid ? "Mermaid flowchart" : "Group (" + element.elements.length + ")" : element.type[0].toUpperCase() + element.type.slice(1);
-                    return <div class={"layer-row " + (selectedSet().has(index) ? "selected" : "")}>
-                      <button class="layer-name" onClick={() => setSelectedIndices([index])}>{label}</button>
-                      <div class="layer-order-controls" aria-label={"Reorder " + label}>
-                        <button type="button" title="Move forward" aria-label={"Move " + label + " up"} disabled={boardLocked() || rowIndex === 0} onClick={() => moveLayerTo(rowIndex, rowIndex - 1)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 10 5-5 5 5" /></svg></button>
-                        <button type="button" title="Move backward" aria-label={"Move " + label + " down"} disabled={boardLocked() || rowIndex === elements().length - 1} onClick={() => moveLayerTo(rowIndex, rowIndex + 1)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 6 5 5 5-5" /></svg></button>
+              <aside class="floating-layer-panel" aria-label="Canvas layers">
+                <header class="layer-panel-heading">
+                  <div><strong>Layers</strong><p>One layer per tool. Objects stay together.</p></div>
+                  <span class="layer-count-badge" aria-label={`${toolLayers().length} tool layers`}>{toolLayers().length}</span>
+                  <button class="pane-close-icon" aria-label="Close layers" title="Close layers" onClick={() => setLayerPanelOpen(false)}>&times;</button>
+                </header>
+                <div class="layer-list" aria-label="Tool layers">
+                  <For each={toolLayers()}>{(layer, rowIndex) => {
+                    const count = () => layer.indices.length;
+                    const selected = () => layer.indices.some(index => selectedSet().has(index));
+                    return <article class="layer-row" classList={{ selected: selected(), hidden: layer.hidden, locked: layer.locked }}>
+                      <button class="layer-name" type="button" title={`Select all ${count()} ${layer.label.toLowerCase()} objects`} onClick={() => setSelectedIndices(layer.indices)}>
+                        <span class="layer-type-icon" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m10 2 7 3.5-7 3.5-7-3.5L10 2Zm-7 7 7 3.5L17 9M3 12.5 10 16l7-3.5" /></svg></span>
+                        <span class="layer-copy"><strong>{layer.label}</strong><small>{count()} {count() === 1 ? "object" : "objects"}{layer.hidden ? " · Hidden" : ""}{layer.locked ? " · Locked" : ""}</small></span>
+                      </button>
+                      <div class="layer-actions">
+                        <div class="layer-order-controls" aria-label={`Reorder ${layer.label}`}>
+                          <button type="button" title="Move layer up" aria-label={`Move ${layer.label} up`} disabled={boardLocked() || rowIndex() === 0} onClick={() => moveLayerTo(layer.key, rowIndex() - 1)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 10 5-5 5 5" /></svg></button>
+                          <button type="button" title="Move layer down" aria-label={`Move ${layer.label} down`} disabled={boardLocked() || rowIndex() === toolLayers().length - 1} onClick={() => moveLayerTo(layer.key, rowIndex() + 1)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 6 5 5 5-5" /></svg></button>
+                        </div>
+                        <button class="layer-action" type="button" title={`${layer.hidden ? "Show" : "Hide"} ${layer.label}`} aria-label={`${layer.hidden ? "Show" : "Hide"} ${layer.label}`} aria-pressed={layer.hidden} onClick={() => toggleLayer(layer.key, "hidden")}><svg viewBox="0 0 20 20" aria-hidden="true"><path d={layer.hidden ? "M3 3l14 14M8.6 8.6a2 2 0 0 0 2.8 2.8M7.1 5.2A9.3 9.3 0 0 1 10 4.7c4.2 0 7.2 4.1 8 5.3a8.6 8.6 0 0 1-2.1 2.7M5.2 6.3A13.7 13.7 0 0 0 2 10c.8 1.2 3.8 5.3 8 5.3 1 0 1.9-.2 2.7-.6" : "M2 10s3-5.3 8-5.3 8 5.3 8 5.3-3 5.3-8 5.3S2 10 2 10Z M10 7.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"} /></svg></button>
+                        <button class="layer-action" type="button" title={`${layer.locked ? "Unlock" : "Lock"} ${layer.label}`} aria-label={`${layer.locked ? "Unlock" : "Lock"} ${layer.label}`} aria-pressed={layer.locked} onClick={() => toggleLayer(layer.key, "locked")}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="8.5" width="13" height="9" rx="2"/><path d={layer.locked ? "M6.5 8.5V6a3.5 3.5 0 0 1 7 0v2.5" : "M6.5 8.5V6a3.5 3.5 0 0 1 6.1-2.3"} /></svg></button>
                       </div>
-                      <button title={element.hidden ? "Show layer" : "Hide layer"} aria-label={element.hidden ? "Show layer" : "Hide layer"} onClick={() => toggleLayer(index, "hidden")}>{element.hidden ? "Show" : "Hide"}</button>
-                      <button title={element.locked ? "Unlock layer" : "Lock layer"} aria-label={element.locked ? "Unlock layer" : "Lock layer"} onClick={() => toggleLayer(index, "locked")}>{element.locked ? "Unlock" : "Lock"}</button>
-                    </div>;
-                  })}
+                    </article>;
+                  }}</For>
+                  <Show when={!elements().length}><div class="layer-empty-state"><span class="layer-type-icon"><svg viewBox="0 0 20 20"><path d="m10 2 7 3.5-7 3.5-7-3.5L10 2Zm-7 7 7 3.5L17 9M3 12.5 10 16l7-3.5" /></svg></span><strong>No layers yet</strong><small>Draw with a tool to create its layer.</small></div></Show>
                 </div>
               </aside>
             </Show>

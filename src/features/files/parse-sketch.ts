@@ -21,7 +21,18 @@ export function isEmbeddedRasterImage(value: unknown): value is string {
 export function finite(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
+const MAX_ELEMENT_DEPTH = 64;
+const MAX_ELEMENTS_PER_PAGE = 20_000;
+const MAX_DOCUMENT_ELEMENT_NODES = 100_000;
+type ElementParseBudget = { remaining: number };
+
 export function normalizeElement(value: unknown): Element | undefined {
+  return normalizeElementWithinBudget(value, 0, { remaining: MAX_DOCUMENT_ELEMENT_NODES });
+}
+
+function normalizeElementWithinBudget(value: unknown, depth: number, budget: ElementParseBudget): Element | undefined {
+  if (depth > MAX_ELEMENT_DEPTH || budget.remaining <= 0) return undefined;
+  budget.remaining -= 1;
   if (!isRecord(value) || typeof value.type !== "string" || typeof value.id !== "string" || !value.id || value.id.length > 100) return undefined;
   const flags: LayerFlags = {
     id: value.id,
@@ -32,8 +43,8 @@ export function normalizeElement(value: unknown): Element | undefined {
     ...(typeof value.componentRole === "string" ? { componentRole: value.componentRole } : {}),
   };
   if (value.type === "group") {
-    if (!Array.isArray(value.elements)) return undefined;
-    const children = value.elements.map(normalizeElement);
+    if (!Array.isArray(value.elements) || value.elements.length > MAX_ELEMENTS_PER_PAGE) return undefined;
+    const children = value.elements.map(child => normalizeElementWithinBudget(child, depth + 1, budget));
     if (children.some((child) => !child)) return undefined;
     const note = isRecord(value.note) && ["note", "sticky", "checklist"].includes(String(value.note.kind)) && typeof value.note.content === "string" && value.note.content.length <= 50000
       && (value.note.title === undefined || typeof value.note.title === "string" && value.note.title.length <= 120)
@@ -109,7 +120,7 @@ export function normalizeElement(value: unknown): Element | undefined {
     if (forkUpper === null || forkLower === null) return undefined;
     if (value.routePoints !== undefined && (!Array.isArray(value.routePoints) || value.routePoints.length > 100 || !value.routePoints.every(p => isRecord(p) && finite(p.x) && finite(p.y)))) return undefined;
     if (value.routeWaypoints !== undefined && (!Array.isArray(value.routeWaypoints) || value.routeWaypoints.length > 100 || !value.routeWaypoints.every(p => isRecord(p) && finite(p.x) && finite(p.y)))) return undefined;
-    const labelText = value.label === undefined ? undefined : normalizeElement({ ...(isRecord(value.label) ? value.label : {}), type: "text", id: "label", x: 0, y: 0 });
+    const labelText = value.label === undefined ? undefined : normalizeElementWithinBudget({ ...(isRecord(value.label) ? value.label : {}), type: "text", id: "label", x: 0, y: 0 }, depth + 1, budget);
     if (value.label !== undefined && labelText?.type !== "text") return undefined;
     const label: ShapeLabel | undefined = labelText?.type === "text" ? { ...labelText, verticalAlign: isRecord(value.label) && (value.label.verticalAlign === "top" || value.label.verticalAlign === "bottom") ? value.label.verticalAlign : "middle" } : undefined;
     const storedRoutePoints = value.routePoints as Point[] | undefined;
@@ -133,27 +144,34 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
   const canvasSection = sections ? sections.canvas as Record<string, unknown> : value;
   const planningValue = sections ? sections.planning : value.project;
   const libraryValue = sections ? sections.library : value.library;
-  const addLegacyElementIds = (item: unknown): unknown => {
+  const addLegacyElementIds = (item: unknown, depth = 0, budget: ElementParseBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES }): unknown => {
     if (!isRecord(item)) return item;
+    if (depth > MAX_ELEMENT_DEPTH || budget.remaining <= 0) return {};
+    budget.remaining -= 1;
     const next: Record<string, unknown> = { ...item, id: typeof item.id === "string" && item.id ? item.id : crypto.randomUUID() };
-    if (Array.isArray(item.elements)) next.elements = item.elements.map(addLegacyElementIds);
+    if (Array.isArray(item.elements)) {
+      if (item.elements.length > MAX_ELEMENTS_PER_PAGE) return {};
+      next.elements = item.elements.map(child => addLegacyElementIds(child, depth + 1, budget));
+    }
     return next;
   };
-  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, legacy: boolean): SketchPage | undefined => {
-    if (typeof id !== "string" || typeof name !== "string" || !isRecord(stateValue) || !Array.isArray(elementsValue)) return undefined;
+  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, legacy: boolean, budget: ElementParseBudget): SketchPage | undefined => {
+    if (typeof id !== "string" || typeof name !== "string" || !isRecord(stateValue) || !Array.isArray(elementsValue) || elementsValue.length > MAX_ELEMENTS_PER_PAGE) return undefined;
     const state = stateValue;
     if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !isColor(state.backgroundColor)) return undefined;
-    const elements = elementsValue.map((element) => normalizeElement(legacy ? addLegacyElementIds(element) : element));
+    const legacyBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES };
+    const elements = elementsValue.map(element => normalizeElementWithinBudget(legacy ? addLegacyElementIds(element, 0, legacyBudget) : element, 0, budget));
     if (elements.some((element) => !element) || !validReferences(elements as Element[])) return undefined;
     return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff" }, elements: elements as Element[] };
   };
   const sourcePages = Array.isArray(canvasSection.pages) ? canvasSection.pages : Array.isArray(canvasSection.elements) ? [{ id: crypto.randomUUID(), name: "Page 1", canvasState: canvasSection.canvasState, elements: canvasSection.elements }] : undefined;
   if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100 || !Number.isInteger(version) || version < 1 || version > SKETCH_FORMAT_VERSION || (sections && version < 8)) return undefined;
+  const elementBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES };
   const pages = sourcePages.map((page, index) => {
     if (!isRecord(page)) return undefined;
     const state = isRecord(page.canvasState) ? page.canvasState : {};
     const migratedState = version < SKETCH_FORMAT_VERSION ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
-    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, version < 6);
+    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, version < 6, elementBudget);
   });
   if (pages.some((page) => !page)) return undefined;
   const normalized = pages as SketchPage[];

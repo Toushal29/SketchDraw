@@ -101,46 +101,90 @@
 .layer-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding-top: 13px;
+    gap: 7px;
+    min-height: 0;
+    padding: 12px 1px 1px;
 }
 
 .layer-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 4px;
+    min-width: 0;
+    gap: 7px;
     padding: 5px;
-    border: 1px solid #e9e8e2;
-    border-radius: 7px;
-    background: #fff;
+    border: 1px solid var(--layer-border, #e3e7e3);
+    border-radius: 11px;
+    background: var(--layer-surface, #fff);
+    transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 .layer-row.selected {
-    border-color: #cdddf0;
-    background: #f2f7fd;
-}
-
-.layer-row button {
-    min-height: 30px;
-    padding: 0 6px;
-    border: 0;
-    border-radius: 5px;
-    background: transparent;
-    color: #696b64;
-    font-size: 11px;
-}
-
-.layer-row button:hover {
-    background: #f0f1ed;
+    border-color: var(--ui-accent-border, #b8c8dd);
+    background: var(--ui-accent-soft, #f1f5fa);
 }
 
 .layer-row .layer-name {
-    flex: 1;
-    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    min-height: 45px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
     text-align: left;
+    cursor: pointer;
+}
+
+.layer-row .layer-name:hover {
+    background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.layer-type-icon {
+    display: grid;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 10px;
+    color: var(--ui-accent, #5274a1);
+    background: var(--ui-accent-soft, #eef3f8);
+}
+
+.layer-type-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.layer-copy {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.layer-copy strong,
+.layer-copy small {
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 13px;
+}
+
+.layer-copy strong {
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.layer-copy small {
+    color: var(--layer-muted, #788179);
+    font-size: 10px;
 }
 
 .save-status {
@@ -152,27 +196,12 @@
     height: 8px;
 }
 
-.theme-dark .layer-row button {
-    color: #c3c6cd;
-}
-
-.theme-dark .layer-row.selected {
-    color: #bad3f4;
-    border-color: #455a78;
-    background: #303d51;
-}
-
 .theme-dark .property-label input,
 .theme-dark .property-label select,
-.theme-dark .format-row button,
-.theme-dark .layer-row {
+.theme-dark .format-row button {
     border-color: #4a4f5b;
     color: #d5d7db;
     background: #30343d;
-}
-
-.theme-dark .layer-row.selected {
-    background: #303d51;
 }
 
 .welcome-symbol svg {

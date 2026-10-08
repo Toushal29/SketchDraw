@@ -182,83 +182,197 @@
     }
 }
 
-/* Independent Layers drawer and accent contrast in dark theme. */
+/* Compact layer drawer with one selectable layer for each drawing tool. */
 .floating-layer-panel {
     position: absolute;
     z-index: 30;
     top: 72px;
     right: 66px;
-    width: min(360px, calc(100vw - 32px));
+    display: flex;
+    flex-direction: column;
+    width: min(356px, calc(100vw - 32px));
     max-height: min(66vh, 560px);
-    overflow: auto;
-    padding: 12px;
-    border: 1px solid #deded7;
-    border-radius: 13px;
-    color: #343832;
-    background: rgba(255, 255, 252, .98);
+    overflow: hidden;
+    padding: 12px 13px 10px;
+    border: 1px solid var(--layer-border, #dfe4df);
+    border-radius: 15px;
+    color: var(--layer-ink, #29332d);
+    background: var(--layer-surface, #fff);
 }
 
-.floating-layer-panel>header {
-    position: sticky;
-    top: -12px;
-    z-index: 1;
+.floating-layer-panel .layer-panel-heading {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 3px 0 10px;
-    border-bottom: 1px solid #e7e7e0;
-    background: inherit;
+    gap: 10px;
+    flex: 0 0 auto;
+    padding: 1px 1px 11px;
+    border-bottom: 1px solid var(--layer-border, #e3e7e3);
 }
 
-.floating-layer-panel>header strong {
+.floating-layer-panel .layer-panel-heading > div {
     flex: 1;
-    font-size: 13px;
+    min-width: 0;
 }
 
-.floating-layer-panel>header span {
-    color: #81857d;
-    font-size: 11px;
+.floating-layer-panel .layer-panel-heading strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
 }
 
-.floating-layer-panel>header button {
-    width: 28px;
+.floating-layer-panel .layer-panel-heading p {
+    margin: 4px 0 0;
+    color: var(--layer-muted, #788179);
+    font-size: 10px;
+}
+
+.floating-layer-panel .layer-count-badge {
+    display: grid;
+    min-width: 30px;
     height: 28px;
+    padding: 0 7px;
+    place-items: center;
+    border: 1px solid var(--layer-border, #e1e6e1);
+    border-radius: 9px;
+    color: var(--layer-muted, #788179);
+    background: var(--layer-inset, #f7f9f7);
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.floating-layer-panel .layer-panel-heading .pane-close-icon {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
     border: 0;
-    border-radius: 7px;
+    border-radius: 8px;
     background: transparent;
     color: inherit;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.floating-layer-panel .layer-panel-heading .pane-close-icon:hover {
+    background: color-mix(in srgb, currentColor 7%, transparent);
 }
 
 .floating-layer-panel .layer-list {
-    padding-top: 9px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
 }
 
-.theme-dark .floating-layer-panel {
-    border-color: #414a44;
-    color: #e0e7e0;
-    background: rgba(34, 41, 37, .985);
+.layer-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
 
-.theme-dark .floating-layer-panel>header {
-    border-color: #414a44;
+.layer-action,
+.layer-order-controls button {
+    display: grid;
+    width: 29px;
+    height: 29px;
+    min-height: 29px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    color: var(--layer-muted, #737d75);
+    background: transparent;
+    cursor: pointer;
 }
 
-.theme-dark .floating-layer-panel .layer-row {
-    border-color: #414a44;
-    background: #272f2a;
+.layer-action:hover,
+.layer-order-controls button:not(:disabled):hover {
+    color: var(--layer-ink, #29332d);
+    background: color-mix(in srgb, currentColor 7%, transparent);
 }
 
-.theme-dark .floating-layer-panel .layer-row.selected {
+.layer-action[aria-pressed="true"] {
+    color: var(--ui-accent-ink, #3f6191);
+    background: var(--ui-accent-soft, #eef3f8);
+}
+
+.layer-action svg,
+.layer-order-controls svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.55;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.layer-order-controls {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+
+.layer-order-controls svg {
+    width: 14px;
+    height: 14px;
+}
+
+.layer-order-controls button:disabled {
+    opacity: .35;
+    cursor: default;
+}
+
+.layer-empty-state {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 24px 14px 28px;
+    color: var(--layer-muted, #788179);
+    text-align: center;
+}
+
+.layer-empty-state .layer-type-icon {
+    margin-bottom: 3px;
+}
+
+.layer-empty-state strong {
+    color: var(--layer-ink, #29332d);
+    font-size: 12px;
+}
+
+.layer-empty-state small {
+    font-size: 10px;
+}
+
+.app-shell {
+    --layer-ink: #29332d;
+    --layer-muted: #788179;
+    --layer-surface: #ffffff;
+    --layer-inset: #f7f9f7;
+    --layer-border: #e1e6e1;
+}
+
+.app-shell.theme-dark {
+    --layer-ink: var(--dark-ui-ink, #e0e5ed);
+    --layer-muted: var(--dark-ui-muted, #a6afbc);
+    --layer-surface: var(--dark-ui-surface, #222831);
+    --layer-inset: var(--dark-ui-inset, #191e26);
+    --layer-border: var(--dark-ui-border, #3b4552);
+}
+
+.app-shell.theme-dark .floating-layer-panel .layer-row {
+    border-color: var(--layer-border);
+    color: var(--layer-ink);
+    background: var(--dark-ui-raised, #29313c);
+}
+
+.app-shell.theme-dark .floating-layer-panel .layer-row.selected {
     border-color: var(--ui-accent-border);
     background: var(--ui-accent-soft);
 }
 
-.theme-dark .floating-layer-panel .layer-row button {
-    color: #d3ddd4;
-}
-
-.theme-dark .floating-layer-panel .layer-row button:hover {
-    background: #39443c;
+.app-shell.theme-dark .floating-layer-panel .layer-row .layer-action[aria-pressed="true"] {
+    color: var(--ui-accent-ink);
 }
 
 .app-shell {
@@ -839,48 +953,6 @@
 
 .toolbar-auto-dot {
     background: linear-gradient(135deg, #f8faf7 0 48%, #252c31 52% 100%);
-}
-
-.layer-order-controls {
-    display: flex;
-    flex: 0 0 26px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1px;
-}
-
-.layer-row .layer-order-controls button {
-    display: grid;
-    width: 24px;
-    min-height: 21px;
-    height: 21px;
-    place-items: center;
-    padding: 0;
-    border-radius: 5px;
-    color: #77847b;
-}
-
-.layer-order-controls svg {
-    width: 13px;
-    height: 13px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.layer-order-controls button:disabled {
-    opacity: .35;
-    cursor: default;
-}
-
-.layer-order-controls button:disabled:hover {
-    background: transparent;
-}
-
-.theme-dark .layer-order-controls button {
-    color: #bac6bd;
 }
 
 .tool-family.options-open .text-options {

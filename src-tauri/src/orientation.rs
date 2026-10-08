@@ -2,7 +2,10 @@
 use serde::Serialize;
 #[cfg(target_os = "android")]
 use tauri::plugin::PluginHandle;
-use tauri::{plugin::{Builder, TauriPlugin}, Manager, State};
+use tauri::{
+    plugin::{Builder, TauriPlugin},
+    Manager, State,
+};
 
 #[cfg(target_os = "android")]
 pub struct OrientationHandle(PluginHandle<tauri::Wry>);
@@ -46,7 +49,8 @@ pub fn init() -> TauriPlugin<tauri::Wry> {
         .setup(|app, api| {
             #[cfg(target_os = "android")]
             {
-                let handle = api.register_android_plugin("com.toush.sketchdraw", "OrientationPlugin")?;
+                let handle =
+                    api.register_android_plugin("com.toush.sketchdraw", "OrientationPlugin")?;
                 app.manage(OrientationHandle(handle));
             }
             #[cfg(not(target_os = "android"))]
