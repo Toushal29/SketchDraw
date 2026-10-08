@@ -306,12 +306,16 @@
         max-width: none !important;
         max-height: none !important;
         padding: 12px;
-        overflow: hidden;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
         transform: none !important;
     }
     .app-shell:not(.platform-windows) .view-menu-heading { padding-bottom: 10px; }
     .app-shell:not(.platform-windows) .view-menu-heading strong { font-size: 15px; }
-    .app-shell:not(.platform-windows) .view-panel-pages { min-height: 0; max-height: none; margin-top: 9px; flex: 1 1 auto; }
+    .app-shell:not(.platform-windows) .view-panel-pages { display: block; min-height: 0; max-height: none; margin-top: 9px; flex: 1 1 auto; overflow: visible; }
     .app-shell:not(.platform-windows) .view-panel-page.active { gap: 8px; }
     .app-shell:not(.platform-windows) .view-menu-section { padding: 10px; }
     .app-shell:not(.platform-windows) .mobile-layout-controls { gap: 10px; }

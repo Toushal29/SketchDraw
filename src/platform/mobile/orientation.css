@@ -12,7 +12,7 @@
         box-sizing: border-box;
         min-height: calc(86px + env(safe-area-inset-top));
         height: auto;
-        grid-template-columns: minmax(40px, auto) minmax(68px, 1fr) auto auto minmax(56px, auto);
+        grid-template-columns: 42px minmax(58px, 1fr) minmax(94px, auto) 44px 44px;
         grid-template-rows: 32px 38px;
         grid-template-areas:
             "brand brand brand brand status"
@@ -21,6 +21,11 @@
         align-items: center;
         gap: 3px 4px;
         padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+    }
+
+    .app-shell.mobile-orientation-portrait.noncanvas-workspace-active:not(.platform-windows) > .topbar {
+        grid-template-columns: 42px minmax(0, 1fr) 44px 44px;
+        grid-template-areas: "brand brand brand status" "file project settings menu";
     }
 
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .header-leading {
@@ -41,8 +46,11 @@
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .file-menu-dropdown { grid-area: file; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .portrait-menu-dropdown { display: block; grid-area: menu; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .topbar > .touch-page-control { grid-area: pages; width: 100%; min-width: 68px; max-width: none; margin: 0; }
-    .app-shell.mobile-orientation-portrait:not(.platform-windows) .project-workspace-launch { grid-area: project; width: auto; min-width: 34px; justify-content: center; margin: 0; padding: 0 7px; }
-    .app-shell.mobile-orientation-portrait:not(.platform-windows) .settings-menu-dropdown { grid-area: settings; width: 48px; min-width: 48px; margin: 0; }
+    .app-shell.mobile-orientation-portrait:not(.platform-windows) .topbar > .document-workspace-tabs { grid-area: project; width: 100%; min-width: 0; max-width: 116px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; padding: 2px; }
+    .app-shell.mobile-orientation-portrait:not(.platform-windows) .topbar > .document-workspace-tabs button { min-width: 0; min-height: 32px; padding: 0 2px; font-size: 8px; }
+    .app-shell.mobile-orientation-portrait:not(.platform-windows) .settings-menu-dropdown { grid-area: settings; width: 44px; min-width: 44px; margin: 0; }
+    .app-shell.mobile-orientation-portrait:not(.platform-windows) .settings-menu-dropdown > summary { width: 44px; min-width: 44px; }
+    .app-shell.mobile-orientation-portrait:not(.platform-windows) .portrait-menu-dropdown { width: 44px; min-width: 44px; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .topbar .top-actions { grid-area: status; min-width: 0; max-width: 100%; justify-content: flex-end; gap: 5px; overflow: hidden; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .topbar .live-sync-indicator { min-width: 0; gap: 4px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .topbar .live-sync-indicator i { flex: 0 0 6px; width: 6px; height: 6px; }
@@ -152,18 +160,23 @@
         z-index: 320;
         top: calc(var(--touch-header-height) + env(safe-area-inset-top) + 4px) !important;
         right: max(8px, env(safe-area-inset-right)) !important;
-        bottom: max(8px, env(safe-area-inset-bottom)) !important;
+        bottom: auto !important;
         left: max(8px, env(safe-area-inset-left)) !important;
         box-sizing: border-box;
+        display: block;
         width: auto !important;
+        height: calc(100dvh - var(--touch-header-height) - 12px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
         max-width: none !important;
         max-height: none !important;
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
         transform: none !important;
     }
+
+    .app-shell.mobile-orientation-portrait:not(.platform-windows) .view-settings-popover .view-panel-pages { display: block; min-height: 0; max-height: none; overflow: visible; }
 
     /* Keep the complete tool rail on one row and let narrow screens scroll it. */
     .app-shell.mobile-orientation-portrait:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-bar {

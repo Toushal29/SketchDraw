@@ -149,7 +149,7 @@
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) .help-backdrop {
-        z-index: 400;
+        z-index: 2800;
         display: grid;
         box-sizing: border-box;
         place-items: center;

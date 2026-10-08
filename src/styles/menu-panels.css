@@ -61,6 +61,7 @@
     font: 550 10px system-ui, sans-serif;
 }
 .app-setting-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.app-setting-choices-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .app-setting-choices-scale { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .app-setting-choices button {
     box-sizing: border-box;
@@ -76,6 +77,30 @@
 }
 .app-setting-choices button:hover { color: var(--panel-ink); background: var(--panel-hover); }
 .app-setting-choices button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+.app-accent-choices,
+.app-toolbar-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.app-accent-choices button,
+.app-toolbar-choices button,
+.app-accent-custom,
+.app-toolbar-custom { position: relative; box-sizing: border-box; display: flex; min-width: 0; min-height: 31px; align-items: center; gap: 6px; padding: 4px 6px; border: 1px solid transparent; border-radius: 8px; color: var(--panel-ink, #202734); background: transparent; font: 550 9px/1.1 system-ui, sans-serif; text-align: left; cursor: pointer; }
+.app-accent-choices button:hover,
+.app-toolbar-choices button:hover,
+.app-accent-custom:hover,
+.app-toolbar-custom:hover { background: var(--panel-hover, #edf1f6); }
+.app-accent-choices button.active,
+.app-toolbar-choices button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+.app-accent-choices i,
+.app-toolbar-choices i,
+.app-accent-custom i,
+.app-toolbar-custom i { box-sizing: border-box; width: 15px; height: 15px; flex: 0 0 15px; border: 1px solid #0002; border-radius: 50%; }
+.app-accent-choices span,
+.app-toolbar-choices span,
+.app-accent-custom span,
+.app-toolbar-custom span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-accent-custom input,
+.app-toolbar-custom input { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; padding: 0; opacity: 0; cursor: pointer; }
+.app-accent-custom i { border-style: dashed; background: conic-gradient(#f55 0 15%, #fc5 15% 30%, #8c6 30% 45%, #5cc 45% 60%, #68f 60% 75%, #c6c 75% 90%, #f55 90%); }
+.app-toolbar-auto { background: linear-gradient(135deg, #fff 0 47%, #778293 51% 100%); }
 .app-setting-toggle {
     display: flex;
     align-items: center;
@@ -194,6 +219,10 @@
 .app-shell.theme-dark .gesture-action-card select { border-color: var(--panel-line); color: var(--panel-ink); background: #252c36; }
 .app-shell.theme-dark .app-setting-choices button { border-color: var(--panel-line); color: var(--panel-muted); background: #252c36; }
 .app-shell.theme-dark .app-setting-choices button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+.app-shell.theme-dark .app-accent-choices button,
+.app-shell.theme-dark .app-toolbar-choices button,
+.app-shell.theme-dark .app-accent-custom,
+.app-shell.theme-dark .app-toolbar-custom { color: var(--panel-ink); }
 .app-shell.theme-dark .app-setting-toggle,
 .app-shell.theme-dark .app-display-info { border-color: var(--panel-line); background: var(--panel-well); }
 .app-shell.theme-dark .gesture-menu-heading { border-color: var(--panel-line); }

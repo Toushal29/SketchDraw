@@ -402,7 +402,7 @@
 
 .confirm-backdrop {
     position: fixed;
-    z-index: 30;
+    z-index: 2600;
     inset: 0;
     display: grid;
     place-items: center;
@@ -432,7 +432,7 @@
     line-height: 1.6;
 }
 
-.confirm-dialog>div {
+.confirm-dialog>div:not([class]) {
     display: flex;
     justify-content: flex-end;
     gap: 9px;

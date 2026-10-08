@@ -4,9 +4,9 @@
 
 SketchDraw is an offline-first project workspace for Windows, Android, and iOS. Draw diagrams, plan work, and keep notes and tasks together in one portable `.sketch` file. Save locally or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
 
-**Current release: Windows 7.2.0 · Android 2.2.0 · Document format: version 7 · Copyright © 2026 Toushal Sampat**
+**Current release: Windows 7.2.0 · Android 2.2.0 · Document format: version 8 · Copyright © 2026 Toushal Sampat**
 
-> SketchDraw saves version 7 `.sketch` documents on both platforms. Recognizable earlier SketchDraw JSON versions (1-6) are migrated to v7 when opened and saved back to the same `.sketch` file; unrelated or malformed files remain unsupported. The `.sketch` extension stays the same.
+> SketchDraw saves version 8 `.sketch` documents on both platforms. Version 8 stores Canvas, Planning, and Library in separate sections. SketchDraw versions 1-7 are migrated to v8 when opened and saved back to the same `.sketch` file; the established extension remains unchanged.
 
 ## Screenshots and previews
 
@@ -104,14 +104,16 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 
 ## Features
 
-- **Project workspace:** Open Project Space from Home or from a sketch. Keep notes, prioritized and dated tasks, dependencies, milestones, decisions, risks, links, and attachments with the canvas. Use the Kanban board, drag tasks between stages, reorder cards, and review dates in Timeline or Calendar. Project data stays in the same offline `.sketch` file.
+- **Document workspaces:** Each `.sketch` file has separate Canvas, Planning, and Library sections. Choose where to start when opening a file, then switch sections at any time without closing it. All three stay in the same offline document.
+- **Project planning:** Keep project notes, prioritized and dated tasks, dependencies, milestones, decisions, risks, links, and attachments together. Use the Kanban board, drag tasks between stages, reorder cards, and review dates in Timeline or Calendar.
+- **Personal library:** Work outside project planning with quick-capture notes, study notes and spaced-repetition cards, a linked wiki, a journal, long-form drafts and revisions, a research source library, and a reading and media log. Open Library from the workspace tabs; its Notepad opens first for fast note taking.
 - **Shared-file updates:** Open copies check a shared `.sketch` file every 1.6 seconds. Once OneDrive or another provider syncs a change, independent edits to pages, objects, notes, and tasks are merged; when the same item changes on two devices, the later edit wins. SketchDraw does not host files or live collaboration.
 - **Drawing tools:** Draw with pen, fine pen, pencil, soft brush, marker, highlighter, chalk, or a temporary laser pointer. Create and fill geometric shapes, crop imported images, and adjust stroke, fill, opacity, corners, and text styling.
 - **Flowchart symbols:** Build diagrams with process, terminator, decision, input/output, document, database, preparation, manual input, connector, delay, stored-data, and cloud shapes. Symbols remain editable after placement.
 - **Connectors:** Draw straight or curved lines, multi-point lines, and straight, elbow, forked, loop, or jagged arrows. Attach endpoints to shapes, choose line and arrowhead styles, and drag route handles. Windows also offers automatic obstacle routing with editable waypoints.
 - **Selection and layers:** Move, resize, rotate, group, duplicate, align, distribute, and reorder objects. Copy and paste objects or their styles, edit precise values, and lock or hide individual layers. Undo and redo history is kept per page for the current session.
 - **Canvas navigation:** Pan, zoom, fit the full drawing, or zoom to a selection. Set the board color and paper pattern, use grid and object snapping, and open Canvas options for rulers, alignment guides, and an optional minimap.
-- **Pages and project files:** Keep up to 100 named canvas pages and project records in one portable version 7 `.sketch` file. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, recovery can restore interrupted edits, and up to eight recent file paths appear on Home. Recognized version 1-6 SketchDraw files are migrated when opened and saved.
+- **Pages and project files:** Keep up to 100 named canvas pages plus planning and library records in one portable version 8 `.sketch` file. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, recovery can restore interrupted edits, and up to eight recent file paths appear on Home. Recognized version 1-7 SketchDraw files are migrated when opened and saved.
 - **Text and note cards:** Add plain text, Markdown, tables, code notes, notes, sticky notes, and checklists to the canvas. Markdown supports headings, lists, tables, and syntax-colored code blocks. Resize, title, format, collapse, expand, and edit cards in place; collapsed cards retain a short content or progress summary.
 - **Diagram as code:** Paste Mermaid flowchart code, preview it, and generate native shapes and attached connectors. The source stays with the diagram, so it can be reopened, edited, and regenerated later.
 - **Database schema visualizer:** Paste SQL `CREATE TABLE` statements or JSON table definitions to create editable table cards with primary- and foreign-key fields. Generated connectors attach to matching field rows, and each card can reopen its saved source for editing.
@@ -138,7 +140,7 @@ Planned modeling improvements include:
 - **Data flows:** Add optional animated indicators to show direction through architecture diagrams.
 ## File format
 
-SketchDraw uses a JSON-based **version 7** format in `.sketch` files. Recognizable version 1-6 SketchDraw JSON documents are normalized to v7 when opened and saved back to their existing `.sketch` path. Missing page settings and legacy element IDs receive safe defaults. Version 7 stores project details, notes, tasks, milestones, decision and risk records, links, attachments, and edit-clock metadata alongside pages and drawing objects. Windows, phone, and tablet apps preserve these records in the same file. The loader retains support for the existing elements and groups from older files. `.sketchdraw` files and malformed or unrelated files remain unsupported. Renaming an old file does not convert it; opening it in SketchDraw does. The file extension remains `.sketch`.
+SketchDraw uses a JSON-based **version 8** format in `.sketch` files. Versions 1-7 are normalized to v8 when opened and saved back to their existing `.sketch` path. Version 8 keeps three independent sections: `canvas` stores pages and drawing objects, `planning` stores project tasks and records, and `library` stores personal notes and tools. Edit-clock metadata supports shared-folder updates. Windows, phone, and tablet apps preserve the sections in the same document. `.sketchdraw` files and malformed or unrelated files remain unsupported. The `.sketch` extension remains unchanged; the new structure is handled by the internal format version.
 
 SketchDraw does not host online workspaces or live cursors. Shared-file updates use the local file or provider URI and the sync service managing that folder; there is no SketchDraw server or cloud account. Conflicts use last-edit-wins metadata, so devices should have reasonably accurate system clocks. Offline changes merge after the provider delivers them.
 

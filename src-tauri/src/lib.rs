@@ -8,7 +8,7 @@ mod android_documents;
 mod orientation;
 
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
-const CURRENT_SKETCH_FORMAT_VERSION: u64 = 7;
+const CURRENT_SKETCH_FORMAT_VERSION: u64 = 8;
 
 fn validate_sketch_document(contents: &str) -> Result<(), String> {
     let document: serde_json::Value = serde_json::from_str(contents).map_err(|e| e.to_string())?;
@@ -329,12 +329,12 @@ mod tests {
 
     #[test]
     fn accepts_current_sketch_format() {
-        assert!(validate_sketch_document(r#"{"format":"SketchDraw","version":7}"#).is_ok());
+        assert!(validate_sketch_document(r#"{"format":"SketchDraw","version":8}"#).is_ok());
     }
 
     #[test]
     fn rejects_older_sketch_format_with_current_version_hint() {
         let error = validate_sketch_document(r#"{"format":"SketchDraw","version":6}"#).unwrap_err();
-        assert_eq!(error, "Only SketchDraw format v7 can be saved.");
+        assert_eq!(error, "Only SketchDraw format v8 can be saved.");
     }
 }

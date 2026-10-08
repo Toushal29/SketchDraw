@@ -33,10 +33,41 @@ export type ProjectLogEntry = { id: string; kind: ProjectLogKind; title: string;
 export type ProjectFileEntry =
   | { id: string; kind: "attachment"; name: string; mimeType: string; dataUrl: string; size: number; createdAt: number }
   | { id: string; kind: "link"; name: string; url: string; createdAt: number };
-export type ProjectWorkspaceData = { name: string; description: string; notes: ProjectNote[]; tasks: ProjectTask[]; milestones: ProjectMilestone[]; logEntries: ProjectLogEntry[]; files: ProjectFileEntry[] };
-export const SKETCH_FORMAT_VERSION = 7 as const;
+export type LibraryStudyCard = { id: string; front: string; back: string; dueAt: number; intervalDays: number; easeFactor: number; repetitions: number; lastReviewedAt?: number; createdAt: number; updatedAt: number };
+export type LibraryWikiArticle = { id: string; title: string; content: string; tags: string[]; createdAt: number; updatedAt: number };
+export type LibraryJournalMood = "great" | "good" | "neutral" | "low" | "difficult";
+export type LibraryJournalEntry = { id: string; date: string; prompt: string; mood: LibraryJournalMood; content: string; createdAt: number; updatedAt: number };
+export type LibraryWritingRevision = { id: string; title: string; outline: string; content: string; createdAt: number };
+export type LibraryWritingDraft = { id: string; title: string; outline: string; content: string; revisions: LibraryWritingRevision[]; createdAt: number; updatedAt: number };
+export type LibraryResearchSource = { id: string; title: string; url: string; author: string; year: string; citation: string; quote: string; notes: string; tags: string[]; createdAt: number; updatedAt: number };
+export type LibraryMediaKind = "book" | "film" | "game" | "podcast" | "article" | "other";
+export type LibraryMediaStatus = "want" | "inProgress" | "complete";
+export type LibraryMediaEntry = { id: string; title: string; kind: LibraryMediaKind; status: LibraryMediaStatus; rating?: number; notes: string; startedAt?: string; completedAt?: string; createdAt: number; updatedAt: number };
+export type PersonalLibraryData = {
+  quickNotes: ProjectNote[];
+  studyNotes: ProjectNote[];
+  studyCards: LibraryStudyCard[];
+  wikiArticles: LibraryWikiArticle[];
+  journalEntries: LibraryJournalEntry[];
+  writingDrafts: LibraryWritingDraft[];
+  researchSources: LibraryResearchSource[];
+  mediaEntries: LibraryMediaEntry[];
+};
+export type ProjectWorkspaceData = {
+  name: string;
+  description: string;
+  notes: ProjectNote[];
+  tasks: ProjectTask[];
+  milestones: ProjectMilestone[];
+  logEntries: ProjectLogEntry[];
+  files: ProjectFileEntry[];
+};
+export type SketchDocumentSections = { canvas: { activePageId: string; pages: SketchPage[] }; planning: ProjectWorkspaceData; library: PersonalLibraryData };
+export const SKETCH_FORMAT_VERSION = 8 as const;
 export type WindowsSyncMetadata = { version: 1; updatedAt: number; deviceId: string; clocks: Record<string, number>; tombstones: Record<string, number> };
-export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; project?: ProjectWorkspaceData; windowsSync?: WindowsSyncMetadata };
+export type SketchFileDocumentV8 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; sections: SketchDocumentSections; windowsSync?: WindowsSyncMetadata };
+/** In-memory shape. Version 8 files serialize the three areas under `sections`. */
+export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; project?: ProjectWorkspaceData; library?: PersonalLibraryData; windowsSync?: WindowsSyncMetadata };
 export type Preview = { type: Exclude<Tool, "select" | "pan" | "laser" | "text" | "bucket" | "eraser" | "crop">; start: Point; end: Point; color: string; thickness: number; opacity?: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute };
 export type Bounds = { x: number; y: number; w: number; h: number };
 export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; shapeLabel?: boolean; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };

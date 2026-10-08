@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
+import { createEffect, createMemo, createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getVersion } from "@tauri-apps/api/app";
@@ -21,11 +21,11 @@ import "./styles/dark-theme-refresh.css";
 import "./styles/view-menu.css";
 import "./styles/menu-panels.css";
 import "./platform/windows/windows.css";
-import "./features/project/project-workspace.css";
+import "./features/workspace/workspace-shell.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
-import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, Tool, CanvasState, SketchPage, SketchFile, WindowsSyncMetadata, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
+import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, Tool, CanvasState, SketchPage, SketchFile, SketchFileDocumentV8, WindowsSyncMetadata, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, PersonalLibraryData } from "./model";
 import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, isConnectable, BOX_ANCHORS, anchorPoint, nearestBinding, validReferences, textLayout, labelBox, textFont } from "./operations";
 import type { NoteKind } from "./model";
 import { buildLibraryComponent, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, toggleChecklistContent, type LibraryComponentKind } from "./notes";
@@ -57,6 +57,11 @@ import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, loadWindowsShortcuts, mat
 import { autoRoutePoints } from "./platform/windows/connector-routing";
 import { ProjectWorkspace } from "./features/project/ProjectWorkspace";
 import { createProjectWorkspace } from "./features/project/project-data";
+import { createPersonalLibrary } from "./features/library/library-data";
+import { PersonalLibrary } from "./features/library/PersonalLibrary";
+import { WorkspaceChooser } from "./features/workspace/WorkspaceChooser";
+import { WorkspaceAreaTabs } from "./features/workspace/WorkspaceAreaTabs";
+import type { WorkspaceArea } from "./features/workspace/workspace-types";
 import type { ProjectWorkspaceData } from "./model";
 
 type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
@@ -187,7 +192,10 @@ function App() {
   const [renameFileName, setRenameFileName] = createSignal("");
   const [renameFileError, setRenameFileError] = createSignal("");
   const [projectWorkspaceData, setProjectWorkspaceData] = createSignal<ProjectWorkspaceData>(createProjectWorkspace());
-  const [projectWorkspaceOpen, setProjectWorkspaceOpen] = createSignal(false);
+  const [personalLibraryData, setPersonalLibraryData] = createSignal<PersonalLibraryData>(createPersonalLibrary());
+  const [workspaceArea, setWorkspaceArea] = createSignal<WorkspaceArea>("canvas");
+  const [topbarHeight, setTopbarHeight] = createSignal(66);
+  const navigateWorkspace = (area: WorkspaceArea) => setWorkspaceArea(area);
   const [readOnlyView, setReadOnlyView] = createSignal(false);
   const [tool, setTool] = createSignal<Tool>("pen");
   const [color, setColor] = createSignal("#252525");
@@ -252,6 +260,7 @@ function App() {
   const [autosaveSeconds, setAutosaveSeconds] = createSignal<5 | 10>(readPreference("sketchdraw-autosave-seconds", "10") === "5" ? 5 : 10);
   const [interfaceScale, setInterfaceScale] = createSignal((() => { const value = Number(readPreference("sketchdraw-interface-scale", "1")); return [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4].includes(value) ? value : 1; })());
   const [mobileOrientation, setMobileOrientation] = createSignal(readPreference("sketchdraw-mobile-orientation", "landscape") === "portrait" ? "portrait" as const : "landscape" as const);
+  const [orientationMessage, setOrientationMessage] = createSignal("");
   const [toolbarPosition, setToolbarPosition] = createSignal<"top" | "bottom" | "left" | "right">((() => {
     const saved = readPreference("sketchdraw-toolbar-position", "");
     if (saved === "top" || saved === "bottom" || saved === "left" || saved === "right") return saved;
@@ -260,12 +269,10 @@ function App() {
   })());
   const [androidAllFilesAccessAvailable, setAndroidAllFilesAccessAvailable] = createSignal(false);
   const [androidAllFilesAccessGranted, setAndroidAllFilesAccessGranted] = createSignal(false);
-  const [orientationMessage, setOrientationMessage] = createSignal("");
   const [reduceMotion, setReduceMotion] = createSignal(readPreference("sketchdraw-reduce-motion", "false") === "true");
   const [displayMetrics, setDisplayMetrics] = createSignal<DisplayMetrics>(readDisplayMetrics());
   const [componentAppearance, setComponentAppearance] = createSignal<"modern" | "simple">(readPreference("sketchdraw-component-appearance", "modern") === "simple" ? "simple" : "modern");
   const [toolbarColorChoice, setToolbarColorChoice] = createSignal((() => { const value = readPreference("sketchdraw-toolbar-color", "auto"); return value === "auto" || /^#[\da-f]{6}$/i.test(value) ? value : "auto"; })());
-  const [viewPanelSection, setViewPanelSection] = createSignal<"interface" | "canvas">("interface");
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "error">("idle");
   const [updateVersion, setUpdateVersion] = createSignal<string>();
@@ -349,6 +356,7 @@ function App() {
   let exportPreviewCanvas!: HTMLCanvasElement;
   let exportPreviewVersion = 0;
   let canvasWrap!: HTMLElement;
+  let appTopbar!: HTMLElement;
   let menu!: HTMLDetailsElement;
   let viewMenu!: HTMLDetailsElement;
   let gestureMenu!: HTMLDetailsElement;
@@ -701,7 +709,7 @@ function App() {
   const updateThickness = (value: number) => { const bounded = Math.max(1, Math.min(24, Math.round(value))); setThickness(bounded); if (hasStyleSelection()) updateProperty("thickness", bounded); };
   const setThicknessPickerPreference = (mode: "presets" | "stepper") => { setThicknessPickerMode(mode); try { localStorage.setItem("sketchdraw-thickness-picker", mode); } catch { /* The setting still applies for this session. */ } };
   const status = () => !activePath() ? "No file selected" : readOnlyView() ? "View only · changes are not saved" : saving() ? "Saving…" : (dirty() || textDraft()) ? "Unsaved changes" : savedAt() ? `Saved ${savedAt()}` : "Saved locally";
-  function observeFileSync(serializedPages: SketchPage[], project: ProjectWorkspaceData) {
+  function observeFileSync(serializedPages: SketchPage[], project: ProjectWorkspaceData, library: PersonalLibraryData) {
     if (!activePath()) return;
     const current = new Map<string, string>();
     for (const page of serializedPages) {
@@ -714,6 +722,14 @@ function App() {
     for (const milestone of project.milestones) current.set(`w:m:${milestone.id}`, JSON.stringify(milestone));
     for (const entry of project.logEntries) current.set(`w:l:${entry.id}`, JSON.stringify(entry));
     for (const file of project.files) current.set(`w:f:${file.id}`, JSON.stringify(file));
+    for (const note of library.quickNotes) current.set(`w:quick-note:${note.id}`, JSON.stringify(note));
+    for (const note of library.studyNotes) current.set(`w:sn:${note.id}`, JSON.stringify(note));
+    for (const card of library.studyCards) current.set(`w:sc:${card.id}`, JSON.stringify(card));
+    for (const article of library.wikiArticles) current.set(`w:wiki:${article.id}`, JSON.stringify(article));
+    for (const entry of library.journalEntries) current.set(`w:journal:${entry.id}`, JSON.stringify(entry));
+    for (const draft of library.writingDrafts) current.set(`w:writing:${draft.id}`, JSON.stringify(draft));
+    for (const source of library.researchSources) current.set(`w:research:${source.id}`, JSON.stringify(source));
+    for (const entry of library.mediaEntries) current.set(`w:media:${entry.id}`, JSON.stringify(entry));
     const now = Date.now();
     const previous = windowsSyncMetadata() ?? createWindowsSyncMetadata();
     const clocks = { ...previous.clocks };
@@ -740,16 +756,29 @@ function App() {
       return { id: page.id, name: page.name, canvasState: { ...state, backgroundColor: isCurrent ? renderedBoardColor() : (state.boardColorFollowsTheme ? (theme() === "dark" ? "#17191f" : "#ffffff") : state.backgroundColor), boardColorFollowsTheme: state.boardColorFollowsTheme ?? true }, elements: normalized as Element[] };
     });
     const project = projectWorkspaceData();
-    observeFileSync(serializedPages, project);
-    return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: activePageId() || serializedPages[0].id, pages: serializedPages, project, ...(windowsSyncMetadata() ? { windowsSync: windowsSyncMetadata() } : {}) };
+    const library = personalLibraryData();
+    observeFileSync(serializedPages, project, library);
+    return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: activePageId() || serializedPages[0].id, pages: serializedPages, project, library, ...(windowsSyncMetadata() ? { windowsSync: windowsSyncMetadata() } : {}) };
   }
-  function snapshotRaw(snapshot: SketchFile) { return JSON.stringify(snapshot, null, 2); }
+  function snapshotRaw(snapshot: SketchFile) {
+    const document: SketchFileDocumentV8 = {
+      format: "SketchDraw",
+      version: SKETCH_FORMAT_VERSION,
+      sections: {
+        canvas: { activePageId: snapshot.activePageId, pages: snapshot.pages },
+        planning: snapshot.project ?? createProjectWorkspace(),
+        library: snapshot.library ?? createPersonalLibrary(),
+      },
+      ...(snapshot.windowsSync ? { windowsSync: snapshot.windowsSync } : {}),
+    };
+    return JSON.stringify(document, null, 2);
+  }
   createEffect(() => {
-    const path = activePath(); const currentPages = pages(); const currentPageId = activePageId(); const currentElements = elements(); const currentState = canvasState(); const currentProject = projectWorkspaceData();
+    const path = activePath(); const currentPages = pages(); const currentPageId = activePageId(); const currentElements = elements(); const currentState = canvasState(); const currentProject = projectWorkspaceData(); const currentLibrary = personalLibraryData();
     if (!path || !currentPages.length || !currentPageId) return;
     if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer);
     const observedPages = currentPages.map(page => page.id === currentPageId ? { ...page, elements: currentElements, canvasState: currentState } : page);
-    syncObservationTimer = window.setTimeout(() => observeFileSync(observedPages, currentProject), 250);
+    syncObservationTimer = window.setTimeout(() => observeFileSync(observedPages, currentProject, currentLibrary), 250);
   });
   function storeCurrentPage() {
     const id = activePageId();
@@ -1844,6 +1873,11 @@ function App() {
   });
 
   onMount(() => {
+    const updateTopbarHeight = () => { if (appTopbar) setTopbarHeight(appTopbar.offsetHeight); };
+    const topbarResize = new ResizeObserver(updateTopbarHeight);
+    if (appTopbar) topbarResize.observe(appTopbar);
+    updateTopbarHeight();
+    onCleanup(() => topbarResize.disconnect());
     if (isTauri() && /android/i.test(navigator.userAgent)) {
       void refreshAndroidAllFilesAccess();
       void invoke("set_mobile_orientation", { orientation: mobileOrientation() }).catch(() => setOrientationMessage("Rotate the device manually if its saved orientation is not applied."));
@@ -2037,6 +2071,9 @@ function App() {
     try { localStorage.setItem("sketchdraw-toolbar-position", position); } catch { /* Position still applies for this session. */ }
   }
   function restoreAppSettings() {
+    setThemePreference("system");
+    setAccentPreference(UI_ACCENTS[1].value);
+    setToolbarColorPreference("auto");
     setInterfaceScalePreference(1);
     setAutosavePreference(10);
     setThicknessPickerPreference("presets");
@@ -2133,13 +2170,15 @@ function App() {
     try { localStorage.setItem(recoveryKey(activePath()!), JSON.stringify({ savedAt: Date.now(), baselineRaw: lastSavedRaw, snapshot: recoverySnapshot() })); } catch { /* Recovery is best-effort if browser storage is unavailable. */ }
   }
 
-  function applySnapshot(snapshot: SketchFile, path: string, rawText: string) {
+  function applySnapshot(snapshot: SketchFile, path: string, rawText: string, nextWorkspace: WorkspaceArea = "chooser") {
     pageHistories.clear(); setTextDraft(undefined); setNoteEditor(undefined); setContextMenu(undefined); setLayerPanelOpen(false); setTouchStylePanel(false); setQuickStylePopover(undefined); setCanvasOptionsOpen(false); setPaintBrushMenuOpen(false); setStencilMenuOpen(false); closeToolOptions(); setPreview(undefined); setMarquee(undefined); drawing = false; moveOrigin = undefined; resizeOrigin = undefined;
     const currentPage = snapshot.pages.find((page) => page.id === snapshot.activePageId) ?? snapshot.pages[0];
     setPages(snapshot.pages.map((page) => ({ ...page, elements: cloneElements(page.elements) })));
     setActivePageId(currentPage.id); setElements(cloneElements(currentPage.elements)); setCanvasState({ ...currentPage.canvasState });
     const project = snapshot.project ?? createProjectWorkspace(displayPathName(path).replace(/\.sketch$/i, ""));
     setProjectWorkspaceData(project);
+    const library = snapshot.library ?? createPersonalLibrary();
+    setPersonalLibraryData(library);
     setBoardColor(currentPage.canvasState.backgroundColor); setBoardColorFollowsTheme(currentPage.canvasState.boardColorFollowsTheme ?? false);
     const syncMeta = snapshot.windowsSync ?? createWindowsSyncMetadata();
     if (syncMeta && !snapshot.windowsSync) {
@@ -2151,10 +2190,39 @@ function App() {
       for (const milestone of project.milestones) syncMeta.clocks[`w:m:${milestone.id}`] = now;
       for (const entry of project.logEntries) syncMeta.clocks[`w:l:${entry.id}`] = now;
       for (const file of project.files) syncMeta.clocks[`w:f:${file.id}`] = now;
+      for (const note of library.quickNotes) syncMeta.clocks[`w:quick-note:${note.id}`] = now;
+      for (const note of library.studyNotes) syncMeta.clocks[`w:sn:${note.id}`] = now;
+      for (const card of library.studyCards) syncMeta.clocks[`w:sc:${card.id}`] = now;
+      for (const article of library.wikiArticles) syncMeta.clocks[`w:wiki:${article.id}`] = now;
+      for (const entry of library.journalEntries) syncMeta.clocks[`w:journal:${entry.id}`] = now;
+      for (const draft of library.writingDrafts) syncMeta.clocks[`w:writing:${draft.id}`] = now;
+      for (const source of library.researchSources) syncMeta.clocks[`w:research:${source.id}`] = now;
+      for (const entry of library.mediaEntries) syncMeta.clocks[`w:media:${entry.id}`] = now;
     }
     setWindowsSyncMetadata(syncMeta);
-    syncObserved = syncMeta ? new Map([...snapshot.pages.flatMap(page => [[`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState })] as [string, string], ...page.elements.flatMap(element => element.id ? [[`e:${page.id}:${element.id}`, JSON.stringify(element)] as [string, string]] : [])]), ["w:meta", JSON.stringify({ name: project.name, description: project.description })] as [string, string], ...project.notes.map(note => [`w:n:${note.id}`, JSON.stringify(note)] as [string, string]), ...project.tasks.map(task => [`w:t:${task.id}`, JSON.stringify(task)] as [string, string]), ...project.milestones.map(item => [`w:m:${item.id}`, JSON.stringify(item)] as [string, string]), ...project.logEntries.map(item => [`w:l:${item.id}`, JSON.stringify(item)] as [string, string]), ...project.files.map(item => [`w:f:${item.id}`, JSON.stringify(item)] as [string, string])]) : new Map();
+    const observedEntries: [string, string][] = [
+      ...snapshot.pages.flatMap(page => [
+        [`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState })] as [string, string],
+        ...page.elements.flatMap(element => element.id ? [[`e:${page.id}:${element.id}`, JSON.stringify(element)] as [string, string]] : []),
+      ]),
+      ["w:meta", JSON.stringify({ name: project.name, description: project.description })],
+      ...project.notes.map(note => [`w:n:${note.id}`, JSON.stringify(note)] as [string, string]),
+      ...project.tasks.map(task => [`w:t:${task.id}`, JSON.stringify(task)] as [string, string]),
+      ...project.milestones.map(item => [`w:m:${item.id}`, JSON.stringify(item)] as [string, string]),
+      ...project.logEntries.map(item => [`w:l:${item.id}`, JSON.stringify(item)] as [string, string]),
+      ...project.files.map(item => [`w:f:${item.id}`, JSON.stringify(item)] as [string, string]),
+      ...library.quickNotes.map(note => [`w:quick-note:${note.id}`, JSON.stringify(note)] as [string, string]),
+      ...library.studyNotes.map(note => [`w:sn:${note.id}`, JSON.stringify(note)] as [string, string]),
+      ...library.studyCards.map(card => [`w:sc:${card.id}`, JSON.stringify(card)] as [string, string]),
+      ...library.wikiArticles.map(article => [`w:wiki:${article.id}`, JSON.stringify(article)] as [string, string]),
+      ...library.journalEntries.map(item => [`w:journal:${item.id}`, JSON.stringify(item)] as [string, string]),
+      ...library.writingDrafts.map(item => [`w:writing:${item.id}`, JSON.stringify(item)] as [string, string]),
+      ...library.researchSources.map(item => [`w:research:${item.id}`, JSON.stringify(item)] as [string, string]),
+      ...library.mediaEntries.map(item => [`w:media:${item.id}`, JSON.stringify(item)] as [string, string]),
+    ];
+    syncObserved = syncMeta ? new Map(observedEntries) : new Map();
     setActivePath(path); rememberFile(path); setDirty(!snapshot.windowsSync); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); lastSavedRaw = rawText;
+    setWorkspaceArea(nextWorkspace);
     undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1); setError("");
   }
 
@@ -2174,7 +2242,7 @@ function App() {
   function restoreRecovery() {
     const recovery = recoveryPrompt(); if (!recovery) return;
     const baseline = lastSavedRaw ?? "";
-    applySnapshot(recovery.snapshot, recovery.path, baseline);
+    applySnapshot(recovery.snapshot, recovery.path, baseline, workspaceArea());
     try { localStorage.removeItem(recoveryKey(recovery.path)); } catch { /* Best effort. */ }
     setDirty(true); setRecoveryPrompt(undefined);
     if (recovery.baselineRaw !== undefined && recovery.baselineRaw !== baseline) { setSyncConflict({ path: recovery.path, remote: baseline }); return; }
@@ -2189,7 +2257,7 @@ function App() {
     try {
       const raw: unknown = JSON.parse(conflict.remote); const parsed = parseSketchFile(raw);
       if (!parsed) throw new Error("The updated file is not a valid SketchDraw document.");
-      applySnapshot(parsed, conflict.path, conflict.remote); setSyncConflict(undefined);
+      applySnapshot(parsed, conflict.path, conflict.remote, workspaceArea()); setSyncConflict(undefined);
       try { localStorage.removeItem(recoveryKey(conflict.path)); } catch { /* Best effort. */ }
       if (isRecord(raw) && raw.version !== SKETCH_FORMAT_VERSION) { setDirty(true); await saveToPath(conflict.path); }
     } catch (cause) { setError(`Could not reload the synchronized file: ${String(cause)}`); }
@@ -2329,7 +2397,7 @@ function App() {
       pageHistories.clear();
       undoStack = []; redoStack = [];
       setPages([]); setActivePageId(""); setElements([]); setCanvasState(emptyCanvas());
-      setProjectWorkspaceData(createProjectWorkspace()); setProjectWorkspaceOpen(false);
+      setProjectWorkspaceData(createProjectWorkspace()); setPersonalLibraryData(createPersonalLibrary()); setWorkspaceArea("canvas");
       setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setActivePath(undefined);
       setReadOnlyView(false);
       setDirty(false); setSavedAt(""); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false);
@@ -2354,9 +2422,9 @@ function App() {
     if (documentBusy()) return;
     setDocumentBusy(true);
     try {
+      path = normalizeFileUri(path);
       if (!isSketchPath(path)) throw new Error("Only .sketch documents are supported.");
       if (!await saveBeforeReplacingDocument()) return;
-      setProjectWorkspaceOpen(false);
       // Android content URIs carry a temporary picker grant; ordinary and iOS
       // file paths use the app's authorization and atomic-save flow.
       const authorizedPath = await invoke<string>("authorize_sketch_file", { path: normalizeFileUri(path) });
@@ -2399,7 +2467,7 @@ function App() {
       if (!remoteParsed) return; // Cloud providers can briefly expose a partially synchronized file.
       const localParsed = documentSnapshot();
       const merged = mergeLatestSnapshots(localParsed, remoteParsed);
-      applySnapshot(merged, path, remoteRaw);
+      applySnapshot(merged, path, remoteRaw, workspaceArea());
       setReadOnlyView(wasReadOnly);
       setSyncConflict(undefined);
       const hasMergedEdits = snapshotRaw(merged) !== snapshotRaw(remoteParsed);
@@ -2618,13 +2686,14 @@ function App() {
       if (/^content:\/\//i.test(path)) await invoke("authorize_sketch_file", { path });
       const page: SketchPage = { id: "page-1", name: "Page 1", canvasState: emptyCanvas(), elements: [] };
       const project = createProjectWorkspace(displayPathName(path).replace(/\.sketch$/i, ""));
+      const library = createPersonalLibrary();
       const windowsSync = createWindowsSyncMetadata();
       if (windowsSync) { windowsSync.clocks[`p:${page.id}`] = windowsSync.updatedAt; windowsSync.clocks["w:meta"] = windowsSync.updatedAt; }
-      const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page], project, ...(windowsSync ? { windowsSync } : {}) };
-      const contents = JSON.stringify(document, null, 2);
+      const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page], project, library, ...(windowsSync ? { windowsSync } : {}) };
+      const contents = snapshotRaw(document);
       if (/^content:\/\//i.test(path)) await writeTextFile(path, contents);
       else await invoke("atomic_save_sketch", { path: normalizeFileUri(path), contents, expected: null });
-      pageHistories.clear(); setPages([page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setProjectWorkspaceData(project); setProjectWorkspaceOpen(false); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setActivePath(path); setReadOnlyView(false); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); setWindowsSyncMetadata(windowsSync); syncObserved = new Map([[`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState })], ["w:meta", JSON.stringify({ name: project.name, description: project.description })]]); setDirty(false); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setBoardLocked(false); setError(""); lastSavedRaw = contents;
+      pageHistories.clear(); setPages([page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setProjectWorkspaceData(project); setPersonalLibraryData(library); setWorkspaceArea("chooser"); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setActivePath(path); setReadOnlyView(false); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); setWindowsSyncMetadata(windowsSync); syncObserved = new Map([[`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState })], ["w:meta", JSON.stringify({ name: project.name, description: project.description })]]); setDirty(false); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setBoardLocked(false); setError(""); lastSavedRaw = contents;
       undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1);
     } catch (cause) { setError(`Could not create SketchDraw file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
@@ -2632,12 +2701,12 @@ function App() {
   async function createProjectFromHome() {
     const startingPath = activePath();
     await createFile();
-    if (activePath() && activePath() !== startingPath) setProjectWorkspaceOpen(true);
+    if (activePath() && activePath() !== startingPath) setWorkspaceArea("planning");
   }
 
   async function openRecentProject(path: string) {
     await loadFile(path);
-    if (activePath()) setProjectWorkspaceOpen(true);
+    if (activePath() && normalizeFileUri(activePath()!) === normalizeFileUri(path)) setWorkspaceArea("planning");
   }
 
   function openExportOptions(format: "png" | "svg" | "pdf") {
@@ -3723,10 +3792,6 @@ function App() {
   const rotateSelection = (delta: number) => { if (boardLocked()) return; const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (!item || item.locked || item.type === "group" || isConnector(item)) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: (element.rotation ?? 0) + delta } as Element : element)); pushUndo(before); setDirty(true); };
   const resetSelectionRotation = () => { const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (boardLocked() || !item || item.locked || item.type === "group" || (item.rotation ?? 0) === 0) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: 0 } as Element : element)); pushUndo(before); setDirty(true); };
   const closeSystemMenu = (action: () => void) => { if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (helpMenu) helpMenu.open = false; if (portraitMenu) portraitMenu.open = false; action(); };
-  const changeThemePreference = (mode: ThemeMode) => {
-    if (isWindowsPlatform()) setThemePreference(mode);
-    else closeSystemMenu(() => setThemePreference(mode));
-  };
   const openPortraitMenuPanel = (target: HTMLDetailsElement) => {
     if (portraitMenu) portraitMenu.open = false;
     document.querySelectorAll<HTMLDetailsElement>(".app-menus details[open]").forEach(details => { if (details !== target) details.open = false; });
@@ -3929,12 +3994,21 @@ function App() {
   });
 
   return (
-    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-tools-expanded": mobileToolsExpanded(), "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --app-ui-scale: ${interfaceScale()};`}>
-      <header class="topbar">
+    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-tools-expanded": mobileToolsExpanded(), "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() !== "canvas", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentColor()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 62%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
+      <header class="topbar" ref={element => { appTopbar = element; }}>
         <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={activePath() ? fileName() : "SketchDraw"}>{activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
         <nav class="app-menus" aria-label="Application menus">
           <TouchMenuBar settings={<AppSettingsMenu
+            themeMode={themeMode()}
+            accentColor={accentColor()}
+            toolbarColorChoice={toolbarColorChoice()}
+            accentOptions={UI_ACCENTS}
+            toolbarColorOptions={TOOLBAR_COLORS}
             interfaceScale={interfaceScale()}
+            mobileOrientation={mobileOrientation()}
+            toolbarPosition={toolbarPosition()}
+            orientationMessage={orientationMessage()}
+            showMobileLayoutSettings={isCompactTouchLayout()}
             autosaveSeconds={autosaveSeconds()}
             thicknessPickerMode={thicknessPickerMode()}
             buttonChoices={isWindowsPlatform() || isCompactTouchLayout()}
@@ -3944,6 +4018,11 @@ function App() {
             reduceMotion={reduceMotion()}
             displayMetrics={displayMetrics()}
             onInterfaceScaleChange={setInterfaceScalePreference}
+            onMobileOrientationChange={setMobileOrientationPreference}
+            onToolbarPositionChange={setToolbarPositionPreference}
+            onThemeChange={setThemePreference}
+            onAccentChange={setAccentPreference}
+            onToolbarColorChange={setToolbarColorPreference}
             onAutosaveChange={setAutosavePreference}
             onThicknessPickerModeChange={setThicknessPickerPreference}
             onRequestAndroidAllFilesAccess={() => void requestAndroidAllFilesAccess()}
@@ -3953,66 +4032,47 @@ function App() {
             onToggle={() => alignTouchMenuPopover(appSettingsMenu)}
           />}>
           <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{activePath() ? fileName() : "No file open"}</div>
-            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>Ctrl+S</kbd></button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><div class="menu-separator" /><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
+            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>Ctrl+S</kbd></button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><div class="menu-separator" /><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
           </div></details>
-          <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={() => { alignViewSettingsPopover(); alignTouchMenuPopover(viewMenu); }}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>View</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover view-popover view-settings-popover">
-            <header class="view-menu-heading"><div><strong>View settings</strong><span>{isWindowsPlatform() ? "Appearance and canvas settings" : "Adjust the interface or canvas"}</span></div></header>
-            <Show when={!isWindowsPlatform()}><nav class="view-panel-tabs" aria-label="View settings sections"><button class={viewPanelSection() === "interface" ? "active" : ""} aria-pressed={viewPanelSection() === "interface"} onClick={() => setViewPanelSection("interface")}>Interface</button><button class={viewPanelSection() === "canvas" ? "active" : ""} aria-pressed={viewPanelSection() === "canvas"} onClick={() => setViewPanelSection("canvas")}>Canvas</button></nav></Show>
-            <div class="view-panel-pages" classList={{ "windows-view-sheet": isWindowsPlatform() }}>
-              <div class="view-panel-page interface-page" classList={{ active: viewPanelSection() === "interface" }}>
-                <Show when={!isWindowsPlatform() && isCompactTouchLayout()}>
-                  <section class="view-menu-section mobile-layout-section">
-                    <div class="view-section-heading"><span class="menu-section-title">Mobile layout</span><span>Orientation and toolbar position</span></div>
-                    <div class="mobile-layout-controls">
-                      <div class="mobile-layout-control">
-                        <span>Orientation</span>
-                        <div class="view-choice-group" role="group" aria-label="Mobile orientation">
-                          <button class={mobileOrientation() === "portrait" ? "active" : ""} aria-pressed={mobileOrientation() === "portrait"} onClick={() => void setMobileOrientationPreference("portrait")}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="2.5" width="9" height="15" rx="1.5" /></svg><span>Portrait</span></button>
-                          <button class={mobileOrientation() === "landscape" ? "active" : ""} aria-pressed={mobileOrientation() === "landscape"} onClick={() => void setMobileOrientationPreference("landscape")}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="5.5" width="15" height="9" rx="1.5" /></svg><span>Landscape</span></button>
-                        </div>
-                        <Show when={orientationMessage()}><small class="orientation-setting-message" role="status">{orientationMessage()}</small></Show>
-                      </div>
-
-                      <div class="mobile-layout-control">
-                        <span>Toolbar position</span>
-                        <div class="view-choice-group toolbar-position-options" role="group" aria-label="Toolbar position">
-                          {([{ value: "top", label: "Top", path: "M4 7h12M6 11h8M8 15h4" }, { value: "bottom", label: "Bottom", path: "M4 13h12M6 9h8M8 5h4" }, { value: "left", label: "Left", path: "M7 4v12M11 6v8M15 8v4" }, { value: "right", label: "Right", path: "M13 4v12M9 6v8M5 8v4" }] as const).map(option => <button class={toolbarPosition() === option.value ? "active" : ""} aria-pressed={toolbarPosition() === option.value} onClick={() => setToolbarPositionPreference(option.value)} title={`${option.label} toolbar`}><svg viewBox="0 0 20 20" aria-hidden="true"><path d={option.path} /></svg><span>{option.label}</span></button>)}
-                        </div>
-                        <small>The toolbar scrolls along the selected edge.</small>
-                      </div>
-
-                    </div>
-                  </section>
-                </Show>
-                <section class="view-menu-section theme-setting-section"><span class="menu-section-title">Application theme</span><div class="theme-options"><button class={themeMode() === "system" ? "active" : ""} aria-pressed={themeMode() === "system"} onClick={() => changeThemePreference("system")} title="Use system theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z"/></svg><span>System</span></button><button class={themeMode() === "light" ? "active" : ""} aria-pressed={themeMode() === "light"} onClick={() => changeThemePreference("light")} title="Light theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l-1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Light</span></button><button class={themeMode() === "dark" ? "active" : ""} aria-pressed={themeMode() === "dark"} onClick={() => changeThemePreference("dark")} title="Dark theme"><svg viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5z"/></svg><span>Dark</span></button></div></section>
-                <section class="view-menu-section accent-setting-section"><div class="view-section-heading"><span class="menu-section-title">Accent color</span><span>Tools &amp; highlights</span></div><div class="accent-palette">{UI_ACCENTS.map(option => <button class={`accent-choice ${accentColor() === option.value ? "active" : ""}`} aria-pressed={accentColor() === option.value} title={`${option.label} accent`} onClick={() => setAccentPreference(option.value)}><i style={{ background: option.value }} /><span>{option.label}</span></button>)}<label class="accent-choice custom-accent-choice" title="Choose a custom accent"><input aria-label="Custom accent color" type="color" value={accentColor()} onInput={event => setAccentPreference(event.currentTarget.value)} /><i style={{ background: accentColor() }} /><span>Custom</span></label></div></section>
-                <section class="view-menu-section toolbar-setting-section"><span class="menu-section-title">Toolbar surface</span><div class="toolbar-color-options"><button class="named-color-choice" classList={{ active: toolbarColorChoice() === "auto" }} aria-pressed={toolbarColorChoice() === "auto"} onClick={() => setToolbarColorPreference("auto")} title="Match the application theme"><i class="toolbar-auto-dot" /><span>Auto</span></button>{TOOLBAR_COLORS.map(option => <button class="named-color-choice" classList={{ active: toolbarColorChoice() === option.value }} aria-pressed={toolbarColorChoice() === option.value} onClick={() => setToolbarColorPreference(option.value)} title={option.label}><i style={{ background: option.value }} /><span>{option.label}</span></button>)}<label class="named-color-choice custom-toolbar-choice" title="Custom toolbar color"><input aria-label="Custom toolbar color" type="color" value={toolbarColor()} onInput={event => setToolbarColorPreference(event.currentTarget.value)} /><i style={{ background: toolbarColor() }} /><span>Custom</span></label></div></section>
-                <section class="view-menu-section component-setting-section"><span class="menu-section-title">Component style</span><div class="component-style-options"><button class={componentAppearance() === "modern" ? "active" : ""} aria-pressed={componentAppearance() === "modern"} onClick={() => setComponentAppearancePreference("modern")}>Modern</button><button class={componentAppearance() === "simple" ? "active" : ""} aria-pressed={componentAppearance() === "simple"} onClick={() => setComponentAppearancePreference("simple")}>Simple</button></div></section>
+          <Show when={activePath() && workspaceArea() === "canvas"}>
+            <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={() => alignViewSettingsPopover()}>
+              <summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>Canvas</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
+              <div class="system-menu-popover view-popover view-settings-popover">
+                <header class="view-menu-heading"><div><strong>Canvas settings</strong><span>Whiteboard appearance and canvas aids</span></div></header>
+                <div class="view-panel-page active canvas-page">
+                  <section class="view-menu-section board-view-section"><div class="view-section-heading"><span class="menu-section-title">Whiteboard color</span><span>{boardLocked() ? "Board locked" : "Canvas background"}</span></div><div class="board-color-palette"><button class={`board-color-choice ${boardColorFollowsTheme() ? "active" : ""}`} aria-pressed={boardColorFollowsTheme()} disabled={boardLocked()} onClick={() => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } }}><i class="board-auto-dot" /><span>Auto</span></button>{BOARD_COLORS.map(value => <button class={`board-color-choice ${!boardColorFollowsTheme() && boardColor() === value ? "active" : ""}`} aria-pressed={!boardColorFollowsTheme() && boardColor() === value} disabled={boardLocked()} onClick={() => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } }}><i style={{ background: value }} /><span>{BOARD_COLOR_NAMES[value] ?? value}</span></button>)}</div><div class="board-custom-choice"><span>Custom color</span><label class="custom-color-swatch" title="Custom whiteboard color"><input aria-label="Custom whiteboard color" type="color" value={renderedBoardColor()} disabled={boardLocked()} onInput={event => { if (!boardLocked()) { setBoardColor(event.currentTarget.value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: event.currentTarget.value, boardColorFollowsTheme: false }); setDirty(true); } }} /></label></div></section>
+                  <section class="view-menu-section pattern-setting-section"><div class="view-section-heading"><span class="menu-section-title">Paper pattern</span><span>Choose a writing surface</span></div><div class="whiteboard-style-options">{([{ value: "plain", label: "Plain" }, { value: "dots", label: "Dots" }, { value: "small-dots", label: "Fine dots" }, { value: "lines", label: "Grid" }, { value: "small-grid", label: "Fine grid" }, { value: "ruled", label: "Ruled" }, { value: "isometric", label: "Isometric" }] as const).map(option => <button class={`whiteboard-style-choice ${whiteboardStyle() === option.value ? "active" : ""}`} aria-pressed={whiteboardStyle() === option.value} onClick={() => setWhiteboardStylePreference(option.value)}><i class={`paper-pattern-swatch ${option.value}`} /><span>{option.label}</span></button>)}</div></section>
+                  <section class="view-menu-section component-setting-section"><div class="view-section-heading"><span class="menu-section-title">Component style</span><span>Canvas note and diagram cards</span></div><div class="component-style-options"><button class={componentAppearance() === "modern" ? "active" : ""} aria-pressed={componentAppearance() === "modern"} onClick={() => setComponentAppearancePreference("modern")}>Modern</button><button class={componentAppearance() === "simple" ? "active" : ""} aria-pressed={componentAppearance() === "simple"} onClick={() => setComponentAppearancePreference("simple")}>Simple</button></div></section>
+                  <section class="view-menu-section canvas-display-section"><div class="view-section-heading"><span class="menu-section-title">Canvas aids</span><span>Show tools while working on the board</span></div><div class="component-style-options"><button class={showRulers() ? "active" : ""} aria-pressed={showRulers()} onClick={() => { const value = !showRulers(); setShowRulers(value); try { localStorage.setItem("sketchdraw-canvas-rulers", String(value)); } catch { /* Applied for this session. */ } }}>Rulers</button><button class={showAlignmentGuides() ? "active" : ""} aria-pressed={showAlignmentGuides()} onClick={() => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-canvas-guides", String(value)); } catch { /* Applied for this session. */ } }}>Alignment guides</button><button class={showMinimap() ? "active" : ""} aria-pressed={showMinimap()} onClick={() => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-canvas-minimap", String(value)); } catch { /* Applied for this session. */ } }}>Minimap</button></div></section>
+                </div>
               </div>
-              <div class="view-panel-page canvas-page" classList={{ active: viewPanelSection() === "canvas" }}>
-                <section class="view-menu-section board-view-section"><div class="view-section-heading"><span class="menu-section-title">Whiteboard color</span><span>{boardLocked() ? "Board locked" : "Canvas background"}</span></div><div class="board-color-palette"><button class={`board-color-choice ${boardColorFollowsTheme() ? "active" : ""}`} aria-pressed={boardColorFollowsTheme()} disabled={boardLocked()} onClick={() => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } }}><i class="board-auto-dot" /><span>Auto</span></button>{BOARD_COLORS.map(value => <button class={`board-color-choice ${!boardColorFollowsTheme() && boardColor() === value ? "active" : ""}`} aria-pressed={!boardColorFollowsTheme() && boardColor() === value} disabled={boardLocked()} onClick={() => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } }}><i style={{ background: value }} /><span>{BOARD_COLOR_NAMES[value] ?? value}</span></button>)}</div><div class="board-custom-choice"><span>Custom color</span><label class="custom-color-swatch" title="Custom whiteboard color"><input aria-label="Custom whiteboard color" type="color" value={renderedBoardColor()} disabled={boardLocked()} onInput={event => { if (!boardLocked()) { setBoardColor(event.currentTarget.value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: event.currentTarget.value, boardColorFollowsTheme: false }); setDirty(true); } }} /></label></div></section>
-                <section class="view-menu-section pattern-setting-section"><div class="view-section-heading"><span class="menu-section-title">Paper pattern</span><span>Choose a writing surface</span></div><div class="whiteboard-style-options">{([{ value: "plain", label: "Plain" }, { value: "dots", label: "Dots" }, { value: "small-dots", label: "Fine dots" }, { value: "lines", label: "Grid" }, { value: "small-grid", label: "Fine grid" }, { value: "ruled", label: "Ruled" }, { value: "isometric", label: "Isometric" }] as const).map(option => <button class={`whiteboard-style-choice ${whiteboardStyle() === option.value ? "active" : ""}`} aria-pressed={whiteboardStyle() === option.value} onClick={() => setWhiteboardStylePreference(option.value)}><i class={`paper-pattern-swatch ${option.value}`} /><span>{option.label}</span></button>)}</div></section>
-              </div>
-            </div>
-          </div></details>
+            </details>
+          </Show>
           <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
           <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setShortcutDialogOpen(true))}>Customize shortcuts...</button><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>Ctrl+K</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Could not check for a newer version.</span></Show></div></details>
-          <details class="menu-dropdown portrait-menu-dropdown" ref={portraitMenu} onToggle={() => alignTouchMenuPopover(portraitMenu)}><summary aria-label="More menus"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg><span>Menu</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover portrait-menu-list" role="menu" aria-label="Other menus"><button role="menuitem" onClick={() => openPortraitMenuPanel(viewMenu)}>View and canvas</button><button role="menuitem" onClick={() => openPortraitMenuPanel(gestureMenu)}>Touch gestures</button><button role="menuitem" onClick={() => openPortraitMenuPanel(helpMenu)}>Help and updates</button><button role="menuitem" onClick={() => openPortraitMenuPanel(appSettingsMenu)}>App settings</button></div></details>
+          <details class="menu-dropdown portrait-menu-dropdown" ref={portraitMenu} onToggle={() => alignTouchMenuPopover(portraitMenu)}><summary aria-label="More menus"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg><span>Menu</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover portrait-menu-list" role="menu" aria-label="Other menus"><Show when={activePath() && workspaceArea() === "canvas"}><button role="menuitem" onClick={() => openPortraitMenuPanel(viewMenu)}>Canvas settings</button></Show><button role="menuitem" onClick={() => openPortraitMenuPanel(gestureMenu)}>Touch gestures</button><button role="menuitem" onClick={() => openPortraitMenuPanel(helpMenu)}>Help and updates</button></div></details>
           </TouchMenuBar>
         </nav>
-        <Show when={activePath()}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} /></Show>
+        <Show when={activePath()}><WorkspaceAreaTabs active={workspaceArea() === "chooser" ? "canvas" : workspaceArea() as "canvas" | "planning" | "library"} onSelect={navigateWorkspace} /></Show>
+        <Show when={activePath() && workspaceArea() === "canvas"}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} /></Show>
         <Show when={isWindowsPlatform() && activePath() && openSketchPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openSketchPaths()} activePath={activePath()} displayName={path => displayPathName(path)} onSelect={path => { if (path !== activePath()) void loadFile(path); }} onClose={path => void closeSketchTab(path)} /></Suspense></Show>
 
-        <Show when={activePath()}><button class="project-workspace-launch" onClick={() => setProjectWorkspaceOpen(true)} title="Open project home, notes, tasks, and Kanban" aria-label="Open project workspace"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5.5h5l1.5 1.7H17v8.3H3zM3 8h14" /><path d="M6 11h3m-3 2.5h6" /></svg><span>Project</span></button></Show>
         <Show when={activePath()}><div class="top-actions"><span class="live-sync-indicator" title="Checks this open .sketch file for changes from another device every 1.6 seconds. Changes are merged after your cloud folder syncs."><i />Live file updates</span><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
       </header>
-      <Show when={projectWorkspaceOpen() && activePath()}><ProjectWorkspace
-        fileName={displayPathName(activePath()!)}
-        data={projectWorkspaceData()}
-        editable={!readOnlyView()}
-        onChange={data => { if (!readOnlyView()) { setProjectWorkspaceData(data); setDirty(true); } }}
-        onClose={() => setProjectWorkspaceOpen(false)}
-      /></Show>
+      <For each={activePath() ? [activePath()!] : []}>{filePath => <>
+        <div class="workspace-area-layer" classList={{ active: workspaceArea() === "chooser" }}><WorkspaceChooser fileName={displayPathName(filePath)} onSelect={navigateWorkspace} /></div>
+        <div class="workspace-area-layer" classList={{ active: workspaceArea() === "planning" }}><ProjectWorkspace
+          data={projectWorkspaceData()}
+          editable={!readOnlyView()}
+          onChange={data => { if (!readOnlyView()) { setProjectWorkspaceData(data); setDirty(true); } }}
+          onNavigate={navigateWorkspace}
+        /></div>
+        <div class="workspace-area-layer" classList={{ active: workspaceArea() === "library" }}><PersonalLibrary
+          data={personalLibraryData()}
+          editable={!readOnlyView()}
+          onChange={data => { if (!readOnlyView()) { setPersonalLibraryData(data); setDirty(true); } }}
+        /></div>
+      </>}</For>
       <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayPathName} onCreate={createFile} onNewProject={createProjectFromHome} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentProject={openRecentProject} /><section class="welcome-screen">
   <div class="welcome-card">
     <div class="welcome-intro">
@@ -4420,7 +4480,7 @@ function App() {
       <Show when={isWindowsPlatform()}><Suspense fallback={null}><WindowsCommandPalette open={commandPaletteOpen()} commands={windowsCommands()} onClose={() => setCommandPaletteOpen(false)} /></Suspense></Show>
       <Show when={isWindowsPlatform() && shortcutDialogOpen()}><Suspense fallback={null}><WindowsKeyboardShortcutsDialog shortcuts={shortcuts()} onChange={setWindowsShortcut} onReset={resetWindowsShortcuts} onClose={() => setShortcutDialogOpen(false)} /></Suspense></Show>
       <Show when={showClearConfirm()}><div class="confirm-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setShowClearConfirm(false); }}><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">Clear this canvas?</h2><p>This will remove all {elements().length} items from the open sketch. You can undo this action.</p><div><button class="quiet-button" onClick={() => setShowClearConfirm(false)}>Cancel</button><button class="danger-button" onClick={() => { if (elements().length && !boardLocked()) { pushUndo(cloneElements(elements())); setElements([]); setSelectedIndices([]); setDirty(true); } setShowClearConfirm(false); }}>Clear canvas</button></div></section></div></Show>
-      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">{helpSection() === "guide" ? "SKETCHDRAW GUIDE" : "SHORTCUT REFERENCE"}</span><h2 id="help-title">{helpSection() === "guide" ? "Guide" : "Keyboard shortcuts"}</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 7 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the toolbar, then click or drag on the canvas. Common style controls sit beside the canvas; open the properties button for the full settings panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Hold Space or choose Hand to pan, or use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Add and manage pages from the page strip. Use View to change the theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section><section class="touch-guide-section"><h3>Phone and tablet controls</h3><p>The compact tool dock stays on the left. Tap <strong>More</strong> to show the remaining tools, then tap it again to collapse the dock. The four-square button at the top of the dock opens canvas options such as grid, snapping, and fit-to-view.</p></section><section class="touch-guide-section"><h3>Properties and components</h3><p>Tap the Quick style or Advanced style button in the left dock. Quick style adjusts color and width; Advanced style adds tool-specific options. Close either panel with its top-corner button. Open Symbols and elements from the expanded tools and scroll its list vertically to browse components.</p></section><section class="touch-guide-section"><h3>Touch, stylus, and navigation</h3><p>Draw with a finger or stylus. Pinch with two fingers to zoom. Open Pages in the top bar to switch, add, rename, or organize pages. The zoom percentage button recenters the canvas and resets to 100%. Set tap-only actions under Gestures &gt; Tap actions. Configure one-finger drags and two- or three-finger movement separately under Gestures &gt; Finger movements. A compatible stylus uses the active tool. Tap a style button in the tool dock to change pen, brush, or shape settings.</p></section></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 7 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
+      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">{helpSection() === "guide" ? "SKETCHDRAW GUIDE" : "SHORTCUT REFERENCE"}</span><h2 id="help-title">{helpSection() === "guide" ? "Guide" : "Keyboard shortcuts"}</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 8 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the toolbar, then click or drag on the canvas. Common style controls sit beside the canvas; open the properties button for the full settings panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Hold Space or choose Hand to pan, or use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Add and manage pages from the page strip. Use View to change the theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section><section class="touch-guide-section"><h3>Phone and tablet controls</h3><p>The compact tool dock stays on the left. Tap <strong>More</strong> to show the remaining tools, then tap it again to collapse the dock. The four-square button at the top of the dock opens canvas options such as grid, snapping, and fit-to-view.</p></section><section class="touch-guide-section"><h3>Properties and components</h3><p>Tap the Quick style or Advanced style button in the left dock. Quick style adjusts color and width; Advanced style adds tool-specific options. Close either panel with its top-corner button. Open Symbols and elements from the expanded tools and scroll its list vertically to browse components.</p></section><section class="touch-guide-section"><h3>Touch, stylus, and navigation</h3><p>Draw with a finger or stylus. Pinch with two fingers to zoom. Open Pages in the top bar to switch, add, rename, or organize pages. The zoom percentage button recenters the canvas and resets to 100%. Set tap-only actions under Gestures &gt; Tap actions. Configure one-finger drags and two- or three-finger movement separately under Gestures &gt; Finger movements. A compatible stylus uses the active tool. Tap a style button in the tool dock to change pen, brush, or shape settings.</p></section></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 8 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
       <Show when={error()}><div class="error-toast" role="alert">{error()}<button onClick={() => setError("")}>Dismiss</button></div></Show>
     </main>
   );

@@ -5,14 +5,15 @@ import { ProjectFiles } from "./ProjectFiles";
 import { ProjectLog } from "./ProjectLog";
 import { ProjectTimeline } from "./ProjectTimeline";
 import { formatProjectDate, isProjectTaskOverdue, projectTaskWarnings, TASK_PRIORITY_LABELS } from "./project-utils";
+import type { DocumentWorkspaceArea } from "../workspace/workspace-types";
+import "./project-workspace.css";
 
 export type ProjectWorkspaceView = "home" | "notes" | "tasks" | "kanban" | "timeline" | "calendar" | "log" | "files";
 type Props = {
-  fileName: string;
   data: ProjectWorkspaceData;
   editable: boolean;
   onChange: (data: ProjectWorkspaceData) => void;
-  onClose: () => void;
+  onNavigate: (area: DocumentWorkspaceArea) => void;
 };
 
 const TASK_COLUMNS: { value: ProjectTaskStatus; label: string }[] = [
@@ -169,13 +170,9 @@ export function ProjectWorkspace(props: Props) {
 
   return (
     <section class="project-workspace-overlay" aria-label="Project workspace">
-      <header class="project-workspace-topbar">
-        <div class="project-workspace-brand"><span class="project-workspace-mark" aria-hidden="true">S</span><div><strong>Project workspace</strong><small>{props.fileName}</small></div></div>
-        <nav class="project-workspace-nav" aria-label="Project sections">
-          <For each={VIEWS}>{item => <button class={view() === item.value ? "active" : ""} aria-current={view() === item.value ? "page" : undefined} onClick={() => openView(item.value)}>{item.label}{item.value === "tasks" && <span>{props.data.tasks.length}</span>}</button>}</For>
-        </nav>
-        <button class="project-workspace-close" onClick={props.onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" /></svg><span>Back to canvas</span></button>
-      </header>
+      <nav class="project-workspace-nav" aria-label="Project sections">
+        <For each={VIEWS}>{item => <button class={view() === item.value ? "active" : ""} aria-current={view() === item.value ? "page" : undefined} onClick={() => openView(item.value)}>{item.label}{item.value === "tasks" && <span>{props.data.tasks.length}</span>}</button>}</For>
+      </nav>
 
       <main class="project-workspace-content">
         <Show when={view() === "home"}>
@@ -206,7 +203,7 @@ export function ProjectWorkspace(props: Props) {
               <button onClick={() => setView("log")}><strong>Decisions &amp; risks</strong><span>{props.data.logEntries.length} records</span></button>
               <button onClick={() => setView("files")}><strong>Project files</strong><span>{props.data.files.length} items</span></button>
             </nav>
-            <button class="project-open-canvas-card" onClick={props.onClose}><span><strong>Open the sketch canvas</strong><small>Continue drawing in this project</small></span><span aria-hidden="true">&rarr;</span></button>
+            <button class="project-open-canvas-card" onClick={() => props.onNavigate("canvas")}><span><strong>Open the sketch canvas</strong><small>Continue drawing in this document</small></span><span aria-hidden="true">&rarr;</span></button>
           </div>
         </Show>
 
@@ -266,7 +263,7 @@ export function ProjectWorkspace(props: Props) {
         <Show when={view() === "calendar"}><ProjectCalendar data={props.data} onOpenTasks={() => setView("tasks")} /></Show>
         <Show when={view() === "log"}><ProjectLog entries={props.data.logEntries} editable={props.editable} onAdd={addLogEntry} onUpdate={updateLogEntry} onDelete={deleteLogEntry} /></Show>
         <Show when={view() === "files"}><ProjectFiles files={props.data.files} editable={props.editable} onAdd={addProjectFile} onUpdate={updateProjectFile} onDelete={deleteProjectFile} /></Show>
-        <footer class="project-workspace-footer"><span>Project data is stored in this .sketch file.</span><span>{props.editable ? "Available offline" : "View only"}</span></footer>
+        <footer class="project-workspace-footer"><span>Planning data is stored in this document.</span><span>{props.editable ? "Available offline" : "View only"}</span></footer>
       </main>
     </section>
   );

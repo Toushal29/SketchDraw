@@ -28,13 +28,13 @@
     /* Two compact rows on phones: app identity and menus, with Pages kept close. */
     .app-shell:not(.platform-windows) > .topbar {
         position: relative;
-        z-index: 220;
+        z-index: 1300;
         display: grid;
         flex: 0 0 auto;
         width: 100%;
         height: auto;
         min-height: 86px;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto;
         grid-template-rows: 30px 40px;
         align-content: center;
         align-items: center;
@@ -85,6 +85,9 @@
         padding: 1px 0;
     }
 
+    .app-shell:not(.platform-windows) > .topbar > .document-workspace-tabs { grid-column: 2; grid-row: 2; width: min(126px, 36vw); max-width: none; justify-self: end; }
+    .app-shell:not(.platform-windows) > .topbar > .document-workspace-tabs button { min-height: 34px; padding: 0 5px; font-size: 8px; }
+
     .app-shell:not(.platform-windows) .app-menu-rail { display: flex; width: 100%; min-width: 0; align-items: center; gap: 4px; }
     .app-shell:not(.platform-windows) .app-menu-items { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 3px; overflow-x: auto; overflow-y: hidden; padding: 1px 0; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; touch-action: pan-x; }
     .app-shell:not(.platform-windows) .app-menu-items::-webkit-scrollbar { display: none; }
@@ -134,7 +137,7 @@
 
     .app-shell:not(.platform-windows) .topbar .top-actions {
         min-width: 0;
-        grid-column: 2;
+        grid-column: 3;
         grid-row: 1;
         justify-content: flex-end;
     }
@@ -157,7 +160,7 @@
         min-width: 0;
         width: clamp(90px, 28vw, 154px);
         max-width: 154px;
-        grid-column: 2;
+        grid-column: 3;
         grid-row: 2;
         margin: 0;
     }
@@ -180,7 +183,7 @@
     .app-shell:not(.platform-windows):not(.mobile-orientation-portrait) > .topbar {
         box-sizing: border-box;
         min-height: 48px;
-        grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto auto;
+        grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto auto auto;
         grid-template-rows: 36px;
         align-content: center;
         gap: 0 6px;
@@ -189,8 +192,9 @@
 
     .app-shell:not(.platform-windows):not(.mobile-orientation-portrait) .header-leading { grid-column: 1; grid-row: 1; }
     .app-shell:not(.platform-windows):not(.mobile-orientation-portrait) > .topbar > .app-menus { grid-column: 2; grid-row: 1; width: auto; }
-    .app-shell:not(.platform-windows):not(.mobile-orientation-portrait) .topbar > .touch-page-control { grid-column: 3; grid-row: 1; width: clamp(76px, 15vw, 138px); }
-    .app-shell:not(.platform-windows):not(.mobile-orientation-portrait) .topbar .top-actions { grid-column: 4; grid-row: 1; }
+    .app-shell:not(.platform-windows):not(.mobile-orientation-portrait) > .topbar > .document-workspace-tabs { grid-column: 3; grid-row: 1; max-width: min(150px, 27vw); }
+    .app-shell:not(.platform-windows):not(.mobile-orientation-portrait) .topbar > .touch-page-control { grid-column: 4; grid-row: 1; width: clamp(76px, 15vw, 138px); }
+    .app-shell:not(.platform-windows):not(.mobile-orientation-portrait) .topbar .top-actions { grid-column: 5; grid-row: 1; }
 
     .app-shell:not(.platform-windows):not(.mobile-orientation-portrait) .topbar .brand-mark-image { width: 22px; height: 22px; flex-basis: 22px; }
     .app-shell:not(.platform-windows):not(.mobile-orientation-portrait) .topbar .menu-dropdown > summary { min-height: 30px; gap: 3px; padding: 3px 6px; font-size: 10px; }
@@ -253,12 +257,18 @@
     }
 
     .app-shell:not(.platform-windows) .view-settings-popover {
-        max-height: calc(100dvh - var(--touch-header-height) - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        display: block;
+        box-sizing: border-box;
+        height: calc(100dvh - var(--touch-header-height) - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        max-height: none;
         overflow-x: hidden;
         overflow-y: auto;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
     }
 
-    .app-shell:not(.platform-windows) .view-panel-pages { min-height: 0; }
+    .app-shell:not(.platform-windows) .view-panel-pages { display: block; min-height: 0; max-height: none; overflow: visible; }
     .app-shell:not(.platform-windows) .view-panel-page { min-width: 0; }
 
     .app-shell:not(.platform-windows) .app-settings-popover,
@@ -666,7 +676,7 @@
     }
 
     .app-shell:not(.platform-windows) .confirm-backdrop {
-        z-index: 500;
+        z-index: 2600;
         align-items: end;
         padding: 8px 8px max(8px, env(safe-area-inset-bottom));
         background: #10181370;
@@ -691,7 +701,7 @@
         .app-shell:not(.platform-windows) { --touch-header-height: 66px; }
         .app-shell:not(.platform-windows) > .topbar {
             min-height: 60px;
-            grid-template-columns: minmax(128px, auto) minmax(0, 1fr) auto auto;
+            grid-template-columns: minmax(128px, auto) minmax(0, 1fr) auto auto auto;
             grid-template-rows: 42px;
             gap: 0 10px;
             padding-top: max(7px, env(safe-area-inset-top));
@@ -700,8 +710,9 @@
 
         .app-shell:not(.platform-windows) .header-leading { grid-column: 1; grid-row: 1; }
         .app-shell:not(.platform-windows) > .topbar > .app-menus { grid-column: 2; grid-row: 1; overflow: visible; }
-        .app-shell:not(.platform-windows) .topbar > .touch-page-control { grid-column: 3; grid-row: 1; width: clamp(120px, 17vw, 190px); }
-        .app-shell:not(.platform-windows) .topbar .top-actions { grid-column: 4; grid-row: 1; }
+        .app-shell:not(.platform-windows) > .topbar > .document-workspace-tabs { grid-column: 3; grid-row: 1; max-width: min(170px, 26vw); }
+        .app-shell:not(.platform-windows) .topbar > .touch-page-control { grid-column: 4; grid-row: 1; width: clamp(120px, 17vw, 190px); }
+        .app-shell:not(.platform-windows) .topbar .top-actions { grid-column: 5; grid-row: 1; }
         .app-shell.home-screen-active:not(.platform-windows) .header-leading { grid-column: 1; }
         .app-shell.home-screen-active:not(.platform-windows) > .topbar > .app-menus { grid-column: 2 / -1; }
         .app-shell:not(.platform-windows) .app-menus .system-menu-popover,

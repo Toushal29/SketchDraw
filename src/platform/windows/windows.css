@@ -201,7 +201,7 @@
 .app-shell.platform-windows .windows-document-tab-close svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .app-shell.platform-windows .windows-document-tab button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
 .app-shell.platform-windows .windows-command-backdrop,
-.app-shell.platform-windows .windows-dialog-backdrop { position: fixed; z-index: 120; inset: 0; display: grid; place-items: start center; padding: 12vh 18px 24px; background: #10161db8; backdrop-filter: blur(5px); }
+.app-shell.platform-windows .windows-dialog-backdrop { position: fixed; z-index: 2800; inset: 0; display: grid; place-items: start center; padding: 12vh 18px 24px; background: #10161db8; backdrop-filter: blur(5px); }
 .app-shell.platform-windows .windows-dialog-backdrop { place-items: center; overflow-y: auto; padding: 24px; }
 .app-shell.platform-windows .auto-route-toggle { display: flex; min-height: 48px; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--setting-line, #dce2e8); border-radius: 9px; color: var(--toolbar-ink); background: color-mix(in srgb, var(--toolbar-ink) 3%, var(--toolbar-surface)); cursor: pointer; }
 .app-shell.platform-windows .auto-route-toggle input { width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--ui-accent); }

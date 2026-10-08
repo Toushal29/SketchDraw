@@ -3,6 +3,7 @@ use tauri::{
     plugin::{Builder, TauriPlugin},
     Manager, State,
 };
+#[cfg(target_os = "android")]
 use tauri_plugin_fs::FsExt;
 
 #[cfg(target_os = "android")]

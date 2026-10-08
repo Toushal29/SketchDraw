@@ -106,7 +106,7 @@ export function syntaxTokenColor(color: string, theme: Theme, appearance: "moder
   return lightColors[color] ?? "#334155";
 }
 
-/** Store card content in metadata and one backing shape, keeping the document in v7 groups. */
+/** Store card content in metadata and one backing shape inside the Canvas section. */
 export function buildNoteGroup(x: number, y: number, kind: NoteKind, source: string, dimensions: { width?: number; height?: number; fontSize?: number; collapsed?: boolean; title?: string } = {}): GroupElement {
   const content = normalizeNoteContent(source, kind);
   const width = Math.max(180, Math.min(4000, dimensions.width ?? (kind === "sticky" ? 296 : 340)));

@@ -46,6 +46,10 @@ button {
 }
 
 .topbar {
+    position: relative;
+    z-index: 1300;
+    min-width: 0;
+    gap: 10px;
     height: 66px;
     flex: 0 0 66px;
     border-bottom: 1px solid #e9e7e2;

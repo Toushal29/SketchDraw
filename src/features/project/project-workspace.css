@@ -6,9 +6,15 @@
     --project-ink: #202a35;
     --project-muted: #697581;
     --project-accent: #5366a9;
+    --workspace-surface: var(--project-surface);
+    --workspace-raised: var(--project-raised);
+    --workspace-line: var(--project-line);
+    --workspace-ink: var(--project-ink);
+    --workspace-muted: var(--project-muted);
+    --workspace-accent: var(--project-accent);
     position: fixed;
     z-index: 1000;
-    inset: 0;
+    inset: var(--app-topbar-height, 66px) 0 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -16,36 +22,14 @@
     background: var(--project-bg);
     font-family: inherit;
 }
-.project-workspace-launch { display: inline-flex; min-height: 32px; flex: 0 0 auto; align-items: center; gap: 6px; margin-left: auto; padding: 0 9px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 18%, transparent); border-radius: 7px; color: var(--toolbar-ink, #59645a); background: color-mix(in srgb, var(--toolbar-surface, #fff) 92%, transparent); cursor: pointer; font: inherit; font-size: 10px; font-weight: 650; white-space: nowrap; }
-.project-workspace-launch:hover { border-color: color-mix(in srgb, var(--ui-accent, #5366a9) 42%, transparent); color: var(--ui-accent, #5366a9); }
-.project-workspace-launch svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.project-workspace-topbar {
-    display: flex;
-    min-height: 62px;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: 24px;
-    padding: max(8px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 8px max(20px, env(safe-area-inset-left));
-    border-bottom: 1px solid var(--project-line);
-    background: var(--project-surface);
-}
-.project-workspace-brand { display: flex; min-width: 190px; align-items: center; gap: 10px; }
-.project-workspace-brand > div { display: grid; min-width: 0; gap: 2px; }
-.project-workspace-brand strong { font-size: 13px; }
-.project-workspace-brand small { overflow: hidden; color: var(--project-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.project-workspace-mark { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border: 1px solid color-mix(in srgb, var(--project-accent) 24%, transparent); border-radius: 10px; color: var(--project-accent); background: color-mix(in srgb, var(--project-accent) 9%, white); font-size: 15px; font-weight: 750; }
-.project-workspace-nav { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.project-workspace-nav { display: flex; min-width: 0; flex: 0 0 auto; align-items: center; gap: 4px; overflow-x: auto; padding: 7px max(24px, calc((100vw - 1168px) / 2)); border-bottom: 1px solid var(--project-line); background: var(--project-surface); scrollbar-width: none; }
 .project-workspace-nav::-webkit-scrollbar { display: none; }
-.project-workspace-nav button,
-.project-workspace-close { display: inline-flex; min-height: 36px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; border: 1px solid transparent; border-radius: 8px; color: var(--project-muted); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; }
-.project-workspace-nav button:hover,
-.project-workspace-close:hover { border-color: var(--project-line); color: var(--project-ink); background: var(--project-raised); }
+.project-workspace-nav button { display: inline-flex; min-height: 36px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; border: 1px solid transparent; border-radius: 8px; color: var(--project-muted); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; }
+.project-workspace-nav button:hover { border-color: var(--project-line); color: var(--project-ink); background: var(--project-raised); }
 .project-workspace-nav button.active { border-color: color-mix(in srgb, var(--project-accent) 20%, transparent); color: var(--project-accent); background: color-mix(in srgb, var(--project-accent) 8%, white); }
 .project-workspace-nav button span { display: inline-grid; min-width: 19px; height: 19px; place-items: center; padding: 0 5px; border-radius: 99px; color: var(--project-muted); background: color-mix(in srgb, var(--project-ink) 7%, transparent); font-size: 10px; }
-.project-workspace-close { border-color: var(--project-line); color: var(--project-ink); }
-.project-workspace-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .project-workspace-content { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; overflow: auto; overscroll-behavior: contain; }
-.project-page { width: min(1120px, 100%); margin: 0 auto; }
+.project-page { box-sizing: border-box; width: min(1120px, 100%); margin: 0 auto; padding: 26px 24px 32px; }
 .project-page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
 .project-page-heading h1 { margin: 6px 0 5px; color: var(--project-ink); font-size: clamp(25px, 3vw, 34px); line-height: 1.1; letter-spacing: -.035em; }
 .project-page-heading p { margin: 0; color: var(--project-muted); font-size: 13px; line-height: 1.5; }
@@ -191,14 +175,9 @@
 .app-shell.theme-dark .project-task-delete:hover { background: #493337; }
 
 @media (max-width: 800px) {
-    .project-workspace-topbar { min-height: 54px; flex-wrap: wrap; gap: 4px 10px; padding-right: max(10px, env(safe-area-inset-right)); padding-left: max(10px, env(safe-area-inset-left)); }
-    .project-workspace-brand { min-width: 0; flex: 1 1 auto; }
-    .project-workspace-brand small { max-width: 45vw; }
-    .project-workspace-nav { order: 3; width: 100%; flex: 1 0 100%; }
+    .project-workspace-nav { gap: 2px; padding-right: 10px; padding-left: 10px; }
     .project-workspace-nav button { min-height: 34px; padding: 0 10px; font-size: 11px; }
-    .project-workspace-close { min-height: 34px; padding: 0 8px; }
-    .project-workspace-close span { display: none; }
-    .project-page { padding: 24px 16px 16px; }
+    .project-page { padding: 20px 10px 24px; }
     .project-page-heading { align-items: flex-start; flex-direction: column; gap: 13px; margin-bottom: 18px; }
     .project-home-actions { width: 100%; }
     .project-home-actions button { min-height: 36px; }
@@ -228,8 +207,6 @@
 }
 
 @media (max-width: 540px) {
-    .project-workspace-launch { width: 34px; justify-content: center; padding: 0; }
-    .project-workspace-launch span { display: none; }
 }
 
 @media (max-width: 430px) {

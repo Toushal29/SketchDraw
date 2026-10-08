@@ -1,4 +1,4 @@
-import type { Element, SketchFile, SketchPage, WindowsSyncMetadata } from "../../model";
+import type { Element, PersonalLibraryData, SketchFile, SketchPage, WindowsSyncMetadata } from "../../model";
 
 const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 const pageFields = (page: SketchPage) => ({ name: page.name, canvasState: page.canvasState });
@@ -97,10 +97,11 @@ export function mergeLatestSnapshots(left: SketchFile, right: SketchFile): Sketc
   const preferredActivePage = newerDocument === leftMeta ? left.activePageId : right.activePageId;
   const activePageId = pages.some(page => page.id === preferredActivePage) ? preferredActivePage : pages[0]?.id ?? left.activePageId;
   const emptyProject: NonNullable<SketchFile["project"]> = { name: "Untitled project", description: "", notes: [], tasks: [], milestones: [], logEntries: [], files: [] };
+  const emptyLibrary: PersonalLibraryData = { quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] };
   const leftProject = left.project ?? emptyProject;
   const rightProject = right.project ?? emptyProject;
   const projectMetadata = chooseEntity(left, right, "w:meta", { name: leftProject.name, description: leftProject.description }, { name: rightProject.name, description: rightProject.description }) ?? { name: "Untitled project", description: "" };
-  const mergeWorkspaceItems = <T extends { id: string }>(prefix: "n" | "t" | "m" | "l" | "f", leftItems: T[], rightItems: T[]) => {
+  const mergeWorkspaceItems = <T extends { id: string }>(prefix: string, leftItems: T[], rightItems: T[]) => {
     const leftItemsById = new Map(leftItems.map(item => [item.id, item]));
     const rightItemsById = new Map(rightItems.map(item => [item.id, item]));
     const merged: T[] = [];
@@ -126,6 +127,18 @@ export function mergeLatestSnapshots(left: SketchFile, right: SketchFile): Sketc
     logEntries: mergeWorkspaceItems("l", leftProject.logEntries, rightProject.logEntries),
     files: mergeWorkspaceItems("f", leftProject.files, rightProject.files),
   };
+  const leftLibrary = left.library ?? emptyLibrary;
+  const rightLibrary = right.library ?? emptyLibrary;
+  const library: PersonalLibraryData = {
+    quickNotes: mergeWorkspaceItems("quick-note", leftLibrary.quickNotes, rightLibrary.quickNotes),
+    studyNotes: mergeWorkspaceItems("sn", leftLibrary.studyNotes, rightLibrary.studyNotes),
+    studyCards: mergeWorkspaceItems("sc", leftLibrary.studyCards, rightLibrary.studyCards),
+    wikiArticles: mergeWorkspaceItems("wiki", leftLibrary.wikiArticles, rightLibrary.wikiArticles),
+    journalEntries: mergeWorkspaceItems("journal", leftLibrary.journalEntries, rightLibrary.journalEntries),
+    writingDrafts: mergeWorkspaceItems("writing", leftLibrary.writingDrafts, rightLibrary.writingDrafts),
+    researchSources: mergeWorkspaceItems("research", leftLibrary.researchSources, rightLibrary.researchSources),
+    mediaEntries: mergeWorkspaceItems("media", leftLibrary.mediaEntries, rightLibrary.mediaEntries),
+  };
   const windowsSync: WindowsSyncMetadata = {
     version: 1,
     updatedAt: Math.max(leftMeta.updatedAt, rightMeta.updatedAt),
@@ -133,5 +146,5 @@ export function mergeLatestSnapshots(left: SketchFile, right: SketchFile): Sketc
     clocks,
     tombstones,
   };
-  return { format: "SketchDraw", version: Math.max(left.version, right.version) as SketchFile["version"], activePageId, pages, project, windowsSync };
+  return { format: "SketchDraw", version: Math.max(left.version, right.version) as SketchFile["version"], activePageId, pages, project, library, windowsSync };
 }

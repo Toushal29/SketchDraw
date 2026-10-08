@@ -71,7 +71,7 @@
 
 /* In-app reference guide. */
 .help-backdrop {
-    z-index: 50;
+    z-index: 2800;
 }
 
 .help-dialog {
@@ -608,6 +608,8 @@
 .help-content {
     display: block;
     min-height: 0;
+    min-width: 0;
+    flex: 1 1 auto;
     overflow: auto;
     padding: 15px 2px;
 }

@@ -4,6 +4,7 @@ import { validReferences } from "../../operations";
 import { curveControlPoints } from "../canvas/geometry";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
 import { normalizeProjectWorkspace } from "../project/project-data";
+import { normalizePersonalLibrary } from "../library/library-data";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -126,6 +127,12 @@ export function normalizeElement(value: unknown): Element | undefined {
 
 export function parseSketchFile(value: unknown): SketchFile | undefined {
   if (!isRecord(value) || value.format !== "SketchDraw") return undefined;
+  const version = Number(value.version);
+  const sections = isRecord(value.sections) ? value.sections : undefined;
+  if (sections && (!isRecord(sections.canvas) || !isRecord(sections.planning) || !isRecord(sections.library))) return undefined;
+  const canvasSection = sections ? sections.canvas as Record<string, unknown> : value;
+  const planningValue = sections ? sections.planning : value.project;
+  const libraryValue = sections ? sections.library : value.library;
   const addLegacyElementIds = (item: unknown): unknown => {
     if (!isRecord(item)) return item;
     const next: Record<string, unknown> = { ...item, id: typeof item.id === "string" && item.id ? item.id : crypto.randomUUID() };
@@ -140,18 +147,19 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
     if (elements.some((element) => !element) || !validReferences(elements as Element[])) return undefined;
     return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff" }, elements: elements as Element[] };
   };
-  const sourcePages = Array.isArray(value.pages) ? value.pages : Array.isArray(value.elements) ? [{ id: crypto.randomUUID(), name: "Page 1", canvasState: value.canvasState, elements: value.elements }] : undefined;
-  if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100 || !Number.isInteger(value.version) || Number(value.version) < 1 || Number(value.version) > SKETCH_FORMAT_VERSION) return undefined;
+  const sourcePages = Array.isArray(canvasSection.pages) ? canvasSection.pages : Array.isArray(canvasSection.elements) ? [{ id: crypto.randomUUID(), name: "Page 1", canvasState: canvasSection.canvasState, elements: canvasSection.elements }] : undefined;
+  if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100 || !Number.isInteger(version) || version < 1 || version > SKETCH_FORMAT_VERSION || (sections && version < 8)) return undefined;
   const pages = sourcePages.map((page, index) => {
     if (!isRecord(page)) return undefined;
     const state = isRecord(page.canvasState) ? page.canvasState : {};
-    const migratedState = Number(value.version) < SKETCH_FORMAT_VERSION ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
-    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, Number(value.version) < 6);
+    const migratedState = version < SKETCH_FORMAT_VERSION ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
+    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, version < 6);
   });
   if (pages.some((page) => !page)) return undefined;
   const normalized = pages as SketchPage[];
   if (new Set(normalized.map((page) => page.id)).size !== normalized.length) return undefined;
-  const activePageId = normalized.some((page) => page.id === value.activePageId) ? String(value.activePageId) : normalized[0].id;
+  const requestedPageId = canvasSection.activePageId;
+  const activePageId = normalized.some((page) => page.id === requestedPageId) ? String(requestedPageId) : normalized[0].id;
   const sync = isRecord(value.windowsSync) ? value.windowsSync : undefined;
   const validClockMap = (raw: unknown) => {
     if (!isRecord(raw) || Object.keys(raw).length > 100_000) return {};
@@ -160,7 +168,9 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
   const windowsSync = sync?.version === 1 && finite(sync.updatedAt) && sync.updatedAt >= 0 && typeof sync.deviceId === "string" && sync.deviceId.length <= 100
     ? { version: 1 as const, updatedAt: sync.updatedAt, deviceId: sync.deviceId, clocks: validClockMap(sync.clocks), tombstones: validClockMap(sync.tombstones) }
     : undefined;
-  const project = value.project === undefined ? undefined : normalizeProjectWorkspace(value.project);
-  if (value.project !== undefined && !project) return undefined;
-  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized, ...(project ? { project } : {}), ...(windowsSync ? { windowsSync } : {}) };
+  const project = planningValue === undefined ? undefined : normalizeProjectWorkspace(planningValue);
+  if (planningValue !== undefined && !project) return undefined;
+  const library = normalizePersonalLibrary(libraryValue, sections ? undefined : value.project);
+  if (!library) return undefined;
+  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized, ...(project ? { project } : {}), library, ...(windowsSync ? { windowsSync } : {}) };
 }

@@ -61,7 +61,6 @@ export function normalizeProjectWorkspace(value: unknown): ProjectWorkspaceData 
   }
   const taskIds = new Set(tasks.map(task => task.id));
   for (const task of tasks) task.dependsOn = (task.dependsOn ?? []).filter(id => id !== task.id && taskIds.has(id));
-  if (new Set(notes.map(item => item.id)).size !== notes.length || new Set(tasks.map(item => item.id)).size !== tasks.length) return undefined;
-  if (new Set(milestones.map(item => item.id)).size !== milestones.length || new Set(logEntries.map(item => item.id)).size !== logEntries.length || new Set(files.map(item => item.id)).size !== files.length) return undefined;
+  if (new Set(notes.map(item => item.id)).size !== notes.length || new Set(tasks.map(item => item.id)).size !== tasks.length || new Set(milestones.map(item => item.id)).size !== milestones.length || new Set(logEntries.map(item => item.id)).size !== logEntries.length || new Set(files.map(item => item.id)).size !== files.length) return undefined;
   return { name, description, notes, tasks, milestones, logEntries, files };
 }
