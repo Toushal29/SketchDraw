@@ -25,8 +25,8 @@ import "./features/workspace/workspace-shell.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
-import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, Tool, CanvasState, SketchPage, SketchFile, SketchFileDocumentV8, WindowsSyncMetadata, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, PersonalLibraryData } from "./model";
-import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, isConnectable, BOX_ANCHORS, anchorPoint, nearestBinding, validReferences, textLayout, labelBox, textFont } from "./operations";
+import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
+import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, textLayout, labelBox } from "./operations";
 import type { NoteKind } from "./model";
 import { buildLibraryComponent, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, toggleChecklistContent, type LibraryComponentKind } from "./notes";
 import { parseSchema } from "./schema";
@@ -47,23 +47,32 @@ import { FLOWCHART_SHAPES, FLOWCHART_MENU_SHAPES } from "./features/diagrams/con
 import { arrowHeadPoints, arrowHeadSvgPath, pointInPolygon, traceFlowchart, flowchartPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, connectorSvgPath, flowchartSvgPath, vectorFlowchartPath, flowchartSvgDetailPath, flowchartDatabaseRimPath } from "./features/canvas/geometry";
 import { unionBounds, elementBounds, distanceToSegment } from "./features/canvas/bounds";
 import { getToolLayers, reorderToolLayer, toggleToolLayer } from "./features/canvas/tool-layers";
-import { isRecord, normalizeElement, parseSketchFile } from "./features/files/parse-sketch";
+import { createCanvasHistory } from "./features/canvas/history";
+import { pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePoint } from "./features/canvas/input";
+import { canGroupSelection, deletableSelectionCount as countDeletableSelection, focusedSelectionElement, isGroupSelection, primarySelectionIndex, selectedElements as getSelectedElements } from "./features/canvas/selection";
+import { createCanvasRenderScheduler, drawShapeLabel, fontCss, shapeLabelSvg, themeInk } from "./features/canvas/rendering";
+import { createCanvasSceneRenderer, transformHandlePoints } from "./features/canvas/scene-renderer";
+import { isRecord, normalizeElement } from "./features/files/parse-sketch";
 import { withSketchExtension, normalizeFileUri, isSketchPath, displayPathName } from "./features/files/paths";
 import { indentTextarea } from "./components/textarea-indent";
 import { ThicknessTuner } from "./components/ThicknessTuner";
 import { isWindowsPlatform } from "./platform/runtime";
 import type { PaletteCommand } from "./platform/windows/CommandPalette";
-import { createWindowsSyncMetadata, getWindowsDeviceId, mergeLatestSnapshots } from "./platform/windows/sync";
+import { createWindowsSyncMetadata, createWindowsSyncTracker, getWindowsDeviceId } from "./platform/windows/sync";
 import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, loadWindowsShortcuts, matchesWindowsShortcut, normalizeShortcut, type WindowsShortcutId, type WindowsShortcutMap } from "./platform/windows/shortcuts";
 import { autoRoutePoints } from "./platform/windows/connector-routing";
 import { ProjectWorkspace } from "./features/project/ProjectWorkspace";
 import { createProjectWorkspace } from "./features/project/project-data";
-import { createPersonalLibrary } from "./features/library/library-data";
-import { PersonalLibrary } from "./features/library/PersonalLibrary";
-import { WorkspaceChooser } from "./features/workspace/WorkspaceChooser";
+import { createLegacyLibraryData } from "./features/files/legacy-library-data";
+import { Notebook } from "./features/notebook/Notebook";
 import { WorkspaceAreaTabs } from "./features/workspace/WorkspaceAreaTabs";
 import type { WorkspaceArea } from "./features/workspace/workspace-types";
-import type { ProjectWorkspaceData } from "./model";
+import { createDocumentSession } from "./features/document/document-session";
+import { createDocumentController } from "./features/document/document-controller";
+import type { DocumentControllerStatus } from "./features/document/document-types";
+import { createSketchSnapshot, serializeSketchSnapshot } from "./features/files/document-codec";
+import { sketchFileStore } from "./features/files/sketch-file-store";
+import { sketchRecoveryStore } from "./features/files/sketch-recovery-store";
 
 type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
 type TouchGesture = { fingerCount: 2 | 3; action: TouchGestureAction; initialDistance: number; initialZoom: number; initialPanX: number; initialPanY: number; initialMidpoint: Point; worldAnchor: Point };
@@ -73,8 +82,6 @@ const readDisplayMetrics = (): DisplayMetrics => {
   const ratio = window.devicePixelRatio || 1;
   return { physicalWidth: Math.round(window.screen.width * ratio), physicalHeight: Math.round(window.screen.height * ratio), viewportWidth: window.innerWidth, viewportHeight: window.innerHeight };
 };
-
-const fontCss = (family?: FontFamily) => family === "hand" ? "cursive" : family === "serif" ? "Georgia, serif" : family === "mono" ? "'Cascadia Mono', Consolas, monospace" : "'DM Sans', sans-serif";
 
 const RELEASES_API = "https://api.github.com/repos/Toushal29/SketchDraw/releases/latest";
 
@@ -134,19 +141,6 @@ const ARROW_HEADS: { value: ArrowHead; label: string }[] = [
   { value: "none", label: "None" }, { value: "open", label: "Open" }, { value: "solid", label: "Solid" },
   { value: "thick", label: "Thick" }, { value: "dot", label: "Dot" }, { value: "diamond", label: "Diamond" }, { value: "bar", label: "Bar" },
 ];
-function themeInk(color: string, activeTheme: Theme): string {
-  const match = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(color);
-  if (!match) return color;
-  const hex = match[1].length === 3 ? [...match[1]].map((part) => part + part).join("") : match[1];
-  const channels = [0, 2, 4].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
-  const [red, green, blue] = channels;
-  const isNeutral = Math.max(red, green, blue) - Math.min(red, green, blue) < 22;
-  if (!isNeutral) return color;
-  const luminance = red * .2126 + green * .7152 + blue * .0722;
-  if (activeTheme === "dark" && luminance < 105) return "#f4f4f2";
-  if (activeTheme === "light" && luminance > 235) return "#252525";
-  return color;
-}
 function ArrowHeadIcon(props: { kind: ArrowHead }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h12" />{props.kind === "open" && <path d="m12 7 5 5-5 5" />}{props.kind === "solid" && <path d="m12 7 6 5-6 5z" fill="currentColor" />}{props.kind === "thick" && <path d="m10 5 9 7-9 7z" fill="currentColor" />}{props.kind === "dot" && <circle cx="17" cy="12" r="3" fill="currentColor" />}{props.kind === "diamond" && <path d="m17 7 5 5-5 5-5-5z" fill="currentColor" />}{props.kind === "bar" && <path d="M17 6v12" />}</svg>;
 }
@@ -196,18 +190,25 @@ function App() {
   // updates cheap, then validate identities and connector bindings on release.
   function setElementsTransient(next: Element[] | ((previous: Element[]) => Element[])) { return setElementsSignal(next); }
   const [canvasState, setCanvasState] = createSignal<CanvasState>(emptyCanvas());
-  const [pages, setPages] = createSignal<SketchPage[]>([]);
-  const [activePageId, setActivePageId] = createSignal("");
-  const [activePath, setActivePath] = createSignal<string>();
+  const documentSession = createDocumentSession();
+  const {
+    pages, setPages,
+    activePageId, setActivePageId,
+    activePath, setActivePath,
+    projectWorkspaceData, setProjectWorkspaceData,
+    legacyLibraryData, setLegacyLibraryData,
+    workspaceArea, setWorkspaceArea,
+    readOnlyView, setReadOnlyView,
+    dirty, setDirty,
+    saving, setSaving,
+    savedAt, setSavedAt,
+    windowsSyncMetadata, setWindowsSyncMetadata,
+  } = documentSession;
   const [renameFileOpen, setRenameFileOpen] = createSignal(false);
   const [renameFileName, setRenameFileName] = createSignal("");
   const [renameFileError, setRenameFileError] = createSignal("");
-  const [projectWorkspaceData, setProjectWorkspaceData] = createSignal<ProjectWorkspaceData>(createProjectWorkspace());
-  const [personalLibraryData, setPersonalLibraryData] = createSignal<PersonalLibraryData>(createPersonalLibrary());
-  const [workspaceArea, setWorkspaceArea] = createSignal<WorkspaceArea>("canvas");
   const [topbarHeight, setTopbarHeight] = createSignal(66);
   const navigateWorkspace = (area: WorkspaceArea) => setWorkspaceArea(area);
-  const [readOnlyView, setReadOnlyView] = createSignal(false);
   const [tool, setTool] = createSignal<Tool>("pen");
   const [color, setColor] = createSignal("#252525");
   const [thickness, setThickness] = createSignal(2);
@@ -220,9 +221,6 @@ function App() {
   const [laserThickness, setLaserThickness] = createSignal(Math.max(1, Math.min(24, Number(readPreference("sketchdraw-laser-thickness", "5")) || 5)));
   const [laserFadeDuration, setLaserFadeDuration] = createSignal(Math.max(250, Math.min(5000, Number(readPreference("sketchdraw-laser-fade", "1100")) || 1100)));
   const [laserRainbow, setLaserRainbow] = createSignal(readPreference("sketchdraw-laser-rainbow", "false") === "true");
-  const [dirty, setDirty] = createSignal(false);
-  const [saving, setSaving] = createSignal(false);
-  const [savedAt, setSavedAt] = createSignal("");
   const [error, setError] = createSignal("");
   const [preview, setPreview] = createSignal<Preview>();
   const [selectedIndices, setSelectedIndices] = createSignal<number[]>([]);
@@ -237,7 +235,6 @@ function App() {
   const [shortcutDialogOpen, setShortcutDialogOpen] = createSignal(false);
   const [shortcuts, setShortcuts] = createSignal<WindowsShortcutMap>(isWindowsPlatform() ? loadWindowsShortcuts() : { ...DEFAULT_WINDOWS_SHORTCUTS });
   const [presentationMode, setPresentationMode] = createSignal(false);
-  const [windowsSyncMetadata, setWindowsSyncMetadata] = createSignal<WindowsSyncMetadata>();
   const [openSketchPaths, setOpenSketchPaths] = createSignal<string[]>([]);
   const [whiteboardStyle, setWhiteboardStyle] = createSignal<WhiteboardStyle>(readWhiteboardStyle());
   const [snapToGrid, setSnapToGrid] = createSignal(false);
@@ -311,6 +308,7 @@ function App() {
   const [showClearConfirm, setShowClearConfirm] = createSignal(false);
   const [recoveryPrompt, setRecoveryPrompt] = createSignal<{ path: string; snapshot: SketchFile; baselineRaw?: string }>();
   const [syncConflict, setSyncConflict] = createSignal<{ path: string; remote: string }>();
+  const [documentControllerStatus, setDocumentControllerStatus] = createSignal<DocumentControllerStatus>("idle");
   const [exportOptionsOpen, setExportOptionsOpen] = createSignal(false);
   const [canvasOptionsOpen, setCanvasOptionsOpen] = createSignal(false);
   const [exportFormat, setExportFormat] = createSignal<"png" | "svg" | "pdf">("png");
@@ -361,8 +359,6 @@ function App() {
   });
   const [marquee, setMarquee] = createSignal<{ start: Point; end: Point }>();
   const [laserTrail, setLaserTrail] = createSignal<{ points: Point[]; opacity: number }>();
-  let undoStack: Element[][] = [];
-  let redoStack: Element[][] = [];
   let canvas!: HTMLCanvasElement;
   let exportPreviewCanvas!: HTMLCanvasElement;
   let exportPreviewVersion = 0;
@@ -381,10 +377,8 @@ function App() {
   const strokePathCache = new WeakMap<StrokePoint[], StrokePathCache>();
   let penEraserDrawing = false;
   let laserTimer: number | undefined;
-  let saveInFlight = false;
   let restartAutosave: (() => void) | undefined;
-  let lastSavedRaw: string | undefined;
-  let syncObserved = new Map<string, string>();
+  const syncTracker = createWindowsSyncTracker();
   let syncPollTimer: number | undefined;
   let syncObservationTimer: number | undefined;
   let panOrigin: { x: number; y: number; panX: number; panY: number } | undefined;
@@ -430,10 +424,18 @@ function App() {
   const [pdfFooter, setPdfFooter] = createSignal("");
   const [attachmentHint, setAttachmentHint] = createSignal<Point>();
   let clipboardItems: Element[] = [];
-  const pageHistories = new Map<string, { undo: Element[][]; redo: Element[][] }>();
-
-  function rememberPageHistory() { pageHistories.set(activePageId(), { undo: undoStack, redo: redoStack }); }
-  function restorePageHistory() { const history = pageHistories.get(activePageId()); undoStack = history?.undo ?? []; redoStack = history?.redo ?? []; setHistoryVersion(v => v + 1); }
+  const canvasHistory = createCanvasHistory<Element[]>({
+    getCurrent: elements,
+    setCurrent: setElements,
+    clone: cloneElements,
+    canEdit: () => !boardLocked(),
+    clearSelection: () => setSelectedIndices([]),
+    markDirty: () => setDirty(true),
+    changed: () => setHistoryVersion(version => version + 1),
+  });
+  const pushUndo = canvasHistory.push;
+  const rememberPageHistory = () => canvasHistory.rememberPage(activePageId());
+  const restorePageHistory = () => canvasHistory.restorePage(activePageId());
   function duplicatePage() {
     if (boardLocked() || pages().length >= 100) return;
     commitTextDraft(); storeCurrentPage(); rememberPageHistory();
@@ -654,15 +656,11 @@ function App() {
     changeSelected(item => isLabelShape(item) ? { ...item, label: { text: "", color: color(), fontSize: 16, verticalAlign: "middle", ...item.label, [property]: value } } : item);
   }
   function drawLabel(ctx: CanvasRenderingContext2D, shape: ShapeElement) {
-    const label = shape.label; if (!label?.text) return;
-    ctx.save(); ctx.font = textFont(label); ctx.fillStyle = themeInk(label.color, theme()); ctx.globalAlpha = (shape.opacity ?? 1) * (label.opacity ?? 1); ctx.textBaseline = "top"; ctx.textAlign = "left";
-    const box = labelBox(shape); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip();
-    for (const run of textLayout(ctx, shape)) { ctx.fillText(run.text, run.x, run.y); if (label.underline) ctx.fillRect(run.x, run.y + label.fontSize * 1.06, ctx.measureText(run.text).width, Math.max(1, label.fontSize / 18)); }
-    ctx.restore();
+    drawShapeLabel(ctx, shape, theme());
   }
   function labelSvg(shape: ShapeElement) {
     const label = shape.label; const ctx = canvas.getContext("2d"); if (!label?.text || !ctx) return "";
-    return `<g fill="${escapeXml(themeInk(label.color, theme()))}" opacity="${(shape.opacity ?? 1) * (label.opacity ?? 1)}" font-size="${label.fontSize}" font-family="${label.fontFamily === "hand" ? "cursive" : "sans-serif"}" font-weight="${label.bold ? 700 : 400}" font-style="${label.italic ? "italic" : "normal"}" text-decoration="${label.underline ? "underline" : "none"}">${textLayout(ctx, shape).map(run => `<text x="${run.x}" y="${run.y + label.fontSize * .8}">${escapeXml(run.text)}</text>`).join("")}</g>`;
+    return shapeLabelSvg(shape, ctx, theme());
   }
 
   const fileName = () => activePath() ? displayPathName(activePath()!) : "Untitled sketch";
@@ -670,15 +668,11 @@ function App() {
   const theme = (): Theme => themeMode() === "system" ? systemDark() ? "dark" : "light" : themeMode() as Theme;
   const toolbarColor = () => toolbarColorChoice() === "auto" ? theme() === "dark" ? "#252c31" : "#f8faf7" : toolbarColorChoice();
   const selectedSet = createMemo(() => new Set(selectedIndices()));
-  const selectedElements = () => selectedIndices().flatMap((index) => elements()[index] ? [elements()[index]] : []);
-  const primarySelection = () => selectedIndices()[selectedIndices().length - 1];
-  const groupSelected = () => { const selected = selectedElements(); return selected.length === 1 && selected[0]?.type === "group" && !selected[0].note; };
-  const groupActionEnabled = () => { const selected = selectedElements(); if (selected.length === 1 && selected[0]?.type === "group" && selected[0].note) return false; return groupSelected() ? !selected[0]?.locked : selected.filter((element) => !element.locked).length >= 2; };
-  const focusedElement = (): Element | undefined => {
-    let element = primarySelection() === undefined ? undefined : elements()[primarySelection()!];
-    while (element?.type === "group" && !element.note) element = element.elements[element.elements.length - 1];
-    return element;
-  };
+  const selectedElements = () => getSelectedElements(elements(), selectedIndices());
+  const primarySelection = () => primarySelectionIndex(selectedIndices());
+  const groupSelected = () => isGroupSelection(selectedElements());
+  const groupActionEnabled = () => canGroupSelection(selectedElements());
+  const focusedElement = (): Element | undefined => focusedSelectionElement(elements(), selectedIndices());
   const selectedLabel = () => { const item = focusedElement(); return item && isLabelShape(item) ? item.label : undefined; };
   const selectedText = () => textDraft() ?? (() => { const item = focusedElement(); return item?.type === "text" ? item : selectedLabel(); })();
   const styleTargetElement = () => { const focused = focusedElement(); return tool() === "select" || focused?.type === tool() ? focused : undefined; };
@@ -719,77 +713,35 @@ function App() {
   const updateStrokeColor = (value: string) => { const selected = styleTargetElement(); if (boardLocked() || selected?.locked) return; if (textDraft()?.shapeLabel) { updateLabel("color", value); return; } setColor(value); setTextDraft((draft) => draft ? { ...draft, color: value } : undefined); if (hasStyleSelection()) updateProperty("color", value); };
   const updateThickness = (value: number) => { const bounded = Math.max(1, Math.min(24, Math.round(value))); setThickness(bounded); if (hasStyleSelection()) updateProperty("thickness", bounded); };
   const setThicknessPickerPreference = (mode: "presets" | "stepper") => { setThicknessPickerMode(mode); try { localStorage.setItem("sketchdraw-thickness-picker", mode); } catch { /* The setting still applies for this session. */ } };
-  const status = () => !activePath() ? "No file selected" : readOnlyView() ? "View only · changes are not saved" : saving() ? "Saving…" : (dirty() || textDraft()) ? "Unsaved changes" : savedAt() ? `Saved ${savedAt()}` : "Saved locally";
-  function observeFileSync(serializedPages: SketchPage[], project: ProjectWorkspaceData, library: PersonalLibraryData) {
-    if (!activePath()) return;
-    const current = new Map<string, string>();
-    for (const page of serializedPages) {
-      current.set(`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState }));
-      for (const element of page.elements) if (element.id) current.set(`e:${page.id}:${element.id}`, JSON.stringify(element));
-    }
-    current.set("w:meta", JSON.stringify({ name: project.name, description: project.description }));
-    for (const note of project.notes) current.set(`w:n:${note.id}`, JSON.stringify(note));
-    for (const task of project.tasks) current.set(`w:t:${task.id}`, JSON.stringify(task));
-    for (const milestone of project.milestones) current.set(`w:m:${milestone.id}`, JSON.stringify(milestone));
-    for (const entry of project.logEntries) current.set(`w:l:${entry.id}`, JSON.stringify(entry));
-    for (const file of project.files) current.set(`w:f:${file.id}`, JSON.stringify(file));
-    for (const note of library.quickNotes) current.set(`w:quick-note:${note.id}`, JSON.stringify(note));
-    for (const note of library.studyNotes) current.set(`w:sn:${note.id}`, JSON.stringify(note));
-    for (const card of library.studyCards) current.set(`w:sc:${card.id}`, JSON.stringify(card));
-    for (const article of library.wikiArticles) current.set(`w:wiki:${article.id}`, JSON.stringify(article));
-    for (const entry of library.journalEntries) current.set(`w:journal:${entry.id}`, JSON.stringify(entry));
-    for (const draft of library.writingDrafts) current.set(`w:writing:${draft.id}`, JSON.stringify(draft));
-    for (const source of library.researchSources) current.set(`w:research:${source.id}`, JSON.stringify(source));
-    for (const entry of library.mediaEntries) current.set(`w:media:${entry.id}`, JSON.stringify(entry));
-    const now = Date.now();
-    const previous = windowsSyncMetadata() ?? createWindowsSyncMetadata();
-    const clocks = { ...previous.clocks };
-    const tombstones = { ...previous.tombstones };
-    let changed = false;
-    for (const [key, value] of current) {
-      const old = syncObserved.get(key);
-      if (old !== undefined && old !== value) { clocks[key] = now; delete tombstones[key]; changed = true; }
-      else if (old === undefined && !clocks[key] && !tombstones[key]) { clocks[key] = previous.updatedAt || now; changed = true; }
-    }
-    for (const key of syncObserved.keys()) if (!current.has(key)) { tombstones[key] = now; delete clocks[key]; changed = true; }
-    syncObserved = current;
-    if (changed) setWindowsSyncMetadata({ ...previous, updatedAt: now, deviceId: getWindowsDeviceId(), clocks, tombstones });
-  }
-
+  const status = () => !activePath() ? "No file selected" : readOnlyView() ? "View only · changes are not saved" : documentControllerStatus() === "opening" ? "Opening sketch…" : (saving() || documentControllerStatus() === "saving") ? "Saving…" : (dirty() || textDraft()) ? "Unsaved changes" : savedAt() ? `Saved ${savedAt()}` : "Saved locally";
   function documentSnapshot(): SketchFile {
-    const sourcePages = pages().length ? pages() : [{ id: "page-1", name: "Page 1", canvasState: canvasState(), elements: elements() }];
-    const serializedPages = sourcePages.map((page) => {
-      const isCurrent = page.id === activePageId() || (!activePageId() && sourcePages.length === 1);
-      const pageElements = isCurrent ? elements() : page.elements;
-      const normalized = pageElements.map(normalizeElement);
-      if (normalized.some((element) => !element)) throw new Error(`The drawing contains an element that cannot be saved in SketchDraw format v${SKETCH_FORMAT_VERSION}.`);
-      const state = isCurrent ? canvasState() : page.canvasState;
-      return { id: page.id, name: page.name, canvasState: { ...state, backgroundColor: isCurrent ? renderedBoardColor() : (state.boardColorFollowsTheme ? (theme() === "dark" ? "#17191f" : "#ffffff") : state.backgroundColor), boardColorFollowsTheme: state.boardColorFollowsTheme ?? true }, elements: normalized as Element[] };
+    const snapshot = createSketchSnapshot({
+      pages: pages(),
+      activePageId: activePageId(),
+      activeElements: elements(),
+      activeCanvasState: canvasState(),
+      activeRenderedBoardColor: renderedBoardColor(),
+      theme: theme(),
+      project: projectWorkspaceData(),
+      library: legacyLibraryData(),
+      windowsSync: windowsSyncMetadata(),
     });
-    const project = projectWorkspaceData();
-    const library = personalLibraryData();
-    observeFileSync(serializedPages, project, library);
-    return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: activePageId() || serializedPages[0].id, pages: serializedPages, project, library, ...(windowsSyncMetadata() ? { windowsSync: windowsSyncMetadata() } : {}) };
+    observeFileSync(snapshot);
+    return { ...snapshot, ...(windowsSyncMetadata() ? { windowsSync: windowsSyncMetadata() } : {}) };
   }
-  function snapshotRaw(snapshot: SketchFile) {
-    const document: SketchFileDocumentV8 = {
-      format: "SketchDraw",
-      version: SKETCH_FORMAT_VERSION,
-      sections: {
-        canvas: { activePageId: snapshot.activePageId, pages: snapshot.pages },
-        planning: snapshot.project ?? createProjectWorkspace(),
-        library: snapshot.library ?? createPersonalLibrary(),
-      },
-      ...(snapshot.windowsSync ? { windowsSync: snapshot.windowsSync } : {}),
-    };
-    return JSON.stringify(document, null, 2);
+  function observeFileSync(snapshot: SketchFile) {
+    if (!activePath()) return;
+    const next = syncTracker.observe(snapshot, windowsSyncMetadata() ?? createWindowsSyncMetadata(), getWindowsDeviceId());
+    if (next) setWindowsSyncMetadata(next);
   }
+  const snapshotRaw = serializeSketchSnapshot;
   createEffect(() => {
-    const path = activePath(); const currentPages = pages(); const currentPageId = activePageId(); const currentElements = elements(); const currentState = canvasState(); const currentProject = projectWorkspaceData(); const currentLibrary = personalLibraryData();
+    const path = activePath(); const currentPages = pages(); const currentPageId = activePageId(); const currentElements = elements(); const currentState = canvasState(); const currentProject = projectWorkspaceData(); const currentLibrary = legacyLibraryData();
     if (!path || !currentPages.length || !currentPageId) return;
     if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer);
     const observedPages = currentPages.map(page => page.id === currentPageId ? { ...page, elements: currentElements, canvasState: currentState } : page);
-    syncObservationTimer = window.setTimeout(() => observeFileSync(observedPages, currentProject, currentLibrary), 250);
+    const snapshot = createSketchSnapshot({ pages: observedPages, activePageId: currentPageId, activeElements: currentElements, activeCanvasState: currentState, activeRenderedBoardColor: renderedBoardColor(), theme: theme(), project: currentProject, library: currentLibrary, windowsSync: windowsSyncMetadata() });
+    syncObservationTimer = window.setTimeout(() => observeFileSync(snapshot), 250);
   });
   function storeCurrentPage() {
     const id = activePageId();
@@ -811,53 +763,21 @@ function App() {
     commitTextDraft(); storeCurrentPage(); rememberPageHistory();
     const number = pages().length + 1; const page: SketchPage = { id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: `Page ${number}`, canvasState: emptyCanvas(), elements: [] };
     setPages((items) => [...items, page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setDirty(true);
-    undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1);
+    canvasHistory.resetCurrent();
   }
   function deleteCurrentPage() {
     if (boardLocked() || pages().length <= 1) return;
     const nextPages = pages().filter((page) => page.id !== activePageId()); const target = nextPages[Math.max(0, pages().findIndex((page) => page.id === activePageId()) - 1)] ?? nextPages[0];
     setPages(nextPages); setActivePageId(target.id); setElements(cloneElements(target.elements)); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false); setSelectedIndices([]); setTextDraft(undefined); setHoveredIndex(undefined); setMarquee(undefined); restorePageHistory(); setDirty(true);
   }
-  const canUndo = () => { historyVersion(); return undoStack.length > 0; };
-  const canRedo = () => { historyVersion(); return redoStack.length > 0; };
-  const toWorld = (event: PointerEvent): Point => {
-    const rect = canvas.getBoundingClientRect(); const state = canvasState();
-    return { x: (event.clientX - rect.left - state.panX) / state.zoom, y: (event.clientY - rect.top - state.panY) / state.zoom };
-  };
-  const strokePointFromPointer = (event: PointerEvent, point: Point): StrokePoint => event.pointerType !== "pen" ? point : {
-    ...point,
-    ...(penPressure() ? { pressure: Math.max(0, Math.min(1, event.pressure > 0 ? event.pressure : .5)) } : {}),
-    ...(penTilt() ? { tiltX: Math.max(-90, Math.min(90, event.tiltX)), tiltY: Math.max(-90, Math.min(90, event.tiltY)) } : {}),
-  };
-  const snap = (point: Point): Point => {
-    if (!snapToGrid()) return point;
-    if (whiteboardStyle() === "isometric") {
-      const rowStep = GRID_SIZE * Math.sqrt(3) / 2;
-      const row = Math.round(point.y / rowStep);
-      const phase = Math.abs(row % 2) === 1 ? GRID_SIZE / 2 : 0;
-      return { x: Math.round((point.x - phase) / GRID_SIZE) * GRID_SIZE + phase, y: row * rowStep };
-    }
-    return { x: Math.round(point.x / GRID_SIZE) * GRID_SIZE, y: Math.round(point.y / GRID_SIZE) * GRID_SIZE };
-  };
+  const canUndo = () => { historyVersion(); return canvasHistory.canUndo(); };
+  const canRedo = () => { historyVersion(); return canvasHistory.canRedo(); };
+  const toWorld = (event: PointerEvent): Point => pointerToWorld(event.clientX, event.clientY, canvas.getBoundingClientRect(), canvasState());
+  const strokePointFromPointer = (event: PointerEvent, point: Point): StrokePoint => makeStrokePoint(event, point, penPressure(), penTilt());
+  const snap = (point: Point): Point => snapCanvasPoint(point, snapToGrid(), whiteboardStyle(), GRID_SIZE);
 
-  function pushUndo(before: Element[]) {
-    undoStack.push(before);
-    if (undoStack.length > 100) undoStack.shift();
-    redoStack = [];
-    setHistoryVersion((version) => version + 1);
-  }
-  function undo() {
-    if (boardLocked()) return;
-    if (!undoStack.length) return;
-    redoStack.push(cloneElements(elements()));
-    setElements(undoStack.pop()!); setSelectedIndices([]); setDirty(true); setHistoryVersion((version) => version + 1);
-  }
-  function redo() {
-    if (boardLocked()) return;
-    if (!redoStack.length) return;
-    undoStack.push(cloneElements(elements()));
-    setElements(redoStack.pop()!); setSelectedIndices([]); setDirty(true); setHistoryVersion((version) => version + 1);
-  }
+  const undo = canvasHistory.undo;
+  const redo = canvasHistory.redo;
   function deleteSelected() {
     if (boardLocked()) return;
     const indices = selectedIndices().filter((index) => { const element = elements()[index]; return !!element && canMoveElement(element); });
@@ -868,7 +788,7 @@ function App() {
     setElements((items) => items.filter((_, itemIndex) => !selected.has(itemIndex)));
     pushUndo(before); setSelectedIndices((current) => current.filter((index) => !selected.has(index)).map((index) => index - removed.filter((deleted) => deleted < index).length)); setDirty(true);
   }
-  const deletableSelectionCount = () => selectedIndices().filter((index) => { const element = elements()[index]; return !!element && canMoveElement(element); }).length;
+  const deletableSelectionCount = () => countDeletableSelection(elements(), selectedIndices(), canMoveElement);
 
   function groupSelection() {
     if (boardLocked()) return;
@@ -1643,72 +1563,11 @@ function App() {
     ctx.restore();
   }
 
-  function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, state: CanvasState) {
-    const style = whiteboardStyle();
-    if (!showGrid() || style === "plain") return;
-    const multiplier = Math.max(1, 2 ** Math.max(0, Math.ceil(Math.log2(0.65 / state.zoom))));
-    const baseStep = style === "small-dots" || style === "small-grid" ? 12 : style === "ruled" ? 30 : GRID_SIZE;
-    const step = baseStep * multiplier; const left = -state.panX / state.zoom; const top = -state.panY / state.zoom;
-    const right = (width - state.panX) / state.zoom; const bottom = (height - state.panY) / state.zoom;
-    const hex = renderedBoardColor().replace("#", ""); const rgb = Number.parseInt(hex.length === 3 ? hex.split("").map((part) => part + part).join("") : hex, 16); const luminance = (0.2126 * ((rgb >> 16) & 255)) + (0.7152 * ((rgb >> 8) & 255)) + (0.0722 * (rgb & 255));
-    ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
-    const startX = Math.floor(left / step) * step; const startY = Math.floor(top / step) * step;
-    ctx.strokeStyle = luminance < 130 ? "#353a45" : "#e4e5e2"; ctx.lineWidth = 0.75 / state.zoom; ctx.beginPath();
-    if (style === "lines" || style === "small-grid") {
-      for (let x = startX; x <= right; x += step) { ctx.moveTo(x, top); ctx.lineTo(x, bottom); }
-      for (let y = startY; y <= bottom; y += step) { ctx.moveTo(left, y); ctx.lineTo(right, y); }
-      ctx.stroke();
-    } else if (style === "ruled") {
-      for (let y = startY; y <= bottom; y += step) { ctx.moveTo(left, y); ctx.lineTo(right, y); }
-      ctx.stroke();
-    } else if (style === "isometric") {
-      // Index both axes from the document origin so this pattern shares the fixed GRID_SIZE snap origin.
-      const rowStep = step * Math.sqrt(3) / 2;
-      const firstRow = Math.floor(top / rowStep) - 1;
-      const lastRow = Math.ceil(bottom / rowStep) + 1;
-      const firstX = left - step;
-      const lastX = right + step;
-      for (let row = firstRow; row <= lastRow; row++) {
-        const y = row * rowStep;
-        const phase = Math.abs(row % 2) === 1 ? step / 2 : 0;
-        const firstColumn = Math.floor((firstX - phase) / step);
-        const lastColumn = Math.ceil((lastX - phase) / step);
-        for (let column = firstColumn; column <= lastColumn; column++) {
-          const x = column * step + phase;
-          ctx.moveTo(x, y); ctx.lineTo(x + step, y);
-          if (row < lastRow) {
-            ctx.moveTo(x, y); ctx.lineTo(x - step / 2, y + rowStep);
-            ctx.moveTo(x, y); ctx.lineTo(x + step / 2, y + rowStep);
-          }
-        }
-      }
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = luminance < 130 ? "#414653" : "#deddd6"; const radius = (style === "small-dots" ? 0.65 : 0.85) / state.zoom;
-      for (let x = startX; x <= right; x += step) for (let y = startY; y <= bottom; y += step) { ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill(); }
-    }
-    ctx.restore();
-  }
-
-  function transformHandlePoints(bounds: Bounds, includeRotate = true) {
-    const midX = bounds.x + bounds.w / 2; const midY = bounds.y + bounds.h / 2; const offset = 24 / canvasState().zoom;
-    const handles = [{ id: "nw", x: bounds.x, y: bounds.y }, { id: "n", x: midX, y: bounds.y }, { id: "ne", x: bounds.x + bounds.w, y: bounds.y }, { id: "e", x: bounds.x + bounds.w, y: midY }, { id: "se", x: bounds.x + bounds.w, y: bounds.y + bounds.h }, { id: "s", x: midX, y: bounds.y + bounds.h }, { id: "sw", x: bounds.x, y: bounds.y + bounds.h }, { id: "w", x: bounds.x, y: midY }];
-    return includeRotate ? [...handles, { id: "rotate", x: midX, y: bounds.y - offset }] : handles;
-  }
-
-  function drawTransformHandles(ctx: CanvasRenderingContext2D, bounds: Bounds, zoom: number, includeRotate = true) {
-    const handles = transformHandlePoints(bounds, includeRotate); const rotate = includeRotate ? handles.pop() : undefined; const top = { x: bounds.x + bounds.w / 2, y: bounds.y };
-    ctx.save(); ctx.setLineDash([]); ctx.strokeStyle = "#547bb1"; ctx.fillStyle = "#ffffff"; ctx.lineWidth = 1 / zoom;
-    if (rotate) { ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(rotate.x, rotate.y); ctx.stroke(); }
-    for (const handle of handles) { ctx.beginPath(); ctx.rect(handle.x - 4 / zoom, handle.y - 4 / zoom, 8 / zoom, 8 / zoom); ctx.fill(); ctx.stroke(); }
-    if (rotate) { ctx.beginPath(); ctx.arc(rotate.x, rotate.y, 5 / zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } ctx.restore();
-  }
-
   function findTransformHandle(point: Point): { index: number; handle: string } | undefined {
     if (selectedIndices().length !== 1) return undefined;
     const index = selectedIndices()[0]; const element = elements()[index]; if (!element || element.locked || element.type === "freehand" || element.type === "group" && (!element.note || element.note.collapsed)) return undefined;
     const canRotate = element.type !== "group";
-    for (const handle of isConnector(element) ? connectorHandles(element) : transformHandlePoints(elementBounds(element), canRotate)) if (Math.hypot(point.x - handle.x, point.y - handle.y) <= 9 / canvasState().zoom) return { index, handle: handle.id };
+    for (const handle of isConnector(element) ? connectorHandles(element) : transformHandlePoints(elementBounds(element), canvasState().zoom, canRotate)) if (Math.hypot(point.x - handle.x, point.y - handle.y) <= 9 / canvasState().zoom) return { index, handle: handle.id };
     return undefined;
   }
 
@@ -1741,95 +1600,20 @@ function App() {
     return { ...element, x, y, w: nextW, h: nextH };
   }
 
-  function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, dpr: number, includeSelection: boolean, transparent = false, viewOverride?: CanvasState, sourceItems = elements(), includeGrid = true) {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
-    if (!transparent) { ctx.fillStyle = renderedBoardColor(); ctx.fillRect(0, 0, width, height); }
-    const state = viewOverride ?? canvasState(); if (!transparent && includeGrid) drawGrid(ctx, width, height, state);
-    ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
-    const padding = 16 / state.zoom;
-    const viewport = { x: -state.panX / state.zoom - padding, y: -state.panY / state.zoom - padding, w: width / state.zoom + padding * 2, h: height / state.zoom + padding * 2 };
-    const selected = selectedSet();
-    const drag = includeSelection && sourceItems === elements() && moveOrigin?.moved ? moveOrigin : undefined;
-    sourceItems.forEach((element, index) => {
-      if (element.hidden) return;
-      const moved = !!drag?.indices.includes(index);
-      const resolvedElement = drag ? resolveDraggedConnector(element, index, drag) : element;
-      const drawnElement = isConnector(resolvedElement) ? connectorForView(resolvedElement, sourceItems) : resolvedElement;
-      const bounds = elementBounds(moved ? element : drawnElement);
-      const visibleBounds = moved ? { ...bounds, x: bounds.x + drag!.dx, y: bounds.y + drag!.dy } : bounds;
-      if (!intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) return;
-      ctx.save(); if (moved) ctx.translate(drag!.dx, drag!.dy);
-      const drawViewport = moved ? { ...viewport, x: viewport.x - drag!.dx, y: viewport.y - drag!.dy } : viewport;
-      drawElement(ctx, drawnElement, drawViewport);
-      const isSelected = selected.has(index);
-      if (includeSelection && (isSelected || hoveredIndex() === index) && isConnector(element)) {
-        ctx.save(); ctx.strokeStyle = "#548ce8"; ctx.globalAlpha = .65; ctx.lineWidth = (isSelected ? 2 : 1) / state.zoom; traceConnector(ctx, drawnElement as ShapeElement); ctx.stroke();
-        if (isSelected && selected.size === 1 && !element.locked && !boardLocked()) for (const handle of connectorHandles(element)) { const routeHandle = handle.id.startsWith("route") || handle.id.startsWith("auto-route:") || handle.id.includes(":route:"); ctx.beginPath(); ctx.fillStyle = routeHandle ? "#dbeafe" : "#ffffff"; ctx.arc(handle.x, handle.y, (routeHandle ? 4 : 6) / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-        ctx.restore();
-      } else if (includeSelection && (isSelected || hoveredIndex() === index)) {
-        const bounds = elementBounds(element); const padding = 5 / state.zoom;
-        ctx.save(); ctx.strokeStyle = isSelected ? "#547bb1" : "#8298b8"; ctx.globalAlpha = isSelected ? 1 : 0.62; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([4 / state.zoom, 3 / state.zoom]);
-        ctx.strokeRect(bounds.x - padding, bounds.y - padding, Math.max(bounds.w + padding * 2, 2 / state.zoom), Math.max(bounds.h + padding * 2, 2 / state.zoom)); ctx.restore();
-        if (isSelected && !element.locked && selected.size === 1 && tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed) && element.type !== "freehand") drawTransformHandles(ctx, bounds, state.zoom, element.type !== "group");
-      }
-      ctx.restore();
-    });
-    if (includeSelection && (tool() === "arrow" || tool() === "line" || resizeOrigin && isConnector(resizeOrigin.original))) {
-      const ports = (items: Element[]) => { for (const item of items) {
-        const moved = !!drag?.targets.has(item.id ?? ""); const bounds = elementBounds(item);
-        const visibleBounds = moved ? { ...bounds, x: bounds.x + drag!.dx, y: bounds.y + drag!.dy } : bounds;
-        if (item.hidden || item.locked || !intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) continue;
-        if (item.type === "group") { ports(item.elements); continue; } if (!isConnectable(item)) continue;
-        if (moved) { ctx.save(); ctx.translate(drag!.dx, drag!.dy); }
-        const anchors: { anchor: Point; rowId?: string }[] = [
-          ...BOX_ANCHORS.map(anchor => ({ anchor })),
-          ...(item.type === "schemaTable" ? item.columns.flatMap(column => [{ anchor: { x: 0, y: .5 }, rowId: column.id }, { anchor: { x: 1, y: .5 }, rowId: column.id }]) : []),
-        ];
-        for (const { anchor, rowId } of anchors) { const point = anchorPoint(item, anchor, rowId); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
-        if (moved) ctx.restore();
-      } }; ctx.save(); ctx.fillStyle = "#5d94e7"; ctx.globalAlpha = .7; ports(elements()); const hint = attachmentHint(); if (hint) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(hint.x, hint.y, 8 / state.zoom, 0, Math.PI * 2); ctx.strokeStyle = "#2675f5"; ctx.lineWidth = 2 / state.zoom; ctx.stroke(); } ctx.restore();
-    }
-    const guides = alignmentGuides();
-    if (includeSelection && guides && showAlignmentGuides()) {
-      const left = -state.panX / state.zoom; const top = -state.panY / state.zoom; const right = (width - state.panX) / state.zoom; const bottom = (height - state.panY) / state.zoom;
-      ctx.save(); ctx.strokeStyle = "#668fd0"; ctx.globalAlpha = .85; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([5 / state.zoom, 4 / state.zoom]); ctx.beginPath();
-      if (guides.x !== undefined) { ctx.moveTo(guides.x, top); ctx.lineTo(guides.x, bottom); }
-      if (guides.y !== undefined) { ctx.moveTo(left, guides.y); ctx.lineTo(right, guides.y); }
-      ctx.stroke(); ctx.restore();
-    }
-    const transientLaser = laserTrail();
-    if (includeSelection && transientLaser) {
-      drawLaserStroke(ctx, transientLaser.points, transientLaser.opacity, laserThickness() / state.zoom);
-    }
-    const activePreview = preview();
-    if (includeSelection && activePreview) {
-      const { start, end, type, color: stroke, thickness: widthPx, opacity } = activePreview;
-      if (type === "pen") { if (tool() === "laser") drawLaserStroke(ctx, currentPoints, 1, laserThickness() / state.zoom); else drawElement(ctx, { type: "freehand", points: currentPoints, color: stroke, thickness: widthPx, opacity }); }
-      else drawElement(ctx, { type, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: stroke, thickness: widthPx, lineStyle: lineStyle(), flowchartShape: activePreview.flowchartShape, lineRoute: activePreview.lineRoute, arrowRoute: activePreview.arrowRoute, edgeStyle: edgeStyle(), cornerRadius: cornerRadius(), ...(fillEnabled() && (type === "rectangle" || type === "circle" || type === "diamond" || type === "triangle" || type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(type === "line" ? { startHead: defaultLineStartHead(), endHead: defaultLineEndHead() } : {}), ...(type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead(), ...(activePreview.arrowRoute === "forked" ? { forkUpper: { endHead: defaultForkUpperHead() }, forkLower: { endHead: defaultForkLowerHead() } } : {}) } : {}) });
-    }
-    ctx.restore();
-    if (includeSelection && marquee()) {
-      const { start, end } = marquee()!; const left = Math.min(start.x, end.x) * state.zoom + state.panX; const top = Math.min(start.y, end.y) * state.zoom + state.panY;
-      const width = Math.abs(end.x - start.x) * state.zoom; const height = Math.abs(end.y - start.y) * state.zoom;
-      ctx.save(); ctx.strokeStyle = "#5888c5"; ctx.fillStyle = "#76a7e51a"; ctx.lineWidth = 1; ctx.setLineDash([5, 4]); ctx.fillRect(left, top, width, height); ctx.strokeRect(left, top, width, height); ctx.restore();
-    }
-  }
+  const sceneRenderer = createCanvasSceneRenderer({
+    elements, canvasState, renderedBoardColor, whiteboardStyle, showGrid, gridSize: GRID_SIZE, selectedSet,
+    moveOrigin: () => moveOrigin, resizeOrigin: () => resizeOrigin,
+    hoveredIndex, boardLocked, tool, attachmentHint, alignmentGuides, showAlignmentGuides, marquee,
+    laserTrail, laserThickness, preview, currentPoints: () => currentPoints,
+    lineStyle, edgeStyle, cornerRadius, fillEnabled, fillColor, fillOpacity,
+    defaultLineStartHead, defaultLineEndHead, defaultStartHead, defaultEndHead, defaultForkUpperHead, defaultForkLowerHead,
+    drawElement, drawLaserStroke, connectorForView, connectorHandles, resolveDraggedConnector, intersectsBounds,
+  });
+  const drawScene = sceneRenderer.drawScene;
 
-  function renderCanvas() {
-    if (!activePath() || !canvas?.isConnected) return;
-    const rect = canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 8192 / rect.width, 8192 / rect.height, Math.sqrt(16_000_000 / (rect.width * rect.height)));
-    if (canvas.width !== Math.round(rect.width * dpr) || canvas.height !== Math.round(rect.height * dpr)) { canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr); }
-    const ctx = canvas.getContext("2d"); if (ctx) drawScene(ctx, rect.width, rect.height, dpr, true);
-  }
-
-  let canvasFrame: number | undefined;
-  function scheduleCanvasRender() {
-    if (canvasFrame !== undefined) return;
-    canvasFrame = requestAnimationFrame(() => { canvasFrame = undefined; renderCanvas(); });
-  }
-  onCleanup(() => { if (canvasFrame !== undefined) cancelAnimationFrame(canvasFrame); });
+  const canvasRenderScheduler = createCanvasRenderScheduler({ canvas: () => canvas, hasDocument: () => !!activePath(), drawScene });
+  const scheduleCanvasRender = canvasRenderScheduler.schedule;
+  onCleanup(canvasRenderScheduler.dispose);
   createEffect(() => { activePath(); elements(); canvasState(); preview(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); componentAppearance(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
   createEffect(() => { const session = noteEditorSession(); if (!session) return; requestAnimationFrame(() => { if (noteEditorTextarea?.isConnected) noteEditorTextarea.focus(); }); });
   createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); componentAppearance(); boardColor(); whiteboardStyle(); renderExportPreview(); });
@@ -2001,7 +1785,7 @@ function App() {
       try {
         if (textDraft()) commitTextDraft();
         persistRecovery();
-        while (saveInFlight) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
+        while (docController.isSaveInFlight()) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
         const path = activePath();
         if (path && dirty() && !syncConflict()) await saveToPath(path);
         // The original close request was prevented while the async save ran.
@@ -2024,7 +1808,7 @@ function App() {
         if (textDraft() && !recoveryPrompt() && !syncConflict()) persistRecovery();
         if (activePath() && dirty() && !recoveryPrompt() && !textDraft() && !drawing && !resizeOrigin && !moveOrigin) {
           persistRecovery();
-          if (!syncConflict() && !saveInFlight) void saveToPath(activePath()!);
+          if (!syncConflict() && !docController.isSaveInFlight()) void saveToPath(activePath()!);
         }
         scheduleAutosave();
       }, autosaveSeconds() * 1000);
@@ -2167,7 +1951,6 @@ function App() {
     return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2] > .42 ? "#303832" : "#f0f3f1";
   };
 
-  const recoveryKey = (path: string) => `sketchdraw-v6-recovery:${encodeURIComponent(path)}`;
   function recoverySnapshot(): SketchFile {
     const snapshot = documentSnapshot(); const draft = textDraft(); if (!draft) return snapshot;
     const page = snapshot.pages.find(p => p.id === snapshot.activePageId); if (!page) return snapshot;
@@ -2178,63 +1961,19 @@ function App() {
   }
   function persistRecovery() {
     if (readOnlyView() || !activePath() || (!dirty() && !textDraft())) return;
-    try { localStorage.setItem(recoveryKey(activePath()!), JSON.stringify({ savedAt: Date.now(), baselineRaw: lastSavedRaw, snapshot: recoverySnapshot() })); } catch { /* Recovery is best-effort if browser storage is unavailable. */ }
+    docController.persistRecovery({ savedAt: Date.now(), baselineRaw: docController.baselineRaw(), snapshot: recoverySnapshot() });
   }
 
-  function applySnapshot(snapshot: SketchFile, path: string, rawText: string, nextWorkspace: WorkspaceArea = "chooser") {
-    pageHistories.clear(); setTextDraft(undefined); setNoteEditor(undefined); setContextMenu(undefined); setLayerPanelOpen(false); setTouchStylePanel(false); setQuickStylePopover(undefined); setCanvasOptionsOpen(false); setPaintBrushMenuOpen(false); setStencilMenuOpen(false); closeToolOptions(); setPreview(undefined); setMarquee(undefined); drawing = false; moveOrigin = undefined; resizeOrigin = undefined;
-    const currentPage = snapshot.pages.find((page) => page.id === snapshot.activePageId) ?? snapshot.pages[0];
-    setPages(snapshot.pages.map((page) => ({ ...page, elements: cloneElements(page.elements) })));
-    setActivePageId(currentPage.id); setElements(cloneElements(currentPage.elements)); setCanvasState({ ...currentPage.canvasState });
-    const project = snapshot.project ?? createProjectWorkspace(displayPathName(path).replace(/\.sketch$/i, ""));
-    setProjectWorkspaceData(project);
-    const library = snapshot.library ?? createPersonalLibrary();
-    setPersonalLibraryData(library);
+  function applySnapshot(snapshot: SketchFile, path: string, rawText: string, nextWorkspace: WorkspaceArea = "canvas") {
+    canvasHistory.clearAll(); setTextDraft(undefined); setNoteEditor(undefined); setContextMenu(undefined); setLayerPanelOpen(false); setTouchStylePanel(false); setQuickStylePopover(undefined); setCanvasOptionsOpen(false); setPaintBrushMenuOpen(false); setStencilMenuOpen(false); closeToolOptions(); setPreview(undefined); setMarquee(undefined); drawing = false; moveOrigin = undefined; resizeOrigin = undefined;
+    const syncMeta = syncTracker.initializeMetadata(snapshot, snapshot.windowsSync ?? createWindowsSyncMetadata());
+    const preparedSnapshot = { ...snapshot, windowsSync: syncMeta };
+    const currentPage = documentSession.activate(preparedSnapshot, path, nextWorkspace);
+    setElements(cloneElements(currentPage.elements)); setCanvasState({ ...currentPage.canvasState });
     setBoardColor(currentPage.canvasState.backgroundColor); setBoardColorFollowsTheme(currentPage.canvasState.boardColorFollowsTheme ?? false);
-    const syncMeta = snapshot.windowsSync ?? createWindowsSyncMetadata();
-    if (syncMeta && !snapshot.windowsSync) {
-      const now = Date.now();
-      for (const page of snapshot.pages) { syncMeta.clocks[`p:${page.id}`] = now; for (const element of page.elements) if (element.id) syncMeta.clocks[`e:${page.id}:${element.id}`] = now; }
-      syncMeta.clocks["w:meta"] = now;
-      for (const note of project.notes) syncMeta.clocks[`w:n:${note.id}`] = now;
-      for (const task of project.tasks) syncMeta.clocks[`w:t:${task.id}`] = now;
-      for (const milestone of project.milestones) syncMeta.clocks[`w:m:${milestone.id}`] = now;
-      for (const entry of project.logEntries) syncMeta.clocks[`w:l:${entry.id}`] = now;
-      for (const file of project.files) syncMeta.clocks[`w:f:${file.id}`] = now;
-      for (const note of library.quickNotes) syncMeta.clocks[`w:quick-note:${note.id}`] = now;
-      for (const note of library.studyNotes) syncMeta.clocks[`w:sn:${note.id}`] = now;
-      for (const card of library.studyCards) syncMeta.clocks[`w:sc:${card.id}`] = now;
-      for (const article of library.wikiArticles) syncMeta.clocks[`w:wiki:${article.id}`] = now;
-      for (const entry of library.journalEntries) syncMeta.clocks[`w:journal:${entry.id}`] = now;
-      for (const draft of library.writingDrafts) syncMeta.clocks[`w:writing:${draft.id}`] = now;
-      for (const source of library.researchSources) syncMeta.clocks[`w:research:${source.id}`] = now;
-      for (const entry of library.mediaEntries) syncMeta.clocks[`w:media:${entry.id}`] = now;
-    }
-    setWindowsSyncMetadata(syncMeta);
-    const observedEntries: [string, string][] = [
-      ...snapshot.pages.flatMap(page => [
-        [`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState })] as [string, string],
-        ...page.elements.flatMap(element => element.id ? [[`e:${page.id}:${element.id}`, JSON.stringify(element)] as [string, string]] : []),
-      ]),
-      ["w:meta", JSON.stringify({ name: project.name, description: project.description })],
-      ...project.notes.map(note => [`w:n:${note.id}`, JSON.stringify(note)] as [string, string]),
-      ...project.tasks.map(task => [`w:t:${task.id}`, JSON.stringify(task)] as [string, string]),
-      ...project.milestones.map(item => [`w:m:${item.id}`, JSON.stringify(item)] as [string, string]),
-      ...project.logEntries.map(item => [`w:l:${item.id}`, JSON.stringify(item)] as [string, string]),
-      ...project.files.map(item => [`w:f:${item.id}`, JSON.stringify(item)] as [string, string]),
-      ...library.quickNotes.map(note => [`w:quick-note:${note.id}`, JSON.stringify(note)] as [string, string]),
-      ...library.studyNotes.map(note => [`w:sn:${note.id}`, JSON.stringify(note)] as [string, string]),
-      ...library.studyCards.map(card => [`w:sc:${card.id}`, JSON.stringify(card)] as [string, string]),
-      ...library.wikiArticles.map(article => [`w:wiki:${article.id}`, JSON.stringify(article)] as [string, string]),
-      ...library.journalEntries.map(item => [`w:journal:${item.id}`, JSON.stringify(item)] as [string, string]),
-      ...library.writingDrafts.map(item => [`w:writing:${item.id}`, JSON.stringify(item)] as [string, string]),
-      ...library.researchSources.map(item => [`w:research:${item.id}`, JSON.stringify(item)] as [string, string]),
-      ...library.mediaEntries.map(item => [`w:media:${item.id}`, JSON.stringify(item)] as [string, string]),
-    ];
-    syncObserved = syncMeta ? new Map(observedEntries) : new Map();
-    setActivePath(path); rememberFile(path); setDirty(!snapshot.windowsSync); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); lastSavedRaw = rawText;
-    setWorkspaceArea(nextWorkspace);
-    undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1); setError("");
+    syncTracker.seed(preparedSnapshot);
+    rememberFile(path); setDirty(!snapshot.windowsSync); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); docController.setBaselineRaw(rawText);
+    setError("");
   }
 
   function restoreOpenedViewAt100(path: string, pageId: string) {
@@ -2251,49 +1990,16 @@ function App() {
   }
 
   function restoreRecovery() {
-    const recovery = recoveryPrompt(); if (!recovery) return;
-    const baseline = lastSavedRaw ?? "";
-    applySnapshot(recovery.snapshot, recovery.path, baseline, workspaceArea());
-    try { localStorage.removeItem(recoveryKey(recovery.path)); } catch { /* Best effort. */ }
-    setDirty(true); setRecoveryPrompt(undefined);
-    if (recovery.baselineRaw !== undefined && recovery.baselineRaw !== baseline) { setSyncConflict({ path: recovery.path, remote: baseline }); return; }
+    docController.restoreRecovery();
   }
   function discardRecovery() {
-    const recovery = recoveryPrompt(); if (!recovery) return;
-    try { localStorage.removeItem(recoveryKey(recovery.path)); } catch { /* Best effort. */ }
-    setRecoveryPrompt(undefined);
+    docController.discardRecovery();
   }
   async function reloadConflictingFile() {
-    const conflict = syncConflict(); if (!conflict) return;
-    try {
-      const raw: unknown = JSON.parse(conflict.remote); const parsed = parseSketchFile(raw);
-      if (!parsed) throw new Error("The updated file is not a valid SketchDraw document.");
-      applySnapshot(parsed, conflict.path, conflict.remote, workspaceArea()); setSyncConflict(undefined);
-      try { localStorage.removeItem(recoveryKey(conflict.path)); } catch { /* Best effort. */ }
-      if (isRecord(raw) && raw.version !== SKETCH_FORMAT_VERSION) { setDirty(true); await saveToPath(conflict.path); }
-    } catch (cause) { setError(`Could not reload the synchronized file: ${String(cause)}`); }
+    await docController.reloadConflict();
   }
   async function saveToPath(path: string) {
-    if (readOnlyView() || saveInFlight || recoveryPrompt()) return;
-    commitTextDraft(); saveInFlight = true; setSaving(true);
-    try {
-      const snapshot = documentSnapshot();
-      const encodedSnapshot = snapshotRaw(snapshot);
-      const isNewPath = activePath() !== path;
-      if (!isNewPath && lastSavedRaw !== undefined) {
-        const diskRaw = await readTextFile(path);
-        if (diskRaw !== lastSavedRaw) { setSyncConflict({ path, remote: diskRaw }); return; }
-      }
-      if (/^content:\/\//i.test(path)) await writeTextFile(path, encodedSnapshot);
-      else await invoke("atomic_save_sketch", { path: normalizeFileUri(path), contents: encodedSnapshot, expected: !isNewPath ? lastSavedRaw ?? null : null });
-      setActivePath(path); if (isNewPath) rememberFile(path);
-      lastSavedRaw = encodedSnapshot;
-      setSyncConflict(undefined);
-      try { localStorage.removeItem(recoveryKey(path)); } catch { /* Recovery cleanup is best-effort. */ }
-      setDirty(snapshotRaw(documentSnapshot()) !== encodedSnapshot);
-      setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setError("");
-    } catch (cause) { if (String(cause).includes("CONFLICT:")) { try { setSyncConflict({ path, remote: await readTextFile(path) }); } catch { /* Preserve recovery if disk is unavailable. */ } } setError(`Could not save file: ${String(cause)}`); }
-    finally { saveInFlight = false; setSaving(false); }
+    await docController.save(path);
   }
 
   async function saveAs() {
@@ -2305,7 +2011,7 @@ function App() {
       const selected = await createSketchDocument("Untitled.sketch");
       if (selected) {
         const path = withSketchExtension(selected);
-        if (/^content:\/\//i.test(path)) await invoke("authorize_sketch_file", { path });
+        if (/^content:\/\//i.test(path)) await sketchFileStore.authorize(path);
         await saveToPath(path);
       }
     } catch (cause) { setError(`Could not choose save location: ${String(cause)}`); } finally { setNativeBusy(false); }
@@ -2348,7 +2054,7 @@ function App() {
     setDocumentBusy(true);
     setNativeBusy(true);
     try {
-      while (saveInFlight) await new Promise<void>(resolve => window.setTimeout(resolve, 30));
+      while (docController.isSaveInFlight()) await new Promise<void>(resolve => window.setTimeout(resolve, 30));
       if (activePath() !== path) return;
       commitTextDraft();
       if (syncConflict()) return;
@@ -2366,7 +2072,7 @@ function App() {
       setActivePath(renamedPath);
       setOpenSketchPaths(paths => paths.map(item => normalizeFileUri(item) === normalizeFileUri(path) ? renamedPath : item));
       replaceRecentFilePath(path, renamedPath);
-      try { localStorage.removeItem(recoveryKey(path)); } catch { /* Best effort. */ }
+      sketchRecoveryStore.remove(path);
       setRenameFileOpen(false);
       setError("");
     } catch (cause) {
@@ -2391,7 +2097,7 @@ function App() {
     if (!path) return true;
     if (syncConflict()) return false;
     if (dirty()) {
-      while (saveInFlight) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
+      while (docController.isSaveInFlight()) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
       if (activePath() !== path || syncConflict()) return false;
       if (dirty()) await saveToPath(path);
       if (dirty() || syncConflict()) { setError("The current sketch could not be saved, so it was kept open."); return false; }
@@ -2399,23 +2105,44 @@ function App() {
     return true;
   }
 
+  function resetDocumentSession() {
+    canvasHistory.clearAll();
+    setElements([]); setCanvasState(emptyCanvas());
+    documentSession.reset();
+    setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false);
+    setTextDraft(undefined); setPreview(undefined); setMarquee(undefined); setContextMenu(undefined); setLayerPanelOpen(false); syncTracker.reset(); setOpenSketchPaths([]);
+    setRecoveryPrompt(undefined); setSyncConflict(undefined);
+    setTool("pen"); setMobileToolsExpanded(false); setToolBarOpen(true);
+  }
+
+  const docController = createDocumentController({
+    activePath, setActivePath,
+    dirty, setDirty,
+    readOnly: readOnlyView, setReadOnly: setReadOnlyView,
+    documentBusy, setDocumentBusy, setSaving, setSavedAt, setError,
+    recoveryPrompt, setRecoveryPrompt, syncConflict, setSyncConflict,
+    workspaceArea, snapshot: documentSnapshot, snapshotRaw, applySnapshot,
+    setStatus: setDocumentControllerStatus,
+    resetDocument: resetDocumentSession,
+    beforeReplace: saveBeforeReplacingDocument,
+    commitTextDraft,
+    rememberFile,
+    onOpened(path, viewOnly) {
+      if (isWindowsPlatform() && !viewOnly) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]);
+      if (viewOnly) { setTool("laser"); setSelectedIndices([]); setToolBarOpen(true); setMobileToolsExpanded(false); }
+      else if (tool() === "laser") setTool("pen");
+    },
+    restoreOpenedView: restoreOpenedViewAt100,
+    canCheckForUpdates: () => !document.hidden && !documentBusy() && !recoveryPrompt() && !docController.isSaveInFlight() && !drawing && !moveOrigin && !resizeOrigin && !textDraft(),
+    shouldKeepDocumentDirtyAfterUpdate: remote => isWindowsPlatform() && !remote.windowsSync,
+    normalizePath: normalizeFileUri,
+    isSketchPath,
+  });
+
   async function closeFile() {
     if (!activePath() || documentBusy()) return;
     if (isWindowsPlatform() && openSketchPaths().length > 1) { await closeSketchTab(activePath()!); return; }
-    setDocumentBusy(true);
-    try {
-      if (!await saveBeforeReplacingDocument()) return;
-      pageHistories.clear();
-      undoStack = []; redoStack = [];
-      setPages([]); setActivePageId(""); setElements([]); setCanvasState(emptyCanvas());
-      setProjectWorkspaceData(createProjectWorkspace()); setPersonalLibraryData(createPersonalLibrary()); setWorkspaceArea("canvas");
-      setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setActivePath(undefined);
-      setReadOnlyView(false);
-      setDirty(false); setSavedAt(""); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false);
-      setTextDraft(undefined); setPreview(undefined); setMarquee(undefined); setContextMenu(undefined); setLayerPanelOpen(false); setWindowsSyncMetadata(undefined); syncObserved = new Map(); setOpenSketchPaths([]);
-      setHistoryVersion(version => version + 1); lastSavedRaw = undefined; setError("");
-      setTool("pen"); setMobileToolsExpanded(false); setToolBarOpen(true);
-    } finally { setDocumentBusy(false); }
+    await docController.close();
   }
 
   async function closeSketchTab(path: string) {
@@ -2430,63 +2157,11 @@ function App() {
   }
 
   async function loadFile(path: string, viewOnly = false) {
-    if (documentBusy()) return;
-    setDocumentBusy(true);
-    try {
-      path = normalizeFileUri(path);
-      if (!isSketchPath(path)) throw new Error("Only .sketch documents are supported.");
-      if (!await saveBeforeReplacingDocument()) return;
-      // Android content URIs carry a temporary picker grant; ordinary and iOS
-      // file paths use the app's authorization and atomic-save flow.
-      const authorizedPath = await invoke<string>("authorize_sketch_file", { path: normalizeFileUri(path) });
-      const rawText = await readTextFile(authorizedPath);
-      const raw: unknown = JSON.parse(rawText);
-      const parsed = parseSketchFile(raw);
-      if (!parsed) throw new Error("This file is invalid or uses an unsupported SketchDraw format.");
-      const needsMigration = isRecord(raw) && raw.version !== SKETCH_FORMAT_VERSION;
-      applySnapshot(parsed, authorizedPath, rawText);
-      setReadOnlyView(viewOnly);
-      if (isWindowsPlatform() && !viewOnly) setOpenSketchPaths(paths => paths.includes(authorizedPath) ? paths : [...paths, authorizedPath]);
-      rememberFile(authorizedPath);
-      if (viewOnly) { setTool("laser"); setSelectedIndices([]); setToolBarOpen(true); setMobileToolsExpanded(false); }
-      else if (tool() === "laser") setTool("pen");
-      restoreOpenedViewAt100(authorizedPath, parsed.activePageId);
-      if (needsMigration && !viewOnly) setDirty(true);
-      if (!viewOnly) try {
-        const stored = localStorage.getItem(recoveryKey(authorizedPath));
-        if (stored) {
-          const entry: unknown = JSON.parse(stored);
-          const recovered = isRecord(entry) ? parseSketchFile(entry.snapshot) : undefined;
-          const baselineRaw = isRecord(entry) && typeof entry.baselineRaw === "string" ? entry.baselineRaw : undefined;
-          if (recovered && snapshotRaw(recovered) !== snapshotRaw(parsed)) setRecoveryPrompt({ path: authorizedPath, snapshot: recovered, baselineRaw });
-          else localStorage.removeItem(recoveryKey(authorizedPath));
-        }
-      } catch { /* Ignore malformed recovery data and leave the source file untouched. */ }
-      if (needsMigration && !viewOnly && !recoveryPrompt()) await saveToPath(authorizedPath);
-    } catch (cause) { setError(`Could not open file: ${String(cause)}`); } finally { setDocumentBusy(false); }
+    await docController.open(path, viewOnly);
   }
 
   async function pollSharedSketch() {
-    const path = activePath();
-    const baselineRaw = lastSavedRaw;
-    const wasReadOnly = readOnlyView();
-    if (!path || !baselineRaw || document.hidden || documentBusy() || recoveryPrompt() || saveInFlight || drawing || moveOrigin || resizeOrigin || textDraft()) return;
-    try {
-      const remoteRaw = await readTextFile(path);
-      if (activePath() !== path || lastSavedRaw !== baselineRaw || remoteRaw === baselineRaw) return;
-      const remoteParsed = parseSketchFile(JSON.parse(remoteRaw) as unknown);
-      if (!remoteParsed) return; // Cloud providers can briefly expose a partially synchronized file.
-      const localParsed = documentSnapshot();
-      const merged = mergeLatestSnapshots(localParsed, remoteParsed);
-      applySnapshot(merged, path, remoteRaw, workspaceArea());
-      setReadOnlyView(wasReadOnly);
-      setSyncConflict(undefined);
-      const hasMergedEdits = snapshotRaw(merged) !== snapshotRaw(remoteParsed);
-      setDirty(!wasReadOnly && (hasMergedEdits || (isWindowsPlatform() && !remoteParsed.windowsSync)));
-      if (hasMergedEdits) window.setTimeout(() => { if (activePath() === path && dirty() && !syncConflict()) void saveToPath(path); }, 80);
-    } catch {
-      // A disconnected cloud folder or provider lock is retried on the next poll.
-    }
+    await docController.checkForUpdates();
   }
 
   function setWindowsShortcut(id: WindowsShortcutId, value: string) {
@@ -2699,18 +2374,16 @@ function App() {
       if (!selected) return;
       if (!await saveBeforeReplacingDocument()) return;
       const path = withSketchExtension(selected);
-      if (/^content:\/\//i.test(path)) await invoke("authorize_sketch_file", { path });
+      if (/^content:\/\//i.test(path)) await sketchFileStore.authorize(path);
       const page: SketchPage = { id: "page-1", name: "Page 1", canvasState: emptyCanvas(), elements: [] };
       const project = createProjectWorkspace(displayPathName(path).replace(/\.sketch$/i, ""));
-      const library = createPersonalLibrary();
+      const library = createLegacyLibraryData();
       const windowsSync = createWindowsSyncMetadata();
       if (windowsSync) { windowsSync.clocks[`p:${page.id}`] = windowsSync.updatedAt; windowsSync.clocks["w:meta"] = windowsSync.updatedAt; }
       const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page], project, library, ...(windowsSync ? { windowsSync } : {}) };
       const contents = snapshotRaw(document);
-      if (/^content:\/\//i.test(path)) await writeTextFile(path, contents);
-      else await invoke("atomic_save_sketch", { path: normalizeFileUri(path), contents, expected: null });
-      pageHistories.clear(); setPages([page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setProjectWorkspaceData(project); setPersonalLibraryData(library); setWorkspaceArea("chooser"); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setActivePath(path); setReadOnlyView(false); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); setWindowsSyncMetadata(windowsSync); syncObserved = new Map([[`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState })], ["w:meta", JSON.stringify({ name: project.name, description: project.description })]]); setDirty(false); setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); setBoardLocked(false); setError(""); lastSavedRaw = contents;
-      undoStack = []; redoStack = []; setHistoryVersion((version) => version + 1);
+      await sketchFileStore.write(path, contents, null);
+      canvasHistory.clearAll(); documentSession.activate(document, path, "canvas"); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); syncTracker.seed(document); setDirty(false); setBoardLocked(false); setError(""); docController.setBaselineRaw(contents);
     } catch (cause) { setError(`Could not create SketchDraw file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
@@ -2722,7 +2395,6 @@ function App() {
 
   async function openRecentProject(path: string) {
     await loadFile(path);
-    if (activePath() && normalizeFileUri(activePath()!) === normalizeFileUri(path)) setWorkspaceArea("planning");
   }
 
   function openExportOptions(format: "png" | "svg" | "pdf") {
@@ -4069,24 +3741,23 @@ function App() {
           <details class="menu-dropdown portrait-menu-dropdown" ref={portraitMenu} onToggle={() => alignTouchMenuPopover(portraitMenu)}><summary aria-label="More menus"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg><span>Menu</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover portrait-menu-list" role="menu" aria-label="Other menus"><Show when={activePath() && workspaceArea() === "canvas"}><button role="menuitem" onClick={() => openPortraitMenuPanel(viewMenu)}>Canvas settings</button></Show><button role="menuitem" onClick={() => openPortraitMenuPanel(gestureMenu)}>Touch gestures</button><button role="menuitem" onClick={() => openPortraitMenuPanel(helpMenu)}>Help and updates</button></div></details>
           </TouchMenuBar>
         </nav>
-        <Show when={activePath()}><WorkspaceAreaTabs active={workspaceArea() === "chooser" ? "canvas" : workspaceArea() as "canvas" | "planning" | "library"} onSelect={navigateWorkspace} /></Show>
+        <Show when={activePath()}><WorkspaceAreaTabs active={workspaceArea()} onSelect={navigateWorkspace} /></Show>
         <Show when={activePath() && workspaceArea() === "canvas"}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} /></Show>
         <Show when={isWindowsPlatform() && activePath() && openSketchPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openSketchPaths()} activePath={activePath()} displayName={path => displayPathName(path)} onSelect={path => { if (path !== activePath()) void loadFile(path); }} onClose={path => void closeSketchTab(path)} /></Suspense></Show>
 
         <Show when={activePath()}><div class="top-actions"><span class="live-sync-indicator" title="Checks this open .sketch file for changes from another device every 1.6 seconds. Changes are merged after your cloud folder syncs."><i />Live file updates</span><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
       </header>
-      <For each={activePath() ? [activePath()!] : []}>{filePath => <>
-        <div class="workspace-area-layer" classList={{ active: workspaceArea() === "chooser" }}><WorkspaceChooser fileName={displayPathName(filePath)} onSelect={navigateWorkspace} /></div>
+      <For each={activePath() ? [activePath()!] : []}>{() => <>
         <div class="workspace-area-layer" classList={{ active: workspaceArea() === "planning" }}><ProjectWorkspace
           data={projectWorkspaceData()}
           editable={!readOnlyView()}
           onChange={data => { if (!readOnlyView()) { setProjectWorkspaceData(data); setDirty(true); } }}
           onNavigate={navigateWorkspace}
         /></div>
-        <div class="workspace-area-layer" classList={{ active: workspaceArea() === "library" }}><PersonalLibrary
-          data={personalLibraryData()}
+        <div class="workspace-area-layer" classList={{ active: workspaceArea() === "notebook" }}><Notebook
+          notes={legacyLibraryData().quickNotes}
           editable={!readOnlyView()}
-          onChange={data => { if (!readOnlyView()) { setPersonalLibraryData(data); setDirty(true); } }}
+          onChange={quickNotes => { if (!readOnlyView()) { setLegacyLibraryData(data => ({ ...data, quickNotes })); setDirty(true); } }}
         /></div>
       </>}</For>
       <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayPathName} onCreate={createFile} onNewProject={createProjectFromHome} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentProject={openRecentProject} /><section class="welcome-screen">

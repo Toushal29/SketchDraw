@@ -1,16 +1,5 @@
 /* Neutral charcoal surfaces across the app chrome and its controls. */
 .app-shell.theme-dark {
-    --dark-ui-base: #1d222a;
-    --dark-ui-surface: #222831;
-    --dark-ui-raised: #29313c;
-    --dark-ui-inset: #191e26;
-    --dark-ui-border: #3b4552;
-    --dark-ui-border-soft: #323b47;
-    --dark-ui-ink: #e0e5ed;
-    --dark-ui-muted: #a6afbc;
-    --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 24%, #28313d);
-    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 58%, #8a9bad);
-    --ui-accent-ink: color-mix(in srgb, var(--ui-accent) 54%, #f0f4f8);
     background: #181d24;
     color: var(--dark-ui-ink);
 }

@@ -43,6 +43,7 @@ export type LibraryResearchSource = { id: string; title: string; url: string; au
 export type LibraryMediaKind = "book" | "film" | "game" | "podcast" | "article" | "other";
 export type LibraryMediaStatus = "want" | "inProgress" | "complete";
 export type LibraryMediaEntry = { id: string; title: string; kind: LibraryMediaKind; status: LibraryMediaStatus; rating?: number; notes: string; startedAt?: string; completedAt?: string; createdAt: number; updatedAt: number };
+/** Version 8 storage payload retained for backward compatibility. Notebook edits quickNotes. */
 export type PersonalLibraryData = {
   quickNotes: ProjectNote[];
   studyNotes: ProjectNote[];
@@ -62,6 +63,7 @@ export type ProjectWorkspaceData = {
   logEntries: ProjectLogEntry[];
   files: ProjectFileEntry[];
 };
+/** The v8 `library` section is kept intact while its former screens are retired. */
 export type SketchDocumentSections = { canvas: { activePageId: string; pages: SketchPage[] }; planning: ProjectWorkspaceData; library: PersonalLibraryData };
 export const SKETCH_FORMAT_VERSION = 8 as const;
 export type WindowsSyncMetadata = { version: 1; updatedAt: number; deviceId: string; clocks: Record<string, number>; tombstones: Record<string, number> };

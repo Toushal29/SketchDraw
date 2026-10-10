@@ -9,13 +9,13 @@ const validDate = (value: unknown): value is string | undefined => {
   return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value;
 };
 
-export function createPersonalLibrary(): PersonalLibraryData {
+export function createLegacyLibraryData(): PersonalLibraryData {
   return { quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] };
 }
 
-export function normalizePersonalLibrary(value: unknown, legacyProject?: unknown): PersonalLibraryData | undefined {
+export function normalizeLegacyLibraryData(value: unknown, legacyProject?: unknown): PersonalLibraryData | undefined {
   const source = isRecord(value) ? value : isRecord(legacyProject) ? legacyProject : undefined;
-  if (!source) return value === undefined ? createPersonalLibrary() : undefined;
+  if (!source) return value === undefined ? createLegacyLibraryData() : undefined;
   const records = (key: string) => source[key] ?? [];
   const quickNoteValues = records("quickNotes");
   const noteValues = records("studyNotes");

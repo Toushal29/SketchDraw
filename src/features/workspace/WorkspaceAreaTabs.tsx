@@ -4,7 +4,7 @@ type Props = { active: DocumentWorkspaceArea; onSelect: (area: DocumentWorkspace
 const AREAS: { id: DocumentWorkspaceArea; label: string; hint: string }[] = [
   { id: "canvas", label: "Canvas", hint: "Draw and diagram" },
   { id: "planning", label: "Planning", hint: "Projects and tasks" },
-  { id: "library", label: "Library", hint: "Notes and personal tools" },
+  { id: "notebook", label: "Notebook", hint: "Personal notes" },
 ];
 
 export function WorkspaceAreaTabs(props: Props) {

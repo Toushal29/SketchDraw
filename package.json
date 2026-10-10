@@ -10,6 +10,7 @@
     "dev:windows:server": "vite --configLoader native --port 28649 --strictPort",
     "dev:android": "tauri android dev",
     "build": "vite build --configLoader native",
+    "test:focused": "node scripts/run-focused-tests.mjs",
     "serve": "vite preview",
     "tauri": "tauri"
   },

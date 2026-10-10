@@ -63,7 +63,7 @@ export function AppSettingsMenu(props: Props) {
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
       </summary>
       <div class="system-menu-popover app-settings-popover">
-        <header class="app-settings-heading"><strong>App settings</strong><small>Preferences apply across Canvas, Planning, and Library.</small></header>
+        <header class="app-settings-heading"><strong>App settings</strong><small>Preferences apply across Canvas, Planning, and Notebook.</small></header>
         <div class="app-setting-field">
           <span>Theme</span>
           <div class="app-setting-choices app-setting-choices-three" role="group" aria-label="Application theme">

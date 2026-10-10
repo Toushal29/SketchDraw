@@ -85,12 +85,6 @@
     text-align: center;
 }
 
-.app-shell {
-    --ui-accent: #3f78a5;
-    --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 11%, white);
-    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 42%, white);
-}
-
 .tool-icon-button.selected,
 .canvas-options-trigger.active {
     border-color: var(--ui-accent-border);
@@ -344,22 +338,6 @@
     font-size: 10px;
 }
 
-.app-shell {
-    --layer-ink: #29332d;
-    --layer-muted: #788179;
-    --layer-surface: #ffffff;
-    --layer-inset: #f7f9f7;
-    --layer-border: #e1e6e1;
-}
-
-.app-shell.theme-dark {
-    --layer-ink: var(--dark-ui-ink, #e0e5ed);
-    --layer-muted: var(--dark-ui-muted, #a6afbc);
-    --layer-surface: var(--dark-ui-surface, #222831);
-    --layer-inset: var(--dark-ui-inset, #191e26);
-    --layer-border: var(--dark-ui-border, #3b4552);
-}
-
 .app-shell.theme-dark .floating-layer-panel .layer-row {
     border-color: var(--layer-border);
     color: var(--layer-ink);
@@ -373,18 +351,6 @@
 
 .app-shell.theme-dark .floating-layer-panel .layer-row .layer-action[aria-pressed="true"] {
     color: var(--ui-accent-ink);
-}
-
-.app-shell {
-    --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 11%, white);
-    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 42%, white);
-    --ui-accent-ink: var(--ui-accent);
-}
-
-.theme-dark {
-    --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 22%, #292c33);
-    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 70%, #c9cbd4);
-    --ui-accent-ink: color-mix(in srgb, var(--ui-accent) 55%, #f3f4f7);
 }
 
 .theme-dark .tool-icon-button.selected,

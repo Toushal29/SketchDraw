@@ -1,3 +1,4 @@
+@import "./styles/app/tokens.css";
 @import "./styles/app/foundation.css";
 @import "./styles/canvas-navigation.css";
 @import "./styles/app/inspector.css";

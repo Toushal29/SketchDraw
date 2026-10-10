@@ -4,7 +4,7 @@ import { validReferences } from "../../operations";
 import { curveControlPoints } from "../canvas/geometry";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
 import { normalizeProjectWorkspace } from "../project/project-data";
-import { normalizePersonalLibrary } from "../library/library-data";
+import { normalizeLegacyLibraryData } from "./legacy-library-data";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -188,7 +188,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
     : undefined;
   const project = planningValue === undefined ? undefined : normalizeProjectWorkspace(planningValue);
   if (planningValue !== undefined && !project) return undefined;
-  const library = normalizePersonalLibrary(libraryValue, sections ? undefined : value.project);
+  const library = normalizeLegacyLibraryData(libraryValue, sections ? undefined : value.project);
   if (!library) return undefined;
   return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized, ...(project ? { project } : {}), library, ...(windowsSync ? { windowsSync } : {}) };
 }
