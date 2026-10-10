@@ -46,12 +46,14 @@ import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/Proper
 import { FLOWCHART_SHAPES, FLOWCHART_MENU_SHAPES } from "./features/diagrams/config";
 import { arrowHeadPoints, arrowHeadSvgPath, pointInPolygon, traceFlowchart, flowchartPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, connectorSvgPath, flowchartSvgPath, vectorFlowchartPath, flowchartSvgDetailPath, flowchartDatabaseRimPath } from "./features/canvas/geometry";
 import { unionBounds, elementBounds, distanceToSegment } from "./features/canvas/bounds";
+import { elementSpatialIndex } from "./features/canvas/spatial-index";
 import { getToolLayers, reorderToolLayer, toggleToolLayer } from "./features/canvas/tool-layers";
 import { createCanvasHistory } from "./features/canvas/history";
 import { pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePoint } from "./features/canvas/input";
 import { canGroupSelection, deletableSelectionCount as countDeletableSelection, focusedSelectionElement, isGroupSelection, primarySelectionIndex, selectedElements as getSelectedElements } from "./features/canvas/selection";
 import { createCanvasRenderScheduler, drawShapeLabel, fontCss, shapeLabelSvg, themeInk } from "./features/canvas/rendering";
 import { createCanvasSceneRenderer, transformHandlePoints } from "./features/canvas/scene-renderer";
+import { MAX_STROKE_POINTS } from "./features/canvas/stroke-limits";
 import { isRecord, normalizeElement } from "./features/files/parse-sketch";
 import { withSketchExtension, normalizeFileUri, isSketchPath, displayPathName } from "./features/files/paths";
 import { indentTextarea } from "./components/textarea-indent";
@@ -382,6 +384,7 @@ function App() {
   let drawing = false;
   let activeDrawingTool: Preview["type"] = "pen";
   let currentPoints: StrokePoint[] = [];
+  let strokePointLimitReached = false;
   let pendingAndroidStylusSamples: AndroidStylusSample[] = [];
   type StrokePathCache = { length: number; pressureAware: boolean; path?: Path2D; pressurePaths: Map<number, Path2D> };
   const strokePathCache = new WeakMap<StrokePoint[], StrokePathCache>();
@@ -784,6 +787,15 @@ function App() {
   const canRedo = () => { historyVersion(); return canvasHistory.canRedo(); };
   const toWorld = (event: PointerEvent): Point => pointerToWorld(event.clientX, event.clientY, canvas.getBoundingClientRect(), canvasState());
   const strokePointFromPointer = (event: PointerEvent, point: Point): StrokePoint => makeStrokePoint(event, point, penPressure(), penTilt());
+  function appendStrokePoint(point: StrokePoint) {
+    if (currentPoints.length >= MAX_STROKE_POINTS) {
+      if (!strokePointLimitReached) setError(`A stroke reached the ${MAX_STROKE_POINTS.toLocaleString()}-point limit. Its captured section was kept.`);
+      strokePointLimitReached = true;
+      return false;
+    }
+    currentPoints.push(point);
+    return true;
+  }
   function appendAndroidStylusSamples(samples: AndroidStylusSample[]) {
     if (!canvas || !samples.length || !drawing || activeDrawingTool !== "pen" || activePenPointerId === undefined) return;
     const bounds = canvas.getBoundingClientRect(); const state = canvasState(); let appended = false; let lastPoint: Point | undefined;
@@ -792,11 +804,11 @@ function App() {
       const point = pointerToWorld(sample.clientX, sample.clientY, bounds, state);
       const previous = currentPoints[currentPoints.length - 1];
       if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * state.zoom < .01) continue;
-      currentPoints.push({
+      if (!appendStrokePoint({
         ...point,
         ...(penPressure() ? { pressure: Math.max(0, Math.min(1, sample.pressure)) } : {}),
         ...(penTilt() ? { tiltX: Math.max(-90, Math.min(90, sample.tiltX)), tiltY: Math.max(-90, Math.min(90, sample.tiltY)), orientation: ((sample.orientation % 360) + 360) % 360 } : {}),
-      });
+      })) break;
       appended = true; lastPoint = point;
     }
     if (appended) {
@@ -1340,8 +1352,11 @@ function App() {
   function hitTest(point: Point): number | undefined {
     const zoom = canvasState().zoom;
     const tolerance = 12 / zoom;
-    for (let index = elements().length - 1; index >= 0; index--) {
-      const element = elements()[index]; const bounds = elementBounds(element);
+    const items = elements();
+    const candidates = elementSpatialIndex(items).query({ x: point.x - tolerance, y: point.y - tolerance, w: tolerance * 2, h: tolerance * 2 });
+    for (let candidateIndex = candidates.length - 1; candidateIndex >= 0; candidateIndex--) {
+      const index = candidates[candidateIndex];
+      const element = items[index]; const bounds = elementBounds(element);
       if (!intersectsBounds(point.x - tolerance, point.y - tolerance, point.x + tolerance, point.y + tolerance, bounds)) continue;
       if (hitElement(element, point, zoom)) return index;
     }
@@ -3137,7 +3152,7 @@ function App() {
     const start = activeDrawingTool === "line" || activeDrawingTool === "arrow" ? nearestBinding(elements(), point, 18 / canvasState().zoom)?.point ?? snap(point) : activeDrawingTool === "pen" ? point : snap(point);
     if (activeDrawingTool === "pen") {
       const laser = tool() === "laser"; const mode = brushMode();
-      const strokePoint = tool() === "pen" ? strokePointFromPointer(event, point) : point; currentPoints = [strokePoint];
+      const strokePoint = tool() === "pen" ? strokePointFromPointer(event, point) : point; currentPoints = [strokePoint]; strokePointLimitReached = false;
       const brushStyle: Record<BrushMode, { width: number; opacity: number }> = { fine: { width: 1, opacity: 1 }, pencil: { width: .72, opacity: .62 }, brush: { width: 2.2, opacity: .9 }, marker: { width: 3, opacity: .78 }, highlighter: { width: 6, opacity: .28 }, chalk: { width: 1.7, opacity: .48 } };
       const style = brushStyle[mode];
       setPreview({ type: "pen", start: point, end: point, color: laser ? laserColor() : color(), thickness: laser ? laserThickness() / canvasState().zoom : Math.max(mode === "highlighter" ? 12 : mode === "marker" ? 6 : 1, thickness() * style.width), opacity: laser ? 1 : style.opacity });
@@ -3159,7 +3174,7 @@ function App() {
     pendingAndroidStylusSamples = [];
     if (resizeOrigin) setElements(resizeOrigin.before);
     if (moveOrigin) { moveOrigin = undefined; scheduleCanvasRender(); }
-    drawing = false; currentPoints = []; penEraserDrawing = false;
+    drawing = false; currentPoints = []; strokePointLimitReached = false; penEraserDrawing = false;
     setPreview(undefined); setMarquee(undefined); setAttachmentHint(undefined); setAlignmentGuides(undefined);
     resizeOrigin = undefined; moveOrigin = undefined; marqueeOrigin = undefined; panOrigin = undefined;
     setIsPanning(false);
@@ -3218,7 +3233,7 @@ function App() {
     const previous = currentPoints[currentPoints.length - 1];
     const minDistance = event.pointerType === "pen" ? .01 : .05;
     if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * canvasState().zoom < minDistance) return;
-    currentPoints.push(tool() === "pen" ? strokePointFromPointer(event, point) : point);
+    appendStrokePoint(tool() === "pen" ? strokePointFromPointer(event, point) : point);
   }
 
   function appendPenSamples(event: PointerEvent, appendTerminal = true) {
@@ -3480,7 +3495,7 @@ function App() {
       const end = toWorld(event); const last = currentPoints[currentPoints.length - 1];
       const minDistance = event.pointerType === "pen" ? .01 : .05;
       if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= minDistance) {
-        currentPoints.push(tool() === "pen" ? { ...end, pressure: last.pressure, tiltX: last.tiltX, tiltY: last.tiltY } : end);
+        appendStrokePoint(tool() === "pen" ? { ...end, pressure: last.pressure, tiltX: last.tiltX, tiltY: last.tiltY } : end);
       }
     }
     drawing = false; const activePreview = preview();
@@ -3496,7 +3511,7 @@ function App() {
           return { ...trail, opacity };
         }), 32);
       }
-      currentPoints = []; setPreview(undefined); return;
+      currentPoints = []; strokePointLimitReached = false; setPreview(undefined); return;
     }
     if (activePreview) {
       const item: Element = activePreview.type === "pen"
@@ -3518,7 +3533,7 @@ function App() {
         if (isConnector(item)) { setSelectedIndices([newIndex]); setSidebarTab("properties"); }
       }
     }
-    currentPoints = []; setPreview(undefined);
+    currentPoints = []; strokePointLimitReached = false; setPreview(undefined);
   }
 
   const tools: { value: Tool; label: string; key: string; path: string }[] = [
@@ -4322,11 +4337,11 @@ function App() {
         </div><div class="export-preview-panel"><div class="export-preview-label"><strong>Preview</strong><Show when={exportFormat() === "pdf"} fallback={<span>{exportWidth()} &times; {exportHeight()} px</span>}><div class="pdf-preview-pages"><button disabled={pdfPreviewPage() <= 1} aria-label="Previous PDF page" onClick={() => setPdfPreviewPage(value => Math.max(1, value - 1))}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5"/></svg></button><span>Page {pdfPreviewPage()} of {pdfMetrics().pageCount}</span><button disabled={pdfPreviewPage() >= pdfMetrics().pageCount} aria-label="Next PDF page" onClick={() => setPdfPreviewPage(value => Math.min(pdfMetrics().pageCount, value + 1))}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button></div></Show></div><div class="export-preview-frame" classList={{ transparent: exportFormat() !== "pdf" && exportTransparent() }}><canvas ref={exportPreviewCanvas} aria-label={`${exportFormat().toUpperCase()} export preview`} /></div><small>{exportFormat() === "pdf" && pdfPageSet() === "all" ? `Sketch page ${pdfPreviewPage()} of ${pages().length}` : exportScope() === "drawing" ? "Whole drawing" : exportScope() === "selection" ? "Selected objects" : "Current viewport"}{exportFormat() === "pdf" ? ` / ${pdfPageSpec().widthMm.toFixed(0)} x ${pdfPageSpec().heightMm.toFixed(0)} mm / ${pdfDpi()} DPI` : exportTransparent() ? " / transparent" : " / whiteboard background"}</small></div></div>
       </section></div></Show>
       <Show when={recoveryPrompt()}>{(recovery) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="recovery-title"><h2 id="recovery-title">Recover unsaved work?</h2><p>SketchDraw found a local recovery copy for <strong>{recovery().path.split(/[\\/]/).pop()}</strong>. Restore it or continue with the saved file.</p><div><button class="quiet-button" onClick={discardRecovery}>Use saved file</button><button class="save-button" onClick={restoreRecovery}>Restore recovery</button></div></section></div>}</Show>
-      <Show when={syncConflict()}>{(conflict) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title"><h2 id="conflict-title">File changed elsewhere</h2><p><strong>{conflict().path.split(/[\\/]/).pop()}</strong> is being merged with the latest shared-folder version. If automatic merging cannot finish, save your work to another file or load the disk version.</p><div class="conflict-actions"><button class="quiet-button" onClick={() => void saveAs()}>Save my version as…</button><button class="quiet-button" onClick={reloadConflictingFile}>Load disk version</button></div></section></div>}</Show>
+      <Show when={syncConflict()}>{(conflict) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title"><h2 id="conflict-title">File changed elsewhere</h2><p><strong>{displayPathName(conflict().path)}</strong> changed after you opened it, so SketchDraw paused this save to protect the newer copy. Your current work is still open. Save it as a separate file or load the disk version, which replaces your current work.</p><div class="conflict-actions"><button class="quiet-button" onClick={() => void saveAs()}>Save my version as…</button><button class="quiet-button" onClick={reloadConflictingFile}>Load disk version</button></div></section></div>}</Show>
       <Show when={isWindowsPlatform()}><Suspense fallback={null}><WindowsCommandPalette open={commandPaletteOpen()} commands={windowsCommands()} onClose={() => setCommandPaletteOpen(false)} /></Suspense></Show>
       <Show when={isWindowsPlatform() && shortcutDialogOpen()}><Suspense fallback={null}><WindowsKeyboardShortcutsDialog shortcuts={shortcuts()} onChange={setWindowsShortcut} onReset={resetWindowsShortcuts} onClose={() => setShortcutDialogOpen(false)} /></Suspense></Show>
       <Show when={showClearConfirm()}><div class="confirm-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setShowClearConfirm(false); }}><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">Clear this canvas?</h2><p>This will remove all {elements().length} items from the open sketch. You can undo this action.</p><div><button class="quiet-button" onClick={() => setShowClearConfirm(false)}>Cancel</button><button class="danger-button" onClick={() => { if (elements().length && !boardLocked()) { pushUndo(cloneElements(elements())); setElements([]); setSelectedIndices([]); setDirty(true); } setShowClearConfirm(false); }}>Clear canvas</button></div></section></div></Show>
-      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">{helpSection() === "guide" ? "SKETCHDRAW GUIDE" : "SHORTCUT REFERENCE"}</span><h2 id="help-title">{helpSection() === "guide" ? "Guide" : "Keyboard shortcuts"}</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 8 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the toolbar, then click or drag on the canvas. Common style controls sit beside the canvas; open the properties button for the full settings panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Hold Space or choose Hand to pan, or use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Add and manage pages from the page strip. Use View to change the theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section><section class="touch-guide-section"><h3>Phone and tablet controls</h3><p>The compact tool dock stays on the left. Tap <strong>More</strong> to show the remaining tools, then tap it again to collapse the dock. The four-square button at the top of the dock opens canvas options such as grid, snapping, and fit-to-view.</p></section><section class="touch-guide-section"><h3>Properties and components</h3><p>Tap the Quick style or Advanced style button in the left dock. Quick style adjusts color and width; Advanced style adds tool-specific options. Close either panel with its top-corner button. Open Symbols and elements from the expanded tools and scroll its list vertically to browse components.</p></section><section class="touch-guide-section"><h3>Touch, stylus, and navigation</h3><p>Draw with a finger or stylus. Pinch with two fingers to zoom. Open Pages in the top bar to switch, add, rename, or organize pages. The zoom percentage button recenters the canvas and resets to 100%. Set tap-only actions under Gestures &gt; Tap actions. Configure one-finger drags and two- or three-finger movement separately under Gestures &gt; Finger movements. A compatible stylus uses the active tool. Tap a style button in the tool dock to change pen, brush, or shape settings.</p></section></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 8 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
+      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">{helpSection() === "guide" ? "SKETCHDRAW GUIDE" : "SHORTCUT REFERENCE"}</span><h2 id="help-title">{helpSection() === "guide" ? "Guide" : "Keyboard shortcuts"}</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 8 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the toolbar, then click or drag on the canvas. Common style controls sit beside the canvas; open the properties button for the full settings panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Hold Space or choose Hand to pan, or use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Add and manage pages from the page strip. Use View to change the theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section><section class="touch-guide-section"><h3>Phone and tablet controls</h3><p>The compact tool dock stays on the left. Tap <strong>More</strong> to show the remaining tools, then tap it again to collapse the dock. The four-square button at the top of the dock opens canvas options such as grid, snapping, and fit-to-view.</p></section><section class="touch-guide-section"><h3>Properties and components</h3><p>Tap the Quick style or Advanced style button in the left dock. Quick style adjusts color and width; Advanced style adds tool-specific options. Close either panel with its top-corner button. Open Symbols and elements from the expanded tools and scroll its list vertically to browse components.</p></section><section class="touch-guide-section"><h3>Touch, stylus, and navigation</h3><p>Draw with a finger or stylus. Pinch with two fingers to zoom. Open Pages in the top bar to switch, add, rename, or organize pages. The zoom percentage button recenters the canvas and resets to 100%. Set tap-only actions under Gestures &gt; Tap actions. Configure one-finger drags and two- or three-finger movement separately under Gestures &gt; Finger movements. A compatible stylus uses the active tool. Tap a style button in the tool dock to change pen, brush, or shape settings.</p></section></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 9 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
       <Show when={error()}><div class="error-toast" role="alert">{error()}<button onClick={() => setError("")}>Dismiss</button></div></Show>
     </main>
   );

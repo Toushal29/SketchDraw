@@ -4,9 +4,9 @@
 
 SketchDraw is an offline-first project workspace for Windows, Android, and iOS. Draw diagrams, plan work, and keep notes and tasks together in one portable `.sketch` file. Save locally or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
 
-**Current release: Windows 8.0.0 · Android 3.0.0 · Document format: version 8 · Copyright © 2026 Toushal Sampat**
+**Current release: Windows 9.0.0 | Android 4.0.0 | Document format: v9 | Copyright (c) 2026 Toushal Sampat**
 
-> SketchDraw saves version 8 `.sketch` documents on both platforms. New and opened sketches start on Canvas, with Planning and Notebook available from the workspace tabs. The v8 file keeps its existing `library` section for compatibility; Notebook edits quick notes there while other previously saved library records remain preserved. SketchDraw versions 1-7 are migrated to v8 when opened and saved back to the same `.sketch` file.
+> SketchDraw saves version 9 `.sketch` documents on both platforms. New and opened sketches start on Canvas, with Planning and Notebook available from the workspace tabs. V9 stores Notebook notes separately and keeps retired Library records in an archive section. Versions 1-8 remain readable and migrate to v9 when opened and saved.
 
 ## Screenshots and previews
 
@@ -121,7 +121,7 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 - **Connectors:** Draw straight or curved lines, multi-point lines, and straight, elbow, forked, loop, or jagged arrows. Attach endpoints to shapes, choose line and arrowhead styles, and drag route handles. Windows also offers automatic obstacle routing with editable waypoints.
 - **Selection and layers:** Move, resize, rotate, group, duplicate, align, and distribute objects. Copy and paste objects or their styles, and edit precise values. Layers group all objects by drawing tool, so each tool has one selectable, reorderable, hideable, and lockable layer. Undo and redo history is kept per page for the current session.
 - **Canvas navigation:** Pan, zoom, fit the full drawing, or zoom to a selection. Set the board color and paper pattern, use grid and object snapping, and open Canvas options for rulers, alignment guides, and an optional minimap.
-- **Pages and project files:** Keep up to 100 named canvas pages plus planning and notebook records in one portable version 8 `.sketch` file. Older personal-library records are preserved when a file is opened and saved. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, recovery can restore interrupted edits, and up to eight recent file paths appear on Home. Recognized version 1-7 SketchDraw files are migrated when opened and saved.
+- **Pages and project files:** Keep up to 100 named canvas pages plus planning and notebook records in one portable version 9 `.sketch` file. Older personal-library records are preserved when a file is opened and saved. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, recovery can restore interrupted edits, and up to eight recent file paths appear on Home. Recognized version 1-8 SketchDraw files are migrated when opened and saved.
 - **Text and note cards:** Add plain text, Markdown, tables, code notes, notes, sticky notes, and checklists to the canvas. Markdown supports headings, lists, tables, and syntax-colored code blocks. Resize, title, format, collapse, expand, and edit cards in place; collapsed cards retain a short content or progress summary.
 - **Diagram as code:** Paste Mermaid flowchart code, preview it, and generate native shapes and attached connectors. The source stays with the diagram, so it can be reopened, edited, and regenerated later.
 - **Database schema visualizer:** Paste SQL `CREATE TABLE` statements or JSON table definitions to create editable table cards with primary- and foreign-key fields. Generated connectors attach to matching field rows, and each card can reopen its saved source for editing.
@@ -148,7 +148,9 @@ Planned modeling improvements include:
 - **Data flows:** Add optional animated indicators to show direction through architecture diagrams.
 ## File format
 
-SketchDraw uses a JSON-based **version 8** format in `.sketch` files. Versions 1-7 are normalized to v8 when opened and saved back to their existing `.sketch` path. Version 8 stores `canvas` pages and drawing objects, `planning` records, and the original `library` payload. The app uses its quick-note collection as Notebook and preserves older library collections when saving, so removing their screens does not remove their data. Edit-clock metadata supports shared-folder updates. Windows, phone, and tablet apps preserve the sections in the same document. `.sketchdraw` files and malformed or unrelated files remain unsupported.
+SketchDraw uses a JSON-based **version 9** format in `.sketch` files. Versions 1-8 are normalized to v9 when opened and saved back to their existing `.sketch` path. Version 9 stores `canvas`, `planning`, and `notebook` sections, with the retired Library collections held in `retiredLibraryArchive`. Version 8 and older Library collections are migrated into those v9 sections without dropping records. Edit-clock metadata supports shared-folder updates. Windows, phone, and tablet apps preserve the sections in the same document. `.sketchdraw` files and malformed or unrelated files remain unsupported.
+
+To convert a file outside the app, run `npm run convert:sketch -- old.sketch converted.sketch`. The converter accepts supported SketchDraw versions 1-9, writes a v9 file to the requested destination, and refuses to overwrite the source or an existing destination.
 
 SketchDraw does not host online workspaces or live cursors. Shared-file updates use the local file or provider URI and the sync service managing that folder; there is no SketchDraw server or cloud account. Conflicts use last-edit-wins metadata, so devices should have reasonably accurate system clocks. Offline changes merge after the provider delivers them.
 

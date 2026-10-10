@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use tauri::{plugin::{Builder, TauriPlugin}, Manager, State};
+use tauri::{
+    plugin::{Builder, TauriPlugin},
+    Manager, State,
+};
 
 #[cfg(target_os = "android")]
 use tauri::plugin::PluginHandle;
@@ -59,7 +62,8 @@ pub(crate) fn init() -> TauriPlugin<tauri::Wry> {
         .setup(|app, api| {
             #[cfg(target_os = "android")]
             {
-                let plugin = api.register_android_plugin("com.toush.sketchdraw", "AndroidStylusPlugin")?;
+                let plugin =
+                    api.register_android_plugin("com.toush.sketchdraw", "AndroidStylusPlugin")?;
                 app.manage(AndroidStylusHandle { plugin });
             }
             #[cfg(not(target_os = "android"))]

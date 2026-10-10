@@ -31,6 +31,14 @@ struct RenameDocumentArgs {
 }
 
 #[cfg(target_os = "android")]
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WriteDocumentArgs {
+    uri: String,
+    contents: String,
+}
+
+#[cfg(target_os = "android")]
 #[derive(Deserialize)]
 struct NativeDocumentResult {
     uri: Option<String>,
@@ -211,6 +219,31 @@ pub(crate) async fn has_sketch_document_write_access(
     {
         let _ = (uri, state);
         Err("Document-provider permissions are only available on Android.".into())
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn write_sketch_document(
+    uri: String,
+    contents: String,
+    state: State<'_, AndroidDocumentsHandle>,
+) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        state
+            .plugin
+            .run_mobile_plugin_async::<NativeEmptyResult>(
+                "writeSketchDocument",
+                WriteDocumentArgs { uri, contents },
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (uri, contents, state);
+        Err("Document-provider file writing is only available on Android.".into())
     }
 }
 

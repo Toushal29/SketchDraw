@@ -13,6 +13,7 @@ import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.brush.Brush
 import androidx.ink.brush.SelfOverlap
 import androidx.ink.brush.StockBrushes
+import androidx.ink.strokes.Stroke
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.PI
@@ -34,12 +35,14 @@ internal object AndroidStylusInkController {
   private val density: Float
     get() = activity?.resources?.displayMetrics?.density ?: 1f
 
-  private val finishedListener = InProgressStrokesFinishedListener { strokes ->
-    val finishedIds = strokes.keys.toSet()
-    val view = inkView ?: return@InProgressStrokesFinishedListener
-    // The WebView's normal pointer path commits the same stroke to the canvas.
-    // Leave the Ink version visible briefly while that canvas frame is rendered.
-    view.postDelayed({ inkView?.removeFinishedStrokes(finishedIds) }, 100L)
+  private val finishedListener = object : InProgressStrokesFinishedListener {
+    override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
+      val finishedIds = strokes.keys.toSet()
+      val view = inkView ?: return
+      // The WebView's normal pointer path commits the same stroke to the canvas.
+      // Leave the Ink version visible briefly while that canvas frame is rendered.
+      view.postDelayed({ inkView?.removeFinishedStrokes(finishedIds) }, 100L)
+    }
   }
 
   fun attach(mainActivity: MainActivity) {

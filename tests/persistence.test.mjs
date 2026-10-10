@@ -5,7 +5,7 @@ import test from "node:test";
 
 const require = createRequire(import.meta.url);
 const build = process.env.SKETCHDRAW_TEST_BUILD_DIR;
-const { parseSketchFile } = require(path.join(build, "src/features/files/parse-sketch.js"));
+const { parseSketchFile, sketchFileResourceError } = require(path.join(build, "src/features/files/parse-sketch.js"));
 const { serializeSketchSnapshot } = require(path.join(build, "src/features/files/document-codec.js"));
 const { sketchRecoveryStore } = require(path.join(build, "src/features/files/sketch-recovery-store.js"));
 const { restoreDocumentRecovery } = require(path.join(build, "src/features/document/document-recovery.js"));
@@ -21,15 +21,15 @@ function emptyProject() {
   return { name: "Project", description: "", notes: [], tasks: [], milestones: [], logEntries: [], files: [] };
 }
 
-function validV8Snapshot(library) {
+function validSketchSnapshot(library) {
   return {
-    format: "SketchDraw", version: 8, activePageId: "p1",
+    format: "SketchDraw", version: 9, activePageId: "p1",
     pages: [{ id: "p1", name: "Page 1", canvasState: { zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff", boardColorFollowsTheme: true }, elements: [] }],
     project: emptyProject(), library,
   };
 }
 
-test("opens a v5 file and normalizes it to the current v8 document model", () => {
+test("opens a v5 file and normalizes it to the current v9 document model", () => {
   const parsed = parseSketchFile({
     format: "SketchDraw", version: 5,
     pages: [{ id: "old-page", name: "Old page", canvasState: { zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff" }, elements: [
@@ -37,13 +37,31 @@ test("opens a v5 file and normalizes it to the current v8 document model", () =>
     ] }],
   });
   assert.ok(parsed);
-  assert.equal(parsed.version, 8);
+  assert.equal(parsed.version, 9);
   assert.equal(parsed.pages[0].id, "old-page");
   assert.equal(parsed.pages[0].canvasState.boardColorFollowsTheme, true);
   assert.equal(typeof parsed.pages[0].elements[0].id, "string");
 });
 
-test("saving a v8 snapshot preserves every retired Library collection", () => {
+test("rejects a stroke whose point count exceeds the input budget", () => {
+  const document = validSketchSnapshot({ quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] });
+  document.pages[0].elements = [{ type: "freehand", id: "large-stroke", points: Array.from({ length: 100_001 }, () => ({ x: 0, y: 0 })), color: "#202124", thickness: 2 }];
+  assert.equal(parseSketchFile(document), undefined);
+});
+
+test("rejects canvas text beyond the per-element size limit", () => {
+  const document = validSketchSnapshot({ quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] });
+  document.pages[0].elements = [{ type: "text", id: "large-text", x: 0, y: 0, text: "x".repeat(100_001), color: "#202124", fontSize: 14 }];
+  assert.equal(parseSketchFile(document), undefined);
+});
+
+test("prevents saving a document that exceeds the reopenable stroke budget", () => {
+  const document = validSketchSnapshot({ quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] });
+  document.pages[0].elements = Array.from({ length: 11 }, (_, index) => ({ type: "freehand", id: `stroke-${index}`, points: new Array(100_000), color: "#202124", thickness: 2 }));
+  assert.match(sketchFileResourceError(document), /point save limit/);
+});
+
+test("reads v8 documents and migrates Notebook and all retired Library records into v9", () => {
   const library = {
     quickNotes: [{ id: "q1", title: "Quick", content: "Keep this", createdAt: 1, updatedAt: 2 }],
     studyNotes: [{ id: "sn1", title: "Study", content: "Legacy note", createdAt: 1, updatedAt: 2 }],
@@ -54,8 +72,33 @@ test("saving a v8 snapshot preserves every retired Library collection", () => {
     researchSources: [{ id: "r1", title: "Source", url: "", author: "", year: "", citation: "", quote: "", notes: "", tags: [], createdAt: 1, updatedAt: 2 }],
     mediaEntries: [{ id: "m1", title: "Media", kind: "book", status: "complete", notes: "", createdAt: 1, updatedAt: 2 }],
   };
-  const snapshot = validV8Snapshot(library);
-  const savedRaw = serializeSketchSnapshot(snapshot);
+  const current = validSketchSnapshot(library);
+  const parsedV8 = parseSketchFile({
+    format: "SketchDraw", version: 8,
+    sections: {
+      canvas: { activePageId: current.activePageId, pages: current.pages },
+      planning: current.project,
+      library,
+    },
+  });
+  assert.ok(parsedV8);
+  assert.equal(parsedV8.version, 9);
+  assert.deepEqual(parsedV8.library, library);
+
+  const savedRaw = serializeSketchSnapshot(parsedV8);
+  const saved = JSON.parse(savedRaw);
+  assert.equal(saved.version, 9);
+  assert.deepEqual(saved.sections.notebook.notes, library.quickNotes);
+  assert.equal("library" in saved.sections, false);
+  assert.deepEqual(saved.sections.retiredLibraryArchive, {
+    studyNotes: library.studyNotes,
+    studyCards: library.studyCards,
+    wikiArticles: library.wikiArticles,
+    journalEntries: library.journalEntries,
+    writingDrafts: library.writingDrafts,
+    researchSources: library.researchSources,
+    mediaEntries: library.mediaEntries,
+  });
   const reopened = parseSketchFile(JSON.parse(savedRaw));
   assert.ok(reopened);
   assert.deepEqual(reopened.library, library);
@@ -63,7 +106,7 @@ test("saving a v8 snapshot preserves every retired Library collection", () => {
 
 test("recovery storage restores interrupted work and flags a changed file baseline", () => {
   globalThis.localStorage = new MemoryStorage();
-  const recovered = validV8Snapshot({ quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] });
+  const recovered = validSketchSnapshot({ quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] });
   recovered.pages[0].name = "Recovered page";
   const entry = { savedAt: 100, baselineRaw: "old file contents", snapshot: recovered };
   assert.equal(sketchRecoveryStore.write("/sketches/a.sketch", entry), true);

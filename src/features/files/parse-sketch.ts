@@ -5,6 +5,7 @@ import { curveControlPoints } from "../canvas/geometry";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
 import { normalizeProjectWorkspace } from "../project/project-data";
 import { normalizeLegacyLibraryData } from "./legacy-library-data";
+import { MAX_DOCUMENT_STROKE_POINTS, MAX_STROKE_POINTS } from "../canvas/stroke-limits";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -24,10 +25,12 @@ export function finite(value: unknown): value is number {
 const MAX_ELEMENT_DEPTH = 64;
 const MAX_ELEMENTS_PER_PAGE = 20_000;
 const MAX_DOCUMENT_ELEMENT_NODES = 100_000;
-type ElementParseBudget = { remaining: number };
+export const MAX_CANVAS_TEXT_LENGTH = 100_000;
+type ElementParseBudget = { remaining: number; remainingStrokePoints: number };
+type ElementNodeBudget = { remaining: number };
 
 export function normalizeElement(value: unknown): Element | undefined {
-  return normalizeElementWithinBudget(value, 0, { remaining: MAX_DOCUMENT_ELEMENT_NODES });
+  return normalizeElementWithinBudget(value, 0, { remaining: MAX_DOCUMENT_ELEMENT_NODES, remainingStrokePoints: MAX_DOCUMENT_STROKE_POINTS });
 }
 
 function normalizeElementWithinBudget(value: unknown, depth: number, budget: ElementParseBudget): Element | undefined {
@@ -59,13 +62,14 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     return { type: "group", ...flags, elements: children as Element[], note, mermaid };
   }
   if (value.type === "freehand") {
-    if (!Array.isArray(value.points) || !value.points.every((point) => isRecord(point) && finite(point.x) && finite(point.y)) || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0) return undefined;
+    if (!Array.isArray(value.points) || value.points.length > MAX_STROKE_POINTS || value.points.length > budget.remainingStrokePoints || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0 || !value.points.every((point) => isRecord(point) && finite(point.x) && finite(point.y))) return undefined;
+    budget.remainingStrokePoints -= value.points.length;
     const thickness = Math.max(1, Math.round(value.thickness));
     const points: StrokePoint[] = value.points.map((point) => ({ x: (point as Record<string, unknown>).x as number, y: (point as Record<string, unknown>).y as number, ...(finite((point as Record<string, unknown>).pressure) ? { pressure: Math.max(0, Math.min(1, (point as Record<string, unknown>).pressure as number)) } : {}), ...(finite((point as Record<string, unknown>).tiltX) ? { tiltX: Math.max(-90, Math.min(90, (point as Record<string, unknown>).tiltX as number)) } : {}), ...(finite((point as Record<string, unknown>).tiltY) ? { tiltY: Math.max(-90, Math.min(90, (point as Record<string, unknown>).tiltY as number)) } : {}), ...(finite((point as Record<string, unknown>).orientation) ? { orientation: ((point as Record<string, unknown>).orientation as number % 360 + 360) % 360 } : {}) }));
     return { type: "freehand", ...flags, points, color: value.color, thickness, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
   }
   if (value.type === "text") {
-    if (!finite(value.x) || !finite(value.y) || typeof value.text !== "string" || !isColor(value.color) || !finite(value.fontSize) || value.fontSize < 8) return undefined;
+    if (!finite(value.x) || !finite(value.y) || typeof value.text !== "string" || value.text.length > MAX_CANVAS_TEXT_LENGTH || !isColor(value.color) || !finite(value.fontSize) || value.fontSize < 8) return undefined;
     const fontFamily: FontFamily = ["hand", "serif", "mono"].includes(String(value.fontFamily)) ? value.fontFamily as FontFamily : "sans";
     const textAlign = value.textAlign === "center" || value.textAlign === "right" || value.textAlign === "justify" ? value.textAlign : "left";
     const listType = value.listType === "bullet" || value.listType === "number" ? value.listType : "none";
@@ -139,12 +143,18 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
 export function parseSketchFile(value: unknown): SketchFile | undefined {
   if (!isRecord(value) || value.format !== "SketchDraw") return undefined;
   const version = Number(value.version);
+  if (!Number.isInteger(version) || version < 1 || version > SKETCH_FORMAT_VERSION) return undefined;
   const sections = isRecord(value.sections) ? value.sections : undefined;
-  if (sections && (!isRecord(sections.canvas) || !isRecord(sections.planning) || !isRecord(sections.library))) return undefined;
+  if (sections && (!isRecord(sections.canvas) || !isRecord(sections.planning))) return undefined;
+  if (sections && version === 8 && !isRecord(sections.library)) return undefined;
+  if (sections && version >= 9 && (!isRecord(sections.notebook) || !Array.isArray(sections.notebook.notes) || !isRecord(sections.retiredLibraryArchive))) return undefined;
+  if (sections && version < 8) return undefined;
   const canvasSection = sections ? sections.canvas as Record<string, unknown> : value;
   const planningValue = sections ? sections.planning : value.project;
-  const libraryValue = sections ? sections.library : value.library;
-  const addLegacyElementIds = (item: unknown, depth = 0, budget: ElementParseBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES }): unknown => {
+  const libraryValue = sections && version >= 9
+    ? { ...(sections.retiredLibraryArchive as Record<string, unknown>), quickNotes: (sections.notebook as Record<string, unknown>).notes }
+    : sections ? sections.library : value.library;
+  const addLegacyElementIds = (item: unknown, depth = 0, budget: ElementNodeBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES }): unknown => {
     if (!isRecord(item)) return item;
     if (depth > MAX_ELEMENT_DEPTH || budget.remaining <= 0) return {};
     budget.remaining -= 1;
@@ -165,8 +175,8 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
     return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff" }, elements: elements as Element[] };
   };
   const sourcePages = Array.isArray(canvasSection.pages) ? canvasSection.pages : Array.isArray(canvasSection.elements) ? [{ id: crypto.randomUUID(), name: "Page 1", canvasState: canvasSection.canvasState, elements: canvasSection.elements }] : undefined;
-  if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100 || !Number.isInteger(version) || version < 1 || version > SKETCH_FORMAT_VERSION || (sections && version < 8)) return undefined;
-  const elementBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES };
+  if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100) return undefined;
+  const elementBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES, remainingStrokePoints: MAX_DOCUMENT_STROKE_POINTS };
   const pages = sourcePages.map((page, index) => {
     if (!isRecord(page)) return undefined;
     const state = isRecord(page.canvasState) ? page.canvasState : {};
@@ -191,4 +201,42 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
   const library = normalizeLegacyLibraryData(libraryValue, sections ? undefined : value.project);
   if (!library) return undefined;
   return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized, ...(project ? { project } : {}), library, ...(windowsSync ? { windowsSync } : {}) };
+}
+
+/** Keeps files written by the app inside the same resource limits as files it can reopen. */
+export function sketchFileResourceError(file: SketchFile): string | undefined {
+  let nodeCount = 0;
+  let strokePointCount = 0;
+  const visit = (elements: Element[], depth: number): string | undefined => {
+    if (depth > MAX_ELEMENT_DEPTH) return "This sketch contains groups nested too deeply to save safely.";
+    for (const element of elements) {
+      nodeCount += 1;
+      if (nodeCount > MAX_DOCUMENT_ELEMENT_NODES) return "This sketch contains too many canvas objects to save safely.";
+      if (element.type === "group") {
+        if (element.elements.length > MAX_ELEMENTS_PER_PAGE) return "A group contains too many canvas objects to save safely.";
+        const error = visit(element.elements, depth + 1);
+        if (error) return error;
+      } else if ("label" in element && element.label) {
+        if (depth + 1 > MAX_ELEMENT_DEPTH) return "This sketch contains labels nested too deeply to save safely.";
+        nodeCount += 1;
+        if (nodeCount > MAX_DOCUMENT_ELEMENT_NODES) return "This sketch contains too many canvas objects to save safely.";
+        if (element.label.text.length > MAX_CANVAS_TEXT_LENGTH) return `Canvas text exceeds the ${MAX_CANVAS_TEXT_LENGTH.toLocaleString()}-character save limit.`;
+      } else if (element.type === "freehand") {
+        if (element.points.length > MAX_STROKE_POINTS) return `A stroke exceeds the ${MAX_STROKE_POINTS.toLocaleString()}-point save limit.`;
+        strokePointCount += element.points.length;
+        if (strokePointCount > MAX_DOCUMENT_STROKE_POINTS) return `This sketch exceeds the ${MAX_DOCUMENT_STROKE_POINTS.toLocaleString()}-point save limit.`;
+      } else if (element.type === "text" && element.text.length > MAX_CANVAS_TEXT_LENGTH) {
+        return `Canvas text exceeds the ${MAX_CANVAS_TEXT_LENGTH.toLocaleString()}-character save limit.`;
+      }
+    }
+    return undefined;
+  };
+  if (file.pages.length > 100) return "A sketch can contain up to 100 pages.";
+  if (!file.pages.length) return "A sketch must contain at least one page.";
+  for (const page of file.pages) {
+    if (page.elements.length > MAX_ELEMENTS_PER_PAGE) return "A page contains too many canvas objects to save safely.";
+    const error = visit(page.elements, 0);
+    if (error) return error;
+  }
+  return undefined;
 }

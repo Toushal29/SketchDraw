@@ -1,4 +1,4 @@
-import type { CanvasState, Element, PersonalLibraryData, ProjectWorkspaceData, SketchFile, SketchFileDocumentV8, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
+import type { CanvasState, Element, PersonalLibraryData, ProjectWorkspaceData, SketchFile, SketchFileDocumentV9, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
 import { SKETCH_FORMAT_VERSION } from "../../model";
 import { createProjectWorkspace } from "../project/project-data";
 import { createLegacyLibraryData } from "./legacy-library-data";
@@ -45,13 +45,23 @@ export function createSketchSnapshot(options: CreateSnapshotOptions): SketchFile
 }
 
 export function serializeSketchSnapshot(snapshot: SketchFile): string {
-  const document: SketchFileDocumentV8 = {
+  const library = snapshot.library ?? createLegacyLibraryData();
+  const document: SketchFileDocumentV9 = {
     format: "SketchDraw",
     version: SKETCH_FORMAT_VERSION,
     sections: {
       canvas: { activePageId: snapshot.activePageId, pages: snapshot.pages },
       planning: snapshot.project ?? createProjectWorkspace(),
-      library: snapshot.library ?? createLegacyLibraryData(),
+      notebook: { notes: library.quickNotes },
+      retiredLibraryArchive: {
+        studyNotes: library.studyNotes,
+        studyCards: library.studyCards,
+        wikiArticles: library.wikiArticles,
+        journalEntries: library.journalEntries,
+        writingDrafts: library.writingDrafts,
+        researchSources: library.researchSources,
+        mediaEntries: library.mediaEntries,
+      },
     },
     ...(snapshot.windowsSync ? { windowsSync: snapshot.windowsSync } : {}),
   };

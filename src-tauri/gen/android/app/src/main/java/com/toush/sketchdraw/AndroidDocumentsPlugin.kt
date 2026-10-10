@@ -35,6 +35,12 @@ internal class SketchDocumentPermissionArgs {
   var uri: String? = null
 }
 
+@InvokeArg
+internal class WriteSketchDocumentArgs {
+  var uri: String? = null
+  var contents: String? = null
+}
+
 @TauriPlugin
 class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
@@ -86,6 +92,29 @@ class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) 
       invoke.resolve(result)
     } catch (error: Exception) {
       invoke.reject(error.message ?: "Could not check write access to this sketch.")
+    }
+  }
+
+  @Command
+  fun writeSketchDocument(invoke: Invoke) {
+    try {
+      val args = invoke.parseArgs(WriteSketchDocumentArgs::class.java)
+      val uri = Uri.parse(args.uri ?: throw IllegalArgumentException("The sketch path is missing."))
+      val contents = args.contents ?: throw IllegalArgumentException("The sketch contents are missing.")
+      if (uri.scheme != "content") throw IllegalArgumentException("Only selected document-provider files can be written here.")
+      val writable = activity.checkUriPermission(
+        uri,
+        Process.myPid(),
+        Process.myUid(),
+        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+      ) == PackageManager.PERMISSION_GRANTED
+      if (!writable) throw SecurityException("Android's document provider did not grant write access to this sketch.")
+      val output = activity.contentResolver.openOutputStream(uri, "wt")
+        ?: throw IllegalStateException("The document provider could not open this sketch for writing.")
+      output.bufferedWriter(Charsets.UTF_8).use { it.write(contents) }
+      invoke.resolve(JSObject())
+    } catch (error: Exception) {
+      invoke.reject(error.message ?: "Could not write this sketch through Android's document provider.")
     }
   }
 

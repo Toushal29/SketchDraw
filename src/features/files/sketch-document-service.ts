@@ -1,5 +1,5 @@
 import type { SketchFile } from "../../model";
-import { parseSketchFile } from "./parse-sketch";
+import { parseSketchFile, sketchFileResourceError } from "./parse-sketch";
 import { mergeLatestSnapshots } from "../../platform/windows/sync";
 import { serializeSketchSnapshot } from "./document-codec";
 import { sketchFileStore } from "./sketch-file-store";
@@ -26,15 +26,18 @@ export function decodeSketchDocument(value: unknown): SketchFile | undefined {
 
 /** Writes a document through the storage adapter with both preflight and atomic conflict checks. */
 export async function saveSketchDocument(path: string, snapshot: SketchFile, expectedRaw: string | null): Promise<{ contents: string; conflictRaw?: string }> {
+  const resourceError = sketchFileResourceError(snapshot);
+  if (resourceError) throw new Error(resourceError);
   const contents = serializeSketchSnapshot(snapshot);
-  // SAF providers can return changing cloud snapshots for one URI. Their write
-  // permissions/versioning are provider-managed, so filesystem-style conflict
-  // preflights only apply to ordinary paths.
-  if (expectedRaw !== null && !/^content:\/\//i.test(path)) {
+  // Compare the version currently visible through the provider before writing.
+  // SAF does not expose a universal conditional-write operation, but this
+  // preflight catches external edits already visible to the selected URI.
+  const adapter = sketchFileStore.adapter(path);
+  if (expectedRaw !== null && adapter.capabilities.supportsConflictPreflight) {
     const diskRaw = await sketchFileStore.read(path);
     if (diskRaw !== expectedRaw) return { contents, conflictRaw: diskRaw };
   }
-  await sketchFileStore.write(path, contents, expectedRaw);
+  await adapter.write(path, contents, adapter.capabilities.supportsConditionalWrite ? expectedRaw : null);
   return { contents };
 }
 

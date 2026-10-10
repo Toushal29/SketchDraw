@@ -7,11 +7,13 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const buildDir = await mkdtemp(path.join(repoRoot, ".focused-test-build-"));
 const sourceFiles = [
   "src/features/files/parse-sketch.ts",
+  "src/features/files/sketch-document-service.ts",
   "src/features/files/document-codec.ts",
   "src/features/files/sketch-recovery-store.ts",
   "src/platform/windows/sync.ts",
   "src/features/document/document-recovery.ts",
   "src/features/canvas/history.ts",
+  "src/features/canvas/spatial-index.ts",
 ].map(file => path.join(repoRoot, file));
 
 try {
@@ -41,7 +43,7 @@ try {
   } else {
     await writeFile(path.join(buildDir, "package.json"), JSON.stringify({ type: "commonjs" }));
     process.env.SKETCHDRAW_TEST_BUILD_DIR = buildDir;
-    for (const file of ["tests/persistence.test.mjs", "tests/sync.test.mjs", "tests/canvas-history.test.mjs"]) {
+    for (const file of ["tests/persistence.test.mjs", "tests/sync.test.mjs", "tests/canvas-history.test.mjs", "tests/spatial-index.test.mjs"]) {
       await import(pathToFileURL(path.join(repoRoot, file)).href);
     }
   }

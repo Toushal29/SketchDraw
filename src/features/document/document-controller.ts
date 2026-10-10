@@ -157,7 +157,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
     const wasReadOnly = ports.readOnly();
     // Content URIs are provider-managed documents (including cloud-backed files),
     // not stable shared-folder paths. Their provider controls writes and versioning.
-    if (!path || /^content:\/\//i.test(path) || !startingBaseline || !ports.canCheckForUpdates()) return;
+    if (!path || !sketchFileStore.adapter(path).capabilities.supportsBackgroundUpdateCheck || !startingBaseline || !ports.canCheckForUpdates()) return;
     try {
       const remoteRaw = await sketchFileStore.read(path);
       if (ports.activePath() !== path || baselineRaw !== startingBaseline || remoteRaw === startingBaseline) return;

@@ -2,6 +2,7 @@ import type { ArrowHead, Bounds, CanvasState, EdgeStyle, Element, Point, Preview
 import { BOX_ANCHORS, anchorPoint, isConnectable, isConnector } from "../../operations";
 import { elementBounds } from "./bounds";
 import { traceConnector } from "./geometry";
+import { elementSpatialIndex } from "./spatial-index";
 
 type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; snapTargets: { x: number[]; y: number[] }; targets: Map<string, Element> };
 type AlignmentGuides = { x?: number; y?: number };
@@ -116,14 +117,27 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     const selected = ports.selectedSet();
     const currentMove = ports.moveOrigin();
     const drag = includeSelection && sourceItems === ports.elements() && currentMove?.moved ? currentMove : undefined;
-    sourceItems.forEach((element, index) => {
-      if (element.hidden) return;
+    const spatialItems = drag?.before ?? sourceItems;
+    const paintIndices = new Set(elementSpatialIndex(spatialItems).query(viewport));
+    if (drag) {
+      const movedIds = new Set(drag.targets.keys());
+      for (const index of drag.indices) paintIndices.add(index);
+      sourceItems.forEach((element, index) => {
+        if (!isConnector(element)) return;
+        const bindings = [element.startBinding, element.endBinding, element.forkUpper?.endBinding, element.forkLower?.endBinding];
+        if (bindings.some(binding => binding && movedIds.has(binding.elementId)) || element.autoRoute) paintIndices.add(index);
+      });
+    }
+    for (const index of [...paintIndices].sort((a, b) => a - b)) {
+      const element = sourceItems[index];
+      if (!element) continue;
+      if (element.hidden) continue;
       const moved = !!drag?.indices.includes(index);
       const resolvedElement = drag ? ports.resolveDraggedConnector(element, index, drag) : element;
       const drawnElement = isConnector(resolvedElement) ? ports.connectorForView(resolvedElement as ShapeElement, sourceItems) : resolvedElement;
       const bounds = elementBounds(moved ? element : drawnElement);
       const visibleBounds = moved ? { ...bounds, x: bounds.x + drag!.dx, y: bounds.y + drag!.dy } : bounds;
-      if (!ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) return;
+      if (!ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) continue;
       ctx.save(); if (moved) ctx.translate(drag!.dx, drag!.dy);
       const drawViewport = moved ? { ...viewport, x: viewport.x - drag!.dx, y: viewport.y - drag!.dy } : viewport;
       ports.drawElement(ctx, drawnElement, drawViewport);
@@ -139,7 +153,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         if (isSelected && !element.locked && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed) && element.type !== "freehand") drawTransformHandles(ctx, bounds, state.zoom, element.type !== "group");
       }
       ctx.restore();
-    });
+    }
     const currentResize = ports.resizeOrigin();
     if (includeSelection && (ports.tool() === "arrow" || ports.tool() === "line" || currentResize && isConnector(currentResize.original))) {
       const drawPorts = (items: Element[]) => { for (const item of items) {
@@ -154,7 +168,12 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         ];
         for (const { anchor, rowId } of anchors) { const point = anchorPoint(item, anchor, rowId); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
         if (moved) ctx.restore();
-      } }; ctx.save(); ctx.fillStyle = "#5d94e7"; ctx.globalAlpha = .7; drawPorts(ports.elements()); const hint = ports.attachmentHint(); if (hint) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(hint.x, hint.y, 8 / state.zoom, 0, Math.PI * 2); ctx.strokeStyle = "#2675f5"; ctx.lineWidth = 2 / state.zoom; ctx.stroke(); } ctx.restore();
+      } }; ctx.save(); ctx.fillStyle = "#5d94e7"; ctx.globalAlpha = .7;
+      const portElements = ports.elements();
+      const portIndices = new Set(elementSpatialIndex(drag?.before ?? portElements).query(viewport));
+      for (const index of drag?.indices ?? []) portIndices.add(index);
+      drawPorts([...portIndices].sort((a, b) => a - b).map(index => portElements[index]).filter((item): item is Element => !!item));
+      const hint = ports.attachmentHint(); if (hint) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(hint.x, hint.y, 8 / state.zoom, 0, Math.PI * 2); ctx.strokeStyle = "#2675f5"; ctx.lineWidth = 2 / state.zoom; ctx.stroke(); } ctx.restore();
     }
     const guides = ports.alignmentGuides();
     if (includeSelection && guides && ports.showAlignmentGuides()) {

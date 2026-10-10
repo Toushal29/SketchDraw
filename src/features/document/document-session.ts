@@ -16,8 +16,8 @@ export function createDocumentSession() {
   const [activePageId, setActivePageId] = createSignal("");
   const [activePath, setActivePath] = createSignal<string>();
   const [projectWorkspaceData, setProjectWorkspaceData] = createSignal<ProjectWorkspaceData>(createProjectWorkspace());
-  // The v8 library payload is retained for round-trip compatibility. Notebook
-  // only edits quickNotes; older library collections remain untouched.
+  // Retired Library collections remain in the archive for round-trip safety.
+  // Notebook edits only quickNotes in the in-memory compatibility model.
   const [legacyLibraryData, setLegacyLibraryData] = createSignal<PersonalLibraryData>(createLegacyLibraryData());
   const [workspaceArea, setWorkspaceArea] = createSignal<WorkspaceArea>("canvas");
   const [readOnlyView, setReadOnlyView] = createSignal(false);

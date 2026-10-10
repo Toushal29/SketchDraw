@@ -63,12 +63,19 @@ export type ProjectWorkspaceData = {
   logEntries: ProjectLogEntry[];
   files: ProjectFileEntry[];
 };
-/** The v8 `library` section is kept intact while its former screens are retired. */
-export type SketchDocumentSections = { canvas: { activePageId: string; pages: SketchPage[] }; planning: ProjectWorkspaceData; library: PersonalLibraryData };
-export const SKETCH_FORMAT_VERSION = 8 as const;
+/** V8 library records remain in memory for round-trip compatibility. */
+export type SketchDocumentSectionsV8 = { canvas: { activePageId: string; pages: SketchPage[] }; planning: ProjectWorkspaceData; library: PersonalLibraryData };
 export type WindowsSyncMetadata = { version: 1; updatedAt: number; deviceId: string; clocks: Record<string, number>; tombstones: Record<string, number> };
-export type SketchFileDocumentV8 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; sections: SketchDocumentSections; windowsSync?: WindowsSyncMetadata };
-/** In-memory shape. Version 8 files serialize the three areas under `sections`. */
+export type SketchFileDocumentV8 = { format: "SketchDraw"; version: 8; sections: SketchDocumentSectionsV8; windowsSync?: WindowsSyncMetadata };
+export type SketchDocumentSectionsV9 = {
+  canvas: { activePageId: string; pages: SketchPage[] };
+  planning: ProjectWorkspaceData;
+  notebook: { notes: ProjectNote[] };
+  retiredLibraryArchive: Omit<PersonalLibraryData, "quickNotes">;
+};
+export const SKETCH_FORMAT_VERSION = 9 as const;
+export type SketchFileDocumentV9 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; sections: SketchDocumentSectionsV9; windowsSync?: WindowsSyncMetadata };
+/** In-memory shape. V9 serializes Notebook notes apart from archived Library records. */
 export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; project?: ProjectWorkspaceData; library?: PersonalLibraryData; windowsSync?: WindowsSyncMetadata };
 export type Preview = { type: Exclude<Tool, "select" | "pan" | "laser" | "text" | "bucket" | "eraser" | "crop">; start: Point; end: Point; color: string; thickness: number; opacity?: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute };
 export type Bounds = { x: number; y: number; w: number; h: number };
