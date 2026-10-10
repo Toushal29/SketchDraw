@@ -3,7 +3,7 @@
 Assembled excerpts copied from the current application source for the stylus interaction test case. Snippets retain their original code; headings and source locations are added for navigation. These excerpts depend on App-level state and helpers, so this Markdown file is a review copy rather than a standalone compilation unit.
 
 ### Stylus input settings state
-Source: `src/App.tsx` lines 217-219
+Source: `src/App.tsx` lines 217, 218, 219
 ```tsx
   const [penPressure, setPenPressure] = createSignal(true);
   const [penTilt, setPenTilt] = createSignal(true);
@@ -11,7 +11,7 @@ Source: `src/App.tsx` lines 217-219
 ```
 
 ### Pointer and drawing state
-Source: `src/App.tsx` lines 373-389
+Source: `src/App.tsx` lines 373-387
 ```tsx
   let drawing = false;
   let activeDrawingTool: Preview["type"] = "pen";
@@ -28,18 +28,16 @@ Source: `src/App.tsx` lines 373-389
   const touchPointers = new Map<number, Point>();
   const ignoredTouchPointers = new Set<number>();
   let activePenPointerId: number | undefined;
-  let touchGesture: TouchGesture | undefined;
-  let touchTapTracker: TouchTapTracker | undefined;
 ```
 
 ### Pointer-to-stroke pressure and tilt adapter
-Source: `src/App.tsx` lines 776-776
+Source: `src/App.tsx` lines 776
 ```tsx
   const strokePointFromPointer = (event: PointerEvent, point: Point): StrokePoint => makeStrokePoint(event, point, penPressure(), penTilt());
 ```
 
 ### Pressure and tilt sample conversion
-Source: `src/features/canvas/input.ts` lines 9-16
+Source: `src/features/canvas/input.ts` lines 9-17
 ```tsx
 export function strokePointFromPointer(event: PointerEvent, point: Point, pressureEnabled: boolean, tiltEnabled: boolean): StrokePoint {
   if (event.pointerType !== "pen") return point;
@@ -49,6 +47,7 @@ export function strokePointFromPointer(event: PointerEvent, point: Point, pressu
     ...(tiltEnabled ? { tiltX: Math.max(-90, Math.min(90, event.tiltX)), tiltY: Math.max(-90, Math.min(90, event.tiltY)) } : {}),
   };
 }
+
 ```
 
 ### Window blur cancellation for active stylus interaction
@@ -62,26 +61,26 @@ Source: `src/App.tsx` lines 1767-1771
 ```
 
 ### Window blur handler registration
-Source: `src/App.tsx` line 1803
-``tsx
-window.addEventListener("blur", blur)
-````
+Source: `src/App.tsx` lines 1803
+```tsx
+    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("blur", blur); window.addEventListener("focus", refreshStorageAccessOnReturn); document.addEventListener("visibilitychange", refreshStorageAccessOnReturn); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", alignOpenTouchMenus); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", alignOpenTouchMenus); window.addEventListener("orientationchange", updateDisplayMetrics);
+```
 
 ### Window blur handler cleanup
-Source: `src/App.tsx` line 1819
-``tsx
-window.removeEventListener("blur", blur)
-````
+Source: `src/App.tsx` lines 1819
+```tsx
+    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); if (syncPollTimer !== undefined) window.clearInterval(syncPollTimer); if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("blur", blur); window.removeEventListener("focus", refreshStorageAccessOnReturn); document.removeEventListener("visibilitychange", refreshStorageAccessOnReturn); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", alignOpenTouchMenus); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", alignOpenTouchMenus); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
+```
 
-### Canvas raw pointer event registration and cleanup
-Source: `src/App.tsx` lines 1623-1624
+### Canvas raw pointer event registration
+Source: `src/App.tsx` lines 1623, 1624
 ```tsx
     const rawPen = (event: PointerEvent) => pointerRawUpdate(event);
     canvas.addEventListener("pointerrawupdate", rawPen as EventListener);
 ```
 
 ### Canvas raw pointer event cleanup
-Source: `src/App.tsx` lines 1634-1634
+Source: `src/App.tsx` lines 1634
 ```tsx
     onCleanup(() => { resize.disconnect(); canvas.removeEventListener("wheel", wheel); canvas.removeEventListener("pointerrawupdate", rawPen as EventListener); window.removeEventListener("resize", scheduleCanvasRender); window.visualViewport?.removeEventListener("resize", scheduleCanvasRender); });
 ```
@@ -237,25 +236,38 @@ Source: `src/App.tsx` lines 3042-3084
 
 ```
 
-### Stroke sample collection and raw stylus updates
-Source: `src/App.tsx` lines 3085-3105
+### Stroke sample collection
+Source: `src/App.tsx` lines 3085-3092
 ```tsx
   function appendStrokeSample(event: PointerEvent, point: Point) {
+    if (event.pointerType === "pen" && event.pressure <= 0 && (event.buttons & 1) === 0) return;
     const previous = currentPoints[currentPoints.length - 1];
-    if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * canvasState().zoom < .05) return;
+    const minDistance = event.pointerType === "pen" ? .01 : .05;
+    if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * canvasState().zoom < minDistance) return;
     currentPoints.push(tool() === "pen" ? strokePointFromPointer(event, point) : point);
   }
 
+```
+
+### Coalesced and terminal stylus sample collection
+Source: `src/App.tsx` lines 3093-3101
+```tsx
   function appendPenSamples(event: PointerEvent, appendTerminal = true) {
     const bounds = canvas.getBoundingClientRect(); const state = canvasState();
     let samples: PointerEvent[] = [];
     try { samples = event.getCoalescedEvents?.() ?? []; } catch { /* Some Android WebViews expose this API without implementing it. */ }
+    if (!samples.length) samples = [event];
     for (const sample of samples) appendStrokeSample(sample, { x: (sample.clientX - bounds.left - state.panX) / state.zoom, y: (sample.clientY - bounds.top - state.panY) / state.zoom });
-    if (appendTerminal) appendStrokeSample(event, { x: (event.clientX - bounds.left - state.panX) / state.zoom, y: (event.clientY - bounds.top - state.panY) / state.zoom });
+    if (appendTerminal && samples[samples.length - 1] !== event) appendStrokeSample(event, { x: (event.clientX - bounds.left - state.panX) / state.zoom, y: (event.clientY - bounds.top - state.panY) / state.zoom });
   }
 
+```
+
+### Raw stylus updates
+Source: `src/App.tsx` lines 3102-3108
+```tsx
   function pointerRawUpdate(event: PointerEvent) {
-    if (event.pointerType !== "pen" || !drawing || activePenPointerId !== event.pointerId || activeDrawingTool !== "pen" || !preview()) return;
+    if (event.pointerType !== "pen" || activePenPointerId !== event.pointerId || activeDrawingTool !== "pen" || (!drawing && !preview())) return;
     const previousLength = currentPoints.length;
     appendPenSamples(event);
     if (currentPoints.length !== previousLength) scheduleCanvasRender();
@@ -264,7 +276,7 @@ Source: `src/App.tsx` lines 3085-3105
 ```
 
 ### Pointer move: stylus sampling and eraser movement
-Source: `src/App.tsx` lines 3106-3163
+Source: `src/App.tsx` lines 3109-3166
 ```tsx
   function pointerMove(event: PointerEvent) {
     if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
@@ -327,7 +339,7 @@ Source: `src/App.tsx` lines 3106-3163
 ```
 
 ### Erase helper used by the stylus eraser end
-Source: `src/App.tsx` lines 3249-3253
+Source: `src/App.tsx` lines 3252-3256
 ```tsx
   function eraseAtPoint(point: Point) {
     const hit = hitTest(point); if (hit === undefined) return;
@@ -336,8 +348,8 @@ Source: `src/App.tsx` lines 3249-3253
 
 ```
 
-### Pointer cancel and lost capture
-Source: `src/App.tsx` lines 3254-3266
+### Pointer cancel
+Source: `src/App.tsx` lines 3257-3265
 ```tsx
   function pointerCancel(event: PointerEvent) {
     if (textEditorPendingPointerId === event.pointerId) textEditorPendingPointerId = undefined;
@@ -348,6 +360,11 @@ Source: `src/App.tsx` lines 3254-3266
     cancelCanvasInteraction();
   }
 
+```
+
+### Lost pointer capture
+Source: `src/App.tsx` lines 3266-3269
+```tsx
   function pointerLostCapture(event: PointerEvent) {
     if (event.pointerType === "pen" && activePenPointerId === event.pointerId || event.pointerType === "touch" && touchPointers.has(event.pointerId)) pointerCancel(event);
   }
@@ -355,7 +372,7 @@ Source: `src/App.tsx` lines 3254-3266
 ```
 
 ### Pointer up: finish stylus stroke or eraser gesture
-Source: `src/App.tsx` lines 3267-3423
+Source: `src/App.tsx` lines 3270-3427
 ```tsx
   function pointerUp(event: PointerEvent) {
     if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
@@ -435,7 +452,8 @@ Source: `src/App.tsx` lines 3267-3423
       if (event.pointerType === "pen") event.preventDefault();
       if (event.pointerType === "pen") appendPenSamples(event, false);
       const end = toWorld(event); const last = currentPoints[currentPoints.length - 1];
-      if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= .05) {
+      const minDistance = event.pointerType === "pen" ? .01 : .05;
+      if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= minDistance) {
         currentPoints.push(tool() === "pen" ? { ...end, pressure: last.pressure, tiltX: last.tiltX, tiltY: last.tiltY } : end);
       }
     }
@@ -517,19 +535,20 @@ Source: `src/App.tsx` lines 3267-3423
 ```
 
 ### Canvas pointer handler bindings
-Source: `src/App.tsx` line 3895 (attributes copied from the canvas element)
-``tsx
+Source: `src/App.tsx` line 3899 (attributes copied from the canvas element)
+```tsx
 onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture}
-````
+```
 
 ### Desktop pressure, tilt, and stylus eraser controls
-Source: `src/App.tsx` lines 4057-4057
+Source: `src/App.tsx` lines 4017, 4061
 ```tsx
+                    <Show when={tool() === "pen"}><button class={`quick-style-icon ${quickStylePopover() === "penInput" ? "active" : ""}`} onClick={() => setQuickStylePopover(quickStylePopover() === "penInput" ? undefined : "penInput")} aria-label="Stylus input options" title="Stylus pressure, tilt, and eraser" aria-expanded={quickStylePopover() === "penInput"}><svg viewBox="0 0 24 24"><path d="m5 19 3.5-.8L19 7.7 16.3 5 5.8 15.5 5 19Zm9.8-12 2.7 2.7M4 22h16"/></svg></button></Show>
                     <Show when={quickStylePopover() === "penInput" && tool() === "pen"}><div class="quick-style-popover pen-input-popover" aria-label="Stylus input options"><strong>Pen options</strong><label><input type="checkbox" checked={penPressure()} onChange={event => setPenPressure(event.currentTarget.checked)} /> Pressure width</label><label><input type="checkbox" checked={penTilt()} onChange={event => setPenTilt(event.currentTarget.checked)} /> Tilt shaping</label><label><input type="checkbox" checked={penEraser()} onChange={event => setPenEraser(event.currentTarget.checked)} /> Eraser end</label><small>Uses pressure, tilt, and eraser data reported by a compatible stylus.</small></div></Show>
 ```
 
 ### Mobile stylus settings callback types
-Source: `src/platform/mobile/TouchStylePanel.tsx` lines 78-80
+Source: `src/platform/mobile/TouchStylePanel.tsx` lines 78, 79, 80
 ```tsx
   onPenPressureChange: (enabled: boolean) => void;
   onPenTiltChange: (enabled: boolean) => void;
@@ -537,13 +556,13 @@ Source: `src/platform/mobile/TouchStylePanel.tsx` lines 78-80
 ```
 
 ### Mobile pressure, tilt, and eraser control handlers
-Source: `src/platform/mobile/TouchStylePanel.tsx` lines 124-124
+Source: `src/platform/mobile/TouchStylePanel.tsx` lines 124
 ```tsx
       {props.tool === "pen" && <section class="touch-style-section"><div class="touch-style-section-title"><strong>Pen and brush</strong></div><div class="touch-brush-grid">{BRUSHES.map(brush => <button class={props.brushMode === brush.value ? "active" : ""} aria-pressed={props.brushMode === brush.value} disabled={props.locked} onClick={() => props.onBrushModeChange(brush.value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={brush.value === "fine" ? "m5 18 13-12M4 21h16" : brush.value === "pencil" ? "m5 19 11-11 3 3L8 22H5zm10-13 2-2 4 4-2 2" : brush.value === "brush" ? "M5 17c4 0 3-7 8-7 4 0 4 4 7 4M5 20h14" : brush.value === "marker" ? "M5 18 17 6l3 3L8 21H5zm9-9 3 3" : brush.value === "highlighter" ? "M4 16 15 5l5 5-11 11H4zm4-2 5 5" : "M5 18 17 6m-8 12 2 2M4 21h16"}/></svg><span>{brush.label}</span></button>)}</div><div class="touch-style-subsection"><strong>Stylus input</strong><label class="touch-style-check"><input type="checkbox" checked={props.penPressure} onChange={event => props.onPenPressureChange(event.currentTarget.checked)} /> Pressure width</label><label class="touch-style-check"><input type="checkbox" checked={props.penTilt} onChange={event => props.onPenTiltChange(event.currentTarget.checked)} /> Tilt shaping</label><label class="touch-style-check"><input type="checkbox" checked={props.penEraser} onChange={event => props.onPenEraserChange(event.currentTarget.checked)} /> Stylus eraser end</label></div></section>}
 ```
 
-### Mobile stylus settings values passed from App
-Source: `src/App.tsx` lines 3855-3857
+### Mobile stylus setting values passed from App
+Source: `src/App.tsx` lines 3859, 3860, 3861
 ```tsx
               penPressure={penPressure()}
               penTilt={penTilt()}
@@ -551,10 +570,99 @@ Source: `src/App.tsx` lines 3855-3857
 ```
 
 ### Mobile stylus setting callbacks passed from App
-Source: `src/App.tsx` lines 3884-3886
+Source: `src/App.tsx` lines 3888, 3889, 3890
 ```tsx
               onPenPressureChange={setPenPressure}
               onPenTiltChange={setPenTilt}
               onPenEraserChange={setPenEraser}
 ```
+
+### Native Android Jetpack Ink event path
+The complete Kotlin copies for the Android event listener and preview are `AndroidStylusInkController.copy.kt`, `AndroidStylusPlugin.copy.kt`, and `MainActivity.copy.kt` in this folder. `MainActivity.dispatchTouchEvent` forwards native events. The controller filters stylus pointers, passes samples to Jetpack Ink's in-progress renderer, and forwards pressure, tilt, orientation, time, and phase to the existing WebView stroke collector. The canvas remains responsible for saving and undoing strokes.
+
+### Android sample bridge shape
+Source: `src/App.tsx` line 77
+```tsx
+type AndroidStylusSample = { clientX: number; clientY: number; pressure: number; tiltX: number; tiltY: number; orientation: number; time: number; phase: "start" | "move" | "end" };
+```
+
+### Android sample receiver and pending pointer-down samples
+Source: `src/App.tsx` lines 786-812
+```tsx
+  function appendAndroidStylusSamples(samples: AndroidStylusSample[]) {
+    if (!canvas || !samples.length || !drawing || activeDrawingTool !== "pen" || activePenPointerId === undefined) return;
+    const bounds = canvas.getBoundingClientRect(); const state = canvasState(); let appended = false; let lastPoint: Point | undefined;
+    for (const sample of samples) {
+      if (!Number.isFinite(sample.clientX) || !Number.isFinite(sample.clientY)) continue;
+      const point = pointerToWorld(sample.clientX, sample.clientY, bounds, state);
+      const previous = currentPoints[currentPoints.length - 1];
+      if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * state.zoom < .01) continue;
+      currentPoints.push({
+        ...point,
+        ...(penPressure() ? { pressure: Math.max(0, Math.min(1, sample.pressure)) } : {}),
+        ...(penTilt() ? { tiltX: Math.max(-90, Math.min(90, sample.tiltX)), tiltY: Math.max(-90, Math.min(90, sample.tiltY)), orientation: ((sample.orientation % 360) + 360) % 360 } : {}),
+      });
+      appended = true; lastPoint = point;
+    }
+    if (appended) {
+      setPreview(current => current && lastPoint ? { ...current, end: lastPoint } : current);
+      scheduleCanvasRender();
+    }
+  }
+  function receiveAndroidStylusSamples(samples: AndroidStylusSample[]) {
+    if (!isAndroidPlatform() || !Array.isArray(samples) || !samples.length || !activePath() || workspaceArea() !== "canvas" || tool() !== "pen") return;
+    if (drawing && activePenPointerId !== undefined && activeDrawingTool === "pen") {
+      appendAndroidStylusSamples(samples);
+      return;
+    }
+    if (samples.some(sample => sample.phase === "start")) pendingAndroidStylusSamples = samples.slice(-12);
+  }
+```
+
+### Pressure width and gradual rendering
+Source: `src/App.tsx` lines 118-119 and 1382-1412
+```tsx
+const stylusStrokeWidth = (point: StrokePoint, thickness: number) => thickness * (point.pressure === undefined ? 1 : .35 + Math.max(0, Math.min(1, point.pressure)) * 1.15) * (1 + Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) * .28);
+const stylusStrokeWidthAt = (points: StrokePoint[], index: number, thickness: number) => index === 0 ? stylusStrokeWidth(points[0], thickness) : (stylusStrokeWidth(points[index - 1], thickness) + stylusStrokeWidth(points[index], thickness)) / 2;
+
+if (cache.pressureAware) {
+  const startWidth = stylusStrokeWidthAt(points, index - 1, 1);
+  const endWidth = stylusStrokeWidthAt(points, index, 1);
+  const widthChange = Math.abs(endWidth - startWidth);
+  if (widthChange < .005) {
+    const widthFactor = Math.round(((startWidth + endWidth) / 2) * 100) / 100;
+    let path = cache.pressurePaths.get(widthFactor);
+    if (!path) { path = new Path2D(); cache.pressurePaths.set(widthFactor, path); }
+    path.moveTo(from.x, from.y); path.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
+  } else {
+    const curveLength = Math.hypot(previous.x - from.x, previous.y - from.y) + Math.hypot(mid.x - previous.x, mid.y - previous.y);
+    const steps = Math.min(256, Math.max(1, Math.ceil(curveLength / 2), Math.ceil(widthChange / .01)));
+    const quadraticPoint = (t: number) => {
+      const inverse = 1 - t;
+      return { x: inverse * inverse * from.x + 2 * inverse * t * previous.x + t * t * mid.x, y: inverse * inverse * from.y + 2 * inverse * t * previous.y + t * t * mid.y };
+    };
+    for (let step = 0; step < steps; step++) {
+      const t0 = step / steps; const t1 = (step + 1) / steps;
+      const start = quadraticPoint(t0); const end = quadraticPoint(t1);
+      const widthFactor = Math.max(.05, Math.round((startWidth + (endWidth - startWidth) * ((t0 + t1) / 2)) * 100) / 100);
+      let path = cache.pressurePaths.get(widthFactor);
+      if (!path) { path = new Path2D(); cache.pressurePaths.set(widthFactor, path); }
+      path.moveTo(start.x, start.y); path.lineTo(end.x, end.y);
+    }
+  }
+}
+```
+
+### Pending native samples consumed by the existing pointer-down handler
+Source: `src/App.tsx` lines 3187-3194
+```tsx
+    beginCanvasInteraction(event);
+    if (event.pointerType === "pen" && isAndroidPlatform() && activeDrawingTool === "pen" && pendingAndroidStylusSamples.length) {
+      const queued = pendingAndroidStylusSamples;
+      pendingAndroidStylusSamples = [];
+      appendAndroidStylusSamples(queued);
+    }
+```
+
+The pending queue is cleared when the interaction is canceled, when a pen pointer is canceled, or when the pen is lifted. This preserves the current saved-stroke and undo behavior while the native renderer supplies the low-latency preview.
 

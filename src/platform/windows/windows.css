@@ -422,18 +422,29 @@
 }
 .app-shell.platform-windows .windows-shortcut-group + .windows-shortcut-group { margin-top: 13px; }
 .app-shell.platform-windows .windows-shortcut-group h3 { margin: 8px 7px 4px; color: var(--dialog-muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.app-shell.platform-windows .windows-shortcut-columns,
 .app-shell.platform-windows .windows-shortcut-row {
     display: grid;
-    min-height: 46px;
-    grid-template-columns: minmax(0, 1fr) minmax(126px, 190px);
+    grid-template-columns: minmax(150px, 1fr) minmax(126px, 180px) minmax(140px, 180px);
     align-items: center;
-    gap: 14px;
-    padding: 5px 7px;
+    gap: 10px;
+    padding-inline: 7px;
+}
+.app-shell.platform-windows .windows-shortcut-columns {
+    min-height: 25px;
+    color: var(--dialog-muted);
+    font-size: 10px;
+    font-weight: 650;
+}
+.app-shell.platform-windows .windows-shortcut-row {
+    min-height: 46px;
+    padding-block: 5px;
     border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 9%, transparent);
     border-radius: 6px;
     color: var(--dialog-ink);
     font-size: 12px;
 }
+.app-shell.platform-windows .windows-shortcut-action { min-width: 0; }
 .app-shell.platform-windows .windows-shortcut-row:hover { background: color-mix(in srgb, var(--toolbar-ink) 4%, transparent); }
 .app-shell.platform-windows .windows-shortcut-row:last-child { border-bottom: 0; }
 .app-shell.platform-windows .windows-shortcut-row input {
@@ -489,7 +500,10 @@
     .app-shell.platform-windows .windows-shortcut-dialog > header h2 { font-size: 16px; }
     .app-shell.platform-windows .windows-shortcut-filter { margin-inline: 12px; }
     .app-shell.platform-windows .windows-shortcut-list { padding-inline: 12px; }
-    .app-shell.platform-windows .windows-shortcut-row { grid-template-columns: minmax(0, 1fr) minmax(112px, .9fr); gap: 8px; padding-inline: 5px; font-size: 11px; }
+    .app-shell.platform-windows .windows-shortcut-columns,
+    .app-shell.platform-windows .windows-shortcut-row { grid-template-columns: minmax(105px, 1fr) minmax(92px, .9fr) minmax(104px, .95fr); gap: 7px; padding-inline: 5px; font-size: 10px; }
+    .app-shell.platform-windows .windows-shortcut-columns { font-size: 9px; }
+    .app-shell.platform-windows .windows-shortcut-row input { padding-inline: 4px; font-size: 9px; }
     .app-shell.platform-windows .windows-shortcut-dialog > footer { flex-wrap: wrap; padding: 10px 12px; }
     .app-shell.platform-windows .windows-shortcut-dialog > footer [role="status"] { min-width: 100%; }
 }

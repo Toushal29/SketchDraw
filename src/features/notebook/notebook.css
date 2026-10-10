@@ -15,13 +15,13 @@
     font-family: inherit;
 }
 .app-shell.theme-dark .notebook-workspace {
-    --notebook-bg: #171b22;
-    --notebook-surface: #202630;
-    --notebook-raised: #252d38;
-    --notebook-line: #35404d;
+    --notebook-bg: #111;
+    --notebook-surface: #191919;
+    --notebook-raised: #232323;
+    --notebook-line: #363636;
     --notebook-ink: #e4e9ef;
-    --notebook-muted: #a5b0bc;
-    --notebook-accent: #9aabef;
+    --notebook-muted: #aaa;
+    --notebook-accent: #b7b7b7;
     color-scheme: dark;
 }
 .notebook-content { box-sizing: border-box; min-height: 100%; padding: 0 24px; overscroll-behavior: contain; }

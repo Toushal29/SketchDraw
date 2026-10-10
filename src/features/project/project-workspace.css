@@ -163,15 +163,15 @@
 .project-kanban-card footer button:disabled { opacity: .4; cursor: default; }
 .project-kanban-empty { display: grid; min-height: 92px; place-items: center; border: 1px dashed var(--project-line); border-radius: 8px; color: var(--project-muted); font-size: 10px; }
 .project-workspace-footer { display: flex; flex: 0 0 auto; justify-content: space-between; gap: 12px; padding: 10px 34px max(12px, env(safe-area-inset-bottom)); color: var(--project-muted); font-size: 9px; }
-.app-shell.theme-dark .project-workspace-overlay { --project-bg: #171b22; --project-surface: #202630; --project-raised: #252d38; --project-line: #35404d; --project-ink: #e4e9ef; --project-muted: #a5b0bc; --project-accent: #9aabef; color-scheme: dark; }
-.app-shell.theme-dark .project-workspace-nav button.active { border-color: #596b9f; color: #c5d0ff; background: #313b53; }
-.app-shell.theme-dark .project-workspace-mark { border-color: #54648f; color: #c5d0ff; background: #313b53; }
-.app-shell.theme-dark .project-metric-icon.notes-icon { color: #c3baff; background: #38334f; }
-.app-shell.theme-dark .project-metric-icon.tasks-icon { color: #91d1d9; background: #2d4349; }
-.app-shell.theme-dark .project-metric-icon.done-icon { color: #8fd2ad; background: #2c473b; }
+.app-shell.theme-dark .project-workspace-overlay { --project-bg: #111; --project-surface: #191919; --project-raised: #232323; --project-line: #363636; --project-ink: #e8e8e8; --project-muted: #aaa; --project-accent: #b7b7b7; color-scheme: dark; }
+.app-shell.theme-dark .project-workspace-nav button.active { border-color: #555; color: #eee; background: #2b2b2b; }
+.app-shell.theme-dark .project-workspace-mark { border-color: #555; color: #eee; background: #2b2b2b; }
+.app-shell.theme-dark .project-metric-icon.notes-icon { color: #d3d3d3; background: #333; }
+.app-shell.theme-dark .project-metric-icon.tasks-icon { color: #bfcaca; background: #303434; }
+.app-shell.theme-dark .project-metric-icon.done-icon { color: #c1d0c5; background: #2c332e; }
 .app-shell.theme-dark .project-primary-action,
 .app-shell.theme-dark .project-add-task button { color: #17202c; background: #aebbf5; }
-.app-shell.theme-dark .project-open-canvas-card { color: #c5d0ff; background: #2a3349; }
+.app-shell.theme-dark .project-open-canvas-card { color: #e2e2e2; background: #292929; }
 .app-shell.theme-dark .project-task-delete:hover { background: #493337; }
 
 @media (max-width: 800px) {

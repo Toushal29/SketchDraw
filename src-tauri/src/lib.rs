@@ -5,6 +5,7 @@ use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
 mod android_documents;
+mod android_stylus;
 mod orientation;
 
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -304,6 +305,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(android_documents::init())
+        .plugin(android_stylus::init())
         .plugin(orientation::init())
         .invoke_handler(tauri::generate_handler![
             take_startup_files,
@@ -317,7 +319,9 @@ pub fn run() {
             android_documents::create_sketch_document,
             android_documents::rename_sketch_document,
             android_documents::has_all_files_access,
-            android_documents::open_all_files_access_settings
+            android_documents::open_all_files_access_settings,
+            android_documents::has_sketch_document_write_access,
+            android_stylus::set_android_stylus_preview,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

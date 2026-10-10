@@ -1,6 +1,6 @@
 /* Neutral charcoal surfaces across the app chrome and its controls. */
 .app-shell.theme-dark {
-    background: #181d24;
+    background: var(--dark-ui-base);
     color: var(--dark-ui-ink);
 }
 
@@ -144,12 +144,12 @@
     border-color: var(--dark-ui-border);
     background-color: var(--dark-ui-inset);
 }
-.app-shell.theme-dark .paper-pattern-swatch.dots { background-image: radial-gradient(#697482 1px, transparent 1.2px); }
-.app-shell.theme-dark .paper-pattern-swatch.small-dots { background-image: radial-gradient(#697482 .7px, transparent .9px); }
+.app-shell.theme-dark .paper-pattern-swatch.dots { background-image: radial-gradient(#777 1px, transparent 1.2px); }
+.app-shell.theme-dark .paper-pattern-swatch.small-dots { background-image: radial-gradient(#777 .7px, transparent .9px); }
 .app-shell.theme-dark .paper-pattern-swatch.lines,
-.app-shell.theme-dark .paper-pattern-swatch.small-grid { background-image: linear-gradient(#3c4652 1px, transparent 1px), linear-gradient(90deg, #3c4652 1px, transparent 1px); }
-.app-shell.theme-dark .paper-pattern-swatch.ruled { background-image: linear-gradient(transparent 5px, #3c4652 5px, #3c4652 6px, transparent 6px); }
-.app-shell.theme-dark .paper-pattern-swatch.isometric { background-image: repeating-linear-gradient(0deg, transparent 0 7px, #3c4652 7px 8px), repeating-linear-gradient(60deg, transparent 0 7px, #3c4652 7px 8px), repeating-linear-gradient(120deg, transparent 0 7px, #3c4652 7px 8px); }
+.app-shell.theme-dark .paper-pattern-swatch.small-grid { background-image: linear-gradient(#3b3b3b 1px, transparent 1px), linear-gradient(90deg, #3b3b3b 1px, transparent 1px); }
+.app-shell.theme-dark .paper-pattern-swatch.ruled { background-image: linear-gradient(transparent 5px, #3b3b3b 5px, #3b3b3b 6px, transparent 6px); }
+.app-shell.theme-dark .paper-pattern-swatch.isometric { background-image: repeating-linear-gradient(0deg, transparent 0 7px, #3b3b3b 7px 8px), repeating-linear-gradient(60deg, transparent 0 7px, #3b3b3b 7px 8px), repeating-linear-gradient(120deg, transparent 0 7px, #3b3b3b 7px 8px); }
 
 .app-shell.theme-dark .app-display-info,
 .app-shell.theme-dark .gesture-action-card,
@@ -224,6 +224,24 @@
     color: var(--dark-ui-muted);
     background: var(--dark-ui-raised);
 }
-.app-shell.theme-dark:not(.platform-windows) > .canvas-wrap { background: #151a21; }
-.app-shell.theme-dark .canvas-note-input::selection { color: #f1f4f8; background: color-mix(in srgb, var(--ui-accent) 46%, #27313d); }
+.app-shell.theme-dark > .canvas-wrap { background: #111; }
+.app-shell.theme-dark .canvas-note-input::selection { color: #f1f1f1; background: color-mix(in srgb, var(--ui-accent) 46%, #292929); }
+.app-shell.theme-dark > .topbar,
+.app-shell.theme-dark .touch-tool-bar,
+.app-shell.theme-dark .tool-deck { background-color: var(--toolbar-surface, var(--dark-ui-surface)); }
+
+.app-shell.theme-dark .welcome-card,
+.app-shell.theme-dark .recent-dashboard,
+.app-shell.theme-dark .mobile-home-screen,
+.app-shell.theme-dark .mobile-home-recent,
+.app-shell.theme-dark .mobile-home-action { background: var(--dark-ui-surface); }
+.app-shell.theme-dark .welcome-visual {
+    border-color: var(--dark-ui-border);
+    background-color: var(--dark-ui-raised);
+    background-image: radial-gradient(#555 1px, transparent 1px);
+}
+.app-shell.theme-dark .welcome-visual::before { background: linear-gradient(135deg, #232323e8, #202020b8 65%, #191919e0); }
+.app-shell.theme-dark .welcome-visual-caption,
+.app-shell.theme-dark .recent-file { border-color: var(--dark-ui-border); background: var(--dark-ui-raised); }
+.app-shell.theme-dark .recent-file:hover { border-color: #555; background: #2b2b2b; }
 

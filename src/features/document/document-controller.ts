@@ -49,14 +49,14 @@ export function createDocumentController(ports: DocumentControllerPorts) {
   const report = (status: DocumentControllerStatus) => ports.setStatus?.(status);
 
   async function save(path: string): Promise<void> {
-    if (ports.readOnly() || saveInFlight || ports.recoveryPrompt()) return;
+    const isNewPath = ports.activePath() !== path;
+    if ((ports.readOnly() && !isNewPath) || saveInFlight || ports.recoveryPrompt()) return;
     ports.commitTextDraft();
     saveInFlight = true;
     ports.setSaving(true);
     report("saving");
     try {
       const snapshot = ports.snapshot();
-      const isNewPath = ports.activePath() !== path;
       const saved = await saveSketchDocument(path, snapshot, !isNewPath ? baselineRaw ?? null : null);
       if (saved.conflictRaw !== undefined) {
         ports.setSyncConflict({ path, remote: saved.conflictRaw });
@@ -64,6 +64,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
         return;
       }
       ports.setActivePath(path);
+      if (isNewPath) ports.setReadOnly(false);
       if (isNewPath) ports.rememberFile(path);
       baselineRaw = saved.contents;
       ports.setSyncConflict(undefined);
@@ -73,13 +74,21 @@ export function createDocumentController(ports: DocumentControllerPorts) {
       ports.setError("");
       report("saved");
     } catch (cause) {
-      if (String(cause).includes("CONFLICT:")) {
+      const message = String(cause);
+      if (/^content:\/\//i.test(path) && /permission denial|securityexception|granturipermission|manage_documents/i.test(message)) {
+        persistRecovery({ savedAt: Date.now(), baselineRaw, snapshot: ports.snapshot() });
+        ports.setReadOnly(true);
+        ports.setSyncConflict(undefined);
+        ports.setError("This storage provider did not grant write access to the selected document. The sketch is now read-only; use Save as to create an editable copy.");
+      } else if (message.includes("CONFLICT:")) {
         try {
           ports.setSyncConflict({ path, remote: await sketchFileStore.read(path) });
           report("conflict");
         } catch { /* Keep local recovery available if the shared file cannot be read. */ }
+        ports.setError(`Could not save file: ${message}`);
+      } else {
+        ports.setError(`Could not save file: ${message}`);
       }
-      ports.setError(`Could not save file: ${String(cause)}`);
       report("error");
     } finally {
       saveInFlight = false;
@@ -146,7 +155,9 @@ export function createDocumentController(ports: DocumentControllerPorts) {
     const path = ports.activePath();
     const startingBaseline = baselineRaw;
     const wasReadOnly = ports.readOnly();
-    if (!path || !startingBaseline || !ports.canCheckForUpdates()) return;
+    // Content URIs are provider-managed documents (including cloud-backed files),
+    // not stable shared-folder paths. Their provider controls writes and versioning.
+    if (!path || /^content:\/\//i.test(path) || !startingBaseline || !ports.canCheckForUpdates()) return;
     try {
       const remoteRaw = await sketchFileStore.read(path);
       if (ports.activePath() !== path || baselineRaw !== startingBaseline || remoteRaw === startingBaseline) return;

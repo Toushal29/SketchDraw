@@ -120,9 +120,9 @@ export function AppSettingsMenu(props: Props) {
           <small>Choose presets or fine tuning for pen and paint brushes. Other tools keep their existing controls.</small>
         </div>
         {props.showAndroidAllFilesAccess && <div class="app-setting-field app-android-storage-setting">
-          <span>Android all files access <strong>{!props.androidAllFilesAccessAvailable ? "Unavailable" : props.androidAllFilesAccessGranted ? "Allowed" : "Not allowed"}</strong></span>
-          <small>{props.androidAllFilesAccessAvailable ? "Android manages this special permission in Settings. You can allow or deny broad shared-storage access there. SketchDraw can still open and save files through Android's document picker when this is off." : "This special Android setting is available on Android 11 and later. The document picker remains available on this device."}</small>
-          <button type="button" class="app-settings-reset" disabled={!props.androidAllFilesAccessAvailable} onClick={props.onRequestAndroidAllFilesAccess}>{props.androidAllFilesAccessGranted ? "Manage storage access" : "Choose storage access"}</button>
+          <span>All files access <strong>{!props.androidAllFilesAccessAvailable ? "Unavailable" : props.androidAllFilesAccessGranted ? "Allowed" : "Not allowed"}</strong></span>
+          <small>Android requires you to enable this in Special app access. When enabled, SketchDraw can read and write shared-storage files, including Downloads. If you decline, the document picker still gives access only to files you select.</small>
+          <button type="button" class="app-settings-reset" disabled={!props.androidAllFilesAccessAvailable} onClick={props.onRequestAndroidAllFilesAccess}>{props.androidAllFilesAccessGranted ? "Manage storage permission" : "Request storage permission"}</button>
         </div>}
         <label class="app-setting-toggle">
           <span><strong>Reduce motion</strong><small>Turn off most interface animations</small></span>

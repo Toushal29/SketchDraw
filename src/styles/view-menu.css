@@ -255,23 +255,23 @@
 .paper-pattern-swatch.plain { background-image: none; }
 
 .app-shell.theme-dark .view-menu-dropdown .view-settings-popover {
-    --view-ink: #e7ebf2;
-    --view-muted: #a7b0be;
-    --view-line: #3b4552;
-    --view-panel: #222831;
-    --view-well: #191e26;
-    --view-hover: #2d3541;
+    --view-ink: #eeeeee;
+    --view-muted: #aaaaaa;
+    --view-line: #363636;
+    --view-panel: #191919;
+    --view-well: #0d0d0d;
+    --view-hover: #292929;
     border-color: var(--view-line);
     color: var(--view-ink);
     background: var(--view-panel);
 }
 .app-shell.theme-dark .view-panel-tabs { border-color: var(--view-line); background: var(--view-well); }
-.app-shell.theme-dark .view-panel-tabs button.active { border-color: #465160; background: #29313c; }
+.app-shell.theme-dark .view-panel-tabs button.active { border-color: #4b4b4b; background: #2b2b2b; }
 .app-shell.theme-dark .view-menu-section { border-color: var(--view-line); background: var(--view-panel); }
-.app-shell.theme-dark .mobile-layout-section { background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 14%, #222831), #222831 70%); }
+.app-shell.theme-dark .mobile-layout-section { background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 14%, var(--dark-ui-surface)), var(--dark-ui-surface) 70%); }
 .app-shell.theme-dark .view-choice-group button,
 .app-shell.theme-dark .theme-options button,
-.app-shell.theme-dark .component-style-options button { border-color: var(--view-line); color: var(--view-ink); background: #252c36; }
+.app-shell.theme-dark .component-style-options button { border-color: var(--view-line); color: var(--view-ink); background: var(--dark-ui-raised); }
 .app-shell.theme-dark .view-choice-group button:hover,
 .app-shell.theme-dark .theme-options button:hover,
 .app-shell.theme-dark .component-style-options button:hover { background: var(--view-hover); }
@@ -286,13 +286,13 @@
 .app-shell.theme-dark .named-color-choice.active,
 .app-shell.theme-dark .board-color-choice.active,
 .app-shell.theme-dark .whiteboard-style-choice.active { color: var(--ui-accent-ink); }
-.app-shell.theme-dark .paper-pattern-swatch { border-color: #4a5564; background-color: #252c36; }
-.app-shell.theme-dark .paper-pattern-swatch.dots { background-image: radial-gradient(#8894a3 1px, transparent 1.2px); }
-.app-shell.theme-dark .paper-pattern-swatch.small-dots { background-image: radial-gradient(#8894a3 .7px, transparent .9px); }
+.app-shell.theme-dark .paper-pattern-swatch { border-color: #363636; background-color: #232323; }
+.app-shell.theme-dark .paper-pattern-swatch.dots { background-image: radial-gradient(#777 1px, transparent 1.2px); }
+.app-shell.theme-dark .paper-pattern-swatch.small-dots { background-image: radial-gradient(#777 .7px, transparent .9px); }
 .app-shell.theme-dark .paper-pattern-swatch.lines,
-.app-shell.theme-dark .paper-pattern-swatch.small-grid { background-image: linear-gradient(#4a5564 1px, transparent 1px), linear-gradient(90deg, #4a5564 1px, transparent 1px); }
-.app-shell.theme-dark .paper-pattern-swatch.ruled { background-image: linear-gradient(transparent 6px, #4a5564 6px, #4a5564 7px, transparent 7px); }
-.app-shell.theme-dark .paper-pattern-swatch.isometric { background-image: repeating-linear-gradient(0deg, transparent 0 7px, #4a5564 7px 8px), repeating-linear-gradient(60deg, transparent 0 7px, #4a5564 7px 8px), repeating-linear-gradient(120deg, transparent 0 7px, #4a5564 7px 8px); }
+.app-shell.theme-dark .paper-pattern-swatch.small-grid { background-image: linear-gradient(#3b3b3b 1px, transparent 1px), linear-gradient(90deg, #3b3b3b 1px, transparent 1px); }
+.app-shell.theme-dark .paper-pattern-swatch.ruled { background-image: linear-gradient(transparent 6px, #3b3b3b 6px, #3b3b3b 7px, transparent 7px); }
+.app-shell.theme-dark .paper-pattern-swatch.isometric { background-image: repeating-linear-gradient(0deg, transparent 0 7px, #3b3b3b 7px 8px), repeating-linear-gradient(60deg, transparent 0 7px, #3b3b3b 7px 8px), repeating-linear-gradient(120deg, transparent 0 7px, #3b3b3b 7px 8px); }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) .app-menus .view-menu-dropdown .view-settings-popover {

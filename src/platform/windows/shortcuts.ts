@@ -37,15 +37,25 @@ export const WINDOWS_SHORTCUTS = [
 ] as const;
 
 export type WindowsShortcutId = typeof WINDOWS_SHORTCUTS[number]["id"];
-export type WindowsShortcutMap = Record<WindowsShortcutId, string>;
+export type WindowsShortcutBindings = [string, string];
+export type WindowsShortcutMap = Record<WindowsShortcutId, WindowsShortcutBindings>;
+export type WindowsShortcutSlot = 0 | 1;
 
-export const DEFAULT_WINDOWS_SHORTCUTS = Object.fromEntries(WINDOWS_SHORTCUTS.map(item => [item.id, item.defaultKey])) as WindowsShortcutMap;
+export const DEFAULT_WINDOWS_SHORTCUTS = Object.fromEntries(WINDOWS_SHORTCUTS.map(item => [item.id, [item.defaultKey, ""]])) as WindowsShortcutMap;
 
 export function loadWindowsShortcuts(): WindowsShortcutMap {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem("sketchdraw-windows-shortcuts") ?? "{}");
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ...DEFAULT_WINDOWS_SHORTCUTS };
-    return { ...DEFAULT_WINDOWS_SHORTCUTS, ...Object.fromEntries(WINDOWS_SHORTCUTS.map(item => [item.id, typeof (raw as Record<string, unknown>)[item.id] === "string" ? (raw as Record<string, string>)[item.id] : item.defaultKey])) };
+    const stored = raw as Record<string, unknown>;
+    return Object.fromEntries(WINDOWS_SHORTCUTS.map(item => {
+      const value = stored[item.id];
+      // Older versions stored one replaceable binding. Preserve an old custom
+      // binding in the additional slot while restoring the standard primary.
+      if (typeof value === "string") return [item.id, value ? value === item.defaultKey ? [value, ""] : [item.defaultKey, value] : ["", ""]];
+      if (Array.isArray(value)) return [item.id, [typeof value[0] === "string" ? value[0] : item.defaultKey, typeof value[1] === "string" ? value[1] : ""]];
+      return [item.id, [item.defaultKey, ""]];
+    })) as WindowsShortcutMap;
   } catch { return { ...DEFAULT_WINDOWS_SHORTCUTS }; }
 }
 
@@ -64,6 +74,27 @@ export function shortcutFromEvent(event: KeyboardEvent) {
   return [...modifiers, normalizedKey].join("+");
 }
 
+export function shortcutFromMouseEvent(event: MouseEvent) {
+  // MouseEvent.button uses 0 for the primary button, 1 for middle, 2 for
+  // secondary, and 3/4 for the common back/forward thumb buttons.
+  const button = ({ 1: "Mouse2", 2: "Mouse3", 3: "Mouse4", 4: "Mouse5" } as Record<number, string>)[event.button];
+  if (!button) return "";
+  const modifiers = [event.ctrlKey || event.metaKey ? "Ctrl" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : ""].filter(Boolean);
+  return [...modifiers, button].join("+");
+}
+
 export function matchesWindowsShortcut(event: KeyboardEvent, binding: string) {
   return !!binding && normalizeShortcut(binding) === shortcutFromEvent(event);
+}
+
+export function matchesWindowsMouseShortcut(event: MouseEvent, binding: string) {
+  return !!binding && normalizeShortcut(binding) === shortcutFromMouseEvent(event);
+}
+
+export function displayShortcut(value: string) {
+  return value.replace(/Mouse([2-5])/g, "Mouse $1");
+}
+
+export function formatShortcutBindings(bindings: WindowsShortcutBindings) {
+  return bindings.filter(Boolean).map(displayShortcut).join(", ");
 }

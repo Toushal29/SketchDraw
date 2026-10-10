@@ -27,7 +27,10 @@ export function decodeSketchDocument(value: unknown): SketchFile | undefined {
 /** Writes a document through the storage adapter with both preflight and atomic conflict checks. */
 export async function saveSketchDocument(path: string, snapshot: SketchFile, expectedRaw: string | null): Promise<{ contents: string; conflictRaw?: string }> {
   const contents = serializeSketchSnapshot(snapshot);
-  if (expectedRaw !== null) {
+  // SAF providers can return changing cloud snapshots for one URI. Their write
+  // permissions/versioning are provider-managed, so filesystem-style conflict
+  // preflights only apply to ordinary paths.
+  if (expectedRaw !== null && !/^content:\/\//i.test(path)) {
     const diskRaw = await sketchFileStore.read(path);
     if (diskRaw !== expectedRaw) return { contents, conflictRaw: diskRaw };
   }

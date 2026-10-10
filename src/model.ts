@@ -1,5 +1,5 @@
 export type Point = { x: number; y: number };
-export type StrokePoint = Point & { pressure?: number; tiltX?: number; tiltY?: number };
+export type StrokePoint = Point & { pressure?: number; tiltX?: number; tiltY?: number; orientation?: number };
 export type ArrowHead = "none" | "open" | "solid" | "thick" | "dot" | "diamond" | "bar";
 export type FlowchartShape = "process" | "terminator" | "decision" | "data" | "document" | "database" | "predefined-process" | "preparation" | "manual-input" | "connector" | "off-page" | "delay" | "manual-operation" | "stored-data" | "cloud" | "star" | "lightning" | "heart" | "callout" | "gear";
 export type ArrowRoute = "straight" | "elbow" | "forked" | "loop" | "jagged";

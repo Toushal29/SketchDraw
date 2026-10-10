@@ -2,11 +2,13 @@ package com.toush.sketchdraw
 
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
-import android.provider.Settings
+import android.os.Process
 import android.provider.DocumentsContract
+import android.provider.Settings
 import androidx.activity.result.ActivityResult
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
@@ -28,14 +30,21 @@ internal class RenameSketchDocumentArgs {
   var fileName: String? = null
 }
 
+@InvokeArg
+internal class SketchDocumentPermissionArgs {
+  var uri: String? = null
+}
+
 @TauriPlugin
 class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun hasAllFilesAccess(invoke: Invoke) {
     val result = JSObject()
     val available = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+    val granted = available && Environment.isExternalStorageManager()
     result.put("available", available)
-    result.put("granted", available && Environment.isExternalStorageManager())
+    result.put("granted", granted)
+    if (granted) result.put("rootPath", Environment.getExternalStorageDirectory().absolutePath)
     invoke.resolve(result)
   }
 
@@ -58,6 +67,25 @@ class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) 
       } catch (error: Exception) {
         invoke.reject(error.message ?: "Could not open Android storage access settings.")
       }
+    }
+  }
+
+  @Command
+  fun hasSketchDocumentWriteAccess(invoke: Invoke) {
+    try {
+      val args = invoke.parseArgs(SketchDocumentPermissionArgs::class.java)
+      val uri = Uri.parse(args.uri ?: throw IllegalArgumentException("The sketch path is missing."))
+      val writable = uri.scheme == "content" && activity.checkUriPermission(
+        uri,
+        Process.myPid(),
+        Process.myUid(),
+        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+      ) == PackageManager.PERMISSION_GRANTED
+      val result = JSObject()
+      result.put("writable", writable)
+      invoke.resolve(result)
+    } catch (error: Exception) {
+      invoke.reject(error.message ?: "Could not check write access to this sketch.")
     }
   }
 

@@ -58,6 +58,13 @@ rust {
 }
 
 dependencies {
+    val inkVersion = "1.0.0"
+    implementation("androidx.ink:ink-authoring:$inkVersion")
+    implementation("androidx.ink:ink-brush:$inkVersion")
+    implementation("androidx.ink:ink-geometry:$inkVersion")
+    implementation("androidx.ink:ink-nativeloader:$inkVersion")
+    implementation("androidx.ink:ink-rendering:$inkVersion")
+    implementation("androidx.ink:ink-strokes:$inkVersion")
     implementation("androidx.webkit:webkit:1.14.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.activity:activity-ktx:1.10.1")

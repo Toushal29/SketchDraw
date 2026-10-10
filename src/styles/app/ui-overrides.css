@@ -341,7 +341,7 @@
 .app-shell.theme-dark .floating-layer-panel .layer-row {
     border-color: var(--layer-border);
     color: var(--layer-ink);
-    background: var(--dark-ui-raised, #29313c);
+    background: var(--dark-ui-raised, #232323);
 }
 
 .app-shell.theme-dark .floating-layer-panel .layer-row.selected {
@@ -918,7 +918,7 @@
 }
 
 .toolbar-auto-dot {
-    background: linear-gradient(135deg, #f8faf7 0 48%, #252c31 52% 100%);
+    background: linear-gradient(135deg, #f8faf7 0 48%, #1b1b1b 52% 100%);
 }
 
 .tool-family.options-open .text-options {

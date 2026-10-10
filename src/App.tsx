@@ -17,11 +17,11 @@ import "./platform/mobile/touch-bars.css";
 import "./platform/mobile/touch-style.css";
 import "./platform/mobile/orientation.css";
 import "./platform/mobile/quick-style.css";
-import "./styles/dark-theme-refresh.css";
 import "./styles/view-menu.css";
 import "./styles/menu-panels.css";
 import "./platform/windows/windows.css";
 import "./features/workspace/workspace-shell.css";
+import "./styles/dark-theme-refresh.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
@@ -59,7 +59,7 @@ import { ThicknessTuner } from "./components/ThicknessTuner";
 import { isWindowsPlatform } from "./platform/runtime";
 import type { PaletteCommand } from "./platform/windows/CommandPalette";
 import { createWindowsSyncMetadata, createWindowsSyncTracker, getWindowsDeviceId } from "./platform/windows/sync";
-import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, loadWindowsShortcuts, matchesWindowsShortcut, normalizeShortcut, type WindowsShortcutId, type WindowsShortcutMap } from "./platform/windows/shortcuts";
+import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, displayShortcut, formatShortcutBindings, loadWindowsShortcuts, matchesWindowsMouseShortcut, matchesWindowsShortcut, normalizeShortcut, shortcutFromMouseEvent, type WindowsShortcutId, type WindowsShortcutMap, type WindowsShortcutSlot } from "./platform/windows/shortcuts";
 import { autoRoutePoints } from "./platform/windows/connector-routing";
 import { ProjectWorkspace } from "./features/project/ProjectWorkspace";
 import { createProjectWorkspace } from "./features/project/project-data";
@@ -73,6 +73,14 @@ import type { DocumentControllerStatus } from "./features/document/document-type
 import { createSketchSnapshot, serializeSketchSnapshot } from "./features/files/document-codec";
 import { sketchFileStore } from "./features/files/sketch-file-store";
 import { sketchRecoveryStore } from "./features/files/sketch-recovery-store";
+
+type AndroidStylusSample = { clientX: number; clientY: number; pressure: number; tiltX: number; tiltY: number; orientation: number; time: number; phase: "start" | "move" | "end" };
+
+declare global {
+  interface Window {
+    __sketchDrawReceiveAndroidStylusSamples?: (samples: AndroidStylusSample[]) => void;
+  }
+}
 
 type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
 type TouchGesture = { fingerCount: 2 | 3; action: TouchGestureAction; initialDistance: number; initialZoom: number; initialPanX: number; initialPanY: number; initialMidpoint: Point; worldAnchor: Point };
@@ -107,7 +115,8 @@ function releaseVersionForPlatform(release: Record<string, unknown>): string {
 
 const GRID_SIZE = 24;
 const TOUCH_DRAG_THRESHOLD = 8;
-const stylusStrokeWidth = (point: StrokePoint, thickness: number) => thickness * (point.pressure === undefined ? 1 : .2 + Math.max(0, Math.min(1, point.pressure)) * 1.6) * (1 + Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) * .28);
+const stylusStrokeWidth = (point: StrokePoint, thickness: number) => thickness * (point.pressure === undefined ? 1 : .35 + Math.max(0, Math.min(1, point.pressure)) * 1.15) * (1 + Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) * .28);
+const stylusStrokeWidthAt = (points: StrokePoint[], index: number, thickness: number) => index === 0 ? stylusStrokeWidth(points[0], thickness) : (stylusStrokeWidth(points[index - 1], thickness) + stylusStrokeWidth(points[index], thickness)) / 2;
 const BOARD_COLORS = ["#ffffff", "#fffdf7", "#f4f7fb", "#fbf2ed", "#f1f5ed", "#f3f0fa"];
 const UI_ACCENTS = [
   { label: "Sage", value: "#547a5b" }, { label: "Ocean", value: "#3f78a5" }, { label: "Indigo", value: "#6d67aa" },
@@ -116,7 +125,7 @@ const UI_ACCENTS = [
 const TOOLBAR_COLORS = [
   { label: "Paper", value: "#f8faf7" }, { label: "Warm", value: "#f4efe4" },
   { label: "Slate", value: "#e8edf2" }, { label: "Sage", value: "#e8efe9" },
-  { label: "Night", value: "#252c31" },
+  { label: "Night", value: "#171717" },
 ];
 const BOARD_COLOR_NAMES: Record<string, string> = { "#ffffff": "White", "#fffdf7": "Ivory", "#f4f7fb": "Mist", "#fbf2ed": "Blush", "#f1f5ed": "Sage", "#f3f0fa": "Lilac" };
 const readPreference = (key: string, fallback: string) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
@@ -280,7 +289,7 @@ function App() {
   const [reduceMotion, setReduceMotion] = createSignal(readPreference("sketchdraw-reduce-motion", "false") === "true");
   const [displayMetrics, setDisplayMetrics] = createSignal<DisplayMetrics>(readDisplayMetrics());
   const [componentAppearance, setComponentAppearance] = createSignal<"modern" | "simple">(readPreference("sketchdraw-component-appearance", "modern") === "simple" ? "simple" : "modern");
-  const [toolbarColorChoice, setToolbarColorChoice] = createSignal((() => { const value = readPreference("sketchdraw-toolbar-color", "auto"); return value === "auto" || /^#[\da-f]{6}$/i.test(value) ? value : "auto"; })());
+  const [toolbarColorChoice, setToolbarColorChoice] = createSignal((() => { const value = readPreference("sketchdraw-toolbar-color", "auto"); if (value.toLowerCase() === "#252c31") return "#171717"; return value === "auto" || /^#[\da-f]{6}$/i.test(value) ? value : "auto"; })());
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "error">("idle");
   const [updateVersion, setUpdateVersion] = createSignal<string>();
@@ -373,6 +382,7 @@ function App() {
   let drawing = false;
   let activeDrawingTool: Preview["type"] = "pen";
   let currentPoints: StrokePoint[] = [];
+  let pendingAndroidStylusSamples: AndroidStylusSample[] = [];
   type StrokePathCache = { length: number; pressureAware: boolean; path?: Path2D; pressurePaths: Map<number, Path2D> };
   const strokePathCache = new WeakMap<StrokePoint[], StrokePathCache>();
   let penEraserDrawing = false;
@@ -666,7 +676,7 @@ function App() {
   const fileName = () => activePath() ? displayPathName(activePath()!) : "Untitled sketch";
   const currentPage = () => pages().find((page) => page.id === activePageId());
   const theme = (): Theme => themeMode() === "system" ? systemDark() ? "dark" : "light" : themeMode() as Theme;
-  const toolbarColor = () => toolbarColorChoice() === "auto" ? theme() === "dark" ? "#252c31" : "#f8faf7" : toolbarColorChoice();
+  const toolbarColor = () => toolbarColorChoice() === "auto" ? theme() === "dark" ? "#1b1b1b" : "#f8faf7" : toolbarColorChoice();
   const selectedSet = createMemo(() => new Set(selectedIndices()));
   const selectedElements = () => getSelectedElements(elements(), selectedIndices());
   const primarySelection = () => primarySelectionIndex(selectedIndices());
@@ -774,6 +784,34 @@ function App() {
   const canRedo = () => { historyVersion(); return canvasHistory.canRedo(); };
   const toWorld = (event: PointerEvent): Point => pointerToWorld(event.clientX, event.clientY, canvas.getBoundingClientRect(), canvasState());
   const strokePointFromPointer = (event: PointerEvent, point: Point): StrokePoint => makeStrokePoint(event, point, penPressure(), penTilt());
+  function appendAndroidStylusSamples(samples: AndroidStylusSample[]) {
+    if (!canvas || !samples.length || !drawing || activeDrawingTool !== "pen" || activePenPointerId === undefined) return;
+    const bounds = canvas.getBoundingClientRect(); const state = canvasState(); let appended = false; let lastPoint: Point | undefined;
+    for (const sample of samples) {
+      if (!Number.isFinite(sample.clientX) || !Number.isFinite(sample.clientY)) continue;
+      const point = pointerToWorld(sample.clientX, sample.clientY, bounds, state);
+      const previous = currentPoints[currentPoints.length - 1];
+      if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * state.zoom < .01) continue;
+      currentPoints.push({
+        ...point,
+        ...(penPressure() ? { pressure: Math.max(0, Math.min(1, sample.pressure)) } : {}),
+        ...(penTilt() ? { tiltX: Math.max(-90, Math.min(90, sample.tiltX)), tiltY: Math.max(-90, Math.min(90, sample.tiltY)), orientation: ((sample.orientation % 360) + 360) % 360 } : {}),
+      });
+      appended = true; lastPoint = point;
+    }
+    if (appended) {
+      setPreview(current => current && lastPoint ? { ...current, end: lastPoint } : current);
+      scheduleCanvasRender();
+    }
+  }
+  function receiveAndroidStylusSamples(samples: AndroidStylusSample[]) {
+    if (!isAndroidPlatform() || !Array.isArray(samples) || !samples.length || !activePath() || workspaceArea() !== "canvas" || tool() !== "pen") return;
+    if (drawing && activePenPointerId !== undefined && activeDrawingTool === "pen") {
+      appendAndroidStylusSamples(samples);
+      return;
+    }
+    if (samples.some(sample => sample.phase === "start")) pendingAndroidStylusSamples = samples.slice(-12);
+  }
   const snap = (point: Point): Point => snapCanvasPoint(point, snapToGrid(), whiteboardStyle(), GRID_SIZE);
 
   const undo = canvasHistory.undo;
@@ -1345,10 +1383,30 @@ function App() {
       const from = index === 1 ? points[0] : { x: (points[index - 2].x + previous.x) / 2, y: (points[index - 2].y + previous.y) / 2 };
       const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
       if (cache.pressureAware) {
-        const widthFactor = Math.max(.05, Math.round((stylusStrokeWidth(previous, 1) + stylusStrokeWidth(point, 1)) / 2 * 20) / 20);
-        let path = cache.pressurePaths.get(widthFactor);
-        if (!path) { path = new Path2D(); cache.pressurePaths.set(widthFactor, path); }
-        path.moveTo(from.x, from.y); path.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
+        const startWidth = stylusStrokeWidthAt(points, index - 1, 1);
+        const endWidth = stylusStrokeWidthAt(points, index, 1);
+        const widthChange = Math.abs(endWidth - startWidth);
+        if (widthChange < .005) {
+          const widthFactor = Math.round(((startWidth + endWidth) / 2) * 100) / 100;
+          let path = cache.pressurePaths.get(widthFactor);
+          if (!path) { path = new Path2D(); cache.pressurePaths.set(widthFactor, path); }
+          path.moveTo(from.x, from.y); path.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
+        } else {
+          const curveLength = Math.hypot(previous.x - from.x, previous.y - from.y) + Math.hypot(mid.x - previous.x, mid.y - previous.y);
+          const steps = Math.min(256, Math.max(1, Math.ceil(curveLength / 2), Math.ceil(widthChange / .01)));
+          const quadraticPoint = (t: number) => {
+            const inverse = 1 - t;
+            return { x: inverse * inverse * from.x + 2 * inverse * t * previous.x + t * t * mid.x, y: inverse * inverse * from.y + 2 * inverse * t * previous.y + t * t * mid.y };
+          };
+          for (let step = 0; step < steps; step++) {
+            const t0 = step / steps; const t1 = (step + 1) / steps;
+            const start = quadraticPoint(t0); const end = quadraticPoint(t1);
+            const widthFactor = Math.max(.05, Math.round((startWidth + (endWidth - startWidth) * ((t0 + t1) / 2)) * 100) / 100);
+            let path = cache.pressurePaths.get(widthFactor);
+            if (!path) { path = new Path2D(); cache.pressurePaths.set(widthFactor, path); }
+            path.moveTo(start.x, start.y); path.lineTo(end.x, end.y);
+          }
+        }
       } else {
         cache.path!.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
       }
@@ -1477,13 +1535,13 @@ function App() {
         };
         ctx.lineCap = "round"; ctx.lineJoin = "round";
         if (element.points.length === 1) stamp(element.points[0]);
-        if (cache) for (const [widthFactor, path] of cache.pressurePaths) { ctx.lineWidth = Math.max(.75, widthFactor * element.thickness); ctx.stroke(path); }
+        if (cache) for (const [widthFactor, path] of cache.pressurePaths) { ctx.lineWidth = Math.max(.35, widthFactor * element.thickness); ctx.stroke(path); }
         else {
           let from = element.points[0];
           for (let index = 1; index < element.points.length; index++) {
             const previous = element.points[index - 1]; const point = element.points[index];
             const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
-            ctx.beginPath(); ctx.lineWidth = Math.max(.75, (pointWidth(previous) + pointWidth(point)) / 2); ctx.moveTo(from.x, from.y); ctx.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y); ctx.stroke();
+            ctx.beginPath(); ctx.lineWidth = Math.max(.35, (pointWidth(previous) + pointWidth(point)) / 2); ctx.moveTo(from.x, from.y); ctx.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y); ctx.stroke();
             from = mid;
           }
         }
@@ -1615,6 +1673,42 @@ function App() {
   const scheduleCanvasRender = canvasRenderScheduler.schedule;
   onCleanup(canvasRenderScheduler.dispose);
   createEffect(() => { activePath(); elements(); canvasState(); preview(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); componentAppearance(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
+  let lastAndroidStylusConfig = "";
+  createEffect(() => {
+    if (!isAndroidPlatform()) return;
+    const area = workspaceArea(); const selectedTool = tool(); const state = canvasState(); const mode = brushMode();
+    const metrics = displayMetrics(); const rect = canvas?.getBoundingClientRect();
+    void metrics.viewportWidth; void metrics.viewportHeight;
+    const style: Record<BrushMode, { width: number; opacity: number }> = { fine: { width: 1, opacity: 1 }, pencil: { width: .72, opacity: .62 }, brush: { width: 2.2, opacity: .9 }, marker: { width: 3, opacity: .78 }, highlighter: { width: 6, opacity: .28 }, chalk: { width: 1.7, opacity: .48 } };
+    const brush = style[mode];
+    const enabled = !!rect && rect.width > 0 && rect.height > 0 && !!activePath() && area === "canvas" && selectedTool === "pen" && !readOnlyView() && !boardLocked() && !documentBusy() && !noteEditor() && !textDraft() && !touchStylePanel() && !quickStylePopover() && !openToolOptions() && !stencilMenuOpen() && !paintBrushMenuOpen() && !canvasOptionsOpen() && !contextMenu() && !helpOpen() && !recoveryPrompt() && !syncConflict();
+    const config = {
+      enabled,
+      canvasLeft: rect?.left ?? 0,
+      canvasTop: rect?.top ?? 0,
+      canvasWidth: rect?.width ?? 0,
+      canvasHeight: rect?.height ?? 0,
+      color: color(),
+      thickness: Math.max(mode === "highlighter" ? 12 : mode === "marker" ? 6 : 1, thickness() * brush.width),
+      opacity: brush.opacity,
+      zoom: state.zoom,
+      brushMode: mode,
+      pressureEnabled: penPressure(),
+      tiltEnabled: penTilt(),
+    };
+    const serialized = JSON.stringify(config);
+    if (serialized === lastAndroidStylusConfig) return;
+    lastAndroidStylusConfig = serialized;
+    void invoke("set_android_stylus_preview", { config }).catch(() => undefined);
+  });
+  onCleanup(() => {
+    if (isAndroidPlatform()) void invoke("set_android_stylus_preview", { config: { enabled: false, canvasLeft: 0, canvasTop: 0, canvasWidth: 0, canvasHeight: 0, color: "#202124", thickness: 1, opacity: 1, zoom: 1, brushMode: "fine", pressureEnabled: true, tiltEnabled: true } }).catch(() => undefined);
+  });
+  onMount(() => {
+    const previousHandler = window.__sketchDrawReceiveAndroidStylusSamples;
+    window.__sketchDrawReceiveAndroidStylusSamples = receiveAndroidStylusSamples;
+    onCleanup(() => { if (window.__sketchDrawReceiveAndroidStylusSamples === receiveAndroidStylusSamples) window.__sketchDrawReceiveAndroidStylusSamples = previousHandler; });
+  });
   createEffect(() => { const session = noteEditorSession(); if (!session) return; requestAnimationFrame(() => { if (noteEditorTextarea?.isConnected) noteEditorTextarea.focus(); }); });
   createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); componentAppearance(); boardColor(); whiteboardStyle(); renderExportPreview(); });
   createEffect(() => {
@@ -1719,9 +1813,9 @@ function App() {
       if (event.target instanceof HTMLElement && event.target.closest("details[open], .tool-options")) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
       if (isWindowsPlatform()) {
-        const matched = WINDOWS_SHORTCUTS.find(item => matchesWindowsShortcut(event, shortcuts()[item.id]));
+        const matched = WINDOWS_SHORTCUTS.find(item => shortcuts()[item.id].some(binding => matchesWindowsShortcut(event, binding)));
         if (matched) { event.preventDefault(); runWindowsShortcut(matched.id); return; }
-        const reassignedDefault = WINDOWS_SHORTCUTS.some(item => matchesWindowsShortcut(event, item.defaultKey) && normalizeShortcut(shortcuts()[item.id]) !== normalizeShortcut(item.defaultKey));
+        const reassignedDefault = WINDOWS_SHORTCUTS.some(item => matchesWindowsShortcut(event, item.defaultKey) && !shortcuts()[item.id].some(binding => normalizeShortcut(binding) === normalizeShortcut(item.defaultKey)));
         if (reassignedDefault) { event.preventDefault(); return; }
         if (presentationMode() && (event.key === "ArrowRight" || event.key === "ArrowLeft")) { event.preventDefault(); changePresentationPage(event.key === "ArrowRight" ? 1 : -1); return; }
       }
@@ -1763,6 +1857,24 @@ function App() {
     document.addEventListener("copy", copy); document.addEventListener("paste", paste); document.addEventListener("cut", cut);
     onCleanup(() => { document.removeEventListener("copy", copy); document.removeEventListener("paste", paste); document.removeEventListener("cut", cut); });
     const keyUp = (event: KeyboardEvent) => { if (event.code === "Space") setSpaceDown(false); };
+    let lastMouseShortcut: { binding: string; at: number } | undefined;
+    const runMouseShortcut = (event: MouseEvent, allowAction: boolean) => {
+      if (!isWindowsPlatform() || shortcutDialogOpen() || recoveryPrompt() || syncConflict() || helpOpen() || pageDialog() || renameFileOpen() || schemaDialog() || mermaidDialog() || exportOptionsOpen() || showClearConfirm() || noteEditor()) return;
+      if (event instanceof PointerEvent && event.pointerType !== "mouse") return;
+      const binding = shortcutFromMouseEvent(event);
+      if (!binding) return;
+      const matched = WINDOWS_SHORTCUTS.find(item => shortcuts()[item.id].some(binding => matchesWindowsMouseShortcut(event, binding)));
+      if (!matched) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!allowAction) return;
+      if (event.type === "auxclick" && lastMouseShortcut?.binding === binding && Date.now() - lastMouseShortcut.at < 750) return;
+      lastMouseShortcut = { binding, at: Date.now() };
+      runWindowsShortcut(matched.id);
+    };
+    const mouseShortcutPointerDown = (event: PointerEvent) => runMouseShortcut(event, true);
+    const mouseShortcutAuxClick = (event: MouseEvent) => runMouseShortcut(event, true);
+    const mouseShortcutContextMenu = (event: MouseEvent) => runMouseShortcut(event, false);
     const refreshStorageAccessOnReturn = () => { if (!document.hidden) void refreshAndroidAllFilesAccess(); };
     const blur = () => {
       setSpaceDown(false);
@@ -1800,7 +1912,7 @@ function App() {
         closeInProgress = false;
       }
     }).then((unlisten) => { unlistenClose = unlisten; }).catch((cause) => setError(`Could not prepare safe closing: ${String(cause)}`));
-    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("blur", blur); window.addEventListener("focus", refreshStorageAccessOnReturn); document.addEventListener("visibilitychange", refreshStorageAccessOnReturn); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", alignOpenTouchMenus); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", alignOpenTouchMenus); window.addEventListener("orientationchange", updateDisplayMetrics);
+    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("pointerdown", mouseShortcutPointerDown, true); window.addEventListener("auxclick", mouseShortcutAuxClick, true); window.addEventListener("contextmenu", mouseShortcutContextMenu, true); window.addEventListener("blur", blur); window.addEventListener("focus", refreshStorageAccessOnReturn); document.addEventListener("visibilitychange", refreshStorageAccessOnReturn); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", alignOpenTouchMenus); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", alignOpenTouchMenus); window.addEventListener("orientationchange", updateDisplayMetrics);
     document.addEventListener("pointerdown", outsideClick); document.addEventListener("keydown", closeMenuOnEscape);
     let autosaveTimer: number | undefined;
     const scheduleAutosave = () => {
@@ -1816,7 +1928,7 @@ function App() {
     restartAutosave = () => { if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); scheduleAutosave(); };
     scheduleAutosave();
     syncPollTimer = window.setInterval(() => void pollSharedSketch(), 1600);
-    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); if (syncPollTimer !== undefined) window.clearInterval(syncPollTimer); if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("blur", blur); window.removeEventListener("focus", refreshStorageAccessOnReturn); document.removeEventListener("visibilitychange", refreshStorageAccessOnReturn); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", alignOpenTouchMenus); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", alignOpenTouchMenus); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
+    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); if (syncPollTimer !== undefined) window.clearInterval(syncPollTimer); if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("pointerdown", mouseShortcutPointerDown, true); window.removeEventListener("auxclick", mouseShortcutAuxClick, true); window.removeEventListener("contextmenu", mouseShortcutContextMenu, true); window.removeEventListener("blur", blur); window.removeEventListener("focus", refreshStorageAccessOnReturn); document.removeEventListener("visibilitychange", refreshStorageAccessOnReturn); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", alignOpenTouchMenus); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", alignOpenTouchMenus); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
   });
 
   function setThemePreference(mode: ThemeMode) {
@@ -2003,7 +2115,6 @@ function App() {
   }
 
   async function saveAs() {
-    if (readOnlyView()) return;
     if (!activePath()) { await createFile(); return; }
     if (nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
@@ -2157,17 +2268,31 @@ function App() {
   }
 
   async function loadFile(path: string, viewOnly = false) {
-    await docController.open(path, viewOnly);
+    let openReadOnly = viewOnly;
+    if (!openReadOnly && isAndroidPlatform() && /^content:\/\//i.test(path)) {
+      try {
+        const writable = await invoke<boolean>("has_sketch_document_write_access", { uri: path });
+        if (!writable) {
+          openReadOnly = true;
+          setError("Android's document provider granted read access only. The sketch is open read-only; use Save as to create an editable copy.");
+        }
+      } catch {
+        openReadOnly = true;
+        setError("Could not confirm write access from Android's document provider. The sketch is open read-only; use Save as to create an editable copy.");
+      }
+    }
+    await docController.open(path, openReadOnly);
   }
 
   async function pollSharedSketch() {
     await docController.checkForUpdates();
   }
 
-  function setWindowsShortcut(id: WindowsShortcutId, value: string) {
+  function setWindowsShortcut(id: WindowsShortcutId, slot: WindowsShortcutSlot, value: string) {
     const normalized = value ? normalizeShortcut(value) : "";
-    if (normalized && WINDOWS_SHORTCUTS.some(item => item.id !== id && shortcuts()[item.id] && normalizeShortcut(shortcuts()[item.id]) === normalized)) return false;
-    const next = { ...shortcuts(), [id]: normalized };
+    if (normalized && WINDOWS_SHORTCUTS.some(item => shortcuts()[item.id].some((binding, index) => (item.id !== id || index !== slot) && normalizeShortcut(binding) === normalized))) return false;
+    const next = { ...shortcuts(), [id]: [...shortcuts()[id]] as [string, string] };
+    next[id][slot] = normalized;
     setShortcuts(next);
     try { localStorage.setItem("sketchdraw-windows-shortcuts", JSON.stringify(next)); } catch { /* The current session still uses the new shortcut. */ }
     return true;
@@ -2627,7 +2752,7 @@ function App() {
             const box = elementBounds(element); const centerX = x0 + (box.x + box.w / 2) * scale; const centerY = yTop - (box.y + box.h / 2) * scale; const rotated = !!element.rotation;
             if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
             const ink = pdfColor(themeInk(element.color, theme()), pdfColorMode());
-            for (let index = 1; index < points.length; index++) { const a = points[index - 1]; const b = points[index]; const width = (stylusStrokeWidth(a, element.thickness) + stylusStrokeWidth(b, element.thickness)) / 2; page.drawSvgPath(`M ${a.x} ${a.y} L ${b.x} ${b.y}`, { x: x0, y: yTop, scale, borderColor: ink, borderWidth: width * scale, borderOpacity: element.opacity ?? 1, borderLineCap: LineCapStyle.Round }); }
+            for (let index = 1; index < points.length; index++) { const a = points[index - 1]; const b = points[index]; const width = (stylusStrokeWidthAt(points, index - 1, element.thickness) + stylusStrokeWidthAt(points, index, element.thickness)) / 2; page.drawSvgPath(`M ${a.x} ${a.y} L ${b.x} ${b.y}`, { x: x0, y: yTop, scale, borderColor: ink, borderWidth: width * scale, borderOpacity: element.opacity ?? 1, borderLineCap: LineCapStyle.Round }); }
             if (rotated) page.pushOperators(popGraphicsState()); return;
           }
           let d = `M ${points[0].x} ${points[0].y}`;
@@ -2833,10 +2958,10 @@ function App() {
       const points = element.points;
       if (points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined)) {
         const ink = escapeXml(themeInk(element.color, theme())); const marks = points.map((point, index) => {
-          const width = stylusStrokeWidth(point, element.thickness); const tilt = Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90); const angle = Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0) * 180 / Math.PI;
+          const width = stylusStrokeWidthAt(points, index, element.thickness); const tilt = Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90); const angle = Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0) * 180 / Math.PI;
           const stamp = `<ellipse cx="${point.x}" cy="${point.y}" rx="${Math.max(.25, width * (.5 + tilt * .35))}" ry="${Math.max(.25, width * .5)}" transform="rotate(${angle} ${point.x} ${point.y})" fill="${ink}" opacity="${strokeOpacity}"/>`;
           if (index === 0) return stamp;
-          const previous = points[index - 1]; const segmentWidth = (stylusStrokeWidth(previous, element.thickness) + width) / 2;
+          const previous = points[index - 1]; const segmentWidth = (stylusStrokeWidthAt(points, index - 1, element.thickness) + width) / 2;
           return `<path d="M ${previous.x} ${previous.y} L ${point.x} ${point.y}" fill="none" stroke="${ink}" opacity="${strokeOpacity}" stroke-width="${segmentWidth}" stroke-linecap="round"/>${stamp}`;
         }).join("");
         return `<g>${marks}</g>`;
@@ -3031,6 +3156,7 @@ function App() {
   }
 
   function cancelCanvasInteraction() {
+    pendingAndroidStylusSamples = [];
     if (resizeOrigin) setElements(resizeOrigin.before);
     if (moveOrigin) { moveOrigin = undefined; scheduleCanvasRender(); }
     drawing = false; currentPoints = []; penEraserDrawing = false;
@@ -3080,11 +3206,18 @@ function App() {
       }
     }
     beginCanvasInteraction(event);
+    if (event.pointerType === "pen" && isAndroidPlatform() && activeDrawingTool === "pen" && pendingAndroidStylusSamples.length) {
+      const queued = pendingAndroidStylusSamples;
+      pendingAndroidStylusSamples = [];
+      appendAndroidStylusSamples(queued);
+    }
   }
 
   function appendStrokeSample(event: PointerEvent, point: Point) {
+    if (event.pointerType === "pen" && event.pressure <= 0 && (event.buttons & 1) === 0) return;
     const previous = currentPoints[currentPoints.length - 1];
-    if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * canvasState().zoom < .05) return;
+    const minDistance = event.pointerType === "pen" ? .01 : .05;
+    if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * canvasState().zoom < minDistance) return;
     currentPoints.push(tool() === "pen" ? strokePointFromPointer(event, point) : point);
   }
 
@@ -3092,12 +3225,13 @@ function App() {
     const bounds = canvas.getBoundingClientRect(); const state = canvasState();
     let samples: PointerEvent[] = [];
     try { samples = event.getCoalescedEvents?.() ?? []; } catch { /* Some Android WebViews expose this API without implementing it. */ }
+    if (!samples.length) samples = [event];
     for (const sample of samples) appendStrokeSample(sample, { x: (sample.clientX - bounds.left - state.panX) / state.zoom, y: (sample.clientY - bounds.top - state.panY) / state.zoom });
-    if (appendTerminal) appendStrokeSample(event, { x: (event.clientX - bounds.left - state.panX) / state.zoom, y: (event.clientY - bounds.top - state.panY) / state.zoom });
+    if (appendTerminal && samples[samples.length - 1] !== event) appendStrokeSample(event, { x: (event.clientX - bounds.left - state.panX) / state.zoom, y: (event.clientY - bounds.top - state.panY) / state.zoom });
   }
 
   function pointerRawUpdate(event: PointerEvent) {
-    if (event.pointerType !== "pen" || !drawing || activePenPointerId !== event.pointerId || activeDrawingTool !== "pen" || !preview()) return;
+    if (event.pointerType !== "pen" || activePenPointerId !== event.pointerId || activeDrawingTool !== "pen" || (!drawing && !preview())) return;
     const previousLength = currentPoints.length;
     appendPenSamples(event);
     if (currentPoints.length !== previousLength) scheduleCanvasRender();
@@ -3252,6 +3386,7 @@ function App() {
   }
 
   function pointerCancel(event: PointerEvent) {
+    if (event.pointerType === "pen") pendingAndroidStylusSamples = [];
     if (textEditorPendingPointerId === event.pointerId) textEditorPendingPointerId = undefined;
     if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
     if (ignoredTouchPointers.delete(event.pointerId) || event.pointerType === "touch" && !touchPointers.has(event.pointerId)) return;
@@ -3265,6 +3400,7 @@ function App() {
   }
 
   function pointerUp(event: PointerEvent) {
+    if (event.pointerType === "pen") pendingAndroidStylusSamples = [];
     if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
     if (ignoredTouchPointers.delete(event.pointerId) || event.pointerType === "touch" && !touchPointers.has(event.pointerId)) return;
     if (event.pointerType === "pen" && activePenPointerId === event.pointerId) activePenPointerId = undefined;
@@ -3342,7 +3478,8 @@ function App() {
       if (event.pointerType === "pen") event.preventDefault();
       if (event.pointerType === "pen") appendPenSamples(event, false);
       const end = toWorld(event); const last = currentPoints[currentPoints.length - 1];
-      if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= .05) {
+      const minDistance = event.pointerType === "pen" ? .01 : .05;
+      if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= minDistance) {
         currentPoints.push(tool() === "pen" ? { ...end, pressure: last.pressure, tiltX: last.tiltX, tiltY: last.tiltY } : end);
       }
     }
@@ -3401,6 +3538,11 @@ function App() {
     { value: "eraser", label: "Eraser", key: "E", path: "M3 14l9-10 9 9-8 8H7zM12 18l5-5" },
     { value: "crop", label: "Crop image", key: "X", path: "M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8 8h8v8H8z" },
   ];
+  const shortcutIdByTool: Partial<Record<Tool, WindowsShortcutId>> = {
+    select: "selectTool", pen: "penTool", laser: "laserTool", line: "lineTool", arrow: "arrowTool",
+    rectangle: "rectangleTool", circle: "circleTool", diamond: "diamondTool", triangle: "triangleTool",
+    flowchart: "flowchartTool", text: "textTool", bucket: "bucketTool", eraser: "eraserTool", crop: "cropTool",
+  };
   const toolGroups: { id: string; label: string; tools: Tool[] }[] = readOnlyView() ? [
     { id: "laser", label: "Laser pointer", tools: ["laser"] },
   ] : isWindowsPlatform() ? [
@@ -3618,7 +3760,11 @@ function App() {
     const active = (value === "pen" ? tool() === "pen" && brushMode() === "fine" : tool() === value) || (value === "pan" && spaceDown());
     const hasOptions = value === "flowchart" || value === "line" || value === "arrow" || value === "text";
     const mobileEssential = mobileEssentialTools.has(value);
-    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${label} (${key})${hasOptions ? " · click or hover for options" : ""}`} aria-label={label} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (hasOptions) { if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{value === "flowchart" ? <><g class="desktop-flowchart-icon"><path d={path} /></g><g class="touch-flowchart-icon"><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></g></> : <path d={path} />}</svg><kbd>{key}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
+    const shortcutId = shortcutIdByTool[value];
+    const bindings = shortcutId ? shortcuts()[shortcutId] : undefined;
+    const displayedKey = displayShortcut(bindings?.find(Boolean) ?? key);
+    const shortcutLabel = bindings ? formatShortcutBindings(bindings) || key : key;
+    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${label} (${shortcutLabel})${hasOptions ? " · click or hover for options" : ""}`} aria-label={label} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (hasOptions) { if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{value === "flowchart" ? <><g class="desktop-flowchart-icon"><path d={path} /></g><g class="touch-flowchart-icon"><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></g></> : <path d={path} />}</svg><kbd>{displayedKey}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
     if (value === "flowchart") return <div class="tool-family flowchart-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options flowchart-options" role="menu" aria-label="Flowchart symbols">{FLOWCHART_MENU_SHAPES.map((shape) => <button class={flowchartShape() === shape.value ? "active" : ""} role="menuitem" title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setFlowchartShape(shape.value); setTool("flowchart"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div></div>;
     if (value === "text") return <div class="tool-family text-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options text-options" role="menu" aria-label="Text and note tools">
       <button role="menuitem" title="Place plain text" onClick={() => { closeToolOptions(); setTextMode("text"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M4 6h16M12 6v13m-4 0h8"/></svg><span>Text</span></button>
@@ -3635,16 +3781,16 @@ function App() {
   };
   const windowsCommands = createMemo<PaletteCommand[]>(() => {
     const commands: PaletteCommand[] = [
-      { id: "new", label: "New sketch", category: "File", shortcut: shortcuts().newSketch, run: () => void createFile() },
-      { id: "open", label: "Open sketch", category: "File", shortcut: shortcuts().openSketch, run: () => void openFile() },
-      { id: "save", label: "Save sketch", category: "File", shortcut: shortcuts().saveSketch, run: () => activePath() ? void saveToPath(activePath()!) : void saveAs() },
-      { id: "save-as", label: "Save sketch as", category: "File", shortcut: shortcuts().saveAs, run: () => void saveAs() },
-      { id: "undo", label: "Undo", category: "Edit", shortcut: shortcuts().undo, run: undo },
-      { id: "redo", label: "Redo", category: "Edit", shortcut: shortcuts().redo, run: redo },
-      { id: "duplicate", label: "Duplicate selection", category: "Edit", shortcut: shortcuts().duplicate, run: () => insertCopies(selectedElements()) },
-      { id: "group", label: "Group selection", category: "Edit", shortcut: shortcuts().group, run: groupSelection },
-      { id: "ungroup", label: "Ungroup selection", category: "Edit", shortcut: shortcuts().ungroup, run: ungroupSelection },
-      { id: "select-all", label: "Select all objects", category: "Edit", shortcut: shortcuts().selectAll, run: () => setSelectedIndices(elements().flatMap((item, index) => !item.hidden && !item.locked ? [index] : [])) },
+      { id: "new", label: "New sketch", category: "File", shortcut: formatShortcutBindings(shortcuts().newSketch), run: () => void createFile() },
+      { id: "open", label: "Open sketch", category: "File", shortcut: formatShortcutBindings(shortcuts().openSketch), run: () => void openFile() },
+      { id: "save", label: "Save sketch", category: "File", shortcut: formatShortcutBindings(shortcuts().saveSketch), run: () => activePath() ? void saveToPath(activePath()!) : void saveAs() },
+      { id: "save-as", label: "Save sketch as", category: "File", shortcut: formatShortcutBindings(shortcuts().saveAs), run: () => void saveAs() },
+      { id: "undo", label: "Undo", category: "Edit", shortcut: formatShortcutBindings(shortcuts().undo), run: undo },
+      { id: "redo", label: "Redo", category: "Edit", shortcut: formatShortcutBindings(shortcuts().redo), run: redo },
+      { id: "duplicate", label: "Duplicate selection", category: "Edit", shortcut: formatShortcutBindings(shortcuts().duplicate), run: () => insertCopies(selectedElements()) },
+      { id: "group", label: "Group selection", category: "Edit", shortcut: formatShortcutBindings(shortcuts().group), run: groupSelection },
+      { id: "ungroup", label: "Ungroup selection", category: "Edit", shortcut: formatShortcutBindings(shortcuts().ungroup), run: ungroupSelection },
+      { id: "select-all", label: "Select all objects", category: "Edit", shortcut: formatShortcutBindings(shortcuts().selectAll), run: () => setSelectedIndices(elements().flatMap((item, index) => !item.hidden && !item.locked ? [index] : [])) },
       { id: "import-image", label: "Import image", category: "Import", keywords: "png jpeg webp gif", run: () => void importImage() },
       { id: "import-svg", label: "Import SVG", category: "Import", keywords: "vector", run: () => void importSvg() },
       { id: "import-schema", label: "Import SQL or JSON schema", category: "Import", keywords: "database tables", run: () => openSchemaDialog() },
@@ -3652,19 +3798,19 @@ function App() {
       { id: "export-svg", label: "Export SVG", category: "Export", keywords: "vector", run: () => openExportOptions("svg") },
       { id: "export-pdf", label: "Print preview and export PDF", category: "Export", keywords: "page breaks margins", run: () => openExportOptions("pdf") },
       { id: "export-png", label: "Export PNG", category: "Export", run: () => openExportOptions("png") },
-      { id: "toggle-grid", label: "Toggle canvas grid", category: "View", shortcut: shortcuts().toggleGrid, run: () => setShowGrid(value => !value) },
+      { id: "toggle-grid", label: "Toggle canvas grid", category: "View", shortcut: formatShortcutBindings(shortcuts().toggleGrid), run: () => setShowGrid(value => !value) },
       { id: "toggle-rulers", label: "Toggle canvas rulers", category: "View", run: () => { const value = !showRulers(); setShowRulers(value); try { localStorage.setItem("sketchdraw-canvas-rulers", String(value)); } catch { /* Applied for this session. */ } } },
       { id: "toggle-minimap", label: "Toggle minimap", category: "View", run: () => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-canvas-minimap", String(value)); } catch { /* Applied for this session. */ } } },
       { id: "toggle-guides", label: "Toggle alignment guides", category: "View", run: () => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-canvas-guides", String(value)); } catch { /* Applied for this session. */ } } },
       { id: "fullscreen", label: "Toggle full screen focus mode", category: "View", run: () => void toggleWindowsFullscreen() },
-      { id: "snap-grid", label: "Toggle grid snapping", category: "View", shortcut: shortcuts().snapGrid, run: () => setSnapToGrid(value => !value) },
-      { id: "snap-objects", label: "Toggle object snapping and alignment guides", category: "View", shortcut: shortcuts().snapObjects, run: () => setSnapToObjects(value => !value) },
+      { id: "snap-grid", label: "Toggle grid snapping", category: "View", shortcut: formatShortcutBindings(shortcuts().snapGrid), run: () => setSnapToGrid(value => !value) },
+      { id: "snap-objects", label: "Toggle object snapping and alignment guides", category: "View", shortcut: formatShortcutBindings(shortcuts().snapObjects), run: () => setSnapToObjects(value => !value) },
       { id: "add-page", label: "Add page to sketch", category: "Pages", run: addPage },
-      { id: "lock-canvas", label: "Toggle canvas lock", category: "Canvas", shortcut: shortcuts().lockCanvas, run: () => setBoardLocked(value => !value) },
-      { id: "presentation", label: "Start presentation mode", category: "View", shortcut: shortcuts().presentation, run: () => void togglePresentationMode(true) },
+      { id: "lock-canvas", label: "Toggle canvas lock", category: "Canvas", shortcut: formatShortcutBindings(shortcuts().lockCanvas), run: () => setBoardLocked(value => !value) },
+      { id: "presentation", label: "Start presentation mode", category: "View", shortcut: formatShortcutBindings(shortcuts().presentation), run: () => void togglePresentationMode(true) },
       { id: "shortcuts", label: "Customize keyboard shortcuts", category: "Settings", run: () => setShortcutDialogOpen(true) },
-      { id: "copy-style", label: "Copy object style", category: "Edit", shortcut: shortcuts().copyStyle, run: copyObjectStyle },
-      { id: "paste-style", label: "Paste object style", category: "Edit", shortcut: shortcuts().pasteStyle, run: pasteObjectStyle },
+      { id: "copy-style", label: "Copy object style", category: "Edit", shortcut: formatShortcutBindings(shortcuts().copyStyle), run: copyObjectStyle },
+      { id: "paste-style", label: "Paste object style", category: "Edit", shortcut: formatShortcutBindings(shortcuts().pasteStyle), run: pasteObjectStyle },
       { id: "align-left", label: "Align selection left", category: "Arrange", run: () => alignSelection("left") },
       { id: "align-center", label: "Align selection center", category: "Arrange", run: () => alignSelection("center") },
       { id: "align-right", label: "Align selection right", category: "Arrange", run: () => alignSelection("right") },
@@ -3675,7 +3821,10 @@ function App() {
       { id: "distribute-vertical", label: "Distribute vertical spacing", category: "Arrange", run: () => alignSelection("vertical") },
       ...EXTRA_FLOWCHART_SHAPES.map(shape => ({ id: `flow-shape-${shape.value}`, label: shape.label, category: "Flowchart stencils", run: () => { setFlowchartShape(shape.value); activateTool("flowchart"); } })),
       ...LIBRARY_COMPONENTS.map(component => ({ id: `component-${component.kind}`, label: component.label, category: component.section, keywords: "stencil component library", run: () => component.kind === "er-table" ? openSchemaDialog() : component.kind === "uml-class" ? (() => { const rect = canvas.getBoundingClientRect(); const view = canvasState(); const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind) })),
-      ...tools.map(item => ({ id: `tool-${item.value}`, label: `${item.label} tool`, category: "Tools", shortcut: item.key, run: () => activateTool(item.value) })),
+      ...tools.map(item => {
+        const shortcutId = shortcutIdByTool[item.value];
+        return { id: `tool-${item.value}`, label: `${item.label} tool`, category: "Tools", shortcut: shortcutId ? formatShortcutBindings(shortcuts()[shortcutId]) : item.key, run: () => activateTool(item.value) };
+      }),
     ];
     const availableWithoutDocument = new Set(["new", "open", "shortcuts", "toggle-grid", "toggle-rulers", "toggle-minimap", "snap-grid", "snap-objects"]);
     return activePath() ? commands : commands.filter(command => availableWithoutDocument.has(command.id));
@@ -3702,7 +3851,7 @@ function App() {
             buttonChoices={isWindowsPlatform() || isCompactTouchLayout()}
             androidAllFilesAccessAvailable={androidAllFilesAccessAvailable()}
             androidAllFilesAccessGranted={androidAllFilesAccessGranted()}
-            showAndroidAllFilesAccess={isAndroidPlatform() && isCompactTouchLayout()}
+            showAndroidAllFilesAccess={isAndroidPlatform()}
             reduceMotion={reduceMotion()}
             displayMetrics={displayMetrics()}
             onInterfaceScaleChange={setInterfaceScalePreference}
@@ -3720,7 +3869,7 @@ function App() {
             onToggle={() => alignTouchMenuPopover(appSettingsMenu)}
           />}>
           <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{activePath() ? fileName() : "No file open"}</div>
-            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>Ctrl+N</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>Ctrl+O</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>Ctrl+S</kbd></button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><div class="menu-separator" /><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
+            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><div class="menu-separator" /><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
           </div></details>
           <Show when={activePath() && workspaceArea() === "canvas"}>
             <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={() => alignViewSettingsPopover()}>
@@ -3737,7 +3886,7 @@ function App() {
             </details>
           </Show>
           <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
-          <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setShortcutDialogOpen(true))}>Customize shortcuts...</button><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>Ctrl+K</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Could not check for a newer version.</span></Show></div></details>
+          <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setShortcutDialogOpen(true))}>Customize shortcuts...</button><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>{formatShortcutBindings(shortcuts().commandPalette)}</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Could not check for a newer version.</span></Show></div></details>
           <details class="menu-dropdown portrait-menu-dropdown" ref={portraitMenu} onToggle={() => alignTouchMenuPopover(portraitMenu)}><summary aria-label="More menus"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg><span>Menu</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover portrait-menu-list" role="menu" aria-label="Other menus"><Show when={activePath() && workspaceArea() === "canvas"}><button role="menuitem" onClick={() => openPortraitMenuPanel(viewMenu)}>Canvas settings</button></Show><button role="menuitem" onClick={() => openPortraitMenuPanel(gestureMenu)}>Touch gestures</button><button role="menuitem" onClick={() => openPortraitMenuPanel(helpMenu)}>Help and updates</button></div></details>
           </TouchMenuBar>
         </nav>
@@ -3961,8 +4110,8 @@ function App() {
               </div>              <div class="tool-cluster tool-cluster-history mobile-cluster-has-essential" role="group" aria-label="History, selection, and canvas state">
                 <button class={layerPanelOpen() ? "tool-icon-button canvas-utility-button mobile-tool-extra selected" : "tool-icon-button canvas-utility-button mobile-tool-extra"} title="Layers" aria-label="Open layers panel" aria-pressed={layerPanelOpen()} onClick={() => setLayerPanelOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4"/></svg></button>
                 <Show when={deletableSelectionCount() > 0}><button class="tool-icon-button mobile-tool-essential touch-selection-delete" disabled={boardLocked()} title={`Erase ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} aria-label={`Erase ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6" /></svg><small class="touch-selection-count">{deletableSelectionCount()}</small></button></Show>
-                <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canUndo() || boardLocked()} title="Undo (Ctrl+Z)" aria-label="Undo" onClick={undo}><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg><kbd>Ctrl+Z</kbd></button>
-                <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canRedo() || boardLocked()} title="Redo (Ctrl+Y)" aria-label="Redo" onClick={redo}><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5m4-5h-8a6 6 0 0 0-6 6"/></svg><kbd>Ctrl+Y</kbd></button>
+                <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canUndo() || boardLocked()} title={`Undo (${formatShortcutBindings(shortcuts().undo)})`} aria-label="Undo" onClick={undo}><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg><kbd>{displayShortcut(shortcuts().undo.find(Boolean) || "Ctrl+Z")}</kbd></button>
+                <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canRedo() || boardLocked()} title={`Redo (${formatShortcutBindings(shortcuts().redo)})`} aria-label="Redo" onClick={redo}><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5m4-5h-8a6 6 0 0 0-6 6"/></svg><kbd>{displayShortcut(shortcuts().redo.find(Boolean) || "Ctrl+Y")}</kbd></button>
                 <button class={`tool-icon-button canvas-utility-button mobile-tool-extra ${boardLocked() ? "selected" : ""}`} title={`Canvas ${boardLocked() ? "locked" : "unlocked"} (K)`} aria-label={boardLocked() ? "Unlock canvas" : "Lock canvas"} aria-pressed={boardLocked()} onClick={() => setBoardLocked(value => !value)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button>
               </div>
             </></TouchToolBar>
@@ -4110,7 +4259,7 @@ function App() {
                   <Show when={focusedElement() && isConnector(focusedElement()!)}><div class="precision-grid">{(["start", "end"] as const).flatMap(end => (["x", "y"] as const).map(axis => <label>{end} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(((focusedElement() as ShapeElement)[axis] + (end === "end" ? (focusedElement() as ShapeElement)[axis === "x" ? "w" : "h"] : 0)) * 100) / 100} onChange={event => setEndpoint(end, axis, Number(event.currentTarget.value))} /></label>))}</div><Show when={focusedElement()?.type === "arrow" && (focusedElement() as ShapeElement).arrowRoute === "forked"}><div class="precision-grid">{(["upper", "lower"] as const).flatMap(branch => (["x", "y"] as const).map(axis => <label>{branch} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(forkGeometry(focusedElement() as ShapeElement)[branch] [axis] * 100) / 100} onChange={event => setForkEndpoint(branch, axis, Number(event.currentTarget.value))} /></label>))}</div></Show><p class="bucket-help">Drag the circular endpoints to resize or attach. Fork branches have separate endpoints and attachment points.</p><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, startBinding: undefined, endBinding: undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, endBinding: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, endBinding: undefined } : undefined } : item)}>Detach endpoints</button><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, routePoints: undefined, routeWaypoints: item.autoRoute ? [] : undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, routePoints: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, routePoints: undefined } : undefined } : item)}>Reset route</button></Show>
                 </section></Show>
                 <Show when={selectedIndices().length > 1}><section class="pane-section"><div class="pane-heading">Align & distribute</div><div class="alignment-grid">{(["left", "center", "right", "top", "middle", "bottom", "horizontal", "vertical"] as const).map(command => <button disabled={boardLocked() || ((command === "horizontal" || command === "vertical") && selectedIndices().length < 3)} title={command === "horizontal" || command === "vertical" ? `Distribute ${command} gaps` : `Align ${command}`} onClick={() => alignSelection(command)}>{command}</button>)}</div></section></Show>
-                <Show when={!!selectedIndices().length && !selectedNoteCard()}><section class="pane-section"><div class="pane-heading">Selection</div><label class="property-label">Opacity <input disabled={selectedIndices().every((index) => !elements()[index] || elements()[index].locked)} type="range" min="10" max="100" value={Math.round(selectedOpacity() * 100)} onInput={(event) => updateProperty("opacity", Number(event.currentTarget.value) / 100)} /></label><div class="object-style-transfer"><button class="quiet-button" disabled={!selectedElements().length} onClick={copyObjectStyle} title={`Copy style (${shortcuts().copyStyle})`}>Copy style</button><button class="quiet-button" disabled={!copiedObjectStyle() || boardLocked()} onClick={pasteObjectStyle} title={`Paste style (${shortcuts().pasteStyle})`}>Paste style</button></div><Show when={!groupSelected() && !(focusedElement() && isConnector(focusedElement()!))}><div class="rotation-controls"><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(-15)} title="Rotate counterclockwise by 15 degrees">−15°</button><button disabled={focusedElement()?.locked} onClick={resetSelectionRotation} title="Reset rotation to zero">Reset 0°</button><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(15)} title="Rotate clockwise by 15 degrees">+15°</button></div></Show></section></Show>
+                <Show when={!!selectedIndices().length && !selectedNoteCard()}><section class="pane-section"><div class="pane-heading">Selection</div><label class="property-label">Opacity <input disabled={selectedIndices().every((index) => !elements()[index] || elements()[index].locked)} type="range" min="10" max="100" value={Math.round(selectedOpacity() * 100)} onInput={(event) => updateProperty("opacity", Number(event.currentTarget.value) / 100)} /></label><div class="object-style-transfer"><button class="quiet-button" disabled={!selectedElements().length} onClick={copyObjectStyle} title={`Copy style (${formatShortcutBindings(shortcuts().copyStyle)})`}>Copy style</button><button class="quiet-button" disabled={!copiedObjectStyle() || boardLocked()} onClick={pasteObjectStyle} title={`Paste style (${formatShortcutBindings(shortcuts().pasteStyle)})`}>Paste style</button></div><Show when={!groupSelected() && !(focusedElement() && isConnector(focusedElement()!))}><div class="rotation-controls"><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(-15)} title="Rotate counterclockwise by 15 degrees">−15°</button><button disabled={focusedElement()?.locked} onClick={resetSelectionRotation} title="Reset rotation to zero">Reset 0°</button><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(15)} title="Rotate clockwise by 15 degrees">+15°</button></div></Show></section></Show>
                 <Show when={selectedIndices().length > 1 && !groupSelected()}><div class="multi-selection-actions"><button class="pane-group-button" onClick={groupSelection}>Group {selectedIndices().length} elements <kbd>Ctrl+G</kbd></button><button class="pane-delete-button" disabled={boardLocked() || !deletableSelectionCount()} onClick={deleteSelected}>Delete {deletableSelectionCount()}</button></div></Show>
               </Show>
 
