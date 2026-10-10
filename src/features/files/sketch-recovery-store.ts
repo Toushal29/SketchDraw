@@ -2,7 +2,7 @@ import type { SketchFile } from "../../model";
 
 export type SketchRecoveryEntry = { savedAt: number; baselineRaw?: string; snapshot: SketchFile };
 
-const recoveryKey = (path: string) => `sketchdraw-v6-recovery:${encodeURIComponent(path)}`;
+const recoveryKey = (path: string) => `sketchdraw-v10-recovery:${encodeURIComponent(path)}`;
 
 /** Best-effort browser recovery storage for interrupted document edits. */
 export const sketchRecoveryStore = {

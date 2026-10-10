@@ -39,10 +39,7 @@
 .app-setting-field > small,
 .app-setting-toggle small,
 .app-display-info small { color: #828c84; font-size: 10px; line-height: 1.4; }
-.orientation-setting-message { color: #946c35 !important; }
 .app-setting-field { display: grid; gap: 5px; color: #59645c; font-size: 11px; }
-.app-mobile-layout-settings { display: grid; gap: 9px; padding: 10px; border: 1px solid #e3e8e3; border-radius: 10px; background: #f8faf8; }
-.app-mobile-layout-settings > strong { color: #39443c; font-size: 10px; }
 .app-setting-choices-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .app-setting-choices-four button { padding-inline: 3px; }
 .app-setting-field > span { display: flex; justify-content: space-between; gap: 8px; }
@@ -62,7 +59,6 @@
 .app-setting-choices button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
 .theme-dark .app-settings-heading { border-color: #414c43; }
 .theme-dark .app-settings-heading strong,
-.theme-dark .app-mobile-layout-settings > strong,
 .theme-dark .app-setting-toggle > span,
 .theme-dark .app-display-info > strong { color: #e3ebe2; }
 .theme-dark .app-settings-heading small,
@@ -70,37 +66,11 @@
 .theme-dark .app-setting-field > small,
 .theme-dark .app-setting-toggle small,
 .theme-dark .app-display-info small { color: #a3aea4; }
-.theme-dark .orientation-setting-message { color: #e2be79 !important; }
 .theme-dark .app-setting-field select { border-color: #465148; color: #d4ddd5; background: #252c27; }
 .theme-dark .app-setting-toggle { border-color: #414c43; }
 .theme-dark .app-display-info { border-color: #414c43; background: #252c27; }
-.theme-dark .app-mobile-layout-settings { border-color: #414c43; background: #252c27; }
 .theme-dark .app-display-info > span { color: #d4ddd5; }
 .theme-dark .app-settings-reset { border-color: #465148; color: #d4ddd5; }
 .theme-dark .app-settings-reset { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
 .theme-dark .app-setting-choices button { border-color: #465148; color: #d4ddd5; background: #252c27; }
 .theme-dark .app-setting-choices button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-
-@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell:not(.platform-windows) .settings-menu-dropdown > summary { width: 48px; min-width: 48px; justify-content: center; padding: 5px 3px; }
-    .app-shell:not(.platform-windows) .settings-menu-label { display: inline; font-size: 8px; }
-    .app-shell:not(.platform-windows) .settings-menu-dropdown > summary > svg { display: none; }
-    .app-shell:not(.platform-windows) .app-menus .settings-menu-dropdown .app-settings-popover {
-        position: fixed;
-        z-index: 100;
-        top: calc(max(54px, env(safe-area-inset-top) + 46px));
-        right: max(8px, env(safe-area-inset-right));
-        left: auto;
-        width: min(360px, calc(100vw - 16px));
-        max-width: calc(100vw - 16px);
-        max-height: calc(100dvh - max(62px, env(safe-area-inset-top) + 54px));
-        padding: 9px;
-        transform: none;
-    }
-    .app-setting-field select { min-height: 40px; }
-}
-
-@media (max-width: 400px) {
-    .topbar .app-menus { gap: 0; }
-    .app-settings-popover { gap: 8px; }
-}

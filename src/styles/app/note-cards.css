@@ -224,14 +224,3 @@
     border-color: #465047;
 }
 
-@media (max-width: 760px) {
-    .tool-family.options-open .text-options,
-    .tool-family.options-open .stencil-options {
-        left: auto;
-        right: 0;
-        width: min(326px, calc(100vw - 24px));
-    }
-
-    .schema-dialog-footer { align-items: flex-start; flex-direction: column; }
-}
-

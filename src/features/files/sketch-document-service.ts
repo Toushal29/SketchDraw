@@ -8,7 +8,6 @@ export type OpenedSketchDocument = {
   path: string;
   rawText: string;
   snapshot: SketchFile;
-  needsMigration: boolean;
 };
 
 export async function openSketchDocument(path: string): Promise<OpenedSketchDocument> {
@@ -17,7 +16,7 @@ export async function openSketchDocument(path: string): Promise<OpenedSketchDocu
   const raw: unknown = JSON.parse(rawText);
   const snapshot = parseSketchFile(raw);
   if (!snapshot) throw new Error("This file is invalid or uses an unsupported SketchDraw format.");
-  return { path: authorizedPath, rawText, snapshot, needsMigration: !!raw && typeof raw === "object" && "version" in raw && raw.version !== snapshot.version };
+  return { path: authorizedPath, rawText, snapshot };
 }
 
 export function decodeSketchDocument(value: unknown): SketchFile | undefined {
@@ -32,12 +31,11 @@ export async function saveSketchDocument(path: string, snapshot: SketchFile, exp
   // Compare the version currently visible through the provider before writing.
   // SAF does not expose a universal conditional-write operation, but this
   // preflight catches external edits already visible to the selected URI.
-  const adapter = sketchFileStore.adapter(path);
-  if (expectedRaw !== null && adapter.capabilities.supportsConflictPreflight) {
+  if (expectedRaw !== null && sketchFileStore.capabilities.supportsConflictPreflight) {
     const diskRaw = await sketchFileStore.read(path);
     if (diskRaw !== expectedRaw) return { contents, conflictRaw: diskRaw };
   }
-  await adapter.write(path, contents, adapter.capabilities.supportsConditionalWrite ? expectedRaw : null);
+  await sketchFileStore.write(path, contents, sketchFileStore.capabilities.supportsConditionalWrite ? expectedRaw : null);
   return { contents };
 }
 

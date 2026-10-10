@@ -260,13 +260,6 @@
     }
 }
 
-@media (max-width: 760px) {
-    .tool-deck { gap: 3px; padding: 4px; }
-    .tool-cluster { gap: 1px; padding: 1px; }
-    .tool-icon-button { width: 35px; height: 42px; }
-    .tool-family { height: 42px; }
-}
-
 /* Compact, calm inspector shared by every drawing tool. */
 .style-pane.quick-style-mode,
 .style-pane.full-style-mode {
@@ -358,16 +351,6 @@
 .theme-dark .note-card-details label { color: #aab8af; }
 .theme-dark .note-collapse-action { border-color: #445249; color: #d0dfd2; background: #2c3930; }
 .theme-dark .canvas-note-editor { border-color: #46544b; background: #252e29; }
-
-@media (max-width: 760px) {
-    .style-pane.full-style-mode > .full-inspector { top: 0; left: calc(100% + 7px); width: min(286px, calc(100vw - 76px)); max-height: calc(100vh - 92px); }
-}
-
-@media (max-width: 760px) {
-    .style-pane {
-        width: min(300px, calc(100vw - 30px));
-    }
-}
 
 .object-style-transfer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .object-style-transfer button { min-height: 34px; padding: 5px 10px; font-size: 11px; }

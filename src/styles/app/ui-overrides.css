@@ -167,15 +167,6 @@
     background: color-mix(in srgb, var(--ui-accent) 22%, #252b27);
 }
 
-@media (max-width: 760px) {
-
-    .tool-family.options-open .flowchart-options,
-    .tool-family.options-open .text-options,
-    .tool-family.options-open .stencil-options {
-        width: min(286px, calc(100vw - 24px));
-    }
-}
-
 /* Compact layer drawer with one selectable layer for each drawing tool. */
 .floating-layer-panel {
     position: absolute;
@@ -1047,34 +1038,6 @@
     background: #202522;
 }
 
-@media (max-width: 760px) {
-    .tool-family.options-open .text-options {
-        width: min(326px, calc(100vw - 24px));
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .mermaid-dialog-footer {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .mermaid-editor-layout {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .mermaid-input {
-        min-height: 250px;
-    }
-
-    .mermaid-preview-panel {
-        min-height: 270px;
-    }
-
-    .mermaid-preview-svg {
-        min-height: 240px;
-    }
-}
-
 .theme-dark .mermaid-preview-panel,
 .theme-dark .mermaid-preview-svg {
     border-color: #424b4a;
@@ -1254,9 +1217,7 @@
 .read-only-view .tool-deck .tool-cluster:not(.tool-cluster-laser),
 .read-only-view .tool-deck .tool-extra-family,
 .read-only-view .tool-deck .canvas-options-family,
-.read-only-view .tool-deck .mobile-tools-toggle,
 .read-only-view .tool-deck .tool-collapse,
-.read-only-view .touch-tool-actions,
 .read-only-view .style-pane,
 .read-only-view .floating-layer-panel,
 .read-only-view .selection-delete-action,

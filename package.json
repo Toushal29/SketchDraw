@@ -1,6 +1,6 @@
 {
   "name": "sketchdraw",
-  "version": "9.0.0",
+  "version": "10.0.0",
   "description": "A local-first desktop whiteboard for portable SketchDraw files.",
   "type": "module",
   "scripts": {
@@ -8,10 +8,8 @@
     "dev": "vite --configLoader native",
     "dev:windows": "node scripts/dev-windows.mjs",
     "dev:windows:server": "vite --configLoader native --port 28649 --strictPort",
-    "dev:android": "tauri android dev",
     "build": "vite build --configLoader native",
     "test:focused": "node scripts/run-focused-tests.mjs",
-    "convert:sketch": "node scripts/convert-sketch.mjs",
     "serve": "vite preview",
     "tauri": "tauri"
   },

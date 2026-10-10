@@ -3,8 +3,6 @@ import type { ArrowHead, ArrowRoute, Binding, EdgeStyle, Element, FlowchartShape
 import { validReferences } from "../../operations";
 import { curveControlPoints } from "../canvas/geometry";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
-import { normalizeProjectWorkspace } from "../project/project-data";
-import { normalizeLegacyLibraryData } from "./legacy-library-data";
 import { MAX_DOCUMENT_STROKE_POINTS, MAX_STROKE_POINTS } from "../canvas/stroke-limits";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -27,7 +25,6 @@ const MAX_ELEMENTS_PER_PAGE = 20_000;
 const MAX_DOCUMENT_ELEMENT_NODES = 100_000;
 export const MAX_CANVAS_TEXT_LENGTH = 100_000;
 type ElementParseBudget = { remaining: number; remainingStrokePoints: number };
-type ElementNodeBudget = { remaining: number };
 
 export function normalizeElement(value: unknown): Element | undefined {
   return normalizeElementWithinBudget(value, 0, { remaining: MAX_DOCUMENT_ELEMENT_NODES, remainingStrokePoints: MAX_DOCUMENT_STROKE_POINTS });
@@ -140,54 +137,29 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
   return undefined;
 }
 
-export function parseSketchFile(value: unknown): SketchFile | undefined {
+function parseSketchDocument(value: unknown): SketchFile | undefined {
   if (!isRecord(value) || value.format !== "SketchDraw") return undefined;
-  const version = Number(value.version);
-  if (!Number.isInteger(version) || version < 1 || version > SKETCH_FORMAT_VERSION) return undefined;
-  const sections = isRecord(value.sections) ? value.sections : undefined;
-  if (sections && (!isRecord(sections.canvas) || !isRecord(sections.planning))) return undefined;
-  if (sections && version === 8 && !isRecord(sections.library)) return undefined;
-  if (sections && version >= 9 && (!isRecord(sections.notebook) || !Array.isArray(sections.notebook.notes) || !isRecord(sections.retiredLibraryArchive))) return undefined;
-  if (sections && version < 8) return undefined;
-  const canvasSection = sections ? sections.canvas as Record<string, unknown> : value;
-  const planningValue = sections ? sections.planning : value.project;
-  const libraryValue = sections && version >= 9
-    ? { ...(sections.retiredLibraryArchive as Record<string, unknown>), quickNotes: (sections.notebook as Record<string, unknown>).notes }
-    : sections ? sections.library : value.library;
-  const addLegacyElementIds = (item: unknown, depth = 0, budget: ElementNodeBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES }): unknown => {
-    if (!isRecord(item)) return item;
-    if (depth > MAX_ELEMENT_DEPTH || budget.remaining <= 0) return {};
-    budget.remaining -= 1;
-    const next: Record<string, unknown> = { ...item, id: typeof item.id === "string" && item.id ? item.id : crypto.randomUUID() };
-    if (Array.isArray(item.elements)) {
-      if (item.elements.length > MAX_ELEMENTS_PER_PAGE) return {};
-      next.elements = item.elements.map(child => addLegacyElementIds(child, depth + 1, budget));
-    }
-    return next;
-  };
-  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, legacy: boolean, budget: ElementParseBudget): SketchPage | undefined => {
-    if (typeof id !== "string" || typeof name !== "string" || !isRecord(stateValue) || !Array.isArray(elementsValue) || elementsValue.length > MAX_ELEMENTS_PER_PAGE) return undefined;
+  if (value.version !== SKETCH_FORMAT_VERSION || "sections" in value || "project" in value || "library" in value || "retiredLibraryArchive" in value) return undefined;
+  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, budget: ElementParseBudget): SketchPage | undefined => {
+    if (typeof id !== "string" || !id || id.length > 100 || typeof name !== "string" || !name || name.length > 80 || !isRecord(stateValue) || !Array.isArray(elementsValue) || elementsValue.length > MAX_ELEMENTS_PER_PAGE) return undefined;
     const state = stateValue;
     if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !isColor(state.backgroundColor)) return undefined;
-    const legacyBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES };
-    const elements = elementsValue.map(element => normalizeElementWithinBudget(legacy ? addLegacyElementIds(element, 0, legacyBudget) : element, 0, budget));
+    const elements = elementsValue.map(element => normalizeElementWithinBudget(element, 0, budget));
     if (elements.some((element) => !element) || !validReferences(elements as Element[])) return undefined;
-    return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff" }, elements: elements as Element[] };
+    return { id, name, canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff" }, elements: elements as Element[] };
   };
-  const sourcePages = Array.isArray(canvasSection.pages) ? canvasSection.pages : Array.isArray(canvasSection.elements) ? [{ id: crypto.randomUUID(), name: "Page 1", canvasState: canvasSection.canvasState, elements: canvasSection.elements }] : undefined;
+  const sourcePages = Array.isArray(value.pages) ? value.pages : undefined;
   if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100) return undefined;
   const elementBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES, remainingStrokePoints: MAX_DOCUMENT_STROKE_POINTS };
-  const pages = sourcePages.map((page, index) => {
+  const pages = sourcePages.map(page => {
     if (!isRecord(page)) return undefined;
-    const state = isRecord(page.canvasState) ? page.canvasState : {};
-    const migratedState = version < SKETCH_FORMAT_VERSION ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
-    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, version < 6, elementBudget);
+    return normalizePage(page.id, page.name, page.canvasState, page.elements, elementBudget);
   });
   if (pages.some((page) => !page)) return undefined;
   const normalized = pages as SketchPage[];
   if (new Set(normalized.map((page) => page.id)).size !== normalized.length) return undefined;
-  const requestedPageId = canvasSection.activePageId;
-  const activePageId = normalized.some((page) => page.id === requestedPageId) ? String(requestedPageId) : normalized[0].id;
+  const activePageId = value.activePageId;
+  if (typeof activePageId !== "string" || !normalized.some(page => page.id === activePageId)) return undefined;
   const sync = isRecord(value.windowsSync) ? value.windowsSync : undefined;
   const validClockMap = (raw: unknown) => {
     if (!isRecord(raw) || Object.keys(raw).length > 100_000) return {};
@@ -196,11 +168,12 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
   const windowsSync = sync?.version === 1 && finite(sync.updatedAt) && sync.updatedAt >= 0 && typeof sync.deviceId === "string" && sync.deviceId.length <= 100
     ? { version: 1 as const, updatedAt: sync.updatedAt, deviceId: sync.deviceId, clocks: validClockMap(sync.clocks), tombstones: validClockMap(sync.tombstones) }
     : undefined;
-  const project = planningValue === undefined ? undefined : normalizeProjectWorkspace(planningValue);
-  if (planningValue !== undefined && !project) return undefined;
-  const library = normalizeLegacyLibraryData(libraryValue, sections ? undefined : value.project);
-  if (!library) return undefined;
-  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized, ...(project ? { project } : {}), library, ...(windowsSync ? { windowsSync } : {}) };
+  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized, ...(windowsSync ? { windowsSync } : {}) };
+}
+
+/** Opens only the current canvas-only file schema. */
+export function parseSketchFile(value: unknown): SketchFile | undefined {
+  return parseSketchDocument(value);
 }
 
 /** Keeps files written by the app inside the same resource limits as files it can reopen. */

@@ -211,18 +211,6 @@
     color: #bdc9dc;
 }
 
-@media (max-width: 760px) {
-    .export-dialog {
-        max-height: 92vh;
-        overflow-y: auto;
-    }
-
-    .export-controls {
-        max-height: none;
-        overflow: visible;
-    }
-}
-
 .update-menu-status {
     display: block;
     padding: 6px 10px;
@@ -302,12 +290,5 @@
     color: var(--muted);
     font-size: 11px;
     line-height: 1.45;
-}
-
-@media (max-width: 760px) {
-    .export-preview-frame {
-        height: min(48vh, 400px);
-        min-height: 190px;
-    }
 }
 

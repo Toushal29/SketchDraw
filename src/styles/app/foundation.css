@@ -906,49 +906,6 @@ h1 em {
     font-weight: 700;
 }
 
-@media (max-width: 800px) {
-    .welcome-screen {
-        grid-template-columns: 1fr;
-        padding: 28px 8%;
-    }
-
-    .welcome-card {
-        padding: 20px 0;
-    }
-
-    .topbar {
-        padding: 0 18px;
-    }
-}
-
-@media (max-width: 760px) {
-    .style-pane {
-        left: 10px;
-        top: 70px;
-        width: min(340px, calc(100vw - 30px));
-        max-height: calc(100% - 82px);
-    }
-
-    .tool-deck {
-        top: 13px;
-        left: auto;
-        right: 12px;
-        transform: none;
-    }
-
-    .tool-icon-button {
-        width: 34px;
-    }
-
-    .file-name {
-        display: none;
-    }
-
-    .canvas-help {
-        display: none;
-    }
-}
-
 .theme-dark {
     color: #e4e5e8;
     background: #202329;

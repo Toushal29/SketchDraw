@@ -1,9 +1,8 @@
 import type { SketchFile } from "../../model";
-import type { WorkspaceArea } from "../workspace/workspace-types";
 import type { DocumentConflict, DocumentRecoveryPrompt } from "./document-types";
 
 export type DocumentRecoveryPorts = {
-  applySnapshot: (snapshot: SketchFile, path: string, raw: string, area: WorkspaceArea) => void;
+  applySnapshot: (snapshot: SketchFile, path: string, raw: string) => void;
   removeRecovery: (path: string) => void;
   setDirty: (dirty: boolean) => void;
   setRecoveryPrompt: (prompt: DocumentRecoveryPrompt | undefined) => void;
@@ -14,11 +13,10 @@ export type DocumentRecoveryPorts = {
 export function restoreDocumentRecovery(
   recovery: DocumentRecoveryPrompt,
   currentBaselineRaw: string | undefined,
-  area: WorkspaceArea,
   ports: DocumentRecoveryPorts,
 ) {
   const baseline = currentBaselineRaw ?? "";
-  ports.applySnapshot(recovery.snapshot, recovery.path, baseline, area);
+  ports.applySnapshot(recovery.snapshot, recovery.path, baseline);
   ports.removeRecovery(recovery.path);
   ports.setDirty(true);
   ports.setRecoveryPrompt(undefined);

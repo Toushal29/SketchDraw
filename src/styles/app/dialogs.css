@@ -770,25 +770,6 @@
     background: #292c33;
 }
 
-@media (max-width: 760px) {
-    .style-pane.full-style-mode {
-        width: min(364px, calc(100vw - 80px));
-    }
-
-    .export-layout {
-        grid-template-columns: 1fr;
-        gap: 14px;
-    }
-
-    .export-preview-frame {
-        min-height: 160px;
-    }
-
-    .help-guide {
-        grid-template-columns: 1fr;
-    }
-}
-
 .canvas-utility-button {
     width: 42px;
     min-width: 42px;

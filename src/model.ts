@@ -1,7 +1,7 @@
 export type Point = { x: number; y: number };
 export type StrokePoint = Point & { pressure?: number; tiltX?: number; tiltY?: number; orientation?: number };
 export type ArrowHead = "none" | "open" | "solid" | "thick" | "dot" | "diamond" | "bar";
-export type FlowchartShape = "process" | "terminator" | "decision" | "data" | "document" | "database" | "predefined-process" | "preparation" | "manual-input" | "connector" | "off-page" | "delay" | "manual-operation" | "stored-data" | "cloud" | "star" | "lightning" | "heart" | "callout" | "gear";
+export type FlowchartShape = "process" | "terminator" | "decision" | "data" | "document" | "database" | "predefined-process" | "preparation" | "manual-input" | "connector" | "off-page" | "delay" | "manual-operation" | "stored-data" | "cloud" | "star" | "lightning" | "heart" | "callout";
 export type ArrowRoute = "straight" | "elbow" | "forked" | "loop" | "jagged";
 export type LineRoute = "straight" | "curve" | "curve2" | "curve3" | "multi";
 export type StrokeStyle = "solid" | "dashed" | "dotted" | "double";
@@ -23,60 +23,11 @@ export type Element = FreehandElement | ShapeElement | TextElement | ImageElemen
 export type Tool = "select" | "pan" | "pen" | "laser" | "rectangle" | "circle" | "diamond" | "triangle" | "flowchart" | "line" | "arrow" | "text" | "bucket" | "eraser" | "crop";
 export type CanvasState = { zoom: number; panX: number; panY: number; backgroundColor: string; boardColorFollowsTheme?: boolean };
 export type SketchPage = { id: string; name: string; canvasState: CanvasState; elements: Element[] };
-export type ProjectNote = { id: string; title: string; content: string; createdAt: number; updatedAt: number };
-export type ProjectTaskStatus = "backlog" | "inProgress" | "done";
-export type ProjectTaskPriority = "low" | "medium" | "high";
-export type ProjectTask = { id: string; title: string; description: string; status: ProjectTaskStatus; priority: ProjectTaskPriority; startDate?: string; dueDate?: string; dependsOn?: string[]; createdAt: number; updatedAt: number };
-export type ProjectMilestone = { id: string; title: string; description: string; date: string; completed: boolean; createdAt: number; updatedAt: number };
-export type ProjectLogKind = "decision" | "question" | "risk";
-export type ProjectLogEntry = { id: string; kind: ProjectLogKind; title: string; details: string; owner: string; nextStep: string; riskLevel?: ProjectTaskPriority; resolved: boolean; createdAt: number; updatedAt: number };
-export type ProjectFileEntry =
-  | { id: string; kind: "attachment"; name: string; mimeType: string; dataUrl: string; size: number; createdAt: number }
-  | { id: string; kind: "link"; name: string; url: string; createdAt: number };
-export type LibraryStudyCard = { id: string; front: string; back: string; dueAt: number; intervalDays: number; easeFactor: number; repetitions: number; lastReviewedAt?: number; createdAt: number; updatedAt: number };
-export type LibraryWikiArticle = { id: string; title: string; content: string; tags: string[]; createdAt: number; updatedAt: number };
-export type LibraryJournalMood = "great" | "good" | "neutral" | "low" | "difficult";
-export type LibraryJournalEntry = { id: string; date: string; prompt: string; mood: LibraryJournalMood; content: string; createdAt: number; updatedAt: number };
-export type LibraryWritingRevision = { id: string; title: string; outline: string; content: string; createdAt: number };
-export type LibraryWritingDraft = { id: string; title: string; outline: string; content: string; revisions: LibraryWritingRevision[]; createdAt: number; updatedAt: number };
-export type LibraryResearchSource = { id: string; title: string; url: string; author: string; year: string; citation: string; quote: string; notes: string; tags: string[]; createdAt: number; updatedAt: number };
-export type LibraryMediaKind = "book" | "film" | "game" | "podcast" | "article" | "other";
-export type LibraryMediaStatus = "want" | "inProgress" | "complete";
-export type LibraryMediaEntry = { id: string; title: string; kind: LibraryMediaKind; status: LibraryMediaStatus; rating?: number; notes: string; startedAt?: string; completedAt?: string; createdAt: number; updatedAt: number };
-/** Version 8 storage payload retained for backward compatibility. Notebook edits quickNotes. */
-export type PersonalLibraryData = {
-  quickNotes: ProjectNote[];
-  studyNotes: ProjectNote[];
-  studyCards: LibraryStudyCard[];
-  wikiArticles: LibraryWikiArticle[];
-  journalEntries: LibraryJournalEntry[];
-  writingDrafts: LibraryWritingDraft[];
-  researchSources: LibraryResearchSource[];
-  mediaEntries: LibraryMediaEntry[];
-};
-export type ProjectWorkspaceData = {
-  name: string;
-  description: string;
-  notes: ProjectNote[];
-  tasks: ProjectTask[];
-  milestones: ProjectMilestone[];
-  logEntries: ProjectLogEntry[];
-  files: ProjectFileEntry[];
-};
-/** V8 library records remain in memory for round-trip compatibility. */
-export type SketchDocumentSectionsV8 = { canvas: { activePageId: string; pages: SketchPage[] }; planning: ProjectWorkspaceData; library: PersonalLibraryData };
 export type WindowsSyncMetadata = { version: 1; updatedAt: number; deviceId: string; clocks: Record<string, number>; tombstones: Record<string, number> };
-export type SketchFileDocumentV8 = { format: "SketchDraw"; version: 8; sections: SketchDocumentSectionsV8; windowsSync?: WindowsSyncMetadata };
-export type SketchDocumentSectionsV9 = {
-  canvas: { activePageId: string; pages: SketchPage[] };
-  planning: ProjectWorkspaceData;
-  notebook: { notes: ProjectNote[] };
-  retiredLibraryArchive: Omit<PersonalLibraryData, "quickNotes">;
-};
-export const SKETCH_FORMAT_VERSION = 9 as const;
-export type SketchFileDocumentV9 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; sections: SketchDocumentSectionsV9; windowsSync?: WindowsSyncMetadata };
-/** In-memory shape. V9 serializes Notebook notes apart from archived Library records. */
-export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; project?: ProjectWorkspaceData; library?: PersonalLibraryData; windowsSync?: WindowsSyncMetadata };
+export const SKETCH_FORMAT_VERSION = 10 as const;
+/** V10 is a canvas document: pages contain the complete sketch and nothing else. */
+export type SketchFileDocumentV10 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; windowsSync?: WindowsSyncMetadata };
+export type SketchFile = SketchFileDocumentV10;
 export type Preview = { type: Exclude<Tool, "select" | "pan" | "laser" | "text" | "bucket" | "eraser" | "crop">; start: Point; end: Point; color: string; thickness: number; opacity?: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute };
 export type Bounds = { x: number; y: number; w: number; h: number };
 export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; shapeLabel?: boolean; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };

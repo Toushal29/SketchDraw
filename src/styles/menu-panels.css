@@ -1,6 +1,5 @@
-/* Shared panel language for Settings and touch-gesture preferences. */
-.app-settings-popover,
-.gesture-settings-popover {
+/* Shared panel language for application settings. */
+.app-settings-popover {
     --panel-ink: #202734;
     --panel-muted: #727d8b;
     --panel-line: #e2e7ed;
@@ -19,8 +18,7 @@
     gap: 9px;
     padding: 14px;
 }
-.app-settings-heading,
-.gesture-menu-heading {
+.app-settings-heading {
     display: flex;
     min-width: 0;
     flex-direction: column;
@@ -28,10 +26,8 @@
     padding: 2px 3px 11px;
     border-bottom: 1px solid var(--panel-line);
 }
-.app-settings-heading strong,
-.gesture-menu-heading strong { color: var(--panel-ink); font-size: 16px; font-weight: 720; letter-spacing: -.02em; }
-.app-settings-heading small,
-.gesture-menu-heading p { margin: 0; color: var(--panel-muted); font-size: 10px; line-height: 1.4; }
+.app-settings-heading strong { color: var(--panel-ink); font-size: 16px; font-weight: 720; letter-spacing: -.02em; }
+.app-settings-heading small { margin: 0; color: var(--panel-muted); font-size: 10px; line-height: 1.4; }
 .app-setting-field {
     display: grid;
     gap: 7px;
@@ -47,8 +43,7 @@
 .app-setting-field > small,
 .app-setting-toggle small,
 .app-display-info small { color: var(--panel-muted); font-size: 9px; line-height: 1.4; }
-.app-setting-field select,
-.gesture-action-card select {
+.app-setting-field select {
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
@@ -129,77 +124,7 @@
 .app-settings-reset:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent-soft) 72%, var(--ui-accent) 12%); }
 .app-settings-reset:disabled { opacity: .45; cursor: not-allowed; }
 
-.gesture-settings-popover {
-    display: flex !important;
-    width: min(560px, calc(100vw - 24px));
-    max-height: min(720px, calc(100dvh - 24px));
-    flex-direction: column;
-    gap: 10px;
-    padding: 14px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-color: #aab3c0 transparent;
-    scrollbar-width: thin;
-}
-.gesture-menu-heading .eyebrow { color: var(--ui-accent); font-size: 9px; font-weight: 750; letter-spacing: .1em; }
-.gesture-menu-tabs {
-    display: grid;
-    flex: 0 0 auto;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px;
-    padding: 4px;
-    border: 1px solid var(--panel-line);
-    border-radius: 12px;
-    background: var(--panel-well);
-}
-.gesture-menu-tabs button {
-    min-width: 0;
-    min-height: 36px;
-    padding: 6px 9px;
-    border: 1px solid transparent;
-    border-radius: 9px;
-    color: var(--panel-muted);
-    background: transparent;
-    font: 650 10px system-ui, sans-serif;
-    cursor: pointer;
-}
-.gesture-menu-tabs button:hover { color: var(--panel-ink); background: var(--panel-hover); }
-.gesture-menu-tabs button.active { border-color: var(--panel-line); color: var(--panel-ink); background: var(--panel-surface); }
-.gesture-action-grid { display: grid; gap: 7px; padding: 0; }
-.gesture-action-card {
-    box-sizing: border-box;
-    display: grid;
-    grid-template-columns: 38px minmax(90px, .65fr) minmax(0, 1fr);
-    min-width: 0;
-    min-height: 58px;
-    align-items: center;
-    gap: 9px;
-    padding: 8px;
-    border: 1px solid var(--panel-line);
-    border-radius: 13px;
-    background: var(--panel-surface);
-}
-.gesture-finger-badge {
-    display: grid;
-    width: 36px;
-    height: 36px;
-    place-items: center;
-    border: 1px solid var(--ui-accent-border);
-    border-radius: 11px;
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
-    font-size: 14px;
-    font-weight: 750;
-}
-.gesture-card-copy { display: grid; min-width: 0; gap: 3px; }
-.gesture-card-copy strong { color: var(--panel-ink); font-size: 10px; }
-.gesture-card-copy small { color: var(--panel-muted); font-size: 9px; line-height: 1.3; }
-.gesture-action-card select { min-height: 40px; padding: 6px 26px 6px 8px; }
-.gesture-menu-note { margin: 0; padding: 0 3px; color: var(--panel-muted); font-size: 9px; line-height: 1.4; }
-
-.app-shell.theme-dark .app-settings-popover,
-.app-shell.theme-dark .gesture-settings-popover {
+.app-shell.theme-dark .app-settings-popover {
     --panel-ink: #eeeeee;
     --panel-muted: #aaaaaa;
     --panel-line: #363636;
@@ -213,10 +138,8 @@
 .app-shell.theme-dark .app-setting-field { border-color: var(--panel-line); color: var(--panel-ink); background: var(--panel-surface); }
 .app-shell.theme-dark .app-setting-field > span,
 .app-shell.theme-dark .app-setting-toggle > span,
-.app-shell.theme-dark .app-display-info > span,
-.app-shell.theme-dark .gesture-card-copy strong { color: var(--panel-ink); }
-.app-shell.theme-dark .app-setting-field select,
-.app-shell.theme-dark .gesture-action-card select { border-color: var(--panel-line); color: var(--panel-ink); background: var(--dark-ui-raised); }
+.app-shell.theme-dark .app-display-info > span { color: var(--panel-ink); }
+.app-shell.theme-dark .app-setting-field select { border-color: var(--panel-line); color: var(--panel-ink); background: var(--dark-ui-raised); }
 .app-shell.theme-dark .app-setting-choices button { border-color: var(--panel-line); color: var(--panel-muted); background: var(--dark-ui-raised); }
 .app-shell.theme-dark .app-setting-choices button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
 .app-shell.theme-dark .app-accent-choices button,
@@ -225,42 +148,4 @@
 .app-shell.theme-dark .app-toolbar-custom { color: var(--panel-ink); }
 .app-shell.theme-dark .app-setting-toggle,
 .app-shell.theme-dark .app-display-info { border-color: var(--panel-line); background: var(--panel-well); }
-.app-shell.theme-dark .gesture-menu-heading { border-color: var(--panel-line); }
-.app-shell.theme-dark .gesture-menu-tabs { border-color: var(--panel-line); background: var(--panel-well); }
-.app-shell.theme-dark .gesture-menu-tabs button.active { border-color: #4b4b4b; color: var(--panel-ink); background: #2b2b2b; }
-.app-shell.theme-dark .gesture-action-card { border-color: var(--panel-line); background: var(--dark-ui-raised); }
 .app-shell.theme-dark .app-settings-reset { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-.app-shell.theme-dark .orientation-setting-message { color: #f0b083 !important; }
-
-@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell:not(.platform-windows) .app-menus .settings-menu-dropdown .app-settings-popover,
-    .app-shell:not(.platform-windows) .app-menus .touch-gesture-menu .gesture-settings-popover {
-        position: fixed !important;
-        z-index: 320;
-        top: calc(var(--touch-header-height, 50px) + env(safe-area-inset-top) + 6px) !important;
-        right: max(8px, env(safe-area-inset-right)) !important;
-        bottom: max(8px, env(safe-area-inset-bottom)) !important;
-        left: max(8px, env(safe-area-inset-left)) !important;
-        box-sizing: border-box;
-        width: auto !important;
-        max-width: none !important;
-        max-height: none !important;
-        margin: 0;
-        padding: 12px;
-        overflow-x: hidden;
-        overflow-y: auto;
-        transform: none !important;
-    }
-    .app-shell:not(.platform-windows) .app-settings-popover { gap: 8px; }
-    .app-shell:not(.platform-windows) .app-setting-field { padding: 9px; }
-    .app-shell:not(.platform-windows) .gesture-settings-popover { gap: 9px; }
-    .app-shell:not(.platform-windows) .gesture-action-card { grid-template-columns: 38px minmax(82px, .58fr) minmax(0, 1fr); gap: 7px; padding: 7px; }
-}
-
-@media (max-width: 390px) {
-    .app-shell:not(.platform-windows) .gesture-action-card { grid-template-columns: 34px minmax(68px, .5fr) minmax(0, 1fr); gap: 6px; padding: 6px; }
-    .app-shell:not(.platform-windows) .gesture-finger-badge { width: 32px; height: 32px; }
-    .app-shell:not(.platform-windows) .gesture-action-card select { min-height: 38px; padding-right: 19px; font-size: 9px; }
-    .app-shell:not(.platform-windows) .app-setting-choices-scale { gap: 3px; }
-    .app-shell:not(.platform-windows) .app-setting-choices-scale button { min-height: 38px; padding-right: 1px; padding-left: 1px; font-size: 9px; }
-}

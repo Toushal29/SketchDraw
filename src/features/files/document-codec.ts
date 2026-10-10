@@ -1,7 +1,5 @@
-import type { CanvasState, Element, PersonalLibraryData, ProjectWorkspaceData, SketchFile, SketchFileDocumentV9, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
+import type { CanvasState, Element, SketchFile, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import { createProjectWorkspace } from "../project/project-data";
-import { createLegacyLibraryData } from "./legacy-library-data";
 import { normalizeElement } from "./parse-sketch";
 
 type CreateSnapshotOptions = {
@@ -11,8 +9,6 @@ type CreateSnapshotOptions = {
   activeCanvasState: CanvasState;
   activeRenderedBoardColor: string;
   theme: Theme;
-  project: ProjectWorkspaceData;
-  library: PersonalLibraryData;
   windowsSync?: WindowsSyncMetadata;
 };
 
@@ -38,32 +34,16 @@ export function createSketchSnapshot(options: CreateSnapshotOptions): SketchFile
     version: SKETCH_FORMAT_VERSION,
     activePageId: options.activePageId || pages[0].id,
     pages,
-    project: options.project,
-    library: options.library,
     ...(options.windowsSync ? { windowsSync: options.windowsSync } : {}),
   };
 }
 
 export function serializeSketchSnapshot(snapshot: SketchFile): string {
-  const library = snapshot.library ?? createLegacyLibraryData();
-  const document: SketchFileDocumentV9 = {
+  return JSON.stringify({
     format: "SketchDraw",
     version: SKETCH_FORMAT_VERSION,
-    sections: {
-      canvas: { activePageId: snapshot.activePageId, pages: snapshot.pages },
-      planning: snapshot.project ?? createProjectWorkspace(),
-      notebook: { notes: library.quickNotes },
-      retiredLibraryArchive: {
-        studyNotes: library.studyNotes,
-        studyCards: library.studyCards,
-        wikiArticles: library.wikiArticles,
-        journalEntries: library.journalEntries,
-        writingDrafts: library.writingDrafts,
-        researchSources: library.researchSources,
-        mediaEntries: library.mediaEntries,
-      },
-    },
+    activePageId: snapshot.activePageId,
+    pages: snapshot.pages,
     ...(snapshot.windowsSync ? { windowsSync: snapshot.windowsSync } : {}),
-  };
-  return JSON.stringify(document, null, 2);
+  } satisfies SketchFile, null, 2);
 }

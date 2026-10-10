@@ -583,12 +583,6 @@
 .theme-dark .home-project-actions .save-button { border-color: #718b73; color: #172119; background: #a8c1a4; }
 .theme-dark .home-project-actions .quiet-button { border-color: #454f47; color: #d2ddd1; background: #303831; }
 
-@media (max-width: 760px) {
-    .home-project-hub { grid-template-columns: 34px minmax(0, 1fr); column-gap: 10px; padding: 12px; }
-    .home-project-icon { width: 34px; height: 34px; }
-    .home-project-actions { gap: 7px; margin-top: 11px; }
-}
-
 .theme-dark .recent-count,
 .theme-dark .recent-empty-icon {
     border-color: #475448;
@@ -626,39 +620,6 @@
 
     .welcome-visual {
         display: none;
-    }
-}
-
-@media (max-width: 860px) {
-    .welcome-screen {
-        grid-template-columns: minmax(0, 1fr);
-        align-content: start;
-        gap: 16px;
-        padding: 20px;
-    }
-
-    .welcome-card {
-        min-height: 390px;
-        padding: 28px;
-    }
-
-    .recent-dashboard {
-        min-height: 290px;
-    }
-}
-
-@media (max-width: 760px) {
-    .style-pane.quick-style-mode,
-    .style-pane.full-style-mode {
-        top: 70px;
-        left: 10px;
-    }
-
-    .style-pane.full-style-mode > .full-inspector {
-        top: 0;
-        left: calc(100% + 8px);
-        width: min(318px, calc(100vw - 82px));
-        max-height: calc(100vh - 160px);
     }
 }
 

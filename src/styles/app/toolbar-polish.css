@@ -313,22 +313,6 @@
     background: #354438;
 }
 
-@media (max-width: 760px) {
-    .tool-deck {
-        gap: 4px;
-        padding: 5px;
-    }
-
-    .tool-cluster {
-        gap: 1px;
-        padding: 2px;
-    }
-
-    .tool-icon-button {
-        width: 39px;
-    }
-}
-
 .canvas-utility-button kbd {
     color: #85877f;
     font: 8px 'DM Mono', monospace;
@@ -343,17 +327,5 @@
 
 .theme-dark .canvas-utility-button kbd {
     color: #aeb3bd;
-}
-
-@media (max-width: 760px) {
-    .tool-deck {
-        max-width: calc(100vw - 16px);
-        overflow-x: auto;
-    }
-
-    .canvas-utility-button {
-        width: 37px;
-        min-width: 37px;
-    }
 }
 

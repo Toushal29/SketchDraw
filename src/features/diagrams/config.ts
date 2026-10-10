@@ -18,7 +18,5 @@ FLOWCHART_SHAPES.push(
   { value: "lightning", label: "Lightning", path: "m14 2-9 12h6l-1 8 9-12h-6z" },
   { value: "heart", label: "Heart", path: "M12 21S3 15 3 8a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 7-9 13-9 13z" },
   { value: "callout", label: "Callout", path: "M3 4h18v13H12l-5 4v-4H3z" },
-  { value: "gear", label: "Gear", path: "M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z" },
 );
-// Keep the legacy Gear path so older sketches still render it; it is not insertable in the current palettes.
-export const FLOWCHART_MENU_SHAPES = FLOWCHART_SHAPES.filter(shape => !["star", "lightning", "heart", "callout", "gear"].includes(shape.value));
+export const FLOWCHART_MENU_SHAPES = FLOWCHART_SHAPES.filter(shape => !["star", "lightning", "heart", "callout"].includes(shape.value));

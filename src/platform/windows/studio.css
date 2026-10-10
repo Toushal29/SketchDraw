@@ -1,0 +1,594 @@
+/* SketchDraw Windows studio: ribbon tools, paper stage, and a docked inspector. */
+.windows-studio {
+  --studio-bg: #e9ebf0;
+  --studio-panel: #ffffff;
+  --studio-panel-raised: #f5f6f8;
+  --studio-panel-inset: #eceef2;
+  --studio-ink: #20212a;
+  --studio-muted: #696d7a;
+  --studio-line: #dfe1e7;
+  --studio-accent: #6258d8;
+  --studio-shadow: 0 12px 32px rgb(28 30 43 / 12%), 0 2px 6px rgb(28 30 43 / 7%);
+  --studio-ribbon-height: 78px;
+  --studio-inspector-width: 324px;
+  --studio-pages-height: 58px;
+  min-width: 1160px;
+  color: var(--studio-ink);
+  background: var(--studio-bg);
+  font-family: "Segoe UI Variable", "Segoe UI", sans-serif;
+  accent-color: var(--ui-accent);
+}
+
+.windows-studio.theme-dark {
+  --dark-ui-base: #14151a;
+  --dark-ui-surface: #1d1f26;
+  --dark-ui-raised: #272a33;
+  --dark-ui-inset: #18191f;
+  --dark-ui-border: #393c47;
+  --dark-ui-border-soft: #2b2d36;
+  --dark-ui-ink: #f1f1f5;
+  --dark-ui-muted: #a4a6b2;
+  --studio-bg: #14151a;
+  --studio-panel: #1d1f26;
+  --studio-panel-raised: #272a33;
+  --studio-panel-inset: #18191f;
+  --studio-ink: #f1f1f5;
+  --studio-muted: #a4a6b2;
+  --studio-line: #393c47;
+  --studio-accent: #a69cff;
+  --studio-shadow: 0 16px 40px rgb(0 0 0 / 38%), 0 2px 8px rgb(0 0 0 / 24%);
+}
+.windows-studio.theme-light { color-scheme: light; }
+.windows-studio.theme-dark { color-scheme: dark; }
+
+.windows-studio,
+.windows-studio * { scrollbar-color: color-mix(in srgb, var(--studio-muted) 42%, transparent) transparent; }
+.windows-studio button { font-family: inherit; }
+.windows-studio .save-button { border-color: var(--ui-accent); border-radius: 8px; color: #fffaf4; background: var(--ui-accent); }
+.windows-studio .save-button:hover:not(:disabled) { border-color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 88%, #201723); }
+.windows-studio .quiet-button { border-color: var(--studio-line); border-radius: 8px; color: var(--studio-ink); background: var(--studio-panel-raised); }
+.windows-studio .quiet-button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--studio-muted) 45%, var(--studio-line)); background: var(--studio-panel-inset); }
+.windows-studio .danger-button { border-radius: 8px; color: #fff8f5; background: #b53f52; }
+.windows-studio button:focus-visible,
+.windows-studio summary:focus-visible,
+.windows-studio input:focus-visible,
+.windows-studio select:focus-visible,
+.windows-studio textarea:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+
+/* One document bar keeps file identity, menus, tabs, and save state in a clear order. */
+.windows-studio .topbar {
+  z-index: 1300;
+  display: grid;
+  grid-template-columns: minmax(164px, 218px) auto minmax(110px, 1fr) auto;
+  flex: 0 0 62px;
+  height: 62px;
+  min-height: 62px;
+  gap: 14px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--studio-line);
+  color: var(--studio-ink);
+  background: var(--studio-panel);
+  box-shadow: 0 2px 0 rgb(49 36 49 / 3%);
+}
+.windows-studio .header-leading { min-width: 0; max-width: none; gap: 9px; }
+.windows-studio .brand { min-width: 0; gap: 9px; font-size: 13px; letter-spacing: -.2px; }
+.windows-studio .brand-mark-image { width: 28px; height: 28px; flex: 0 0 28px; }
+.windows-studio .brand > span { max-width: 185px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.windows-studio .view-only-badge { color: var(--studio-accent); }
+.windows-studio .app-menus {
+  grid-column: 2;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  overflow: visible;
+}
+.windows-studio .app-menus .menu-dropdown > summary {
+  min-height: 36px;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--studio-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+.windows-studio .app-menus .menu-dropdown > summary:hover,
+.windows-studio .app-menus .menu-dropdown[open] > summary {
+  border-color: var(--studio-line);
+  color: var(--studio-ink);
+  background: var(--studio-panel-raised);
+}
+.windows-studio .app-menus .menu-icon { color: var(--studio-accent); }
+.windows-studio .windows-document-tabs {
+  grid-column: 3;
+  justify-self: stretch;
+  width: 100%;
+  max-width: none;
+  height: 36px;
+  border: 1px solid var(--studio-line);
+  border-radius: 10px;
+  color: var(--studio-muted);
+  background: var(--studio-panel-raised);
+}
+.windows-studio .windows-document-tab { min-width: 105px; border-radius: 7px; }
+.windows-studio .windows-document-tab.active { color: var(--studio-ink); background: var(--studio-panel); box-shadow: 0 1px 3px rgb(48 39 50 / 10%); }
+.windows-studio .top-actions { grid-column: 4; gap: 8px; }
+.windows-studio .live-sync-indicator { color: var(--studio-muted); font-size: 10px; }
+.windows-studio .save-status {
+  min-height: 32px;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--studio-line);
+  border-radius: 9px;
+  color: var(--studio-muted);
+  background: var(--studio-panel-raised);
+}
+.windows-studio .save-status.is-dirty,
+.windows-studio .save-status.is-saving { border-color: #d0a05d; color: #79500d; background: #fff5df; }
+.windows-studio.theme-dark .save-status.is-dirty,
+.windows-studio.theme-dark .save-status.is-saving { border-color: #806c43; color: #f2d28d; background: #332e23; }
+.windows-studio .header-action {
+  display: inline-flex;
+  min-width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--studio-line);
+  border-radius: 9px;
+  color: var(--studio-ink);
+  background: var(--studio-panel);
+  font-size: 10px;
+  font-weight: 650;
+}
+.windows-studio .header-action:hover:not(:disabled) { border-color: var(--ui-accent); background: var(--studio-panel-raised); }
+.windows-studio .header-action:disabled { opacity: .42; cursor: not-allowed; }
+.windows-studio .command-search-action { color: var(--studio-muted); }
+.windows-studio .save-document-action { border-color: var(--ui-accent); color: #fffaf4; background: var(--ui-accent); }
+.windows-studio .save-document-action:hover:not(:disabled) { filter: brightness(.94); background: var(--ui-accent); }
+
+.windows-studio .menu-dropdown .system-menu-popover,
+.windows-studio .view-settings-popover,
+.windows-studio .app-settings-popover {
+  z-index: 1800;
+  border: 1px solid var(--studio-line);
+  border-radius: 12px;
+  color: var(--studio-ink);
+  background: var(--studio-panel);
+  box-shadow: var(--studio-shadow);
+}
+.windows-studio .menu-dropdown .system-menu-popover { min-width: 230px; padding: 7px; }
+.windows-studio .system-menu-popover > button,
+.windows-studio .page-actions button {
+  min-height: 34px;
+  border-radius: 7px;
+  color: var(--studio-ink);
+  font-size: 11px;
+}
+.windows-studio .system-menu-popover > button:hover:not(:disabled),
+.windows-studio .page-actions button:hover:not(:disabled) { color: var(--studio-ink); background: var(--studio-panel-raised); }
+.windows-studio .system-menu-popover kbd { color: var(--studio-muted); }
+.windows-studio .menu-separator { background: var(--studio-line); }
+.windows-studio .view-settings-popover { color: var(--studio-ink); background: var(--studio-panel); }
+.windows-studio .app-setting-choices button.active,
+.windows-studio .board-color-choice.active,
+.windows-studio .whiteboard-style-choice.active,
+.windows-studio .component-style-options button.active,
+.windows-studio .canvas-options-grid button.active { border-color: var(--ui-accent); color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 10%, var(--studio-panel)); }
+
+/* A full-width tool ribbon makes the drawing surface the center of the window. */
+.windows-studio .canvas-wrap {
+  isolation: isolate;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: #e9ebf0;
+  background-image: linear-gradient(rgb(74 78 96 / 4%) 1px, transparent 1px), linear-gradient(90deg, rgb(74 78 96 / 4%) 1px, transparent 1px);
+  background-position: 0 0;
+  background-size: 28px 28px;
+}
+.windows-studio.theme-dark .canvas-wrap {
+  background-color: #14151a;
+  background-image: linear-gradient(rgb(220 222 236 / 5%) 1px, transparent 1px), linear-gradient(90deg, rgb(220 222 236 / 5%) 1px, transparent 1px);
+}
+.windows-studio .windows-tool-deck {
+  position: absolute;
+  z-index: 24;
+  inset: 0 0 auto;
+  display: block;
+  width: 100%;
+  height: var(--studio-ribbon-height);
+  max-width: none;
+  max-height: none;
+  overflow: visible;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 1px solid var(--studio-line);
+  border-radius: 0;
+  color: var(--toolbar-ink);
+  background: var(--toolbar-surface);
+  box-shadow: 0 3px 12px rgb(44 32 42 / 4%);
+  transform: none;
+}
+.windows-studio .tool-dock-content {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  gap: 3px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.windows-studio.tool-options-open .tool-dock-content,
+.windows-studio.canvas-options-active .tool-dock-content { overflow: visible; }
+.windows-studio .tool-deck .tool-cluster {
+  display: flex !important;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 3px 5px;
+  border: 0;
+  border-right: 1px solid var(--studio-line);
+  border-radius: 0;
+  background: transparent;
+}
+.windows-studio .tool-deck .tool-cluster-canvas { padding-left: 2px; }
+.windows-studio .tool-deck .tool-extra-family {
+  display: flex !important;
+  flex: 0 0 auto;
+  align-items: center;
+  margin: 0;
+  padding: 3px 5px;
+  border-right: 1px solid var(--studio-line);
+  border-left: 0;
+}
+.windows-studio .tool-deck .tool-icon-button,
+.windows-studio .tool-deck .canvas-options-trigger,
+.windows-studio .tool-deck .tool-family,
+.windows-studio .tool-deck .tool-family > .tool-icon-button {
+  position: relative;
+  width: 36px;
+  min-width: 36px;
+  height: 44px;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+}
+.windows-studio .tool-deck .tool-icon-button { color: color-mix(in srgb, var(--toolbar-ink) 66%, transparent); }
+.windows-studio .tool-deck .tool-icon-button > svg:not(.tool-family-caret),
+.windows-studio .tool-deck .canvas-options-trigger > svg { width: 19px; height: 19px; }
+.windows-studio .tool-deck .tool-icon-button:hover,
+.windows-studio .tool-deck .canvas-options-trigger:hover { color: var(--toolbar-ink); background: color-mix(in srgb, var(--toolbar-ink) 7%, var(--toolbar-surface)); }
+.windows-studio .tool-deck .tool-icon-button.selected,
+.windows-studio .tool-deck .tool-icon-button[aria-pressed="true"],
+.windows-studio .tool-deck .canvas-options-trigger.active {
+  border-color: color-mix(in srgb, var(--ui-accent) 52%, var(--studio-line));
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 11%, var(--toolbar-surface));
+}
+.windows-studio .tool-deck .tool-icon-button kbd { display: block; color: color-mix(in srgb, var(--toolbar-ink) 55%, transparent); font: 7px/8px "Segoe UI", sans-serif; }
+.windows-studio .tool-deck .tool-icon-button.selected kbd { color: var(--ui-accent); }
+.windows-studio.theme-dark .tool-deck .tool-icon-button.selected,
+.windows-studio.theme-dark .tool-deck .tool-icon-button[aria-pressed="true"],
+.windows-studio.theme-dark .tool-deck .canvas-options-trigger.active { color: color-mix(in srgb, var(--ui-accent) 38%, white); }
+.windows-studio.theme-dark .tool-deck .tool-icon-button.selected kbd { color: color-mix(in srgb, var(--ui-accent) 38%, white); }
+.windows-studio .tool-deck .tool-family .tool-family-caret { top: 13px; right: 0; width: 8px; height: 8px; }
+.windows-studio .tool-deck .tool-button-label {
+  position: absolute;
+  z-index: 2200;
+  top: calc(100% + 5px);
+  left: 50%;
+  display: none;
+  width: max-content;
+  max-width: 190px;
+  padding: 6px 8px;
+  border: 1px solid var(--studio-line);
+  border-radius: 7px;
+  color: var(--studio-ink);
+  background: var(--studio-panel);
+  box-shadow: var(--studio-shadow);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 10px;
+  pointer-events: none;
+}
+.windows-studio .tool-deck .tool-icon-button:hover .tool-button-label,
+.windows-studio .tool-deck .tool-icon-button:focus-visible .tool-button-label { display: block; }
+.windows-studio .tool-deck .tool-options,
+.windows-studio .tool-deck .canvas-options-menu {
+  z-index: 2200;
+  border-color: var(--studio-line);
+  border-radius: 12px;
+  color: var(--studio-ink);
+  background: var(--studio-panel);
+  box-shadow: var(--studio-shadow);
+}
+.windows-studio .tool-deck .tool-options button,
+.windows-studio .tool-deck .canvas-options-menu button { color: var(--studio-ink); }
+.windows-studio .tool-deck .tool-options button:hover,
+.windows-studio .tool-deck .canvas-options-menu button:hover { background: var(--studio-panel-raised); }
+.windows-studio .tool-deck .tool-collapse { display: none !important; }
+.windows-studio .tool-cluster-navigation { order: 0; }
+.windows-studio .tool-cluster-drawing { order: 1; }
+.windows-studio .tool-cluster-laser { order: 2; }
+.windows-studio .paint-brush-family { order: 3; }
+.windows-studio .tool-cluster-connectors { order: 4; }
+.windows-studio .tool-cluster-shapes { order: 5; }
+.windows-studio .tool-cluster-content { order: 6; }
+.windows-studio .stencil-family { order: 7; }
+.windows-studio .tool-cluster-history { order: 8; border-right: 0 !important; margin-left: auto !important; }
+.windows-studio .focus-mode-entry { display: none !important; }
+
+/* The inspector and page strip are docked to the window, leaving the canvas clear. */
+.windows-studio .drawing-canvas {
+  z-index: 1;
+  inset: var(--studio-ribbon-height) var(--studio-inspector-width) var(--studio-pages-height) 0;
+  width: auto;
+  height: auto;
+}
+.windows-studio .inspector-dock {
+  position: absolute;
+  z-index: 16;
+  top: var(--studio-ribbon-height);
+  right: 0;
+  bottom: 0;
+  display: flex;
+  width: var(--studio-inspector-width);
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--studio-line);
+  background: var(--studio-panel);
+  box-shadow: -5px 0 18px rgb(44 32 42 / 4%);
+}
+.windows-studio .inspector-tabs {
+  display: flex;
+  flex: 0 0 44px;
+  align-items: stretch;
+  gap: 5px;
+  padding: 5px 12px 0;
+  border-bottom: 1px solid var(--studio-line);
+  background: var(--studio-panel);
+}
+.windows-studio .inspector-tabs button {
+  position: relative;
+  display: inline-flex;
+  min-width: 82px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px 2px;
+  border: 0;
+  border-radius: 7px 7px 0 0;
+  color: var(--studio-muted);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 650;
+}
+.windows-studio .inspector-tabs button.active { color: var(--studio-ink); }
+.windows-studio .inspector-tabs button.active::after { position: absolute; right: 8px; bottom: -1px; left: 8px; height: 2px; border-radius: 2px; background: var(--ui-accent); content: ""; }
+.windows-studio .inspector-tabs button small { display: grid; min-width: 18px; height: 18px; place-items: center; border-radius: 6px; color: var(--studio-muted); background: var(--studio-panel-raised); font-size: 9px; }
+.windows-studio .style-pane {
+  position: static;
+  z-index: auto;
+  inset: auto;
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  max-height: none;
+  gap: 0;
+  overflow: hidden;
+  padding: 12px 14px 18px;
+  border: 0;
+  border-radius: 0;
+  color: var(--studio-ink);
+  background: var(--studio-panel);
+  box-shadow: none;
+  transform: none;
+}
+.windows-studio .inspector-dock .style-pane.quick-style-mode,
+.windows-studio .inspector-dock .style-pane.full-style-mode { position: static; inset: auto; width: 100%; max-height: none; }
+.windows-studio .inspector-dock.layers-active .style-pane { display: none; }
+.windows-studio .style-pane > .quick-style-panel { display: block; flex: 0 0 auto; padding-bottom: 10px; border-bottom: 1px solid var(--studio-line); }
+.windows-studio .style-pane.full-style-mode > .quick-style-panel { display: none; }
+.windows-studio .style-pane .quick-style-heading { min-height: 32px; justify-content: space-between; color: var(--studio-ink); }
+.windows-studio .style-pane .quick-style-heading::before { color: var(--studio-muted); content: "QUICK STYLE"; font-size: 9px; font-weight: 750; letter-spacing: .1em; }
+.windows-studio .style-pane .quick-style-heading button { width: 28px; height: 28px; border: 1px solid var(--studio-line); border-radius: 7px; color: var(--studio-muted); background: var(--studio-panel-raised); }
+.windows-studio .style-pane .quick-style-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 5px; padding-top: 7px; }
+.windows-studio .style-pane .quick-style-icon { width: 36px; height: 34px; border: 1px solid var(--studio-line); border-radius: 8px; color: var(--studio-ink); background: var(--studio-panel-raised); }
+.windows-studio .style-pane .quick-style-icon:hover,
+.windows-studio .style-pane .quick-style-icon[aria-expanded="true"],
+.windows-studio .style-pane .quick-style-icon.active { border-color: var(--ui-accent); color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 9%, var(--studio-panel)); }
+.windows-studio .style-pane .quick-style-popover { z-index: 40; border-color: var(--studio-line); border-radius: 10px; color: var(--studio-ink); background: var(--studio-panel); box-shadow: var(--studio-shadow); }
+.windows-studio .style-pane > .full-inspector,
+.windows-studio .style-pane.quick-style-mode > .full-inspector,
+.windows-studio .style-pane.full-style-mode > .full-inspector {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 2px 8px;
+  border: 0;
+  color: var(--studio-ink);
+  background: transparent;
+}
+.windows-studio .full-inspector > .full-style-heading { position: sticky; z-index: 2; top: -12px; padding: 8px 0 12px; color: var(--studio-ink); background: var(--studio-panel); }
+.windows-studio .full-inspector .pane-section { border-color: var(--studio-line); }
+.windows-studio .full-inspector .property-label,
+.windows-studio .full-inspector label { color: var(--studio-muted); }
+.windows-studio .full-inspector input:not([type="checkbox"]):not([type="radio"]),
+.windows-studio .full-inspector select,
+.windows-studio .full-inspector textarea { border-color: var(--studio-line); border-radius: 8px; color: var(--studio-ink); background: var(--studio-panel-raised); }
+.windows-studio .full-inspector input[type="range"] { accent-color: var(--ui-accent); }
+.windows-studio .full-inspector button { color: var(--studio-ink); }
+
+.windows-studio .page-tabs {
+  z-index: 14;
+  inset: auto var(--studio-inspector-width) 0 0;
+  display: flex;
+  width: auto;
+  height: var(--studio-pages-height);
+  min-height: var(--studio-pages-height);
+  justify-content: flex-start;
+  gap: 7px;
+  max-width: none;
+  overflow: hidden;
+  padding: 0 16px;
+  border: 0;
+  border-top: 1px solid var(--studio-line);
+  border-radius: 0;
+  color: var(--studio-muted);
+  background: var(--studio-panel);
+  box-shadow: none;
+  transform: none;
+}
+.windows-studio .page-tab-list { max-width: none; min-width: 0; gap: 5px; overflow-x: auto; }
+.windows-studio .page-tab { height: 34px; max-width: 190px; border: 1px solid transparent; border-radius: 8px; color: var(--studio-muted); font-size: 11px; }
+.windows-studio .page-tab.active { border-color: var(--studio-line); color: var(--studio-ink); background: var(--studio-panel-raised); }
+.windows-studio .page-tab:hover,
+.windows-studio .page-tabs > button:hover:not(:disabled),
+.windows-studio .page-menu > summary:hover { color: var(--studio-ink); background: var(--studio-panel-raised); }
+.windows-studio .page-tabs > button,
+.windows-studio .page-menu > summary { min-width: 34px; height: 34px; border: 1px solid var(--studio-line); border-radius: 8px; color: var(--studio-ink); background: var(--studio-panel-raised); }
+.windows-studio .page-actions { z-index: 50; border-color: var(--studio-line); border-radius: 10px; color: var(--studio-ink); background: var(--studio-panel); box-shadow: var(--studio-shadow); }
+
+/* Canvas aids line up with the actual drawable area after docking the chrome. */
+.windows-studio .canvas-rulers { z-index: 8; inset: var(--studio-ribbon-height) var(--studio-inspector-width) var(--studio-pages-height) 0; }
+.windows-studio .canvas-ruler-top,
+.windows-studio .canvas-ruler-left,
+.windows-studio .canvas-ruler-corner { color: var(--studio-muted); background: var(--studio-panel); }
+.windows-studio .canvas-ruler-top rect,
+.windows-studio .canvas-ruler-left rect { fill: var(--studio-panel); }
+.windows-studio .canvas-ruler-top path,
+.windows-studio .canvas-ruler-left path { stroke: color-mix(in srgb, var(--studio-muted) 54%, transparent); }
+.windows-studio .canvas-ruler-top text,
+.windows-studio .canvas-ruler-left text { fill: var(--studio-muted); }
+.windows-studio .canvas-ruler-corner { border-color: var(--studio-line); }
+.windows-studio .canvas-minimap { z-index: 12; right: calc(var(--studio-inspector-width) + 14px); bottom: calc(var(--studio-pages-height) + 58px); border-color: var(--studio-line); border-radius: 11px; color: var(--studio-ink); background: var(--studio-panel); box-shadow: var(--studio-shadow); }
+.windows-studio .canvas-minimap header { color: var(--studio-ink); }
+.windows-studio .canvas-minimap .minimap-board { fill: var(--studio-panel-raised); }
+.windows-studio .canvas-zoom-reset { z-index: 12; right: calc(var(--studio-inspector-width) + 15px); bottom: calc(var(--studio-pages-height) + 14px); border: 1px solid var(--studio-line); border-radius: 9px; color: var(--studio-ink); background: var(--studio-panel); box-shadow: 0 3px 12px rgb(44 32 42 / 9%); }
+.windows-studio .canvas-zoom-reset:hover { border-color: var(--ui-accent); }
+.windows-studio .canvas-help { z-index: 10; right: auto; bottom: calc(var(--studio-pages-height) + 20px); left: 18px; color: var(--studio-muted); }
+.windows-studio .selection-delete-action { z-index: 13; top: calc(var(--studio-ribbon-height) + 12px); bottom: auto; left: calc((100% - var(--studio-inspector-width)) / 2); transform: translateX(-50%); }
+.windows-studio .canvas-note-editor { z-index: 9; transform: translateY(var(--studio-ribbon-height)); box-shadow: var(--studio-shadow); }
+.windows-studio .text-editor-frame { margin-top: var(--studio-ribbon-height); }
+.windows-studio .inspector-dock .floating-layer-panel { position: static; z-index: auto; display: flex; flex: 1 1 auto; width: 100%; min-width: 0; max-width: none; max-height: none; overflow: hidden; padding: 12px 14px 14px; border: 0; border-radius: 0; color: var(--studio-ink); background: var(--studio-panel); box-shadow: none; }
+.windows-studio .inspector-dock .floating-layer-panel .layer-list { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.windows-studio .floating-layer-panel .layer-panel-heading { border-color: var(--studio-line); }
+.windows-studio .floating-layer-panel .layer-count-badge { border-color: var(--studio-line); color: var(--studio-muted); background: var(--studio-panel-raised); }
+.windows-studio .layer-row { border-color: var(--studio-line); color: var(--studio-ink); }
+.windows-studio .layer-row.selected { border-color: color-mix(in srgb, var(--ui-accent) 42%, var(--studio-line)); background: color-mix(in srgb, var(--ui-accent) 8%, var(--studio-panel)); }
+
+/* Home and dialogs share the same warmer, higher contrast material language. */
+.windows-studio .welcome-screen {
+  flex: 1 1 auto;
+  width: min(1500px, 100%);
+  height: auto;
+  min-height: calc(100% - 62px);
+  max-width: 1500px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, .72fr);
+  align-items: center;
+  gap: clamp(20px, 3vw, 44px);
+  padding: clamp(26px, 4vw, 60px);
+  overflow: auto;
+  background: var(--studio-bg);
+}
+.windows-studio .welcome-card { border-color: var(--studio-line); border-radius: 22px; background: var(--studio-panel); box-shadow: 0 8px 28px rgb(44 32 42 / 6%); }
+.windows-studio .welcome-intro .eyebrow,
+.windows-studio .recent-heading .eyebrow { color: var(--studio-accent); }
+.windows-studio .welcome-intro h1 { color: var(--studio-ink); font-family: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", sans-serif; font-weight: 680; letter-spacing: -1.8px; }
+.windows-studio .welcome-intro h1 em { color: var(--studio-accent); }
+.windows-studio .welcome-intro .welcome-copy,
+.windows-studio .recent-heading > p { color: var(--studio-muted); }
+.windows-studio .welcome-actions .save-button { border-color: var(--ui-accent); border-radius: 9px; background: var(--ui-accent); }
+.windows-studio .welcome-actions .quiet-button { border-color: var(--studio-line); border-radius: 9px; color: var(--studio-ink); background: var(--studio-panel-raised); }
+.windows-studio .welcome-visual { border-color: var(--studio-line); border-radius: 18px; background: var(--studio-panel-raised); box-shadow: none; }
+.windows-studio .welcome-visual::before { background: linear-gradient(135deg, #f8f8ff, #edecfa 60%, #e9effb); }
+.windows-studio .welcome-visual-topline { color: var(--studio-muted); }
+.windows-studio .welcome-visual-topline i { background: var(--ui-accent); }
+.windows-studio .welcome-wire { stroke: #a7a9bd; }
+.windows-studio .welcome-wire-arrow { stroke: #7a79a5; }
+.windows-studio .welcome-node { stroke: var(--studio-panel); }
+.windows-studio .welcome-node-lilac { fill: #efedff; }
+.windows-studio .welcome-node-sun { fill: #f3f0ff; }
+.windows-studio .welcome-node-mint { fill: #e8f2fa; }
+.windows-studio .welcome-node-paper { fill: #ffffff; }
+.windows-studio .welcome-node-blue { fill: #e7eefb; }
+.windows-studio .welcome-node-icon { stroke: #59578a; }
+.windows-studio .welcome-node-icon circle,
+.windows-studio .welcome-dot { fill: var(--ui-accent); }
+.windows-studio .welcome-spark { fill: #e9e5ff; stroke: #a69cff; }
+.windows-studio .welcome-spark-line,
+.windows-studio .welcome-visual-caption span { stroke: #6258d8; color: #6258d8; }
+.windows-studio .welcome-visual-caption { border-color: var(--studio-line); color: var(--studio-muted); background: var(--studio-panel); }
+.windows-studio.theme-dark .welcome-visual::before { background: linear-gradient(135deg, #242631, #282b38 60%, #20232d); }
+.windows-studio .recent-dashboard { width: 100%; margin: 0; padding: 0; }
+.windows-studio .recent-heading h2 { color: var(--studio-ink); font-family: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", sans-serif; font-size: 24px; font-weight: 650; letter-spacing: -.6px; }
+.windows-studio .recent-file { border-color: var(--studio-line); border-radius: 10px; color: var(--studio-ink); background: var(--studio-panel); }
+.windows-studio .recent-file:hover { border-color: var(--ui-accent); background: var(--studio-panel-raised); }
+.windows-studio .confirm-backdrop,
+.windows-studio .windows-command-backdrop,
+.windows-studio .windows-dialog-backdrop { background: rgb(20 21 26 / 56%); backdrop-filter: blur(8px); }
+.windows-studio .confirm-dialog,
+.windows-studio .command-palette,
+.windows-studio .export-dialog { border-color: var(--studio-line); border-radius: 15px; color: var(--studio-ink); background: var(--studio-panel); box-shadow: var(--studio-shadow); }
+
+.windows-studio.windows-presentation-mode,
+.windows-studio.windows-fullscreen-mode { --studio-ribbon-height: 0px; --studio-inspector-width: 0px; --studio-pages-height: 0px; }
+.windows-studio.windows-presentation-mode .drawing-canvas,
+.windows-studio.windows-fullscreen-mode .drawing-canvas { inset: 0; width: 100%; height: 100%; }
+.windows-studio.windows-presentation-mode .inspector-dock,
+.windows-studio.windows-fullscreen-mode .inspector-dock { display: none !important; }
+.windows-studio.read-only-view { --studio-inspector-width: 0px; }
+.windows-studio.read-only-view .inspector-dock { display: none; }
+.windows-studio.windows-presentation-mode .canvas-note-editor,
+.windows-studio.windows-fullscreen-mode .canvas-note-editor { transform: none; }
+.windows-studio.windows-presentation-mode .text-editor-frame,
+.windows-studio.windows-fullscreen-mode .text-editor-frame { margin-top: 0; }
+.windows-studio.windows-presentation-mode .canvas-rulers,
+.windows-studio.windows-fullscreen-mode .canvas-rulers,
+.windows-studio.windows-presentation-mode .canvas-minimap,
+.windows-studio.windows-fullscreen-mode .canvas-minimap,
+.windows-studio.windows-presentation-mode .canvas-help,
+.windows-studio.windows-fullscreen-mode .canvas-help { display: none !important; }
+
+@media (max-width: 1280px) {
+  .windows-studio { --studio-inspector-width: 294px; }
+  .windows-studio .topbar { grid-template-columns: minmax(138px, 174px) auto minmax(80px, 1fr) auto; gap: 8px; padding: 0 10px; }
+  .windows-studio .brand > span { max-width: 140px; }
+  .windows-studio .live-sync-indicator { display: none; }
+  .windows-studio .windows-tool-deck { padding: 0 5px; }
+  .windows-studio .tool-deck .tool-cluster { gap: 0; padding-right: 3px; padding-left: 3px; }
+  .windows-studio .tool-deck .tool-icon-button,
+  .windows-studio .tool-deck .canvas-options-trigger,
+  .windows-studio .tool-deck .tool-family,
+  .windows-studio .tool-deck .tool-family > .tool-icon-button { width: 33px; min-width: 33px; }
+}
+
+@media (max-width: 1180px) {
+  .windows-studio { min-width: 1040px; --studio-inspector-width: 278px; }
+  .windows-studio .topbar { grid-template-columns: 150px minmax(0, 1fr) auto; }
+  .windows-studio .top-actions { grid-column: 3; }
+  .windows-studio .windows-document-tabs { display: none; }
+  .windows-studio .tool-deck .tool-cluster-history { margin-left: 0 !important; }
+  .windows-studio .welcome-screen { grid-template-columns: 1fr; align-content: start; }
+  .windows-studio .welcome-card { grid-template-columns: minmax(0, 1fr) minmax(260px, .9fr); }
+  .windows-studio .welcome-visual { display: none; }
+}
+
+@media (max-height: 720px) {
+  .windows-studio { --studio-ribbon-height: 68px; --studio-pages-height: 50px; }
+  .windows-studio .tool-deck .tool-icon-button,
+  .windows-studio .tool-deck .canvas-options-trigger,
+  .windows-studio .tool-deck .tool-family,
+  .windows-studio .tool-deck .tool-family > .tool-icon-button { height: 40px; min-height: 40px; }
+}

@@ -14,27 +14,17 @@ type Props = {
   accentOptions: { label: string; value: string }[];
   toolbarColorOptions: { label: string; value: string }[];
   interfaceScale: number;
-  mobileOrientation: "landscape" | "portrait";
-  toolbarPosition: "top" | "bottom" | "left" | "right";
-  orientationMessage: string;
-  showMobileLayoutSettings: boolean;
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
   buttonChoices: boolean;
-  androidAllFilesAccessAvailable: boolean;
-  androidAllFilesAccessGranted: boolean;
-  showAndroidAllFilesAccess: boolean;
   reduceMotion: boolean;
   displayMetrics: DisplayMetrics;
   onInterfaceScaleChange: (scale: number) => void;
-  onMobileOrientationChange: (orientation: "landscape" | "portrait") => void;
-  onToolbarPositionChange: (position: "top" | "bottom" | "left" | "right") => void;
   onThemeChange: (mode: "system" | "light" | "dark") => void;
   onAccentChange: (value: string) => void;
   onToolbarColorChange: (value: string) => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: "presets" | "stepper") => void;
-  onRequestAndroidAllFilesAccess: () => void;
   onReduceMotionChange: (reduce: boolean) => void;
   onRestoreDefaults: () => void;
   detailsRef?: (element: HTMLDetailsElement) => void;
@@ -63,7 +53,7 @@ export function AppSettingsMenu(props: Props) {
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
       </summary>
       <div class="system-menu-popover app-settings-popover">
-        <header class="app-settings-heading"><strong>App settings</strong><small>Preferences apply across Canvas, Planning, and Notebook.</small></header>
+        <header class="app-settings-heading"><strong>App settings</strong><small>Preferences follow you across sketches.</small></header>
         <div class="app-setting-field">
           <span>Theme</span>
           <div class="app-setting-choices app-setting-choices-three" role="group" aria-label="Application theme">
@@ -82,23 +72,9 @@ export function AppSettingsMenu(props: Props) {
           <div class="app-toolbar-choices" role="group" aria-label="Toolbar surface">
             <button type="button" class={props.toolbarColorChoice === "auto" ? "active" : ""} aria-pressed={props.toolbarColorChoice === "auto"} onClick={() => props.onToolbarColorChange("auto")}><i class="app-toolbar-auto" /><span>Auto</span></button>
             {props.toolbarColorOptions.map(option => <button type="button" class={props.toolbarColorChoice === option.value ? "active" : ""} aria-pressed={props.toolbarColorChoice === option.value} title={option.label} onClick={() => props.onToolbarColorChange(option.value)}><i style={{ "background-color": option.value }} /><span>{option.label}</span></button>)}
-            <label class="app-toolbar-custom" title="Choose a custom toolbar color"><input type="color" aria-label="Custom toolbar color" value={props.toolbarColorChoice === "auto" ? "#f8faf7" : props.toolbarColorChoice} onInput={event => props.onToolbarColorChange(event.currentTarget.value)} /><i style={{ "background-color": props.toolbarColorChoice === "auto" ? "#f8faf7" : props.toolbarColorChoice }} /><span>Custom</span></label>
+            <label class="app-toolbar-custom" title="Choose a custom toolbar color"><input type="color" aria-label="Custom toolbar color" value={props.toolbarColorChoice === "auto" ? "#ffffff" : props.toolbarColorChoice} onInput={event => props.onToolbarColorChange(event.currentTarget.value)} /><i style={{ "background-color": props.toolbarColorChoice === "auto" ? "#ffffff" : props.toolbarColorChoice }} /><span>Custom</span></label>
           </div>
         </div>
-        <Show when={props.showMobileLayoutSettings}>
-          <section class="app-mobile-layout-settings" aria-label="Mobile and tablet layout">
-            <strong>Mobile and tablet layout</strong>
-            <div class="app-setting-field">
-              <span>Screen orientation</span>
-              <SettingChoices label="Screen orientation" value={props.mobileOrientation} options={[{ value: "landscape", label: "Landscape" }, { value: "portrait", label: "Portrait" }]} onChange={props.onMobileOrientationChange} />
-              {props.orientationMessage && <small class="orientation-setting-message" role="status">{props.orientationMessage}</small>}
-            </div>
-            <div class="app-setting-field">
-              <span>Toolbar position</span>
-              <SettingChoices label="Toolbar position" value={props.toolbarPosition} options={[{ value: "top", label: "Top" }, { value: "bottom", label: "Bottom" }, { value: "left", label: "Left" }, { value: "right", label: "Right" }]} onChange={props.onToolbarPositionChange} className="app-setting-choices-four" />
-            </div>
-          </section>
-        </Show>
         <div class="app-setting-field">
           <span>Interface scale <strong>{Math.round(props.interfaceScale * 100)}%</strong></span>
           <Show when={props.buttonChoices} fallback={<select aria-label="Interface scale" value={props.interfaceScale} onChange={event => props.onInterfaceScaleChange(Number(event.currentTarget.value))}>{interfaceScales.map(scale => <option value={scale}>{Math.round(scale * 100)}%</option>)}</select>}>
@@ -119,11 +95,6 @@ export function AppSettingsMenu(props: Props) {
           </Show>
           <small>Choose presets or fine tuning for pen and paint brushes. Other tools keep their existing controls.</small>
         </div>
-        {props.showAndroidAllFilesAccess && <div class="app-setting-field app-android-storage-setting">
-          <span>All files access <strong>{!props.androidAllFilesAccessAvailable ? "Unavailable" : props.androidAllFilesAccessGranted ? "Allowed" : "Not allowed"}</strong></span>
-          <small>Android requires you to enable this in Special app access. When enabled, SketchDraw can read and write shared-storage files, including Downloads. If you decline, the document picker still gives access only to files you select.</small>
-          <button type="button" class="app-settings-reset" disabled={!props.androidAllFilesAccessAvailable} onClick={props.onRequestAndroidAllFilesAccess}>{props.androidAllFilesAccessGranted ? "Manage storage permission" : "Request storage permission"}</button>
-        </div>}
         <label class="app-setting-toggle">
           <span><strong>Reduce motion</strong><small>Turn off most interface animations</small></span>
           <input type="checkbox" checked={props.reduceMotion} onChange={event => props.onReduceMotionChange(event.currentTarget.checked)} />

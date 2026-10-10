@@ -281,8 +281,8 @@ export function toggleChecklistContent(content: string, target: number): string 
   }).join("\n");
 }
 
-export type LibraryComponentKind = "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "sequence-sync" | "sequence-async" | "er-table" | "er-one-many" | "er-many-many" | "c4-system" | "c4-container" | "c4-component" | "tech-database" | "tech-cloud" | "tech-service" | "data-flow" | "network-zone";
-export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
+export type SymbolComponentKind = "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "sequence-sync" | "sequence-async" | "er-table" | "er-one-many" | "er-many-many" | "c4-system" | "c4-container" | "c4-component" | "tech-database" | "tech-cloud" | "tech-service" | "data-flow" | "network-zone";
+export const SYMBOL_COMPONENTS: { kind: SymbolComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
   { kind: "uml-class", section: "UML · Class & sequence", label: "Class card", description: "Name, attributes, and methods compartments", width: 230, height: 154 },
   { kind: "uml-lifeline", section: "UML · Class & sequence", label: "Lifeline", description: "Participant header and dashed lifeline", width: 154, height: 250 },
   { kind: "uml-activation", section: "UML · Class & sequence", label: "Activation bar", description: "Sequence activation marker", width: 28, height: 82 },
@@ -307,7 +307,7 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
 
 const lineElement = (x: number, y: number, w: number, h: number, color = "#74889a", dashed = false): ShapeElement => ({ type: "line", x, y, w, h, color, thickness: 1.4, lineStyle: dashed ? "dashed" : "solid", startHead: "none", endHead: "none" });
 
-export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number): GroupElement {
+export function buildSymbolComponent(kind: SymbolComponentKind, x: number, y: number): GroupElement {
   const elements: Element[] = [];
   if (kind === "uml-class") {
     elements.push(rect(x, y, 230, 154, "#f8fbff", "#7e94ad", 9), rect(x, y, 230, 36, "#e8f0fb", "#7e94ad", 9));
@@ -336,7 +336,7 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     if (kind === "er-many-many") elements.push(...foot(x + 9, y + 21, 1), ...foot(x + 181, y + 21, -1));
     else { elements.push(lineElement(x + 174, y + 12, 0, 18, "#60788e"), ...foot(x + 182, y + 21, -1)); }
   } else if (kind === "c4-system" || kind === "c4-container" || kind === "c4-component") {
-    const meta = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
+    const meta = SYMBOL_COMPONENTS.find(item => item.kind === kind)!;
     elements.push({ ...rect(x, y, meta.width, meta.height, "#eef4ff", "#6884a0", 13), lineStyle: "dashed", label: { text: "", color: "#496681", fontSize: 13, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" } });
   } else if (kind === "tech-database") {
     elements.push({ type: "flowchart", x, y, w: 150, h: 94, color: "#6f7997", thickness: 1.5, fillColor: "#f0edfb", flowchartShape: "database", label: { text: "", color: "#535c78", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } });

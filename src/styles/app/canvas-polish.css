@@ -188,11 +188,11 @@
 
 @media (prefers-reduced-motion: reduce) {
     .tool-icon-button,
-    .tool-options button,
-    .menu-dropdown > summary,
-    .style-pane .quick-style-icon,
-    .canvas-note-editor,
-    .canvas-note-editor > header button {
+.tool-options button,
+.menu-dropdown > summary,
+.style-pane .quick-style-icon,
+.canvas-note-editor,
+.canvas-note-editor > header button {
         transition: none;
     }
 }
@@ -207,12 +207,6 @@
 .tool-family { height: 44px; }
 .canvas-utility-button { width: 38px; min-width: 38px; }
 .canvas-options-trigger { width: 36px; height: 36px; border-radius: 9px; }
-.tool-collapse, .tool-deck-reopen { width: 28px; height: 36px; border-radius: 9px; }
-
-@media (max-width: 760px) {
-    .tool-deck { gap: 3px; padding: 4px; }
-    .tool-cluster { gap: 1px; padding: 1px; }
-    .tool-icon-button { width: 35px; height: 42px; }
-    .tool-family { height: 42px; }
-}
+.tool-collapse,
+.tool-deck-reopen { width: 28px; height: 36px; border-radius: 9px; }
 
