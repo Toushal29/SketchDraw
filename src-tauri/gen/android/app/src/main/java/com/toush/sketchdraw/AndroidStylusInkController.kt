@@ -40,8 +40,9 @@ internal object AndroidStylusInkController {
       val finishedIds = strokes.keys.toSet()
       val view = inkView ?: return
       // The WebView's normal pointer path commits the same stroke to the canvas.
-      // Leave the Ink version visible briefly while that canvas frame is rendered.
-      view.postDelayed({ inkView?.removeFinishedStrokes(finishedIds) }, 100L)
+      // The WebView commits the matching stroke in the same pointer-up dispatch.
+      // Keep the front-buffered copy for one frame, then clear it to prevent doubled tips.
+      view.postDelayed({ inkView?.removeFinishedStrokes(finishedIds) }, 32L)
     }
   }
 

@@ -35,3 +35,20 @@ test("undo and redo keep per-page stacks isolated", () => {
   assert.equal(dirty, true);
   assert.ok(version > 0);
 });
+
+test("stroke append undo shares immutable geometry and survives later edits", () => {
+  const first = Object.freeze({ type: "freehand", id: "one", points: Object.freeze([{ x: 1, y: 2 }]), color: "#202124", thickness: 2 });
+  let current = Object.freeze([first]);
+  const history = createCanvasHistory({ getCurrent: () => current, setCurrent: value => { current = value; }, clone: structuredClone, canEdit: () => true, clearSelection() {}, markDirty() {}, changed() {} });
+  history.push(current);
+  current = [first, { ...first, id: "two", points: [{ x: 20, y: 40 }] }];
+  history.push(structuredClone(current));
+  current = current.map(item => item.id === "one" ? { ...item, color: "#ff0000" } : item);
+  history.undo();
+  assert.equal(current[0].color, "#202124");
+  history.undo();
+  assert.equal(current.length, 1);
+  assert.equal(current[0], first);
+  history.redo();
+  assert.deepEqual(current.map(item => item.id), ["one", "two"]);
+});

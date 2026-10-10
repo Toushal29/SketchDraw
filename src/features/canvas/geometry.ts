@@ -6,17 +6,19 @@ const connectorCache = new WeakMap<ShapeElement, Map<string, Point[][]>>();
 export function arrowHeadPoints(tip: Point, angle: number, type: ArrowHead, thickness: number): Point[] {
   const length = Math.max(10, thickness * (type === "thick" ? 5 : 3.5));
   const pointAt = (distance: number, rotation: number): Point => ({ x: tip.x + Math.cos(angle + rotation) * distance, y: tip.y + Math.sin(angle + rotation) * distance });
-  if (type === "solid" || type === "thick") return [tip, pointAt(length, Math.PI - Math.PI / (type === "thick" ? 4 : 6)), pointAt(length, Math.PI + Math.PI / (type === "thick" ? 4 : 6))];
-  if (type === "diamond") return [tip, pointAt(length * .55, Math.PI - .45), pointAt(length, Math.PI), pointAt(length * .55, Math.PI + .45)];
+  if (type === "solid" || type === "hollow" || type === "thick") return [tip, pointAt(length, Math.PI - Math.PI / (type === "thick" ? 4 : 6)), pointAt(length, Math.PI + Math.PI / (type === "thick" ? 4 : 6))];
+  if (type === "diamond" || type === "open-diamond") return [tip, pointAt(length * .55, Math.PI - .45), pointAt(length, Math.PI), pointAt(length * .55, Math.PI + .45)];
+  if (type === "crow") return [pointAt(length, Math.PI - Math.PI / 5), pointAt(length, Math.PI), pointAt(length, Math.PI + Math.PI / 5)];
   if (type === "open" || type === "bar") return type === "bar" ? [pointAt(length * .45, Math.PI / 2), pointAt(length * .45, -Math.PI / 2)] : [pointAt(length, Math.PI - Math.PI / 6), pointAt(length, Math.PI + Math.PI / 6)];
   return [];
 }
 export function arrowHeadSvgPath(tip: Point, angle: number, type: ArrowHead, thickness: number): string {
   const points = arrowHeadPoints(tip, angle, type, thickness);
   if (type === "open") return `M ${tip.x} ${tip.y} L ${points[0].x} ${points[0].y} M ${tip.x} ${tip.y} L ${points[1].x} ${points[1].y}`;
+  if (type === "crow") return points.map(point => `M ${tip.x} ${tip.y} L ${point.x} ${point.y}`).join(" ");
   if (type === "dot") { const radius = Math.max(3, thickness * 1.15); return `M ${tip.x - radius} ${tip.y} A ${radius} ${radius} 0 1 0 ${tip.x + radius} ${tip.y} A ${radius} ${radius} 0 1 0 ${tip.x - radius} ${tip.y} Z`; }
   if (!points.length) return "";
-  return `M ${points.map(point => `${point.x} ${point.y}`).join(" L ")}${["solid", "thick", "diamond"].includes(type) ? " Z" : ""}`;
+  return `M ${points.map(point => `${point.x} ${point.y}`).join(" L ")}${["solid", "hollow", "thick", "diamond", "open-diamond"].includes(type) ? " Z" : ""}`;
 }
 export function pointInPolygon(point: Point, points: Point[]): boolean {
   let inside = false;
@@ -115,6 +117,7 @@ export function jaggedVertices(element: ShapeElement): Point[] {
   return [start, ...[.2, .4, .6, .8].map((t, index) => ({ x: start.x + element.w * t + normal.x * amplitude * (index % 2 ? -1 : 1), y: start.y + element.h * t + normal.y * amplitude * (index % 2 ? -1 : 1) })), end];
 }
 export function connectorPolylines(element: ShapeElement, route: ArrowRoute | LineRoute, sampleCount = 49): Point[][] {
+  if (element.straightOnly) return [[{ x: element.x, y: element.y }, { x: element.x + element.w, y: element.y + element.h }]];
   const key = `${route}:${sampleCount}`; const cache = connectorCache.get(element); const existing = cache?.get(key); if (existing) return existing;
   const points = element.routePoints?.length && !["curve", "curve2", "curve3", "loop", "forked"].includes(route) ? [[{ x: element.x, y: element.y }, ...element.routePoints, { x: element.x + element.w, y: element.y + element.h }]] : route === "forked"
     ? (() => { const fork = forkGeometry(element); return [[fork.start, fork.junction], fork.upperPath, fork.lowerPath]; })()
@@ -147,8 +150,15 @@ export function trimPolyline(points: Point[], distance: number, fromStart: boole
   }
   return output;
 }
+function straightConnectorPolyline(element: ShapeElement): Point[] {
+  let points: Point[] = [{ x: element.x, y: element.y }, { x: element.x + element.w, y: element.y + element.h }];
+  if (element.startHead && element.startHead !== "none") points = trimPolyline(points, arrowHeadLength(element.startHead, element.thickness), true);
+  const endHead = element.endHead ?? (element.type === "arrow" ? "open" : "none");
+  if (endHead !== "none") points = trimPolyline(points, arrowHeadLength(endHead, element.thickness), false);
+  return points;
+}
 export function doubleConnectorPolylines(element: ShapeElement): Point[][] {
-  const route = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
+  const route = element.straightOnly ? "straight" : element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
   const paths = connectorPolylines(element, route).map(points => [...points]);
   if (!paths.length) return paths;
   if (element.startHead && element.startHead !== "none") paths[0] = trimPolyline(paths[0], arrowHeadLength(element.startHead, element.thickness), true);
@@ -164,6 +174,7 @@ export function doubleConnectorPolylines(element: ShapeElement): Point[][] {
   return paths;
 }
 export function arrowHeadEntries(element: ShapeElement, route: ArrowRoute | LineRoute): { tip: Point; angle: number; kind: ArrowHead }[] {
+  if (element.straightOnly) route = "straight";
   const fork = element.type === "arrow" && route === "forked" ? forkGeometry(element) : undefined;
   const entries: { tip: Point; angle: number; kind: ArrowHead }[] = [];
   if ((element.startHead ?? "none") !== "none") {
@@ -182,6 +193,7 @@ export function arrowHeadEntries(element: ShapeElement, route: ArrowRoute | Line
   return entries;
 }
 export function connectorPoint(element: ShapeElement, route: ArrowRoute | LineRoute, t: number): Point {
+  if (element.straightOnly) route = "straight";
   const { start, end } = connectorControls(element, route === "loop");
   if (route === "elbow") { const middle = { x: end.x, y: start.y }; return t < .5 ? { x: start.x + (middle.x - start.x) * t * 2, y: start.y } : { x: middle.x, y: middle.y + (end.y - middle.y) * (t - .5) * 2 }; }
   if (route === "jagged") { const points = jaggedVertices(element); const scaled = t * (points.length - 1); const segment = Math.min(points.length - 2, Math.floor(scaled)); const local = scaled - segment; return { x: points[segment].x + (points[segment + 1].x - points[segment].x) * local, y: points[segment].y + (points[segment + 1].y - points[segment].y) * local }; }
@@ -189,6 +201,7 @@ export function connectorPoint(element: ShapeElement, route: ArrowRoute | LineRo
   return { x: start.x + element.w * t, y: start.y + element.h * t };
 }
 export function connectorTangent(element: ShapeElement, route: ArrowRoute | LineRoute, atEnd: boolean): number {
+  if (element.straightOnly) route = "straight";
   if (element.routePoints?.length && !["curve", "curve2", "curve3", "loop", "forked"].includes(route)) { const a = atEnd ? element.routePoints[element.routePoints.length - 1] : { x: element.x, y: element.y }; const b = atEnd ? { x: element.x + element.w, y: element.y + element.h } : element.routePoints[0]; return Math.atan2(b.y - a.y, b.x - a.x); }
   if (route === "curve" || route === "curve2" || route === "curve3" || route === "loop") {
     const controls = curveControlPoints(element, route); const a = atEnd ? controls[controls.length - 1] : { x: element.x, y: element.y }; const b = atEnd ? { x: element.x + element.w, y: element.y + element.h } : controls[0];
@@ -200,9 +213,11 @@ export function connectorTangent(element: ShapeElement, route: ArrowRoute | Line
   return Math.atan2(after.y - before.y, after.x - before.x);
 }
 export function traceConnector(ctx: CanvasRenderingContext2D, element: ShapeElement) {
-  const route: ArrowRoute | LineRoute = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
+  const route: ArrowRoute | LineRoute = element.straightOnly ? "straight" : element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
   const { start, end, c1, c2 } = connectorControls(element, route === "loop");
-  ctx.beginPath(); ctx.moveTo(start.x, start.y);
+  ctx.beginPath();
+  if (element.straightOnly) { const points = straightConnectorPolyline(element); if (points.length) { ctx.moveTo(points[0].x, points[0].y); for (const point of points.slice(1)) ctx.lineTo(point.x, point.y); } return; }
+  ctx.moveTo(start.x, start.y);
   if (element.routePoints?.length && !["curve", "curve2", "curve3", "loop", "forked"].includes(route)) { for (const point of element.routePoints) ctx.lineTo(point.x, point.y); ctx.lineTo(end.x, end.y); return; }
   if (route === "curve") ctx.quadraticCurveTo(c1.x, c1.y, end.x, end.y);
   else if (route === "curve2") { const [first, second] = curveControlPoints(element, route); ctx.bezierCurveTo(first.x, first.y, second.x, second.y, end.x, end.y); }
@@ -214,8 +229,9 @@ export function traceConnector(ctx: CanvasRenderingContext2D, element: ShapeElem
   else ctx.lineTo(end.x, end.y);
 }
 export function connectorSvgPath(element: ShapeElement): string {
-  const route = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
-  const paths = element.lineStyle === "double" ? doubleConnectorPolylines(element) : connectorPolylines(element, route);
+  const route = element.straightOnly ? "straight" : element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
+  const straight = element.straightOnly ? straightConnectorPolyline(element) : undefined;
+  const paths = element.lineStyle === "double" ? doubleConnectorPolylines(element) : straight ? [straight] : connectorPolylines(element, route);
   return paths.map((points) => `M ${points.map((point) => `${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" L ")}`).join(" ");
 }
 export function flowchartSvgPath(element: ShapeElement): string {

@@ -18,11 +18,14 @@ type Props = {
 };
 
 export function CanvasMinimap(props: Props) {
+  const visibleElements = createMemo(() => props.elements.filter(element => !element.hidden));
+  const contentBounds = createMemo(() => unionBounds(visibleElements().map(elementBounds)));
   const bounds = createMemo(() => {
     const zoom = Math.max(.02, props.zoom);
     const viewport = { x: -props.panX / zoom, y: -props.panY / zoom, w: props.viewportWidth / zoom, h: props.viewportHeight / zoom };
-    return unionBounds([...props.elements.filter(element => !element.hidden).map(elementBounds), viewport]) ?? viewport;
-  });
+    const content = contentBounds();
+    return content ? unionBounds([content, viewport])! : viewport;
+  }, undefined, { equals: (left, right) => left.x === right.x && left.y === right.y && left.w === right.w && left.h === right.h });
   const scale = () => Math.min((WIDTH - PAD * 2) / Math.max(1, bounds().w), (HEIGHT - PAD * 2) / Math.max(1, bounds().h));
   const mapX = (x: number) => PAD + (x - bounds().x) * scale();
   const mapY = (y: number) => PAD + (y - bounds().y) * scale();
@@ -47,7 +50,7 @@ export function CanvasMinimap(props: Props) {
       onPointerUp={() => { pointerDown = false; }}
       onLostPointerCapture={() => { pointerDown = false; }}>
       <rect class="minimap-board" x="0.5" y="0.5" width={WIDTH - 1} height={HEIGHT - 1} rx="7" />
-      <For each={props.elements.filter(element => !element.hidden)}>{element => {
+      <For each={visibleElements()}>{element => {
         const box = elementBounds(element);
         return <rect class="minimap-object" classList={{ "minimap-image": element.type === "image", "minimap-freehand": element.type === "freehand" }}
           x={mapX(box.x)} y={mapY(box.y)} width={mapWidth(box.w)} height={mapHeight(box.h)} />;

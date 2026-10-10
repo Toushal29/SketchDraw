@@ -219,3 +219,6 @@
 @media (max-width: 540px) {
     .app-shell:not(.platform-windows) .help-guide { grid-template-columns: minmax(0, 1fr); }
 }
+
+.app-shell:not(.platform-windows) .touch-style-hint { display: block; margin: -2px 0 4px; color: var(--touch-muted); font-size: 10px; line-height: 1.4; }
+.app-shell.theme-dark:not(.platform-windows) .touch-style-hint { color: #9faea3; }

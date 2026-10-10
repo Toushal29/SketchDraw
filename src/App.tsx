@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
+﻿import { createEffect, createMemo, createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getVersion } from "@tauri-apps/api/app";
@@ -22,14 +22,16 @@ import "./styles/menu-panels.css";
 import "./platform/windows/windows.css";
 import "./features/workspace/workspace-shell.css";
 import "./styles/dark-theme-refresh.css";
+import "./styles/workspace-ui.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
-import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
+import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
 import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, textLayout, labelBox } from "./operations";
 import type { NoteKind } from "./model";
-import { buildLibraryComponent, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, toggleChecklistContent, type LibraryComponentKind } from "./notes";
+import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryChartData, type LibraryComponentKind } from "./notes";
 import { parseSchema } from "./schema";
+import { assignLibraryComponentIds, libraryComponentFields, libraryComponentFontSize, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, setLibraryChartTrend, setLibraryCheckboxOption, setLibraryComponentField, setLibraryFormState, setLibraryFormTitle, setLibraryRadioOption } from "./features/components/library-component-editor";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
 import { GestureSettings, TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, readTouchGestureAction, readTouchTapAction, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./platform/mobile/GestureSettings";
 import { TouchPageMenu } from "./platform/mobile/TouchPageMenu";
@@ -40,10 +42,11 @@ import { TouchQuickStyleControls } from "./platform/mobile/TouchQuickStyleContro
 import { TouchStylePanel } from "./platform/mobile/TouchStylePanel";
 import { MobileHomeScreen } from "./platform/mobile/MobileHomeScreen";
 import { DesktopPageTabs } from "./platform/windows/DesktopPageTabs";
+import { WindowsShapePalette, type WindowsShapeChoice } from "./platform/windows/WindowsShapePalette";
 import { CanvasOptionsMenu } from "./components/CanvasOptionsMenu";
 import { AppSettingsMenu, type DisplayMetrics } from "./components/AppSettingsMenu";
 import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/PropertyPanelIcons";
-import { FLOWCHART_SHAPES, FLOWCHART_MENU_SHAPES } from "./features/diagrams/config";
+import { FLOWCHART_MENU_SHAPES } from "./features/diagrams/config";
 import { arrowHeadPoints, arrowHeadSvgPath, pointInPolygon, traceFlowchart, flowchartPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, connectorSvgPath, flowchartSvgPath, vectorFlowchartPath, flowchartSvgDetailPath, flowchartDatabaseRimPath } from "./features/canvas/geometry";
 import { unionBounds, elementBounds, distanceToSegment } from "./features/canvas/bounds";
 import { elementSpatialIndex } from "./features/canvas/spatial-index";
@@ -53,6 +56,9 @@ import { pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePo
 import { canGroupSelection, deletableSelectionCount as countDeletableSelection, focusedSelectionElement, isGroupSelection, primarySelectionIndex, selectedElements as getSelectedElements } from "./features/canvas/selection";
 import { createCanvasRenderScheduler, drawShapeLabel, fontCss, shapeLabelSvg, themeInk } from "./features/canvas/rendering";
 import { createCanvasSceneRenderer, transformHandlePoints } from "./features/canvas/scene-renderer";
+import { drawLibraryChart } from "./features/components/chart-renderer";
+import { createFreehandRenderer, freehandSvg, stylusStrokeWidth } from "./features/canvas/freehand-rendering";
+import { createStrokeSampleGate } from "./features/canvas/stroke-input";
 import { MAX_STROKE_POINTS } from "./features/canvas/stroke-limits";
 import { isRecord, normalizeElement } from "./features/files/parse-sketch";
 import { withSketchExtension, normalizeFileUri, isSketchPath, displayPathName } from "./features/files/paths";
@@ -117,8 +123,6 @@ function releaseVersionForPlatform(release: Record<string, unknown>): string {
 
 const GRID_SIZE = 24;
 const TOUCH_DRAG_THRESHOLD = 8;
-const stylusStrokeWidth = (point: StrokePoint, thickness: number) => thickness * (point.pressure === undefined ? 1 : .35 + Math.max(0, Math.min(1, point.pressure)) * 1.15) * (1 + Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) * .28);
-const stylusStrokeWidthAt = (points: StrokePoint[], index: number, thickness: number) => index === 0 ? stylusStrokeWidth(points[0], thickness) : (stylusStrokeWidth(points[index - 1], thickness) + stylusStrokeWidth(points[index], thickness)) / 2;
 const BOARD_COLORS = ["#ffffff", "#fffdf7", "#f4f7fb", "#fbf2ed", "#f1f5ed", "#f3f0fa"];
 const UI_ACCENTS = [
   { label: "Sage", value: "#547a5b" }, { label: "Ocean", value: "#3f78a5" }, { label: "Indigo", value: "#6d67aa" },
@@ -149,11 +153,11 @@ const LINE_ROUTES: { value: LineRoute; label: string; path: string }[] = [
   { value: "multi", label: "Multi-point", path: "M3 18 7 6l4 12 4-12 3 9 3-6" },
 ];
 const ARROW_HEADS: { value: ArrowHead; label: string }[] = [
-  { value: "none", label: "None" }, { value: "open", label: "Open" }, { value: "solid", label: "Solid" },
-  { value: "thick", label: "Thick" }, { value: "dot", label: "Dot" }, { value: "diamond", label: "Diamond" }, { value: "bar", label: "Bar" },
+  { value: "none", label: "None" }, { value: "open", label: "Open" }, { value: "solid", label: "Solid" }, { value: "hollow", label: "Hollow triangle" },
+  { value: "thick", label: "Thick" }, { value: "dot", label: "Dot" }, { value: "diamond", label: "Diamond" }, { value: "open-diamond", label: "Open diamond" }, { value: "bar", label: "Bar" }, { value: "crow", label: "Crow's foot" },
 ];
 function ArrowHeadIcon(props: { kind: ArrowHead }) {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h12" />{props.kind === "open" && <path d="m12 7 5 5-5 5" />}{props.kind === "solid" && <path d="m12 7 6 5-6 5z" fill="currentColor" />}{props.kind === "thick" && <path d="m10 5 9 7-9 7z" fill="currentColor" />}{props.kind === "dot" && <circle cx="17" cy="12" r="3" fill="currentColor" />}{props.kind === "diamond" && <path d="m17 7 5 5-5 5-5-5z" fill="currentColor" />}{props.kind === "bar" && <path d="M17 6v12" />}</svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h12" />{props.kind === "open" && <path d="m12 7 5 5-5 5" />}{props.kind === "solid" && <path d="m12 7 6 5-6 5z" fill="currentColor" />}{props.kind === "hollow" && <path d="M17 12 10 6v12z" />}{props.kind === "thick" && <path d="m10 5 9 7-9 7z" fill="currentColor" />}{props.kind === "dot" && <circle cx="17" cy="12" r="3" fill="currentColor" />}{props.kind === "diamond" && <path d="m17 7 5 5-5 5-5-5z" fill="currentColor" />}{props.kind === "open-diamond" && <path d="M17 12 11 6 5 12l6 6z" />}{props.kind === "bar" && <path d="M17 6v12" />}{props.kind === "crow" && <path d="m17 6-5 6 5 6m0-12-5 6" />}</svg>;
 }
 const emptyCanvas = (): CanvasState => ({ zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff", boardColorFollowsTheme: true });
 const cloneElements = (items: Element[]): Element[] => JSON.parse(JSON.stringify(items)) as Element[];
@@ -273,7 +277,9 @@ function App() {
   const [boardLocked, setBoardLocked] = createSignal(false);
   const [sidebarTab, setSidebarTab] = createSignal<"properties">("properties");
   const [layerPanelOpen, setLayerPanelOpen] = createSignal(false);
-  const [classCardDraft, setClassCardDraft] = createSignal<{ x: number; y: number; name: string; attributes: string; methods: string; fontSize: number; componentId?: string }>();
+  const [classCardDraft, setClassCardDraft] = createSignal<{ x: number; y: number; name: string; attributes: string; methods: string; fontSize: number; width?: number; height?: number; componentId?: string }>();
+  const [libraryComponentDraft, setLibraryComponentDraft] = createSignal<GroupElement>();
+  const [componentEditorCollapsed, setComponentEditorCollapsed] = createSignal(false);
   const [styleMenuMode, setStyleMenuMode] = createSignal<"quick" | "full">("quick");
   const [quickStylePopover, setQuickStylePopover] = createSignal<"color" | "thickness" | "fill" | "route" | "lineStyle" | "heads" | "penInput" | "laser" | "brushes">();
   const [autosaveSeconds, setAutosaveSeconds] = createSignal<5 | 10>(readPreference("sketchdraw-autosave-seconds", "10") === "5" ? 5 : 10);
@@ -290,7 +296,7 @@ function App() {
   const [androidAllFilesAccessGranted, setAndroidAllFilesAccessGranted] = createSignal(false);
   const [reduceMotion, setReduceMotion] = createSignal(readPreference("sketchdraw-reduce-motion", "false") === "true");
   const [displayMetrics, setDisplayMetrics] = createSignal<DisplayMetrics>(readDisplayMetrics());
-  const [componentAppearance, setComponentAppearance] = createSignal<"modern" | "simple">(readPreference("sketchdraw-component-appearance", "modern") === "simple" ? "simple" : "modern");
+  const [componentAppearance, setComponentAppearance] = createSignal<"modern" | "simple">(readPreference("sketchdraw-component-appearance", "simple") === "modern" ? "modern" : "simple");
   const [toolbarColorChoice, setToolbarColorChoice] = createSignal((() => { const value = readPreference("sketchdraw-toolbar-color", "auto"); if (value.toLowerCase() === "#252c31") return "#171717"; return value === "auto" || /^#[\da-f]{6}$/i.test(value) ? value : "auto"; })());
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "error">("idle");
@@ -384,10 +390,12 @@ function App() {
   let drawing = false;
   let activeDrawingTool: Preview["type"] = "pen";
   let currentPoints: StrokePoint[] = [];
+  const strokeSampleGate = createStrokeSampleGate();
   let strokePointLimitReached = false;
   let pendingAndroidStylusSamples: AndroidStylusSample[] = [];
-  type StrokePathCache = { length: number; pressureAware: boolean; path?: Path2D; pressurePaths: Map<number, Path2D> };
-  const strokePathCache = new WeakMap<StrokePoint[], StrokePathCache>();
+  const freehandRenderer = createFreehandRenderer();
+  onCleanup(freehandRenderer.dispose);
+  createEffect(() => { activePath(); activePageId(); theme(); freehandRenderer.clearRasterCache(); });
   let penEraserDrawing = false;
   let laserTimer: number | undefined;
   let restartAutosave: (() => void) | undefined;
@@ -412,6 +420,8 @@ function App() {
   const [documentBusy, setDocumentBusy] = createSignal(false);
   const [openToolOptions, setOpenToolOptions] = createSignal<Tool>();
   const [stencilMenuOpen, setStencilMenuOpen] = createSignal(false);
+  const [stencilSearch, setStencilSearch] = createSignal("");
+  const [stencilCategory, setStencilCategory] = createSignal("All");
   const [paintBrushMenuOpen, setPaintBrushMenuOpen] = createSignal(false);
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; world: Point }>();
   const [pageDialog, setPageDialog] = createSignal<"rename" | "delete">();
@@ -571,11 +581,12 @@ function App() {
     setContextMenu({ x: Math.max(8, Math.min(event.clientX, window.innerWidth - 252)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - 510)), world: point });
   }
   function connectorForView(item: ShapeElement, sourceItems = elements()): ShapeElement {
-    if (!isWindowsPlatform() || !item.autoRoute || (item.type !== "line" && item.type !== "arrow")) return item;
+    if (!isWindowsPlatform() || item.straightOnly || !item.autoRoute || (item.type !== "line" && item.type !== "arrow")) return item;
     return { ...item, lineRoute: item.type === "line" ? "straight" : undefined, arrowRoute: item.type === "arrow" ? "straight" : undefined, routePoints: autoRoutePoints(item, sourceItems) };
   }
   function connectorHandles(item: ShapeElement) {
     const viewItem = connectorForView(item);
+    if (item.straightOnly) return [{ id: "start", x: item.x, y: item.y }, { id: "end", x: item.x + item.w, y: item.y + item.h }];
     if (item.autoRoute) {
       return [
         { id: "start", x: item.x, y: item.y },
@@ -685,15 +696,24 @@ function App() {
   const primarySelection = () => primarySelectionIndex(selectedIndices());
   const groupSelected = () => isGroupSelection(selectedElements());
   const groupActionEnabled = () => canGroupSelection(selectedElements());
-  const focusedElement = (): Element | undefined => focusedSelectionElement(elements(), selectedIndices());
+  const focusedElement = (): Element | undefined => { const selected = primarySelection() === undefined ? undefined : elements()[primarySelection()!]; return selected?.type === "group" && selected.libraryComponent ? selected : focusedSelectionElement(elements(), selectedIndices()); };
   const selectedLabel = () => { const item = focusedElement(); return item && isLabelShape(item) ? item.label : undefined; };
-  const selectedText = () => textDraft() ?? (() => { const item = focusedElement(); return item?.type === "text" ? item : selectedLabel(); })();
+  const libraryChild = (group: GroupElement | undefined, predicate: (item: Element) => boolean): Element | undefined => {
+    if (!group) return undefined;
+    for (const item of group.elements) {
+      if (predicate(item)) return item;
+      if (item.type === "group") { const nested = libraryChild(item, predicate); if (nested) return nested; }
+    }
+    return undefined;
+  };
+  const selectedText = () => textDraft() ?? (() => { const item = focusedElement(); return item?.type === "text" ? item : item?.type === "group" && item.libraryComponent ? libraryChild(item, child => child.type === "text") as TextElement | undefined : selectedLabel(); })();
   const styleTargetElement = () => { const focused = focusedElement(); return tool() === "select" || focused?.type === tool() ? focused : undefined; };
   const hasStyleSelection = () => !!styleTargetElement() && selectedIndices().length > 0;
-  const selectedColor = () => { const draft = textDraft(); if (draft) return draft.color; const element = styleTargetElement(); return element && "color" in element ? element.color : color(); };
-  const selectedThickness = () => { const element = styleTargetElement(); return Math.round(element && "thickness" in element ? element.thickness : thickness()); };
+  const selectedColor = () => { const draft = textDraft(); if (draft) return draft.color; const element = styleTargetElement(); if (element?.type === "group" && element.libraryComponent) { const textElement = libraryChild(element, child => child.type === "text"); if (textElement && "color" in textElement) return textElement.color; } return element && "color" in element ? element.color : color(); };
+  const selectedThickness = () => { const element = styleTargetElement(); const target = element?.type === "group" && element.libraryComponent ? libraryChild(element, child => "thickness" in child) : element; return Math.round(target && "thickness" in target ? target.thickness : thickness()); };
   const selectedOpacity = () => { const element = focusedElement(); return element && "opacity" in element ? element.opacity ?? 1 : 1; };
-  const selectedFillColor = () => { const element = styleTargetElement(); return element && "fillColor" in element ? element.fillColor : undefined; };
+  const selectedFillColor = () => { const element = styleTargetElement(); const target = element?.type === "group" && element.libraryComponent ? libraryChild(element, child => "fillColor" in child && !!child.fillColor) : element; return target && "fillColor" in target ? target.fillColor : undefined; };
+  const selectedFillOpacity = () => { const element = styleTargetElement(); const target = element?.type === "group" && element.libraryComponent ? libraryChild(element, child => "fillColor" in child && !!child.fillColor) : element; return target && "fillOpacity" in target ? target.fillOpacity ?? 1 : fillOpacity(); };
   const sidebarVisible = () => !!activePath();
   const showStrokeControls = () => { const focused = focusedElement(); return tool() !== "bucket" && (
     tool() === "pen" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || tool() === "line" || tool() === "arrow" || tool() === "text" ||
@@ -704,11 +724,17 @@ function App() {
     (tool() === "select" && !!focused && "thickness" in focused)
   ); };
   const isPenBrushThicknessTarget = () => tool() === "pen" || (tool() === "select" && focusedElement()?.type === "freehand");
-  const quickElementType = () => tool() === "select" ? focusedElement()?.type ?? "select" : tool();
+  const quickElementType = () => tool() === "select" ? selectedText() ? "text" : focusedElement()?.type ?? "select" : tool();
   const quickShapeSelection = () => { const focused = focusedElement(); return focused && "thickness" in focused ? focused as ShapeElement : undefined; };
-  const quickHasShapeFill = () => ["rectangle", "circle", "diamond", "triangle", "flowchart"].includes(quickElementType());
-  const quickHasText = () => quickElementType() === "text" || !!(styleTargetElement() && (isLabelShape(styleTargetElement()!) || styleTargetElement()!.type === "schemaTable" || !!styleTargetElement()!.componentId));
+  const quickHasShapeFill = () => !!selectedLibraryComponent() || ["rectangle", "circle", "diamond", "triangle", "flowchart"].includes(quickElementType());
+  const quickHasText = () => quickElementType() === "text" || !!selectedText() || !!selectedLibraryComponent() || !!(styleTargetElement() && (isLabelShape(styleTargetElement()!) || styleTargetElement()!.type === "schemaTable" || !!styleTargetElement()!.componentId));
   const selectedNoteCard = () => { const element = primarySelection() === undefined ? undefined : elements()[primarySelection()!]; return element?.type === "group" && element.note ? element : undefined; };
+  const selectedLibraryComponent = (): GroupElement | undefined => { const element = primarySelection() === undefined ? undefined : elements()[primarySelection()!]; return element?.type === "group" && element.libraryComponent ? element : undefined; };
+  const selectedClassComponentId = (): string | undefined => { const element = focusedElement(); return element?.componentId?.startsWith("uml-class:") ? element.componentId : undefined; };
+  const componentEditorTitle = () => {
+    const kind = (libraryComponentDraft() ?? selectedLibraryComponent())?.libraryComponent?.kind;
+    return kind ? LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? "Component" : selectedClassComponentId() || classCardDraft()?.componentId ? "UML class" : "New UML class";
+  };
   const quickHasNoteCard = () => !!selectedNoteCard() && tool() === "select";
   const quickCardFontSize = () => {
     const focused = focusedElement();
@@ -750,11 +776,18 @@ function App() {
   const snapshotRaw = serializeSketchSnapshot;
   createEffect(() => {
     const path = activePath(); const currentPages = pages(); const currentPageId = activePageId(); const currentElements = elements(); const currentState = canvasState(); const currentProject = projectWorkspaceData(); const currentLibrary = legacyLibraryData();
-    if (!path || !currentPages.length || !currentPageId) return;
     if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer);
-    const observedPages = currentPages.map(page => page.id === currentPageId ? { ...page, elements: currentElements, canvasState: currentState } : page);
-    const snapshot = createSketchSnapshot({ pages: observedPages, activePageId: currentPageId, activeElements: currentElements, activeCanvasState: currentState, activeRenderedBoardColor: renderedBoardColor(), theme: theme(), project: currentProject, library: currentLibrary, windowsSync: windowsSyncMetadata() });
-    syncObservationTimer = window.setTimeout(() => observeFileSync(snapshot), 250);
+    syncObservationTimer = undefined;
+    if (!path || !currentPages.length || !currentPageId) return;
+    const background = renderedBoardColor(); const currentTheme = theme(); const sync = windowsSyncMetadata();
+    const observeWhenIdle = () => {
+      if (activePath() !== path) return;
+      if (drawing || panOrigin || moveOrigin || resizeOrigin) { syncObservationTimer = window.setTimeout(observeWhenIdle, 250); return; }
+      syncObservationTimer = undefined;
+      const snapshot = createSketchSnapshot({ pages: currentPages, activePageId: currentPageId, activeElements: currentElements, activeCanvasState: currentState, activeRenderedBoardColor: background, theme: currentTheme, project: currentProject, library: currentLibrary, windowsSync: sync });
+      observeFileSync(snapshot);
+    };
+    syncObservationTimer = window.setTimeout(observeWhenIdle, 250);
   });
   function storeCurrentPage() {
     const id = activePageId();
@@ -798,23 +831,21 @@ function App() {
   }
   function appendAndroidStylusSamples(samples: AndroidStylusSample[]) {
     if (!canvas || !samples.length || !drawing || activeDrawingTool !== "pen" || activePenPointerId === undefined) return;
-    const bounds = canvas.getBoundingClientRect(); const state = canvasState(); let appended = false; let lastPoint: Point | undefined;
+    const bounds = canvas.getBoundingClientRect(); const state = canvasState(); let appended = false;
     for (const sample of samples) {
       if (!Number.isFinite(sample.clientX) || !Number.isFinite(sample.clientY)) continue;
+      if (!strokeSampleGate.accept("native", sample.time)) continue;
       const point = pointerToWorld(sample.clientX, sample.clientY, bounds, state);
       const previous = currentPoints[currentPoints.length - 1];
       if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * state.zoom < .01) continue;
       if (!appendStrokePoint({
         ...point,
-        ...(penPressure() ? { pressure: Math.max(0, Math.min(1, sample.pressure)) } : {}),
+        ...(penPressure() ? { pressure: sample.phase === "end" && sample.pressure <= 0 ? previous?.pressure ?? .5 : Math.max(0, Math.min(1, sample.pressure)) } : {}),
         ...(penTilt() ? { tiltX: Math.max(-90, Math.min(90, sample.tiltX)), tiltY: Math.max(-90, Math.min(90, sample.tiltY)), orientation: ((sample.orientation % 360) + 360) % 360 } : {}),
       })) break;
-      appended = true; lastPoint = point;
+      appended = true;
     }
-    if (appended) {
-      setPreview(current => current && lastPoint ? { ...current, end: lastPoint } : current);
-      scheduleCanvasRender();
-    }
+    if (appended) canvasRenderScheduler.schedulePreview();
   }
   function receiveAndroidStylusSamples(samples: AndroidStylusSample[]) {
     if (!isAndroidPlatform() || !Array.isArray(samples) || !samples.length || !activePath() || workspaceArea() !== "canvas" || tool() !== "pen") return;
@@ -822,7 +853,8 @@ function App() {
       appendAndroidStylusSamples(samples);
       return;
     }
-    if (samples.some(sample => sample.phase === "start")) pendingAndroidStylusSamples = samples.slice(-12);
+    if (samples.some(sample => sample.phase === "end")) pendingAndroidStylusSamples = [];
+    else if (samples.some(sample => sample.phase === "start")) pendingAndroidStylusSamples = samples.slice(-12);
   }
   const snap = (point: Point): Point => snapCanvasPoint(point, snapToGrid(), whiteboardStyle(), GRID_SIZE);
 
@@ -873,7 +905,19 @@ function App() {
     const before = cloneElements(elements());
     const update = (element: Element): Element => {
       if (element.locked) return element;
-      if (element.type === "group") return { ...element, elements: element.elements.map(update) };
+      if (element.type === "group") {
+        const children = element.elements.map(update);
+        if (!element.libraryComponent) return { ...element, elements: children };
+        const styleOverrides = { ...element.libraryComponent.styleOverrides };
+        if (property === "color") styleOverrides.color = String(value);
+        if (property === "fillColor") styleOverrides.fillColor = value ? String(value) : null;
+        if (property === "fillOpacity") styleOverrides.fillOpacity = Number(value);
+        const textStyle = { ...element.libraryComponent.textStyle };
+        if (property === "fontSize") textStyle.fontSize = Math.max(8, Math.min(160, Math.round(Number(value))));
+        if (property === "fontFamily") textStyle.fontFamily = value as FontFamily;
+        if (property === "bold" || property === "italic" || property === "underline" || property === "textAlign") textStyle[property] = value as never;
+        return { ...element, elements: children, libraryComponent: { ...element.libraryComponent, styleOverrides, textStyle } };
+      }
       if (element.type === "schemaTable" && property === "fontSize") { const size = Math.max(8, Math.min(48, Math.round(Number(value)))); const headerHeight = Math.max(42, size * 2.8); const rowHeight = Math.max(30, size * 1.8); const neededWidth = Math.max(180, ...element.columns.map(column => (column.name.length + (column.dataType ?? "type").length) * size * .36 + 80)); return { ...element, fontSize: size, w: Math.max(element.w, neededWidth), h: Math.max(element.h, headerHeight + element.columns.length * rowHeight) }; }
       if (property === "color") return { ...element, color: String(value) } as Element;
       if (property === "opacity") return { ...element, opacity: Number(value) } as Element;
@@ -1052,7 +1096,29 @@ function App() {
     const hit = hitTest(point) ?? hitInterior(point); const target = hit === undefined ? undefined : elements()[hit];
     if (target?.type === "schemaTable") { openSchemaDialog(target.schemaDiagramId); return; }
     if (target?.type === "group" && target.mermaid) { openMermaidDialog(target.id); return; }
-    if (target?.componentId?.startsWith("uml-class:")) { const shell = elements().find(item => item.componentId === target.componentId && item.componentRole === "class-shell"); const box = elementBounds(shell ?? target); openClassCardDialog(box.x, box.y, target.componentId); return; }
+    if (target?.type === "group" && !target.note && !target.mermaid && hit !== undefined) {
+      if (target.libraryComponent) {
+        setSelectedIndices([hit]); setComponentEditorCollapsed(false);
+        const fields = libraryComponentFields(target);
+        const locate = (key: string): Element | undefined => {
+          const shapeLabel = key.endsWith(":label"); const id = shapeLabel ? key.slice(0, -6) : key;
+          const visit = (items: Element[]): Element | undefined => { for (const item of items) { if (item.id === id && (shapeLabel ? "label" in item && !!item.label : item.type === "text")) return item; if (item.type === "group") { const nested = visit(item.elements); if (nested) return nested; } } return undefined; };
+          return visit(target.elements);
+        };
+        const nearest = fields.map(field => { const item = locate(field.key); if (!item) return { key: field.key, distance: Infinity }; const box = elementBounds(item); const dx = Math.max(box.x - point.x, 0, point.x - box.x - box.w); const dy = Math.max(box.y - point.y, 0, point.y - box.y - box.h); return { key: field.key, distance: dx * dx + dy * dy }; }).sort((a, b) => a.distance - b.distance)[0];
+        requestAnimationFrame(() => {
+          const input = nearest ? [...document.querySelectorAll<HTMLTextAreaElement>("[data-component-field-key]")].find(item => item.dataset.componentFieldKey === nearest.key) : undefined;
+          if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+        });
+        return;
+      }
+      if (!target.libraryComponent) {
+        const before = cloneElements(elements()); const editable = assignLibraryComponentIds(target, "custom" as LibraryComponentKind, target);
+        setElements(items => items.map((item, index) => index === hit ? editable : item)); pushUndo(before); setDirty(true);
+      }
+      setSelectedIndices([hit]); setSidebarTab("properties"); setStyleMenuMode("full"); setMobileQuickPropertiesOpen(true); return;
+    }
+    if (target?.componentId?.startsWith("uml-class:")) { const shell = target.type === "group" ? target.elements.find(item => item.componentRole === "class-shell") : elements().find(item => item.componentId === target.componentId && item.componentRole === "class-shell"); const box = elementBounds(shell ?? target); openClassCardDialog(box.x, box.y, target.componentId); return; }
     if (target?.type === "group" && target.note) { if (!noteCollapseHit(target, point)) openNoteEditor(point, target.note.kind, hit); return; }
     if (hit !== undefined && isLabelShape(elements()[hit])) editShapeLabel(hit);
     else if (hit !== undefined && elements()[hit]?.type === "text") startTextDraft(point, hit);
@@ -1060,27 +1126,36 @@ function App() {
   }
 
   function openClassCardDialog(x: number, y: number, componentId?: string) {
-    const parts = componentId ? elements().filter(item => item.componentId === componentId) : [];
+    const cardGroup = componentId ? elements().find((item): item is GroupElement => item.type === "group" && item.componentId === componentId) : undefined;
+    const parts = componentId ? cardGroup?.elements ?? elements().filter(item => item.componentId === componentId) : [];
     const byRole = (role: string) => parts.find(item => item.componentRole === role);
-    const name = byRole("class-name"); const attributes = byRole("class-attributes"); const methods = byRole("class-methods");
-    setClassCardDraft({ x, y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: name?.type === "text" ? name.fontSize : 13, componentId });
+    const shell = byRole("class-shell"); const name = byRole("class-name"); const attributes = byRole("class-attributes"); const methods = byRole("class-methods");
+    setClassCardDraft({ x, y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: name?.type === "text" ? name.fontSize : 13, ...(shell?.type === "rectangle" ? { width: shell.w, height: shell.h } : {}), componentId });
+    setComponentEditorCollapsed(false); setSidebarTab("properties");
     setStencilMenuOpen(false);
   }
 
-  function classCardElements(draft: NonNullable<ReturnType<typeof classCardDraft>>): Element[] {
-        const fontSize = Math.max(8, Math.min(48, Math.round(draft.fontSize)));
+  function classCardLayout(draft: NonNullable<ReturnType<typeof classCardDraft>>) {
+    const fontSize = Math.max(8, Math.min(48, Math.round(draft.fontSize)));
     const longest = Math.max(12, ...[draft.name, draft.attributes, draft.methods].flatMap(text => text.split(/\r?\n/).map(line => line.length)));
-    const width = Math.max(230, Math.min(640, longest * fontSize * .62 + 32));
+    const naturalWidth = Math.max(230, Math.min(640, longest * fontSize * .62 + 32));
+    const width = Math.max(230, Math.min(640, draft.width ?? naturalWidth));
     const wrap = (text: string) => text.split(/\r?\n/).flatMap(line => {
       const rows: string[] = []; let rest = line; const limit = Math.max(12, Math.floor((width - 28) / (fontSize * .62)));
       while (rest.length > limit) { let cut = rest.lastIndexOf(" ", limit); if (cut < 1) cut = limit; rows.push(rest.slice(0, cut)); rest = rest.slice(cut).trimStart(); }
       rows.push(rest); return rows;
     }).join("\n");
     const attrs = wrap(draft.attributes); const methods = wrap(draft.methods); const lineHeight = fontSize * 1.4;
-    const attrHeight = Math.max(54, attrs.split("\n").length * lineHeight + 18); const methodHeight = Math.max(54, methods.split("\n").length * lineHeight + 18);
+    const attrHeight = Math.max(54, attrs.split("\n").length * lineHeight + 18); const naturalMethodHeight = Math.max(54, methods.split("\n").length * lineHeight + 18);
+    const methodHeight = Math.max(naturalMethodHeight, (draft.height ?? 0) - 36 - attrHeight);
+    return { fontSize, width, height: 36 + attrHeight + methodHeight, attrs, methods, attrHeight };
+  }
+
+  function classCardElements(draft: NonNullable<ReturnType<typeof classCardDraft>>): GroupElement {
+    const { fontSize, width, height, attrs, methods, attrHeight } = classCardLayout(draft);
     const group = buildLibraryComponent("uml-class", draft.x, draft.y); const items = group.elements;
     const positions: { role: string; item: Element }[] = [
-      { role: "class-shell", item: { ...items[0] as ShapeElement, w: width, h: 36 + attrHeight + methodHeight } },
+      { role: "class-shell", item: { ...items[0] as ShapeElement, w: width, h: height } },
       { role: "class-header", item: { ...items[1] as ShapeElement, w: width } },
       { role: "class-divider-name", item: { ...items[2] as ShapeElement, w: width, h: 0 } },
       { role: "class-divider-attributes", item: { ...items[3] as ShapeElement, y: draft.y + 36 + attrHeight, w: width, h: 0 } },
@@ -1088,36 +1163,109 @@ function App() {
       { role: "class-attributes", item: { ...(items[5] as TextElement), text: attrs, fontSize, x: draft.x + 12, y: draft.y + 45 } },
       { role: "class-methods", item: { ...(items[6] as TextElement), text: methods, fontSize, x: draft.x + 12, y: draft.y + 45 + attrHeight } },
     ];
-    const existing = draft.componentId ? elements().filter(item => item.componentId === draft.componentId) : [];
+    const existingGroup = draft.componentId ? elements().find((item): item is GroupElement => item.type === "group" && item.componentId === draft.componentId) : undefined;
+    const existing = draft.componentId ? existingGroup?.elements ?? elements().filter(item => item.componentId === draft.componentId) : [];
     const oldIds = new Map(existing.map(item => [item.componentRole, item.id]));
     const componentId = draft.componentId ?? `uml-class:${crypto.randomUUID()}`;
-    return positions.map(({ role, item }) => ({ ...item, id: oldIds.get(role) ?? crypto.randomUUID(), componentId, componentRole: role } as Element));
+    const children = positions.map(({ role, item }) => ({ ...item, id: oldIds.get(role) ?? crypto.randomUUID(), componentId, componentRole: role } as Element));
+    return { type: "group", id: existingGroup?.id ?? componentId, componentId, elements: children, libraryComponent: { ...(existingGroup?.libraryComponent ?? {}), kind: "uml-class", appearance: existingGroup?.libraryComponent?.appearance ?? "simple" } };
   }
 
   function resizeClassCardFont(componentId: string, requestedSize: number) {
-    const parts = elements().filter(item => item.componentId === componentId); const shell = parts.find(item => item.componentRole === "class-shell");
+    const cardIndex = elements().findIndex(item => item.type === "group" && item.componentId === componentId); const cardGroup = cardIndex >= 0 ? elements()[cardIndex] as GroupElement : undefined;
+    const parts = cardGroup?.elements ?? elements().filter(item => item.componentId === componentId); const shell = parts.find(item => item.componentRole === "class-shell");
     if (!parts.length || !shell || shell.type !== "rectangle" || boardLocked() || parts.some(item => item.locked)) return false;
     const textFor = (role: string) => parts.find(item => item.componentRole === role);
     const name = textFor("class-name"); const attributes = textFor("class-attributes"); const methods = textFor("class-methods");
-    const draft = { x: shell.x, y: shell.y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: Math.max(8, Math.min(48, Math.round(requestedSize))), componentId };
-    const before = cloneElements(elements()); const nextParts = classCardElements(draft); const indices = elements().flatMap((item, index) => item.componentId === componentId ? [index] : []);
-    const insertAt = Math.min(...indices); const remove = new Set(indices); const next = elements().filter((_, index) => !remove.has(index)); next.splice(insertAt, 0, ...nextParts);
-    setElements(next); setSelectedIndices(nextParts.map((_, offset) => insertAt + offset)); pushUndo(before); setDirty(true); return true;
+    const draft = { x: shell.x, y: shell.y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: Math.max(8, Math.min(48, Math.round(requestedSize))), width: shell.w, height: shell.h, componentId };
+    const before = cloneElements(elements()); const nextCard = classCardElements(draft);
+    if (cardGroup && cardIndex >= 0) { setElements(items => items.map((item, index) => index === cardIndex ? nextCard : item)); setSelectedIndices([cardIndex]); }
+    else { const indices = elements().flatMap((item, index) => item.componentId === componentId ? [index] : []); if (!indices.length) return false; const insertAt = Math.min(...indices); const remove = new Set(indices); const next = elements().filter((_, index) => !remove.has(index)); next.splice(insertAt, 0, nextCard); setElements(next); setSelectedIndices([insertAt]); }
+    pushUndo(before); setDirty(true); return true;
+  }
+
+  function resizeClassCardSize(componentId: string, axis: "width" | "height", requestedSize: number) {
+    const cardIndex = elements().findIndex(item => item.type === "group" && item.componentId === componentId); const cardGroup = cardIndex >= 0 ? elements()[cardIndex] as GroupElement : undefined;
+    const parts = cardGroup?.elements ?? elements().filter(item => item.componentId === componentId); const shell = parts.find(item => item.componentRole === "class-shell");
+    if (!parts.length || !shell || shell.type !== "rectangle" || boardLocked() || parts.some(item => item.locked) || !Number.isFinite(requestedSize)) return false;
+    const textFor = (role: string) => parts.find(item => item.componentRole === role);
+    const name = textFor("class-name"); const attributes = textFor("class-attributes"); const methods = textFor("class-methods");
+    const current = { x: shell.x, y: shell.y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: name?.type === "text" ? name.fontSize : 13, width: shell.w, height: shell.h, componentId };
+    const bounded = Math.max(axis === "width" ? 180 : 110, Math.min(axis === "width" ? 900 : 1800, requestedSize));
+    const draft = { ...current, [axis]: bounded };
+    const nextCard = classCardElements(draft); const before = cloneElements(elements());
+    if (cardGroup && cardIndex >= 0) { setElements(items => items.map((item, index) => index === cardIndex ? nextCard : item)); setSelectedIndices([cardIndex]); }
+    else { const indices = elements().flatMap((item, index) => item.componentId === componentId ? [index] : []); if (!indices.length) return false; const insertAt = Math.min(...indices); const remove = new Set(indices); const next = elements().filter((_, index) => !remove.has(index)); next.splice(insertAt, 0, nextCard); setElements(next); setSelectedIndices([insertAt]); }
+    pushUndo(before); setDirty(true); return true;
   }
 
   function insertClassCard() {
     const draft = classCardDraft();
     if (!draft || !activePath() || boardLocked()) return;
-    const parts = classCardElements(draft);
-    const oldIndices = draft.componentId ? elements().flatMap((item, index) => item.componentId === draft.componentId ? [index] : []) : [];
+    const card = classCardElements(draft);
+    const oldIndices = draft.componentId ? elements().flatMap((item, index) => item.componentId === draft.componentId || item.type === "group" && item.componentId === draft.componentId ? [index] : []) : [];
     const insertion = oldIndices.length ? Math.min(...oldIndices) : elements().length; const remove = new Set(oldIndices);
-    const next = elements().filter((_, index) => !remove.has(index)); next.splice(insertion, 0, ...parts);
+    const next = elements().filter((_, index) => !remove.has(index)); next.splice(insertion, 0, card);
     pushUndo(cloneElements(elements()));
     setElements(next);
-    setSelectedIndices(parts.map((_, offset) => insertion + offset));
+    setSelectedIndices([insertion]);
     setTool("select");
     setClassCardDraft(undefined);
     setDirty(true);
+  }
+
+  function classCardSize(draft: NonNullable<ReturnType<typeof classCardDraft>>) { const { width, height } = classCardLayout(draft); return { width, height }; }
+
+  function selectedClassCardSize(componentId: string) {
+    const group = elements().find((item): item is GroupElement => item.type === "group" && item.componentId === componentId);
+    const shell = group?.elements.find(item => item.componentRole === "class-shell") ?? elements().find(item => item.componentId === componentId && item.componentRole === "class-shell");
+    return shell?.type === "rectangle" ? { width: shell.w, height: shell.h } : { width: 230, height: 144 };
+  }
+
+  function updateSelectedLibraryComponent(operation: (group: GroupElement) => GroupElement) {
+    if (boardLocked()) return;
+    const index = primarySelection(); const group = index === undefined ? undefined : elements()[index];
+    if (index === undefined || group?.type !== "group" || !group.libraryComponent || group.locked) return;
+    const before = cloneElements(elements()); setElements(items => items.map((item, current) => current === index ? operation(item as GroupElement) : item)); pushUndo(before); setDirty(true);
+  }
+
+  function activateLibraryControl(index: number, point: Point): boolean {
+    const group = elements()[index]; if (group?.type !== "group" || !group.libraryComponent) return false;
+    const kind = group.libraryComponent.kind; const options = group.libraryComponent.formOptions ?? defaultLibraryFormOptions(kind as LibraryComponentKind) ?? [];
+    const visitAll = (items: Element[], predicate: (item: Element) => boolean): Element[] => {
+      const found: Element[] = [];
+      for (const item of items) { if (predicate(item)) found.push(item); if (item.type === "group") found.push(...visitAll(item.elements, predicate)); }
+      return found;
+    };
+    const optionIndexAtPoint = (prefix: string) => {
+      for (let optionIndex = 0; optionIndex < options.length; optionIndex++) {
+        const parts = visitAll(group.elements, item => !!item.componentRole?.startsWith(prefix) && item.componentRole.endsWith(`-${optionIndex}`));
+        if (parts.some(part => { const bounds = elementBounds(part); return point.x >= bounds.x - 3 && point.x <= bounds.x + bounds.w + 3 && point.y >= bounds.y - 3 && point.y <= bounds.y + bounds.h + 3; })) return optionIndex;
+      }
+      return undefined;
+    };
+    let change: ((current: GroupElement) => GroupElement) | undefined;
+    if (kind === "form-checkbox") {
+      const optionIndex = optionIndexAtPoint("form-checkbox-"); if (optionIndex === undefined) return false;
+      const current = group.libraryComponent.formStates?.[optionIndex] ?? optionIndex === 0;
+      change = currentGroup => setLibraryCheckboxOption(currentGroup, optionIndex, !current);
+    } else if (kind === "form-radio") {
+      const optionIndex = optionIndexAtPoint("form-radio-"); if (optionIndex === undefined) return false;
+      change = currentGroup => setLibraryRadioOption(currentGroup, optionIndex);
+    } else if (kind === "form-toggle") {
+      change = currentGroup => setLibraryFormState(currentGroup, !(currentGroup.libraryComponent?.formState ?? true));
+    } else if (kind === "form-select" || kind === "form-button") {
+      if (!options.length) return false;
+      change = currentGroup => rebuildLibraryFormOptions(currentGroup, options, ((currentGroup.libraryComponent?.selectedOption ?? 0) + 1) % options.length);
+    } else return false;
+    const before = cloneElements(elements()); setElements(items => items.map((item, currentIndex) => currentIndex === index ? change!(item as GroupElement) : item)); pushUndo(before); setDirty(true);
+    return true;
+  }
+
+  function commitLibraryComponentDraft() {
+    const draft = libraryComponentDraft(); if (!draft || !activePath() || boardLocked()) return;
+    const component = assignLibraryComponentIds(draft, draft.libraryComponent!.kind as LibraryComponentKind, draft);
+    const index = elements().length; pushUndo(cloneElements(elements())); setElements(items => [...items, component]); setSelectedIndices([index]); setTool("select"); setLibraryComponentDraft(undefined); setDirty(true);
   }
 
   function insertLibraryComponent(kind: LibraryComponentKind) {
@@ -1126,10 +1274,16 @@ function App() {
     const rect = canvas.getBoundingClientRect(); const view = canvasState();
     const x = (rect.width / 2 - view.panX) / view.zoom - item.width / 2;
     const y = (rect.height / 2 - view.panY) / view.zoom - item.height / 2;
-    const group = buildLibraryComponent(kind, x, y); const parts = group.elements; const index = elements().length;
-    const moveAsUnit = new Set<LibraryComponentKind>(["uml-lifeline", "uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition", "sequence-sync", "sequence-async", "er-one-many", "er-many-many", "tech-service", "data-flow"]).has(kind);
-    const inserted: Element[] = moveAsUnit ? [{ ...group, id: crypto.randomUUID() }] : parts;
-    pushUndo(cloneElements(elements())); setElements(items => [...items, ...inserted]); setSelectedIndices(inserted.map((_, offset) => index + offset)); setTool("select"); setStencilMenuOpen(false); setDirty(true);
+    const relationship = buildLibraryRelationship(kind, x, y);
+    if (relationship) {
+      const index = elements().length; pushUndo(cloneElements(elements())); setElements(items => [...items, relationship]);
+      setSelectedIndices([index]); setTool("select"); setSidebarTab("properties"); setStencilMenuOpen(false); setDirty(true); return;
+    }
+    const group = assignLibraryComponentIds(buildLibraryComponent(kind, x, y, { chartData: defaultLibraryChartData(kind) }), kind);
+    setStencilMenuOpen(false);
+    if (kind.startsWith("form-") || kind.startsWith("viz-")) { setComponentEditorCollapsed(false); setLibraryComponentDraft(group); return; }
+    const index = elements().length;
+    pushUndo(cloneElements(elements())); setElements(items => [...items, group]); setSelectedIndices([index]); setTool("select"); setDirty(true);
   }
 
   function libraryIcon(kind: LibraryComponentKind) {
@@ -1146,11 +1300,28 @@ function App() {
     if (kind === "c4-system") return <svg {...base}><circle cx="5" cy="16" r="2"/><circle cx="27" cy="16" r="2"/><rect x="8" y="5" width="16" height="22" rx="3" stroke-dasharray="3 2"/><rect x="11" y="11" width="10" height="10" rx="2"/><path d="M13 15h6m-6 3h4"/></svg>;
     if (kind === "c4-container") return <svg {...base}><rect x="4" y="4" width="24" height="24" rx="3" stroke-dasharray="3 2"/><rect x="7" y="9" width="8" height="12" rx="2"/><rect x="18" y="9" width="7" height="5" rx="1"/><rect x="18" y="17" width="7" height="5" rx="1"/></svg>;
     if (kind === "c4-component") return <svg {...base}><rect x="4" y="4" width="24" height="24" rx="3"/><rect x="8" y="9" width="7" height="6" rx="1"/><rect x="17" y="9" width="7" height="6" rx="1"/><rect x="8" y="17" width="16" height="6" rx="1"/></svg>;
-    if (kind === "tech-database") return <svg {...base}><ellipse cx="16" cy="7" rx="10" ry="4"/><path d="M6 7v17c0 2.2 4.5 4 10 4s10-1.8 10-4V7M6 15c0 2.2 4.5 4 10 4s10-1.8 10-4"/></svg>;
-    if (kind === "tech-cloud") return <svg {...base}><path d="M9 24h15a5 5 0 0 0 .7-10A8 8 0 0 0 9 11a6.5 6.5 0 0 0 0 13Z"/><path d="M13 18h6m-3-3v6"/></svg>;
     if (kind === "tech-service") return <svg {...base}><rect x="5" y="5" width="22" height="22" rx="5"/><path d="M16 10v3m0 6v3m-6-6h3m6 0h3m-10-4 2 2m4 4 2 2m0-8-2 2m-4 4-2 2"/><circle cx="16" cy="16" r="3"/></svg>;
     if (kind === "data-flow") return <svg {...base}><path d="M3 12h18M3 20h18" stroke-width="3" stroke-dasharray="3 2"/><path d="m20 7 8 9-8 9z" fill="currentColor"/></svg>;
     if (kind === "network-zone") return <svg {...base}><rect x="3" y="4" width="26" height="24" rx="4" stroke-dasharray="3 2"/><rect x="7" y="9" width="7" height="6" rx="1"/><rect x="18" y="17" width="7" height="6" rx="1"/><path d="m14 12 5 6"/></svg>;
+    if (kind === "uml-actor") return <svg {...base}><circle cx="16" cy="6" r="3.5"/><path d="M16 10v10m-7-5h14m-7 5-6 6m6-6 6 6"/></svg>;
+    if (kind === "uml-use-case") return <svg {...base}><ellipse cx="16" cy="16" rx="12" ry="8"/><path d="M10 16h12"/></svg>;
+    if (kind === "uml-package") return <svg {...base}><path d="M4 10h10l3 3h11v14H4zM4 10V5h10l3 3"/></svg>;
+    if (kind === "uml-interface") return <svg {...base}><rect x="5" y="4" width="22" height="24" rx="2"/><path d="M5 12h22M9 18h14m-14 5h10"/><circle cx="8" cy="8" r=".6" fill="currentColor"/></svg>;
+    if (kind === "bpmn-start" || kind === "bpmn-event" || kind === "bpmn-end") return <svg {...base}><circle cx="16" cy="16" r="12" stroke-width={kind === "bpmn-end" ? "3" : undefined}/>{kind === "bpmn-event" && <circle cx="16" cy="16" r="8.5"/>}</svg>;
+    if (kind === "bpmn-gateway" || kind === "bpmn-parallel-gateway") return <svg {...base}><path d="m16 3 13 13-13 13L3 16z"/>{kind === "bpmn-parallel-gateway" ? <path d="M16 10v12m-6-6h12"/> : <path d="m12 12 8 8m0-8-8 8"/>}</svg>;
+    if (kind === "bpmn-task") return <svg {...base}><rect x="4" y="6" width="24" height="20" rx="4"/><path d="M12 13h8m-8 5h8"/></svg>;
+    if (kind === "bpmn-data") return <svg {...base}><path d="M7 3h14l6 6v20H7zM21 3v7h6"/><path d="M11 17h12m-12 5h9"/></svg>;
+    if (kind === "bpmn-pool") return <svg {...base}><rect x="4" y="4" width="24" height="24"/><path d="M11 4v24M11 16h17"/></svg>;
+    if (kind === "network-router") return <svg {...base}><path d="m8 5 16 0 7 11-7 11H8L1 16z"/><path d="M9 16h14m-7-7v14m-4-4 4 4 4-4"/></svg>;
+    if (kind === "network-server") return <svg {...base}><rect x="5" y="3" width="22" height="8" rx="2"/><rect x="5" y="13" width="22" height="8" rx="2"/><rect x="5" y="23" width="22" height="6" rx="2"/><circle cx="9" cy="7" r="1" fill="currentColor"/><circle cx="9" cy="17" r="1" fill="currentColor"/></svg>;
+    if (kind === "network-firewall") return <svg {...base}><rect x="3" y="5" width="26" height="22" rx="2"/><path d="M3 12h26M3 20h26M10 5v7m13-7v7m-7 0v8m-8 0v7m15-7v7"/></svg>;
+    if (kind === "network-client") return <svg {...base}><rect x="4" y="4" width="24" height="19" rx="2"/><path d="M12 28h8m-4-5v5"/></svg>;
+    if (kind === "network-switch") return <svg {...base}><rect x="3" y="7" width="26" height="18" rx="3"/><path d="M7 13h3v6H7zm6 0h3v6h-3zm6 0h3v6h-3zm6 0h1v6h-1"/><circle cx="8.5" cy="22" r=".7" fill="currentColor"/><circle cx="14.5" cy="22" r=".7" fill="currentColor"/></svg>;
+    if (kind === "network-load-balancer") return <svg {...base}><circle cx="16" cy="8" r="4"/><path d="M16 12v6M6 18h20M7 18v8m9-8v8m9-8v8"/><circle cx="7" cy="27" r="1" fill="currentColor"/><circle cx="16" cy="27" r="1" fill="currentColor"/><circle cx="25" cy="27" r="1" fill="currentColor"/></svg>;
+    if (kind === "network-access-point") return <svg {...base}><rect x="5" y="19" width="22" height="8" rx="3"/><path d="M16 19v-4m-7-3a10 10 0 0 1 14 0m-10-4a5 5 0 0 1 6 0m-3-3v.01"/></svg>;
+    if (kind.startsWith("viz-")) return kind === "viz-donut" ? <svg {...base}><circle cx="16" cy="16" r="11"/><path d="M16 5v11h11M16 16l8 8"/></svg> : kind === "viz-kpi" ? <svg {...base}><path d="M4 25V7m0 18h24M8 20l6-6 5 3 8-9"/><path d="M22 8h5v5"/></svg> : kind === "viz-scatter" ? <svg {...base}><path d="M5 25V6M5 25h23"/><circle cx="10" cy="19" r="1.5" fill="currentColor"/><circle cx="13" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="17" r="1.5" fill="currentColor"/><circle cx="22" cy="9" r="1.5" fill="currentColor"/><circle cx="26" cy="14" r="1.5" fill="currentColor"/></svg> : kind === "viz-bar" ? <svg {...base}><path d="M5 26V6M5 26h23"/><rect x="9" y="15" width="4" height="11" rx="1"/><rect x="16" y="10" width="4" height="16" rx="1"/><rect x="23" y="6" width="4" height="20" rx="1"/></svg> : <svg {...base}><path d="M5 26V6M5 26h23M7 22l6-5 5 2 8-11"/><path d="M7 22v4h19V12l-7 11-5-2-6 5" fill="currentColor" fill-opacity=".12"/></svg>;
+    if (kind.startsWith("form-")) return kind === "form-button" ? <svg {...base}><rect x="3" y="8" width="26" height="16" rx="5" fill="currentColor" fill-opacity=".14"/><path d="M10 16h12"/></svg> : kind === "form-input" ? <svg {...base}><path d="M5 7h13M5 12h22M5 23h22M9 17v7m-4 0h8"/><path d="M17 10v5"/></svg> : kind === "form-select" ? <svg {...base}><path d="M4 8h24M4 24h24m-8-10 4 4 4-4"/></svg> : kind === "form-checkbox" ? <svg {...base}><rect x="5" y="7" width="18" height="18" rx="4"/><path d="m9 16 4 4 7-8"/></svg> : kind === "form-radio" ? <svg {...base}><circle cx="9" cy="16" r="6"/><circle cx="9" cy="16" r="2.5" fill="currentColor"/><circle cx="24" cy="16" r="6"/></svg> : <svg {...base}><rect x="3" y="7" width="26" height="18" rx="9"/><circle cx="20" cy="16" r="6" fill="currentColor" fill-opacity=".3"/></svg>;
+    if (kind.startsWith("software-") || kind.startsWith("cloud-")) return kind === "software-client" ? <svg {...base}><rect x="3" y="4" width="26" height="23" rx="3"/><path d="M3 10h26M8 7h.01m4 0h.01m4 0h.01M8 15h7m-7 4h16m-16 4h12"/></svg> : kind === "software-api" ? <svg {...base}><rect x="3" y="7" width="26" height="18" rx="5"/><path d="M8 13h8v6H8zm12 3h6m-3-3 3 3-3 3"/></svg> : kind === "software-queue" || kind === "cloud-queue" ? <svg {...base}><rect x="4" y="8" width="7" height="15" rx="2"/><rect x="13" y="8" width="7" height="15" rx="2"/><rect x="22" y="8" width="6" height="15" rx="2"/><path d="M4 27h24"/></svg> : kind === "software-event-bus" ? <svg {...base}><path d="M4 16h24M9 9v14m7-14v14m7-14v14"/><circle cx="9" cy="7" r="2"/><circle cx="16" cy="7" r="2"/><circle cx="23" cy="7" r="2"/></svg> : kind === "software-cache" ? <svg {...base}><rect x="4" y="5" width="24" height="22" rx="4"/><path d="M9 11h14m-14 5h14m-14 5h9"/></svg> : kind === "cloud-boundary" ? <svg {...base}><path d="M5 25h21a5 5 0 0 0 0-10 9 9 0 0 0-17-2 6 6 0 0 0-4 12Z"/><rect x="10" y="15" width="12" height="7" rx="2"/></svg> : kind === "cloud-function" ? <svg {...base}><rect x="5" y="5" width="22" height="22" rx="5"/><path d="m18 8-7 9h5l-2 7 7-10h-5z"/></svg> : kind === "cloud-storage" ? <svg {...base}><path d="M5 7h22v18H5zM8 12h16m-16 5h16m-16 5h16"/></svg> : kind === "software-database" || kind === "cloud-database" ? <svg {...base}><ellipse cx="16" cy="7" rx="11" ry="4"/><path d="M5 7v18c0 2 5 4 11 4s11-2 11-4V7M5 16c0 2 5 4 11 4s11-2 11-4"/></svg> : kind === "software-service" ? <svg {...base}><rect x="4" y="4" width="24" height="24" rx="6"/><circle cx="16" cy="16" r="4"/><path d="M16 8v3m0 10v3m-8-8h3m10 0h3m-14-6 2 2m8 8 2 2m0-12-2 2m-8 8-2 2"/></svg> : <svg {...base}><rect x="4" y="4" width="24" height="24" rx="4"/><path d="M9 11h14m-14 5h14m-14 5h8"/></svg>;
     return <svg {...base}><path d="M5 5h22v22H5zM9 11h14M9 16h14M9 21h9"/></svg>;
   }
 
@@ -1273,6 +1444,10 @@ function App() {
   function hitElement(element: Element, point: Point, zoom: number): boolean {
     if (element.hidden || element.locked) return false;
     if (element.type === "group") {
+      if (element.rotation && element.libraryComponent) {
+        const bounds = elementBounds(element); const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }; const angle = -element.rotation * Math.PI / 180;
+        const dx = point.x - center.x; const dy = point.y - center.y; point = { x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle), y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle) };
+      }
       if (element.elements.some((child) => hitElement(child, point, zoom))) return true;
       if (element.mermaid) { const box = elementBounds(element); const tolerance = 5 / zoom; return point.x >= box.x - tolerance && point.x <= box.x + box.w + tolerance && point.y >= box.y - tolerance && point.y <= box.y + box.h + tolerance; }
       return false;
@@ -1294,9 +1469,11 @@ function App() {
         if (kind === "dot" && Math.hypot(point.x - tip.x, point.y - tip.y) <= Math.max(4, routed.thickness * 1.5) + tolerance) return true;
         const points = arrowHeadPoints(tip, direction, kind, routed.thickness);
         if ((kind === "solid" || kind === "thick" || kind === "diamond") && pointInPolygon(point, points)) return true;
-        for (let i = 0; i < points.length; i += kind === "open" ? 1 : 2) {
-          const a = kind === "open" ? tip : points[i]; const b = kind === "open" ? points[i] : points[(i + 1) % points.length];
-          if (distanceToSegment(point, a, b) <= tolerance) return true;
+        if (kind === "open" || kind === "crow") { for (const endpoint of points) if (distanceToSegment(point, tip, endpoint) <= tolerance) return true; }
+        else {
+          const closed = ["solid", "hollow", "thick", "diamond", "open-diamond"].includes(kind);
+          const edgeCount = closed ? points.length : points.length - 1;
+          for (let i = 0; i < edgeCount; i++) if (distanceToSegment(point, points[i], points[(i + 1) % points.length]) <= tolerance) return true;
         }
       }
       return false;
@@ -1363,71 +1540,29 @@ function App() {
     return undefined;
   }
 
+  const componentViewCache = new WeakMap<Element, { key: string; element: Element }>();
   function simpleComponentElement(element: Element): Element {
-    if (componentAppearance() !== "simple" || !element.componentId?.startsWith("uml-class:")) return element;
-    const ink = theme() === "dark" ? "#f0f0f0" : "#262626";
-    if (element.type === "text") return { ...element, color: ink };
-    if ("color" in element) return { ...element, color: ink, fillColor: undefined, fillOpacity: 0, edgeStyle: "sharp", cornerRadius: 0 } as Element;
-    return element;
-  }
-
-  function strokePaths(points: StrokePoint[]): StrokePathCache | undefined {
-    if (typeof Path2D === "undefined") return undefined;
-    let cache = strokePathCache.get(points);
-    if (cache && points.length < cache.length) cache = undefined;
-    if (!cache) {
-      cache = { length: 0, pressureAware: false, path: new Path2D(), pressurePaths: new Map() };
-      strokePathCache.set(points, cache);
-    }
-    for (let index = cache.length; index < points.length; index++) {
-      const point = points[index];
-      const hasPressure = point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined;
-      if (hasPressure && !cache.pressureAware && index > 0) {
-        cache = { length: 0, pressureAware: true, pressurePaths: new Map() };
-        strokePathCache.set(points, cache);
-        index = -1;
-        continue;
+    const librarySimple = element.type === "group" && !!element.libraryComponent && (element.libraryComponent.kind.startsWith("viz-") ? (element.libraryComponent.appearance ?? componentAppearance()) === "simple" : componentAppearance() === "simple");
+    const classSimple = componentAppearance() === "simple" && !!element.componentId?.startsWith("uml-class:");
+    if (!librarySimple && !classSimple) return element;
+    const key = `${componentAppearance()}:${theme()}`; const cached = componentViewCache.get(element);
+    if (cached?.key === key) return cached.element;
+    const styleOverrides = element.type === "group" ? element.libraryComponent?.styleOverrides : undefined;
+    const ink = styleOverrides?.color ?? (theme() === "dark" ? "#e5e7eb" : "#26313b"); const stroke = styleOverrides?.color ?? (theme() === "dark" ? "#aeb8c2" : "#52606d");
+    const simplify = (item: Element): Element => {
+      if (item.type === "group") return { ...item, elements: item.elements.map(simplify) };
+      if (item.type === "text") return { ...item, color: ink };
+      if (item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" || item.type === "line" || item.type === "arrow") {
+        const originalFill = item.fillColor;
+        const fillColor = styleOverrides?.fillColor === null ? undefined : styleOverrides?.fillColor ?? (originalFill ? (originalFill.toLowerCase() === "#ffffff" ? (theme() === "dark" ? "#202428" : "#ffffff") : theme() === "dark" ? "#3a424a" : "#e9edf1") : undefined);
+        const label = item.label ? { ...item.label, color: ink } : undefined;
+        return { ...item, color: stroke, fillColor, fillOpacity: fillColor ? styleOverrides?.fillOpacity ?? item.fillOpacity ?? 1 : 0, edgeStyle: item.edgeStyle ? "sharp" : item.edgeStyle, cornerRadius: 0, ...(label ? { label } : {}) };
       }
-      cache.pressureAware ||= hasPressure;
-      if (index === 0) {
-        if (!cache.pressureAware) cache.path!.moveTo(point.x, point.y);
-        cache.length = 1;
-        continue;
-      }
-      const previous = points[index - 1];
-      const from = index === 1 ? points[0] : { x: (points[index - 2].x + previous.x) / 2, y: (points[index - 2].y + previous.y) / 2 };
-      const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
-      if (cache.pressureAware) {
-        const startWidth = stylusStrokeWidthAt(points, index - 1, 1);
-        const endWidth = stylusStrokeWidthAt(points, index, 1);
-        const widthChange = Math.abs(endWidth - startWidth);
-        if (widthChange < .005) {
-          const widthFactor = Math.round(((startWidth + endWidth) / 2) * 100) / 100;
-          let path = cache.pressurePaths.get(widthFactor);
-          if (!path) { path = new Path2D(); cache.pressurePaths.set(widthFactor, path); }
-          path.moveTo(from.x, from.y); path.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
-        } else {
-          const curveLength = Math.hypot(previous.x - from.x, previous.y - from.y) + Math.hypot(mid.x - previous.x, mid.y - previous.y);
-          const steps = Math.min(256, Math.max(1, Math.ceil(curveLength / 2), Math.ceil(widthChange / .01)));
-          const quadraticPoint = (t: number) => {
-            const inverse = 1 - t;
-            return { x: inverse * inverse * from.x + 2 * inverse * t * previous.x + t * t * mid.x, y: inverse * inverse * from.y + 2 * inverse * t * previous.y + t * t * mid.y };
-          };
-          for (let step = 0; step < steps; step++) {
-            const t0 = step / steps; const t1 = (step + 1) / steps;
-            const start = quadraticPoint(t0); const end = quadraticPoint(t1);
-            const widthFactor = Math.max(.05, Math.round((startWidth + (endWidth - startWidth) * ((t0 + t1) / 2)) * 100) / 100);
-            let path = cache.pressurePaths.get(widthFactor);
-            if (!path) { path = new Path2D(); cache.pressurePaths.set(widthFactor, path); }
-            path.moveTo(start.x, start.y); path.lineTo(end.x, end.y);
-          }
-        }
-      } else {
-        cache.path!.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
-      }
-      cache.length = index + 1;
-    }
-    return cache;
+      return item;
+    };
+    const styled = librarySimple && element.type === "group" ? { ...element, elements: element.elements.map(simplify) } : simplify(element);
+    componentViewCache.set(element, { key, element: styled });
+    return styled;
   }
 
   function intersectsBounds(left: number, top: number, right: number, bottom: number, bounds: Bounds) {
@@ -1457,9 +1592,14 @@ function App() {
   function drawElement(ctx: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems = elements()) {
     if (element.hidden) return;
     element = simpleComponentElement(element);
-    if (element.type === "group") { if (element.note) { drawNoteCard(ctx, element, theme(), componentAppearance()); return; } for (const child of element.elements) if (!viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems); return; }
-    const elementBox = elementBounds(element); const centerX = elementBox.x + elementBox.w / 2; const centerY = elementBox.y + elementBox.h / 2;
-    if (element.rotation) { ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
+    if (element.type === "group") {
+      if (element.note) { drawNoteCard(ctx, element, theme(), componentAppearance()); return; }
+      if (element.rotation && element.libraryComponent) { const bounds = elementBounds(element); const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
+      if (element.libraryComponent?.kind.startsWith("viz-")) { drawLibraryChart(ctx, element, theme(), componentAppearance()); if (element.rotation) ctx.restore(); return; }
+      for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems);
+      if (element.rotation && element.libraryComponent) ctx.restore(); return;
+    }
+    if (element.rotation) { const elementBox = elementBounds(element); const centerX = elementBox.x + elementBox.w / 2; const centerY = elementBox.y + elementBox.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
     if (element.type === "image") {
       const image = imageCache.get(element.dataUrl);
       ctx.save(); ctx.globalAlpha = element.opacity ?? 1;
@@ -1530,7 +1670,8 @@ function App() {
           if (kind === "dot") { ctx.beginPath(); ctx.arc(tip.x, tip.y, Math.max(3, element.thickness * 1.15), 0, Math.PI * 2); ctx.fillStyle = renderedInk; ctx.fill(); continue; }
           const points = arrowHeadPoints(tip, direction, kind, element.thickness); ctx.beginPath();
           if (kind === "open") { ctx.moveTo(tip.x, tip.y); ctx.lineTo(points[0].x, points[0].y); ctx.moveTo(tip.x, tip.y); ctx.lineTo(points[1].x, points[1].y); }
-          else { ctx.moveTo(points[0].x, points[0].y); for (let index = 1; index < points.length; index++) ctx.lineTo(points[index].x, points[index].y); if (["solid", "thick", "diamond"].includes(kind)) ctx.closePath(); }
+          else if (kind === "crow") { for (const point of points) { ctx.moveTo(tip.x, tip.y); ctx.lineTo(point.x, point.y); } }
+          else { ctx.moveTo(points[0].x, points[0].y); for (let index = 1; index < points.length; index++) ctx.lineTo(points[index].x, points[index].y); if (["solid", "hollow", "thick", "diamond", "open-diamond"].includes(kind)) ctx.closePath(); }
           if (["solid", "thick", "diamond"].includes(kind)) { ctx.fillStyle = renderedInk; ctx.fill(); }
           ctx.stroke();
         }
@@ -1538,56 +1679,10 @@ function App() {
       ctx.restore(); if (element.rotation) ctx.restore(); return;
     }
     if (element.type === "freehand") {
-      if (!element.points.length) { ctx.restore(); return; }
-      const cache = strokePaths(element.points);
-      const pressureAware = cache?.pressureAware ?? element.points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined);
-      if (pressureAware) {
-        const pointWidth = (point: StrokePoint) => stylusStrokeWidth(point, element.thickness);
-        ctx.fillStyle = renderedInk;
-        const stamp = (point: StrokePoint) => {
-          const tilt = Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90); const width = pointWidth(point);
-          ctx.beginPath(); ctx.ellipse(point.x, point.y, Math.max(.25, width * (.5 + tilt * .35)), Math.max(.25, width * .5), Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0), 0, Math.PI * 2); ctx.fill();
-        };
-        ctx.lineCap = "round"; ctx.lineJoin = "round";
-        if (element.points.length === 1) stamp(element.points[0]);
-        if (cache) for (const [widthFactor, path] of cache.pressurePaths) { ctx.lineWidth = Math.max(.35, widthFactor * element.thickness); ctx.stroke(path); }
-        else {
-          let from = element.points[0];
-          for (let index = 1; index < element.points.length; index++) {
-            const previous = element.points[index - 1]; const point = element.points[index];
-            const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
-            ctx.beginPath(); ctx.lineWidth = Math.max(.35, (pointWidth(previous) + pointWidth(point)) / 2); ctx.moveTo(from.x, from.y); ctx.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y); ctx.stroke();
-            from = mid;
-          }
-        }
-        const lastPoint = element.points[element.points.length - 1];
-        const previous = element.points.length > 1 ? element.points[element.points.length - 2] : lastPoint;
-        const from = element.points.length > 1 ? { x: (previous.x + lastPoint.x) / 2, y: (previous.y + lastPoint.y) / 2 } : lastPoint;
-        ctx.beginPath(); ctx.lineWidth = Math.max(.75, pointWidth(lastPoint)); ctx.moveTo(from.x, from.y); ctx.lineTo(lastPoint.x, lastPoint.y); ctx.stroke();
-        if (element.points.length > 1) { stamp(element.points[0]); stamp(element.points[element.points.length - 1]); }
-      } else {
-        if (element.points.length === 1) {
-          const point = element.points[0];
-          ctx.beginPath(); ctx.arc(point.x, point.y, Math.max(.5, element.thickness / 2), 0, Math.PI * 2); ctx.fillStyle = renderedInk; ctx.fill();
-          ctx.restore(); if (element.rotation) ctx.restore(); return;
-        }
-        const last = element.points[element.points.length - 1];
-        if (cache?.path) ctx.stroke(cache.path);
-        else {
-          ctx.beginPath(); ctx.moveTo(element.points[0].x, element.points[0].y);
-          for (let i = 1; i < element.points.length; i++) {
-            const previous = element.points[i - 1]; const point = element.points[i];
-            const mid = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
-            ctx.quadraticCurveTo(previous.x, previous.y, mid.x, mid.y);
-          }
-          ctx.stroke();
-        }
-        const previous = element.points.length > 1 ? element.points[element.points.length - 2] : last;
-        const from = element.points.length > 1 ? { x: (previous.x + last.x) / 2, y: (previous.y + last.y) / 2 } : last;
-        ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(last.x, last.y); ctx.stroke();
-      }
+      freehandRenderer.draw(ctx, element, renderedInk);
       ctx.restore(); if (element.rotation) ctx.restore(); return;
-    } else if (element.type === "rectangle") {
+    }
+    if (element.type === "rectangle") {
       const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const width = Math.abs(element.w); const height = Math.abs(element.h);
       if ((element.edgeStyle === "rounded" || element.edgeStyle === "pill") && typeof ctx.roundRect === "function") ctx.roundRect(left, top, width, height, element.edgeStyle === "pill" ? Math.min(width, height) / 2 : Math.min(element.cornerRadius ?? 14, width / 2, height / 2));
       else if (element.edgeStyle === "cut") { const c = Math.min(element.cornerRadius ?? 12, width / 2, height / 2); ctx.moveTo(left + c, top); ctx.lineTo(left + width - c, top); ctx.lineTo(left + width, top + c); ctx.lineTo(left + width, top + height - c); ctx.lineTo(left + width - c, top + height); ctx.lineTo(left + c, top + height); ctx.lineTo(left, top + height - c); ctx.lineTo(left, top + c); ctx.closePath(); }
@@ -1638,8 +1733,8 @@ function App() {
 
   function findTransformHandle(point: Point): { index: number; handle: string } | undefined {
     if (selectedIndices().length !== 1) return undefined;
-    const index = selectedIndices()[0]; const element = elements()[index]; if (!element || element.locked || element.type === "freehand" || element.type === "group" && (!element.note || element.note.collapsed)) return undefined;
-    const canRotate = element.type !== "group";
+    const index = selectedIndices()[0]; const element = elements()[index]; if (!element || element.locked || element.type === "freehand" || element.type === "group" && (!element.note || element.note.collapsed) && !element.libraryComponent) return undefined;
+    const canRotate = element.type !== "group" || !!element.libraryComponent;
     for (const handle of isConnector(element) ? connectorHandles(element) : transformHandlePoints(elementBounds(element), canvasState().zoom, canRotate)) if (Math.hypot(point.x - handle.x, point.y - handle.y) <= 9 / canvasState().zoom) return { index, handle: handle.id };
     return undefined;
   }
@@ -1647,7 +1742,18 @@ function App() {
   function resizeElement(element: Element, handle: string, start: Point, point: Point): Element {
     if (element.type === "freehand") return element;
     if (element.type === "line" || element.type === "arrow") return resizeConnector(element, handle, point);
+    if (handle === "rotate" && element.type === "group" && element.libraryComponent) {
+      const bounds = elementBounds(element); const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
+      const a = Math.atan2(start.y - center.y, start.x - center.x); const b = Math.atan2(point.y - center.y, point.x - center.x);
+      return { ...element, rotation: (element.rotation ?? 0) + (b - a) * 180 / Math.PI };
+    }
     if (element.type === "group") {
+      if (element.libraryComponent) {
+        const before = elementBounds(element); let { x, y, w, h } = before; const dx = point.x - start.x; const dy = point.y - start.y;
+        if (handle.includes("w")) { x += dx; w -= dx; } if (handle.includes("e")) w += dx;
+        if (handle.includes("n")) { y += dy; h -= dy; } if (handle.includes("s")) h += dy;
+        return resizeLibraryGroup(element, { x, y, w: Math.max(60, w), h: Math.max(40, h) });
+      }
       if (!element.note) return element;
       const before = elementBounds(element); let { x, y, w, h } = before; const dx = point.x - start.x; const dy = point.y - start.y;
       if (handle.includes("w")) { x += dx; w -= dx; } if (handle.includes("e")) w += dx;
@@ -1681,10 +1787,16 @@ function App() {
     lineStyle, edgeStyle, cornerRadius, fillEnabled, fillColor, fillOpacity,
     defaultLineStartHead, defaultLineEndHead, defaultStartHead, defaultEndHead, defaultForkUpperHead, defaultForkLowerHead,
     drawElement, drawLaserStroke, connectorForView, connectorHandles, resolveDraggedConnector, intersectsBounds,
+    drawFreehandPreview: (ctx, element) => { ctx.save(); ctx.globalAlpha = element.opacity ?? 1; freehandRenderer.draw(ctx, element, themeInk(element.color, theme()), false); ctx.restore(); },
   });
   const drawScene = sceneRenderer.drawScene;
 
-  const canvasRenderScheduler = createCanvasRenderScheduler({ canvas: () => canvas, hasDocument: () => !!activePath(), drawScene });
+  const canvasRenderScheduler = createCanvasRenderScheduler({
+    canvas: () => canvas, hasDocument: () => !!activePath(),
+    hasStrokePreview: () => preview()?.type === "pen" && tool() === "pen",
+    drawStrokePreview: sceneRenderer.drawStrokePreview,
+    drawScene: (ctx, width, height, dpr, selection, strokePreview = true) => drawScene(ctx, width, height, dpr, selection, false, undefined, undefined, true, strokePreview),
+  });
   const scheduleCanvasRender = canvasRenderScheduler.schedule;
   onCleanup(canvasRenderScheduler.dispose);
   createEffect(() => { activePath(); elements(); canvasState(); preview(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); componentAppearance(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
@@ -1904,36 +2016,41 @@ function App() {
     setSystemDark(colorScheme.matches); colorScheme.addEventListener("change", updateSystemTheme);
     let closeInProgress = false;
     let unlistenClose: (() => void) | undefined;
-    void getCurrentWindow().onCloseRequested(async (event) => {
-      if (readOnlyView() || (!dirty() && !textDraft() && !saving())) return;
-      event.preventDefault();
-      if (closeInProgress) return;
-      closeInProgress = true;
+    if (isTauri()) {
       try {
-        if (textDraft()) commitTextDraft();
-        persistRecovery();
-        while (docController.isSaveInFlight()) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
-        const path = activePath();
-        if (path && dirty() && !syncConflict()) await saveToPath(path);
-        // The original close request was prevented while the async save ran.
-        // Remove this listener before requesting close again so it cannot
-        // intercept its own retry. Recovery data has already been persisted
-        // if the save failed or a cloud-sync conflict blocked it.
-        unlistenClose?.();
-        unlistenClose = undefined;
-        await getCurrentWindow().destroy();
-      } catch (cause) {
-        setError(`Could not close SketchDraw: ${String(cause)}`);
-        closeInProgress = false;
-      }
-    }).then((unlisten) => { unlistenClose = unlisten; }).catch((cause) => setError(`Could not prepare safe closing: ${String(cause)}`));
+        const nativeWindow = getCurrentWindow();
+        void nativeWindow.onCloseRequested(async (event) => {
+          if (readOnlyView() || (!dirty() && !textDraft() && !saving())) return;
+          event.preventDefault();
+          if (closeInProgress) return;
+          closeInProgress = true;
+          try {
+            if (textDraft()) commitTextDraft();
+            persistRecovery();
+            while (docController.isSaveInFlight()) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
+            const path = activePath();
+            if (path && dirty() && !syncConflict()) await saveToPath(path);
+            // The original close request was prevented while the async save ran.
+            // Remove this listener before requesting close again so it cannot
+            // intercept its own retry. Recovery data has already been persisted
+            // if the save failed or a cloud-sync conflict blocked it.
+            unlistenClose?.();
+            unlistenClose = undefined;
+            await nativeWindow.destroy();
+          } catch (cause) {
+            setError(`Could not close SketchDraw: ${String(cause)}`);
+            closeInProgress = false;
+          }
+        }).then((unlisten) => { unlistenClose = unlisten; }).catch((cause) => setError(`Could not prepare safe closing: ${String(cause)}`));
+      } catch (cause) { setError(`Could not prepare safe closing: ${String(cause)}`); }
+    }
     window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("pointerdown", mouseShortcutPointerDown, true); window.addEventListener("auxclick", mouseShortcutAuxClick, true); window.addEventListener("contextmenu", mouseShortcutContextMenu, true); window.addEventListener("blur", blur); window.addEventListener("focus", refreshStorageAccessOnReturn); document.addEventListener("visibilitychange", refreshStorageAccessOnReturn); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", alignOpenTouchMenus); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", alignOpenTouchMenus); window.addEventListener("orientationchange", updateDisplayMetrics);
     document.addEventListener("pointerdown", outsideClick); document.addEventListener("keydown", closeMenuOnEscape);
     let autosaveTimer: number | undefined;
     const scheduleAutosave = () => {
       autosaveTimer = window.setTimeout(() => {
         if (textDraft() && !recoveryPrompt() && !syncConflict()) persistRecovery();
-        if (activePath() && dirty() && !recoveryPrompt() && !textDraft() && !drawing && !resizeOrigin && !moveOrigin) {
+        if (activePath() && dirty() && !recoveryPrompt() && !textDraft() && !drawing && !panOrigin && !resizeOrigin && !moveOrigin) {
           persistRecovery();
           if (!syncConflict() && !docController.isSaveInFlight()) void saveToPath(activePath()!);
         }
@@ -2259,7 +2376,7 @@ function App() {
       else if (tool() === "laser") setTool("pen");
     },
     restoreOpenedView: restoreOpenedViewAt100,
-    canCheckForUpdates: () => !document.hidden && !documentBusy() && !recoveryPrompt() && !docController.isSaveInFlight() && !drawing && !moveOrigin && !resizeOrigin && !textDraft(),
+    canCheckForUpdates: () => !document.hidden && !documentBusy() && !recoveryPrompt() && !docController.isSaveInFlight() && !drawing && !panOrigin && !moveOrigin && !resizeOrigin && !textDraft(),
     shouldKeepDocumentDirtyAfterUpdate: remote => isWindowsPlatform() && !remote.windowsSync,
     normalizePath: normalizeFileUri,
     isSketchPath,
@@ -2764,11 +2881,18 @@ function App() {
             return;
           }
           if (points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined)) {
-            const box = elementBounds(element); const centerX = x0 + (box.x + box.w / 2) * scale; const centerY = yTop - (box.y + box.h / 2) * scale; const rotated = !!element.rotation;
-            if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
-            const ink = pdfColor(themeInk(element.color, theme()), pdfColorMode());
-            for (let index = 1; index < points.length; index++) { const a = points[index - 1]; const b = points[index]; const width = (stylusStrokeWidthAt(points, index - 1, element.thickness) + stylusStrokeWidthAt(points, index, element.thickness)) / 2; page.drawSvgPath(`M ${a.x} ${a.y} L ${b.x} ${b.y}`, { x: x0, y: yTop, scale, borderColor: ink, borderWidth: width * scale, borderOpacity: element.opacity ?? 1, borderLineCap: LineCapStyle.Round }); }
-            if (rotated) page.pushOperators(popGraphicsState()); return;
+            // Preserve the canvas pressure curve and composite opacity once in PDF.
+            const bounds = elementBounds(element);
+            const box = { x: bounds.x - 1, y: bounds.y - 1, w: bounds.w + 2, h: bounds.h + 2 };
+            const ratio = Math.min(Math.max(2, scale * 3), 8192 / box.w, 8192 / box.h, Math.sqrt(16_000_000 / (box.w * box.h)));
+            const surface = document.createElement("canvas");
+            surface.width = Math.max(1, Math.ceil(box.w * ratio)); surface.height = Math.max(1, Math.ceil(box.h * ratio));
+            const context = surface.getContext("2d"); if (!context) throw new Error("Canvas renderer unavailable");
+            context.setTransform(ratio, 0, 0, ratio, -box.x * ratio, -box.y * ratio);
+            drawElement(context, element);
+            const image = await readImage({ type: "image", x: box.x, y: box.y, w: box.w, h: box.h, dataUrl: surface.toDataURL("image/png") });
+            page.drawImage(image, { x: x0 + box.x * scale, y: yTop - (box.y + surface.height / ratio) * scale, width: surface.width / ratio * scale, height: surface.height / ratio * scale });
+            return;
           }
           let d = `M ${points[0].x} ${points[0].y}`;
           for (let i=1;i<points.length;i++){const a=points[i-1],b=points[i];const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};d+=` Q ${a.x} ${a.y} ${mid.x} ${mid.y}`;} const last=points[points.length-1];d+=` L ${last.x} ${last.y}`;
@@ -2809,7 +2933,7 @@ function App() {
           if (isLabelShape(element)) drawShapeLabel(element, drawText);
           return;
         }
-        if(path)pathStyle(page,path,element,scale,x0,yTop,element.fillColor);
+         if(path)pathStyle(page,path,element,scale,x0,yTop,element.fillColor);
         if(element.type==="flowchart"&&element.flowchartShape==="database"){const detail=flowchartSvgDetailPath(element);if(detail)pathStyle(page,detail,element,scale,x0,yTop);}
         if(isLabelShape(element))drawShapeLabel(element,drawText);
       };
@@ -2968,28 +3092,7 @@ function App() {
     const strokeWidth = element.thickness;
     const strokeOpacity = element.opacity ?? 1;
     const style = `fill="${fillColor ? escapeXml(fillColor) : "none"}"${fillColor ? ` fill-opacity="${fillOpacity}"` : ""} stroke="${escapeXml(ink)}" opacity="${strokeOpacity}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-linejoin="round"`;
-    if (element.type === "freehand") {
-      if (!element.points.length) return "";
-      const points = element.points;
-      if (points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined)) {
-        const ink = escapeXml(themeInk(element.color, theme())); const marks = points.map((point, index) => {
-          const width = stylusStrokeWidthAt(points, index, element.thickness); const tilt = Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90); const angle = Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0) * 180 / Math.PI;
-          const stamp = `<ellipse cx="${point.x}" cy="${point.y}" rx="${Math.max(.25, width * (.5 + tilt * .35))}" ry="${Math.max(.25, width * .5)}" transform="rotate(${angle} ${point.x} ${point.y})" fill="${ink}" opacity="${strokeOpacity}"/>`;
-          if (index === 0) return stamp;
-          const previous = points[index - 1]; const segmentWidth = (stylusStrokeWidthAt(points, index - 1, element.thickness) + width) / 2;
-          return `<path d="M ${previous.x} ${previous.y} L ${point.x} ${point.y}" fill="none" stroke="${ink}" opacity="${strokeOpacity}" stroke-width="${segmentWidth}" stroke-linecap="round"/>${stamp}`;
-        }).join("");
-        return `<g>${marks}</g>`;
-      }
-      if (points.length === 1) return `<circle cx="${points[0].x}" cy="${points[0].y}" r="${Math.max(.5, element.thickness / 2)}" fill="${escapeXml(themeInk(element.color, theme()))}" opacity="${strokeOpacity}"/>`;
-      let d = `M ${points[0].x} ${points[0].y}`;
-      for (let i = 1; i < points.length; i++) {
-        const a = points[i - 1]; const b = points[i]; const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        d += ` Q ${a.x} ${a.y} ${mid.x} ${mid.y}`;
-      }
-      const last = points[points.length - 1]; d += ` L ${last.x} ${last.y}`;
-      return `<path d="${d}" ${style}/>`;
-    }
+    if (element.type === "freehand") return freehandSvg(element, ink);
     if (element.type === "rectangle") { const width = Math.abs(element.w); const height = Math.abs(element.h); const radius = element.edgeStyle === "pill" ? Math.min(width, height) / 2 : element.edgeStyle === "rounded" ? Math.min(element.cornerRadius ?? 14, width / 2, height / 2) : 0; if (element.edgeStyle === "cut") { const x = Math.min(element.x, element.x + element.w); const y = Math.min(element.y, element.y + element.h); const c = Math.min(element.cornerRadius ?? 12, width / 2, height / 2); return `<path d="M ${x + c} ${y} H ${x + width - c} L ${x + width} ${y + c} V ${y + height - c} L ${x + width - c} ${y + height} H ${x + c} L ${x} ${y + height - c} V ${y + c} Z" ${style}/>`; } return `<rect x="${Math.min(element.x, element.x + element.w)}" y="${Math.min(element.y, element.y + element.h)}" width="${width}" height="${height}" rx="${radius}" ${style}/>`; }
     if (element.type === "diamond") return `<path d="M ${element.x + element.w / 2} ${element.y} L ${element.x + element.w} ${element.y + element.h / 2} L ${element.x + element.w / 2} ${element.y + element.h} L ${element.x} ${element.y + element.h / 2} Z" ${style}/>`;
     if (element.type === "triangle") { const left = Math.min(element.x, element.x + element.w); const right = Math.max(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const bottom = Math.max(element.y, element.y + element.h); return `<path d="M ${(left + right) / 2} ${top} L ${right} ${bottom} L ${left} ${bottom} Z" ${style}/>`; }
@@ -3008,7 +3111,7 @@ function App() {
         if (kind === "dot") return `<circle cx="${tip.x}" cy="${tip.y}" r="${Math.max(3, routed.thickness * 1.15)}" fill="${ink}" opacity="${routed.opacity ?? 1}"/>`;
         const points = arrowHeadPoints(tip, direction, kind, routed.thickness); const polygon = points.map((point) => `${point.x},${point.y}`).join(" ");
         if (kind === "solid" || kind === "thick" || kind === "diamond") return `<polygon points="${polygon}" fill="${ink}" stroke="${ink}" stroke-width="${routed.thickness}" opacity="${routed.opacity ?? 1}"/>`;
-        if (kind === "open") return `<path d="M ${tip.x} ${tip.y} L ${points[0].x} ${points[0].y} M ${tip.x} ${tip.y} L ${points[1].x} ${points[1].y}" ${style}/>`;
+         if (kind === "open" || kind === "hollow" || kind === "open-diamond" || kind === "crow") return `<path d="${arrowHeadSvgPath(tip, direction, kind, routed.thickness)}" ${style}/>`;
         return `<path d="M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}" ${style}/>`;
       };
       return `${paths}${arrowHeadEntries(routed, route).map(({ tip, angle: direction, kind }) => headSvg(tip, direction, kind)).join("")}`;
@@ -3101,6 +3204,7 @@ function App() {
       const hit = hitTest(point);
       if (hit !== undefined) {
         const target = elements()[hit];
+        if (target?.type === "group" && target.libraryComponent && activateLibraryControl(hit, point)) { canvas.setPointerCapture(event.pointerId); return; }
         if (target?.type === "group" && target.note && noteCollapseHit(target, point)) { toggleNoteCollapsed(hit); canvas.setPointerCapture(event.pointerId); return; }
         if (target?.type === "group" && target.note?.kind === "checklist") {
           const row = checklistIndexAt(target, point);
@@ -3153,6 +3257,7 @@ function App() {
     if (activeDrawingTool === "pen") {
       const laser = tool() === "laser"; const mode = brushMode();
       const strokePoint = tool() === "pen" ? strokePointFromPointer(event, point) : point; currentPoints = [strokePoint]; strokePointLimitReached = false;
+      strokeSampleGate.reset(event.timeStamp);
       const brushStyle: Record<BrushMode, { width: number; opacity: number }> = { fine: { width: 1, opacity: 1 }, pencil: { width: .72, opacity: .62 }, brush: { width: 2.2, opacity: .9 }, marker: { width: 3, opacity: .78 }, highlighter: { width: 6, opacity: .28 }, chalk: { width: 1.7, opacity: .48 } };
       const style = brushStyle[mode];
       setPreview({ type: "pen", start: point, end: point, color: laser ? laserColor() : color(), thickness: laser ? laserThickness() / canvasState().zoom : Math.max(mode === "highlighter" ? 12 : mode === "marker" ? 6 : 1, thickness() * style.width), opacity: laser ? 1 : style.opacity });
@@ -3230,6 +3335,7 @@ function App() {
 
   function appendStrokeSample(event: PointerEvent, point: Point) {
     if (event.pointerType === "pen" && event.pressure <= 0 && (event.buttons & 1) === 0) return;
+    if (!strokeSampleGate.accept("pointer", event.timeStamp)) return;
     const previous = currentPoints[currentPoints.length - 1];
     const minDistance = event.pointerType === "pen" ? .01 : .05;
     if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * canvasState().zoom < minDistance) return;
@@ -3249,7 +3355,7 @@ function App() {
     if (event.pointerType !== "pen" || activePenPointerId !== event.pointerId || activeDrawingTool !== "pen" || (!drawing && !preview())) return;
     const previousLength = currentPoints.length;
     appendPenSamples(event);
-    if (currentPoints.length !== previousLength) scheduleCanvasRender();
+    if (currentPoints.length !== previousLength) canvasRenderScheduler.schedulePreview();
   }
 
   function pointerMove(event: PointerEvent) {
@@ -3300,13 +3406,15 @@ function App() {
       return;
     }
     if (penEraserDrawing || tool() === "eraser") { eraseAtPoint(toWorld(event)); return; }
-    const raw = toWorld(event); const port = activeDrawingTool === "line" || activeDrawingTool === "arrow" ? nearestBinding(elements(), raw, 18 / canvasState().zoom) : undefined; setAttachmentHint(port?.point); const point = port?.point ?? (activeDrawingTool === "pen" ? raw : snap(raw));
     if (activeDrawingTool === "pen") {
-      if (event.pointerType === "pen") {
-        event.preventDefault();
-        appendPenSamples(event);
-      } else appendStrokeSample(event, point);
+      const previousLength = currentPoints.length;
+      if (event.pointerType === "pen") { event.preventDefault(); appendPenSamples(event); }
+      else appendStrokeSample(event, toWorld(event));
+      if (currentPoints.length !== previousLength) canvasRenderScheduler.schedulePreview();
+      return;
     }
+    const raw = toWorld(event); const port = activeDrawingTool === "line" || activeDrawingTool === "arrow" ? nearestBinding(elements(), raw, 18 / canvasState().zoom) : undefined;
+    setAttachmentHint(port?.point); const point = port?.point ?? snap(raw);
     setPreview((previous) => previous ? { ...previous, end: point } : undefined);
   }
 
@@ -3379,14 +3487,15 @@ function App() {
       const local = { x: cx + (point.x - cx) * Math.cos(angle) - (point.y - cy) * Math.sin(angle), y: cy + (point.x - cx) * Math.sin(angle) + (point.y - cy) * Math.cos(angle) };
       context.save(); context.setTransform(1, 0, 0, 1, 0, 0); context.beginPath();
       const left = Math.min(shape.x, shape.x + shape.w); const top = Math.min(shape.y, shape.y + shape.h); const width = Math.abs(shape.w); const height = Math.abs(shape.h);
+      const flowchartPath = shape.type === "flowchart" ? flowchartPathObject(shape.flowchartShape ?? "process", shape.x, shape.y, shape.w, shape.h) : undefined;
       if (shape.type === "circle") context.ellipse(cx, cy, width / 2, height / 2, 0, 0, Math.PI * 2);
       else if (shape.type === "diamond") { context.moveTo(cx, top); context.lineTo(left + width, cy); context.lineTo(cx, top + height); context.lineTo(left, cy); context.closePath(); }
       else if (shape.type === "triangle") { context.moveTo(cx, top); context.lineTo(left + width, top + height); context.lineTo(left, top + height); context.closePath(); }
-      else if (shape.type === "flowchart") traceFlowchart(context, shape.flowchartShape ?? "process", shape.x, shape.y, shape.w, shape.h);
+      else if (shape.type === "flowchart") { if (!flowchartPath) traceFlowchart(context, shape.flowchartShape ?? "process", shape.x, shape.y, shape.w, shape.h); }
       else if (shape.edgeStyle === "rounded" || shape.edgeStyle === "pill") context.roundRect(left, top, width, height, shape.edgeStyle === "pill" ? Math.min(width, height) / 2 : Math.min(shape.cornerRadius ?? 14, width / 2, height / 2));
       else if (shape.edgeStyle === "cut") { const c=Math.min(shape.cornerRadius ?? 12,width/2,height/2);context.moveTo(left+c,top);context.lineTo(left+width-c,top);context.lineTo(left+width,top+c);context.lineTo(left+width,top+height-c);context.lineTo(left+width-c,top+height);context.lineTo(left+c,top+height);context.lineTo(left,top+height-c);context.lineTo(left,top+c);context.closePath(); }
       else context.rect(left, top, width, height);
-      const inside = context.isPointInPath(local.x, local.y); context.restore(); if (inside) return index;
+      const inside = flowchartPath ? context.isPointInPath(flowchartPath, local.x, local.y) : context.isPointInPath(local.x, local.y); context.restore(); if (inside) return index;
     }
     return undefined;
   }
@@ -3495,7 +3604,7 @@ function App() {
       const end = toWorld(event); const last = currentPoints[currentPoints.length - 1];
       const minDistance = event.pointerType === "pen" ? .01 : .05;
       if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= minDistance) {
-        appendStrokePoint(tool() === "pen" ? { ...end, pressure: last.pressure, tiltX: last.tiltX, tiltY: last.tiltY } : end);
+        appendStrokePoint(tool() === "pen" ? { ...end, pressure: last.pressure, tiltX: last.tiltX, tiltY: last.tiltY, orientation: last.orientation } : end);
       }
     }
     drawing = false; const activePreview = preview();
@@ -3515,7 +3624,7 @@ function App() {
     }
     if (activePreview) {
       const item: Element = activePreview.type === "pen"
-        ? { type: "freehand", points: [...currentPoints], color: activePreview.color, thickness: activePreview.thickness, opacity: activePreview.opacity }
+        ? { type: "freehand", points: currentPoints, color: activePreview.color, thickness: activePreview.thickness, opacity: activePreview.opacity }
         : { type: activePreview.type, x: activePreview.start.x, y: activePreview.start.y, w: activePreview.end.x - activePreview.start.x, h: activePreview.end.y - activePreview.start.y, color: activePreview.color, thickness: activePreview.thickness, lineStyle: lineStyle(), edgeStyle: edgeStyle(), cornerRadius: cornerRadius(), flowchartShape: activePreview.type === "flowchart" ? activePreview.flowchartShape : undefined, lineRoute: activePreview.type === "line" ? activePreview.lineRoute : undefined, routePoints: activePreview.type === "line" && activePreview.lineRoute === "multi" ? [0.2, 0.4, 0.6, 0.8].map((ratio) => ({ x: activePreview.start.x + (activePreview.end.x - activePreview.start.x) * ratio, y: activePreview.start.y + (activePreview.end.y - activePreview.start.y) * ratio })) : undefined, arrowRoute: activePreview.type === "arrow" ? activePreview.arrowRoute : undefined, ...(fillEnabled() && (activePreview.type === "rectangle" || activePreview.type === "circle" || activePreview.type === "diamond" || activePreview.type === "triangle" || activePreview.type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(activePreview.type === "line" ? { startHead: defaultLineStartHead(), endHead: defaultLineEndHead() } : {}), ...(activePreview.type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead(), ...(activePreview.arrowRoute === "forked" ? { forkUpper: { endHead: defaultForkUpperHead() }, forkLower: { endHead: defaultForkLowerHead() } } : {}) } : {}) } as ShapeElement;
       const valid = activePreview.type === "pen" ? currentPoints.length > 0 : Math.hypot(activePreview.end.x - activePreview.start.x, activePreview.end.y - activePreview.start.y) > 1;
       if (isConnector(item)) {
@@ -3529,7 +3638,10 @@ function App() {
       }
       if (valid) {
         const newIndex = elements().length;
-        pushUndo(cloneElements(elements())); setElements((items) => [...items, item]); setDirty(true);
+        // Appending a stroke preserves existing immutable elements. Reuse them
+        // for undo instead of serializing every previous point on pen-up.
+        pushUndo(item.type === "freehand" ? elements() : cloneElements(elements()));
+        setElements((items) => [...items, item]); setDirty(true);
         if (isConnector(item)) { setSelectedIndices([newIndex]); setSidebarTab("properties"); }
       }
     }
@@ -3558,6 +3670,13 @@ function App() {
     rectangle: "rectangleTool", circle: "circleTool", diamond: "diamondTool", triangle: "triangleTool",
     flowchart: "flowchartTool", text: "textTool", bucket: "bucketTool", eraser: "eraserTool", crop: "cropTool",
   };
+  const stencilCategories = [{ id: "All", label: "All" }, { id: "uml-er", label: "UML / ER" }, { id: "software", label: "Software" }, { id: "cloud", label: "Cloud" }, { id: "network", label: "Network" }, { id: "viz", label: "Data viz" }, { id: "forms", label: "Forms & UI" }, { id: "bpmn", label: "BPMN" }];
+  const stencilGroup = (section: string) => section.startsWith("UML") || section.startsWith("ER") ? "uml-er" : section.startsWith("Software") || section.startsWith("Architecture") ? "software" : section.startsWith("Cloud") ? "cloud" : section.startsWith("Network") ? "network" : section.startsWith("Data visualization") ? "viz" : section.startsWith("Forms") ? "forms" : section.startsWith("BPMN") ? "bpmn" : "other";
+  const visibleStencilComponents = () => {
+    const query = stencilSearch().trim().toLowerCase(); const category = stencilCategory();
+    return LIBRARY_COMPONENTS.filter(item => (category === "All" || stencilGroup(item.section) === category) && (!query || `${item.label} ${item.description} ${item.section}`.toLowerCase().includes(query)));
+  };
+  const visibleStencilSections = () => [...new Set(visibleStencilComponents().map(item => item.section))];
   const toolGroups: { id: string; label: string; tools: Tool[] }[] = readOnlyView() ? [
     { id: "laser", label: "Laser pointer", tools: ["laser"] },
   ] : isWindowsPlatform() ? [
@@ -3634,8 +3753,8 @@ function App() {
     }
     setTextDraft((draft) => draft ? { ...draft, [property]: value } : undefined);
   };
-  const rotateSelection = (delta: number) => { if (boardLocked()) return; const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (!item || item.locked || item.type === "group" || isConnector(item)) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: (element.rotation ?? 0) + delta } as Element : element)); pushUndo(before); setDirty(true); };
-  const resetSelectionRotation = () => { const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (boardLocked() || !item || item.locked || item.type === "group" || (item.rotation ?? 0) === 0) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: 0 } as Element : element)); pushUndo(before); setDirty(true); };
+  const rotateSelection = (delta: number) => { if (boardLocked()) return; const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (!item || item.locked || item.type === "group" && !item.libraryComponent || isConnector(item)) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: (element.rotation ?? 0) + delta } as Element : element)); pushUndo(before); setDirty(true); };
+  const resetSelectionRotation = () => { const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (boardLocked() || !item || item.locked || item.type === "group" && !item.libraryComponent || (item.rotation ?? 0) === 0) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: 0 } as Element : element)); pushUndo(before); setDirty(true); };
   const closeSystemMenu = (action: () => void) => { if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (helpMenu) helpMenu.open = false; if (portraitMenu) portraitMenu.open = false; action(); };
   const openPortraitMenuPanel = (target: HTMLDetailsElement) => {
     if (portraitMenu) portraitMenu.open = false;
@@ -3774,13 +3893,16 @@ function App() {
   const renderToolbarTool = ({ value, label, key, path }: typeof tools[number]) => {
     const active = (value === "pen" ? tool() === "pen" && brushMode() === "fine" : tool() === value) || (value === "pan" && spaceDown());
     const hasOptions = value === "flowchart" || value === "line" || value === "arrow" || value === "text";
+    const displayLabel = isWindowsPlatform() && value === "flowchart" ? "Shapes" : label;
     const mobileEssential = mobileEssentialTools.has(value);
     const shortcutId = shortcutIdByTool[value];
     const bindings = shortcutId ? shortcuts()[shortcutId] : undefined;
     const displayedKey = displayShortcut(bindings?.find(Boolean) ?? key);
     const shortcutLabel = bindings ? formatShortcutBindings(bindings) || key : key;
-    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${label} (${shortcutLabel})${hasOptions ? " · click or hover for options" : ""}`} aria-label={label} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (hasOptions) { if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{value === "flowchart" ? <><g class="desktop-flowchart-icon"><path d={path} /></g><g class="touch-flowchart-icon"><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></g></> : <path d={path} />}</svg><kbd>{displayedKey}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
-    if (value === "flowchart") return <div class="tool-family flowchart-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options flowchart-options" role="menu" aria-label="Flowchart symbols">{FLOWCHART_MENU_SHAPES.map((shape) => <button class={flowchartShape() === shape.value ? "active" : ""} role="menuitem" title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setFlowchartShape(shape.value); setTool("flowchart"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div></div>;
+    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${displayLabel} (${shortcutLabel})${hasOptions ? " · click or hover for options" : ""}`} aria-label={displayLabel} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (hasOptions) { if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{value === "flowchart" ? <><g class="desktop-flowchart-icon"><path d={path} /></g><g class="touch-flowchart-icon"><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></g></> : <path d={path} />}</svg><kbd>{displayedKey}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
+    if (value === "flowchart") return <div class="tool-family flowchart-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}{isWindowsPlatform()
+      ? <WindowsShapePalette activeTool={tool()} activeFlowchartShape={flowchartShape()} onSelect={(choice: WindowsShapeChoice) => { closeToolOptions(); if (choice.kind === "flowchart") { setFlowchartShape(choice.shape); setTool("flowchart"); } else setTool(choice.tool); setSidebarTab("properties"); setSelectedIndices([]); }} />
+      : <div class="tool-options flowchart-options" role="menu" aria-label="Flowchart symbols">{FLOWCHART_MENU_SHAPES.map((shape) => <button class={flowchartShape() === shape.value ? "active" : ""} role="menuitem" title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setFlowchartShape(shape.value); setTool("flowchart"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div>}</div>;
     if (value === "text") return <div class="tool-family text-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options text-options" role="menu" aria-label="Text and note tools">
       <button role="menuitem" title="Place plain text" onClick={() => { closeToolOptions(); setTextMode("text"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M4 6h16M12 6v13m-4 0h8"/></svg><span>Text</span></button>
       <button role="menuitem" title="Write an editable, collapsible Markdown card" onClick={() => { closeToolOptions(); setTextMode("markdown"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M3 6h18M5 11h4l3 4 3-4h4M5 19h14"/><path d="m18 2 3 3-3 3"/></svg><span>Markdown text</span></button>
@@ -3844,6 +3966,108 @@ function App() {
     const availableWithoutDocument = new Set(["new", "open", "shortcuts", "toggle-grid", "toggle-rulers", "toggle-minimap", "snap-grid", "snap-objects"]);
     return activePath() ? commands : commands.filter(command => availableWithoutDocument.has(command.id));
   });
+
+  const renderLibraryComponentEditor = (readGroup: () => GroupElement, isDraft: boolean) => {
+    const group = readGroup;
+    const kind = () => group().libraryComponent?.kind ?? "custom";
+    const optionsFor = (component: GroupElement) => {
+      const stored = component.libraryComponent?.formOptions;
+      return stored?.length ? stored : defaultLibraryFormOptions(component.libraryComponent?.kind as LibraryComponentKind) ?? [];
+    };
+    const options = () => optionsFor(group());
+    const chartData = () => group().libraryComponent?.chartData ?? defaultLibraryChartData(kind() as LibraryComponentKind) ?? { labels: ["Item 1"], values: [0] };
+    const changeGroup = (operation: (current: GroupElement) => GroupElement) => {
+      if (isDraft) setLibraryComponentDraft(current => current ? operation(current) : current);
+      else updateSelectedLibraryComponent(operation);
+    };
+    const changeSize = (axis: "w" | "h", value: number) => {
+      if (!Number.isFinite(value)) return;
+      changeGroup(current => { const bounds = elementBounds(current); return resizeLibraryGroup(current, { ...bounds, [axis]: Math.max(axis === "w" ? 60 : 40, Math.min(4000, value)) }); });
+    };
+    const changeOption = (index: number, value: string) => changeGroup(current => { const next = [...optionsFor(current)]; next[index] = value.slice(0, 120); return rebuildLibraryFormOptions(current, next); });
+    const changeSelectedOption = (index: number) => changeGroup(current => current.libraryComponent?.kind === "form-radio" ? setLibraryRadioOption(current, index) : rebuildLibraryFormOptions(current, optionsFor(current), index));
+    const addOption = () => changeGroup(current => rebuildLibraryFormOptions(current, [...optionsFor(current), `Option ${optionsFor(current).length + 1}`]));
+    const removeOption = () => changeGroup(current => rebuildLibraryFormOptions(current, optionsFor(current).slice(0, -1)));
+    const updateChart = (operation: (data: LibraryChartData) => LibraryChartData) => changeGroup(current => {
+      const previous = current.libraryComponent?.chartData ?? defaultLibraryChartData(current.libraryComponent?.kind as LibraryComponentKind)!;
+      const next = operation(previous);
+      const values = next.values.map(value => Number.isFinite(value) ? Math.max(-1_000_000_000, Math.min(1_000_000_000, value)) : 0);
+      return { ...current, libraryComponent: { ...current.libraryComponent!, chartData: { ...next, values } } };
+    });
+    const setMetricTrend = (trendDirection: "up" | "down" | "steady") => changeGroup(current => setLibraryChartTrend(current, trendDirection));
+    const updateMetricDatum = (index: number, value: number) => updateChart(data => {
+      const labels = [...data.labels]; const values = [...data.values];
+      while (labels.length <= index) { labels.push(index === 0 ? "Value" : "Change"); values.push(0); }
+      values[index] = value;
+      return { ...data, labels, values };
+    });
+    const updateMetricCaption = (value: string) => updateChart(data => {
+      const labels = [...data.labels]; const values = [...data.values];
+      while (labels.length < 2) { labels.push("Change"); values.push(0); }
+      labels[1] = value;
+      return { ...data, labels, values };
+    });
+    const locked = () => !isDraft && (boardLocked() || !!group().locked);
+    return <div class="component-editor-content">
+      <div class="precision-grid component-size-grid"><label>Width<input aria-label="Component width" type="number" min="60" max="4000" value={Math.round(elementBounds(group()).w)} disabled={locked()} onChange={event => changeSize("w", Number(event.currentTarget.value))} /></label><label>Height<input aria-label="Component height" type="number" min="40" max="4000" value={Math.round(elementBounds(group()).h)} disabled={locked()} onChange={event => changeSize("h", Number(event.currentTarget.value))} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="160" value={libraryComponentFontSize(group())} disabled={locked()} onChange={event => changeGroup(current => resizeLibraryFont(current, Number(event.currentTarget.value)))} /></label></div>
+      <Show when={kind() === "form-toggle"}>
+        <label class="property-label component-form-title">Title<input aria-label="Toggle title" maxlength="80" value={group().libraryComponent?.formTitle ?? defaultLibraryFormTitle(kind() as LibraryComponentKind) ?? ""} disabled={locked()} onInput={event => changeGroup(current => setLibraryFormTitle(current, event.currentTarget.value))} /></label>
+        <label class="component-state-control"><input type="checkbox" checked={group().libraryComponent?.formState ?? true} disabled={locked()} onChange={event => changeGroup(current => setLibraryFormState(current, event.currentTarget.checked))} /><span class="component-switch" aria-hidden="true" /><strong>{group().libraryComponent?.formState === false ? "Off" : "On"}</strong></label>
+      </Show>
+      <Show when={kind() === "form-radio" || kind() === "form-select" || kind() === "form-button" || kind() === "form-checkbox"}>
+        <section class="component-options-editor">
+          <header><strong>{kind() === "form-button" ? "Button choices" : kind() === "form-checkbox" ? "Checkbox options" : kind() === "form-radio" ? "Radio options" : "Select options"}</strong><span>{options().length}/12</span></header>
+          <Show when={kind() === "form-checkbox" || kind() === "form-radio" || kind() === "form-select"}>
+            <label class="property-label component-form-title">Title<input aria-label="Choice group title" maxlength="80" value={group().libraryComponent?.formTitle ?? defaultLibraryFormTitle(kind() as LibraryComponentKind) ?? ""} disabled={locked()} onInput={event => changeGroup(current => setLibraryFormTitle(current, event.currentTarget.value))} /></label>
+          </Show>
+          <div class="component-option-list"><For each={options().map((_, index) => index)}>{index => <div class="component-option-row">
+            <span>{index + 1}</span>
+            <Show when={kind() === "form-checkbox"}><input class="component-option-check" type="checkbox" aria-label={`Select ${options()[index] || `option ${index + 1}`}`} checked={group().libraryComponent?.formStates?.[index] ?? index === 0} disabled={locked()} onChange={event => changeGroup(current => setLibraryCheckboxOption(current, index, event.currentTarget.checked))} /></Show>
+            <Show when={kind() === "form-radio"}><input class="component-option-radio" type="radio" name={`component-radio-${group().id}`} aria-label={`Choose ${options()[index] || `option ${index + 1}`}`} checked={(group().libraryComponent?.selectedOption ?? 0) === index} disabled={locked()} onChange={() => changeGroup(current => setLibraryRadioOption(current, index))} /></Show>
+            <input aria-label={`Option ${index + 1} name`} maxlength="120" value={options()[index]} disabled={locked()} onInput={event => changeOption(index, event.currentTarget.value)} />
+          </div>}</For></div>
+          <div class="component-option-actions"><button type="button" disabled={locked() || options().length <= 1} onClick={removeOption}>Remove</button><button type="button" disabled={locked() || options().length >= 12} onClick={addOption}>Add option</button></div>
+        </section>
+        <Show when={kind() === "form-select" || kind() === "form-button"}><label class="property-label">Preview choice<select value={group().libraryComponent?.selectedOption ?? 0} disabled={locked()} onChange={event => changeSelectedOption(Number(event.currentTarget.value))}>{options().map((option, index) => <option value={index}>{option || `Option ${index + 1}`}</option>)}</select></label></Show>
+      </Show>
+      <Show when={kind().startsWith("viz-")}>
+        <>
+          <div class="component-appearance-choice" role="group" aria-label="Chart style">
+            <span>Style</span>
+            {(["simple", "modern"] as const).map(appearance => <button
+              type="button"
+              class={(group().libraryComponent?.appearance ?? componentAppearance()) === appearance ? "active" : ""}
+              aria-pressed={(group().libraryComponent?.appearance ?? componentAppearance()) === appearance}
+              disabled={locked()}
+              onClick={() => changeGroup(current => ({ ...current, libraryComponent: { ...current.libraryComponent!, appearance } }))}
+            >{appearance === "simple" ? "Simple" : "Modern"}</button>)}
+          </div>
+          <div class="component-chart-editor">
+            <label class="property-label">{kind() === "viz-kpi" ? "Metric title" : "Chart title"}<input maxlength="80" value={chartData().title ?? "Chart"} disabled={locked()} onInput={event => updateChart(data => ({ ...data, title: event.currentTarget.value }))} /></label>
+            <Show when={kind() === "viz-kpi"}>
+              <div class="component-kpi-editor">
+                <label class="property-label">Value<input aria-label="Metric value" type="number" step="any" value={chartData().values[0] ?? 0} disabled={locked()} onInput={event => { const value = event.currentTarget.valueAsNumber; if (Number.isFinite(value)) updateMetricDatum(0, value); }} /></label>
+                <label class="property-label">Change caption<input aria-label="Metric change caption" maxlength="60" value={chartData().labels[1] ?? "Change"} disabled={locked()} onInput={event => updateMetricCaption(event.currentTarget.value)} /></label>
+                <label class="property-label">Change (%)<input aria-label="Metric change percent" type="number" step="any" value={chartData().values[1] ?? 0} disabled={locked()} onInput={event => { const value = event.currentTarget.valueAsNumber; if (Number.isFinite(value)) updateMetricDatum(1, value); }} /></label>
+              </div>
+              <div class="component-trend-control" role="group" aria-label="Metric trend direction"><span>Trend direction</span><div>{([{ value: "up", label: "Rising" }, { value: "down", label: "Falling" }, { value: "steady", label: "Steady" }] as const).map(option => <button type="button" class={(group().libraryComponent?.trendDirection ?? ((chartData().values[1] ?? 0) > 0 ? "up" : (chartData().values[1] ?? 0) < 0 ? "down" : "steady")) === option.value ? "active" : ""} aria-pressed={(group().libraryComponent?.trendDirection ?? ((chartData().values[1] ?? 0) > 0 ? "up" : (chartData().values[1] ?? 0) < 0 ? "down" : "steady")) === option.value} disabled={locked()} onClick={() => setMetricTrend(option.value)}>{option.label}</button>)}</div></div>
+            </Show>
+            <Show when={kind() !== "viz-pie" && kind() !== "viz-donut" && kind() !== "viz-kpi"}><div class="component-chart-axis-row"><label class="property-label">X axis<input maxlength="80" value={chartData().xAxisLabel ?? ""} disabled={locked()} onInput={event => updateChart(data => ({ ...data, xAxisLabel: event.currentTarget.value }))} /></label><label class="property-label">Y axis<input maxlength="80" value={chartData().yAxisLabel ?? ""} disabled={locked()} onInput={event => updateChart(data => ({ ...data, yAxisLabel: event.currentTarget.value }))} /></label></div></Show>
+            <Show when={kind() !== "viz-kpi"}>
+              <div class="component-chart-data">
+                <div class="component-chart-data-heading"><strong>Data points</strong><span>{chartData().labels.length}/12</span></div>
+                <div class="component-chart-row component-chart-row-heading"><span>{kind() === "viz-pie" || kind() === "viz-donut" ? "Category" : "Label"}</span><span>Value</span><span></span></div>
+                <For each={chartData().labels.map((_, index) => index)}>{index => <div class="component-chart-row"><input aria-label={`Chart label ${index + 1}`} maxlength="60" value={chartData().labels[index]} disabled={locked()} onInput={event => updateChart(data => ({ ...data, labels: data.labels.map((label, current) => current === index ? event.currentTarget.value : label) }))} /><input aria-label={`Chart value ${index + 1}`} type="number" step="any" value={chartData().values[index]} disabled={locked()} onInput={event => { const value = event.currentTarget.valueAsNumber; if (Number.isFinite(value)) updateChart(data => ({ ...data, values: data.values.map((currentValue, current) => current === index ? value : currentValue) })); }} /><button type="button" class="component-chart-remove" aria-label={`Remove data point ${index + 1}`} disabled={locked() || chartData().labels.length <= 1} onClick={() => updateChart(data => ({ ...data, labels: data.labels.filter((_, current) => current !== index), values: data.values.filter((_, current) => current !== index) }))}>×</button></div>}</For>
+                <div class="component-option-actions"><button type="button" disabled={locked() || chartData().labels.length >= 12} onClick={() => updateChart(data => ({ ...data, labels: [...data.labels, `Item ${data.labels.length + 1}`], values: [...data.values, 0] }))}>Add data point</button></div>
+              </div>
+            </Show>
+          </div>
+        </>
+      </Show>
+      <Show when={libraryComponentFields(group()).length > 0}><div class="component-field-list"><For each={libraryComponentFields(group()).map(field => field.key)}>{key => { const field = () => libraryComponentFields(group()).find(entry => entry.key === key)!; return <label class="property-label"><span>{field().label}</span><textarea data-component-field-key={key} rows={Math.min(4, Math.max(1, field().value.split(/\r?\n/).length))} maxlength="2000" value={field().value} disabled={locked()} onInput={event => changeGroup(current => setLibraryComponentField(current, key, event.currentTarget.value))} /></label>; }}</For></div></Show>
+      <Show when={isDraft}><div class="component-draft-actions"><button type="button" class="quiet-button" onClick={() => setLibraryComponentDraft(undefined)}>Cancel</button><button type="button" class="save-button" disabled={boardLocked()} onClick={commitLibraryComponentDraft}>Add to canvas</button></div></Show>
+    </div>;
+  };
 
   return (
     <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-tools-expanded": mobileToolsExpanded(), "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() !== "canvas", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentColor()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 62%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
@@ -3981,6 +4205,7 @@ function App() {
               thicknessPickerMode={thicknessPickerMode()}
               isLine={quickElementType() === "line"}
               isArrow={quickElementType() === "arrow"}
+              straightOnly={quickShapeSelection()?.straightOnly ?? false}
               isFlowchart={quickElementType() === "flowchart"}
               color={selectedColor()}
               width={selectedThickness()}
@@ -4057,7 +4282,7 @@ function App() {
               <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown and note content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write Markdown…\n\nUse # headings, **bold**, lists, tables, and fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); if (event.key === "Escape" && isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } } }} />
             </div>}</Show>
             <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
-            <Show when={showRulers()}><Suspense fallback={null}><CanvasRulers width={canvasWrap.clientWidth} height={canvasWrap.clientHeight} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} /></Suspense></Show>
+            <Show when={showRulers()}><Suspense fallback={null}><CanvasRulers width={canvasWrap.clientWidth} height={canvasWrap.clientHeight} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} windows={isWindowsPlatform()} /></Suspense></Show>
             <Show when={showMinimap()}><Suspense fallback={null}><CanvasMinimap elements={elements()} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} viewportWidth={canvas.clientWidth} viewportHeight={canvas.clientHeight} onNavigate={center => setCanvasState(current => ({ ...current, panX: canvas.clientWidth / 2 - center.x * current.zoom, panY: canvas.clientHeight / 2 - center.y * current.zoom }))} onClose={() => { setShowMinimap(false); try { localStorage.setItem("sketchdraw-canvas-minimap", "false"); } catch { /* The current view still updates. */ } }} /></Suspense></Show>
             <Show when={presentationMode()}><div class="canvas-presentation-controls"><button title="Previous page" aria-label="Previous page" disabled={pages().findIndex(page => page.id === activePageId()) <= 0} onClick={() => changePresentationPage(-1)}>‹</button><span>{currentPage()?.name ?? "Sketch"}</span><button title="Next page" aria-label="Next page" disabled={pages().findIndex(page => page.id === activePageId()) >= pages().length - 1} onClick={() => changePresentationPage(1)}>›</button><button title="Exit presentation mode" onClick={() => void togglePresentationMode(false)}>Exit</button></div></Show>
             <Show when={deletableSelectionCount() > 1}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected elements`} aria-label={`Delete ${deletableSelectionCount()} selected elements`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
@@ -4114,15 +4339,14 @@ function App() {
               {toolGroups.map((group) => <div class={`tool-cluster tool-cluster-${group.id}`} classList={{ "mobile-cluster-has-essential": group.tools.some(value => mobileEssentialTools.has(value)), "mobile-cluster-has-current": group.tools.includes(tool()) }} role="group" aria-label={group.label}>{tools.filter((item) => group.tools.includes(item.value)).map(renderToolbarTool)}</div>)}
               <div class="tool-family tool-extra-family paint-brush-family" classList={{ "options-open": paintBrushMenuOpen(), "mobile-tool-current": tool() === "pen" && brushMode() !== "fine" }}><button class={`tool-icon-button has-options ${tool() === "pen" && brushMode() !== "fine" ? "selected" : ""}`} title="Paint brushes" aria-label="Paint brushes" aria-haspopup="menu" aria-expanded={paintBrushMenuOpen()} onClick={() => setPaintBrushMenuOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m14 4 6 6M5 18c2-2 4-1 6-3l7-7-6-6-7 7c-2 2-1 4-3 6-.7.7-.4 2.4 1 3 1.2.5 2 .1 2-.4Z"/></svg><kbd>BR</kbd><svg class="tool-family-caret" viewBox="0 0 12 12"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button><div class="tool-options paint-brush-options" role="menu" aria-label="Paint brush tools">{([ ["pencil", "Pencil"], ["brush", "Soft brush"], ["marker", "Marker"], ["highlighter", "Highlighter"], ["chalk", "Chalk"] ] as const).map(([mode, label]) => <button class={brushMode() === mode ? "active" : ""} role="menuitem" onClick={() => { setBrushMode(mode); setTool("pen"); setSelectedIndices([]); setPaintBrushMenuOpen(false); }}><svg viewBox="0 0 24 24"><path d={mode === "pencil" ? "m5 19 11-11 3 3L8 22H5zm10-13 2-2 4 4-2 2" : mode === "brush" ? "M5 18c4 0 3-8 8-8 4 0 4 4 7 4m-15 4h14M15 5l3 3" : mode === "marker" ? "M5 18 17 6l3 3L8 21H5zm9-9 3 3" : mode === "highlighter" ? "M4 16 15 5l5 5-11 11H4zm4-2 5 5" : "M5 18 17 6m-8 12 2 2M4 21h16"}/></svg><span>{label}</span></button>)}</div></div>
               <div class="tool-family tool-extra-family stencil-family" classList={{ "options-open": stencilMenuOpen() }} onFocusOut={event => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) setStencilMenuOpen(false); }}>
-                <button class="tool-icon-button has-options" title="Symbols and modeling components" aria-label="Symbols and modeling components" aria-haspopup="menu" aria-expanded={stencilMenuOpen()} onClick={() => setStencilMenuOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="M3 5h7v7H3zM14 4l7 4-4 7-7-4zM4 16h7v5H4zM15 17h6v4h-6z"/></svg><kbd>LIB</kbd><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button>
-                <div class="tool-options stencil-options" role="menu" aria-label="Symbols and diagram components">
-                  <strong class="tool-options-heading">Symbols &amp; elements</strong>
-                  {EXTRA_FLOWCHART_SHAPES.map(shape => <button type="button" role="menuitem" title={shape.label} onClick={() => { setFlowchartShape(shape.value); setTool("flowchart"); setSelectedIndices([]); setSidebarTab("properties"); setStencilMenuOpen(false); }}><svg viewBox="0 0 24 24"><path d={FLOWCHART_SHAPES.find(item => item.value === shape.value)?.path ?? "M4 4h16v16H4z"}/></svg><span>{shape.label}</span></button>)}
-                  {[...new Set(LIBRARY_COMPONENTS.map(component => component.section))].map(section => <><strong class="tool-options-heading stencil-heading">{section}</strong>{LIBRARY_COMPONENTS.filter(component => component.section === section).map(component => <button type="button" class="stencil-template" role="menuitem" title={component.description} onClick={() => component.kind === "er-table" ? openSchemaDialog(undefined, "CREATE TABLE table_name (\n  id INTEGER PRIMARY KEY,\n  name TEXT\n);") : component.kind === "uml-class" ? (() => { const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; const rect = canvas!.getBoundingClientRect(); const view = canvasState(); openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind)}>{libraryIcon(component.kind)}<span>{component.label}</span></button>)}</>)}
-                  <strong class="tool-options-heading stencil-heading">Database schema</strong>
-                  <button type="button" class="stencil-template" role="menuitem" title="Paste SQL or JSON schema to create linked table cards" onClick={() => openSchemaDialog()}><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/><path d="M7 15h4m-4 5h4" stroke-width="2"/></svg><span>Visualize schema</span></button>
-                </div>
-              </div>              <div class="tool-cluster tool-cluster-history mobile-cluster-has-essential" role="group" aria-label="History, selection, and canvas state">
+                <button class="tool-icon-button has-options" title="Modeling components" aria-label="Modeling components" aria-haspopup="menu" aria-expanded={stencilMenuOpen()} onClick={() => setStencilMenuOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="M3 5h7v7H3zM14 4l7 4-4 7-7-4zM4 16h7v5H4zM15 17h6v4h-6z"/></svg><kbd>MOD</kbd><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button>
+                <div class="tool-options stencil-options" role="dialog" aria-label="Modeling components">
+                  <div class="stencil-picker-heading"><div><strong>Modeling library</strong><small>Original SketchDraw diagram components</small></div><label class="stencil-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input type="search" aria-label="Search modeling components" placeholder="Search library" value={stencilSearch()} onInput={event => setStencilSearch(event.currentTarget.value)} /></label></div>
+                  <div class="stencil-featured-actions"><button type="button" class="stencil-schema-action" title="Paste SQL or JSON to create linked table cards" onClick={() => openSchemaDialog()}><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/><path d="M8 16h8m-8 4h5"/></svg><span><strong>Visualize database schema</strong><small>Generate linked tables from SQL or JSON</small></span><kbd>SQL</kbd></button></div>
+                  <div class="stencil-category-filter" role="group" aria-label="Filter diagram library">{stencilCategories.map(category => <button type="button" class={stencilCategory() === category.id ? "active" : ""} aria-pressed={stencilCategory() === category.id} onClick={() => setStencilCategory(category.id)}>{category.label}</button>)}</div>
+                  {visibleStencilSections().map(section => <><strong class={"tool-options-heading stencil-heading stencil-heading-" + stencilGroup(section)}>{section}</strong>{visibleStencilComponents().filter(component => component.section === section).map(component => <button type="button" class={"stencil-template stencil-" + stencilGroup(component.section)} title={component.description} aria-label={component.label + ". " + component.description} onClick={() => component.kind === "er-table" ? openSchemaDialog(undefined, "CREATE TABLE table_name (\n  id INTEGER PRIMARY KEY,\n  name TEXT\n);") : component.kind === "uml-class" ? (() => { const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; const rect = canvas!.getBoundingClientRect(); const view = canvasState(); openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind)}><span class="stencil-symbol">{libraryIcon(component.kind)}</span><span class="stencil-template-copy"><strong>{component.label}</strong><small>{component.description}</small></span></button>)}</>)}
+                  {visibleStencilComponents().length === 0 && <p class="stencil-empty">No matches. Try another search or category.</p>}
+                </div></div>              <div class="tool-cluster tool-cluster-history mobile-cluster-has-essential" role="group" aria-label="History, selection, and canvas state">
                 <button class={layerPanelOpen() ? "tool-icon-button canvas-utility-button mobile-tool-extra selected" : "tool-icon-button canvas-utility-button mobile-tool-extra"} title="Layers" aria-label="Open layers panel" aria-pressed={layerPanelOpen()} onClick={() => setLayerPanelOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4"/></svg></button>
                 <Show when={deletableSelectionCount() > 0}><button class="tool-icon-button mobile-tool-essential touch-selection-delete" disabled={boardLocked()} title={`Erase ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} aria-label={`Erase ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6" /></svg><small class="touch-selection-count">{deletableSelectionCount()}</small></button></Show>
                 <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canUndo() || boardLocked()} title={`Undo (${formatShortcutBindings(shortcuts().undo)})`} aria-label="Undo" onClick={undo}><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg><kbd>{displayShortcut(shortcuts().undo.find(Boolean) || "Ctrl+Z")}</kbd></button>
@@ -4180,8 +4404,8 @@ function App() {
                       <button class={`quick-style-icon ${fillEnabled() || !!selectedFillColor() ? "active" : ""}`} onClick={() => setQuickStylePopover(quickStylePopover() === "fill" ? undefined : "fill")} aria-label="Shape fill" title="Shape fill" aria-expanded={quickStylePopover() === "fill"}><svg class="quick-fill-preview-icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" style={{ fill: selectedFillColor() ?? (fillEnabled() ? fillColor() : "#ffffff") }} /><path d="M4 4h16v16H4z" /></svg></button>
                     </Show>
                     <Show when={quickIsConnector()}>
-                      <button class="quick-style-icon" onClick={() => setQuickStylePopover(quickStylePopover() === "lineStyle" ? undefined : "lineStyle")} aria-label="Line style" title="Line style" aria-expanded={quickStylePopover() === "lineStyle"}><svg viewBox="0 0 24 24" class={`line-preview ${quickCurrentLineStyle()}`}><path d="M3 12h18" /></svg></button>
-                      <button class="quick-style-icon" onClick={() => setQuickStylePopover(quickStylePopover() === "route" ? undefined : "route")} aria-label="Connector route" title="Connector route" aria-expanded={quickStylePopover() === "route"}><svg viewBox="0 0 24 24"><path d={(quickRouteChoices().find(route => route.value === quickCurrentRoute()) ?? quickRouteChoices()[0]).path} /></svg></button>
+                      <button class="quick-style-icon" onClick={() => setQuickStylePopover(quickStylePopover() === "lineStyle" ? undefined : "lineStyle")} aria-label="Line style" title="Line style" aria-expanded={quickStylePopover() === "lineStyle"}><svg class={`line-preview ${quickCurrentLineStyle()}`} viewBox="0 0 24 24"><path d={quickCurrentLineStyle() === "double" ? "M3 9h18M3 15h18" : "M3 12h18"} /></svg></button>
+                      <Show when={!quickShapeSelection()?.straightOnly}><button class="quick-style-icon" onClick={() => setQuickStylePopover(quickStylePopover() === "route" ? undefined : "route")} aria-label="Connector route" title="Connector route" aria-expanded={quickStylePopover() === "route"}><svg viewBox="0 0 24 24"><path d={(quickRouteChoices().find(route => route.value === quickCurrentRoute()) ?? quickRouteChoices()[0]).path} /></svg></button></Show>
                     </Show>
                     <Show when={quickIsConnector()}>
                       <button class="quick-style-icon" onClick={() => setQuickStylePopover(quickStylePopover() === "heads" ? undefined : "heads")} aria-label="Connector arrowheads" title="Connector arrowheads" aria-expanded={quickStylePopover() === "heads"}><ArrowHeadIcon kind={quickArrowHead("end")} /></button>
@@ -4223,7 +4447,7 @@ function App() {
                     <Show when={quickStylePopover() === "lineStyle"}>
                       <div class="quick-style-popover quick-line-styles">{(["solid", "dashed", "dotted", "double"] as const).map(value => <button class={quickCurrentLineStyle() === value ? "active" : ""} aria-label={`${value} line`} title={`${value} line`} onClick={() => { if (quickFocusedHasLineStyle()) updateProperty("lineStyle", value); else setLineStyle(value); setQuickStylePopover(undefined); }}><svg viewBox="0 0 24 24" class={`line-preview ${value}`}><path d={value === "double" ? "M3 9h18M3 15h18" : "M3 12h18"} /></svg></button>)}</div>
                     </Show>
-                    <Show when={quickStylePopover() === "route"}>
+                    <Show when={quickStylePopover() === "route" && !quickShapeSelection()?.straightOnly}>
                       <div class="quick-style-popover quick-routes">{quickRouteChoices().map(route => <button class={quickCurrentRoute() === route.value ? "active" : ""} aria-label={route.label} title={route.label} onClick={() => { if (quickElementType() === "arrow") { if (styleTargetElement()?.type === "arrow") updateProperty("arrowRoute", route.value); else setArrowRoute(route.value as ArrowRoute); } else { if (styleTargetElement()?.type === "line") updateProperty("lineRoute", route.value); else setLineRoute(route.value as LineRoute); } setQuickStylePopover(undefined); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg></button>)}</div>
                     </Show>
                     <Show when={quickStylePopover() === "heads" && quickIsConnector()}>
@@ -4236,9 +4460,10 @@ function App() {
               <div class="full-style-heading"><strong>Properties</strong><button onClick={() => { setStyleMenuMode("quick"); setQuickStylePopover(undefined); }}>Quick style</button></div>
 
               <Show when={sidebarTab() === "properties"}>
-                <Show when={selectedNoteCard()}>{card => <section class="pane-section note-card-properties"><div class="pane-heading">{card().note?.kind === "sticky" ? "Sticky note" : card().note?.kind === "checklist" ? "Checklist" : card().note?.title?.toLowerCase().includes("markdown") ? "Markdown" : "Note + code"}<button class="note-collapse-action" disabled={boardLocked() || card().locked} onClick={() => { const index = primarySelection(); if (index !== undefined) toggleNoteCollapsed(index); }}>{card().note?.collapsed ? "Expand" : "Collapse"}</button></div><label class="property-label">Title<input aria-label="Card title" maxlength="120" value={card().note?.title ?? defaultNoteTitle(card().note!.kind)} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label><Show when={card().note?.kind === "note"}><button class="quiet-button" disabled={boardLocked() || card().locked} onClick={convertSelectedMarkdownToText}>Convert to plain text</button></Show><p class="bucket-help">Double-click to edit Markdown and notes. Resize to change the layout; text size stays fixed.</p></section>}</Show>
-                <Show when={focusedElement()?.type === "text"}><section class="pane-section"><div class="pane-heading">Text</div><button class="quiet-button" disabled={boardLocked() || focusedElement()?.locked} onClick={convertSelectedTextToMarkdown}>Convert to Markdown card</button><p class="bucket-help">The text remains editable in a collapsible Markdown card.</p></section></Show>
-      <Show when={focusedElement()?.type === "schemaTable"}><section class="pane-section"><div class="pane-heading">Table schema</div><label class="property-label">Font size<input type="number" min="8" max="48" step="1" value={(focusedElement() as SchemaTableElement | undefined)?.fontSize ?? 14} onChange={event => updateProperty("fontSize", Math.round(Number(event.currentTarget.value)))} /></label><p class="bucket-help">The table grows to keep every row legible.</p></section></Show>
+                <Show when={selectedNoteCard()}>{card => <section class="pane-section note-card-properties"><div class="pane-heading">{card().note?.kind === "sticky" ? "Sticky note" : card().note?.kind === "checklist" ? "Checklist" : card().note?.title?.toLowerCase().includes("markdown") ? "Markdown" : "Note + code"}<button class="note-collapse-action" disabled={boardLocked() || card().locked} onClick={() => { const index = primarySelection(); if (index !== undefined) toggleNoteCollapsed(index); }}>{card().note?.collapsed ? "Expand" : "Collapse"}</button></div><label class="property-label">Title<input aria-label="Card title" maxlength="120" value={card().note?.title ?? defaultNoteTitle(card().note!.kind)} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label><Show when={card().note?.kind === "note"}><button class="quiet-button" disabled={boardLocked() || card().locked} onClick={convertSelectedMarkdownToText}>Convert to plain text</button></Show></section>}</Show>
+
+                <Show when={focusedElement()?.type === "text"}><section class="pane-section"><div class="pane-heading">Text</div><button class="quiet-button" disabled={boardLocked() || focusedElement()?.locked} onClick={convertSelectedTextToMarkdown}>Convert to Markdown card</button></section></Show>
+      <Show when={focusedElement()?.type === "schemaTable"}><section class="pane-section"><div class="pane-heading">Table schema</div><label class="property-label">Font size<input type="number" min="8" max="48" step="1" value={(focusedElement() as SchemaTableElement | undefined)?.fontSize ?? 14} onChange={event => updateProperty("fontSize", Math.round(Number(event.currentTarget.value)))} /></label></section></Show>
                 <Show when={showStrokeControls()}><section class="pane-section"><div class="pane-heading">{tool() === "text" || focusedElement()?.type === "text" ? "Text color" : "Stroke color"}</div><div class="swatch-list stroke-swatches">{swatches.map((swatch) => <button class={`color-swatch ${selectedColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Set color ${swatch}`} title={swatch} onClick={() => updateStrokeColor(swatch)} />)}<label class="custom-color-swatch stroke-custom-swatch" title="Custom stroke color"><input aria-label="Custom stroke color" type="color" value={selectedColor()} onInput={(event) => updateStrokeColor(event.currentTarget.value)} /></label></div></section></Show>
                     <Show when={showThicknessControls()}>
                     <section class="pane-section">
@@ -4257,29 +4482,45 @@ function App() {
                       </Show>
                     </section>
                   </Show>
-                <Show when={tool() === "text" || selectedText() || focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Text formatting</div><div class="format-row"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button></div><label class="property-label">Font size<input type="number" min="8" max="160" step="1" value={selectedText()?.fontSize ?? defaultFontSize()} onInput={(event) => setTextFormat("fontSize", Math.round(Number(event.currentTarget.value)))} /></label><div class="property-label">Font family<div class="choice-deck"><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "sans" ? "active" : ""} title="Modern sans-serif" aria-label="Modern sans-serif font" onClick={() => setTextFormat("fontFamily", "sans")}><span class="font-sans-icon">Aa</span><small>Sans</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""} title="Handwritten" aria-label="Handwritten font" onClick={() => setTextFormat("fontFamily", "hand")}><span class="font-hand-icon">Aa</span><small>Hand</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "serif" ? "active" : ""} title="Serif" aria-label="Serif font" onClick={() => setTextFormat("fontFamily", "serif")}><span style={{ "font-family": "Georgia,serif" }}>Aa</span><small>Serif</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "mono" ? "active" : ""} title="Monospaced" aria-label="Monospaced font" onClick={() => setTextFormat("fontFamily", "mono")}><span style={{ "font-family": "monospace" }}>Aa</span><small>Mono</small></button></div></div><div class="property-label">Alignment<div class="choice-deck compact"><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "left" ? "active" : ""} title="Align left" aria-label="Align left" onClick={() => setTextFormat("textAlign", "left")}><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "center" ? "active" : ""} title="Align center" aria-label="Align center" onClick={() => setTextFormat("textAlign", "center")}><svg viewBox="0 0 24 24"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "right" ? "active" : ""} title="Align right" aria-label="Align right" onClick={() => setTextFormat("textAlign", "right")}><svg viewBox="0 0 24 24"><path d="M4 5h16M9 10h11M4 15h16M9 20h11"/></svg></button></div></div><div class="property-label">Paragraphs<div class="choice-deck compact"><button class={(selectedText()?.listType ?? defaultListType()) === "none" ? "active" : ""} title="Plain paragraphs" aria-label="Plain paragraphs" onClick={() => setTextFormat("listType", "none")}><svg viewBox="0 0 24 24"><path d="M5 6h15M5 12h15M5 18h15"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "bullet" ? "active" : ""} title="Bulleted list" aria-label="Bulleted list" onClick={() => setTextFormat("listType", "bullet")}><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "number" ? "active" : ""} title="Numbered list" aria-label="Numbered list" onClick={() => setTextFormat("listType", "number")}><svg viewBox="0 0 24 24"><path d="M4 5h2v3M4 8h3M4 12h3l-3 3h3M10 6h10M10 12h10M10 18h10"/></svg></button></div></div></section></Show>
+                <Show when={tool() === "text" || selectedText() || focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Text formatting</div><div class="format-row"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button></div><label class="property-label">Font size<input type="number" min="8" max="160" step="1" value={selectedText()?.fontSize ?? defaultFontSize()} onInput={(event) => setTextFormat("fontSize", Math.round(Number(event.currentTarget.value)))} /></label><div class="property-label">Font family<div class="choice-deck font-choice-deck"><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "sans" ? "active" : ""} title="Modern sans-serif" aria-label="Modern sans-serif font" onClick={() => setTextFormat("fontFamily", "sans")}><span class="font-sans-icon">Aa</span><small>Sans</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""} title="Handwritten" aria-label="Handwritten font" onClick={() => setTextFormat("fontFamily", "hand")}><span class="font-hand-icon">Aa</span><small>Hand</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "serif" ? "active" : ""} title="Serif" aria-label="Serif font" onClick={() => setTextFormat("fontFamily", "serif")}><span style={{ "font-family": "Georgia,serif" }}>Aa</span><small>Serif</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "mono" ? "active" : ""} title="Monospaced" aria-label="Monospaced font" onClick={() => setTextFormat("fontFamily", "mono")}><span style={{ "font-family": "monospace" }}>Aa</span><small>Mono</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "rounded" ? "active" : ""} title="Rounded" aria-label="Rounded font" onClick={() => setTextFormat("fontFamily", "rounded")}><span style={{ "font-family": "'Arial Rounded MT Bold','Trebuchet MS',sans-serif" }}>Aa</span><small>Round</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "display" ? "active" : ""} title="Display" aria-label="Display font" onClick={() => setTextFormat("fontFamily", "display")}><span style={{ "font-family": "'Arial Black',Impact,sans-serif" }}>Aa</span><small>Display</small></button></div></div><div class="property-label">Alignment<div class="choice-deck compact"><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "left" ? "active" : ""} title="Align left" aria-label="Align left" onClick={() => setTextFormat("textAlign", "left")}><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "center" ? "active" : ""} title="Align center" aria-label="Align center" onClick={() => setTextFormat("textAlign", "center")}><svg viewBox="0 0 24 24"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "right" ? "active" : ""} title="Align right" aria-label="Align right" onClick={() => setTextFormat("textAlign", "right")}><svg viewBox="0 0 24 24"><path d="M4 5h16M9 10h11M4 15h16M9 20h11"/></svg></button></div></div><div class="property-label">Paragraphs<div class="choice-deck compact"><button class={(selectedText()?.listType ?? defaultListType()) === "none" ? "active" : ""} title="Plain paragraphs" aria-label="Plain paragraphs" onClick={() => setTextFormat("listType", "none")}><svg viewBox="0 0 24 24"><path d="M5 6h15M5 12h15M5 18h15"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "bullet" ? "active" : ""} title="Bulleted list" aria-label="Bulleted list" onClick={() => setTextFormat("listType", "bullet")}><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "number" ? "active" : ""} title="Numbered list" aria-label="Numbered list" onClick={() => setTextFormat("listType", "number")}><svg viewBox="0 0 24 24"><path d="M4 5h2v3M4 8h3M4 12h3l-3 3h3M10 6h10M10 12h10M10 18h10"/></svg></button></div></div></section></Show>
+                <Show when={selectedLibraryComponent() && !selectedLibraryComponent()!.libraryComponent!.kind.startsWith("viz-")}><section class="pane-section"><div class="pane-heading">Component style</div><label class="property-label">Line and text color<input type="color" value={selectedColor()} disabled={boardLocked()} onInput={event => updateProperty("color", event.currentTarget.value)} /></label><div class="fill-options"><button class={!selectedFillColor() ? "active" : ""} disabled={boardLocked()} onClick={() => updateProperty("fillColor", undefined)}>No fill</button><button class={!!selectedFillColor() ? "active" : ""} disabled={boardLocked()} onClick={() => updateProperty("fillColor", fillColor())}>Fill</button></div><label class="property-label">Fill color<input type="color" value={selectedFillColor() ?? fillColor()} disabled={boardLocked()} onInput={event => { setFillColor(event.currentTarget.value); updateProperty("fillColor", event.currentTarget.value); }} /></label><label class="property-label">Fill opacity<input type="range" min="0" max="100" value={Math.round(selectedFillOpacity() * 100)} disabled={boardLocked()} onInput={event => updateProperty("fillOpacity", Number(event.currentTarget.value) / 100)} /></label></section></Show>
                 <Show when={focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Shape label</div>
                   <button class="quiet-button" disabled={boardLocked() || focusedElement()?.locked} onClick={() => { const index = primarySelection(); if (index !== undefined) editShapeLabel(index); }}>Edit label</button>
                   <label class="property-label">Font color<input type="color" value={textDraft()?.shapeLabel ? textDraft()!.color : selectedLabel()?.color ?? color()} onInput={event => updateLabel("color", event.currentTarget.value)} /></label>
                   <div class="property-label">Vertical alignment<div class="choice-deck">{(["top", "middle", "bottom"] as const).map((alignment, index) => <button title={`Align ${alignment}`} aria-label={`Align ${alignment}`} class={(textDraft()?.verticalAlign ?? selectedLabel()?.verticalAlign ?? "middle") === alignment ? "active" : ""} onClick={() => updateLabel("verticalAlign", alignment)}><svg viewBox="0 0 24 24"><path d={`M3 ${index === 0 ? 4 : index === 1 ? 12 : 20}h18M8 ${6 + index * 2}v6m8-6v6`}/></svg><small>{alignment}</small></button>)}</div></div>
-                  <button class={`quiet-button ${selectedText()?.textAlign === "justify" ? "active" : ""}`} onClick={() => setTextFormat("textAlign", "justify")}>Justify text</button><p class="bucket-help">Double-click a shape to edit its label. Text wraps inside the shape.</p>
+                  <button class={`quiet-button ${selectedText()?.textAlign === "justify" ? "active" : ""}`} onClick={() => setTextFormat("textAlign", "justify")}>Justify text</button>
                 </section></Show>
                 <Show when={tool() === "line" || tool() === "arrow" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || ["line", "arrow", "rectangle", "circle", "diamond", "triangle", "flowchart"].includes(focusedElement()?.type ?? "")}><section class="pane-section"><div class="pane-heading">Line style</div><div class="choice-deck line-choices"><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "solid" ? "active" : ""} title="Solid line" aria-label="Solid line" onClick={() => focusedElement() ? updateProperty("lineStyle", "solid") : setLineStyle("solid")}><svg viewBox="0 0 24 24"><path d="M3 12h18"/></svg><small>Solid</small></button><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "dashed" ? "active" : ""} title="Dashed line" aria-label="Dashed line" onClick={() => focusedElement() ? updateProperty("lineStyle", "dashed") : setLineStyle("dashed")}><svg viewBox="0 0 24 24" class="dash-icon"><path d="M3 12h18"/></svg><small>Dash</small></button><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "dotted" ? "active" : ""} title="Dotted line" aria-label="Dotted line" onClick={() => focusedElement() ? updateProperty("lineStyle", "dotted") : setLineStyle("dotted")}><svg viewBox="0 0 24 24" class="dot-icon"><path d="M3 12h18"/></svg><small>Dot</small></button><Show when={tool() === "line" || tool() === "arrow" || focusedElement()?.type === "line" || focusedElement()?.type === "arrow"}><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "double" ? "active" : ""} title="Double line" aria-label="Double line" onClick={() => focusedElement() ? updateProperty("lineStyle", "double") : setLineStyle("double")}><svg viewBox="0 0 24 24"><path d="M3 9h18M3 15h18"/></svg><small>Double</small></button></Show></div><Show when={focusedElement()?.type === "rectangle" || tool() === "rectangle"}><div class="property-label">Corners<div class="choice-deck compact"><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "sharp" ? "active" : ""} title="Square corners" aria-label="Square corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "sharp") : setEdgeStyle("sharp")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" ? "active" : ""} title="Rounded corners" aria-label="Rounded corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "rounded") : setEdgeStyle("rounded")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="4"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "pill" ? "active" : ""} title="Pill corners" aria-label="Pill corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "pill") : setEdgeStyle("pill")}><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="8" rx="4"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut" ? "active" : ""} title="Cut corners" aria-label="Cut corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "cut") : setEdgeStyle("cut")}><svg viewBox="0 0 24 24"><path d="m8 4h8l4 4v8l-4 4H8l-4-4V8z"/></svg></button></div></div></Show><Show when={tool() === "rectangle" || focusedElement()?.type === "rectangle"}><Show when={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" || ((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut"}><label class="property-label">{((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut" ? "Corner cut" : "Corner radius"}<input type="range" min="0" max="64" value={focusedElement()?.type === "rectangle" ? (focusedElement() as ShapeElement).cornerRadius ?? 14 : cornerRadius()} onInput={event => { const radius = Number(event.currentTarget.value); setCornerRadius(radius); if (focusedElement()?.type === "rectangle") updateProperty("cornerRadius", radius); }} /><span>{focusedElement()?.type === "rectangle" ? (focusedElement() as ShapeElement).cornerRadius ?? 14 : cornerRadius()} px</span></label></Show></Show><Show when={tool() === "arrow" || tool() === "line" || focusedElement()?.type === "arrow" || focusedElement()?.type === "line"}><div class="arrow-head-config"><span>Start head</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={quickArrowHead("start") === value ? "active" : ""} title={`${label} start`} aria-label={`${label} start head`} onClick={() => setConnectorHead("start", value)}><ArrowHeadIcon kind={value} /></button>)}</div><span>End head</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={quickArrowHead("end") === value ? "active" : ""} title={`${label} end`} aria-label={`${label} end head`} onClick={() => setConnectorHead("end", value)}><ArrowHeadIcon kind={value} /></button>)}</div></div></Show></section></Show>
-                <Show when={focusedElement() && isConnector(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Connector routing</div><label class="auto-route-toggle"><input type="checkbox" checked={!!(focusedElement() as ShapeElement).autoRoute} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => setSelectedAutoRoute(event.currentTarget.checked)} /><span><strong>Route around shapes</strong><small>Drag a bend to add or move a waypoint.</small></span></label></section></Show>
-                <Show when={(tool() === "arrow" || focusedElement()?.type === "arrow") && (focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).arrowRoute : arrowRoute()) === "forked"}><section class="pane-section"><div class="pane-heading">Fork branch heads</div><div class="fork-head-config"><span>Upper branch</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={((focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).forkUpper?.endHead : undefined) ?? defaultForkUpperHead()) === value ? "active" : ""} title={`${label} upper branch head`} aria-label={`${label} upper branch head`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("forkUpperHead", value) : setDefaultForkUpperHead(value)}><ArrowHeadIcon kind={value} /></button>)}</div><span>Lower branch</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={((focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).forkLower?.endHead : undefined) ?? defaultForkLowerHead()) === value ? "active" : ""} title={`${label} lower branch head`} aria-label={`${label} lower branch head`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("forkLowerHead", value) : setDefaultForkLowerHead(value)}><ArrowHeadIcon kind={value} /></button>)}</div></div><p class="bucket-help">Each branch has a separate endpoint handle. Drag either endpoint to move it or attach it to a shape.</p></section></Show>
-            <Show when={tool() === "bucket"}><section class="pane-section"><div class="pane-heading">Bucket fill</div><p class="bucket-help">Click a closed shape to apply a solid color.</p><div class="fill-palette">{FILL_SWATCHES.map((swatch) => <button class={`color-swatch ${fillColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Bucket color ${swatch}`} title={`Use ${swatch}`} onClick={() => setFillColor(swatch)} />)}<label class="custom-color-swatch" title="Choose custom bucket color"><input aria-label="Custom bucket color" type="color" value={fillColor()} onInput={(event) => setFillColor(event.currentTarget.value)} /></label></div></section></Show>
-            <Show when={tool() === "line" || focusedElement()?.type === "line"}><section class="pane-section"><div class="pane-heading">Line route</div><div class="connector-route-buttons">{LINE_ROUTES.map((route) => <button class={(focusedElement()?.type === "line" ? (focusedElement() as ShapeElement).lineRoute : lineRoute()) === route.value ? "active" : ""} title={route.label} aria-label={`${route.label} line`} onClick={() => focusedElement()?.type === "line" ? updateProperty("lineRoute", route.value) : setLineRoute(route.value)}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><small>{route.label}</small></button>)}</div></section></Show>
+                <Show when={focusedElement() && isConnector(focusedElement()!) && !(focusedElement() as ShapeElement | undefined)?.straightOnly}><section class="pane-section"><div class="pane-heading">Connector routing</div><label class="auto-route-toggle"><input type="checkbox" checked={!!(focusedElement() as ShapeElement).autoRoute} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => setSelectedAutoRoute(event.currentTarget.checked)} /><span><strong>Route around shapes</strong><small>Drag a bend to add or move a waypoint.</small></span></label></section></Show>
+                <Show when={(tool() === "arrow" || focusedElement()?.type === "arrow") && (focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).arrowRoute : arrowRoute()) === "forked"}><section class="pane-section"><div class="pane-heading">Fork branch heads</div><div class="fork-head-config"><span>Upper branch</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={((focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).forkUpper?.endHead : undefined) ?? defaultForkUpperHead()) === value ? "active" : ""} title={`${label} upper branch head`} aria-label={`${label} upper branch head`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("forkUpperHead", value) : setDefaultForkUpperHead(value)}><ArrowHeadIcon kind={value} /></button>)}</div><span>Lower branch</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={((focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).forkLower?.endHead : undefined) ?? defaultForkLowerHead()) === value ? "active" : ""} title={`${label} lower branch head`} aria-label={`${label} lower branch head`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("forkLowerHead", value) : setDefaultForkLowerHead(value)}><ArrowHeadIcon kind={value} /></button>)}</div></div></section></Show>
+            <Show when={tool() === "bucket"}><section class="pane-section"><div class="pane-heading">Bucket fill</div><div class="fill-palette">{FILL_SWATCHES.map((swatch) => <button class={`color-swatch ${fillColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Bucket color ${swatch}`} title={`Use ${swatch}`} onClick={() => setFillColor(swatch)} />)}<label class="custom-color-swatch" title="Choose custom bucket color"><input aria-label="Custom bucket color" type="color" value={fillColor()} onInput={(event) => setFillColor(event.currentTarget.value)} /></label></div></section></Show>
+            <Show when={(tool() === "line" || focusedElement()?.type === "line") && !(focusedElement() as ShapeElement | undefined)?.straightOnly}><section class="pane-section"><div class="pane-heading">Line route</div><div class="connector-route-buttons">{LINE_ROUTES.map((route) => <button class={(focusedElement()?.type === "line" ? (focusedElement() as ShapeElement).lineRoute : lineRoute()) === route.value ? "active" : ""} title={route.label} aria-label={`${route.label} line`} onClick={() => focusedElement()?.type === "line" ? updateProperty("lineRoute", route.value) : setLineRoute(route.value)}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><small>{route.label}</small></button>)}</div></section></Show>
 <Show when={tool() === "arrow" || focusedElement()?.type === "arrow"}><section class="pane-section"><div class="pane-heading">Arrow route</div><div class="connector-route-buttons">{ARROW_ROUTES.map((route) => <button class={(focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).arrowRoute : arrowRoute()) === route.value ? "active" : ""} title={route.label} aria-label={`${route.label} arrow`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("arrowRoute", route.value) : setArrowRoute(route.value)}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><small>{route.label}</small></button>)}</div></section></Show><Show when={tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || focusedElement()?.type === "rectangle" || focusedElement()?.type === "circle" || focusedElement()?.type === "diamond" || focusedElement()?.type === "triangle" || focusedElement()?.type === "flowchart"}><section class="pane-section"><div class="pane-heading">Fill</div><div class="fill-options"><button class={!(selectedFillColor()) && !fillEnabled() ? "active" : ""} onClick={() => { setFillEnabled(false); if (selectedIndices().length) updateProperty("fillColor", undefined); }}>None</button><button class={fillEnabled() || !!selectedFillColor() ? "active" : ""} onClick={() => { setFillEnabled(true); if (selectedIndices().length) updateProperty("fillColor", fillColor()); }}>Solid</button></div><div class="fill-style-row"><label class="fill-color-chip" title="Fill color"><input aria-label="Fill color" type="color" value={selectedFillColor() ?? fillColor()} onInput={(event) => { const value = event.currentTarget.value; setFillColor(value); if (hasStyleSelection()) updateProperty("fillColor", value); }} /></label><label class="fill-opacity-control">Opacity<input aria-label="Fill opacity" type="range" min="5" max="100" value={Math.round(((focusedElement() as ShapeElement | undefined)?.fillOpacity ?? fillOpacity()) * 100)} onInput={(event) => { const value = Number(event.currentTarget.value) / 100; setFillOpacity(value); if (selectedIndices().length) updateProperty("fillOpacity", value); }} /><span>{Math.round(((focusedElement() as ShapeElement | undefined)?.fillOpacity ?? fillOpacity()) * 100)}%</span></label></div></section></Show>
                 <Show when={selectedIndices().length === 1 && !groupSelected() && !selectedNoteCard()}><section class="pane-section"><div class="pane-heading">Precision</div><div class="precision-grid">{(["x", "y", "w", "h", "rotation"] as const).map(property => <label>{property === "rotation" ? "Angle °" : property.toUpperCase()}<input aria-label={`Selection ${property}`} type="number" step="1" disabled={boardLocked() || focusedElement()?.locked || (!!focusedElement() && isConnector(focusedElement()!) && (property === "w" || property === "h" || property === "rotation"))} value={Math.round((property === "rotation" ? focusedElement()?.rotation ?? 0 : focusedElement() ? elementBounds(focusedElement()!)[property] : 0) * 100) / 100} onChange={event => precision(property, Number(event.currentTarget.value))} /></label>)}</div>
-                  <Show when={focusedElement() && isConnector(focusedElement()!)}><div class="precision-grid">{(["start", "end"] as const).flatMap(end => (["x", "y"] as const).map(axis => <label>{end} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(((focusedElement() as ShapeElement)[axis] + (end === "end" ? (focusedElement() as ShapeElement)[axis === "x" ? "w" : "h"] : 0)) * 100) / 100} onChange={event => setEndpoint(end, axis, Number(event.currentTarget.value))} /></label>))}</div><Show when={focusedElement()?.type === "arrow" && (focusedElement() as ShapeElement).arrowRoute === "forked"}><div class="precision-grid">{(["upper", "lower"] as const).flatMap(branch => (["x", "y"] as const).map(axis => <label>{branch} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(forkGeometry(focusedElement() as ShapeElement)[branch] [axis] * 100) / 100} onChange={event => setForkEndpoint(branch, axis, Number(event.currentTarget.value))} /></label>))}</div></Show><p class="bucket-help">Drag the circular endpoints to resize or attach. Fork branches have separate endpoints and attachment points.</p><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, startBinding: undefined, endBinding: undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, endBinding: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, endBinding: undefined } : undefined } : item)}>Detach endpoints</button><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, routePoints: undefined, routeWaypoints: item.autoRoute ? [] : undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, routePoints: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, routePoints: undefined } : undefined } : item)}>Reset route</button></Show>
+                  <Show when={focusedElement() && isConnector(focusedElement()!)}><div class="precision-grid">{(["start", "end"] as const).flatMap(end => (["x", "y"] as const).map(axis => <label>{end} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(((focusedElement() as ShapeElement)[axis] + (end === "end" ? (focusedElement() as ShapeElement)[axis === "x" ? "w" : "h"] : 0)) * 100) / 100} onChange={event => setEndpoint(end, axis, Number(event.currentTarget.value))} /></label>))}</div><Show when={focusedElement()?.type === "arrow" && (focusedElement() as ShapeElement).arrowRoute === "forked"}><div class="precision-grid">{(["upper", "lower"] as const).flatMap(branch => (["x", "y"] as const).map(axis => <label>{branch} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(forkGeometry(focusedElement() as ShapeElement)[branch] [axis] * 100) / 100} onChange={event => setForkEndpoint(branch, axis, Number(event.currentTarget.value))} /></label>))}</div></Show><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, startBinding: undefined, endBinding: undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, endBinding: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, endBinding: undefined } : undefined } : item)}>Detach endpoints</button><Show when={!(focusedElement() as ShapeElement | undefined)?.straightOnly}><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, routePoints: undefined, routeWaypoints: item.autoRoute ? [] : undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, routePoints: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, routePoints: undefined } : undefined } : item)}>Reset route</button></Show></Show>
                 </section></Show>
                 <Show when={selectedIndices().length > 1}><section class="pane-section"><div class="pane-heading">Align & distribute</div><div class="alignment-grid">{(["left", "center", "right", "top", "middle", "bottom", "horizontal", "vertical"] as const).map(command => <button disabled={boardLocked() || ((command === "horizontal" || command === "vertical") && selectedIndices().length < 3)} title={command === "horizontal" || command === "vertical" ? `Distribute ${command} gaps` : `Align ${command}`} onClick={() => alignSelection(command)}>{command}</button>)}</div></section></Show>
-                <Show when={!!selectedIndices().length && !selectedNoteCard()}><section class="pane-section"><div class="pane-heading">Selection</div><label class="property-label">Opacity <input disabled={selectedIndices().every((index) => !elements()[index] || elements()[index].locked)} type="range" min="10" max="100" value={Math.round(selectedOpacity() * 100)} onInput={(event) => updateProperty("opacity", Number(event.currentTarget.value) / 100)} /></label><div class="object-style-transfer"><button class="quiet-button" disabled={!selectedElements().length} onClick={copyObjectStyle} title={`Copy style (${formatShortcutBindings(shortcuts().copyStyle)})`}>Copy style</button><button class="quiet-button" disabled={!copiedObjectStyle() || boardLocked()} onClick={pasteObjectStyle} title={`Paste style (${formatShortcutBindings(shortcuts().pasteStyle)})`}>Paste style</button></div><Show when={!groupSelected() && !(focusedElement() && isConnector(focusedElement()!))}><div class="rotation-controls"><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(-15)} title="Rotate counterclockwise by 15 degrees">−15°</button><button disabled={focusedElement()?.locked} onClick={resetSelectionRotation} title="Reset rotation to zero">Reset 0°</button><button disabled={focusedElement()?.locked} onClick={() => rotateSelection(15)} title="Rotate clockwise by 15 degrees">+15°</button></div></Show></section></Show>
-                <Show when={selectedIndices().length > 1 && !groupSelected()}><div class="multi-selection-actions"><button class="pane-group-button" onClick={groupSelection}>Group {selectedIndices().length} elements <kbd>Ctrl+G</kbd></button><button class="pane-delete-button" disabled={boardLocked() || !deletableSelectionCount()} onClick={deleteSelected}>Delete {deletableSelectionCount()}</button></div></Show>
+
+                <Show when={selectedIndices().length > 1 && !groupSelected()}><div class="multi-selection-actions"><button class="pane-group-button" onClick={groupSelection}>Group {selectedIndices().length} elements <kbd>Ctrl+G</kbd></button></div></Show>
               </Show>
 
               </div>
             </aside></Show>
+            <Show when={libraryComponentDraft() || selectedLibraryComponent() || selectedClassComponentId() || classCardDraft()}>
+              <aside class="component-editor-dock" classList={{ collapsed: componentEditorCollapsed() }} aria-label="Component editor">
+                <Show when={componentEditorCollapsed()} fallback={<>
+                  <header class="component-editor-heading"><div><strong>{componentEditorTitle()}</strong></div><button type="button" aria-label="Collapse component editor" title="Collapse" aria-expanded="true" onClick={() => setComponentEditorCollapsed(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg></button></header>
+                  <div class="component-editor-scroll">
+                    <Show when={libraryComponentDraft()}>{draft => renderLibraryComponentEditor(() => libraryComponentDraft() ?? draft(), true)}</Show>
+                    <Show when={!libraryComponentDraft() && selectedLibraryComponent()}>{component => renderLibraryComponentEditor(() => selectedLibraryComponent() ?? component(), false)}</Show>
+                    <Show when={selectedClassComponentId() && !selectedLibraryComponent() && !classCardDraft() ? selectedClassComponentId() : undefined}>{componentId => <section class="component-editor-content"><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(selectedClassCardSize(componentId()).width)} disabled={boardLocked()} onChange={event => resizeClassCardSize(componentId(), "width", Number(event.currentTarget.value))} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(selectedClassCardSize(componentId()).height)} disabled={boardLocked()} onChange={event => resizeClassCardSize(componentId(), "height", Number(event.currentTarget.value))} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={quickCardFontSize()} disabled={boardLocked()} onChange={event => resizeClassCardFont(componentId(), Number(event.currentTarget.value))} /></label></div></section>}</Show>
+                    <Show when={classCardDraft()}>{draft => <div class="component-editor-content class-card-editor"><label class="property-label">Class name<input value={draft().name} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label class="property-label">Attributes<textarea rows="5" value={draft().attributes} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label class="property-label">Methods<textarea rows="5" value={draft().methods} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(classCardSize(draft()).width)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, width: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(classCardSize(draft()).height)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, height: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={draft().fontSize} disabled={boardLocked()} onChange={event => setClassCardDraft(value => value ? { ...value, fontSize: Math.round(Number(event.currentTarget.value)) } : value)} /></label></div><div class="component-draft-actions"><button type="button" class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button type="button" class="save-button" disabled={boardLocked()} onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></div>}</Show>
+                  </div>
+                </>}>
+                  <button type="button" class="component-editor-expand" aria-label="Expand component editor" title="Expand component editor" aria-expanded="false" onClick={() => setComponentEditorCollapsed(false)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" /></svg></button>
+                </Show>
+              </aside>
+            </Show>
             <Show when={textDraft()}>{draft => <div class="text-editor-frame" style={{ left: `${canvasState().panX + editorLeft(draft()) * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${editorWidth(draft()) * canvasState().zoom}px`, height: draft().height ? `${draft().height! * canvasState().zoom}px` : undefined, transform: `rotate(${draft().rotation ?? 0}deg)`, "justify-content": draft().verticalAlign === "bottom" ? "flex-end" : draft().verticalAlign === "middle" ? "center" : "flex-start", "font-size": `${draft().fontSize * canvasState().zoom}px`, "font-family": fontCss(draft().fontFamily), "font-weight": draft().bold ? 700 : 400, "font-style": draft().italic ? "italic" : "normal", "text-decoration": draft().underline ? "underline" : "none", "text-align": draft().textAlign, color: themeInk(draft().color, theme()), opacity: draft().opacity }}>
               <div ref={element => { textEditorElement = element; requestAnimationFrame(() => { if (element.isConnected && textDraft()) { element.innerText = draft().value; if (textEditorPendingPointerId === undefined) element.focus(); const range = document.createRange(); range.selectNodeContents(element); range.collapse(false); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); } }); }} class="canvas-text-editor" contentEditable={true} role="textbox" aria-label="Canvas text" aria-multiline="true" data-placeholder="Type here…" onInput={event => updateTextDraft(event.currentTarget.innerText)} onBlur={event => { if (!isWindowsPlatform()) return; const next = event.relatedTarget; if (!(next instanceof HTMLElement && next.closest(".style-pane"))) commitTextDraft(); }} onPointerDown={event => event.stopPropagation()} onPaste={event => { event.preventDefault(); const text = event.clipboardData?.getData("text/plain") ?? ""; const selection = window.getSelection(); if (selection?.rangeCount) { const range = selection.getRangeAt(0); range.deleteContents(); const node = document.createTextNode(text); range.insertNode(node); range.setStartAfter(node); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); updateTextDraft(event.currentTarget.innerText); } }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Escape" || (event.key === "Enter" && (event.ctrlKey || event.metaKey))) { event.preventDefault(); commitTextDraft(); if (event.key === "Escape") { setTool(isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform()) setStyleMenuMode("quick"); setSelectedIndices([]); setHoveredIndex(undefined); } } }} />
             </div>}</Show>
@@ -4297,7 +4538,6 @@ function App() {
         <button role="menuitem" disabled={!selectedIndices().length} onClick={() => { setExportScope("selection"); openExportOptions("png"); }}>Export selection…</button>
         <button role="menuitem" disabled={boardLocked() || !selectedIndices().length} onClick={deleteSelected}>Delete <kbd>Del</kbd></button>
       </div>}</Show>
-      <Show when={classCardDraft()}>{draft => <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setClassCardDraft(undefined); }}><section class="confirm-dialog class-card-dialog" role="dialog" aria-modal="true" aria-labelledby="class-card-title"><header><div><span class="eyebrow">UML CLASS CARD</span><h2 id="class-card-title">{draft().componentId ? "Edit class card" : "Create a class card"}</h2></div><button class="help-close" aria-label="Close class card editor" onClick={() => setClassCardDraft(undefined)}>&times;</button></header><p>Enter the class name, attributes, and methods. The card grows to fit its content; its sections stay independently editable on the canvas.</p><label>Class name<input autofocus value={draft().name} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label>Attributes<textarea rows="4" placeholder={"+ id: UUID\n- name: string"} value={draft().attributes} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label>Methods<textarea rows="3" placeholder={"+ create()\n- validate()"} value={draft().methods} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><label>Font size<input type="number" min="8" max="48" step="1" value={draft().fontSize} onChange={event => setClassCardDraft(value => value ? { ...value, fontSize: Math.round(Number(event.currentTarget.value)) } : value)} /></label><div><button class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button class="save-button" onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></section></div>}</Show>
       <Show when={mermaidDialog()}>
         <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) closeMermaidDialog(); }}>
           <section class="confirm-dialog schema-dialog mermaid-dialog" role="dialog" aria-modal="true" aria-labelledby="mermaid-title">

@@ -1,7 +1,7 @@
 import { For } from "solid-js";
 
 type Tick = { position: number; label?: string; major: boolean };
-type Props = { width: number; height: number; zoom: number; panX: number; panY: number };
+type Props = { width: number; height: number; zoom: number; panX: number; panY: number; windows?: boolean };
 
 function niceStep(target: number) {
   const power = 10 ** Math.floor(Math.log10(Math.max(1, target)));
@@ -34,16 +34,16 @@ function ticks(size: number, zoom: number, pan: number): Tick[] {
 export function CanvasRulers(props: Props) {
   const horizontal = () => ticks(props.width, props.zoom, props.panX);
   const vertical = () => ticks(props.height, props.zoom, props.panY);
-  return <div class="canvas-rulers" aria-label="Canvas rulers in drawing units">
-    <svg class="canvas-ruler-top" width={props.width} height="20" aria-hidden="true">
+  const size = () => 24;
+  return <div class={`canvas-rulers ${props.windows ? "windows-rulers" : ""}`} aria-label="Canvas rulers in drawing units">
+    <svg class="canvas-ruler-top" width={props.width} height={size()} aria-hidden="true">
       <rect width="100%" height="100%" />
-      <For each={horizontal()}>{tick => <><path d={`M${tick.position} 20V${tick.major ? 10 : 15}`} />{tick.label && <text x={tick.position + 3} y="9">{tick.label}</text>}</>}</For>
-      <text class="ruler-unit" x="5" y="18">px</text>
+      <For each={horizontal()}>{tick => <><path d={`M${tick.position} ${size()}V${tick.major ? size() - 11 : size() - 6}`} />{tick.label && <text x={tick.position + 3} y="9">{tick.label}</text>}</>}</For>
     </svg>
-    <svg class="canvas-ruler-left" width="20" height={props.height} aria-hidden="true">
+    <svg class="canvas-ruler-left" width={size()} height={props.height} aria-hidden="true">
       <rect width="100%" height="100%" />
-      <For each={vertical()}>{tick => <><path d={`M20 ${tick.position}H${tick.major ? 10 : 15}`} />{tick.label && <text text-anchor="middle" transform={`rotate(-90 10 ${tick.position})`} x="10" y={tick.position + 3}>{tick.label}</text>}</>}</For>
+      <For each={vertical()}>{tick => <><path d={`M${size()} ${tick.position}H${tick.major ? size() - 11 : size() - 6}`} />{tick.label && <text text-anchor="middle" transform={`rotate(-90 ${size() / 2} ${tick.position})`} x={size() / 2} y={tick.position + 3}>{tick.label}</text>}</>}</For>
     </svg>
-    <i class="canvas-ruler-corner" />
+    <i class="canvas-ruler-corner"><span>px</span></i>
   </div>;
 }

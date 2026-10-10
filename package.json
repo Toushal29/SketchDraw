@@ -11,6 +11,7 @@
     "dev:android": "tauri android dev",
     "build": "vite build --configLoader native",
     "test:focused": "node scripts/run-focused-tests.mjs",
+    "test:canvas": "node scripts/check-canvas-performance.mjs",
     "convert:sketch": "node scripts/convert-sketch.mjs",
     "serve": "vite preview",
     "tauri": "tauri"

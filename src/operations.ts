@@ -148,12 +148,12 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
   return resolveBindings(items.map(visit));
 }
 
-export const textFont = (text: Pick<TextElement, "italic" | "bold" | "fontSize" | "fontFamily">) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "cursive" : text.fontFamily === "serif" ? "Georgia, serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : "'DM Sans', sans-serif"}`;
+export const textFont = (text: Pick<TextElement, "italic" | "bold" | "fontSize" | "fontFamily">) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : text.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : text.fontFamily === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : text.fontFamily === "display" ? "'Arial Black', Impact, sans-serif" : "'DM Sans', 'Segoe UI', sans-serif"}`;
 export function labelBox(shape: ShapeElement) {
   // Keep ordinary shape-label padding in canvas units so resizing the shape
   // does not make its text margins grow. Tapered symbols retain extra clearance.
   const width = Math.abs(shape.w); const height = Math.abs(shape.h);
-  const tapered = shape.type === "diamond" || shape.flowchartShape === "decision";
+  const tapered = shape.type === "diamond" || ["decision", "data", "hexagon", "parallelogram", "trapezoid", "pentagon", "octagon", "chevron", "shield"].includes(shape.flowchartShape ?? "");
   const insetX = Math.min(width / 2, tapered ? Math.max(12, width * .2) : 12);
   const insetY = Math.min(height / 2, shape.flowchartShape === "database" ? Math.max(12, height * .22) : 12);
   return { x: Math.min(shape.x, shape.x + shape.w) + insetX, y: Math.min(shape.y, shape.y + shape.h) + insetY, w: Math.max(1, Math.abs(shape.w) - insetX * 2), h: Math.max(1, Math.abs(shape.h) - insetY * 2) };
@@ -196,6 +196,7 @@ export function extraFlowchartPath(shape: FlowchartShape, x: number, y: number, 
   const r = x + w; const b = y + h; const m = x + w / 2;
   if (shape === "connector") return `M ${x} ${y + h / 2} a ${w / 2} ${h / 2} 0 1 0 ${w} 0 a ${w / 2} ${h / 2} 0 1 0 ${-w} 0`;
   if (shape === "off-page") return `M ${x} ${y} H ${r} V ${y + h * .65} L ${m} ${b} L ${x} ${y + h * .65} Z`;
+  if (shape === "manual-input") { const inset = Math.min(w * .22, h * .45); return `M ${x + inset} ${y} H ${r} V ${b} H ${x} V ${y + inset} Z`; }
   if (shape === "manual-operation") return `M ${x} ${y} H ${r} L ${r - w * .2} ${b} H ${x + w * .2} Z`;
   if (shape === "delay") return `M ${x} ${y} H ${m} C ${r + w / 6} ${y} ${r + w / 6} ${b} ${m} ${b} H ${x} Z`;
   if (shape === "stored-data") return `M ${x + w * .2} ${y} H ${r} C ${r - w * .25} ${y + h / 3} ${r - w * .25} ${b - h / 3} ${r} ${b} H ${x + w * .2} C ${x - w * .06} ${b} ${x - w * .06} ${y} ${x + w * .2} ${y} Z`;
@@ -205,4 +206,17 @@ export function extraFlowchartPath(shape: FlowchartShape, x: number, y: number, 
   if (shape === "heart") return `M ${m} ${b} C ${x + w * .81} ${y + h * .69} ${r} ${y + h * .52} ${r} ${y + h * .3} C ${r} ${y + h * .03} ${x + w * .61} ${y - h * .02} ${m} ${y + h * .23} C ${x + w * .39} ${y - h * .02} ${x} ${y + h * .03} ${x} ${y + h * .3} C ${x} ${y + h * .52} ${x + w * .19} ${y + h * .69} ${m} ${b} Z`;
   if (shape === "callout") return `M ${x + w * .1} ${y} H ${r - w * .1} Q ${r} ${y} ${r} ${y + h * .12} V ${y + h * .68} Q ${r} ${y + h * .8} ${r - w * .1} ${y + h * .8} H ${x + w * .63} L ${x + w * .47} ${b} L ${x + w * .41} ${y + h * .8} H ${x + w * .1} Q ${x} ${y + h * .8} ${x} ${y + h * .68} V ${y + h * .12} Q ${x} ${y} ${x + w * .1} ${y} Z`;
   if (shape === "gear") { const points = Array.from({ length: 24 }, (_, index) => { const angle = -Math.PI / 2 + index * Math.PI / 12; const radius = index % 6 < 2 ? .48 : index % 6 < 4 ? .39 : .48; return `${m + Math.cos(angle) * w * radius} ${y + h / 2 + Math.sin(angle) * h * radius}`; }); return `M ${points.join(" L ")} Z M ${m + w * .17} ${y + h / 2} A ${w * .17} ${h * .17} 0 1 0 ${m - w * .17} ${y + h / 2} A ${w * .17} ${h * .17} 0 1 0 ${m + w * .17} ${y + h / 2} Z`; }
+  if (shape === "hexagon") { const inset = Math.min(w * .2, h * .28); return `M ${x + inset} ${y} H ${r - inset} L ${r} ${y + h / 2} L ${r - inset} ${b} H ${x + inset} L ${x} ${y + h / 2} Z`; }
+  if (shape === "parallelogram") { const inset = Math.min(w * .22, h * .35); return `M ${x + inset} ${y} H ${r} L ${r - inset} ${b} H ${x} Z`; }
+  if (shape === "trapezoid") { const inset = Math.min(w * .2, h * .35); return `M ${x + inset} ${y} H ${r - inset} L ${r} ${b} H ${x} Z`; }
+  if (shape === "pentagon") { const points = Array.from({ length: 5 }, (_, index) => { const angle = -Math.PI / 2 + index * Math.PI * 2 / 5; return `${m + Math.cos(angle) * w * .48} ${y + h / 2 + Math.sin(angle) * h * .48}`; }); return `M ${points.join(" L ")} Z`; }
+  if (shape === "octagon") { const cut = Math.min(w * .2, h * .2); return `M ${x + cut} ${y} H ${r - cut} L ${r} ${y + cut} V ${b - cut} L ${r - cut} ${b} H ${x + cut} L ${x} ${b - cut} V ${y + cut} Z`; }
+  if (shape === "chevron") return `M ${x} ${y} H ${x + w * .62} L ${r} ${y + h / 2} L ${x + w * .62} ${b} H ${x} L ${x + w * .38} ${y + h / 2} Z`;
+  if (shape === "cross") { const arm = Math.min(w, h) * .32; return `M ${m - arm / 2} ${y} H ${m + arm / 2} V ${y + h / 2 - arm / 2} H ${r} V ${y + h / 2 + arm / 2} H ${m + arm / 2} V ${b} H ${m - arm / 2} V ${y + h / 2 + arm / 2} H ${x} V ${y + h / 2 - arm / 2} H ${m - arm / 2} Z`; }
+  if (shape === "folder") return `M ${x} ${y + h * .16} H ${x + w * .38} L ${x + w * .5} ${y + h * .32} H ${r} V ${b} H ${x} Z`;
+  if (shape === "note") return `M ${x} ${y} H ${r - w * .22} L ${r} ${y + h * .22} V ${b} H ${x} Z M ${r - w * .22} ${y} V ${y + h * .22} H ${r}`;
+  if (shape === "display") return `M ${x} ${y} H ${r} V ${y + h * .68} H ${x} Z M ${x + w * .4} ${y + h * .68} L ${x + w * .34} ${b - h * .08} H ${x + w * .66} L ${x + w * .6} ${y + h * .68} Z M ${x + w * .28} ${b - h * .08} H ${x + w * .72} V ${b} H ${x + w * .28} Z`;
+  if (shape === "cube") return `M ${m} ${y} L ${r} ${y + h * .22} V ${y + h * .76} L ${m} ${b} L ${x} ${y + h * .76} V ${y + h * .22} Z M ${x} ${y + h * .22} L ${m} ${y + h * .48} L ${r} ${y + h * .22} M ${m} ${y + h * .48} V ${b}`;
+  if (shape === "rounded-rectangle") { const radius = Math.min(w * .16, h * .3); return `M ${x + radius} ${y} H ${r - radius} Q ${r} ${y} ${r} ${y + radius} V ${b - radius} Q ${r} ${b} ${r - radius} ${b} H ${x + radius} Q ${x} ${b} ${x} ${b - radius} V ${y + radius} Q ${x} ${y} ${x + radius} ${y} Z`; }
+  if (shape === "shield") return `M ${x + w * .5} ${y} L ${r} ${y + h * .16} V ${y + h * .48} Q ${r} ${y + h * .82} ${m} ${b} Q ${x} ${y + h * .82} ${x} ${y + h * .48} V ${y + h * .16} Z`;
 }

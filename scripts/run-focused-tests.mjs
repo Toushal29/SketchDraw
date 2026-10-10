@@ -14,6 +14,8 @@ const sourceFiles = [
   "src/features/document/document-recovery.ts",
   "src/features/canvas/history.ts",
   "src/features/canvas/spatial-index.ts",
+  "src/features/components/library-component-editor.ts",
+  "src/notes.ts",
 ].map(file => path.join(repoRoot, file));
 
 try {
@@ -43,7 +45,7 @@ try {
   } else {
     await writeFile(path.join(buildDir, "package.json"), JSON.stringify({ type: "commonjs" }));
     process.env.SKETCHDRAW_TEST_BUILD_DIR = buildDir;
-    for (const file of ["tests/persistence.test.mjs", "tests/sync.test.mjs", "tests/canvas-history.test.mjs", "tests/spatial-index.test.mjs"]) {
+    for (const file of ["tests/persistence.test.mjs", "tests/sync.test.mjs", "tests/canvas-history.test.mjs", "tests/spatial-index.test.mjs", "tests/component-library.test.mjs"]) {
       await import(pathToFileURL(path.join(repoRoot, file)).href);
     }
   }

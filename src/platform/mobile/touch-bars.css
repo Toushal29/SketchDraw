@@ -323,3 +323,9 @@
 }
 
 .theme-dark:not(.platform-windows) .touch-selection-delete { color: #ff9d98; }
+
+/* Rulers occupy their edge only while visible; move the adjacent touch controls with them. */
+.app-shell:not(.platform-windows):has(> .canvas-wrap.canvas-rulers-visible).mobile-toolbar-top .touch-tool-bar { top: calc(max(6px, env(safe-area-inset-top)) + 24px); transition: top .18s ease, left .18s ease, right .18s ease; }
+.app-shell:not(.platform-windows):has(> .canvas-wrap.canvas-rulers-visible).mobile-toolbar-left .touch-tool-bar { left: calc(max(8px, env(safe-area-inset-left)) + 24px); transition: top .18s ease, left .18s ease, right .18s ease; }
+.app-shell:not(.platform-windows):has(> .canvas-wrap.canvas-rulers-visible).mobile-toolbar-top .touch-tool-reopen { top: calc(max(6px, env(safe-area-inset-top)) + 24px); }
+.app-shell:not(.platform-windows):has(> .canvas-wrap.canvas-rulers-visible).mobile-toolbar-left .touch-tool-reopen { left: calc(max(8px, env(safe-area-inset-left)) + 24px); }

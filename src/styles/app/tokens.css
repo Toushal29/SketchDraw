@@ -12,17 +12,17 @@
 }
 
 .app-shell.theme-dark {
-    --dark-ui-base: #111111;
-    --dark-ui-surface: #191919;
-    --dark-ui-raised: #232323;
-    --dark-ui-inset: #0d0d0d;
-    --dark-ui-border: #363636;
-    --dark-ui-border-soft: #2b2b2b;
-    --dark-ui-ink: #eeeeee;
-    --dark-ui-muted: #aaaaaa;
-    --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 24%, #242424);
-    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 58%, #a0a0a0);
-    --ui-accent-ink: color-mix(in srgb, var(--ui-accent) 54%, #f4f4f4);
+    --dark-ui-base: #111411;
+    --dark-ui-surface: #191e1a;
+    --dark-ui-raised: #242a25;
+    --dark-ui-inset: #0d110e;
+    --dark-ui-border: #39443b;
+    --dark-ui-border-soft: #2c352e;
+    --dark-ui-ink: #edf3ee;
+    --dark-ui-muted: #b1beb4;
+    --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 24%, #242a25);
+    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 58%, #aeb8b0);
+    --ui-accent-ink: color-mix(in srgb, var(--ui-accent) 54%, #f4f8f4);
     --layer-ink: var(--dark-ui-ink);
     --layer-muted: var(--dark-ui-muted);
     --layer-surface: var(--dark-ui-surface);

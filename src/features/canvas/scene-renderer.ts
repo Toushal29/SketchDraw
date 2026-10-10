@@ -1,4 +1,4 @@
-import type { ArrowHead, Bounds, CanvasState, EdgeStyle, Element, Point, Preview, ShapeElement, StrokePoint, StrokeStyle, Tool } from "../../model";
+import type { ArrowHead, Bounds, CanvasState, EdgeStyle, Element, FreehandElement, Point, Preview, ShapeElement, StrokePoint, StrokeStyle, Tool } from "../../model";
 import { BOX_ANCHORS, anchorPoint, isConnectable, isConnector } from "../../operations";
 import { elementBounds } from "./bounds";
 import { traceConnector } from "./geometry";
@@ -40,6 +40,7 @@ export type CanvasSceneRendererPorts = {
   defaultEndHead: () => ArrowHead;
   defaultForkUpperHead: () => ArrowHead;
   defaultForkLowerHead: () => ArrowHead;
+  drawFreehandPreview: (ctx: CanvasRenderingContext2D, element: FreehandElement) => void;
   drawElement: (ctx: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems?: Element[]) => void;
   drawLaserStroke: (ctx: CanvasRenderingContext2D, points: Point[], opacity: number, thickness: number) => void;
   connectorForView: (item: ShapeElement, sourceItems?: Element[]) => ShapeElement;
@@ -94,7 +95,9 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       ctx.stroke();
     } else {
       ctx.fillStyle = luminance < 130 ? "#414653" : "#deddd6"; const radius = (style === "small-dots" ? 0.65 : 0.85) / state.zoom;
-      for (let x = startX; x <= right; x += step) for (let y = startY; y <= bottom; y += step) { ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill(); }
+      ctx.beginPath();
+      for (let x = startX; x <= right; x += step) for (let y = startY; y <= bottom; y += step) { ctx.moveTo(x + radius, y); ctx.arc(x, y, radius, 0, Math.PI * 2); }
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -107,7 +110,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     if (rotate) { ctx.beginPath(); ctx.arc(rotate.x, rotate.y, 5 / zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } ctx.restore();
   }
 
-  function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, dpr: number, includeSelection: boolean, transparent = false, viewOverride?: CanvasState, sourceItems = ports.elements(), includeGrid = true) {
+  function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, dpr: number, includeSelection: boolean, transparent = false, viewOverride?: CanvasState, sourceItems = ports.elements(), includeGrid = true, includeStrokePreview = true) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
     if (!transparent) { ctx.fillStyle = ports.renderedBoardColor(); ctx.fillRect(0, 0, width, height); }
     const state = viewOverride ?? ports.canvasState(); if (!transparent && includeGrid) drawGrid(ctx, width, height, state);
@@ -150,7 +153,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         const bounds = elementBounds(element); const handlePadding = 5 / state.zoom;
         ctx.save(); ctx.strokeStyle = isSelected ? "#547bb1" : "#8298b8"; ctx.globalAlpha = isSelected ? 1 : 0.62; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([4 / state.zoom, 3 / state.zoom]);
         ctx.strokeRect(bounds.x - handlePadding, bounds.y - handlePadding, Math.max(bounds.w + handlePadding * 2, 2 / state.zoom), Math.max(bounds.h + handlePadding * 2, 2 / state.zoom)); ctx.restore();
-        if (isSelected && !element.locked && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed) && element.type !== "freehand") drawTransformHandles(ctx, bounds, state.zoom, element.type !== "group");
+        if (isSelected && !element.locked && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent) && element.type !== "freehand") drawTransformHandles(ctx, bounds, state.zoom, element.type !== "group" || !!element.libraryComponent);
       }
       ctx.restore();
     }
@@ -186,9 +189,9 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     const transientLaser = ports.laserTrail();
     if (includeSelection && transientLaser) drawLaserStroke(ctx, transientLaser.points, transientLaser.opacity, ports.laserThickness() / state.zoom);
     const activePreview = ports.preview();
-    if (includeSelection && activePreview) {
+    if (includeSelection && activePreview && (includeStrokePreview || activePreview.type !== "pen" || ports.tool() === "laser")) {
       const { start, end, type, color: stroke, thickness: widthPx, opacity } = activePreview;
-      if (type === "pen") { if (ports.tool() === "laser") drawLaserStroke(ctx, ports.currentPoints(), 1, ports.laserThickness() / state.zoom); else ports.drawElement(ctx, { type: "freehand", points: ports.currentPoints(), color: stroke, thickness: widthPx, opacity }); }
+      if (type === "pen") { if (ports.tool() === "laser") drawLaserStroke(ctx, ports.currentPoints(), 1, ports.laserThickness() / state.zoom); else ports.drawFreehandPreview(ctx, { type: "freehand", points: ports.currentPoints(), color: stroke, thickness: widthPx, opacity }); }
       else ports.drawElement(ctx, { type, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: stroke, thickness: widthPx, lineStyle: ports.lineStyle(), flowchartShape: activePreview.flowchartShape, lineRoute: activePreview.lineRoute, arrowRoute: activePreview.arrowRoute, edgeStyle: ports.edgeStyle(), cornerRadius: ports.cornerRadius(), ...(ports.fillEnabled() && (type === "rectangle" || type === "circle" || type === "diamond" || type === "triangle" || type === "flowchart") ? { fillColor: ports.fillColor(), fillOpacity: ports.fillOpacity() } : {}), ...(type === "line" ? { startHead: ports.defaultLineStartHead(), endHead: ports.defaultLineEndHead() } : {}), ...(type === "arrow" ? { startHead: ports.defaultStartHead(), endHead: ports.defaultEndHead(), ...(activePreview.arrowRoute === "forked" ? { forkUpper: { endHead: ports.defaultForkUpperHead() }, forkLower: { endHead: ports.defaultForkLowerHead() } } : {}) } : {}) });
     }
     ctx.restore();
@@ -200,5 +203,14 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     }
   }
 
-  return { drawGrid, drawTransformHandles, drawScene };
+  function drawStrokePreview(ctx: CanvasRenderingContext2D, dpr: number) {
+    const preview = ports.preview(); if (preview?.type !== "pen") return;
+    const state = ports.canvasState();
+    ctx.save(); ctx.setTransform(dpr * state.zoom, 0, 0, dpr * state.zoom, dpr * state.panX, dpr * state.panY);
+    ports.drawFreehandPreview(ctx, { type: "freehand", points: ports.currentPoints(), color: preview.color, thickness: preview.thickness, opacity: preview.opacity });
+    ctx.restore();
+  }
+
+  return { drawGrid, drawTransformHandles, drawScene, drawStrokePreview };
+
 }

@@ -245,3 +245,54 @@
 .app-shell.theme-dark .recent-file { border-color: var(--dark-ui-border); background: var(--dark-ui-raised); }
 .app-shell.theme-dark .recent-file:hover { border-color: #555; background: #2b2b2b; }
 
+/* Keep charcoal surfaces warm while giving each diagram family its own readable ink color. */
+.app-shell.theme-dark .stencil-picker-heading strong { color: #edf3ee; }
+.app-shell.theme-dark .stencil-picker-heading small { color: #a8b6ab; }
+.app-shell.theme-dark .stencil-search { border-color: #3d4b40; color: #a8bdad; background: #202720; }
+.app-shell.theme-dark .stencil-search input { color: #edf3ee; }
+.app-shell.theme-dark .stencil-search input::placeholder { color: #839187; }
+.app-shell.theme-dark .stencil-category-filter { border-color: #354239; }
+.app-shell.theme-dark .stencil-category-filter button { color: #b5c1b7; }
+.app-shell.theme-dark .stencil-category-filter button:hover,
+.app-shell.theme-dark .stencil-category-filter button.active { border-color: #526c57; color: #b7e5c1; background: #273a2d; }
+.app-shell.theme-dark .stencil-options .tool-options-heading.stencil-heading { border-color: #354239; color: #b2c2b6; }
+.app-shell.theme-dark .stencil-options .stencil-heading-uml,
+.app-shell.theme-dark .stencil-options button.stencil-uml { color: #c8b6ff; }
+.app-shell.theme-dark .stencil-options .stencil-heading-er,
+.app-shell.theme-dark .stencil-options button.stencil-er { color: #80d2c0; }
+.app-shell.theme-dark .stencil-options .stencil-heading-architecture,
+.app-shell.theme-dark .stencil-options button.stencil-architecture { color: #a7d3e8; }
+.app-shell.theme-dark .stencil-options .stencil-heading-bpmn,
+.app-shell.theme-dark .stencil-options button.stencil-bpmn { color: #f0c975; }
+.app-shell.theme-dark .stencil-options .stencil-heading-network,
+.app-shell.theme-dark .stencil-options button.stencil-network { color: #7bd3dd; }
+.app-shell.theme-dark .stencil-options button.stencil-template { border-color: #3a473d; background: linear-gradient(180deg, #252d27, #202720); }
+.app-shell.theme-dark .stencil-options button.stencil-uml:hover { --stencil-icon-bg: #352d48; border-color: #65558a; background: #302941; }
+.app-shell.theme-dark .stencil-options button.stencil-er:hover { --stencil-icon-bg: #233e38; border-color: #477b6d; background: #263a34; }
+.app-shell.theme-dark .stencil-options button.stencil-architecture:hover { --stencil-icon-bg: #283a3d; border-color: #4c7079; background: #29383a; }
+.app-shell.theme-dark .stencil-options button.stencil-bpmn:hover { --stencil-icon-bg: #463a23; border-color: #806b3c; background: #3b3324; }
+.app-shell.theme-dark .stencil-options button.stencil-network:hover { --stencil-icon-bg: #203a3d; border-color: #47777d; background: #253638; }
+.app-shell.theme-dark .stencil-options .stencil-empty { color: #a8b6ab; }
+.app-shell.theme-dark .stencil-options .stencil-schema-action { border-color: #3f6b4e; color: #9cdbab; background: linear-gradient(115deg, #1d3225, #202d26); }
+.app-shell.theme-dark .stencil-options .stencil-schema-action small { color: #a0b5a5; }
+.app-shell.theme-dark .stencil-options .stencil-schema-action kbd { border-color: #3d5945; color: #b1d5ba; background: #26372c; }
+.app-shell.theme-dark .stencil-options .stencil-schema-action:hover { border-color: #548b64; background: #263c2c; }
+.app-shell.theme-dark .stencil-options .tool-options-heading.stencil-heading { border-color: #37433a; color: #aab9ad; }
+.app-shell.theme-dark .stencil-options button.stencil-template { border-color: #343b37; background: linear-gradient(180deg, #242a27, #202522); }
+.app-shell.theme-dark .stencil-options button.stencil-template:hover { background: #2a322d; }
+.app-shell.theme-dark .stencil-options .stencil-template-copy strong { color: #d6e2d9; }
+.app-shell.theme-dark .stencil-options .stencil-template-copy small { color: #9eaaa2; }
+.app-shell.theme-dark .stencil-options button.stencil-uml-er { --stencil-icon-bg: #332c45; color: #c7b8f2; }
+.app-shell.theme-dark .stencil-options button.stencil-software { --stencil-icon-bg: #263846; color: #a8c9e0; }
+.app-shell.theme-dark .stencil-options button.stencil-cloud { --stencil-icon-bg: #233a40; color: #91d1dd; }
+.app-shell.theme-dark .stencil-options button.stencil-network { --stencil-icon-bg: #233e39; color: #8ed7c8; }
+.app-shell.theme-dark .stencil-options button.stencil-viz { --stencil-icon-bg: #302e48; color: #c3baf0; }
+.app-shell.theme-dark .stencil-options button.stencil-forms { --stencil-icon-bg: #423720; color: #e6c27d; }
+.app-shell.theme-dark .stencil-options button.stencil-bpmn { --stencil-icon-bg: #463a23; color: #f0c975; }
+.app-shell.theme-dark .stencil-options button.stencil-uml-er:hover { border-color: #65558a; background: #302941; }
+.app-shell.theme-dark .stencil-options button.stencil-software:hover { border-color: #4c7079; background: #29383a; }
+.app-shell.theme-dark .stencil-options button.stencil-cloud:hover { border-color: #47777d; background: #253638; }
+.app-shell.theme-dark .stencil-options button.stencil-network:hover { border-color: #477b6d; background: #263a34; }
+.app-shell.theme-dark .stencil-options button.stencil-viz:hover { border-color: #675f91; background: #302e43; }
+.app-shell.theme-dark .stencil-options button.stencil-forms:hover { border-color: #806b3c; background: #3b3324; }
+

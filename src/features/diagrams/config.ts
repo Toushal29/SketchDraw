@@ -19,6 +19,19 @@ FLOWCHART_SHAPES.push(
   { value: "heart", label: "Heart", path: "M12 21S3 15 3 8a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 7-9 13-9 13z" },
   { value: "callout", label: "Callout", path: "M3 4h18v13H12l-5 4v-4H3z" },
   { value: "gear", label: "Gear", path: "M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z" },
+  { value: "hexagon", label: "Hexagon", path: "M7 4h10l5 8-5 8H7l-5-8z" },
+  { value: "parallelogram", label: "Parallelogram", path: "m7 4h15l-5 16H2z" },
+  { value: "trapezoid", label: "Trapezoid", path: "m6 4h12l4 16H2z" },
+  { value: "pentagon", label: "Pentagon", path: "m12 3 9 7-3.5 11h-11L3 10z" },
+  { value: "octagon", label: "Octagon", path: "m8 3h8l5 5v8l-5 5H8l-5-5V8z" },
+  { value: "chevron", label: "Chevron", path: "m3 4 9 0 9 8-9 8H3l9-8z" },
+  { value: "cross", label: "Cross", path: "M9 3h6v6h6v6h-6v6H9v-6H3V9h6z" },
+  { value: "folder", label: "Folder", path: "M3 6h7l2 2h9v12H3z" },
+  { value: "note", label: "Note", path: "M5 3h10l4 4v14H5zM14 3v5h5" },
+  { value: "display", label: "Display", path: "M3 4h18v13H3zM8 21h8m-4-4v4" },
+  { value: "cube", label: "Cube", path: "m12 3 8 4-8 4-8-4zM4 7v10l8 4 8-4V7m-8 4v10" },
+  { value: "rounded-rectangle", label: "Rounded rectangle", path: "M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" },
+  { value: "shield", label: "Shield", path: "m12 3 8 3v5c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" },
 );
-// Keep the legacy Gear path so older sketches still render it; it is not insertable in the current palettes.
-export const FLOWCHART_MENU_SHAPES = FLOWCHART_SHAPES.filter(shape => !["star", "lightning", "heart", "callout", "gear"].includes(shape.value));
+// Shared shape menu used by touch and desktop tool panels.
+export const FLOWCHART_MENU_SHAPES = FLOWCHART_SHAPES;

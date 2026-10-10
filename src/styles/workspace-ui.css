@@ -1,0 +1,199 @@
+/* Component editing lives in its own right dock, independent of quick style. */
+.component-editor-dock {
+    position: absolute;
+    z-index: 6;
+    top: 68px;
+    right: 10px;
+    bottom: 60px;
+    display: flex;
+    width: min(270px, calc(100vw - 72px));
+    min-width: 210px;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--workspace-line, #d5dce2);
+    border-radius: 8px;
+    color: var(--workspace-ink, #202a35);
+    background: var(--workspace-surface, #fff);
+    transition: width .14s ease;
+}
+
+.component-editor-dock.collapsed {
+    top: calc(50% - 18px);
+    right: 0;
+    bottom: auto;
+    width: 34px;
+    min-width: 34px;
+    height: 36px;
+    border-radius: 7px 0 0 7px;
+}
+
+.component-editor-heading {
+    display: flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px 6px 10px;
+    border-bottom: 1px solid var(--workspace-line, #e1e6eb);
+    background: var(--workspace-raised, #f7f9fa);
+}
+
+.component-editor-heading > div { display: grid; min-width: 0; gap: 3px; }
+.component-editor-heading strong { overflow: hidden; font-size: 14px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.component-editor-heading > button,
+.component-editor-expand {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    place-items: center;
+    border: 1px solid var(--workspace-line, #dfe4e9);
+    border-radius: 6px;
+    color: var(--workspace-muted, #65717c);
+    background: var(--workspace-surface, #fff);
+}
+.component-editor-heading > button:hover,
+.component-editor-expand:hover { color: var(--workspace-accent, #5366a9); background: color-mix(in srgb, var(--workspace-accent, #5366a9) 8%, var(--workspace-surface, #fff)); }
+.component-editor-heading svg,
+.component-editor-expand svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.component-editor-expand { width: 100%; height: 100%; flex: 1; border: 0; border-radius: inherit; background: transparent; }
+.component-editor-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 9px 10px 12px; }
+.component-editor-content { display: grid; gap: 9px; }
+.component-editor-content .component-size-grid { margin: 0; }
+.component-editor-content .component-size-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.component-editor-content .property-label { min-width: 0; margin-top: 0; color: var(--workspace-muted, #697581); font-size: 11px; font-weight: 650; }
+.component-editor-content .property-label input,
+.component-editor-content .property-label select,
+.component-editor-content .property-label textarea,
+.component-option-list input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 31px;
+    padding: 5px 7px;
+    border: 1px solid var(--workspace-line, #d7dee5);
+    border-radius: 5px;
+    color: var(--workspace-ink, #202a35);
+    background: var(--workspace-surface, #fff);
+    font: 12px/1.4 "DM Sans", sans-serif;
+}
+.component-editor-content .property-label textarea { resize: vertical; }
+.component-editor-content .component-data-editor { display: grid; gap: 5px; }
+.component-editor-content .component-data-editor textarea { min-height: 92px; font-family: ui-monospace, Consolas, monospace; }
+.component-editor-content .component-appearance-choice { margin: 0; }
+.component-editor-content .component-text-fields { margin: 0; }
+.component-editor-content .component-field-list { max-height: none; overflow: visible; padding: 0; }
+.component-editor-content .component-field-list > label { display: grid; gap: 3px; }
+.component-editor-content .component-draft-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid var(--workspace-line, #e1e6eb); }
+
+.component-options-editor { display: grid; gap: 8px; }
+.component-options-editor > header,
+.component-option-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.component-options-editor > header strong { font-size: 12px; }
+.component-options-editor > header span { color: var(--workspace-muted, #697581); font-size: 10px; font-variant-numeric: tabular-nums; }
+.component-option-list { display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }
+.component-option-row { display: flex; align-items: center; gap: 7px; }
+.component-option-row > span { width: 22px; flex: 0 0 22px; color: var(--workspace-muted, #697581); font-size: 10px; text-align: center; }
+.component-option-list input { min-height: 33px; padding: 6px 8px; }
+.component-option-list input.component-option-check,
+.component-option-list input.component-option-radio { flex: 0 0 16px; width: 16px; min-width: 16px; min-height: 16px; height: 16px; margin: 0 2px 0 0; padding: 0; accent-color: var(--workspace-accent, #5366a9); }
+.component-form-title { display: grid; gap: 4px; }
+.component-chart-editor { display: grid; gap: 9px; }
+.component-chart-axis-row,
+.component-kpi-editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.component-kpi-editor > label:first-child { grid-column: 1 / -1; }
+.component-chart-data { display: grid; gap: 6px; min-width: 0; }
+.component-chart-data-heading { display: flex; align-items: center; justify-content: space-between; color: var(--workspace-muted, #697581); font-size: 10px; }
+.component-chart-data-heading strong { color: var(--workspace-ink, #344252); font-size: 11px; }
+.component-chart-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(58px, 78px) 24px; gap: 5px; align-items: center; }
+.component-chart-row > span { overflow: hidden; color: var(--workspace-muted, #697581); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.component-chart-row > input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 31px; padding: 5px 6px; border: 1px solid var(--workspace-line, #d7dee5); border-radius: 5px; color: var(--workspace-ink, #202a35); background: var(--workspace-surface, #fff); font: 12px/1.4 "DM Sans", sans-serif; }
+.component-chart-row-heading { gap: 5px; }
+.component-chart-row-heading > span:first-child { grid-column: 1; }
+.component-chart-row-heading > span:nth-child(2) { grid-column: 2; }
+.component-chart-remove { width: 24px; height: 28px; padding: 0; border: 0; border-radius: 5px; color: var(--workspace-muted, #697581); background: transparent; font-size: 17px; }
+.component-chart-remove:hover:not(:disabled) { color: #b64b4b; background: color-mix(in srgb, #b64b4b 9%, transparent); }
+.component-chart-remove:disabled { opacity: .35; }
+.component-trend-control { display: grid; gap: 5px; color: var(--workspace-muted, #697581); font-size: 10px; font-weight: 650; }
+.component-trend-control > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.component-trend-control button { min-height: 29px; padding: 4px 5px; border: 1px solid var(--workspace-line, #d7dee5); border-radius: 6px; color: var(--workspace-ink, #344252); background: var(--workspace-surface, #fff); font-size: 10px; font-weight: 650; }
+.component-trend-control button.active { border-color: color-mix(in srgb, var(--workspace-accent, #5366a9) 55%, var(--workspace-line, #d7dee5)); color: var(--workspace-accent, #5366a9); background: color-mix(in srgb, var(--workspace-accent, #5366a9) 8%, var(--workspace-surface, #fff)); }
+.component-option-actions button { min-height: 30px; padding: 4px 9px; border: 1px solid var(--workspace-line, #d7dee5); border-radius: 8px; color: var(--workspace-ink, #344252); background: var(--workspace-surface, #fff); font-size: 11px; font-weight: 650; }
+.component-option-actions button:last-child { border-color: color-mix(in srgb, var(--workspace-accent, #5366a9) 35%, var(--workspace-line, #d7dee5)); color: var(--workspace-accent, #5366a9); }
+.component-option-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.class-card-editor { gap: 10px; }
+
+/* A single menu rail gives the desktop header a clear left-to-right rhythm. */
+.app-shell.platform-windows > .topbar {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+    padding-inline: clamp(10px, 1.4vw, 22px);
+}
+.app-shell.platform-windows .header-leading { box-sizing: border-box; min-width: 0; max-width: 245px; flex: 0 1 220px; gap: 10px; padding-right: 14px; border-right: 1px solid var(--workspace-line, #dfe5e9); }
+.app-shell.platform-windows .topbar .brand { min-width: 0; gap: 9px; }
+.app-shell.platform-windows .topbar .brand > span { max-width: 190px; }
+.app-shell.platform-windows > .topbar > .app-menus { min-width: 0; flex: 0 1 auto; margin: 0; padding: 0 12px; border-right: 1px solid var(--workspace-line, #dfe5e9); }
+.app-shell.platform-windows .app-menu-rail { display: flex; min-width: 0; align-items: center; gap: 5px; }
+.app-shell.platform-windows .app-menu-items { display: flex; min-width: 0; align-items: center; gap: 2px; padding: 0; border: 0; background: transparent; }
+.app-shell.platform-windows .app-menu-items > .menu-dropdown > summary { min-height: 34px; gap: 5px; padding: 0 9px; border: 1px solid transparent; border-radius: 8px; color: var(--workspace-muted, #697581); font-size: 11px; font-weight: 700; }
+.app-shell.platform-windows .app-menu-items > .menu-dropdown > summary:hover,
+.app-shell.platform-windows .app-menu-items > .menu-dropdown[open] > summary { border-color: color-mix(in srgb, var(--workspace-accent, #5366a9) 20%, var(--workspace-line, #dfe5e9)); color: var(--workspace-accent, #5366a9); background: color-mix(in srgb, var(--workspace-accent, #5366a9) 7%, var(--workspace-surface, #fff)); }
+.app-shell.platform-windows .app-menu-items > .menu-dropdown > summary > svg:first-child { width: 14px; height: 14px; opacity: .78; }
+.app-shell.platform-windows .app-menu-items > .menu-dropdown > summary > svg:last-child { width: 10px; height: 10px; opacity: .62; }
+.app-shell.platform-windows .app-menu-rail > .settings-menu-dropdown { margin-left: 2px; }
+.app-shell.platform-windows .topbar .settings-menu-dropdown > summary { min-width: 34px; min-height: 34px; justify-content: center; padding: 0 8px; border: 1px solid var(--workspace-line, #dfe5e9); border-radius: 9px; background: var(--workspace-raised, #f8fafb); }
+.app-shell.platform-windows > .topbar > .document-workspace-tabs { margin-left: 12px; flex: 0 1 auto; gap: 2px; padding: 2px; border-radius: 9px; }
+.app-shell.platform-windows > .topbar > .document-workspace-tabs button { min-height: 28px; padding-inline: 9px; font-size: 10px; }
+.app-shell.platform-windows > .topbar > .windows-document-tabs { margin-left: auto; flex: 0 1 auto; }
+.app-shell.platform-windows .topbar .top-actions { min-width: 0; flex: 0 0 auto; gap: 8px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--workspace-line, #dfe5e9); }
+.app-shell.platform-windows .live-sync-indicator { white-space: nowrap; }
+.app-shell.platform-windows .save-status { min-width: 58px; }
+
+.theme-dark .component-editor-dock { border-color: #3d4851; color: #e6edf2; background: #20262b; }
+.theme-dark .component-editor-heading { border-bottom-color: #37424a; background: #252c32; }
+.theme-dark .component-editor-heading > button,
+.theme-dark .component-editor-expand,
+.theme-dark .component-option-actions button { border-color: #414c55; color: #d3dde4; background: #2a3238; }
+.theme-dark .component-editor-content .property-label input,
+.theme-dark .component-editor-content .property-label select,
+.theme-dark .component-editor-content .property-label textarea,
+.theme-dark .component-option-list input,
+.theme-dark .component-chart-row > input { border-color: #414c55; color: #e6edf2; background: #1d2328; }
+.theme-dark .component-chart-data-heading strong { color: #dbe4ea; }
+.theme-dark .component-trend-control button,
+.theme-dark .component-chart-remove { border-color: #414c55; color: #d3dde4; background: #2a3238; }
+.theme-dark .component-option-actions button:last-child { color: #a8c7f3; }
+.app-shell.theme-dark.platform-windows > .topbar .header-leading,
+.app-shell.theme-dark.platform-windows > .topbar > .app-menus,
+.app-shell.theme-dark.platform-windows > .topbar .top-actions { border-color: #39434b; }
+.app-shell.theme-dark.platform-windows .app-menu-items > .menu-dropdown > summary { color: #c3cbd1; }
+.app-shell.theme-dark.platform-windows .app-menu-items > .menu-dropdown > summary:hover,
+.app-shell.theme-dark.platform-windows .app-menu-items > .menu-dropdown[open] > summary { border-color: #45554b; color: #b9d5c2; background: #2b3730; }
+.app-shell.theme-dark.platform-windows .topbar .settings-menu-dropdown > summary { border-color: #39434b; background: #252c32; }
+
+.app-shell.presentation-mode .component-editor-dock { display: none; }
+
+@media (max-width: 1280px) {
+    .app-shell.platform-windows .header-leading { flex-basis: 170px; padding-right: 10px; }
+    .app-shell.platform-windows > .topbar > .app-menus { padding-inline: 8px; }
+    .app-shell.platform-windows .app-menu-items > .menu-dropdown > summary { padding-inline: 7px; }
+    .app-shell.platform-windows .live-sync-indicator { display: none; }
+    .app-shell.platform-windows .topbar .top-actions { margin-left: 8px; padding-left: 8px; }
+}
+
+@media (max-width: 980px) {
+    .component-editor-dock { top: 62px; right: 6px; bottom: calc(env(safe-area-inset-bottom) + 64px); width: min(270px, calc(100vw - 16px)); min-width: min(210px, calc(100vw - 16px)); max-height: calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 130px); }
+    .component-editor-dock.collapsed { top: 42%; right: 0; bottom: auto; width: 34px; min-width: 34px; height: 36px; }
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+    .component-editor-dock { top: auto; bottom: calc(env(safe-area-inset-bottom) + 120px); max-height: min(42dvh, 250px); }
+    .component-editor-dock.collapsed { top: auto; bottom: calc(env(safe-area-inset-bottom) + 120px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .component-editor-dock { transition: none; }
+}

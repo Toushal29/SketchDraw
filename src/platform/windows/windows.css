@@ -84,6 +84,36 @@
 .platform-windows .tool-cluster-history { order: 8; }
 .platform-windows .touch-tool-actions { order: 9; }
 
+/* The page strip stays compact and expands only when the user has many pages. */
+.app-shell.platform-windows .desktop-page-tabs {
+    right: 14px;
+    bottom: 12px;
+    left: auto;
+    width: max-content;
+    max-width: min(440px, 38vw);
+    min-height: 30px;
+    gap: 3px;
+    padding: 3px;
+    border-color: color-mix(in srgb, var(--toolbar-ink) 13%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
+    box-shadow: 0 4px 18px #10171016;
+}
+.app-shell.platform-windows .desktop-page-tabs .page-tab-list { max-width: min(380px, 33vw); gap: 2px; scrollbar-width: none; }
+.app-shell.platform-windows .desktop-page-tabs .page-tab { min-width: 36px; max-width: 132px; height: 26px; padding: 0 9px; border-radius: 6px; color: color-mix(in srgb, var(--toolbar-ink) 68%, transparent); font-size: 11px; }
+.app-shell.platform-windows .desktop-page-tabs .page-tab.active { border-color: transparent; color: var(--ui-accent-ink); background: var(--ui-accent-soft); box-shadow: inset 0 -2px 0 var(--ui-accent); }
+.app-shell.platform-windows .desktop-page-tabs .page-tab:hover:not(.active) { background: color-mix(in srgb, var(--toolbar-ink) 6%, transparent); }
+.app-shell.platform-windows .desktop-page-tabs .page-add svg,
+.app-shell.platform-windows .desktop-page-tabs .page-menu > summary svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.app-shell.platform-windows .desktop-page-tabs .page-menu > summary { list-style: none; cursor: pointer; }
+.app-shell.platform-windows .desktop-page-tabs .page-menu > summary::-webkit-details-marker { display: none; }
+.app-shell.platform-windows .desktop-page-tabs > button,
+.app-shell.platform-windows .desktop-page-tabs .page-menu > summary { display: grid; min-width: 26px; width: 26px; height: 26px; place-items: center; padding: 0; border-radius: 6px; color: color-mix(in srgb, var(--toolbar-ink) 72%, transparent); font-size: 15px; }
+.app-shell.platform-windows .desktop-page-tabs > button:hover,
+.app-shell.platform-windows .desktop-page-tabs .page-menu > summary:hover { color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+.app-shell.platform-windows.theme-dark .desktop-page-tabs { box-shadow: 0 4px 20px #0005; }
+.app-shell.platform-windows.theme-dark .desktop-page-tabs .page-tab.active { color: var(--ui-accent-ink); }
+
 .platform-windows .tool-deck .tool-icon-button.selected {
     border-color: color-mix(in srgb, var(--ui-accent) 28%, transparent);
     color: var(--ui-accent-ink);
@@ -209,6 +239,138 @@
 .app-shell.platform-windows .auto-route-toggle strong { font-size: 11px; font-weight: 650; }
 .app-shell.platform-windows .auto-route-toggle small { color: color-mix(in srgb, var(--toolbar-ink) 62%, transparent); font-size: 9px; }
 .app-shell.platform-windows .canvas-tools-options .canvas-options-grid button { min-height: 38px; }
+
+/* Ruler-aware canvas controls reclaim their edge spacing when rulers are hidden. */
+.app-shell.platform-windows { --windows-canvas-control-inset: 10px; }
+.app-shell.platform-windows:has(> .canvas-wrap.canvas-rulers-visible) { --windows-canvas-control-inset: 32px; }
+.app-shell.platform-windows .touch-tool-bar {
+    top: var(--windows-canvas-control-inset);
+    transition: top .2s ease, left .2s ease, right .2s ease, background-color .18s ease, border-color .18s ease;
+}
+.app-shell.platform-windows .style-pane {
+    top: var(--windows-canvas-control-inset);
+    left: var(--windows-canvas-control-inset);
+    transition: top .2s ease, left .2s ease, transform .22s ease, opacity .18s ease;
+}
+.app-shell.platform-windows .tool-deck-reopen { top: calc(var(--windows-canvas-control-inset) + 40px); transition: top .2s ease; }
+
+/* A crisp, lightly tinted measurement edge that reads clearly in both themes. */
+.app-shell.platform-windows .canvas-rulers.windows-rulers { --windows-ruler-size: 24px; }
+.app-shell.platform-windows .canvas-rulers.windows-rulers .canvas-ruler-top {
+    height: var(--windows-ruler-size);
+    border-bottom-color: color-mix(in srgb, var(--ui-accent) 28%, var(--toolbar-ink) 18%);
+    background: color-mix(in srgb, var(--toolbar-surface) 90%, var(--ui-accent) 10%);
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--toolbar-ink) 10%, transparent);
+}
+.app-shell.platform-windows .canvas-rulers.windows-rulers .canvas-ruler-left {
+    width: var(--windows-ruler-size);
+    border-right-color: color-mix(in srgb, var(--ui-accent) 28%, var(--toolbar-ink) 18%);
+    background: color-mix(in srgb, var(--toolbar-surface) 90%, var(--ui-accent) 10%);
+    box-shadow: 1px 0 4px color-mix(in srgb, var(--toolbar-ink) 10%, transparent);
+}
+.app-shell.platform-windows .canvas-rulers.windows-rulers .canvas-ruler-top rect,
+.app-shell.platform-windows .canvas-rulers.windows-rulers .canvas-ruler-left rect {
+    fill: color-mix(in srgb, var(--toolbar-surface) 91%, var(--ui-accent) 9%);
+}
+.app-shell.platform-windows .canvas-rulers.windows-rulers .canvas-ruler-top path,
+.app-shell.platform-windows .canvas-rulers.windows-rulers .canvas-ruler-left path {
+    stroke: color-mix(in srgb, var(--toolbar-ink) 58%, var(--ui-accent) 42%);
+    stroke-width: .8;
+}
+.app-shell.platform-windows .canvas-rulers.windows-rulers .canvas-ruler-top text,
+.app-shell.platform-windows .canvas-rulers.windows-rulers .canvas-ruler-left text {
+    fill: color-mix(in srgb, var(--toolbar-ink) 84%, transparent);
+    font: 600 9px "Segoe UI", sans-serif;
+}
+.app-shell.platform-windows .canvas-rulers.windows-rulers .canvas-ruler-corner {
+    display: grid;
+    width: var(--windows-ruler-size);
+    height: var(--windows-ruler-size);
+    place-items: center;
+    border-color: color-mix(in srgb, var(--ui-accent) 28%, var(--toolbar-ink) 18%);
+    background: color-mix(in srgb, var(--toolbar-surface) 86%, var(--ui-accent) 14%);
+}
+.app-shell.platform-windows .canvas-rulers.windows-rulers .canvas-ruler-corner span {
+    color: color-mix(in srgb, var(--toolbar-ink) 72%, transparent);
+    font: 700 8px "Segoe UI", sans-serif;
+    letter-spacing: .02em;
+}
+
+/* Windows shape library: grouped stencils, consistent cards, and full labels. */
+.app-shell.platform-windows .tool-family.options-open .windows-shape-palette {
+    display: grid;
+    width: min(620px, calc(100vw - 28px));
+    max-height: min(72vh, 620px);
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px;
+    border-color: color-mix(in srgb, var(--ui-accent) 20%, var(--toolbar-ink) 13%);
+    border-radius: 14px;
+    box-shadow: 0 16px 44px color-mix(in srgb, #111827 18%, transparent);
+    transform: translateX(-50%);
+}
+.app-shell.platform-windows .windows-shape-group {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 5px;
+}
+.app-shell.platform-windows .windows-shape-group-title {
+    grid-column: 1 / -1;
+    margin: 3px 1px 1px;
+    padding: 4px 2px 6px;
+    border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 11%, transparent);
+    color: color-mix(in srgb, var(--toolbar-ink) 66%, transparent);
+    font: 700 10px/1.2 "Segoe UI", sans-serif;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.app-shell.platform-windows .windows-shape-option {
+    display: grid;
+    min-width: 0;
+    min-height: 64px;
+    align-content: center;
+    justify-items: center;
+    gap: 6px;
+    padding: 7px 5px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: var(--toolbar-ink);
+    background: color-mix(in srgb, var(--toolbar-ink) 3%, transparent);
+    cursor: pointer;
+    transition: color .14s ease, border-color .14s ease, background-color .14s ease, transform .14s ease;
+}
+.app-shell.platform-windows .windows-shape-option:hover,
+.app-shell.platform-windows .windows-shape-option.active,
+.app-shell.platform-windows .windows-shape-option:focus-visible {
+    border-color: color-mix(in srgb, var(--ui-accent) 34%, transparent);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+    outline: none;
+}
+.app-shell.platform-windows .windows-shape-option:hover { transform: translateY(-1px); }
+.app-shell.platform-windows .windows-shape-option svg {
+    width: 25px;
+    height: 25px;
+    fill: color-mix(in srgb, var(--ui-accent) 7%, transparent);
+    stroke: currentColor;
+    stroke-width: 1.55;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.app-shell.platform-windows .windows-shape-option span {
+    max-width: 100%;
+    overflow: hidden;
+    color: inherit;
+    font: 550 9px/1.15 "Segoe UI", sans-serif;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.app-shell.platform-windows .windows-shape-option:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+
 .platform-windows.windows-presentation-mode .topbar,
 .platform-windows.windows-presentation-mode .touch-tool-bar,
 .platform-windows.windows-presentation-mode .tool-deck,

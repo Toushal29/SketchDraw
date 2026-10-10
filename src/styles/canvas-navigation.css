@@ -10,7 +10,7 @@
 .canvas-ruler-top text,
 .canvas-ruler-left text { fill: color-mix(in srgb, var(--toolbar-ink) 76%, transparent); font: 8px "Segoe UI", sans-serif; }
 .canvas-ruler-top .ruler-unit { font-weight: 700; }
-.canvas-ruler-corner { position: absolute; top: 0; left: 0; width: 20px; height: 20px; border-right: 1px solid color-mix(in srgb, var(--toolbar-ink) 14%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 14%, transparent); background: var(--toolbar-surface); }
+.canvas-ruler-corner { position: absolute; top: 0; left: 0; display: grid; width: 24px; height: 24px; place-items: center; border-right: 1px solid color-mix(in srgb, var(--toolbar-ink) 16%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 16%, transparent); color: color-mix(in srgb, var(--ui-accent) 76%, var(--toolbar-ink)); background: color-mix(in srgb, var(--toolbar-surface) 96%, var(--ui-accent) 4%); font: 700 8px "Segoe UI", sans-serif; font-style: normal; }
 .canvas-minimap { position: absolute; z-index: 11; right: 16px; bottom: 18px; width: 224px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent); border-radius: 10px; color: var(--toolbar-ink); background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent); backdrop-filter: blur(12px); }
 .canvas-minimap header { display: flex; height: 30px; align-items: center; justify-content: space-between; padding: 0 8px 0 10px; color: var(--toolbar-ink); font-size: 11px; }
 .canvas-minimap header button { display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 5px; color: inherit; background: transparent; cursor: pointer; font-size: 17px; }

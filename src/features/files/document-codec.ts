@@ -20,8 +20,13 @@ export function createSketchSnapshot(options: CreateSnapshotOptions): SketchFile
   const sourcePages = options.pages.length ? options.pages : [{ id: "page-1", name: "Page 1", canvasState: options.activeCanvasState, elements: options.activeElements }];
   const pages = sourcePages.map(page => {
     const isCurrent = page.id === options.activePageId || (!options.activePageId && sourcePages.length === 1);
-    const normalized = (isCurrent ? options.activeElements : page.elements).map(normalizeElement);
-    if (normalized.some(element => !element)) throw new Error(`The drawing contains an element that cannot be saved in SketchDraw format v${SKETCH_FORMAT_VERSION}.`);
+    const sourceElements = isCurrent ? options.activeElements : page.elements;
+    const normalized = sourceElements.map(normalizeElement);
+    const invalidIndex = normalized.findIndex(element => !element);
+    if (invalidIndex >= 0) {
+      const invalid = sourceElements[invalidIndex];
+      throw new Error(`The ${invalid?.type ?? "unknown"} element ${invalid?.id ?? invalidIndex + 1} on “${page.name}” cannot be saved in SketchDraw format v${SKETCH_FORMAT_VERSION}.`);
+    }
     const state = isCurrent ? options.activeCanvasState : page.canvasState;
     const backgroundColor = isCurrent
       ? options.activeRenderedBoardColor

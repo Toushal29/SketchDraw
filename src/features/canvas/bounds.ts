@@ -1,6 +1,7 @@
 import type { Point, Element, Bounds, ShapeElement } from "../../model";
 import { textElementBox } from "../../operations";
 import { connectorPolylines, arrowHeadEntries, arrowHeadPoints } from "./geometry";
+import { stylusStrokeWidth } from "./freehand-rendering";
 
 const boundsCache = new WeakMap<Element, Bounds>();
 const cacheBounds = (element: Element, bounds: Bounds): Bounds => { boundsCache.set(element, bounds); return bounds; };
@@ -25,7 +26,8 @@ export function elementBounds(element: Element): Bounds {
       const surface = element.elements.find((child): child is ShapeElement => child.type === "rectangle");
       if (surface) return cacheBounds(element, rotatedBounds({ x: surface.x, y: surface.y, w: Math.abs(surface.w), h: Math.abs(surface.h) }, element.rotation ?? 0));
     }
-    return cacheBounds(element, unionBounds(element.elements.filter((child) => !child.hidden).map(elementBounds)) ?? { x: 0, y: 0, w: 0, h: 0 });
+    const bounds = unionBounds(element.elements.filter((child) => !child.hidden).map(elementBounds)) ?? { x: 0, y: 0, w: 0, h: 0 };
+    return cacheBounds(element, element.libraryComponent ? rotatedBounds(bounds, element.rotation ?? 0) : bounds);
   }
   if (element.type === "image") return cacheBounds(element, rotatedBounds({ x: element.x, y: element.y, w: element.w, h: element.h }, element.rotation ?? 0));
   if (element.type === "schemaTable") return cacheBounds(element, rotatedBounds({ x: element.x, y: element.y, w: element.w, h: element.h }, element.rotation ?? 0));
@@ -33,7 +35,12 @@ export function elementBounds(element: Element): Bounds {
     return cacheBounds(element, rotatedBounds(textElementBox(element), element.rotation ?? 0));
   }
   if (element.type === "freehand") {
-    return cacheBounds(element, rotatedBounds(boundsOfPoints(element.points, element.thickness / 2), element.rotation ?? 0));
+    let padding = Math.max(.25, element.thickness / 2);
+    for (const point of element.points) {
+      const tilt = element.points.length === 1 ? Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) : 0;
+      padding = Math.max(padding, stylusStrokeWidth(point, element.thickness) * (.5 + tilt * .35));
+    }
+    return cacheBounds(element, rotatedBounds(boundsOfPoints(element.points, padding), element.rotation ?? 0));
   }
   const x = Math.min(element.x, element.x + element.w);
   const y = Math.min(element.y, element.y + element.h);

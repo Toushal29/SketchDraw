@@ -1263,3 +1263,119 @@
 .read-only-view .board-view-section {
     display: none !important;
 }
+
+/* A searchable, categorized stencil sheet shared by desktop and touch layouts. */
+.tool-family.options-open .stencil-options {
+    display: grid;
+    width: min(660px, calc(100vw - 32px));
+    max-height: min(76vh, 700px);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-content: start;
+    gap: 7px;
+    padding: 12px;
+    border-radius: 16px;
+}
+.stencil-picker-heading,
+.stencil-category-filter,
+.stencil-options .tool-options-heading { grid-column: 1 / -1; }
+.stencil-picker-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 2px 2px 6px; }
+.stencil-picker-heading > div { display: grid; gap: 3px; }
+.stencil-picker-heading strong { color: #344238; font-size: 14px; font-weight: 720; letter-spacing: -.01em; }
+.stencil-picker-heading small { color: #849087; font-size: 10px; }
+.stencil-search { display: flex; width: min(230px, 45%); height: 34px; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid #dfe6df; border-radius: 9px; color: #7c8c81; background: #f7faf7; }
+.stencil-search svg { width: 16px; height: 16px; flex: 0 0 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.stencil-search input { width: 100%; min-width: 0; border: 0; outline: 0; color: #344238; background: transparent; font: inherit; font-size: 11px; }
+.stencil-search input::placeholder { color: #95a096; }
+.stencil-category-filter { display: flex; gap: 4px; overflow-x: auto; padding: 0 0 7px; border-bottom: 1px solid #e7ece7; scrollbar-width: thin; }
+.stencil-category-filter button { min-width: 0; min-height: 28px; flex: 0 0 auto; padding: 0 10px; border: 1px solid transparent; border-radius: 999px; color: #69776d; background: transparent; font-size: 10px; font-weight: 650; cursor: pointer; }
+.stencil-category-filter button:hover,
+.stencil-category-filter button.active { border-color: #c9dccd; color: #39724d; background: #edf6ef; }
+.stencil-options .tool-options-heading.stencil-heading { margin-top: 4px; padding: 8px 2px 2px; border-top: 1px solid #e7ece7; color: #68766d; font-size: 9px; }
+.stencil-options button.stencil-template { min-height: 72px; gap: 6px; padding: 8px 6px; border-color: #e8eee8; border-radius: 11px; color: #617067; background: linear-gradient(180deg, #fff, #f8faf8); transition: transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease; }
+.stencil-options button.stencil-template:hover { transform: translateY(-1px); }
+.stencil-options button.stencil-template svg { width: 25px; height: 25px; }
+.stencil-options button.stencil-uml { color: #7563ad; }
+.stencil-options button.stencil-er { color: #31877e; }
+.stencil-options button.stencil-architecture { color: #527d9b; }
+.stencil-options button.stencil-bpmn { color: #b58436; }
+.stencil-options button.stencil-network { color: #318391; }
+.stencil-options button.stencil-uml:hover { --stencil-icon-bg: #f2effb; border-color: #d9d1f0; background: #f6f3fc; }
+.stencil-options button.stencil-er:hover { --stencil-icon-bg: #e9f6f3; border-color: #c5e3dd; background: #eff9f6; }
+.stencil-options button.stencil-architecture:hover { --stencil-icon-bg: #edf4f8; border-color: #d0e0e9; background: #f2f7fa; }
+.stencil-options button.stencil-bpmn:hover { --stencil-icon-bg: #fff5df; border-color: #edd7a6; background: #fff9ec; }
+.stencil-options button.stencil-network:hover { --stencil-icon-bg: #e9f7f8; border-color: #c1e3e5; background: #f0fafb; }
+.stencil-options .stencil-empty { grid-column: 1 / -1; margin: 8px 2px; color: #7d897f; font-size: 11px; text-align: center; }
+
+/* Compact, descriptive library cards with a stable schema action. */
+.tool-family.options-open .stencil-options { width: min(780px, calc(100vw - 28px)); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stencil-featured-actions { grid-column: 1 / -1; }
+.stencil-schema-action { display: grid; width: 100%; min-height: 58px; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 11px; padding: 8px 12px; border: 1px solid #b9d9c3; border-radius: 12px; color: #286642; background: linear-gradient(115deg, #eff8f1, #f7fbf8); text-align: left; cursor: pointer; }
+.stencil-schema-action > svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
+.stencil-schema-action > span { display: grid; gap: 3px; }
+.stencil-schema-action strong { font-size: 12px; font-weight: 720; }
+.stencil-schema-action small { color: #738278; font-size: 10px; }
+.stencil-schema-action kbd { padding: 4px 7px; border: 1px solid #cfe1d3; border-radius: 6px; color: #4d7459; background: #fff; font-size: 9px; }
+.stencil-schema-action:hover { border-color: #80b894; background: #e8f5eb; }
+.stencil-options .tool-options-heading.stencil-heading { grid-column: 1 / -1; margin-top: 7px; }
+.stencil-options button.stencil-template { display: grid; min-height: 68px; grid-template-columns: 38px minmax(0, 1fr); align-items: center; justify-items: stretch; gap: 10px; padding: 9px; text-align: left; }
+.stencil-options button.stencil-template .stencil-symbol { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid color-mix(in srgb, currentColor 16%, transparent); border-radius: 10px; color: inherit; background: var(--stencil-icon-bg, #f2f5f4); }
+.stencil-options button.stencil-template .stencil-symbol svg { width: 26px; height: 26px; }
+.stencil-template-copy { display: grid; min-width: 0; gap: 4px; }
+.stencil-template-copy strong { color: #35433a; font-size: 10px; font-weight: 700; line-height: 1.25; }
+.stencil-template-copy small { display: -webkit-box; overflow: hidden; color: #77837b; font-size: 9px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.stencil-options button.stencil-uml-er { --stencil-icon-bg: #f1edfb; color: #7563ad; }
+.stencil-options button.stencil-software { --stencil-icon-bg: #edf3fa; color: #557a9b; }
+.stencil-options button.stencil-cloud { --stencil-icon-bg: #eaf5f8; color: #43879a; }
+.stencil-options button.stencil-network { --stencil-icon-bg: #e8f6f5; color: #31877e; }
+.stencil-options button.stencil-viz { --stencil-icon-bg: #f1effa; color: #7163a6; }
+.stencil-options button.stencil-forms { --stencil-icon-bg: #fff5e6; color: #a47732; }
+.stencil-options button.stencil-bpmn { --stencil-icon-bg: #fff4df; color: #b58436; }
+.stencil-options button.stencil-uml-er:hover { border-color: #d9d1f0; background: #f6f3fc; }
+.stencil-options button.stencil-software:hover { border-color: #d0e0e9; background: #f2f7fa; }
+.stencil-options button.stencil-cloud:hover { border-color: #c6e1e6; background: #eff9fa; }
+.stencil-options button.stencil-network:hover { border-color: #c1e3dd; background: #eff9f6; }
+.stencil-options button.stencil-viz:hover { border-color: #d5d1ed; background: #f6f4fc; }
+.stencil-options button.stencil-forms:hover { border-color: #edd9b4; background: #fff9ec; }
+.font-choice-deck { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 700px) {
+    .tool-family.options-open .stencil-options { width: min(600px, calc(100vw - 20px)); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stencil-picker-heading { align-items: stretch; flex-direction: column; gap: 8px; }
+    .stencil-search { width: 100%; max-width: none; }
+}
+@media (max-width: 420px) {
+    .tool-family.options-open .stencil-options { width: calc(100vw - 16px); grid-template-columns: minmax(0, 1fr); }
+    .stencil-category-filter { margin-inline: -2px; }
+}
+
+/* Editable library components */
+.library-component-properties .component-appearance-choice,
+.component-appearance-choice { display: flex; align-items: center; gap: 6px; margin: 10px 0; }
+.component-appearance-choice > span { margin-right: auto; color: var(--pane-muted, #697586); font-size: 12px; font-weight: 650; }
+.component-appearance-choice button { min-height: 30px; padding: 4px 10px; border: 1px solid var(--pane-line, #d8dee6); border-radius: 7px; background: var(--pane-surface, #fff); color: var(--pane-ink, #273444); transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .12s ease; }
+.component-appearance-choice button:active { transform: scale(.97); }
+.component-appearance-choice button.active { border-color: var(--ui-accent, #527ba8); background: color-mix(in srgb, var(--ui-accent, #527ba8) 12%, var(--pane-surface, #fff)); color: var(--ui-accent, #426b99); }
+.component-size-grid { margin-block: 10px; }
+.component-data-editor { display: grid; gap: 6px; }
+.component-data-editor textarea,
+.component-field-list textarea { box-sizing: border-box; width: 100%; min-height: 34px; resize: vertical; padding: 8px 9px; border: 1px solid var(--pane-line, #d8dee6); border-radius: 7px; background: var(--pane-surface, #fff); color: var(--pane-ink, #273444); font: 12px/1.45 ui-monospace, Consolas, monospace; }
+.component-data-editor small { color: var(--pane-muted, #697586); font-size: 11px; font-weight: 400; line-height: 1.4; }
+.component-text-fields { margin-top: 10px; }
+.component-text-fields > summary { padding: 8px 0; color: var(--pane-ink, #273444); cursor: pointer; font-size: 12px; font-weight: 700; }
+.component-field-list { display: grid; gap: 8px; max-height: min(42vh, 460px); overflow: auto; padding: 4px 2px; }
+.component-field-list .property-label { min-width: 0; gap: 5px; }
+.component-field-list .property-label > span { overflow: hidden; color: var(--pane-muted, #697586); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.component-state-control { position: relative; display: flex; align-items: center; gap: 10px; min-height: 38px; margin: 8px 0; cursor: pointer; color: var(--pane-ink, #273444); font-size: 12px; }
+.component-state-control input { position: absolute; width: 22px; height: 22px; margin: 0; opacity: 0; cursor: pointer; }
+.component-state-control > span { position: relative; flex: 0 0 20px; width: 20px; height: 20px; border: 1.5px solid #98a2ae; border-radius: 5px; background: var(--pane-surface, #fff); transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease; }
+.component-state-control > span::after { position: absolute; inset: 3px 5px 5px 3px; border-right: 2px solid transparent; border-bottom: 2px solid transparent; content: ""; transform: rotate(45deg) scale(.4); transition: transform .16s ease, border-color .16s ease; }
+.component-state-control input:checked + span:not(.component-switch) { border-color: var(--ui-accent, #527ba8); background: var(--ui-accent, #527ba8); }
+.component-state-control input:checked + span:not(.component-switch)::after { border-color: white; transform: rotate(45deg) scale(1); }
+.component-state-control > span.component-switch { flex-basis: 40px; width: 40px; height: 23px; border: 0; border-radius: 99px; background: #aab2bc; }
+.component-state-control > span.component-switch::after { inset: 3px auto 3px 3px; width: 17px; height: 17px; border: 0; border-radius: 50%; background: white; transform: translateX(0); box-shadow: 0 1px 3px #0003; }
+.component-state-control input:checked + span.component-switch { background: #43846a; }
+.component-state-control input:checked + span.component-switch::after { transform: translateX(17px); }
+.component-state-control input:focus-visible + span { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent, #527ba8) 25%, transparent); }
+.theme-dark .component-appearance-choice button,
+.theme-dark .component-data-editor textarea,
+.theme-dark .component-field-list textarea { border-color: #48515a; background: #22272c; color: #e8edf2; }
+@media (prefers-reduced-motion: reduce) { .component-state-control > span, .component-state-control > span::after, .component-appearance-choice button { transition-duration: .01ms; } }
