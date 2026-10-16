@@ -823,9 +823,9 @@
 .style-pane.full-style-mode {
     z-index: 7;
     display: block;
-    width: 52px;
+    width: 45px;
     max-height: calc(100% - 36px);
-    padding: 8px 6px;
+    padding: 5px 0px;
     overflow: visible;
     border: 1px solid #e6e9e3;
     border-radius: 17px;

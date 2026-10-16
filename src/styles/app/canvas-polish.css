@@ -67,7 +67,7 @@
 .style-pane.quick-style-mode,
 .style-pane.full-style-mode {
     border-color: #dfe6de;
-    border-radius: 16px;
+    border-radius: 50px;
     background: rgba(250, 252, 249, .965);
 }
 
@@ -199,7 +199,7 @@
 
 
 /* Keep the canvas toolbar compact after all base and theme styles. */
-.tool-deck { gap: 5px; padding: 5px; border-radius: 16px; }
+.tool-deck { gap: 0px; padding: 0px; border-radius: 10px; }
 .tool-cluster { gap: 2px; padding: 2px; border-radius: 12px; }
 .tool-icon-button { width: 38px; height: 44px; border-radius: 9px; }
 .tool-icon-button svg:not(.tool-family-caret) { width: 19px; height: 19px; }

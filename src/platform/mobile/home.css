@@ -21,7 +21,7 @@
 
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout {
         display: grid;
-        grid-template-areas: "intro" "actions" "project" "recent" "footer";
+        grid-template-areas: "primary" "recent" "footer";
         grid-template-columns: minmax(0, 1fr);
         align-content: start;
         gap: 17px;
@@ -31,6 +31,14 @@
         padding: clamp(16px, 4vw, 30px) max(14px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
     }
 
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-primary {
+        grid-area: primary;
+        display: grid;
+        grid-template-areas: "intro" "actions" "project";
+        grid-template-columns: minmax(0, 1fr);
+        gap: 17px;
+        min-width: 0;
+    }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro { grid-area: intro; padding: 3px 2px 0; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-eyebrow {
         display: inline-flex;
@@ -79,6 +87,8 @@
     }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action:active { transform: scale(.985); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action.primary { border-color: color-mix(in srgb, var(--ui-accent) 28%, #fff); background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 10%, #fff), var(--toolbar-surface, #fff) 78%); }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { box-shadow: 0 5px 16px #19251c0b; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action:hover { border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-icon {
         display: grid;
         flex: 0 0 36px;
@@ -97,7 +107,7 @@
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy small { color: #818b83; font-size: 9px; line-height: 1.35; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-arrow { flex: 0 0 15px; width: 15px; height: 15px; fill: none; stroke: #929b93; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { grid-area: project; display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: 11px 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, #e2e6e9); border-radius: 14px; background: color-mix(in srgb, var(--toolbar-surface, #fff) 96%, transparent); }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { grid-area: project; display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 11px 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, #e2e6e9); border-radius: 14px; background: color-mix(in srgb, var(--toolbar-surface, #fff) 96%, transparent); box-shadow: 0 10px 24px #19251c0b; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-icon { display: grid; width: 36px; height: 36px; grid-row: 1; place-items: center; border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, transparent); border-radius: 11px; color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 8%, var(--toolbar-surface, #fff)); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project > div { min-width: 0; }
@@ -164,25 +174,43 @@
 }
 
 @media (min-width: 700px) and (max-width: 1600px) and (pointer: coarse) {
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-screen { overflow: hidden; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout {
-        grid-template-areas: "intro recent" "actions recent" "project recent" "footer recent";
+        grid-template-areas: "primary recent";
         grid-template-columns: minmax(245px, .82fr) minmax(0, 1.18fr);
-        grid-template-rows: auto auto auto 1fr;
+        grid-template-rows: minmax(0, 1fr);
         align-content: stretch;
+        align-items: stretch;
         gap: 18px clamp(18px, 3vw, 38px);
+        height: 100%;
+        min-height: 0;
         padding: clamp(24px, 4vw, 52px) clamp(22px, 5vw, 70px) max(18px, env(safe-area-inset-bottom));
+        overflow: hidden;
+    }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-primary {
+        box-sizing: border-box;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        gap: 18px;
+        height: 100%;
+        padding: 20px;
+        overflow: hidden;
+        border: 1px solid color-mix(in srgb, var(--ui-accent) 19%, #e2e6e9);
+        border-radius: 24px;
+        background: linear-gradient(145deg, color-mix(in srgb, var(--toolbar-surface, #fff) 98%, transparent), color-mix(in srgb, var(--ui-accent) 3%, var(--toolbar-surface, #fff)));
+        box-shadow: 0 12px 30px #19251c0d;
     }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 { max-width: 400px; font-size: clamp(32px, 4vw, 46px); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-actions { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 10px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { min-height: 74px; padding: 12px 14px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy strong { font-size: 13px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy small { font-size: 10px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { grid-template-columns: 34px minmax(0, 1fr); }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { grid-template-columns: minmax(0, 1fr); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent { display: flex; min-height: 0; flex-direction: column; padding: 18px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-list { gap: 6px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-item { min-height: 62px; padding: 8px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy strong { font-size: 12px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer { align-self: end; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer { display: none; }
+    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-primary { border-color: #39434e; background: linear-gradient(145deg, #252d27, #222a25); box-shadow: 0 12px 30px #0003; }
 }
 
 @media (max-width: 560px) {
@@ -211,4 +239,132 @@
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 { margin-top: 7px; font-size: 25px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { min-height: 58px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent { padding: 9px 11px; }
+}
+
+@media (max-width: 900px) and (orientation: landscape), (max-width: 1600px) and (pointer: coarse) and (orientation: landscape) {
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-screen {
+        display: block;
+        min-height: 0;
+        overflow: hidden;
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: auto;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout {
+        box-sizing: border-box;
+        grid-template-areas: "primary recent";
+        grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+        grid-template-rows: minmax(0, 1fr);
+        align-content: stretch;
+        align-items: stretch;
+        gap: 8px clamp(12px, 2.2vw, 24px);
+        width: min(100%, 1080px);
+        height: 100%;
+        min-height: 0;
+        padding: max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+        overflow: hidden;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-primary {
+        box-sizing: border-box;
+        grid-template-areas: "intro" "actions" "project";
+        grid-template-rows: auto auto minmax(0, 1fr);
+        align-content: stretch;
+        align-items: stretch;
+        gap: 8px;
+        height: 100%;
+        min-height: 0;
+        padding: 12px;
+        overflow: hidden;
+        border: 1px solid color-mix(in srgb, var(--ui-accent) 19%, #e2e6e9);
+        border-radius: 18px;
+        background: linear-gradient(145deg, color-mix(in srgb, var(--toolbar-surface, #fff) 98%, transparent), color-mix(in srgb, var(--ui-accent) 3%, var(--toolbar-surface, #fff)));
+        box-shadow: 0 12px 30px #19251c0d;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro { min-width: 0; padding: 0; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 { margin: 5px 0 3px; font-size: clamp(21px, 3.7vw, 31px); }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro p { font-size: 10px; line-height: 1.35; }
+
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-actions {
+        grid-template-columns: minmax(0, 1fr);
+        align-content: start;
+        gap: 5px;
+    }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { min-height: 44px; gap: 0; padding: 7px 10px; border-radius: 11px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy { gap: 2px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy strong { font-size: 11px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy small { font-size: 8px; }
+
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project {
+        grid-template-columns: minmax(0, 1fr);
+        align-self: stretch;
+        min-height: 0;
+        grid-template-rows: minmax(0, 1fr) auto;
+        align-content: stretch;
+        gap: 5px;
+        padding: 8px 2px 0;
+        border: 0;
+        border-top: 1px solid color-mix(in srgb, var(--toolbar-ink, #46534a) 12%, transparent);
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project h2 { margin: 3px 0; font-size: 12px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project p { margin: 0; font-size: 9px; line-height: 1.3; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project > button { grid-column: 1; width: max-content; min-height: 29px; align-self: end; margin-top: auto; padding-inline: 9px; font-size: 9px; }
+
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent {
+        display: flex;
+        min-height: 0;
+        flex-direction: column;
+        align-self: stretch;
+        padding: 10px;
+        overflow: hidden;
+        border-radius: 14px;
+        box-shadow: 0 10px 24px #19251c0b;
+    }
+    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-primary { border-color: #39434e; background: linear-gradient(145deg, #252d27, #222a25); box-shadow: 0 12px 30px #0003; }
+    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project { border-color: transparent; border-top-color: #39434e; background: transparent; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading { flex: 0 0 auto; margin-bottom: 5px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading h2 { font-size: 14px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-count { min-width: 23px; height: 23px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: minmax(0, 1fr);
+        min-height: 0;
+        flex: 1 1 auto;
+        gap: 4px;
+        overflow: hidden;
+    }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-row { gap: 3px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-item { min-height: 36px; gap: 4px; padding: 4px; border-radius: 8px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy strong { font-size: 10px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy small { display: none; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-link { min-width: 46px; min-height: 26px; padding-inline: 4px; font-size: 8px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty { min-height: 0; flex: 1 1 auto; justify-content: center; padding: 4px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty strong { font-size: 10px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty p { font-size: 9px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer { display: none; }
+}
+
+@media (max-width: 600px) and (orientation: landscape) {
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout { grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); gap: 7px 9px; padding-inline: max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-right)); }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent { padding: 7px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-link { display: none; }
+}
+
+@media (max-height: 380px) and (orientation: landscape) {
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout { row-gap: 6px; padding-block: max(5px, env(safe-area-inset-top)) max(5px, env(safe-area-inset-bottom)); }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 { margin: 3px 0 2px; font-size: clamp(19px, 3vw, 25px); }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro p,
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project p { display: none; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { min-height: 38px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { gap: 4px; padding: 7px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project > button { min-height: 26px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent { padding: 7px; }
+}
+
+@media (max-height: 280px) and (orientation: landscape) {
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-row:nth-child(n + 5) { display: none; }
 }

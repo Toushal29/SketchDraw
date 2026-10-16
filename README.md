@@ -4,7 +4,7 @@
 
 SketchDraw is an offline-first drawing and planning app for Windows and Android. Draw diagrams, plan work, and keep notes and tasks together in one portable `.sketch` file. Save locally or in a folder managed by OneDrive, Dropbox, Google Drive, or another sync service.
 
-**App versions: Windows 12.0.0 | Android 7.0.1 | Document format: v9 | Copyright (c) 2026 Toushal Sampat**
+**App versions: Windows 12.1.0 | Android 7.1.0 | Document format: v9 | Copyright (c) 2026 Toushal Sampat**
 
 > SketchDraw saves version 9 `.sketch` documents on Windows and Android. New and opened sketches start on Canvas, with Planning available from the workspace tabs. Older quick notes are moved into Planning when a file is opened. Versions 1-8 remain readable and migrate to v9 when opened and saved.
 

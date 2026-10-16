@@ -1,7 +1,7 @@
 /* Mobile/tablet command bar, built independently from the desktop menu rail. */
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) .mobile-command-bar { min-width: 0; }
-    .app-shell:not(.platform-windows) .mobile-command-actions { display: flex; align-items: center; gap: 4px; }
+    .app-shell:not(.platform-windows) .mobile-command-actions { display: contents; }
     .app-shell:not(.platform-windows) .mobile-command-trigger {
         box-sizing: border-box;
         display: inline-flex;
@@ -20,9 +20,8 @@
         touch-action: manipulation;
     }
     .app-shell:not(.platform-windows) .mobile-command-trigger svg { width: 15px; height: 15px; flex: 0 0 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-    .app-shell:not(.platform-windows) .mobile-file-trigger { gap: 1px; }
-    .app-shell:not(.platform-windows) .mobile-file-trigger img { display: block; width: 18px; height: 18px; flex: 0 0 18px; object-fit: contain; }
-    .app-shell:not(.platform-windows) .mobile-file-trigger svg.mobile-file-chevron { width: 9px; height: 9px; flex: 0 0 9px; stroke-width: 1.8; }
+    .app-shell:not(.platform-windows) .mobile-file-trigger { width: 100%; min-width: 34px; padding-inline: 3px; }
+    .app-shell:not(.platform-windows) .mobile-file-trigger span { display: inline; }
     .app-shell:not(.platform-windows) .mobile-command-trigger:hover,
     .app-shell:not(.platform-windows) .mobile-command-trigger.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .app-shell:not(.platform-windows) .mobile-command-trigger:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
@@ -46,6 +45,20 @@
         -webkit-backdrop-filter: blur(18px);
         backdrop-filter: blur(18px);
     }
+    .app-shell:not(.platform-windows) .mobile-file-dropdown {
+        top: calc(var(--touch-header-height) + 3px);
+        right: auto;
+        left: max(8px, env(safe-area-inset-left));
+        width: min(280px, calc(100vw - 16px));
+        max-height: min(72dvh, 460px);
+        overflow-x: hidden;
+        overflow-y: auto;
+        transform: none;
+        border-radius: 10px;
+        box-shadow: 0 10px 28px #14201826;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
     .app-shell:not(.platform-windows) .mobile-command-panel > header {
         display: flex;
         min-height: 52px;
@@ -61,28 +74,26 @@
     .app-shell:not(.platform-windows) .mobile-command-close { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 0; border-radius: 8px; color: inherit; background: transparent; font-size: 22px; line-height: 1; }
     .app-shell:not(.platform-windows) .mobile-command-close:hover { background: var(--ui-accent-soft); }
 
-    .app-shell:not(.platform-windows) .mobile-file-actions { display: grid; max-height: calc(100dvh - var(--touch-header-height) - 84px); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; overflow: auto; padding: 9px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    .app-shell:not(.platform-windows) .mobile-file-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; padding: 4px; }
     .app-shell:not(.platform-windows) .mobile-file-actions > button {
-        position: relative;
         display: flex;
         min-width: 0;
-        min-height: 62px;
-        flex-direction: column;
+        min-height: 36px;
         align-items: center;
-        justify-content: center;
-        gap: 5px;
-        padding: 7px 5px;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, #425047) 11%, transparent);
-        border-radius: 10px;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 7px 10px;
+        border: 1px solid transparent;
+        border-radius: 6px;
         color: inherit;
-        background: color-mix(in srgb, var(--toolbar-ink, #425047) 2%, transparent);
-        font: 600 10px/1.15 system-ui, sans-serif;
-        text-align: center;
+        background: transparent;
+        font: 550 11px/1.2 system-ui, sans-serif;
+        text-align: left;
         touch-action: manipulation;
     }
-    .app-shell:not(.platform-windows) .mobile-file-actions > button > svg { width: 19px; height: 19px; flex: 0 0 19px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
     .app-shell:not(.platform-windows) .mobile-file-actions > button > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .app-shell:not(.platform-windows) .mobile-file-actions > button > kbd { position: absolute; top: 4px; right: 4px; max-width: 42px; overflow: hidden; text-overflow: ellipsis; }
+    .app-shell:not(.platform-windows) .mobile-file-actions > button > kbd { margin-left: auto; }
+    .app-shell:not(.platform-windows) .mobile-file-dropdown .mobile-file-actions > button > kbd { padding: 0; border: 0; border-radius: 0; background: transparent; }
     .app-shell:not(.platform-windows) .mobile-help-action {
         display: flex;
         width: 100%;
@@ -177,8 +188,8 @@
     .app-shell:not(.platform-windows) .canvas-component-appearance button { min-height: 34px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645c) 12%, transparent); border-radius: 7px; color: var(--toolbar-ink, #59645c); background: transparent; font: 600 9px system-ui, sans-serif; }
     .app-shell:not(.platform-windows) .canvas-component-appearance button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
 
-    .app-shell:not(.platform-windows) .mobile-file-trigger { width: 32px; min-width: 32px; padding: 0; }
-    .app-shell:not(.platform-windows) .mobile-file-trigger span { display: none; }
+    .app-shell:not(.platform-windows) .mobile-file-trigger { width: 100%; min-width: 34px; padding-inline: 3px; }
+    .app-shell:not(.platform-windows) .mobile-file-trigger span { display: inline; }
     .app-shell:not(.platform-windows) .mobile-settings-trigger svg { width: 18px; height: 18px; flex-basis: 18px; }
 }
 

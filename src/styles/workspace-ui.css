@@ -145,7 +145,7 @@
 .app-shell.platform-windows .app-menu-items > .menu-dropdown > summary > svg:last-child { width: 10px; height: 10px; opacity: .62; }
 .app-shell.platform-windows .app-menu-rail > .settings-menu-dropdown { margin-left: 2px; }
 .app-shell.platform-windows .topbar .settings-menu-dropdown > summary { min-width: 34px; min-height: 34px; justify-content: center; padding: 0 8px; border: 1px solid var(--workspace-line, #dfe5e9); border-radius: 9px; background: var(--workspace-raised, #f8fafb); }
-.app-shell.platform-windows > .topbar > .document-workspace-tabs { margin-left: 12px; flex: 0 1 auto; gap: 2px; padding: 2px; border-radius: 9px; }
+.app-shell.platform-windows > .topbar > .document-workspace-tabs { margin-left: auto; flex: 0 1 auto; gap: 2px; padding: 2px; border-radius: 9px; }
 .app-shell.platform-windows > .topbar > .document-workspace-tabs button { min-height: 28px; padding-inline: 9px; font-size: 10px; }
 .app-shell.platform-windows > .topbar > .windows-document-tabs { margin-left: auto; flex: 0 1 auto; }
 .app-shell.platform-windows .topbar .top-actions { min-width: 0; flex: 0 0 auto; gap: 8px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--workspace-line, #dfe5e9); }

@@ -49,7 +49,6 @@ export function TouchToolBar(props: Props) {
               </div>
             </nav>
             <aside class="touch-quick-style-dock" aria-label="Quick style">
-              <strong class="touch-panel-heading">Quick style</strong>
               {props.quickStyles}
             </aside>
           </div>

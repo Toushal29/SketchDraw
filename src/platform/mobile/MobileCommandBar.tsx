@@ -1,6 +1,5 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { DisplayMetrics } from "../../components/AppSettingsMenu";
-import sketchDrawMark from "../../../icons/sketchdraw-mark.svg";
 import { TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./GestureSettings";
 
 type MenuPanel = "file" | "settings" | undefined;
@@ -90,23 +89,75 @@ export function MobileCommandBar(props: Props) {
   const [panel, setPanel] = createSignal<MenuPanel>();
   const [settingsTab, setSettingsTab] = createSignal<SettingsTab>("appearance");
   let root: HTMLDivElement | undefined;
+  let panelFrame = 0;
   const close = () => setPanel(undefined);
   const run = (action: () => void) => { close(); action(); };
   const toggle = (next: Exclude<MenuPanel, undefined>) => setPanel(current => current === next ? undefined : next);
+  const fitPanelToViewport = () => {
+    if (panelFrame) cancelAnimationFrame(panelFrame);
+    panelFrame = requestAnimationFrame(() => {
+      panelFrame = 0;
+      const activePanel = panel();
+      if (!activePanel) return;
+      const trigger = root?.querySelector<HTMLElement>(activePanel === "file" ? ".mobile-file-trigger" : ".mobile-settings-trigger");
+      const popover = root?.querySelector<HTMLElement>(activePanel === "file" ? ".mobile-file-dropdown" : ".mobile-settings-panel");
+      if (!trigger || !popover) return;
+
+      const viewport = window.visualViewport;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportWidth = viewport?.width ?? window.innerWidth;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const scale = Math.max(0.5, props.interfaceScale);
+      const edge = 8;
+      const gap = 5;
+      const anchor = trigger.getBoundingClientRect();
+      const width = Math.min(activePanel === "file" ? 280 : 540, Math.max(0, viewportWidth - edge * 2));
+
+      popover.style.setProperty("position", "fixed", "important");
+      popover.style.setProperty("z-index", "1800", "important");
+      popover.style.setProperty("box-sizing", "border-box", "important");
+      popover.style.setProperty("width", `${width / scale}px`, "important");
+      popover.style.setProperty("max-width", `${width / scale}px`, "important");
+      popover.style.setProperty("left", `${Math.max(viewportLeft + edge, Math.min(anchor.left, viewportLeft + viewportWidth - width - edge)) / scale}px`, "important");
+      popover.style.setProperty("right", "auto", "important");
+      popover.style.setProperty("bottom", "auto", "important");
+      popover.style.setProperty("margin", "0", "important");
+      popover.style.setProperty("transform", "none", "important");
+
+      const below = Math.max(0, viewportTop + viewportHeight - anchor.bottom - gap - edge);
+      const above = Math.max(0, anchor.top - viewportTop - gap - edge);
+      const opensBelow = below >= above || below >= 190;
+      const availableHeight = Math.max(80, Math.min(viewportHeight - edge * 2, opensBelow ? below : above));
+      popover.style.setProperty("max-height", `${availableHeight / scale}px`, "important");
+      const settingsContent = popover.querySelector<HTMLElement>(".mobile-settings-content");
+      if (settingsContent) settingsContent.style.setProperty("max-height", `${Math.max(0, availableHeight - 112) / scale}px`, "important");
+
+      const measuredHeight = Math.min(popover.getBoundingClientRect().height || availableHeight, availableHeight);
+      const top = opensBelow ? anchor.bottom + gap : anchor.top - measuredHeight - gap;
+      popover.style.setProperty("top", `${Math.max(viewportTop + edge, Math.min(top, viewportTop + viewportHeight - measuredHeight - edge)) / scale}px`, "important");
+    });
+  };
+
+  createEffect(() => {
+    panel();
+    props.interfaceScale;
+    fitPanelToViewport();
+  });
   const fileActions = [
-    { label: "New sketch", icon: "M12 4v16M4 12h16", disabled: () => false, action: props.onNewSketch, shortcut: () => props.shortcuts.newSketch },
-    { label: "Open sketch", icon: "M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18", disabled: () => false, action: props.onOpenSketch },
-    { label: "Open view only", icon: "M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z", disabled: () => false, action: props.onOpenAsView },
-    { label: "Save", icon: "M5 3h12l4 4v14H3V3h2z M7 3v6h10V3 M7 21v-8h10v8", disabled: () => !props.canSave, action: props.onSave, shortcut: () => props.shortcuts.saveSketch },
-    { label: "Save as…", icon: "M12 4v12m-5-5 5 5 5-5 M4 20h16", disabled: () => !props.canSaveAs, action: props.onSaveAs },
-    { label: "Rename", icon: "M4 20h4l11-11a2.1 2.1 0 0 0-4-4L4 16v4z M13.5 6.5l4 4", disabled: () => !props.canRename, action: props.onRename },
-    { label: "Import image", icon: "M4 4h16v16H4z M8 14l3-3 3 3 2-2 4 4 M9 8h.01", disabled: () => !props.canImport, action: props.onImportImage },
-    { label: "Import SVG", icon: "M5 3h9l5 5v13H5z M14 3v6h5 M8 15l2-4 2 4m-3.4-1h2.8 M14 15v-4h1.6a1.4 1.4 0 0 1 0 2.8H14", disabled: () => !props.canImport, action: props.onImportSvg },
-    { label: "Export PNG", icon: "M12 3v12m-5-5 5 5 5-5 M4 17v4h16v-4", disabled: () => !props.canExport, action: props.onExportPng },
-    { label: "Export PDF", icon: "M5 3h9l5 5v13H5z M14 3v6h5 M8 16v-5h1.5a1.5 1.5 0 0 1 0 3H8m4 2v-5h1a2.5 2.5 0 0 1 0 5h-1", disabled: () => !props.canExport, action: props.onExportPdf },
-    { label: "Export SVG", icon: "M4 5h16v14H4z M7 15l2-6 2 6m-3.5-2h3 M14 9v6h1a3 3 0 0 0 0-6h-1", disabled: () => !props.canExport, action: props.onExportSvg },
-    { label: "Clear canvas", icon: "M4 7h16 M10 11v6m4-6v6 M6 7l1 14h10l1-14 M9 7V4h6v3", disabled: () => !props.canClear, action: props.onClearCanvas },
-    { label: "Close file", icon: "M6 6l12 12M18 6 6 18", disabled: () => !props.canClose, action: props.onCloseFile },
+    { label: "New sketch", disabled: () => false, action: props.onNewSketch, shortcut: () => props.shortcuts.newSketch },
+    { label: "Open sketch", disabled: () => false, action: props.onOpenSketch },
+    { label: "Open view only", disabled: () => false, action: props.onOpenAsView },
+    { label: "Save", disabled: () => !props.canSave, action: props.onSave, shortcut: () => props.shortcuts.saveSketch },
+    { label: "Save as…", disabled: () => !props.canSaveAs, action: props.onSaveAs },
+    { label: "Rename", disabled: () => !props.canRename, action: props.onRename },
+    { label: "Import image", disabled: () => !props.canImport, action: props.onImportImage },
+    { label: "Import SVG", disabled: () => !props.canImport, action: props.onImportSvg },
+    { label: "Export PNG", disabled: () => !props.canExport, action: props.onExportPng },
+    { label: "Export PDF", disabled: () => !props.canExport, action: props.onExportPdf },
+    { label: "Export SVG", disabled: () => !props.canExport, action: props.onExportSvg },
+    { label: "Clear canvas", disabled: () => !props.canClear, action: props.onClearCanvas },
+    { label: "Close file", disabled: () => !props.canClose, action: props.onCloseFile },
   ];
 
   onMount(() => {
@@ -115,11 +166,21 @@ export function MobileCommandBar(props: Props) {
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("keydown", escape, true);
     const closeFromToolbar = () => close();
+    const reposition = () => fitPanelToViewport();
     window.addEventListener("sketchdraw:close-touch-menu", closeFromToolbar);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("orientationchange", reposition);
+    window.visualViewport?.addEventListener("resize", reposition);
+    window.visualViewport?.addEventListener("scroll", reposition);
     onCleanup(() => {
+      if (panelFrame) cancelAnimationFrame(panelFrame);
       document.removeEventListener("pointerdown", outside, true);
       document.removeEventListener("keydown", escape, true);
       window.removeEventListener("sketchdraw:close-touch-menu", closeFromToolbar);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("orientationchange", reposition);
+      window.visualViewport?.removeEventListener("resize", reposition);
+      window.visualViewport?.removeEventListener("scroll", reposition);
     });
   });
 
@@ -130,23 +191,21 @@ export function MobileCommandBar(props: Props) {
 
   return <div class="mobile-command-bar" ref={root}>
     <div class="mobile-command-actions" role="group" aria-label="File and application settings">
-      <button type="button" class={`mobile-command-trigger mobile-file-trigger ${panel() === "file" ? "active" : ""}`} aria-label={`File menu${props.hasFile ? ` for ${props.fileName}` : ""}`} title={`File${props.hasFile ? `: ${props.fileName}` : ""}`} aria-expanded={panel() === "file"} onClick={() => toggle("file")}>
-        <img src={sketchDrawMark} alt="" /><svg class="mobile-file-chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3" /></svg><span>File</span>
+      <button type="button" class={`mobile-command-trigger mobile-file-trigger ${panel() === "file" ? "active" : ""}`} aria-label={`File menu${props.hasFile ? ` for ${props.fileName}` : ""}`} title={`File${props.hasFile ? `: ${props.fileName}` : ""}`} aria-expanded={panel() === "file"} aria-controls="mobile-file-menu" onClick={() => toggle("file")}>
+        <span>File</span>
       </button>
       {settingTrigger()}
     </div>
 
     <Show when={panel() === "file"}>
-      <section class="mobile-command-panel mobile-file-panel" role="dialog" aria-label="File actions">
-        <header><div><small>SKETCHDRAW</small><strong>{props.hasFile ? props.fileName : "File"}</strong></div><button type="button" class="mobile-command-close" aria-label="Close file menu" onClick={close}>×</button></header>
+      <nav id="mobile-file-menu" class="mobile-command-panel mobile-file-dropdown" aria-label="File actions">
         <div class="mobile-file-actions">
           {fileActions.map(item => <button type="button" disabled={item.disabled()} onClick={() => run(item.action)}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={item.icon} /></svg>
             <span>{item.label}</span>
             {item.shortcut && <kbd>{item.shortcut()}</kbd>}
           </button>)}
         </div>
-      </section>
+      </nav>
     </Show>
 
     <Show when={panel() === "settings"}>

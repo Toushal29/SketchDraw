@@ -256,8 +256,6 @@
     padding: 3px 7px;
     border-radius: 11px;
   }
-  .app-shell:not(.platform-windows) .touch-quick-style-dock:has(> .touch-panel-heading:only-child) { display: none !important; }
-  .app-shell:not(.platform-windows) .touch-panel-heading { flex: 0 0 auto; padding-right: 6px; border-right: 1px solid color-mix(in srgb, var(--toolbar-ink, #526057) 13%, transparent); color: color-mix(in srgb, var(--toolbar-ink, #39463c) 72%, transparent); font: 700 9px/1 system-ui, sans-serif; }
   .app-shell:not(.platform-windows) .touch-quick-style-dock .touch-quick-style-controls {
     position: static !important;
     z-index: auto !important;
@@ -358,5 +356,4 @@
   .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-layers-toggle { width: 36px; min-width: 36px; height: 36px; min-height: 36px; flex-basis: 36px; }
   .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-tool-bar { min-height: 44px; }
   .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-quick-style-dock { min-height: 32px; padding: 2px 5px; }
-  .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-panel-heading { display: none; }
 }

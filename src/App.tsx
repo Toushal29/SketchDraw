@@ -4157,12 +4157,14 @@ function App() {
     const hasOpenPopover = !!openToolOptions() || paintBrushMenuOpen() || stencilMenuOpen() || canvasOptionsOpen();
     mobileOrientation(); toolbarPosition(); interfaceScale();
     if (hasOpenPopover) scheduleTouchPopoverPlacement();
+    requestAnimationFrame(() => {
+      document.querySelectorAll<HTMLDetailsElement>(".app-menus details[open], .touch-page-control[open]").forEach(alignTouchMenuPopover);
+    });
   });
   onMount(() => {
     const reposition = () => {
       scheduleTouchPopoverPlacement();
-      const openPageMenu = document.querySelector<HTMLDetailsElement>(".touch-page-control[open]");
-      if (openPageMenu) alignTouchMenuPopover(openPageMenu);
+      document.querySelectorAll<HTMLDetailsElement>(".app-menus details[open], .touch-page-control[open]").forEach(alignTouchMenuPopover);
     };
     window.addEventListener("resize", reposition);
     window.addEventListener("orientationchange", reposition);
@@ -4177,31 +4179,34 @@ function App() {
   });
 
   const alignTouchMenuPopover = (details?: HTMLDetailsElement) => {
-    if (!details || !isCompactTouchLayout() || isWindowsPlatform()) return;
+    if (!details || !details.open) return;
+    const shouldCoordinateTouch = isCompactTouchLayout() && !isWindowsPlatform();
     requestAnimationFrame(() => {
       if (!details.isConnected || !details.open) return;
-      window.dispatchEvent(new Event("sketchdraw:close-touch-menu"));
+      if (shouldCoordinateTouch) window.dispatchEvent(new Event("sketchdraw:close-touch-menu"));
       const anchor = details.querySelector<HTMLElement>("summary");
       const panel = details.querySelector<HTMLElement>(".system-menu-popover, .touch-pages-popover");
       if (!anchor || !panel) return;
-      document.querySelectorAll<HTMLDetailsElement>(".app-menus details[open], .touch-page-control[open]").forEach(openMenu => {
-        if (openMenu !== details) openMenu.open = false;
-      });
-      setOpenToolOptions(undefined);
-      setPaintBrushMenuOpen(false);
-      setStencilMenuOpen(false);
-      setCanvasOptionsOpen(false);
-      setQuickStylePopover(undefined);
-      setTouchStylePanel(false);
+      if (shouldCoordinateTouch) {
+        document.querySelectorAll<HTMLDetailsElement>(".app-menus details[open], .touch-page-control[open]").forEach(openMenu => {
+          if (openMenu !== details) openMenu.open = false;
+        });
+        setOpenToolOptions(undefined);
+        setPaintBrushMenuOpen(false);
+        setStencilMenuOpen(false);
+        setCanvasOptionsOpen(false);
+        setQuickStylePopover(undefined);
+        setTouchStylePanel(false);
+      }
       const visualViewport = window.visualViewport;
       const viewportLeft = visualViewport?.offsetLeft ?? 0;
       const viewportTop = visualViewport?.offsetTop ?? 0;
       const viewportWidth = visualViewport?.width ?? window.innerWidth;
       const viewportHeight = visualViewport?.height ?? window.innerHeight;
       const anchorRect = anchor.getBoundingClientRect();
-      const headerBottom = document.querySelector<HTMLElement>(".app-shell:not(.platform-windows) > .mobile-workspace-header")?.getBoundingClientRect().bottom ?? 0;
+      const uiScale = Math.max(0.5, interfaceScale());
       const edge = 8;
-      const maxWidth = Math.max(160, viewportWidth - edge * 2);
+      const maxWidth = Math.max(0, viewportWidth - edge * 2);
       panel.style.setProperty("position", "fixed", "important");
       panel.style.setProperty("z-index", "1800", "important");
       panel.style.setProperty("box-sizing", "border-box", "important");
@@ -4211,33 +4216,35 @@ function App() {
         : panel.classList.contains("view-settings-popover") || panel.classList.contains("gesture-settings-popover") ? 560
         : panel.classList.contains("app-settings-popover") ? 440
         : 300;
-      panel.style.setProperty("width", `min(${preferredWidth}px, ${maxWidth}px)`, "important");
-      panel.style.setProperty("max-width", `${maxWidth}px`, "important");
-      panel.style.setProperty("max-height", `${Math.max(120, viewportHeight - edge * 2)}px`, "important");
+      const preferredHeight = panel.classList.contains("app-settings-popover") ? 560 : panel.classList.contains("touch-pages-popover") ? 620 : 720;
+      panel.style.setProperty("width", `${Math.min(preferredWidth, maxWidth) / uiScale}px`, "important");
+      panel.style.setProperty("max-width", `${maxWidth / uiScale}px`, "important");
+      panel.style.setProperty("max-height", `${Math.min(preferredHeight, Math.max(0, viewportHeight - edge * 2)) / uiScale}px`, "important");
+      panel.style.setProperty("overflow-y", "auto", "important");
       panel.style.setProperty("margin", "0", "important");
       panel.style.setProperty("transform", "none", "important");
-      const panelWidth = Math.min(panel.getBoundingClientRect().width || Math.min(440, maxWidth), maxWidth);
+      const panelWidth = Math.min(panel.getBoundingClientRect().width || Math.min(preferredWidth, maxWidth), maxWidth);
+      const naturalHeight = Math.min(panel.getBoundingClientRect().height || preferredHeight, preferredHeight, viewportHeight - edge * 2);
+      const availableBelow = Math.max(0, viewportTop + viewportHeight - anchorRect.bottom - 6 - edge);
+      const availableAbove = Math.max(0, anchorRect.top - viewportTop - 6 - edge);
+      const opensBelow = availableBelow >= naturalHeight || availableBelow >= availableAbove;
+      const availableHeight = Math.max(80, Math.min(viewportHeight - edge * 2, opensBelow ? availableBelow : availableAbove));
+      panel.style.setProperty("max-height", `${availableHeight / uiScale}px`, "important");
+      const panelHeight = Math.min(panel.getBoundingClientRect().height || availableHeight, availableHeight);
+      const maxTop = Math.max(viewportTop + edge, viewportTop + viewportHeight - panelHeight - edge);
+      const top = Math.max(viewportTop + edge, Math.min(opensBelow ? anchorRect.bottom + 6 : anchorRect.top - panelHeight - 6, maxTop));
       const inset = viewportLeft + edge;
       const maxLeft = Math.max(inset, viewportLeft + viewportWidth - panelWidth - edge);
-      const left = anchorRect.width === 0 && anchorRect.height === 0 ? inset : Math.max(inset, Math.min(anchorRect.left, maxLeft));
-      const lowerTop = viewportTop + Math.max(edge, viewportHeight - edge - 80);
-      const top = Math.max(viewportTop + edge, Math.min(lowerTop, Math.max(headerBottom + 6, anchorRect.bottom + 6)));
-      const availableHeight = Math.max(80, viewportTop + viewportHeight - top - edge);
-      panel.style.setProperty("left", `${left}px`, "important");
-      panel.style.setProperty("top", `${top}px`, "important");
-      panel.style.setProperty("max-height", `${availableHeight}px`, "important");
+      const left = Math.max(inset, Math.min(anchorRect.left, maxLeft));
+      panel.style.setProperty("left", `${left / uiScale}px`, "important");
+      panel.style.setProperty("top", `${top / uiScale}px`, "important");
     });
   };
   const alignViewSettingsPopover = () => {
     requestAnimationFrame(() => {
       const panel = viewMenu?.querySelector<HTMLElement>(".view-settings-popover");
       if (!panel || !viewMenu?.open) return;
-      if (isCompactTouchLayout()) { alignTouchMenuPopover(viewMenu); return; }
-      const menuBounds = viewMenu.getBoundingClientRect();
-      const panelWidth = panel.getBoundingClientRect().width;
-      const targetLeft = Math.max(8, Math.min(menuBounds.left, window.innerWidth - panelWidth - 8));
-      panel.style.left = `${(targetLeft - menuBounds.left) / interfaceScale()}px`;
-      panel.style.right = "auto";
+      alignTouchMenuPopover(viewMenu);
     });
   };
   const toggleWindowsFullscreen = async (enabled = !windowsFullscreenMode()) => {
