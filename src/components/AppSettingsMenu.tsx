@@ -21,9 +21,6 @@ type Props = {
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
   buttonChoices: boolean;
-  androidAllFilesAccessAvailable: boolean;
-  androidAllFilesAccessGranted: boolean;
-  showAndroidAllFilesAccess: boolean;
   reduceMotion: boolean;
   displayMetrics: DisplayMetrics;
   onInterfaceScaleChange: (scale: number) => void;
@@ -34,7 +31,6 @@ type Props = {
   onToolbarColorChange: (value: string) => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: "presets" | "stepper") => void;
-  onRequestAndroidAllFilesAccess: () => void;
   onReduceMotionChange: (reduce: boolean) => void;
   onRestoreDefaults: () => void;
   detailsRef?: (element: HTMLDetailsElement) => void;
@@ -60,6 +56,7 @@ export function AppSettingsMenu(props: Props) {
     <details class="menu-dropdown settings-menu-dropdown" ref={props.detailsRef} onToggle={props.onToggle}>
       <summary aria-label="App settings" title="App settings">
         <span class="settings-menu-label">Settings</span>
+        <svg class="touch-settings-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z"/><path d="m19.4 13.5 1.1.8-1.6 2.8-1.3-.5a7.8 7.8 0 0 1-1.7 1l-.2 1.4h-3.3l-.2-1.4a7.8 7.8 0 0 1-1.7-1l-1.3.5-1.6-2.8 1.1-.8a7.6 7.6 0 0 1 0-2l-1.1-.8 1.6-2.8 1.3.5a7.8 7.8 0 0 1 1.7-1l.2-1.4h3.3l.2 1.4a7.8 7.8 0 0 1 1.7 1l1.3-.5 1.6 2.8-1.1.8a7.6 7.6 0 0 1 0 2Z"/></svg>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
       </summary>
       <div class="system-menu-popover app-settings-popover">
@@ -119,11 +116,6 @@ export function AppSettingsMenu(props: Props) {
           </Show>
           <small>Choose presets or fine tuning for pen and paint brushes. Other tools keep their existing controls.</small>
         </div>
-        {props.showAndroidAllFilesAccess && <div class="app-setting-field app-android-storage-setting">
-          <span>All files access <strong>{!props.androidAllFilesAccessAvailable ? "Unavailable" : props.androidAllFilesAccessGranted ? "Allowed" : "Not allowed"}</strong></span>
-          <small>Android requires you to enable this in Special app access. When enabled, SketchDraw can read and write shared-storage files, including Downloads. If you decline, the document picker still gives access only to files you select.</small>
-          <button type="button" class="app-settings-reset" disabled={!props.androidAllFilesAccessAvailable} onClick={props.onRequestAndroidAllFilesAccess}>{props.androidAllFilesAccessGranted ? "Manage storage permission" : "Request storage permission"}</button>
-        </div>}
         <label class="app-setting-toggle">
           <span><strong>Reduce motion</strong><small>Turn off most interface animations</small></span>
           <input type="checkbox" checked={props.reduceMotion} onChange={event => props.onReduceMotionChange(event.currentTarget.checked)} />

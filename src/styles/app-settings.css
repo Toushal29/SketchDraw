@@ -82,25 +82,9 @@
 .theme-dark .app-setting-choices button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell:not(.platform-windows) .settings-menu-dropdown > summary { width: 48px; min-width: 48px; justify-content: center; padding: 5px 3px; }
-    .app-shell:not(.platform-windows) .settings-menu-label { display: inline; font-size: 8px; }
-    .app-shell:not(.platform-windows) .settings-menu-dropdown > summary > svg { display: none; }
-    .app-shell:not(.platform-windows) .app-menus .settings-menu-dropdown .app-settings-popover {
-        position: fixed;
-        z-index: 100;
-        top: calc(max(54px, env(safe-area-inset-top) + 46px));
-        right: max(8px, env(safe-area-inset-right));
-        left: auto;
-        width: min(360px, calc(100vw - 16px));
-        max-width: calc(100vw - 16px);
-        max-height: calc(100dvh - max(62px, env(safe-area-inset-top) + 54px));
-        padding: 9px;
-        transform: none;
-    }
     .app-setting-field select { min-height: 40px; }
 }
 
 @media (max-width: 400px) {
-    .topbar .app-menus { gap: 0; }
     .app-settings-popover { gap: 8px; }
 }

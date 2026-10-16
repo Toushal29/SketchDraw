@@ -197,7 +197,6 @@
     .app-shell.platform-windows .tool-deck .tool-cluster .tool-icon-button,
     .app-shell.platform-windows .tool-deck .tool-extra-family { display: flex !important; }
     .app-shell.platform-windows .tool-deck .tool-collapse { display: grid !important; }
-    .app-shell.platform-windows .tool-deck .mobile-tools-toggle { display: none !important; }
     .app-shell.platform-windows .touch-tool-bar { flex-wrap: wrap; overflow: visible; }
 }
 

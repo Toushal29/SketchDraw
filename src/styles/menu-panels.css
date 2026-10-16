@@ -233,24 +233,6 @@
 .app-shell.theme-dark .orientation-setting-message { color: #f0b083 !important; }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell:not(.platform-windows) .app-menus .settings-menu-dropdown .app-settings-popover,
-    .app-shell:not(.platform-windows) .app-menus .touch-gesture-menu .gesture-settings-popover {
-        position: fixed !important;
-        z-index: 320;
-        top: calc(var(--touch-header-height, 50px) + env(safe-area-inset-top) + 6px) !important;
-        right: max(8px, env(safe-area-inset-right)) !important;
-        bottom: max(8px, env(safe-area-inset-bottom)) !important;
-        left: max(8px, env(safe-area-inset-left)) !important;
-        box-sizing: border-box;
-        width: auto !important;
-        max-width: none !important;
-        max-height: none !important;
-        margin: 0;
-        padding: 12px;
-        overflow-x: hidden;
-        overflow-y: auto;
-        transform: none !important;
-    }
     .app-shell:not(.platform-windows) .app-settings-popover { gap: 8px; }
     .app-shell:not(.platform-windows) .app-setting-field { padding: 9px; }
     .app-shell:not(.platform-windows) .gesture-settings-popover { gap: 9px; }

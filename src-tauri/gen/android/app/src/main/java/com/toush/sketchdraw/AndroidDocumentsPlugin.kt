@@ -4,11 +4,9 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
 import android.os.Process
 import android.provider.DocumentsContract
-import android.provider.Settings
+import android.provider.OpenableColumns
 import androidx.activity.result.ActivityResult
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
@@ -44,35 +42,19 @@ internal class WriteSketchDocumentArgs {
 @TauriPlugin
 class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
-  fun hasAllFilesAccess(invoke: Invoke) {
-    val result = JSObject()
-    val available = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-    val granted = available && Environment.isExternalStorageManager()
-    result.put("available", available)
-    result.put("granted", granted)
-    if (granted) result.put("rootPath", Environment.getExternalStorageDirectory().absolutePath)
-    invoke.resolve(result)
-  }
-
-  @Command
-  fun openAllFilesAccessSettings(invoke: Invoke) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-      invoke.reject("All files access is available on Android 11 and later.")
-      return
-    }
-    val appSettings = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-      data = Uri.parse("package:${activity.packageName}")
-    }
+  fun getSketchDocumentDisplayName(invoke: Invoke) {
     try {
-      activity.startActivity(appSettings)
-      invoke.resolve(JSObject())
-    } catch (_: Exception) {
-      try {
-        activity.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-        invoke.resolve(JSObject())
-      } catch (error: Exception) {
-        invoke.reject(error.message ?: "Could not open Android storage access settings.")
-      }
+      val args = invoke.parseArgs(SketchDocumentPermissionArgs::class.java)
+      val uri = Uri.parse(args.uri ?: throw IllegalArgumentException("The sketch path is missing."))
+      if (uri.scheme != "content") throw IllegalArgumentException("The selected document URI is invalid.")
+      val name = activity.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)) else null
+      }?.takeIf { it.isNotBlank() } ?: throw IllegalStateException("The document provider did not return a file name.")
+      val result = JSObject()
+      result.put("name", name)
+      invoke.resolve(result)
+    } catch (error: Exception) {
+      invoke.reject(error.message ?: "Could not read the selected document's file name.")
     }
   }
 
@@ -100,21 +82,15 @@ class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) 
     try {
       val args = invoke.parseArgs(WriteSketchDocumentArgs::class.java)
       val uri = Uri.parse(args.uri ?: throw IllegalArgumentException("The sketch path is missing."))
-      val contents = args.contents ?: throw IllegalArgumentException("The sketch contents are missing.")
-      if (uri.scheme != "content") throw IllegalArgumentException("Only selected document-provider files can be written here.")
-      val writable = activity.checkUriPermission(
-        uri,
-        Process.myPid(),
-        Process.myUid(),
-        Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-      ) == PackageManager.PERMISSION_GRANTED
-      if (!writable) throw SecurityException("Android's document provider did not grant write access to this sketch.")
-      val output = activity.contentResolver.openOutputStream(uri, "wt")
-        ?: throw IllegalStateException("The document provider could not open this sketch for writing.")
-      output.bufferedWriter(Charsets.UTF_8).use { it.write(contents) }
-      invoke.resolve(JSObject())
+      val contents = args.contents ?: throw IllegalArgumentException("The sketch content is missing.")
+      if (uri.scheme != "content") throw IllegalArgumentException("The selected document URI is invalid.")
+      activity.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
+        stream.write(contents.toByteArray(Charsets.UTF_8))
+        stream.flush()
+      } ?: throw IllegalStateException("The document provider could not open this sketch for writing.")
+      invoke.resolve()
     } catch (error: Exception) {
-      invoke.reject(error.message ?: "Could not write this sketch through Android's document provider.")
+      invoke.reject(error.message ?: "Could not save the selected sketch.")
     }
   }
 

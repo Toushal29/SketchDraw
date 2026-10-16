@@ -1,51 +1,6 @@
-/* Touch controls stay compact beside the left dock instead of occupying the bottom edge. */
+/* Touch property and page controls. The touch menu and toolbar live in touch-bars.css. */
 .mobile-advanced-properties { display: none; }
-.tool-deck .touch-flowchart-icon { display: none; }
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .tool-deck {
-        box-sizing: border-box;
-        top: max(8px, env(safe-area-inset-top));
-        right: auto;
-        bottom: max(8px, env(safe-area-inset-bottom));
-        left: max(8px, env(safe-area-inset-left));
-        width: 52px;
-        max-width: 52px;
-        max-height: calc(100dvh - 16px);
-        transform: none;
-        align-items: center;
-        overflow-x: hidden;
-        overflow-y: auto;
-    }
-    .tool-deck .tool-family { flex: 0 0 36px; }
-    .tool-deck .tool-icon-button,
-    .tool-deck .tool-family > .tool-icon-button {
-        display: grid;
-        box-sizing: border-box;
-        width: 36px;
-        min-width: 36px;
-        height: 36px;
-        min-height: 36px;
-        place-items: center;
-        padding: 0;
-        flex-direction: initial;
-        gap: 0;
-    }
-    .tool-deck .tool-icon-button svg:not(.tool-family-caret) {
-        width: 20px;
-        height: 20px;
-        flex: none;
-        margin: 0;
-    }
-    .tool-deck .tool-icon-button .tool-family-caret { display: none; }
-    .tool-deck .tool-family > .tool-icon-button > svg:first-child { display: block; visibility: visible; }
-    .tool-deck .desktop-flowchart-icon { display: none; }
-    .tool-deck .touch-flowchart-icon { display: inline; }
-
-    .tool-family.options-open .tool-options,
-    .canvas-options-family.options-open .canvas-options-menu {
-        left: max(66px, calc(env(safe-area-inset-left) + 60px)) !important;
-    }
-
     .page-tabs {
         box-sizing: border-box;
         width: min(280px, calc(100vw - 122px));

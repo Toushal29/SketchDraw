@@ -1,0 +1,359 @@
+/* Touch tool rail and its popovers. This stylesheet owns the compact non-Windows toolbar. */
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+  .app-shell:not(.platform-windows) .touch-tool-host,
+  .app-shell:not(.platform-windows) .touch-toolbar-layout { display: contents !important; }
+
+  .app-shell.home-screen-active:not(.platform-windows) .touch-tool-bar,
+  .app-shell.home-screen-active:not(.platform-windows) .touch-tool-reopen,
+  .app-shell.home-screen-active:not(.platform-windows) .touch-quick-style-dock,
+  .app-shell.touch-focus-mode:not(.platform-windows) .touch-quick-style-dock { display: none !important; }
+
+  .app-shell:not(.platform-windows) .touch-tool-bar,
+  .app-shell:not(.platform-windows) .touch-quick-style-dock {
+    position: fixed !important;
+    box-sizing: border-box;
+    color: var(--toolbar-ink, #39463c);
+    border: 1px solid color-mix(in srgb, var(--toolbar-ink, #526057) 16%, transparent);
+    background: var(--toolbar-surface, #fff);
+    box-shadow: 0 7px 24px color-mix(in srgb, #101810 15%, transparent);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .app-shell:not(.platform-windows) .touch-tool-bar {
+    z-index: 1900;
+    display: flex !important;
+    min-width: 0;
+    min-height: 46px;
+    align-items: center;
+    gap: 3px;
+    padding: 3px;
+    border-radius: 13px;
+    overflow: visible;
+    touch-action: manipulation;
+  }
+
+  .app-shell:not(.platform-windows) .touch-tool-content,
+  .app-shell:not(.platform-windows) .touch-tool-actions {
+    display: flex !important;
+    min-width: 0;
+    min-height: 0;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .app-shell:not(.platform-windows) .touch-tool-content {
+    flex: 1 1 auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--ui-accent, #558b68) 42%, transparent) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+  .app-shell:not(.platform-windows) .touch-tool-content::-webkit-scrollbar { width: 3px; height: 3px; }
+  .app-shell:not(.platform-windows) .touch-tool-content::-webkit-scrollbar-thumb { border-radius: 3px; background: color-mix(in srgb, var(--ui-accent, #558b68) 42%, transparent); }
+
+  .app-shell:not(.platform-windows) .touch-tool-content > .tool-cluster {
+    display: flex !important;
+    min-width: 0;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .app-shell:not(.platform-windows) .touch-tool-content > .tool-cluster > .tool-icon-button,
+  .app-shell:not(.platform-windows) .touch-tool-content > .tool-cluster .tool-family > .tool-icon-button,
+  .app-shell:not(.platform-windows) .touch-tool-content > .tool-family > .tool-icon-button,
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-trigger {
+    display: grid !important;
+    box-sizing: border-box;
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
+    flex: 0 0 38px;
+    place-items: center;
+    gap: 0;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: color-mix(in srgb, var(--toolbar-ink, #39463c) 82%, transparent);
+    background: transparent;
+    box-shadow: none;
+    touch-action: manipulation;
+  }
+
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-icon-button:hover:not(:disabled),
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-icon-button.selected,
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-trigger:hover,
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-trigger.active,
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-family.options-open > .tool-icon-button {
+    border-color: color-mix(in srgb, var(--ui-accent, #558b68) 27%, transparent);
+    color: var(--ui-accent-ink, #28613c);
+    background: var(--ui-accent-soft, #e7f1e8);
+  }
+
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-icon-button svg,
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-trigger svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-icon-button kbd { display: none !important; }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-family > .tool-icon-button { position: relative; }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-family > .tool-icon-button .tool-family-caret {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    display: block !important;
+    width: 8px;
+    height: 8px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+  }
+
+  /* All tool groups stay in the rail. The rail scrolls when it cannot fit. */
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-cluster .tool-icon-button,
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-family,
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family,
+  .app-shell:not(.platform-windows) .touch-tool-content > .stencil-family {
+    display: flex !important;
+    flex: 0 0 auto;
+    align-items: center;
+  }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-cluster-shapes > .tool-icon-button { display: none !important; }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-cluster-history > .canvas-utility-button[title="Layers"] { display: none !important; }
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family { position: relative; }
+
+  /* Popovers are viewport anchored by placeTouchPopover in App.tsx. */
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-family > .tool-options,
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-menu {
+    position: fixed !important;
+    z-index: 2000 !important;
+    box-sizing: border-box;
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px;
+    border: 1px solid color-mix(in srgb, var(--toolbar-ink, #526057) 17%, transparent);
+    border-radius: 13px;
+    color: var(--toolbar-ink, #39463c);
+    background: var(--toolbar-surface, #fff);
+    box-shadow: 0 12px 34px #10181030;
+    transform: none !important;
+  }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-family > .tool-options:not([data-positioned="true"]),
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-menu:not([data-positioned="true"]) { visibility: hidden; }
+
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-family:not(.options-open) > .tool-options,
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family:not(.options-open) > .canvas-options-menu { display: none !important; }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-family.options-open > .tool-options { display: grid !important; }
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family.options-open > .canvas-options-menu { display: block !important; }
+
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-options > button,
+  .app-shell:not(.platform-windows) .touch-tool-content .route-options > button {
+    display: grid;
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 42px;
+    grid-template-columns: 26px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: inherit;
+    background: transparent;
+    font: 550 12px/1.25 system-ui, sans-serif;
+    text-align: left;
+    touch-action: manipulation;
+  }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-options > button:hover,
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-options > button.active,
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-grid > button:hover,
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-grid > button.active {
+    border-color: color-mix(in srgb, var(--ui-accent, #558b68) 25%, transparent);
+    color: var(--ui-accent-ink, #28613c);
+    background: var(--ui-accent-soft, #e7f1e8);
+  }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-options > button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .app-shell:not(.platform-windows) .touch-tool-content .shape-options { width: min(240px, calc(100vw - 16px)); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell:not(.platform-windows) .touch-tool-content .flowchart-options { width: min(320px, calc(100vw - 16px)); grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .app-shell:not(.platform-windows) .touch-tool-content .flowchart-options > button { grid-template-columns: 1fr; justify-items: center; min-height: 64px; padding: 6px 4px; text-align: center; }
+  .app-shell:not(.platform-windows) .touch-tool-content .text-options { width: min(270px, calc(100vw - 16px)); grid-template-columns: 1fr; }
+  .app-shell:not(.platform-windows) .touch-tool-content .text-options > button,
+  .app-shell:not(.platform-windows) .touch-tool-content .paint-brush-options > button { grid-template-columns: 24px minmax(0, 1fr); justify-content: start; }
+  .app-shell:not(.platform-windows) .touch-tool-content .route-options { width: min(310px, calc(100vw - 16px)); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-shell:not(.platform-windows) .touch-tool-content .route-options > button { grid-template-columns: 22px minmax(0, 1fr); padding: 5px; font-size: 10px; }
+  .app-shell:not(.platform-windows) .touch-tool-content .paint-brush-options { width: min(205px, calc(100vw - 16px)); grid-template-columns: 1fr; gap: 2px; }
+  .app-shell:not(.platform-windows) .touch-tool-content .stencil-options {
+    display: none;
+    width: min(580px, calc(100vw - 16px));
+    grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr));
+    align-content: start;
+    gap: 7px;
+  }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-family.options-open > .stencil-options { display: grid !important; }
+  .app-shell:not(.platform-windows) .touch-tool-content > .stencil-family.options-open > .tool-icon-button { border-color: transparent; background: transparent; }
+  .app-shell:not(.platform-windows) .touch-tool-content .stencil-options .stencil-picker-heading,
+  .app-shell:not(.platform-windows) .touch-tool-content .stencil-options .stencil-category-filter,
+  .app-shell:not(.platform-windows) .touch-tool-content .stencil-options .tool-options-heading { grid-column: 1 / -1; }
+  .app-shell:not(.platform-windows) .touch-tool-content .stencil-options .stencil-picker-heading { align-items: stretch; flex-direction: column; gap: 8px; }
+  .app-shell:not(.platform-windows) .touch-tool-content .stencil-options .stencil-search { box-sizing: border-box; width: 100%; }
+  .app-shell:not(.platform-windows) .touch-tool-content .stencil-options button.stencil-template { min-height: 56px; gap: 6px; padding: 7px; font-size: 10px; }
+
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-menu { width: min(360px, calc(100vw - 16px)); padding: 10px; }
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-grid > button { min-height: 42px; border-radius: 9px; }
+
+  .app-shell:not(.platform-windows) .touch-tool-actions {
+    flex: 0 0 auto;
+    padding-left: 3px;
+    border-left: 1px solid color-mix(in srgb, var(--toolbar-ink, #526057) 12%, transparent);
+  }
+  .app-shell:not(.platform-windows) .touch-style-open,
+  .app-shell:not(.platform-windows) .touch-layers-toggle {
+    display: grid;
+    box-sizing: border-box;
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: color-mix(in srgb, var(--toolbar-ink, #39463c) 82%, transparent);
+    background: transparent;
+    touch-action: manipulation;
+  }
+  .app-shell:not(.platform-windows) .touch-style-open:hover,
+  .app-shell:not(.platform-windows) .touch-style-open.active,
+  .app-shell:not(.platform-windows) .touch-layers-toggle:hover,
+  .app-shell:not(.platform-windows) .touch-layers-toggle.active { border-color: color-mix(in srgb, var(--ui-accent, #558b68) 27%, transparent); color: var(--ui-accent-ink, #28613c); background: var(--ui-accent-soft, #e7f1e8); }
+  .app-shell:not(.platform-windows) .touch-style-open svg,
+  .app-shell:not(.platform-windows) .touch-layers-toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .app-shell:not(.platform-windows) .touch-quick-style-dock {
+    z-index: 1390;
+    display: flex;
+    min-height: 34px;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 7px;
+    border-radius: 11px;
+  }
+  .app-shell:not(.platform-windows) .touch-quick-style-dock:has(> .touch-panel-heading:only-child) { display: none !important; }
+  .app-shell:not(.platform-windows) .touch-panel-heading { flex: 0 0 auto; padding-right: 6px; border-right: 1px solid color-mix(in srgb, var(--toolbar-ink, #526057) 13%, transparent); color: color-mix(in srgb, var(--toolbar-ink, #39463c) 72%, transparent); font: 700 9px/1 system-ui, sans-serif; }
+  .app-shell:not(.platform-windows) .touch-quick-style-dock .touch-quick-style-controls {
+    position: static !important;
+    z-index: auto !important;
+    display: flex;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    min-height: 26px;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .app-shell:not(.platform-windows) .touch-quick-style-dock .touch-quick-colors { display: flex; gap: 4px; }
+  .app-shell:not(.platform-windows) .touch-quick-style-dock .touch-quick-color,
+  .app-shell:not(.platform-windows) .touch-quick-style-dock .touch-quick-custom-color { width: 21px; height: 21px; flex-basis: 21px; }
+  .app-shell:not(.platform-windows) .touch-quick-style-dock .touch-quick-width { height: 27px; }
+  .app-shell:not(.platform-windows) .touch-quick-style-dock .touch-quick-width-panel { z-index: 2000; }
+
+  .app-shell:not(.platform-windows) .touch-tool-reopen {
+    position: fixed !important;
+    z-index: 1400;
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--toolbar-ink, #526057) 16%, transparent);
+    border-radius: 11px;
+    color: var(--toolbar-ink, #39463c);
+    background: var(--toolbar-surface, #fff);
+    box-shadow: 0 5px 18px #10181024;
+  }
+  .app-shell:not(.platform-windows) .touch-tool-reopen svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .app-shell.mobile-toolbar-horizontal:not(.platform-windows) .touch-tool-bar {
+    right: max(8px, env(safe-area-inset-right));
+    left: max(8px, env(safe-area-inset-left));
+    width: auto;
+    max-width: none;
+  }
+  .app-shell.mobile-toolbar-horizontal:not(.platform-windows) .touch-tool-content { flex-direction: row; touch-action: pan-x; }
+  .app-shell.mobile-toolbar-top:not(.platform-windows) .touch-tool-bar { top: calc(var(--touch-header-height, 52px) + var(--touch-toolbar-top-offset, 4px)); bottom: auto; }
+  .app-shell.mobile-toolbar-bottom:not(.platform-windows) .touch-tool-bar { top: auto; bottom: max(8px, env(safe-area-inset-bottom)); }
+  .app-shell.mobile-toolbar-horizontal:not(.platform-windows) .touch-quick-style-dock { left: 50%; width: max-content; max-width: calc(100vw - 16px); transform: translateX(-50%); }
+  .app-shell.mobile-toolbar-top:not(.platform-windows) .touch-quick-style-dock { top: calc(var(--touch-header-height, 52px) + var(--touch-toolbar-top-offset, 4px) + 51px); right: auto; bottom: auto; }
+  .app-shell.mobile-toolbar-bottom:not(.platform-windows) .touch-quick-style-dock { top: auto; right: auto; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 51px); }
+
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-bar {
+    top: calc(var(--touch-header-height, 52px) + var(--touch-toolbar-top-offset, 4px));
+    right: auto;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: calc(max(8px, env(safe-area-inset-left)) + var(--touch-toolbar-left-offset, 0px));
+    width: 46px;
+    max-width: 46px;
+    max-height: calc(100dvh - var(--touch-header-height, 52px) - 16px);
+    flex-direction: column;
+  }
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-content,
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-content > .tool-cluster { flex-direction: column; }
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-content { overflow-x: hidden; overflow-y: auto; touch-action: pan-y; }
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-actions { flex-direction: column; padding: 3px 0 0; border-top: 1px solid color-mix(in srgb, var(--toolbar-ink, #526057) 12%, transparent); border-left: 0; }
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-style-dock { top: calc(var(--touch-header-height, 52px) + var(--touch-toolbar-top-offset, 4px) + 8px); right: auto; left: calc(max(8px, env(safe-area-inset-left)) + var(--touch-toolbar-left-offset, 0px) + 52px); width: max-content; max-width: calc(100vw - 64px - env(safe-area-inset-right)); }
+  .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-tool-bar { right: max(8px, env(safe-area-inset-right)); left: auto; }
+  .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-tool-actions { flex-direction: column-reverse; }
+  .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-quick-style-dock { right: calc(max(8px, env(safe-area-inset-right)) + 52px); left: auto; }
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .tool-family > .tool-options,
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .canvas-options-menu { max-width: calc(100vw - 64px) !important; }
+
+  .app-shell:not(.platform-windows) .touch-style-panel { z-index: 2000; }
+  .app-shell:not(.platform-windows) .style-pane { display: none !important; }
+}
+
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+  .app-shell.theme-dark:not(.platform-windows) .touch-tool-bar,
+  .app-shell.theme-dark:not(.platform-windows) .touch-quick-style-dock { border-color: #3e4a40; color: #e0e8e1; background: var(--toolbar-surface, #242b26); }
+  .app-shell.theme-dark:not(.platform-windows) .touch-tool-content .tool-icon-button,
+  .app-shell.theme-dark:not(.platform-windows) .touch-tool-content .canvas-options-trigger,
+  .app-shell.theme-dark:not(.platform-windows) .touch-style-open,
+  .app-shell.theme-dark:not(.platform-windows) .touch-layers-toggle { color: #d9e2da; }
+  .app-shell.theme-dark:not(.platform-windows) .touch-tool-content .tool-family > .tool-options,
+  .app-shell.theme-dark:not(.platform-windows) .touch-tool-content .canvas-options-menu { border-color: #3e4a40; color: #e0e8e1; background: var(--toolbar-surface, #242b26); }
+}
+
+@media (max-width: 480px) {
+  .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-tool-content > .tool-cluster > .tool-icon-button,
+  .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-tool-content > .tool-cluster .tool-family > .tool-icon-button,
+  .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-tool-content > .tool-family > .tool-icon-button,
+  .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-tool-content .canvas-options-trigger,
+  .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-style-open,
+  .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-layers-toggle { width: 36px; min-width: 36px; height: 36px; min-height: 36px; flex-basis: 36px; }
+  .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-tool-bar { min-height: 44px; }
+  .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-quick-style-dock { min-height: 32px; padding: 2px 5px; }
+  .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-panel-heading { display: none; }
+}

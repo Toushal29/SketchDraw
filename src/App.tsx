@@ -1,9 +1,10 @@
-﻿import { createEffect, createMemo, createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
+import { createEffect, createMemo, createSignal, For, lazy, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { readFile, readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { readFile, readTextFile, watch, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { Update } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import "./styles/platform-responsive.css";
 import "./styles/tools.css";
@@ -13,9 +14,7 @@ import "./platform/mobile/mobile.css";
 import "./styles/app-settings.css";
 import "./platform/mobile/ui-refresh.css";
 import "./platform/mobile/home.css";
-import "./platform/mobile/touch-bars.css";
 import "./platform/mobile/touch-style.css";
-import "./platform/mobile/orientation.css";
 import "./platform/mobile/quick-style.css";
 import "./styles/view-menu.css";
 import "./styles/menu-panels.css";
@@ -24,6 +23,10 @@ import "./features/workspace/workspace-shell.css";
 import "./styles/dark-theme-refresh.css";
 import "./styles/workspace-ui.css";
 import "./styles/property-panel-redesign.css";
+import "./platform/mobile/layout-fixes.css";
+import "./platform/mobile/touch-bars.css";
+import "./platform/mobile/command-bar.css";
+import "./platform/mobile/touch-toolbar.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
@@ -35,15 +38,17 @@ import { parseSchema } from "./schema";
 import { assignLibraryComponentIds, libraryComponentFields, libraryComponentFontSize, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryChartTrend, setLibraryCheckboxOption, setLibraryComponentField, setLibraryFormState, setLibraryFormTitle, setLibraryLifelineLength, setLibraryPortCount, setLibraryRadioOption } from "./features/components/library-component-editor";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
 import { GestureSettings, TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, readTouchGestureAction, readTouchTapAction, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./platform/mobile/GestureSettings";
+import { MobileCommandBar } from "./platform/mobile/MobileCommandBar";
+import { MobileWorkspaceHeader } from "./platform/mobile/MobileWorkspaceHeader";
 import { TouchPageMenu } from "./platform/mobile/TouchPageMenu";
 import { TouchFocusTools } from "./platform/mobile/TouchFocusTools";
-import { TouchMenuBar } from "./platform/mobile/TouchMenuBar";
 import { TouchToolBar } from "./platform/mobile/TouchToolBar";
 import { TouchQuickStyleControls } from "./platform/mobile/TouchQuickStyleControls";
 import { TouchStylePanel } from "./platform/mobile/TouchStylePanel";
 import { MobileHomeScreen } from "./platform/mobile/MobileHomeScreen";
 import { DesktopPageTabs } from "./platform/windows/DesktopPageTabs";
 import { WindowsShapePalette, type WindowsShapeChoice } from "./platform/windows/WindowsShapePalette";
+import { WindowsMenuRail } from "./platform/windows/WindowsMenuRail";
 import { CanvasOptionsMenu } from "./components/CanvasOptionsMenu";
 import { AppSettingsMenu, type DisplayMetrics } from "./components/AppSettingsMenu";
 import { HelpFeatureCatalog } from "./components/HelpFeatureCatalog";
@@ -294,15 +299,14 @@ function App() {
     if (saved === "down") return "bottom";
     return mobileOrientation() === "portrait" ? "top" : "left";
   })());
-  const [androidAllFilesAccessAvailable, setAndroidAllFilesAccessAvailable] = createSignal(false);
-  const [androidAllFilesAccessGranted, setAndroidAllFilesAccessGranted] = createSignal(false);
   const [reduceMotion, setReduceMotion] = createSignal(readPreference("sketchdraw-reduce-motion", "false") === "true");
   const [displayMetrics, setDisplayMetrics] = createSignal<DisplayMetrics>(readDisplayMetrics());
   const [componentAppearance, setComponentAppearance] = createSignal<"modern" | "simple">(readPreference("sketchdraw-component-appearance", "simple") === "modern" ? "modern" : "simple");
   const [toolbarColorChoice, setToolbarColorChoice] = createSignal((() => { const value = readPreference("sketchdraw-toolbar-color", "auto"); if (value.toLowerCase() === "#252c31") return "#171717"; return value === "auto" || /^#[\da-f]{6}$/i.test(value) ? value : "auto"; })());
   const [helpOpen, setHelpOpen] = createSignal(false);
-  const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "error">("idle");
+  const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "installing" | "error">("idle");
   const [updateVersion, setUpdateVersion] = createSignal<string>();
+  let pendingUpdate: Update | undefined;
   const [helpSection, setHelpSection] = createSignal<"guide" | "shortcuts">("guide");
   const storedDefaultFontSize = Number(readPreference("sketchdraw-default-font-size", "12"));
   const [defaultFontSize, setDefaultFontSize] = createSignal(Number.isFinite(storedDefaultFontSize) && storedDefaultFontSize >= 8 && storedDefaultFontSize <= 160 ? Math.round(storedDefaultFontSize) : 12);
@@ -322,7 +326,6 @@ function App() {
   const [toolBarOpen, setToolBarOpen] = createSignal(true);
   const [touchFocusMode, setTouchFocusMode] = createSignal(false);
   const [windowsFullscreenMode, setWindowsFullscreenMode] = createSignal(false);
-  const [mobileToolsExpanded, setMobileToolsExpanded] = createSignal(false);
   const [mobileQuickPropertiesOpen, setMobileQuickPropertiesOpen] = createSignal(false);
   const [touchStylePanel, setTouchStylePanel] = createSignal(false);
   const [gestureMenuSection, setGestureMenuSection] = createSignal<"taps" | "gestures">("taps");
@@ -378,6 +381,8 @@ function App() {
     try { const value: unknown = JSON.parse(localStorage.getItem("sketchdraw-v8-recent-files") ?? localStorage.getItem("sketchdraw-v6-recent-files") ?? "[]"); return Array.isArray(value) ? value.filter((path): path is string => typeof path === "string" && isSketchPath(path)).slice(0, 8) : []; }
     catch { return []; }
   })());
+  const [providerDocumentNames, setProviderDocumentNames] = createSignal<Record<string, string>>({});
+  const providerNameRequests = new Map<string, Promise<string | undefined>>();
   createEffect(() => {
     selectedIndices();
     const currentTool = tool();
@@ -571,6 +576,21 @@ function App() {
     });
     const before = cloneElements(elements()); setElements(items => items.map((item, index) => { const delta = translations.get(index); return delta ? moveElement(item, delta.x, delta.y) : item; })); pushUndo(before); setDirty(true);
   }
+  async function autoLayoutDiagram() {
+    const path = activePath();
+    const source = elements();
+    if (!isWindowsPlatform() || !path || boardLocked() || readOnlyView() || source.length < 2) return;
+    try {
+      const { autoLayoutElements } = await import("./platform/windows/auto-layout");
+      const arranged = await autoLayoutElements(source, selectedIndices());
+      if (activePath() !== path || elements() !== source || !arranged.some((item, index) => item !== source[index])) return;
+      pushUndo(cloneElements(source));
+      setElements(arranged);
+      setDirty(true);
+    } catch (cause) {
+      setError(`Could not arrange the diagram: ${String(cause)}`);
+    }
+  }
   function clipboardPayload() { return JSON.stringify({ format: "SketchDrawClipboard", version: SKETCH_FORMAT_VERSION, elements: copyElements(selectedElements(), 0, 0) }); }
   function pastePayload(raw: string, at?: Point) {
     if (!activePath() || boardLocked()) return;
@@ -754,7 +774,29 @@ function App() {
     return shapeLabelSvg(shape, ctx, theme());
   }
 
-  const fileName = () => activePath() ? displayPathName(activePath()!) : "Untitled sketch";
+  function displayNameForPath(path: string) {
+    return providerDocumentNames()[path] ?? (/^content:\/\//i.test(path) ? "Selected document" : displayPathName(path));
+  }
+  function resolveAndroidDocumentName(path: string): Promise<string | undefined> {
+    if (!isAndroidPlatform() || !/^content:\/\//i.test(path)) return Promise.resolve(undefined);
+    const existing = providerDocumentNames()[path];
+    if (existing) return Promise.resolve(existing);
+    const pending = providerNameRequests.get(path);
+    if (pending) return pending;
+    const request = invoke<string>("get_sketch_document_display_name", { uri: path }).then(name => {
+      const trimmed = name.trim();
+      if (!trimmed) return undefined;
+      setProviderDocumentNames(names => ({ ...names, [path]: trimmed }));
+      return trimmed;
+    }).catch(() => undefined).finally(() => providerNameRequests.delete(path));
+    providerNameRequests.set(path, request);
+    return request;
+  }
+  createEffect(() => {
+    if (!isAndroidPlatform()) return;
+    for (const path of recentFiles()) if (/^content:\/\//i.test(path) && !providerDocumentNames()[path]) void resolveAndroidDocumentName(path);
+  });
+  const fileName = () => activePath() ? displayNameForPath(activePath()!) : "Untitled sketch";
   const currentPage = () => pages().find((page) => page.id === activePageId());
   const theme = (): Theme => themeMode() === "system" ? systemDark() ? "dark" : "light" : themeMode() as Theme;
   const toolbarColor = () => toolbarColorChoice() === "auto" ? theme() === "dark" ? "#1b1b1b" : "#f8faf7" : toolbarColorChoice();
@@ -2000,7 +2042,6 @@ function App() {
     updateTopbarHeight();
     onCleanup(() => topbarResize.disconnect());
     if (isTauri() && /android/i.test(navigator.userAgent)) {
-      void refreshAndroidAllFilesAccess();
       void invoke("set_mobile_orientation", { orientation: mobileOrientation() }).catch(() => setOrientationMessage("Rotate the device manually if its saved orientation is not applied."));
     }
     if (isTauri()) void invoke<string[]>("load_recent_sketches").then(paths => {
@@ -2107,7 +2148,6 @@ function App() {
     const mouseShortcutPointerDown = (event: PointerEvent) => runMouseShortcut(event, true);
     const mouseShortcutAuxClick = (event: MouseEvent) => runMouseShortcut(event, true);
     const mouseShortcutContextMenu = (event: MouseEvent) => runMouseShortcut(event, false);
-    const refreshStorageAccessOnReturn = () => { if (!document.hidden) void refreshAndroidAllFilesAccess(); };
     const blur = () => {
       setSpaceDown(false);
       activePenPointerId = undefined; ignoredTouchPointers.clear(); touchPointers.clear(); touchGesture = undefined; touchTapTracker = undefined;
@@ -2149,7 +2189,7 @@ function App() {
         }).then((unlisten) => { unlistenClose = unlisten; }).catch((cause) => setError(`Could not prepare safe closing: ${String(cause)}`));
       } catch (cause) { setError(`Could not prepare safe closing: ${String(cause)}`); }
     }
-    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("pointerdown", mouseShortcutPointerDown, true); window.addEventListener("auxclick", mouseShortcutAuxClick, true); window.addEventListener("contextmenu", mouseShortcutContextMenu, true); window.addEventListener("blur", blur); window.addEventListener("focus", refreshStorageAccessOnReturn); document.addEventListener("visibilitychange", refreshStorageAccessOnReturn); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", alignOpenTouchMenus); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", alignOpenTouchMenus); window.addEventListener("orientationchange", updateDisplayMetrics);
+    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("pointerdown", mouseShortcutPointerDown, true); window.addEventListener("auxclick", mouseShortcutAuxClick, true); window.addEventListener("contextmenu", mouseShortcutContextMenu, true); window.addEventListener("blur", blur); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", alignOpenTouchMenus); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", alignOpenTouchMenus); window.addEventListener("orientationchange", updateDisplayMetrics);
     document.addEventListener("pointerdown", outsideClick); document.addEventListener("keydown", closeMenuOnEscape);
     let autosaveTimer: number | undefined;
     const scheduleAutosave = () => {
@@ -2164,8 +2204,8 @@ function App() {
     };
     restartAutosave = () => { if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); scheduleAutosave(); };
     scheduleAutosave();
-    syncPollTimer = window.setInterval(() => void pollSharedSketch(), 1600);
-    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); if (syncPollTimer !== undefined) window.clearInterval(syncPollTimer); if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("pointerdown", mouseShortcutPointerDown, true); window.removeEventListener("auxclick", mouseShortcutAuxClick, true); window.removeEventListener("contextmenu", mouseShortcutContextMenu, true); window.removeEventListener("blur", blur); window.removeEventListener("focus", refreshStorageAccessOnReturn); document.removeEventListener("visibilitychange", refreshStorageAccessOnReturn); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", alignOpenTouchMenus); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", alignOpenTouchMenus); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
+    syncPollTimer = window.setInterval(() => void pollSharedSketch(), 30_000);
+    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); if (syncPollTimer !== undefined) window.clearInterval(syncPollTimer); if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("pointerdown", mouseShortcutPointerDown, true); window.removeEventListener("auxclick", mouseShortcutAuxClick, true); window.removeEventListener("contextmenu", mouseShortcutContextMenu, true); window.removeEventListener("blur", blur); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", alignOpenTouchMenus); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", alignOpenTouchMenus); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
   });
 
   function setThemePreference(mode: ThemeMode) {
@@ -2224,19 +2264,6 @@ function App() {
     setReduceMotionPreference(false);
     setToolbarPositionPreference("left");
     void setMobileOrientationPreference("landscape");
-  }
-  async function refreshAndroidAllFilesAccess() {
-    if (!isAndroidPlatform()) return;
-    try {
-      const status = await invoke<{ available: boolean; granted: boolean }>("has_all_files_access");
-      setAndroidAllFilesAccessAvailable(status.available);
-      setAndroidAllFilesAccessGranted(status.granted);
-    } catch { setAndroidAllFilesAccessAvailable(false); setAndroidAllFilesAccessGranted(false); }
-  }
-  async function requestAndroidAllFilesAccess() {
-    if (!isAndroidPlatform()) return;
-    try { await invoke("open_all_files_access_settings"); }
-    catch (cause) { setError(String(cause)); }
   }
   function setComponentAppearancePreference(value: "modern" | "simple") {
     setComponentAppearance(value);
@@ -2323,7 +2350,7 @@ function App() {
       restoredComponents = true;
       return restored;
     }) }));
-    const existingProject = snapshot.project ?? (snapshot.library?.quickNotes.length ? createProjectWorkspace(displayPathName(path).replace(/\.sketch$/i, "")) : undefined);
+    const existingProject = snapshot.project ?? (snapshot.library?.quickNotes.length ? createProjectWorkspace(displayNameForPath(path).replace(/\.sketch$/i, "")) : undefined);
     const mergedNotes = existingProject ? [...existingProject.notes] : [];
     const knownNoteIds = new Set(mergedNotes.map(note => note.id));
     for (const note of snapshot.library?.quickNotes ?? []) if (!knownNoteIds.has(note.id)) { mergedNotes.push(note); knownNoteIds.add(note.id); }
@@ -2401,7 +2428,7 @@ function App() {
   function openRenameFileDialog() {
     const path = activePath();
     if (!path || readOnlyView() || documentBusy() || nativeBusy()) return;
-    setRenameFileName(displayPathName(path).replace(/\.sketch$/i, ""));
+    setRenameFileName(displayNameForPath(path).replace(/\.sketch$/i, ""));
     setRenameFileError("");
     setRenameFileOpen(true);
   }
@@ -2434,6 +2461,7 @@ function App() {
         ? await invoke<string>("rename_sketch_document", { uri: path, fileName })
         : await invoke<string>("rename_sketch_file", { path: normalizeFileUri(path), fileName });
       setActivePath(renamedPath);
+      if (/^content:\/\//i.test(renamedPath)) void resolveAndroidDocumentName(renamedPath);
       setOpenSketchPaths(paths => paths.map(item => normalizeFileUri(item) === normalizeFileUri(path) ? renamedPath : item));
       replaceRecentFilePath(path, renamedPath);
       sketchRecoveryStore.remove(path);
@@ -2476,7 +2504,7 @@ function App() {
     setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false);
     setTextDraft(undefined); setPreview(undefined); setMarquee(undefined); setContextMenu(undefined); setLayerPanelOpen(false); syncTracker.reset(); setOpenSketchPaths([]);
     setRecoveryPrompt(undefined); setSyncConflict(undefined);
-    setTool("pen"); setMobileToolsExpanded(false); setToolBarOpen(true);
+    setTool("pen"); setToolBarOpen(true);
   }
 
   const docController = createDocumentController({
@@ -2493,7 +2521,7 @@ function App() {
     rememberFile,
     onOpened(path, viewOnly) {
       if (isWindowsPlatform() && !viewOnly) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]);
-      if (viewOnly) { setTool("laser"); setSelectedIndices([]); setToolBarOpen(true); setMobileToolsExpanded(false); }
+      if (viewOnly) { setTool("laser"); setSelectedIndices([]); setToolBarOpen(true); }
       else if (tool() === "laser") setTool("pen");
     },
     restoreOpenedView: restoreOpenedViewAt100,
@@ -2521,6 +2549,7 @@ function App() {
   }
 
   async function loadFile(path: string, viewOnly = false) {
+    if (/^content:\/\//i.test(path)) await resolveAndroidDocumentName(path);
     let openReadOnly = viewOnly;
     if (!openReadOnly && isAndroidPlatform() && /^content:\/\//i.test(path)) {
       try {
@@ -2540,6 +2569,33 @@ function App() {
   async function pollSharedSketch() {
     await docController.checkForUpdates();
   }
+
+  createEffect(() => {
+    const path = activePath();
+    if (!isWindowsPlatform() || !path || !sketchFileStore.adapter(path).capabilities.supportsBackgroundUpdateCheck) return;
+    let disposed = false;
+    let unwatch: (() => void) | undefined;
+    let changeTimer: number | undefined;
+    void watch(path, () => {
+      if (disposed) return;
+      if (changeTimer !== undefined) window.clearTimeout(changeTimer);
+      changeTimer = window.setTimeout(() => {
+        changeTimer = undefined;
+        if (!disposed && !document.hidden) void pollSharedSketch();
+      }, 500);
+    }, { delayMs: 350 }).then(stop => {
+      if (disposed) stop();
+      else unwatch = stop;
+    }).catch(() => {
+      // Cloud folders and removable volumes may not expose reliable watch events.
+      // The 30-second check above remains active as a fallback.
+    });
+    onCleanup(() => {
+      disposed = true;
+      if (changeTimer !== undefined) window.clearTimeout(changeTimer);
+      unwatch?.();
+    });
+  });
 
   function setWindowsShortcut(id: WindowsShortcutId, slot: WindowsShortcutSlot, value: string) {
     const normalized = value ? normalizeShortcut(value) : "";
@@ -2647,9 +2703,19 @@ function App() {
   }
 
   async function checkForUpdates() {
-    if (updateCheck() === "checking") return;
+    if (updateCheck() === "checking" || updateCheck() === "installing") return;
     setUpdateCheck("checking"); setUpdateVersion(undefined); setError("");
+    if (pendingUpdate) { await pendingUpdate.close().catch(() => undefined); pendingUpdate = undefined; }
     try {
+      if (isWindowsPlatform()) {
+        const { check } = await import("@tauri-apps/plugin-updater");
+        pendingUpdate = await check() ?? undefined;
+        if (pendingUpdate) {
+          setUpdateVersion(pendingUpdate.version);
+          setUpdateCheck("available");
+        } else setUpdateCheck("current");
+        return;
+      }
       const response = await fetch(RELEASES_API, { headers: { Accept: "application/vnd.github+json" } });
       if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}.`);
       const release: unknown = await response.json();
@@ -2659,6 +2725,22 @@ function App() {
       setUpdateVersion(releaseVersion);
       setUpdateCheck(compareReleaseVersions(releaseVersion, currentVersion) > 0 ? "available" : "current");
     } catch (cause) { setUpdateCheck("error"); setError(`Update check failed: ${String(cause)}`); }
+  }
+
+  async function installUpdate() {
+    const update = pendingUpdate;
+    if (!update || updateCheck() === "installing") return;
+    setUpdateCheck("installing"); setError("");
+    try {
+      await update.downloadAndInstall();
+      pendingUpdate = undefined;
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      await relaunch();
+    } catch (cause) {
+      pendingUpdate = undefined;
+      setUpdateCheck("error");
+      setError(`Update installation failed: ${String(cause)}`);
+    }
   }
 
   async function importImage() {
@@ -2748,13 +2830,14 @@ function App() {
     if (nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
-      const selected = await createSketchDocument(nextUntitledFileName());
+      const requestedName = nextUntitledFileName();
+      const selected = await createSketchDocument(requestedName);
       if (!selected) return;
       if (!await saveBeforeReplacingDocument()) return;
       const path = withSketchExtension(selected);
       if (/^content:\/\//i.test(path)) await sketchFileStore.authorize(path);
       const page: SketchPage = { id: "page-1", name: "Page 1", canvasState: emptyCanvas(), elements: [] };
-      const project = createProjectWorkspace(displayPathName(path).replace(/\.sketch$/i, ""));
+      const project = createProjectWorkspace(requestedName.replace(/\.sketch$/i, ""));
       const library = createLegacyLibraryData();
       const windowsSync = createWindowsSyncMetadata();
       if (windowsSync) { windowsSync.clocks[`p:${page.id}`] = windowsSync.updatedAt; windowsSync.clocks["w:meta"] = windowsSync.updatedAt; }
@@ -3868,7 +3951,8 @@ function App() {
     { id: "shapes", label: "Shapes", tools: ["rectangle", "circle", "diamond", "triangle", "flowchart"] },
     { id: "content", label: "Text and image tools", tools: ["text", "bucket", "eraser", "crop"] },
   ];
-  const mobileEssentialTools = new Set<Tool>(["select", "pan", "pen", "eraser", "laser"]);
+  const mobileShapeTools = new Set<Tool>(["rectangle", "circle", "diamond", "triangle"]);
+  const mobileEssentialTools = new Set<Tool>(["select", "pan", "pen", "eraser", "laser", "line", "arrow", "rectangle", "text", "bucket"]);
   const swatches = ["#252525", "#e76b62", "#6b91c9", "#74a582", "#d8a448", "#a581bb", "#e5915b"];
   const helpShortcuts: [string, string][] = [["V", "Select tool"], ["Space", "Hold to pan"], ["P", "Fine pen"], ["Y", "Laser pointer"], ["R", "Rectangle"], ["C / O", "Circle"], ["D", "Diamond"], ["N", "Triangle"], ["L", "Line"], ["A", "Arrow"], ["F", "Flowchart symbol"], ["T", "Text"], ["B", "Fill bucket"], ["E", "Eraser"], ["X", "Image crop"], ["Esc", "Pan tool and clear selection"], ["G", "Toggle grid"], ["Shift+G", "Snap to grid"], ["Shift+O", "Snap to objects"], ["K", "Lock canvas"], ["0", "Center view at 100%"], ["1 / 2", "Fit drawing / selection"], ["Ctrl / Cmd + N", "New sketch"], ["Ctrl / Cmd + O", "Open sketch"], ["Ctrl / Cmd + S", "Save"], ["Ctrl / Cmd + Z", "Undo"], ["Ctrl / Cmd + Y", "Redo"], ["Ctrl / Cmd + C / X / V", "Copy / cut / paste"], ["Ctrl / Cmd + D", "Duplicate selection"], ["Ctrl / Cmd + A", "Select all"], ["Ctrl / Cmd + G", "Group selection"], ["Ctrl / Cmd + Shift + G", "Ungroup"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge by 1 px"], ["Shift+Arrow", "Nudge by 10 px"], ["F1", "Open Help"]];
   const updateTextDraft = (value: string) => setTextDraft((draft) => draft ? { ...draft, value } : undefined);
@@ -3944,28 +4028,173 @@ function App() {
     if (styleMenuMode() === "quick") { setStyleMenuMode("full"); }
     else setStyleMenuMode("quick");
   };
-  const showToolOptions = (value: Tool) => setOpenToolOptions(value);
-  const closeToolOptions = () => setOpenToolOptions(undefined);
   const isCompactTouchLayout = () => window.matchMedia("(max-width: 900px), (max-width: 1600px) and (pointer: coarse)").matches;
+  const placeTouchPopover = (anchor: HTMLElement | null, panel: HTMLElement | null) => {
+    if (!anchor || !panel || !isCompactTouchLayout() || isWindowsPlatform()) return;
+    const shell = document.querySelector<HTMLElement>(".app-shell:not(.platform-windows)");
+    const anchorBounds = anchor.getBoundingClientRect();
+    const visualViewport = window.visualViewport;
+    const viewportWidth = visualViewport?.width ?? window.innerWidth;
+    const viewportHeight = visualViewport?.height ?? window.innerHeight;
+    const viewportLeft = visualViewport?.offsetLeft ?? 0;
+    const viewportTop = visualViewport?.offsetTop ?? 0;
+    const uiScale = Math.max(0.5, interfaceScale());
+    const margin = 8;
+    const gap = 6;
+    panel.removeAttribute("data-positioned");
+    panel.style.removeProperty("width");
+    panel.style.removeProperty("max-width");
+    panel.style.removeProperty("max-height");
+    const panelBounds = panel.getBoundingClientRect();
+    let panelWidth = Math.min(panelBounds.width || 300, viewportWidth - margin * 2);
+    const horizontal = !!shell?.classList.contains("mobile-toolbar-horizontal");
+    let left = anchorBounds.left;
+    let top = anchorBounds.bottom + gap;
+
+    if (horizontal) {
+      const availableBelow = viewportTop + viewportHeight - anchorBounds.bottom - gap - margin;
+      const availableAbove = anchorBounds.top - viewportTop - gap - margin;
+      const opensBelow = availableBelow >= availableAbove;
+      const availableHeight = Math.max(80, Math.min(viewportHeight - margin * 2, opensBelow ? availableBelow : availableAbove));
+      panel.style.setProperty("max-width", `${(viewportWidth - margin * 2) / uiScale}px`, "important");
+      panel.style.setProperty("max-height", `${availableHeight / uiScale}px`, "important");
+      const measuredHeight = Math.min(panel.getBoundingClientRect().height || 280, availableHeight);
+      left = Math.max(viewportLeft + margin, Math.min(anchorBounds.left, viewportLeft + viewportWidth - panelWidth - margin));
+      top = opensBelow
+        ? anchorBounds.bottom + gap
+        : anchorBounds.top - measuredHeight - gap;
+    } else {
+      panel.style.setProperty("max-height", `${(viewportHeight - margin * 2) / uiScale}px`, "important");
+      const availableRight = viewportLeft + viewportWidth - anchorBounds.right - gap - margin;
+      const availableLeft = anchorBounds.left - viewportLeft - gap - margin;
+      const opensRight = availableRight >= availableLeft;
+      panelWidth = Math.min(panelWidth, Math.max(160, opensRight ? availableRight : availableLeft));
+      panel.style.setProperty("width", `${panelWidth / uiScale}px`, "important");
+      panel.style.setProperty("max-width", `${panelWidth / uiScale}px`, "important");
+      panel.style.setProperty("max-height", `${(viewportHeight - margin * 2) / uiScale}px`, "important");
+      left = opensRight
+        ? anchorBounds.right + gap
+        : anchorBounds.left - panelWidth - gap;
+      if (left + panelWidth > viewportLeft + viewportWidth - margin) left = anchorBounds.left - panelWidth - gap;
+      if (left < viewportLeft + margin) left = anchorBounds.right + gap;
+      left = Math.max(viewportLeft + margin, Math.min(left, viewportLeft + viewportWidth - panelWidth - margin));
+      top = anchorBounds.top;
+    }
+
+    const measuredHeight = Math.min(panel.getBoundingClientRect().height || 280, viewportHeight - margin * 2);
+    top = Math.max(viewportTop + margin, Math.min(top, viewportTop + viewportHeight - measuredHeight - margin));
+    panel.style.setProperty("position", "fixed", "important");
+    panel.style.setProperty("z-index", "2000", "important");
+    panel.style.setProperty("left", `${left / uiScale}px`, "important");
+    panel.style.setProperty("right", "auto", "important");
+    panel.style.setProperty("top", `${top / uiScale}px`, "important");
+    panel.style.setProperty("bottom", "auto", "important");
+    panel.style.setProperty("transform", "none", "important");
+    panel.setAttribute("data-positioned", "true");
+  };
+  const scheduleTouchPopoverPlacement = () => {
+    if (!isCompactTouchLayout() || isWindowsPlatform()) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const tool = openToolOptions();
+      if (tool) {
+        const families = [...document.querySelectorAll<HTMLElement>("[data-touch-popover]")].filter(item => item.dataset.touchPopover === tool && item.getClientRects().length > 0);
+        const family = families[0];
+        placeTouchPopover(family?.querySelector<HTMLElement>(".tool-icon-button") ?? null, family?.querySelector<HTMLElement>(".tool-options") ?? null);
+      }
+      if (paintBrushMenuOpen()) {
+        const family = [...document.querySelectorAll<HTMLElement>(".paint-brush-family")].find(item => item.getClientRects().length > 0);
+        placeTouchPopover(family?.querySelector<HTMLElement>(".tool-icon-button") ?? null, family?.querySelector<HTMLElement>(".tool-options") ?? null);
+      }
+      if (stencilMenuOpen()) {
+        const family = document.querySelector<HTMLElement>(".stencil-family");
+        const anchor = family?.querySelector<HTMLElement>(".tool-icon-button");
+        const panel = family?.querySelector<HTMLElement>(".stencil-options");
+        placeTouchPopover(anchor, panel);
+      }
+      if (canvasOptionsOpen()) {
+        const family = document.querySelector<HTMLElement>(".canvas-options-family");
+        placeTouchPopover(family?.querySelector<HTMLElement>(".canvas-options-trigger") ?? null, family?.querySelector<HTMLElement>(".canvas-options-menu") ?? null);
+      }
+    }));
+  };
+  const closeTouchMenuBar = () => {
+    if (!isCompactTouchLayout() || isWindowsPlatform()) return;
+    window.dispatchEvent(new Event("sketchdraw:close-touch-menu"));
+    document.querySelectorAll<HTMLDetailsElement>(".app-menus details[open], .touch-page-control[open]").forEach(details => { details.open = false; });
+    setQuickStylePopover(undefined);
+    setTouchStylePanel(false);
+  };
+  const showToolOptions = (value: Tool) => { if (isCompactTouchLayout() && !isWindowsPlatform()) { closeTouchMenuBar(); setCanvasOptionsOpen(false); setPaintBrushMenuOpen(false); setStencilMenuOpen(false); } setOpenToolOptions(value); scheduleTouchPopoverPlacement(); };
+  const closeToolOptions = () => setOpenToolOptions(undefined);
+
+  createEffect(() => {
+    const hasOpenPopover = !!openToolOptions() || paintBrushMenuOpen() || stencilMenuOpen() || canvasOptionsOpen();
+    mobileOrientation(); toolbarPosition(); interfaceScale();
+    if (hasOpenPopover) scheduleTouchPopoverPlacement();
+  });
+  onMount(() => {
+    const reposition = () => scheduleTouchPopoverPlacement();
+    window.addEventListener("resize", reposition);
+    window.visualViewport?.addEventListener("resize", reposition);
+    window.visualViewport?.addEventListener("scroll", reposition);
+    onCleanup(() => {
+      window.removeEventListener("resize", reposition);
+      window.visualViewport?.removeEventListener("resize", reposition);
+      window.visualViewport?.removeEventListener("scroll", reposition);
+    });
+  });
+
   const alignTouchMenuPopover = (details?: HTMLDetailsElement) => {
     if (!details || !isCompactTouchLayout() || isWindowsPlatform()) return;
     requestAnimationFrame(() => {
       if (!details.isConnected || !details.open) return;
+      window.dispatchEvent(new Event("sketchdraw:close-touch-menu"));
       const anchor = details.querySelector<HTMLElement>("summary");
-      const panel = details.querySelector<HTMLElement>(".system-menu-popover");
+      const panel = details.querySelector<HTMLElement>(".system-menu-popover, .touch-pages-popover");
       if (!anchor || !panel) return;
+      document.querySelectorAll<HTMLDetailsElement>(".app-menus details[open], .touch-page-control[open]").forEach(openMenu => {
+        if (openMenu !== details) openMenu.open = false;
+      });
+      setOpenToolOptions(undefined);
+      setPaintBrushMenuOpen(false);
+      setStencilMenuOpen(false);
+      setCanvasOptionsOpen(false);
+      setQuickStylePopover(undefined);
+      setTouchStylePanel(false);
+      const visualViewport = window.visualViewport;
+      const viewportLeft = visualViewport?.offsetLeft ?? 0;
+      const viewportTop = visualViewport?.offsetTop ?? 0;
+      const viewportWidth = visualViewport?.width ?? window.innerWidth;
+      const viewportHeight = visualViewport?.height ?? window.innerHeight;
       const anchorRect = anchor.getBoundingClientRect();
-      const panelRect = panel.getBoundingClientRect();
-      const inset = Math.max(8, window.visualViewport?.offsetLeft ?? 0);
-      const maxLeft = Math.max(inset, window.innerWidth - panelRect.width - 8);
-      const left = Math.max(inset, Math.min(anchorRect.left, maxLeft));
-      const maxTop = window.innerHeight - panelRect.height - Math.max(8, window.visualViewport?.offsetTop ?? 0);
-      const below = anchorRect.bottom + 6;
-      const top = below <= maxTop ? below : Math.max(8, anchorRect.top - panelRect.height - 6);
-      panel.style.left = `${left}px`;
-      panel.style.right = "auto";
-      panel.style.top = `${top}px`;
-      panel.style.transform = "none";
+      const headerBottom = document.querySelector<HTMLElement>(".app-shell:not(.platform-windows) > .mobile-workspace-header")?.getBoundingClientRect().bottom ?? 0;
+      const edge = 8;
+      const maxWidth = Math.max(160, viewportWidth - edge * 2);
+      panel.style.setProperty("position", "fixed", "important");
+      panel.style.setProperty("z-index", "1800", "important");
+      panel.style.setProperty("box-sizing", "border-box", "important");
+      panel.style.setProperty("right", "auto", "important");
+      panel.style.setProperty("bottom", "auto", "important");
+      const preferredWidth = panel.classList.contains("portrait-menu-list") ? 240
+        : panel.classList.contains("touch-pages-popover") ? 300
+        : panel.classList.contains("view-settings-popover") || panel.classList.contains("gesture-settings-popover") ? 560
+        : panel.classList.contains("app-settings-popover") ? 440
+        : 300;
+      panel.style.setProperty("width", `min(${preferredWidth}px, ${maxWidth}px)`, "important");
+      panel.style.setProperty("max-width", `${maxWidth}px`, "important");
+      panel.style.setProperty("max-height", `${Math.max(120, viewportHeight - edge * 2)}px`, "important");
+      panel.style.setProperty("margin", "0", "important");
+      panel.style.setProperty("transform", "none", "important");
+      const panelWidth = Math.min(panel.getBoundingClientRect().width || Math.min(440, maxWidth), maxWidth);
+      const inset = viewportLeft + edge;
+      const maxLeft = Math.max(inset, viewportLeft + viewportWidth - panelWidth - edge);
+      const left = anchorRect.width === 0 && anchorRect.height === 0 ? inset : Math.max(inset, Math.min(anchorRect.left, maxLeft));
+      const lowerTop = viewportTop + Math.max(edge, viewportHeight - edge - 80);
+      const top = Math.max(viewportTop + edge, Math.min(lowerTop, Math.max(headerBottom + 6, anchorRect.bottom + 6)));
+      const availableHeight = Math.max(80, viewportTop + viewportHeight - top - edge);
+      panel.style.setProperty("left", `${left}px`, "important");
+      panel.style.setProperty("top", `${top}px`, "important");
+      panel.style.setProperty("max-height", `${availableHeight}px`, "important");
     });
   };
   const alignViewSettingsPopover = () => {
@@ -4068,20 +4297,28 @@ function App() {
     else setMobileQuickPropertiesOpen(value => !value);
   };
   const openAdvancedProperties = () => { setMobileQuickPropertiesOpen(true); setStyleMenuMode("full"); };
-  const renderToolbarTool = ({ value, label, key, path }: typeof tools[number]) => {
-    const active = (value === "pen" ? tool() === "pen" && brushMode() === "fine" : tool() === value) || (value === "pan" && spaceDown());
-    const hasOptions = value === "flowchart" || value === "line" || value === "arrow" || value === "text";
-    const displayLabel = isWindowsPlatform() && value === "flowchart" ? "Shapes" : label;
+  const renderToolbarTool = (definition: typeof tools[number]) => {
+    const { value, label, key } = definition;
+    const mobileShapeFamily = !isWindowsPlatform() && isCompactTouchLayout() && value === "rectangle";
+    const windowsShapeFamily = isWindowsPlatform() && value === "flowchart";
+    const shapeIconPath = "M3 3h8v8H3zM21 7a4 4 0 1 1-8 0a4 4 0 1 1 8 0M16 14l5 8H11z";
+    const path = windowsShapeFamily ? shapeIconPath : definition.path;
+    const selectedShape = mobileShapeTools.has(tool()) ? tool() : "rectangle";
+    const shapeInfo = mobileShapeFamily ? { label: "Basic shapes", path: shapeIconPath } : tools.find(item => item.value === selectedShape) ?? tools.find(item => item.value === "rectangle")!;
+    const active = (value === "pen" ? tool() === "pen" && brushMode() === "fine" : mobileShapeFamily ? mobileShapeTools.has(tool()) : windowsShapeFamily ? mobileShapeTools.has(tool()) || tool() === "flowchart" : tool() === value) || (value === "pan" && spaceDown());
+    const hasOptions = mobileShapeFamily || value === "flowchart" || value === "line" || value === "arrow" || value === "text";
+    const displayLabel = mobileShapeFamily ? shapeInfo.label : isWindowsPlatform() && value === "flowchart" ? "Shapes" : label;
     const mobileEssential = mobileEssentialTools.has(value);
     const shortcutId = shortcutIdByTool[value];
     const bindings = shortcutId ? shortcuts()[shortcutId] : undefined;
     const displayedKey = displayShortcut(bindings?.find(Boolean) ?? key);
     const shortcutLabel = bindings ? formatShortcutBindings(bindings) || key : key;
-    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${displayLabel} (${shortcutLabel})${hasOptions ? " · click or hover for options" : ""}`} aria-label={displayLabel} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (hasOptions) { if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{value === "flowchart" ? <><g class="desktop-flowchart-icon"><path d={path} /></g><g class="touch-flowchart-icon"><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></g></> : <path d={path} />}</svg><kbd>{displayedKey}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
-    if (value === "flowchart") return <div class="tool-family flowchart-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}{isWindowsPlatform()
+    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value || mobileShapeFamily && mobileShapeTools.has(tool()) ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${displayLabel} (${shortcutLabel})`} aria-label={mobileShapeFamily ? `Shapes: ${displayLabel}` : displayLabel} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (mobileShapeFamily) { commitTextDraft(); setQuickStylePopover(undefined); if (openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } if (hasOptions) { if (!isWindowsPlatform() && isCompactTouchLayout()) { if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{mobileShapeFamily ? <path d={shapeInfo.path} /> : value === "flowchart" ? <><g class="desktop-flowchart-icon"><path d={path} /></g><g class="touch-flowchart-icon"><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></g></> : <path d={path} />}</svg><kbd>{displayedKey}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
+    if (mobileShapeFamily) return <div class="tool-family shape-family" data-touch-popover={value} classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": true, "mobile-tool-current-family": mobileShapeTools.has(tool()) }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options shape-options" role="menu" aria-label="Basic shapes">{tools.filter(item => mobileShapeTools.has(item.value)).map(shape => <button class={tool() === shape.value ? "active" : ""} role="menuitemradio" aria-checked={tool() === shape.value} title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setTool(shape.value); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div></div>;
+    if (value === "flowchart") return <div class="tool-family flowchart-family" data-touch-popover={value} classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}{isWindowsPlatform()
       ? <WindowsShapePalette activeTool={tool()} activeFlowchartShape={flowchartShape()} onSelect={(choice: WindowsShapeChoice) => { closeToolOptions(); if (choice.kind === "flowchart") { setFlowchartShape(choice.shape); setTool("flowchart"); } else setTool(choice.tool); setSidebarTab("properties"); setSelectedIndices([]); }} />
       : <div class="tool-options flowchart-options" role="menu" aria-label="Flowchart symbols">{FLOWCHART_MENU_SHAPES.map((shape) => <button class={flowchartShape() === shape.value ? "active" : ""} role="menuitem" title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setFlowchartShape(shape.value); setTool("flowchart"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div>}</div>;
-    if (value === "text") return <div class="tool-family text-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options text-options" role="menu" aria-label="Text and note tools">
+    if (value === "text") return <div class="tool-family text-family" data-touch-popover={value} classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options text-options" role="menu" aria-label="Text and note tools">
       <button role="menuitem" title="Place plain text" onClick={() => { closeToolOptions(); setTextMode("text"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M4 6h16M12 6v13m-4 0h8"/></svg><span>Text</span></button>
       <button role="menuitem" title="Write an editable, collapsible Markdown card" onClick={() => { closeToolOptions(); setTextMode("markdown"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="M3 6h18M5 11h4l3 4 3-4h4M5 19h14"/><path d="m18 2 3 3-3 3"/></svg><span>Markdown text</span></button>
       <button role="menuitem" title="Insert an editable Markdown table card" onClick={() => { closeToolOptions(); setTextMode("table"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 10h18M3 15h18M10 4v16M16 4v16"/></svg><span>Table</span></button>
@@ -4090,8 +4327,8 @@ function App() {
       <button role="menuitem" title="Add an interactive checklist" onClick={() => { closeToolOptions(); setTextMode("checklist"); setTool("text"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d="m4 6 2 2 3-4M12 6h8M4 14l2 2 3-4m3 2h8"/></svg><span>Checklist</span></button>
       <button role="menuitem" title="Generate editable canvas shapes from Mermaid flowchart code" onClick={() => openMermaidDialog()}><svg viewBox="0 0 24 24"><rect x="2.5" y="4" width="7" height="5" rx="1"/><path d="M9.5 6.5H14a3 3 0 0 1 3 3v.5m0 0-2-2m2 2 2-2M17 10v3.5a3 3 0 0 1-3 3H10m0 0 2-2m-2 2 2 2M10 16.5H6a3 3 0 0 1-3-3V12m0 0 2 2m-2-2-2 2"/><rect x="15" y="15" width="7" height="5" rx="1"/></svg><span>Diagram as code</span></button>
     </div></div>;
-    if (value === "line") return <div class="tool-family route-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options route-options" role="menu" aria-label="Line routes">{LINE_ROUTES.map((route) => <button class={lineRoute() === route.value ? "active" : ""} role="menuitem" title={route.label} aria-label={route.label} onClick={() => { closeToolOptions(); setLineRoute(route.value); setTool("line"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><span>{route.label}</span></button>)}</div></div>;
-    if (value === "arrow") return <div class="tool-family route-family" classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse") showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse") closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options route-options" role="menu" aria-label="Arrow routes">{ARROW_ROUTES.map((route) => <button class={arrowRoute() === route.value ? "active" : ""} role="menuitem" title={route.label} aria-label={route.label} onClick={() => { closeToolOptions(); setArrowRoute(route.value); setTool("arrow"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><span>{route.label}</span></button>)}</div></div>;
+    if (value === "line") return <div class="tool-family route-family" data-touch-popover={value} classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options route-options" role="menu" aria-label="Line routes">{LINE_ROUTES.map((route) => <button class={lineRoute() === route.value ? "active" : ""} role="menuitem" title={route.label} aria-label={route.label} onClick={() => { closeToolOptions(); setLineRoute(route.value); setTool("line"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><span>{route.label}</span></button>)}</div></div>;
+    if (value === "arrow") return <div class="tool-family route-family" data-touch-popover={value} classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options route-options" role="menu" aria-label="Arrow routes">{ARROW_ROUTES.map((route) => <button class={arrowRoute() === route.value ? "active" : ""} role="menuitem" title={route.label} aria-label={route.label} onClick={() => { closeToolOptions(); setArrowRoute(route.value); setTool("arrow"); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><span>{route.label}</span></button>)}</div></div>;
     return button;
   };
   const windowsCommands = createMemo<PaletteCommand[]>(() => {
@@ -4134,6 +4371,7 @@ function App() {
       { id: "align-bottom", label: "Align selection bottom", category: "Arrange", run: () => alignSelection("bottom") },
       { id: "distribute-horizontal", label: "Distribute horizontal spacing", category: "Arrange", run: () => alignSelection("horizontal") },
       { id: "distribute-vertical", label: "Distribute vertical spacing", category: "Arrange", run: () => alignSelection("vertical") },
+      { id: "auto-layout", label: "Auto arrange diagram", category: "Arrange", keywords: "automatic layout graph flowchart nodes edges", run: () => void autoLayoutDiagram() },
       ...EXTRA_FLOWCHART_SHAPES.map(shape => ({ id: `flow-shape-${shape.value}`, label: shape.label, category: "Flowchart stencils", run: () => { setFlowchartShape(shape.value); activateTool("flowchart"); } })),
       ...LIBRARY_COMPONENTS.map(component => ({ id: `component-${component.kind}`, label: component.label, category: component.section, keywords: "stencil component library", run: () => component.kind === "er-table" ? openSchemaDialog() : component.kind === "uml-class" ? (() => { const rect = canvas.getBoundingClientRect(); const view = canvasState(); const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind) })),
       ...tools.map(item => {
@@ -4252,12 +4490,94 @@ function App() {
     </div>;
   };
 
+  const mobileCommandBar = () => <MobileCommandBar
+    fileName={activePath() ? fileName() : "No file open"}
+    hasFile={!!activePath()}
+    canSave={!!activePath() && !readOnlyView()}
+    canSaveAs={!!activePath() && !documentBusy()}
+    canRename={!!activePath() && !readOnlyView()}
+    canImport={!!activePath() && workspaceArea() === "canvas" && !readOnlyView()}
+    canExport={!!activePath() && workspaceArea() === "canvas" && !readOnlyView()}
+    canClear={!!activePath() && workspaceArea() === "canvas" && elements().length > 0 && !boardLocked() && !readOnlyView()}
+    canClose={!!activePath() && !documentBusy()}
+    shortcuts={{ newSketch: formatShortcutBindings(shortcuts().newSketch), openSketch: formatShortcutBindings(shortcuts().openSketch), saveSketch: formatShortcutBindings(shortcuts().saveSketch) }}
+    onNewSketch={() => void createFile()}
+    onOpenSketch={() => void openFile()}
+    onOpenAsView={() => void openFileAsView()}
+    onSave={() => { if (activePath()) void saveToPath(activePath()!); }}
+    onSaveAs={() => { if (activePath()) void saveAs(); }}
+    onRename={openRenameFileDialog}
+    onImportImage={() => { if (activePath()) void importImage(); }}
+    onImportSvg={() => { if (activePath()) void importSvg(); }}
+    onExportPng={() => { if (activePath()) openExportOptions("png"); }}
+    onExportPdf={() => { if (activePath()) openExportOptions("pdf"); }}
+    onExportSvg={() => { if (activePath()) openExportOptions("svg"); }}
+    onClearCanvas={() => setShowClearConfirm(true)}
+    onCloseFile={() => void closeFile()}
+    themeMode={themeMode()}
+    accentColor={accentColor()}
+    toolbarColorChoice={toolbarColorChoice()}
+    accentOptions={UI_ACCENTS}
+    toolbarColorOptions={TOOLBAR_COLORS}
+    interfaceScale={interfaceScale()}
+    mobileOrientation={mobileOrientation()}
+    toolbarPosition={toolbarPosition()}
+    orientationMessage={orientationMessage()}
+    showMobileLayoutSettings={isCompactTouchLayout()}
+    autosaveSeconds={autosaveSeconds()}
+    thicknessPickerMode={thicknessPickerMode()}
+    reduceMotion={reduceMotion()}
+    displayMetrics={displayMetrics()}
+    onInterfaceScaleChange={setInterfaceScalePreference}
+    onMobileOrientationChange={setMobileOrientationPreference}
+    onToolbarPositionChange={setToolbarPositionPreference}
+    onThemeChange={setThemePreference}
+    onAccentChange={setAccentPreference}
+    onToolbarColorChange={setToolbarColorPreference}
+    onAutosaveChange={setAutosavePreference}
+    onThicknessPickerModeChange={setThicknessPickerPreference}
+    onReduceMotionChange={setReduceMotionPreference}
+    onRestoreDefaults={restoreAppSettings}
+    gestureSection={gestureMenuSection()}
+    onGestureSectionChange={setGestureMenuSection}
+    oneFingerTapAction={oneFingerTapAction()}
+    twoFingerTapAction={twoFingerTapAction()}
+    threeFingerTapAction={threeFingerTapAction()}
+    oneFingerDragAction={oneFingerDragAction()}
+    twoFingerGestureAction={twoFingerGestureAction()}
+    threeFingerGestureAction={threeFingerGestureAction()}
+    onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)}
+    onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)}
+    onOpenGuide={() => { setHelpSection("guide"); setHelpOpen(true); }}
+    onOpenShortcuts={() => { setHelpSection("shortcuts"); setHelpOpen(true); }}
+    onCheckForUpdates={() => void checkForUpdates()}
+    onInstallUpdate={() => void installUpdate()}
+    updateStatus={updateCheck()}
+    updateVersion={updateVersion() ?? "—"}
+    canInstallUpdate={false}
+  />;
+
   return (
-    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-tools-expanded": mobileToolsExpanded(), "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() !== "canvas", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentColor()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 62%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
+    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() !== "canvas", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family, .stencil-options")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentColor()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 62%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
+      <Show when={!isWindowsPlatform()}>
+        <MobileWorkspaceHeader
+          brandName={activePath() ? fileName() : "SketchDraw"}
+          hasFile={!!activePath()}
+          readOnly={readOnlyView()}
+          planning={workspaceArea() === "planning"}
+          headerRef={element => { appTopbar = element; }}
+          commands={<nav class="mobile-command-host" aria-label="File and application settings">{mobileCommandBar()}</nav>}
+          workspaceTabs={<Show when={activePath()}><WorkspaceAreaTabs active={workspaceArea()} onSelect={navigateWorkspace} /></Show>}
+          pageMenu={<Show when={activePath() && workspaceArea() === "canvas"}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} onToggle={alignTouchMenuPopover} /></Show>}
+          status={<Show when={activePath()}><div class="mobile-header-status"><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /></span></div></Show>}
+        />
+      </Show>
+      <Show when={isWindowsPlatform()}>
       <header class="topbar" ref={element => { appTopbar = element; }}>
         <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={activePath() ? fileName() : "SketchDraw"}>{activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
         <nav class="app-menus" aria-label="Application menus">
-          <TouchMenuBar settings={<AppSettingsMenu
+          <Show when={isWindowsPlatform()}>
+          <WindowsMenuRail settings={<AppSettingsMenu
             themeMode={themeMode()}
             accentColor={accentColor()}
             toolbarColorChoice={toolbarColorChoice()}
@@ -4271,9 +4591,6 @@ function App() {
             autosaveSeconds={autosaveSeconds()}
             thicknessPickerMode={thicknessPickerMode()}
             buttonChoices={isWindowsPlatform() || isCompactTouchLayout()}
-            androidAllFilesAccessAvailable={androidAllFilesAccessAvailable()}
-            androidAllFilesAccessGranted={androidAllFilesAccessGranted()}
-            showAndroidAllFilesAccess={isAndroidPlatform()}
             reduceMotion={reduceMotion()}
             displayMetrics={displayMetrics()}
             onInterfaceScaleChange={setInterfaceScalePreference}
@@ -4284,7 +4601,6 @@ function App() {
             onToolbarColorChange={setToolbarColorPreference}
             onAutosaveChange={setAutosavePreference}
             onThicknessPickerModeChange={setThicknessPickerPreference}
-            onRequestAndroidAllFilesAccess={() => void requestAndroidAllFilesAccess()}
             onReduceMotionChange={setReduceMotionPreference}
             onRestoreDefaults={restoreAppSettings}
             detailsRef={element => { appSettingsMenu = element; }}
@@ -4308,16 +4624,17 @@ function App() {
             </details>
           </Show>
           <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
-          <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setShortcutDialogOpen(true))}>Customize shortcuts...</button><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>{formatShortcutBindings(shortcuts().commandPalette)}</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Could not check for a newer version.</span></Show></div></details>
-          <details class="menu-dropdown portrait-menu-dropdown" ref={portraitMenu} onToggle={() => alignTouchMenuPopover(portraitMenu)}><summary aria-label="More menus"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg><span>Menu</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover portrait-menu-list" role="menu" aria-label="Other menus"><Show when={activePath() && workspaceArea() === "canvas"}><button role="menuitem" onClick={() => openPortraitMenuPanel(viewMenu)}>Canvas settings</button></Show><button role="menuitem" onClick={() => openPortraitMenuPanel(gestureMenu)}>Touch gestures</button><button role="menuitem" onClick={() => openPortraitMenuPanel(helpMenu)}>Help and updates</button></div></details>
-          </TouchMenuBar>
+          <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setShortcutDialogOpen(true))}>Customize shortcuts...</button><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>{formatShortcutBindings(shortcuts().commandPalette)}</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking" || updateCheck() === "installing"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "installing"}><span class="update-menu-status available">Installing update {updateVersion()}…</span></Show><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span><Show when={isWindowsPlatform()}><button onClick={() => void installUpdate()}>Download and install</button></Show></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Update check or installation failed.</span></Show></div></details>
+          <details class="menu-dropdown portrait-menu-dropdown" ref={portraitMenu} onToggle={() => alignTouchMenuPopover(portraitMenu)}><summary aria-label="More menus"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg><span>More</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover portrait-menu-list" role="menu" aria-label="More menus"><Show when={activePath() && workspaceArea() === "canvas"}><button role="menuitem" onClick={() => openPortraitMenuPanel(viewMenu)}>Canvas settings</button></Show><button role="menuitem" onClick={() => openPortraitMenuPanel(gestureMenu)}>Touch gestures</button><button role="menuitem" onClick={() => openPortraitMenuPanel(helpMenu)}>Help and updates</button></div></details>
+          </WindowsMenuRail>
+          </Show>
         </nav>
         <Show when={activePath()}><WorkspaceAreaTabs active={workspaceArea()} onSelect={navigateWorkspace} /></Show>
-        <Show when={activePath() && workspaceArea() === "canvas"}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} /></Show>
-        <Show when={isWindowsPlatform() && activePath() && openSketchPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openSketchPaths()} activePath={activePath()} displayName={path => displayPathName(path)} onSelect={path => { if (path !== activePath()) void loadFile(path); }} onClose={path => void closeSketchTab(path)} /></Suspense></Show>
+        <Show when={isWindowsPlatform() && activePath() && openSketchPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openSketchPaths()} activePath={activePath()} displayName={displayNameForPath} onSelect={path => { if (path !== activePath()) void loadFile(path); }} onClose={path => void closeSketchTab(path)} /></Suspense></Show>
 
-        <Show when={activePath()}><div class="top-actions"><span class="live-sync-indicator" title="Checks this open .sketch file for changes from another device every 1.6 seconds. Changes are merged after your cloud folder syncs."><i />Live file updates</span><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
+          <Show when={activePath()}><div class="top-actions"><span class="live-sync-indicator" title="Watches this open .sketch file for changes from another app, with a 30 second polling fallback for cloud folders."><i />Live file updates</span><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
       </header>
+      </Show>
       <For each={activePath() ? [activePath()!] : []}>{() => <>
         <div class="workspace-area-layer" classList={{ active: workspaceArea() === "planning" }}><ProjectWorkspace
           data={projectWorkspaceData()}
@@ -4326,7 +4643,7 @@ function App() {
           onNavigate={navigateWorkspace}
         /></div>
       </>}</For>
-      <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayPathName} onCreate={createFile} onNewProject={createProjectFromHome} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentProject={openRecentProject} /><section class="welcome-screen">
+      <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayNameForPath} onCreate={createFile} onNewProject={createProjectFromHome} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentProject={openRecentProject} /><section class="welcome-screen">
   <div class="welcome-card">
     <div class="welcome-intro">
       <div class="welcome-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg></div>
@@ -4366,7 +4683,7 @@ function App() {
       </div>
     </section>
     <Show when={recentFiles().length > 0} fallback={<div class="recent-empty"><div class="recent-empty-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></div><strong>Your next idea starts here</strong><span>Open a sketch from your device to see it in this list.</span><button class="quiet-button" onClick={openFile}>Browse sketches <span aria-hidden="true">&rarr;</span></button></div>}>
-      <div class="recent-list">{recentFiles().map((path) => <button class="recent-file" onClick={() => void loadFile(path)}><span class="recent-file-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span><span class="recent-file-name">{displayPathName(path)}</span><span class="recent-file-path">{path}</span><span class="recent-open">Open <span aria-hidden="true">&rarr;</span></span></button>)}</div>
+      <div class="recent-list">{recentFiles().map((path) => <button class="recent-file" onClick={() => void loadFile(path)}><span class="recent-file-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span><span class="recent-file-name">{displayNameForPath(path)}</span><span class="recent-file-path">{/^content:\/\//i.test(path) ? "Cloud drive or device folder" : path}</span><span class="recent-open">Open <span aria-hidden="true">&rarr;</span></span></button>)}</div>
     </Show>
     <div class="recent-footnote"><span class="recent-footnote-dot"></span> Saved on this device</div>
   </div>
@@ -4463,10 +4780,9 @@ function App() {
             <Show when={showRulers()}><Suspense fallback={null}><CanvasRulers viewport={canvas} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} interfaceScale={interfaceScale()} windows={isWindowsPlatform()} /></Suspense></Show>
             <Show when={showMinimap()}><Suspense fallback={null}><CanvasMinimap elements={elements()} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} viewportWidth={canvas.clientWidth} viewportHeight={canvas.clientHeight} onNavigate={center => setCanvasState(current => ({ ...current, panX: canvas.clientWidth / 2 - center.x * current.zoom, panY: canvas.clientHeight / 2 - center.y * current.zoom }))} onClose={() => { setShowMinimap(false); try { localStorage.setItem("sketchdraw-canvas-minimap", "false"); } catch { /* The current view still updates. */ } }} /></Suspense></Show>
             <Show when={presentationMode()}><div class="canvas-presentation-controls"><button title="Previous page" aria-label="Previous page" disabled={pages().findIndex(page => page.id === activePageId()) <= 0} onClick={() => changePresentationPage(-1)}>‹</button><span>{currentPage()?.name ?? "Sketch"}</span><button title="Next page" aria-label="Next page" disabled={pages().findIndex(page => page.id === activePageId()) >= pages().length - 1} onClick={() => changePresentationPage(1)}>›</button><button title="Exit presentation mode" onClick={() => void togglePresentationMode(false)}>Exit</button></div></Show>
-            <Show when={deletableSelectionCount() > 1}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected elements`} aria-label={`Delete ${deletableSelectionCount()} selected elements`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
+            <Show when={deletableSelectionCount() > (isWindowsPlatform() ? 1 : 0)}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} aria-label={`Delete ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
             <DesktopPageTabs pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} />
-            <TouchToolBar open={toolBarOpen()} expanded={mobileToolsExpanded()} styleOpen={touchStylePanel()} quickStyles={<Show when={!isWindowsPlatform() && isCompactTouchLayout()}><TouchQuickStyleControls
-              orientation={toolbarPosition() === "top" || toolbarPosition() === "bottom" ? "portrait" : "landscape"}
+            <TouchToolBar mobile={!isWindowsPlatform() && isCompactTouchLayout()} open={toolBarOpen()} styleOpen={touchStylePanel()} quickStyles={<Show when={!isWindowsPlatform() && isCompactTouchLayout()}><TouchQuickStyleControls
               showColor={showStrokeControls() || tool() === "bucket" || tool() === "laser"}
               color={tool() === "laser" ? laserColor() : tool() === "bucket" ? fillColor() : selectedColor()}
               colorLabel={tool() === "laser" ? "Laser color" : tool() === "bucket" ? "Bucket fill color" : tool() === "text" ? "Text color" : "Stroke color"}
@@ -4480,7 +4796,7 @@ function App() {
               disabled={tool() !== "laser" && (boardLocked() || !!focusedElement()?.locked)}
               onColorChange={value => { if (tool() === "laser") { setLaserPreference("rainbow", "false"); setLaserPreference("color", value); } else if (tool() === "bucket") setFillColor(value); else if (selectedLabel() && !textDraft()) updateLabel("color", value); else updateStrokeColor(value); }}
               onWidthChange={value => { if (tool() === "laser") setLaserPreference("thickness", String(value)); else updateThickness(value); }}
-            /></Show>} onShow={() => setToolBarOpen(true)} onHide={() => setToolBarOpen(false)} onToggleExpanded={() => setMobileToolsExpanded(value => !value)} onToggleStyle={toggleTouchStylePanel}><>
+            /></Show>} layers={<button type="button" class={`touch-layers-toggle ${layerPanelOpen() ? "active" : ""}`} title={layerPanelOpen() ? "Close layers" : "Open layers"} aria-label={layerPanelOpen() ? "Close layers" : "Open layers"} aria-pressed={layerPanelOpen()} onClick={() => setLayerPanelOpen(value => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4"/></svg></button>} onShow={() => setToolBarOpen(true)} onHide={() => setToolBarOpen(false)} onToggleStyle={toggleTouchStylePanel}><>
               <div class="tool-cluster tool-cluster-canvas mobile-cluster-has-essential" role="group" aria-label="Canvas view">
               <CanvasOptionsMenu
                 open={canvasOptionsOpen()}
@@ -4492,7 +4808,7 @@ function App() {
                 canGroup={groupActionEnabled()}
                 grouped={groupSelected()}
                 boardLocked={boardLocked()}
-                onToggle={() => setCanvasOptionsOpen(value => !value)}
+                onToggle={() => { closeTouchMenuBar(); setCanvasOptionsOpen(value => !value); closeToolOptions(); setPaintBrushMenuOpen(false); setStencilMenuOpen(false); scheduleTouchPopoverPlacement(); }}
                 onCloseOtherTools={closeToolOptions}
                 onFitDrawing={() => { setCanvasOptionsOpen(false); fitDocumentToViewport(elements()); }}
                 onFitSelection={() => { setCanvasOptionsOpen(false); fitDocumentToViewport(selectedElements()); }}
@@ -4500,6 +4816,19 @@ function App() {
                 onToggleSnapToGrid={() => setSnapToGrid(value => !value)}
                 onToggleSnapToObjects={() => setSnapToObjects(value => !value)}
                 onGroupSelection={() => { groupSelection(); setCanvasOptionsOpen(false); }}
+                canvasAppearance={isWindowsPlatform() ? undefined : {
+                  backgroundColor: boardColor(),
+                  renderedBackgroundColor: renderedBoardColor(),
+                  followsTheme: boardColorFollowsTheme(),
+                  boardLocked: boardLocked(),
+                  boardColors: BOARD_COLORS.map(value => ({ value, label: BOARD_COLOR_NAMES[value] ?? value })),
+                  paperPattern: whiteboardStyle(),
+                  componentAppearance: componentAppearance(),
+                  onFollowTheme: () => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } },
+                  onBackgroundColorChange: value => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } },
+                  onPaperPatternChange: setWhiteboardStylePreference,
+                  onComponentAppearanceChange: setComponentAppearancePreference,
+                }}
                 canvasTools={{
                   showRulers: showRulers(),
                   showAlignmentGuides: showAlignmentGuides(),
@@ -4515,9 +4844,9 @@ function App() {
               <button class="tool-icon-button mobile-tool-essential touch-focus-entry" aria-label={isWindowsPlatform() && windowsFullscreenMode() ? "Exit full screen focus mode" : "Enter full screen focus mode"} title={isWindowsPlatform() && windowsFullscreenMode() ? "Exit full screen focus mode" : "Full screen focus mode"} onClick={() => isWindowsPlatform() ? void toggleWindowsFullscreen() : void toggleTouchFocusMode(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button>
               </div>
               {toolGroups.map((group) => <div class={`tool-cluster tool-cluster-${group.id}`} classList={{ "mobile-cluster-has-essential": group.tools.some(value => mobileEssentialTools.has(value)), "mobile-cluster-has-current": group.tools.includes(tool()) }} role="group" aria-label={group.label}>{tools.filter((item) => group.tools.includes(item.value)).map(renderToolbarTool)}</div>)}
-              <div class="tool-family tool-extra-family paint-brush-family" classList={{ "options-open": paintBrushMenuOpen(), "mobile-tool-current": tool() === "pen" && brushMode() !== "fine" }}><button class={`tool-icon-button has-options ${tool() === "pen" && brushMode() !== "fine" ? "selected" : ""}`} title="Paint brushes" aria-label="Paint brushes" aria-haspopup="menu" aria-expanded={paintBrushMenuOpen()} onClick={() => setPaintBrushMenuOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m14 4 6 6M5 18c2-2 4-1 6-3l7-7-6-6-7 7c-2 2-1 4-3 6-.7.7-.4 2.4 1 3 1.2.5 2 .1 2-.4Z"/></svg><kbd>BR</kbd><svg class="tool-family-caret" viewBox="0 0 12 12"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button><div class="tool-options paint-brush-options" role="menu" aria-label="Paint brush tools">{([ ["pencil", "Pencil"], ["brush", "Soft brush"], ["marker", "Marker"], ["highlighter", "Highlighter"], ["chalk", "Chalk"] ] as const).map(([mode, label]) => <button class={brushMode() === mode ? "active" : ""} role="menuitem" onClick={() => { setBrushMode(mode); setTool("pen"); setSelectedIndices([]); setPaintBrushMenuOpen(false); }}><svg viewBox="0 0 24 24"><path d={mode === "pencil" ? "m5 19 11-11 3 3L8 22H5zm10-13 2-2 4 4-2 2" : mode === "brush" ? "M5 18c4 0 3-8 8-8 4 0 4 4 7 4m-15 4h14M15 5l3 3" : mode === "marker" ? "M5 18 17 6l3 3L8 21H5zm9-9 3 3" : mode === "highlighter" ? "M4 16 15 5l5 5-11 11H4zm4-2 5 5" : "M5 18 17 6m-8 12 2 2M4 21h16"}/></svg><span>{label}</span></button>)}</div></div>
+              <div class="tool-family tool-extra-family paint-brush-family mobile-tool-essential-family" classList={{ "options-open": paintBrushMenuOpen(), "mobile-tool-current": tool() === "pen" && brushMode() !== "fine" }}><button class={`tool-icon-button has-options ${tool() === "pen" && brushMode() !== "fine" ? "selected" : ""}`} title="Paint brushes" aria-label="Paint brushes" aria-haspopup="menu" aria-expanded={paintBrushMenuOpen()} onClick={() => { closeTouchMenuBar(); setPaintBrushMenuOpen(value => !value); setCanvasOptionsOpen(false); setStencilMenuOpen(false); closeToolOptions(); scheduleTouchPopoverPlacement(); }}><svg viewBox="0 0 24 24"><path d="m14 4 6 6M5 18c2-2 4-1 6-3l7-7-6-6-7 7c-2 2-1 4-3 6-.7.7-.4 2.4 1 3 1.2.5 2 .1 2-.4Z"/></svg><kbd>BR</kbd><svg class="tool-family-caret" viewBox="0 0 12 12"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button><div class="tool-options paint-brush-options" role="menu" aria-label="Paint brush tools">{([ ["pencil", "Pencil"], ["brush", "Soft brush"], ["marker", "Marker"], ["highlighter", "Highlighter"], ["chalk", "Chalk"] ] as const).map(([mode, label]) => <button class={brushMode() === mode ? "active" : ""} role="menuitem" onClick={() => { setBrushMode(mode); setTool("pen"); setSelectedIndices([]); setPaintBrushMenuOpen(false); }}><svg viewBox="0 0 24 24"><path d={mode === "pencil" ? "m5 19 11-11 3 3L8 22H5zm10-13 2-2 4 4-2 2" : mode === "brush" ? "M5 18c4 0 3-8 8-8 4 0 4 4 7 4m-15 4h14M15 5l3 3" : mode === "marker" ? "M5 18 17 6l3 3L8 21H5zm9-9 3 3" : mode === "highlighter" ? "M4 16 15 5l5 5-11 11H4zm4-2 5 5" : "M5 18 17 6m-8 12 2 2M4 21h16"}/></svg><span>{label}</span></button>)}</div></div>
               <div class="tool-family tool-extra-family stencil-family" classList={{ "options-open": stencilMenuOpen() }} onFocusOut={event => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) setStencilMenuOpen(false); }}>
-                <button class="tool-icon-button has-options" title="Modeling components" aria-label="Modeling components" aria-haspopup="menu" aria-expanded={stencilMenuOpen()} onClick={() => setStencilMenuOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="M3 5h7v7H3zM14 4l7 4-4 7-7-4zM4 16h7v5H4zM15 17h6v4h-6z"/></svg><kbd>MOD</kbd><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button>
+                <button class="tool-icon-button has-options" title="Modeling components" aria-label="Modeling components" aria-haspopup="menu" aria-expanded={stencilMenuOpen()} onClick={() => { closeTouchMenuBar(); setStencilMenuOpen(value => !value); setCanvasOptionsOpen(false); setPaintBrushMenuOpen(false); closeToolOptions(); scheduleTouchPopoverPlacement(); }}><svg viewBox="0 0 24 24"><path d="M3 5h7v7H3zM14 4l7 4-4 7-7-4zM4 16h7v5H4zM15 17h6v4h-6z"/></svg><kbd>MOD</kbd><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button>
                 <div class="tool-options stencil-options" role="dialog" aria-label="Modeling components">
                   <div class="stencil-picker-heading"><div><strong>Modeling library</strong><small>Original SketchDraw diagram components</small></div><label class="stencil-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input type="search" aria-label="Search modeling components" placeholder="Search library" value={stencilSearch()} onInput={event => setStencilSearch(event.currentTarget.value)} /></label></div>
                   <div class="stencil-featured-actions"><button type="button" class="stencil-schema-action" title="Paste SQL or JSON to create linked table cards" onClick={() => openSchemaDialog()}><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/><path d="M8 16h8m-8 4h5"/></svg><span><strong>Visualize database schema</strong><small>Generate linked tables from SQL or JSON</small></span><kbd>SQL</kbd></button></div>
@@ -4525,11 +4854,11 @@ function App() {
                   {visibleStencilSections().map(section => <><strong class={"tool-options-heading stencil-heading stencil-heading-" + stencilGroup(section)}>{section}</strong>{visibleStencilComponents().filter(component => component.section === section).map(component => <button type="button" class={"stencil-template stencil-" + stencilGroup(component.section)} title={component.description} aria-label={component.label + ". " + component.description} onClick={() => component.kind === "er-table" ? openSchemaDialog(undefined, "CREATE TABLE table_name (\n  id INTEGER PRIMARY KEY,\n  name TEXT\n);") : component.kind === "uml-class" ? (() => { const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; const rect = canvas!.getBoundingClientRect(); const view = canvasState(); openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind)}><span class="stencil-symbol">{libraryIcon(component.kind)}</span><span class="stencil-template-copy"><strong>{component.label}</strong><small>{component.description}</small></span></button>)}</>)}
                   {visibleStencilComponents().length === 0 && <p class="stencil-empty">No matches. Try another search or category.</p>}
                 </div></div>              <div class="tool-cluster tool-cluster-history mobile-cluster-has-essential" role="group" aria-label="History, selection, and canvas state">
-                <button class={layerPanelOpen() ? "tool-icon-button canvas-utility-button mobile-tool-extra selected" : "tool-icon-button canvas-utility-button mobile-tool-extra"} title="Layers" aria-label="Open layers panel" aria-pressed={layerPanelOpen()} onClick={() => setLayerPanelOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4"/></svg></button>
+                <button class={layerPanelOpen() ? "tool-icon-button canvas-utility-button selected" : "tool-icon-button canvas-utility-button"} title="Layers" aria-label="Open layers panel" aria-pressed={layerPanelOpen()} onClick={() => setLayerPanelOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4"/></svg></button>
                 <Show when={deletableSelectionCount() > 0}><button class="tool-icon-button mobile-tool-essential touch-selection-delete" disabled={boardLocked()} title={`Erase ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} aria-label={`Erase ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6" /></svg><small class="touch-selection-count">{deletableSelectionCount()}</small></button></Show>
                 <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canUndo() || boardLocked()} title={`Undo (${formatShortcutBindings(shortcuts().undo)})`} aria-label="Undo" onClick={undo}><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg><kbd>{displayShortcut(shortcuts().undo.find(Boolean) || "Ctrl+Z")}</kbd></button>
                 <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canRedo() || boardLocked()} title={`Redo (${formatShortcutBindings(shortcuts().redo)})`} aria-label="Redo" onClick={redo}><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5m4-5h-8a6 6 0 0 0-6 6"/></svg><kbd>{displayShortcut(shortcuts().redo.find(Boolean) || "Ctrl+Y")}</kbd></button>
-                <button class={`tool-icon-button canvas-utility-button mobile-tool-extra ${boardLocked() ? "selected" : ""}`} title={`Canvas ${boardLocked() ? "locked" : "unlocked"} (K)`} aria-label={boardLocked() ? "Unlock canvas" : "Lock canvas"} aria-pressed={boardLocked()} onClick={() => setBoardLocked(value => !value)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button>
+                <button class={`tool-icon-button canvas-utility-button mobile-tool-essential ${boardLocked() ? "selected" : ""}`} title={`Canvas ${boardLocked() ? "locked" : "unlocked"} (K)`} aria-label={boardLocked() ? "Unlock canvas" : "Lock canvas"} aria-pressed={boardLocked()} onClick={() => setBoardLocked(value => !value)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button>
               </div>
             </></TouchToolBar>
             <Show when={layerPanelOpen()}>
@@ -4753,7 +5082,7 @@ function App() {
       </Show>
       <Show when={schemaDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) { setSchemaDialog(false); setSchemaEditingDiagram(undefined); } }}><section class="confirm-dialog schema-dialog" role="dialog" aria-modal="true" aria-labelledby="schema-title"><header><div><span class="eyebrow">DATABASE SCHEMA VISUALIZER</span><h2 id="schema-title">{schemaEditingDiagram() ? "Update linked table cards" : "Generate linked table cards"}</h2></div><button class="help-close" aria-label="Close schema visualizer" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>&times;</button></header><p>Paste SQL <code>CREATE TABLE</code> statements or JSON with a <code>tables</code> array. Primary and foreign keys become labeled rows with connectors anchored to those rows. Double-click any generated table to edit this source and regenerate the diagram. Press Tab to indent and Shift+Tab to outdent.</p><textarea autofocus class="schema-input" aria-label="SQL or JSON schema" value={schemaInput()} placeholder={'CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  name VARCHAR(80) NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  user_id INTEGER REFERENCES users(id)\n);'} onInput={event => { setSchemaInput(event.currentTarget.value); setSchemaError(""); }} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, setSchemaInput); }} /><Show when={schemaError()}><p class="schema-error" role="alert">{schemaError()}</p></Show><div class="schema-dialog-footer"><span>Up to 50 tables per import</span><div><button class="quiet-button" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={insertSchemaVisual}>{schemaEditingDiagram() ? "Update diagram" : "Add to canvas"}</button></div></div></section></div></Show>
       <Show when={pageDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setPageDialog(undefined); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="page-dialog-title"><h2 id="page-dialog-title">{pageDialog() === "rename" ? "Rename page" : "Delete page?"}</h2><Show when={pageDialog() === "rename"} fallback={<p>Delete “{currentPage()?.name}” and its contents? This page deletion cannot be undone.</p>}><label>Page name<input autofocus maxlength="80" value={pageName()} onInput={event => setPageName(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter" && pageName().trim()) confirmPageDialog(); }} /></label></Show><div><button class="quiet-button" onClick={() => setPageDialog(undefined)}>Cancel</button><button class={pageDialog() === "delete" ? "danger-button" : "save-button"} disabled={boardLocked() || (pageDialog() === "rename" && !pageName().trim())} onClick={confirmPageDialog}>{pageDialog() === "rename" ? "Rename" : "Delete page"}</button></div></section></div></Show>
-      <Show when={renameFileOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setRenameFileOpen(false); }}><section class="confirm-dialog rename-file-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-file-title"><h2 id="rename-file-title">Rename sketch file</h2><p>Choose a new name for <strong>{displayPathName(activePath() ?? "")}</strong>. The <code>.sketch</code> extension is kept automatically.</p><Show when={renameFileError()}><p class="rename-file-error" role="alert">{renameFileError()}</p></Show><label>File name<input autofocus maxlength="180" value={renameFileName()} onInput={event => setRenameFileName(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter" && renameFileName().trim()) void confirmRenameFile(); }} /></label><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setRenameFileOpen(false)}>Cancel</button><button class="save-button" disabled={!renameFileName().trim() || nativeBusy() || documentBusy()} onClick={() => void confirmRenameFile()}>{nativeBusy() ? "Renaming…" : "Rename file"}</button></div></section></div></Show>
+      <Show when={renameFileOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setRenameFileOpen(false); }}><section class="confirm-dialog rename-file-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-file-title"><h2 id="rename-file-title">Rename sketch file</h2><p>Choose a new name for <strong>{displayNameForPath(activePath() ?? "")}</strong>. The <code>.sketch</code> extension is kept automatically.</p><Show when={renameFileError()}><p class="rename-file-error" role="alert">{renameFileError()}</p></Show><label>File name<input autofocus maxlength="180" value={renameFileName()} onInput={event => setRenameFileName(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter" && renameFileName().trim()) void confirmRenameFile(); }} /></label><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setRenameFileOpen(false)}>Cancel</button><button class="save-button" disabled={!renameFileName().trim() || nativeBusy() || documentBusy()} onClick={() => void confirmRenameFile()}>{nativeBusy() ? "Renaming…" : "Rename file"}</button></div></section></div></Show>
       <Show when={exportOptionsOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setExportOptionsOpen(false); }}><section class="confirm-dialog export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-title">
         <header class="export-heading"><div><span class="eyebrow">EXPORT PREVIEW</span><h2 id="export-title">Export {exportFormat().toUpperCase()}</h2></div><button class="help-close" aria-label="Close export dialog" onClick={() => setExportOptionsOpen(false)}>&times;</button></header>
         <div class="export-layout"><div class="export-controls"><p>Choose what to export and review the result before saving.</p>

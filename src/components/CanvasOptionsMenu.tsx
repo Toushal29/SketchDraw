@@ -16,6 +16,19 @@ export type CanvasOptionsMenuProps = {
   onToggleSnapToGrid: () => void;
   onToggleSnapToObjects: () => void;
   onGroupSelection: () => void;
+  canvasAppearance?: {
+    backgroundColor: string;
+    renderedBackgroundColor: string;
+    followsTheme: boolean;
+    boardLocked: boolean;
+    boardColors: { value: string; label: string }[];
+    paperPattern: "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric";
+    componentAppearance: "modern" | "simple";
+    onFollowTheme: () => void;
+    onBackgroundColorChange: (color: string) => void;
+    onPaperPatternChange: (pattern: "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric") => void;
+    onComponentAppearanceChange: (appearance: "modern" | "simple") => void;
+  };
   canvasTools?: {
     showRulers: boolean;
     showAlignmentGuides: boolean;
@@ -59,6 +72,24 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
             <button role="menuitemcheckbox" aria-checked={props.showGrid} class={props.showGrid ? "active" : ""} title="Toggle grid (G)" onClick={props.onToggleGrid}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 4v16" /></svg><span>Show grid</span><kbd>G</kbd></button>
           </div>
         </section>
+        {props.canvasAppearance && <section class="canvas-options-section canvas-appearance-options">
+          <span>APPEARANCE</span>
+          <div class="canvas-appearance-heading">Whiteboard color</div>
+          <div class="canvas-appearance-colors" role="group" aria-label="Whiteboard color">
+            <button type="button" class={`canvas-color-choice ${props.canvasAppearance.followsTheme ? "active" : ""}`} aria-label="Automatic whiteboard color" aria-pressed={props.canvasAppearance.followsTheme} disabled={props.canvasAppearance.boardLocked} onClick={props.canvasAppearance.onFollowTheme}><i class="canvas-color-auto" /><span>Auto</span></button>
+            {props.canvasAppearance.boardColors.map(option => <button type="button" class={`canvas-color-choice ${!props.canvasAppearance!.followsTheme && props.canvasAppearance!.backgroundColor === option.value ? "active" : ""}`} aria-label={option.label} aria-pressed={!props.canvasAppearance.followsTheme && props.canvasAppearance.backgroundColor === option.value} disabled={props.canvasAppearance.boardLocked} onClick={() => props.canvasAppearance!.onBackgroundColorChange(option.value)}><i style={{ "background-color": option.value }} /><span>{option.label}</span></button>)}
+            <label class="canvas-color-choice canvas-custom-color" title="Custom whiteboard color"><input type="color" aria-label="Custom whiteboard color" value={props.canvasAppearance.renderedBackgroundColor} disabled={props.canvasAppearance.boardLocked} onInput={event => props.canvasAppearance!.onBackgroundColorChange(event.currentTarget.value)} /><i style={{ "background-color": props.canvasAppearance.renderedBackgroundColor }} /><span>Custom</span></label>
+          </div>
+          <div class="canvas-appearance-heading">Paper pattern</div>
+          <div class="canvas-pattern-options" role="group" aria-label="Paper pattern">
+            {([{ value: "plain", label: "Plain" }, { value: "dots", label: "Dots" }, { value: "small-dots", label: "Fine dots" }, { value: "lines", label: "Grid" }, { value: "small-grid", label: "Fine grid" }, { value: "ruled", label: "Ruled" }, { value: "isometric", label: "Isometric" }] as const).map(option => <button type="button" class={props.canvasAppearance!.paperPattern === option.value ? "active" : ""} aria-pressed={props.canvasAppearance!.paperPattern === option.value} onClick={() => props.canvasAppearance!.onPaperPatternChange(option.value)}><i class={`paper-pattern-swatch ${option.value}`} /><span>{option.label}</span></button>)}
+          </div>
+          <div class="canvas-appearance-heading">Component style</div>
+          <div class="canvas-component-appearance" role="group" aria-label="Component style">
+            <button type="button" class={props.canvasAppearance.componentAppearance === "modern" ? "active" : ""} aria-pressed={props.canvasAppearance.componentAppearance === "modern"} onClick={() => props.canvasAppearance!.onComponentAppearanceChange("modern")}>Modern</button>
+            <button type="button" class={props.canvasAppearance.componentAppearance === "simple" ? "active" : ""} aria-pressed={props.canvasAppearance.componentAppearance === "simple"} onClick={() => props.canvasAppearance!.onComponentAppearanceChange("simple")}>Simple</button>
+          </div>
+        </section>}
         <section class="canvas-options-section">
           <span>SNAPPING</span>
           <div class="canvas-options-grid">

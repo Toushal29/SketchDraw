@@ -24,6 +24,7 @@
 .app-shell.presentation-mode > .canvas-wrap { position: fixed; z-index: 60; inset: 0; width: 100vw; height: 100dvh; min-height: 100dvh; }
 .app-shell.presentation-mode .topbar,
 .app-shell.presentation-mode .touch-tool-bar,
+.app-shell.presentation-mode .touch-tool-reopen,
 .app-shell.presentation-mode .tool-deck,
 .app-shell.presentation-mode .style-pane,
 .app-shell.presentation-mode .desktop-page-tabs,

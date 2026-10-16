@@ -55,7 +55,7 @@ export function MobileHomeScreen(props: Props) {
                 <div class="mobile-home-recent-row">
                 <button class="mobile-home-recent-item" type="button" onClick={() => void props.onOpenRecent(path)}>
                   <span class="mobile-home-file-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6zM14 3.5v5h5M9 13h6m-6 3h4" /></svg></span>
-                  <span class="mobile-home-file-copy"><strong>{props.displayPathName(path)}</strong><small>Sketch document</small></span>
+                  <span class="mobile-home-file-copy"><strong>{props.displayPathName(path)}</strong><small>{/^content:\/\//i.test(path) ? "Cloud or device document" : "On this device"}</small></span>
                   <svg class="mobile-home-recent-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
                 </button>
                 <button class="mobile-home-project-link" type="button" onClick={() => void props.onOpenRecentProject(path)}>Project</button>
@@ -65,7 +65,7 @@ export function MobileHomeScreen(props: Props) {
           </Show>
         </section>
 
-        <footer class="mobile-home-footer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 7h14M5 17h14" /></svg><span>Private by design</span><i /> <span>Your files stay on this device.</span></footer>
+        <footer class="mobile-home-footer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 7h14M5 17h14" /></svg><span>Private by design</span><i /> <span>Save files where you choose.</span></footer>
       </div>
     </section>
   );

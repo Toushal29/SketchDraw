@@ -307,6 +307,15 @@ pub fn run() {
         .plugin(android_documents::init())
         .plugin(android_stylus::init())
         .plugin(orientation::init())
+        .setup(|app| {
+            #[cfg(windows)]
+            {
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                app.handle().plugin(tauri_plugin_process::init())?;
+                app.handle().plugin(tauri_plugin_window_state::Builder::default().build())?;
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             take_startup_files,
             authorize_sketch_file,
@@ -317,11 +326,10 @@ pub fn run() {
             orientation::set_mobile_orientation,
             android_documents::pick_sketch_document,
             android_documents::create_sketch_document,
-            android_documents::rename_sketch_document,
-            android_documents::has_all_files_access,
-            android_documents::open_all_files_access_settings,
-            android_documents::has_sketch_document_write_access,
             android_documents::write_sketch_document,
+            android_documents::rename_sketch_document,
+            android_documents::has_sketch_document_write_access,
+            android_documents::get_sketch_document_display_name,
             android_stylus::set_android_stylus_preview,
         ])
         .run(tauri::generate_context!())

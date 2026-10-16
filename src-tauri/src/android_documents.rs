@@ -25,17 +25,17 @@ struct CreateDocumentArgs {
 #[cfg(target_os = "android")]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RenameDocumentArgs {
+struct WriteDocumentArgs {
     uri: String,
-    file_name: String,
+    contents: String,
 }
 
 #[cfg(target_os = "android")]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct WriteDocumentArgs {
+struct RenameDocumentArgs {
     uri: String,
-    contents: String,
+    file_name: String,
 }
 
 #[cfg(target_os = "android")]
@@ -46,28 +46,14 @@ struct NativeDocumentResult {
 
 #[cfg(target_os = "android")]
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct NativeAllFilesAccessResult {
-    available: bool,
-    granted: bool,
-    root_path: Option<String>,
+struct NativeDisplayNameResult {
+    name: String,
 }
 
 #[cfg(target_os = "android")]
 #[derive(Deserialize)]
 struct NativeSketchDocumentWriteAccess {
     writable: bool,
-}
-
-#[cfg(target_os = "android")]
-#[derive(Deserialize)]
-struct NativeEmptyResult {}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct AllFilesAccessStatus {
-    pub available: bool,
-    pub granted: bool,
 }
 
 async fn run_picker(
@@ -112,6 +98,31 @@ pub(crate) async fn create_sketch_document(
 }
 
 #[tauri::command]
+pub(crate) async fn write_sketch_document(
+    uri: String,
+    contents: String,
+    state: State<'_, AndroidDocumentsHandle>,
+) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        state
+            .plugin
+            .run_mobile_plugin_async::<serde_json::Value>(
+                "writeSketchDocument",
+                WriteDocumentArgs { uri, contents },
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (uri, contents, state);
+        Err("Selected-document writes are only available on Android.".into())
+    }
+}
+
+#[tauri::command]
 pub(crate) async fn rename_sketch_document(
     app: tauri::AppHandle,
     uri: String,
@@ -144,61 +155,6 @@ pub(crate) async fn rename_sketch_document(
 }
 
 #[tauri::command]
-pub(crate) async fn has_all_files_access(
-    app: tauri::AppHandle,
-    state: State<'_, AndroidDocumentsHandle>,
-) -> Result<AllFilesAccessStatus, String> {
-    #[cfg(target_os = "android")]
-    {
-        let result = state
-            .plugin
-            .run_mobile_plugin_async::<NativeAllFilesAccessResult>("hasAllFilesAccess", ())
-            .await
-            .map_err(|error| error.to_string())?;
-        if result.granted {
-            let root_path = result
-                .root_path
-                .ok_or_else(|| "Android did not return the shared-storage path.".to_owned())?;
-            app.fs_scope()
-                .allow_directory(std::path::PathBuf::from(root_path), true)
-                .map_err(|error| format!("Could not authorize shared storage: {error}"))?;
-        }
-        Ok(AllFilesAccessStatus {
-            available: result.available,
-            granted: result.granted,
-        })
-    }
-    #[cfg(not(target_os = "android"))]
-    {
-        let _ = (app, state);
-        Ok(AllFilesAccessStatus {
-            available: false,
-            granted: false,
-        })
-    }
-}
-
-#[tauri::command]
-pub(crate) async fn open_all_files_access_settings(
-    state: State<'_, AndroidDocumentsHandle>,
-) -> Result<(), String> {
-    #[cfg(target_os = "android")]
-    {
-        state
-            .plugin
-            .run_mobile_plugin_async::<NativeEmptyResult>("openAllFilesAccessSettings", ())
-            .await
-            .map_err(|error| error.to_string())?;
-        Ok(())
-    }
-    #[cfg(not(target_os = "android"))]
-    {
-        let _ = state;
-        Err("All files access settings are only available on Android 11 and later.".into())
-    }
-}
-
-#[tauri::command]
 pub(crate) async fn has_sketch_document_write_access(
     uri: String,
     state: State<'_, AndroidDocumentsHandle>,
@@ -223,27 +179,26 @@ pub(crate) async fn has_sketch_document_write_access(
 }
 
 #[tauri::command]
-pub(crate) async fn write_sketch_document(
+pub(crate) async fn get_sketch_document_display_name(
     uri: String,
-    contents: String,
     state: State<'_, AndroidDocumentsHandle>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     #[cfg(target_os = "android")]
     {
-        state
+        let result = state
             .plugin
-            .run_mobile_plugin_async::<NativeEmptyResult>(
-                "writeSketchDocument",
-                WriteDocumentArgs { uri, contents },
+            .run_mobile_plugin_async::<NativeDisplayNameResult>(
+                "getSketchDocumentDisplayName",
+                serde_json::json!({ "uri": uri }),
             )
             .await
             .map_err(|error| error.to_string())?;
-        Ok(())
+        Ok(result.name)
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = (uri, contents, state);
-        Err("Document-provider file writing is only available on Android.".into())
+        let _ = (uri, state);
+        Err("Document display names are only available on Android.".into())
     }
 }
 

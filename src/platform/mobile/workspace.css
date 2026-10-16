@@ -25,158 +25,15 @@
 .theme-dark .gesture-action-card { border-color: #414c43; background: #29312b; }
 .theme-dark .gesture-action-card select { border-color: #465148; color: #d4ddd5; background: #252c27; }
 
+@media (max-width: 420px) {
+    .gesture-action-card { grid-template-columns: 34px minmax(0, 1fr); }
+    .gesture-action-card select { grid-column: 2; }
+}
+
 /* Touch workspace layout: dock, page controls, zoom, and properties stay in separate lanes. */
 .touch-guide-section { display: none; }
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .touch-gesture-menu { display: block; }
-    .tool-deck {
-        z-index: 44;
-        top: 58px;
-        right: auto;
-        bottom: max(8px, env(safe-area-inset-bottom));
-        left: max(6px, env(safe-area-inset-left));
-        width: 46px;
-        max-width: 46px;
-        max-height: calc(100dvh - 70px);
-        gap: 4px;
-        padding: 4px;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 12%, transparent);
-        border-radius: 15px;
-        background: color-mix(in srgb, var(--toolbar-surface, #fff) 95%, transparent);
-        transform: none;
-        backdrop-filter: none;
-        overscroll-behavior: contain;
-    }
-
-    .tool-deck .tool-cluster {
-        width: 36px;
-        gap: 2px;
-        padding: 2px;
-        border-radius: 11px;
-    }
-
-    .tool-deck .tool-icon-button,
-    .tool-deck .tool-family,
-    .tool-deck .tool-family > .tool-icon-button,
-    .tool-deck .canvas-options-trigger {
-        box-sizing: border-box;
-        width: 34px;
-        min-width: 34px;
-        height: 36px;
-        min-height: 36px;
-        border-radius: 9px;
-    }
-
-    .tool-deck .tool-icon-button svg:not(.tool-family-caret),
-    .tool-deck .canvas-options-trigger svg { width: 18px; height: 18px; }
-    .tool-deck .tool-icon-button kbd { display: none; }
-    .tool-deck .tool-family-caret { width: 8px; height: 8px; }
-    .tool-deck .mobile-tools-toggle {
-        box-sizing: border-box;
-        width: 36px;
-        min-width: 36px;
-        height: 36px;
-        min-height: 36px;
-        justify-content: center;
-        gap: 0;
-        padding: 0;
-        border: 1px solid color-mix(in srgb, var(--ui-accent, #3f78a5) 25%, transparent);
-        border-radius: 10px;
-        color: var(--ui-accent, #3f78a5);
-        background: color-mix(in srgb, var(--ui-accent, #3f78a5) 9%, var(--toolbar-surface, #fff));
-        font-size: 0;
-    }
-    .tool-deck .mobile-tools-toggle svg { width: 17px; height: 17px; }
-    .tool-deck .mobile-tools-toggle span { display: none; }
-
-    .tool-deck-reopen {
-        z-index: 24;
-        top: 50%;
-        right: auto;
-        bottom: auto;
-        left: max(6px, env(safe-area-inset-left));
-        width: 38px;
-        height: 40px;
-        transform: translateY(-50%);
-    }
-
-    .app-shell.mobile-tools-expanded .tool-deck {
-        top: 8px;
-        right: auto;
-        bottom: auto;
-        left: max(8px, env(safe-area-inset-left));
-        width: min(320px, calc(100vw - 16px));
-        max-width: calc(100vw - 16px);
-        max-height: calc(100dvh - 16px);
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: flex-start;
-        align-content: flex-start;
-        overflow-x: hidden;
-        overflow-y: auto;
-        padding: 7px;
-        transform: none;
-    }
-    .app-shell.mobile-tools-expanded .tool-deck .tool-cluster {
-        width: auto;
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
-    .app-shell.mobile-tools-expanded .tool-deck .mobile-tools-toggle {
-        width: auto;
-        min-width: 58px;
-        padding: 0 8px;
-        font-size: 10px;
-    }
-    .app-shell.mobile-tools-expanded .tool-deck .mobile-tools-toggle span { display: inline; }
-
-    .tool-family.options-open .tool-options {
-        position: fixed !important;
-        z-index: 60;
-        top: 50% !important;
-        right: max(8px, env(safe-area-inset-right)) !important;
-        bottom: auto !important;
-        left: max(58px, calc(env(safe-area-inset-left) + 52px)) !important;
-        width: auto !important;
-        max-width: none !important;
-        max-height: calc(100dvh - 24px) !important;
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        -webkit-overflow-scrolling: touch;
-        touch-action: pan-y;
-        transform: translateY(-50%) !important;
-    }
-    .tool-family.options-open .stencil-options {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
-        align-content: start;
-        gap: 6px;
-        padding: 10px;
-    }
-    .stencil-options .tool-options-heading,
-    .stencil-options .tool-options-heading.stencil-heading { grid-column: 1 / -1; }
-    .stencil-options button.stencil-template { min-height: 62px; padding: 7px; }
-    .stencil-options button.stencil-template svg { width: 23px; height: 23px; }
-
-    .canvas-options-family { z-index: 61; }
-    .canvas-options-family.options-open .canvas-options-menu {
-        position: fixed;
-        z-index: 62;
-        top: 50%;
-        right: max(8px, env(safe-area-inset-right));
-        bottom: auto;
-        left: max(58px, calc(env(safe-area-inset-left) + 52px));
-        width: auto;
-        max-width: none;
-        max-height: calc(100dvh - 24px);
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        -webkit-overflow-scrolling: touch;
-        transform: translateY(-50%);
-    }
-
     .page-tabs {
         z-index: 12;
         top: 7px;
@@ -229,13 +86,6 @@
         border-radius: 10px;
     }
     .canvas-zoom-reset svg { width: 14px; height: 14px; }
-
-    .selection-delete-action {
-        top: 96px;
-        right: max(8px, env(safe-area-inset-right));
-        min-height: 34px;
-        border-radius: 10px;
-    }
 
     .style-pane.quick-style-mode,
     .style-pane.full-style-mode {

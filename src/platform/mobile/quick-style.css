@@ -1,11 +1,5 @@
 /* Compact mobile quick styles and the width popover. */
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell.mobile-toolbar-horizontal:not(.platform-windows):not(.mobile-tools-expanded) .touch-tool-actions {
-        min-width: max-content;
-        flex-wrap: nowrap;
-        gap: 2px;
-    }
-
     .app-shell:not(.platform-windows) .touch-quick-style-controls {
         display: flex;
         height: 26px;
@@ -103,10 +97,33 @@
     /* The transparent scrim dismisses the panel on the next touch outside it. */
     .app-shell:not(.platform-windows) .touch-quick-width-scrim {
         position: fixed;
-        z-index: 420;
+        z-index: 1750;
         inset: 0;
         background: transparent;
         touch-action: manipulation;
+    }
+
+    .app-shell:not(.platform-windows) .touch-quick-colors-scrim {
+        position: fixed;
+        z-index: 1750;
+        inset: 0;
+        background: transparent;
+        touch-action: manipulation;
+    }
+
+    .app-shell:not(.platform-windows) .touch-quick-colors-dropdown {
+        position: absolute;
+        display: flex;
+        box-sizing: border-box;
+        width: max-content;
+        max-width: calc(100vw - 16px);
+        align-items: center;
+        gap: 5px;
+        padding: 7px;
+        border: 1px solid var(--touch-line);
+        border-radius: 12px;
+        background: var(--toolbar-surface, #fff);
+        box-shadow: 0 8px 26px #18251c24;
     }
 
     .app-shell:not(.platform-windows) .touch-quick-width-panel {
@@ -124,7 +141,7 @@
     }
 
     .app-shell.mobile-toolbar-top:not(.platform-windows) .touch-quick-width-panel {
-        top: calc(var(--touch-header-height, 50px) + var(--mobile-horizontal-toolbar-height, 78px) + env(safe-area-inset-top) + 14px);
+        top: calc(var(--touch-header-height, 54px) + var(--touch-toolbar-top-offset, 4px) + var(--mobile-horizontal-toolbar-height, 54px) + 10px);
         left: 50%;
         width: min(340px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
         transform: translateX(-50%);
@@ -133,7 +150,7 @@
     .app-shell.mobile-toolbar-bottom:not(.platform-windows) .touch-quick-width-panel {
         top: auto;
         right: auto;
-        bottom: calc(var(--mobile-horizontal-toolbar-height, 78px) + max(12px, env(safe-area-inset-bottom)) + 14px);
+        bottom: calc(var(--mobile-horizontal-toolbar-height, 54px) + max(12px, env(safe-area-inset-bottom)) + 14px);
         left: 50%;
         width: min(340px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
         transform: translateX(-50%);
@@ -143,8 +160,8 @@
         position: fixed;
         z-index: 230;
         top: calc(var(--touch-header-height) + 12px);
-        right: calc(max(12px, env(safe-area-inset-right)) + 76px);
-        left: auto;
+        right: auto;
+        left: calc(max(8px, env(safe-area-inset-left)) + 58px);
         display: flex;
         width: max-content;
         height: 36px;
@@ -202,27 +219,6 @@
         background: var(--ui-accent-soft);
     }
 
-    .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors-scrim {
-        position: fixed;
-        z-index: 421;
-        inset: 0;
-        background: transparent;
-        touch-action: manipulation;
-    }
-
-    .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors-dropdown {
-        position: absolute;
-        display: flex;
-        width: max-content;
-        max-width: calc(100vw - 16px);
-        align-items: center;
-        gap: 5px;
-        padding: 7px;
-        border: 1px solid var(--touch-line);
-        border-radius: 12px;
-        background: var(--toolbar-surface, #fff);
-    }
-
     .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors-dropdown .touch-quick-color,
     .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors-dropdown .touch-quick-custom-color {
         width: 22px;
@@ -242,8 +238,8 @@
         width: min(340px, calc(100vw - 76px - env(safe-area-inset-left) - env(safe-area-inset-right)));
     }
 
-    .app-shell.mobile-toolbar-left:not(.platform-windows) .touch-quick-style-controls { right: calc(max(12px, env(safe-area-inset-right)) + 64px); left: auto; }
-    .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-quick-style-controls { right: auto; left: calc(max(12px, env(safe-area-inset-left)) + 64px); }
+    .app-shell.mobile-toolbar-left:not(.platform-windows) .touch-quick-style-controls { right: auto; left: calc(max(8px, env(safe-area-inset-left)) + 58px); }
+    .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-quick-style-controls { right: calc(max(8px, env(safe-area-inset-right)) + 58px); left: auto; }
     .app-shell.mobile-toolbar-left:not(.platform-windows) .touch-quick-width-panel { right: auto; left: max(62px, calc(env(safe-area-inset-left) + 58px)); }
     .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-quick-width-panel { right: max(62px, calc(env(safe-area-inset-right) + 58px)); left: auto; }
 
@@ -351,6 +347,7 @@
     .app-shell.theme-dark:not(.platform-windows) .touch-quick-width { color: #d9e2da; background: #263029; }
     .app-shell.theme-dark:not(.platform-windows) .touch-quick-width-panel { color: #d9e2da; background: var(--toolbar-surface, #252d27); }
     .app-shell.theme-dark:not(.platform-windows) .touch-quick-width-preview { background: #252e28; }
+    .app-shell.theme-dark:not(.platform-windows) .touch-quick-colors-dropdown { background: var(--toolbar-surface, #252d27); }
 }
 
 @media (max-width: 340px) {

@@ -1,4 +1,5 @@
 import type { FreehandElement, Point, StrokePoint } from "../../model";
+import { getStroke } from "perfect-freehand";
 
 export const stylusStrokeWidth = (point: StrokePoint, thickness: number) => thickness * (point.pressure === undefined ? 1 : .35 + Math.max(0, Math.min(1, point.pressure)) * 1.15) * (1 + Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) * .28);
 export const stylusStrokeWidthAt = (points: StrokePoint[], index: number, thickness: number) => index === 0 ? stylusStrokeWidth(points[0], thickness) : (stylusStrokeWidth(points[index - 1], thickness) + stylusStrokeWidth(points[index], thickness)) / 2;
@@ -8,6 +9,7 @@ type StrokeCache = {
   pressureAware: boolean;
   body: Path2D;
   pressureBody: Map<number, Path2D>;
+  pressureOutline?: Path2D;
   complete?: Path2D;
   pressureComplete: Map<number, Path2D>;
   left: number;
@@ -19,6 +21,24 @@ type StrokeCache = {
 
 const midpoint = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 const newCache = (pressureAware = false): StrokeCache => ({ length: 0, pressureAware, body: new Path2D(), pressureBody: new Map(), pressureComplete: new Map(), left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, maxWidth: 1 });
+
+function perfectPressurePath(points: StrokePoint[], thickness: number): Path2D {
+  const outline = getStroke(points.map(point => [point.x, point.y, Math.max(.01, Math.min(1, stylusStrokeWidth(point, 1) / 2))] as [number, number, number]), {
+    size: Math.max(.5, thickness * 2),
+    thinning: 1,
+    smoothing: .55,
+    streamline: .4,
+    simulatePressure: false,
+    last: true,
+  });
+  const path = new Path2D();
+  if (outline.length) {
+    path.moveTo(outline[0][0], outline[0][1]);
+    for (let index = 1; index < outline.length; index++) path.lineTo(outline[index][0], outline[index][1]);
+    path.closePath();
+  }
+  return path;
+}
 
 type StrokePath = Pick<Path2D, "moveTo" | "lineTo" | "quadraticCurveTo">;
 
@@ -121,8 +141,7 @@ export function createFreehandRenderer() {
         const previous = points[index - 1];
         const from = index === 1 ? points[0] : midpoint(points[index - 2], previous);
         const to = midpoint(previous, point);
-        if (cache.pressureAware) pressureCurve(cache.pressureBody, from, previous, to, stylusStrokeWidthAt(points, index - 1, 1), stylusStrokeWidthAt(points, index, 1), () => new Path2D());
-        else cache.body.quadraticCurveTo(previous.x, previous.y, to.x, to.y);
+        if (!cache.pressureAware) cache.body.quadraticCurveTo(previous.x, previous.y, to.x, to.y);
       }
       cache.length = index + 1;
     }
@@ -130,17 +149,7 @@ export function createFreehandRenderer() {
     if (!cache.pressureAware) {
       // Include the terminal segment in the same paint operation as the body.
       cache.complete = new Path2D(cache.body); cache.complete.lineTo(last.x, last.y);
-    } else if (points.length > 1) {
-      const tail = new Map<number, Path2D>();
-      const from = midpoint(points[points.length - 2], last);
-      pressureCurve(tail, from, midpoint(from, last), last, stylusStrokeWidthAt(points, points.length - 1, 1), stylusStrokeWidth(last, 1), () => new Path2D());
-      cache.pressureComplete = new Map(cache.pressureBody);
-      for (const [width, path] of tail) {
-        const body = cache.pressureBody.get(width);
-        const complete = body ? new Path2D(body) : new Path2D();
-        complete.addPath(path); cache.pressureComplete.set(width, complete);
-      }
-    }
+    } else cache.pressureOutline = perfectPressurePath(points, 1);
     return cache;
   }
 
@@ -153,7 +162,7 @@ export function createFreehandRenderer() {
       ctx.ellipse(point.x, point.y, Math.max(.25, width * (.5 + tilt * .35)), Math.max(.25, width * .5), Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0), 0, Math.PI * 2);
       ctx.fill();
     } else if (cache.pressureAware) {
-      for (const [width, path] of cache.pressureComplete) { ctx.lineWidth = Math.max(.35, width * element.thickness); ctx.stroke(path); }
+      if (cache.pressureOutline) ctx.fill(cache.pressureOutline);
     } else {
       ctx.lineWidth = element.thickness; ctx.stroke(cache.complete!);
     }
@@ -224,19 +233,20 @@ export function freehandSvg(element: FreehandElement, color: string): string {
     return `<ellipse cx="${point.x}" cy="${point.y}" rx="${Math.max(.25, width * (.5 + tilt * .35))}" ry="${Math.max(.25, width * .5)}" transform="rotate(${angle} ${point.x} ${point.y})" fill="${ink}" opacity="${element.opacity ?? 1}"/>`;
   }
   const pressureAware = points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined);
+  if (pressureAware) {
+    const outline = getStroke(points.map(point => [point.x, point.y, Math.max(.01, Math.min(1, stylusStrokeWidth(point, 1) / 2))] as [number, number, number]), {
+      size: Math.max(.5, element.thickness * 2), thinning: 1, smoothing: .55, streamline: .4, simulatePressure: false, last: true,
+    });
+    const path = outline.length ? `M ${outline.map(point => `${point[0]} ${point[1]}`).join(" L ")} Z` : "";
+    return `<path d="${path}" fill="${ink}" opacity="${element.opacity ?? 1}"/>`;
+  }
   const paths = new Map<number, SvgStrokePath>(); const body = new SvgStrokePath();
   body.moveTo(points[0].x, points[0].y);
   for (let index = 1; index < points.length; index++) {
     const previous = points[index - 1]; const to = midpoint(previous, points[index]);
-    if (pressureAware) {
-      const from = index === 1 ? points[0] : midpoint(points[index - 2], previous);
-      pressureCurve(paths, from, previous, to, stylusStrokeWidthAt(points, index - 1, 1), stylusStrokeWidthAt(points, index, 1), () => new SvgStrokePath());
-    } else body.quadraticCurveTo(previous.x, previous.y, to.x, to.y);
+    body.quadraticCurveTo(previous.x, previous.y, to.x, to.y);
   }
   const last = points[points.length - 1];
-  if (pressureAware) {
-    const from = midpoint(points[points.length - 2], last);
-    pressureCurve(paths, from, midpoint(from, last), last, stylusStrokeWidthAt(points, points.length - 1, 1), stylusStrokeWidth(last, 1), () => new SvgStrokePath());
-  } else { body.lineTo(last.x, last.y); paths.set(1, body); }
+  body.lineTo(last.x, last.y); paths.set(1, body);
   return `<g fill="none" stroke="${ink}" opacity="${element.opacity ?? 1}" stroke-linecap="round" stroke-linejoin="round">${[...paths].map(([width, path]) => `<path d="${path}" stroke-width="${Math.max(.35, width * element.thickness)}"/>`).join("")}</g>`;
 }

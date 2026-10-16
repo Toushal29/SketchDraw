@@ -3,6 +3,8 @@ name: Build
 on:
   push:
   pull_request:
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -18,3 +20,43 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+
+  windows-release:
+    if: github.event_name == 'release'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check updater signing key
+        id: signing
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            "configured=false" >> $env:GITHUB_OUTPUT
+            Write-Host "::notice::Windows release build skipped because TAURI_SIGNING_PRIVATE_KEY is not configured."
+          } else {
+            "configured=true" >> $env:GITHUB_OUTPUT
+          }
+      - uses: actions/setup-node@v4
+        if: steps.signing.outputs.configured == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: steps.signing.outputs.configured == 'true'
+      - name: Build signed Windows release and updater manifest
+        if: steps.signing.outputs.configured == 'true'
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        with:
+          projectPath: .
+          tauriScript: npm run tauri
+          tagName: ${{ github.event.release.tag_name }}
+          releaseId: ${{ github.event.release.id }}
+          args: --target x86_64-pc-windows-msvc
+          uploadUpdaterJson: true

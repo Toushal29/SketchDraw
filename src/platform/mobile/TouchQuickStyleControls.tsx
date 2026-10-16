@@ -6,7 +6,6 @@ type WidthPreset = { value: number; label: string };
 type WidthMode = "presets" | "fine" | "slider";
 
 type Props = {
-  orientation: "landscape" | "portrait";
   showColor: boolean;
   color: string;
   colorLabel: string;
@@ -29,7 +28,7 @@ export function TouchQuickStyleControls(props: Props): JSX.Element {
   const [widthPanelOpen, setWidthPanelOpen] = createSignal(false);
   const [colorPanelOpen, setColorPanelOpen] = createSignal(false);
   const [widthPanelPosition, setWidthPanelPosition] = createSignal<{ top: string; left: string; transform: string }>();
-  const [colorPanelPosition, setColorPanelPosition] = createSignal<{ top: string; left: string }>();
+  const [colorPanelPosition, setColorPanelPosition] = createSignal<{ top: string; left: string; transform: string }>();
   let widthButton: HTMLButtonElement | undefined;
   let colorButton: HTMLButtonElement | undefined;
   const width = () => Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.round(props.width)));
@@ -42,16 +41,23 @@ export function TouchQuickStyleControls(props: Props): JSX.Element {
     setColorPanelOpen(false);
     if (restoreFocus) requestAnimationFrame(() => colorButton?.focus());
   };
-  const panelPosition = (button: HTMLButtonElement | undefined, maxWidth: number) => {
-    if (!button || props.orientation === "portrait") return undefined;
+  const panelPosition = (button: HTMLButtonElement | undefined, maxWidth: number, panelHeight: number) => {
+    if (!button) return undefined;
     const bounds = button.getBoundingClientRect();
     const shell = document.querySelector<HTMLElement>(".app-shell");
-    const dockOnLeft = shell?.classList.contains("mobile-toolbar-left") ?? true;
-    const panelWidth = Math.min(maxWidth, window.innerWidth - 76);
-    const preferredLeft = dockOnLeft ? Math.max(58, bounds.left) : 8;
-    const left = Math.max(8, Math.min(preferredLeft, window.innerWidth - panelWidth - 8));
-    const top = Math.max(8, Math.min(bounds.bottom + 6, window.innerHeight - 110));
-    return { top: `${top}px`, left: `${left}px` };
+    const horizontal = shell?.classList.contains("mobile-toolbar-horizontal") ?? true;
+    const dockOnLeft = shell?.classList.contains("mobile-toolbar-left") ?? false;
+    const dockOnRight = shell?.classList.contains("mobile-toolbar-right") ?? false;
+    const panelWidth = Math.min(maxWidth, window.innerWidth - (horizontal ? 16 : 76));
+    const margin = 8;
+    let left = horizontal
+      ? Math.max(margin, Math.min(bounds.left, window.innerWidth - panelWidth - margin))
+      : dockOnLeft ? bounds.right + 6 : dockOnRight ? bounds.left - panelWidth - 6 : bounds.left;
+    left = Math.max(margin, Math.min(left, window.innerWidth - panelWidth - margin));
+    const opensAbove = shell?.classList.contains("mobile-toolbar-bottom");
+    const preferredTop = opensAbove ? bounds.top - panelHeight - 6 : bounds.bottom + 6;
+    const top = Math.max(margin, Math.min(preferredTop, window.innerHeight - panelHeight - margin));
+    return { top: `${top}px`, left: `${left}px`, transform: "none" };
   };
   const selectColor = (value: string, close = false) => {
     props.onColorChange(value);
@@ -73,7 +79,7 @@ export function TouchQuickStyleControls(props: Props): JSX.Element {
         </div>
         <button ref={element => { colorButton = element; }} type="button" class={`touch-quick-color-toggle ${colorPanelOpen() ? "active" : ""}`} aria-haspopup="dialog" aria-expanded={colorPanelOpen()} aria-label={`${props.colorLabel}: ${props.color}`} title={`${props.colorLabel}: ${props.color}`} disabled={props.disabled} onClick={() => {
           setWidthPanelOpen(false);
-          setColorPanelPosition(panelPosition(colorButton, 250));
+          setColorPanelPosition(panelPosition(colorButton, 250, 52));
           setColorPanelOpen(open => {
             if (!open) requestAnimationFrame(() => document.querySelector<HTMLElement>(".touch-quick-colors-dropdown")?.querySelector("button")?.focus());
             else requestAnimationFrame(() => colorButton?.focus());
@@ -87,7 +93,7 @@ export function TouchQuickStyleControls(props: Props): JSX.Element {
       <Show when={props.showWidth}>
         <button ref={element => { widthButton = element; }} type="button" class={`touch-quick-width ${widthPanelOpen() ? "active" : ""}`} aria-haspopup="dialog" aria-expanded={widthPanelOpen()} aria-label={`${props.widthLabel}, ${width()} pixels`} title={`${props.widthLabel}: ${width()}px`} disabled={props.disabled} onClick={() => {
           setColorPanelOpen(false);
-          const position = panelPosition(widthButton, 340);
+          const position = panelPosition(widthButton, 340, 112);
           setWidthPanelPosition(position ? { ...position, transform: "none" } : undefined);
           setWidthPanelOpen(open => !open);
         }}>
@@ -136,9 +142,5 @@ export function TouchQuickStyleControls(props: Props): JSX.Element {
       </Show>
     </div>;
 
-  return <Show when={props.showColor || props.showWidth}>
-    {props.orientation === "landscape"
-      ? <Portal mount={document.querySelector<HTMLElement>(".app-shell") ?? document.body}>{quickStyleControls}</Portal>
-      : quickStyleControls}
-  </Show>;
+  return <Show when={props.showColor || props.showWidth}>{quickStyleControls}</Show>;
 }
