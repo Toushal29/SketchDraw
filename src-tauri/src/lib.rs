@@ -6,6 +6,7 @@ use tauri_plugin_fs::FsExt;
 
 mod android_documents;
 mod android_stylus;
+mod android_updater;
 mod orientation;
 
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -306,13 +307,14 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(android_documents::init())
         .plugin(android_stylus::init())
+        .plugin(android_updater::init())
         .plugin(orientation::init())
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(windows)]
             {
-                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
-                app.handle().plugin(tauri_plugin_process::init())?;
-                app.handle().plugin(tauri_plugin_window_state::Builder::default().build())?;
+                _app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                _app.handle().plugin(tauri_plugin_process::init())?;
+                _app.handle().plugin(tauri_plugin_window_state::Builder::default().build())?;
             }
             Ok(())
         })
@@ -331,6 +333,7 @@ pub fn run() {
             android_documents::has_sketch_document_write_access,
             android_documents::get_sketch_document_display_name,
             android_stylus::set_android_stylus_preview,
+            android_updater::install_android_release_apk,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -8,10 +8,8 @@ type StrokeCache = {
   length: number;
   pressureAware: boolean;
   body: Path2D;
-  pressureBody: Map<number, Path2D>;
   pressureOutline?: Path2D;
   complete?: Path2D;
-  pressureComplete: Map<number, Path2D>;
   left: number;
   top: number;
   right: number;
@@ -20,7 +18,7 @@ type StrokeCache = {
 };
 
 const midpoint = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-const newCache = (pressureAware = false): StrokeCache => ({ length: 0, pressureAware, body: new Path2D(), pressureBody: new Map(), pressureComplete: new Map(), left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, maxWidth: 1 });
+const newCache = (pressureAware = false): StrokeCache => ({ length: 0, pressureAware, body: new Path2D(), left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, maxWidth: 1 });
 
 function perfectPressurePath(points: StrokePoint[], thickness: number): Path2D {
   const outline = getStroke(points.map(point => [point.x, point.y, Math.max(.01, Math.min(1, stylusStrokeWidth(point, 1) / 2))] as [number, number, number]), {
@@ -42,37 +40,9 @@ function perfectPressurePath(points: StrokePoint[], thickness: number): Path2D {
 
 type StrokePath = Pick<Path2D, "moveTo" | "lineTo" | "quadraticCurveTo">;
 
-function pressureCurve<Path extends StrokePath>(paths: Map<number, Path>, from: Point, control: Point, to: Point, startWidth: number, endWidth: number, createPath: () => Path) {
-  const pathFor = (width: number) => {
-    const factor = Math.max(.05, Math.round(width * 100) / 100);
-    let path = paths.get(factor);
-    if (!path) { path = createPath(); paths.set(factor, path); }
-    return path;
-  };
-  const widthChange = Math.abs(endWidth - startWidth);
-  if (widthChange < .005) {
-    const path = pathFor((startWidth + endWidth) / 2);
-    path.moveTo(from.x, from.y); path.quadraticCurveTo(control.x, control.y, to.x, to.y);
-    return;
-  }
-  const length = Math.hypot(control.x - from.x, control.y - from.y) + Math.hypot(to.x - control.x, to.y - control.y);
-  const steps = Math.min(256, Math.max(1, Math.ceil(length / 2), Math.ceil(widthChange / .01)));
-  const pointAt = (t: number) => {
-    const u = 1 - t;
-    return { x: u * u * from.x + 2 * u * t * control.x + t * t * to.x, y: u * u * from.y + 2 * u * t * control.y + t * t * to.y };
-  };
-  for (let step = 0; step < steps; step++) {
-    const t0 = step / steps; const t1 = (step + 1) / steps;
-    const start = pointAt(t0); const end = pointAt(t1);
-    const path = pathFor(startWidth + (endWidth - startWidth) * (t0 + t1) / 2);
-    path.moveTo(start.x, start.y); path.lineTo(end.x, end.y);
-  }
-}
-
-/** Retains incremental paths and composites translucent pressure strokes once. */
+/** Retains incremental paths and a bounded raster cache for long strokes. */
 export function createFreehandRenderer() {
   const caches = new WeakMap<StrokePoint[], StrokeCache>();
-  let surface: HTMLCanvasElement | undefined;
   type Raster = { canvas: HTMLCanvasElement; length: number; scale: number; ink: string; thickness: number; x: number; y: number; bytes: number; lastUsed: number };
   const rasters = new Map<StrokePoint[], Raster>();
   const rasterBudget = 24 * 1024 * 1024;
@@ -86,7 +56,7 @@ export function createFreehandRenderer() {
   function drawRaster(ctx: CanvasRenderingContext2D, element: FreehandElement, cache: StrokeCache, ink: string) {
     // Small strokes are cheaper as paths. Large cached surfaces have an explicit
     // memory bound; oversized strokes retain the viewport-clipped path renderer.
-    if (element.points.length < 64 && cache.pressureComplete.size <= 1) return false;
+    if (element.points.length < 64) return false;
     const transform = ctx.getTransform();
     const scale = Math.hypot(transform.a, transform.b);
     if (!Number.isFinite(scale) || scale <= 0) return false;
@@ -139,7 +109,6 @@ export function createFreehandRenderer() {
       if (index === 0) cache.body.moveTo(point.x, point.y);
       else {
         const previous = points[index - 1];
-        const from = index === 1 ? points[0] : midpoint(points[index - 2], previous);
         const to = midpoint(previous, point);
         if (!cache.pressureAware) cache.body.quadraticCurveTo(previous.x, previous.y, to.x, to.y);
       }
@@ -172,43 +141,11 @@ export function createFreehandRenderer() {
     if (!element.points.length || ctx.globalAlpha === 0) return;
     const cache = pathsFor(element.points);
     if (cacheRaster && drawRaster(ctx, element, cache, ink)) return;
-    if (!cache.pressureAware || cache.pressureComplete.size <= 1 || element.points.length === 1 || ctx.globalAlpha === 1) {
-      paint(ctx, element, cache, ink); return;
-    }
-
-    // Opaque segments share a temporary surface; apply brush opacity only when
-    // compositing the whole stroke. This avoids dark caps at segment overlaps.
-    const transform = ctx.getTransform();
-    const padding = Math.max(1, element.thickness * cache.maxWidth * .85);
-    const corners = [
-      [cache.left - padding, cache.top - padding], [cache.right + padding, cache.top - padding],
-      [cache.left - padding, cache.bottom + padding], [cache.right + padding, cache.bottom + padding],
-    ].map(([x, y]) => ({ x: transform.a * x + transform.c * y + transform.e, y: transform.b * x + transform.d * y + transform.f }));
-    const left = Math.max(0, Math.floor(Math.min(...corners.map(point => point.x))) - 2);
-    const top = Math.max(0, Math.floor(Math.min(...corners.map(point => point.y))) - 2);
-    const right = Math.min(ctx.canvas.width, Math.ceil(Math.max(...corners.map(point => point.x))) + 2);
-    const bottom = Math.min(ctx.canvas.height, Math.ceil(Math.max(...corners.map(point => point.y))) + 2);
-    const width = right - left; const height = bottom - top;
-    if (width <= 0 || height <= 0) return;
-    surface ??= document.createElement("canvas");
-    if (surface.width < width || surface.height < height || surface.width * surface.height > Math.max(16_000_000, ctx.canvas.width * ctx.canvas.height)) {
-      // Grow in blocks while keeping the surface within the destination's budget.
-      surface.width = Math.min(ctx.canvas.width, Math.ceil(width / 128) * 128);
-      surface.height = Math.min(ctx.canvas.height, Math.ceil(height / 128) * 128);
-    }
-    const layer = surface.getContext("2d");
-    if (!layer) return;
-    layer.setTransform(1, 0, 0, 1, 0, 0); layer.clearRect(0, 0, width, height);
-    layer.setTransform(transform.a, transform.b, transform.c, transform.d, transform.e - left, transform.f - top);
-    layer.globalAlpha = 1;
-    paint(layer, element, cache, ink);
-    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(surface, 0, 0, width, height, left, top, width, height);
-    ctx.restore();
+    paint(ctx, element, cache, ink);
   }
 
   function clearRasterCache() { for (const points of rasters.keys()) releaseRaster(points); }
-  function dispose() { clearRasterCache(); if (surface) { surface.width = 0; surface.height = 0; } surface = undefined; }
+  function dispose() { clearRasterCache(); }
 
   return { draw, clearRasterCache, dispose };
 }

@@ -43,24 +43,44 @@ type DocumentControllerPorts = {
 /** Coordinates document lifecycle and reports state transitions through the UI ports. */
 export function createDocumentController(ports: DocumentControllerPorts) {
   let baselineRaw: string | undefined;
-  let saveInFlight = false;
+  let pendingSaves = 0;
+  let saveQueue = Promise.resolve();
   const normalize = ports.normalizePath ?? normalizeFileUri;
   const supportsSketch = ports.isSketchPath ?? isSketchPath;
   const report = (status: DocumentControllerStatus) => ports.setStatus?.(status);
 
   async function save(path: string): Promise<void> {
-    const isNewPath = ports.activePath() !== path;
-    if ((ports.readOnly() && !isNewPath) || saveInFlight || ports.recoveryPrompt()) return;
-    ports.commitTextDraft();
-    saveInFlight = true;
+    const requestedActivePath = ports.activePath();
+    const isNewPath = requestedActivePath !== path;
+    if ((ports.readOnly() && !isNewPath) || ports.recoveryPrompt()) return;
+    pendingSaves++;
     ports.setSaving(true);
+    const operation = saveQueue.then(() => saveDocument(path, requestedActivePath));
+    saveQueue = operation.then(() => undefined, () => undefined);
+    try {
+      await operation;
+    } catch (cause) {
+      ports.setError(`Could not save file: ${String(cause)}`);
+      report("error");
+    } finally {
+      pendingSaves--;
+      ports.setSaving(pendingSaves > 0);
+    }
+  }
+
+  async function saveDocument(path: string, requestedActivePath: string | undefined): Promise<void> {
+    if (requestedActivePath === path && ports.activePath() !== requestedActivePath) return;
+    const isNewPath = ports.activePath() !== path;
+    if ((ports.readOnly() && !isNewPath) || ports.recoveryPrompt()) return;
+    let finalStatus: DocumentControllerStatus = "error";
     report("saving");
     try {
+      ports.commitTextDraft();
       const snapshot = ports.snapshot();
       const saved = await saveSketchDocument(path, snapshot, !isNewPath ? baselineRaw ?? null : null);
       if (saved.conflictRaw !== undefined) {
         ports.setSyncConflict({ path, remote: saved.conflictRaw });
-        report("conflict");
+        finalStatus = "conflict";
         return;
       }
       ports.setActivePath(path);
@@ -72,7 +92,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
       ports.setDirty(ports.snapshotRaw(ports.snapshot()) !== saved.contents);
       ports.setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
       ports.setError("");
-      report("saved");
+      finalStatus = "saved";
     } catch (cause) {
       const message = String(cause);
       if (/^content:\/\//i.test(path) && /permission denial|securityexception|granturipermission|manage_documents/i.test(message)) {
@@ -83,16 +103,14 @@ export function createDocumentController(ports: DocumentControllerPorts) {
       } else if (message.includes("CONFLICT:")) {
         try {
           ports.setSyncConflict({ path, remote: await sketchFileStore.read(path) });
-          report("conflict");
         } catch { /* Keep local recovery available if the shared file cannot be read. */ }
         ports.setError(`Could not save file: ${message}`);
+        if (ports.syncConflict()?.path === path) finalStatus = "conflict";
       } else {
         ports.setError(`Could not save file: ${message}`);
       }
-      report("error");
     } finally {
-      saveInFlight = false;
-      ports.setSaving(false);
+      report(finalStatus);
     }
   }
 
@@ -160,7 +178,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
     if (!path || !sketchFileStore.adapter(path).capabilities.supportsBackgroundUpdateCheck || !startingBaseline || !ports.canCheckForUpdates()) return;
     try {
       const remoteRaw = await sketchFileStore.read(path);
-      if (ports.activePath() !== path || baselineRaw !== startingBaseline || remoteRaw === startingBaseline) return;
+      if (ports.activePath() !== path || baselineRaw !== startingBaseline || remoteRaw === startingBaseline || !ports.canCheckForUpdates()) return;
       const mergedDocument = mergeSketchDocument(ports.snapshot(), remoteRaw);
       if (!mergedDocument) return;
       const { remote, merged } = mergedDocument;
@@ -171,7 +189,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
       const hasMergedEdits = ports.snapshotRaw(merged) !== ports.snapshotRaw(remote);
       ports.setDirty(!wasReadOnly && (hasMergedEdits || !!ports.shouldKeepDocumentDirtyAfterUpdate?.(remote)));
       if (hasMergedEdits) window.setTimeout(() => {
-        if (ports.activePath() === path && ports.dirty() && !ports.syncConflict()) void save(path);
+        if (ports.activePath() === path && baselineRaw === remoteRaw && ports.dirty() && !ports.syncConflict()) void save(path);
       }, 80);
     } catch {
       // A disconnected cloud folder or provider lock is retried on the next poll.
@@ -189,7 +207,6 @@ export function createDocumentController(ports: DocumentControllerPorts) {
     if (!recovery) return;
     if (restoreDocumentRecovery(recovery, baselineRaw, ports.workspaceArea(), {
       applySnapshot: ports.applySnapshot,
-      removeRecovery: sketchRecoveryStore.remove,
       setDirty: ports.setDirty,
       setRecoveryPrompt: ports.setRecoveryPrompt,
       setConflict: ports.setSyncConflict,
@@ -223,5 +240,5 @@ export function createDocumentController(ports: DocumentControllerPorts) {
 
   function setBaselineRaw(raw: string | undefined) { baselineRaw = raw; }
 
-  return { open, save, close, checkForUpdates, persistRecovery, restoreRecovery, discardRecovery, reloadConflict, setBaselineRaw, baselineRaw: () => baselineRaw, isSaveInFlight: () => saveInFlight };
+  return { open, save, close, checkForUpdates, persistRecovery, restoreRecovery, discardRecovery, reloadConflict, setBaselineRaw, baselineRaw: () => baselineRaw, isSaveInFlight: () => pendingSaves > 0 };
 }

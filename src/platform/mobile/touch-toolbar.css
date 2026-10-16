@@ -317,13 +317,16 @@
     left: calc(max(8px, env(safe-area-inset-left)) + var(--touch-toolbar-left-offset, 0px));
     width: 46px;
     max-width: 46px;
-    max-height: calc(100dvh - var(--touch-header-height, 52px) - 16px);
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    align-items: stretch;
     flex-direction: column;
   }
   .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-content,
   .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-content > .tool-cluster { flex-direction: column; }
-  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-content { overflow-x: hidden; overflow-y: auto; touch-action: pan-y; }
-  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-actions { flex-direction: column; padding: 3px 0 0; border-top: 1px solid color-mix(in srgb, var(--toolbar-ink, #526057) 12%, transparent); border-left: 0; }
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-content { flex: 1 1 auto; min-height: 0; align-items: center; overflow-x: hidden; overflow-y: auto; touch-action: pan-y; }
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-actions { flex: 0 0 auto; flex-direction: column; padding: 3px 0 0; border-top: 1px solid color-mix(in srgb, var(--toolbar-ink, #526057) 12%, transparent); border-left: 0; }
   .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-style-dock { top: calc(var(--touch-header-height, 52px) + var(--touch-toolbar-top-offset, 4px) + 8px); right: auto; left: calc(max(8px, env(safe-area-inset-left)) + var(--touch-toolbar-left-offset, 0px) + 52px); width: max-content; max-width: calc(100vw - 64px - env(safe-area-inset-right)); }
   .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-tool-bar { right: max(8px, env(safe-area-inset-right)); left: auto; }
   .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-tool-actions { flex-direction: column-reverse; }

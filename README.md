@@ -2,15 +2,15 @@
 
 `This app is made entirely using AI. Use at your own risk.`
 
-SketchDraw is an offline-first project workspace for Windows, Android, and iOS. Draw diagrams, plan work, and keep notes and tasks together in one portable `.sketch` file. Save locally or in a folder managed by OneDrive, iCloud Drive, Dropbox, Google Drive, or another sync service.
+SketchDraw is an offline-first drawing and planning app for Windows and Android. Draw diagrams, plan work, and keep notes and tasks together in one portable `.sketch` file. Save locally or in a folder managed by OneDrive, Dropbox, Google Drive, or another sync service.
 
-**Current release: Windows 9.0.0 | Android 4.0.0 | Document format: v9 | Copyright (c) 2026 Toushal Sampat**
+**App versions: Windows 12.0.0 | Android 7.0.1 | Document format: v9 | Copyright (c) 2026 Toushal Sampat**
 
-> SketchDraw saves version 9 `.sketch` documents on both platforms. New and opened sketches start on Canvas, with Planning available from the workspace tabs. Older quick notes are moved into Planning when a file is opened. Versions 1-8 remain readable and migrate to v9 when opened and saved.
+> SketchDraw saves version 9 `.sketch` documents on Windows and Android. New and opened sketches start on Canvas, with Planning available from the workspace tabs. Older quick notes are moved into Planning when a file is opened. Versions 1-8 remain readable and migrate to v9 when opened and saved.
 
 ## Screenshots and previews
 
-The launch and workspace SVGs have been reviewed against the current desktop and touch components. They are drawn previews rather than runtime captures, so touch tool visibility and spacing can vary with screen size. Board artwork and recent-file names are examples, not user data.
+The launch and workspace SVGs are hand-drawn previews rather than runtime captures, so mobile tool visibility and spacing can vary with screen size. Board artwork and recent-file names are examples, not user data.
 
 ![SketchDraw desktop launch screen with welcome actions and recent sketches](docs/screenshots/home-screen-current.svg)
 
@@ -28,7 +28,7 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 
 ![SketchDraw portrait mobile workspace with compact header, responsive top tool rail, and quick styles](docs/screenshots/mobile-portrait-preview.svg)
 
-*Mobile and tablet workspaces: Landscape uses a vertical tool dock with a horizontal quick-style strip immediately left of the zoom reset button, a drop-down row of color presets, and a visible stroke control; Portrait moves the tools into a responsive horizontal rail at the top of the canvas, puts quick controls beside the advanced style button, and groups non-File menus under Menu. Choose an orientation in App Settings on supported devices.*
+*Mobile and tablet workspaces: toolbars and quick-style controls stay separate and adapt to the chosen toolbar position and screen orientation. Choose an orientation and toolbar location in App Settings on supported devices.*
 
 ![Project Home with prioritized tasks, recent notes, and project tool shortcuts](docs/screenshots/project-home-preview.svg)
 
@@ -110,7 +110,7 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 
 - **Document workspaces:** Each `.sketch` file includes a Canvas and Planning. New and opened sketches go straight to Canvas; switch to Planning without closing the file. Both stay in the same offline document.
 - **Project planning:** Keep project notes, prioritized and dated tasks, task checklists, dependencies, milestones, decisions, risks, links, and attachments together. Use the Kanban board, drag tasks between stages, reorder cards, and review dates in Timeline or Calendar.
-- **Shared-file updates:** Open copies check a shared `.sketch` file every 1.6 seconds. Once OneDrive or another provider syncs a change, independent edits to pages, objects, notes, and tasks are merged; when the same item changes on two devices, the later edit wins. SketchDraw does not host files or live collaboration.
+- **Shared-file updates:** On Windows, file-watch events detect outside changes to an open `.sketch` file, with a 30-second polling fallback for cloud folders and removable drives. Once a provider syncs a change, independent edits to pages, objects, notes, and tasks are merged; conflicting edits to the same item are resolved by edit clocks. Android document-provider files do not use background polling. SketchDraw does not host files or live collaboration.
 - **Drawing tools:** Draw with pen, fine pen, pencil, soft brush, marker, highlighter, chalk, or a temporary laser pointer. Create and fill geometric shapes, crop imported images, and adjust stroke, fill, opacity, corners, and text styling.
 - **Flowchart symbols:** Build diagrams with process, terminator, decision, input/output, document, database, preparation, manual input, connector, delay, stored-data, and cloud shapes. Symbols remain editable after placement.
 - **Connectors:** Draw straight or curved lines, multi-point lines, and straight, elbow, forked, loop, or jagged arrows. Attach endpoints to shapes, choose line and arrowhead styles, and drag route handles. Windows also offers automatic obstacle routing with editable waypoints.
@@ -125,27 +125,12 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 - **Print preview:** Review page size, orientation, margins, page breaks, and tiled layout before printing or saving as PDF. Fit-to-page and poster layouts make it easier to check how a large sketch will be split across sheets.
 - **Export:** Review a live preview before exporting PNG, SVG, or PDF. PDFs support the current page, all pages, or a selected range, with fit-to-page or tiled output; configure page dimensions, headers, footers, crop marks, bleed, and RGB, CMYK, or grayscale output. PNG and SVG can use transparent backgrounds.
 - **Windows workspace:** Windows adds multiple open sketch tabs, customizable shortcuts, the `Ctrl+K` command palette, and a full-screen focus mode. The palette searches tools, actions, settings, and symbols; the desktop toolbar groups common tools and keeps object properties close to the canvas.
-- **Phone and tablet workspace:** Touch layouts adapt to portrait and landscape. Portrait keeps a compact horizontal tool rail at the top of the canvas; landscape uses a side dock. Common style controls, canvas options, page controls, and menus remain reachable by touch.
+- **Phone and tablet workspace:** Touch layouts adapt to portrait and landscape and to the chosen toolbar position. Tool controls, quick styles, canvas options, page controls, and menus remain reachable by touch.
 - **Touch and stylus input:** Draw and edit with a finger or compatible stylus. Use two fingers to pan and zoom, configure gesture actions, and use stylus pressure, tilt, and eraser-end input when the device reports them.
 - **Appearance:** Follow the system theme or choose light or dark mode, set accent and toolbar colors, and switch diagram and note components between modern and simple appearances.
 - **Presentation mode:** Hide the editing interface to present the canvas. Use the mouse, keyboard, or touch to move between sketch pages.
 - **View-only mode and help:** Open a sketch without editing or saving it; the laser pointer and note-card expand/collapse controls remain available. The in-app guide and shortcut reference explain drawing, selection, files, pages, export, feature IDs 1–6, and diagram ideas.
-- **Release checks:** Use Help to compare the installed version with the latest public GitHub release. SketchDraw reports whether an update is available; downloads and installation remain manual.
-
-## Modeling component follow-ups
-
-Planned modeling improvements include:
-
-- **UML:** Add semantic relationship controls and class-editor support for visibility modifiers.
-- **ER diagrams:** Edit relationship cardinality and optionality, data types, and automatic foreign-key-to-primary-key matching for hand-drawn connectors.
-- **Sequence diagrams:** Keep message connectors attached to their lifelines when either is moved.
-- **C4 architecture:** Search and filter technology tags on component nodes.
-- **Data flows:** Add optional animated indicators to show direction through architecture diagrams.
-## File format
-
-SketchDraw uses a JSON-based **version 9** format in `.sketch` files. Versions 1-8 are normalized to v9 when opened and saved back to their existing `.sketch` path. Version 9 files with a legacy `notebook` section remain readable; its quick notes are moved into Planning Notes on open. Retired Library collections are held in `retiredLibraryArchive`. Edit-clock metadata supports shared-folder updates. Windows, phone, and tablet apps preserve the supported sections in the same document. `.sketchdraw` files and malformed or unrelated files remain unsupported.
-
-To convert a file outside the app, run `npm run convert:sketch -- old.sketch converted.sketch`. The converter accepts supported SketchDraw versions 1-9, writes a v9 file to the requested destination, and refuses to overwrite the source or an existing destination.
+- **App updates:** Windows checks the signed Tauri updater manifest on GitHub and can download and install a published update. Android checks the latest GitHub release for a matching arm64 APK, downloads it into app cache, checks its package, version code, and signing certificate, then opens Android's installer for the user to approve. Android does not install updates silently.
 
 SketchDraw does not host online workspaces or live cursors. Shared-file updates use the local file or provider URI and the sync service managing that folder; there is no SketchDraw server or cloud account. Conflicts use last-edit-wins metadata, so devices should have reasonably accurate system clocks. Offline changes merge after the provider delivers them.
 
@@ -168,7 +153,7 @@ The recovery snapshot can contain the document's text, shapes, and embedded imag
 
 If you save a project inside a cloud-sync folder, that folder's provider may upload and process the file under its own terms and settings. SketchDraw does not control that service. Exported files are written to the location you choose. The installer and operating system also have their own download, security, and update behavior; this project does not receive those reports.
 
-The optional **Check for updates** action contacts GitHub's public Releases API only when you select it. SketchDraw compares the returned release version with its local version and reports whether a newer version is available. It does not open a browser, download an installer, or install an update. The request does not include sketch content, file paths, or drawing data; GitHub receives the ordinary network request under its own privacy terms.
+The optional **Check for updates** action contacts GitHub only when you select it. Windows checks the public signed updater manifest. Android queries the public Releases API; if a newer APK is available and you choose to install it, the app downloads that release asset to its private cache and hands it to Android's package installer. These requests do not include sketch content, file paths, or drawing data; GitHub receives ordinary network requests under its own privacy terms.
 
 PDF output supports RGB, process CMYK, and grayscale values. It does not currently embed or select a calibrated ICC press profile; confirm color conversion requirements with your print provider.
 

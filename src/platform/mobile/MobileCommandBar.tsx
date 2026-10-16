@@ -68,7 +68,7 @@ type Props = {
   onOpenShortcuts: () => void;
   onCheckForUpdates: () => void;
   onInstallUpdate: () => void;
-  updateStatus: "idle" | "checking" | "current" | "available" | "installing" | "error";
+  updateStatus: "idle" | "checking" | "current" | "available" | "permission" | "unavailable" | "installing" | "error";
   updateVersion: string;
   canInstallUpdate: boolean;
 };
@@ -202,7 +202,9 @@ export function MobileCommandBar(props: Props) {
               <button class="mobile-update-check" disabled={props.updateStatus === "checking" || props.updateStatus === "installing"} onClick={props.onCheckForUpdates}>{props.updateStatus === "checking" ? "Checking for updates…" : "Check for updates"}</button>
               <Show when={props.updateStatus === "current"}><p class="mobile-update-status current">SketchDraw is up to date.</p></Show>
               <Show when={props.updateStatus === "available"}><p class="mobile-update-status available">Version {props.updateVersion} is available.</p><Show when={props.canInstallUpdate}><button class="mobile-update-install" onClick={props.onInstallUpdate}>Download and install</button></Show></Show>
-              <Show when={props.updateStatus === "installing"}><p class="mobile-update-status available">Installing version {props.updateVersion}…</p></Show>
+              <Show when={props.updateStatus === "permission"}><p class="mobile-update-status available">Allow SketchDraw to install apps in Android Settings. Return here, then continue the installation.</p><Show when={props.canInstallUpdate}><button class="mobile-update-install" onClick={props.onInstallUpdate}>Continue installation</button></Show></Show>
+              <Show when={props.updateStatus === "unavailable"}><p class="mobile-update-status">The latest GitHub release does not include an Android APK.</p></Show>
+              <Show when={props.updateStatus === "installing"}><p class="mobile-update-status available">Downloading version {props.updateVersion} and opening Android’s installer…</p></Show>
               <Show when={props.updateStatus === "error"}><p class="mobile-update-status error">The update check failed. Try again later.</p></Show>
             </section>
           </Show>

@@ -1,5 +1,5 @@
 import ELK, { type ElkNode } from "elkjs/lib/elk.bundled.js";
-import type { Element } from "../../model";
+import type { Element, ShapeElement } from "../../model";
 import { elementBounds, unionBounds } from "../../features/canvas/bounds";
 
 const elk = new ELK();
@@ -8,7 +8,7 @@ function hasLockedChild(element: Element): boolean {
   return element.type === "group" && element.elements.some(child => child.locked || hasLockedChild(child));
 }
 
-function isConnector(element: Element): boolean {
+function isConnector(element: Element): element is ShapeElement & { type: "line" | "arrow" } {
   return element.type === "line" || element.type === "arrow";
 }
 

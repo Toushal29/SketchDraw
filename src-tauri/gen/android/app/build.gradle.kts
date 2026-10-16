@@ -13,6 +13,19 @@ val tauriProperties = Properties().apply {
     }
 }
 
+val releaseSigningPropertiesFile = rootProject.file("keystore.properties")
+val releaseSigningProperties = Properties().apply {
+    if (releaseSigningPropertiesFile.exists()) {
+        releaseSigningPropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+fun requiredReleaseSigningProperty(name: String, fallback: String? = null): String {
+    return (releaseSigningProperties.getProperty(name) ?: fallback)
+        ?.takeIf { it.isNotBlank() }
+        ?: throw GradleException("Missing '$name' in src-tauri/gen/android/keystore.properties")
+}
+
 android {
     compileSdk = 36
     namespace = "com.toush.sketchdraw"
@@ -23,6 +36,20 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    if (releaseSigningPropertiesFile.exists()) {
+        signingConfigs {
+            create("release") {
+                val storePassword = requiredReleaseSigningProperty(
+                    "storePassword",
+                    releaseSigningProperties.getProperty("password"),
+                )
+                storeFile = file(requiredReleaseSigningProperty("storeFile"))
+                this.storePassword = storePassword
+                keyAlias = requiredReleaseSigningProperty("keyAlias")
+                keyPassword = requiredReleaseSigningProperty("keyPassword", storePassword)
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -38,6 +65,9 @@ android {
         }
         getByName("release") {
             isMinifyEnabled = true
+            if (releaseSigningPropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))

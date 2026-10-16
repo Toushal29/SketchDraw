@@ -1,6 +1,7 @@
 node_modules
 dist
 .tauri/
+copy_cred/
 src-tauri/gen/android/.gradle/
 src-tauri/gen/android/app/build/
 src-tauri/gen/android/build/

@@ -27,7 +27,7 @@ function send(method, params = {}, sessionId) {
   });
 }
 try {
-  const bundle = await build({ configFile: false, root, logLevel: "error", build: { write: false, minify: false, lib: { entry: path.join(root, "tests/canvas-performance.browser.ts"), name: "CanvasAudit", formats: ["iife"] } } });
+  const bundle = await build({ configFile: false, root, logLevel: "error", build: { write: false, minify: false, lib: { entry: path.join(root, "scripts/canvas-performance.browser.ts"), name: "CanvasAudit", formats: ["iife"] } } });
   const code = (Array.isArray(bundle) ? bundle[0] : bundle).output.find(item => item.type === "chunk").code;
   let baseline = "";
   if (process.env.BASELINE_STROKE_RENDERER) {

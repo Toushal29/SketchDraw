@@ -35,11 +35,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
-            "configured=false" >> $env:GITHUB_OUTPUT
-            Write-Host "::notice::Windows release build skipped because TAURI_SIGNING_PRIVATE_KEY is not configured."
-          } else {
-            "configured=true" >> $env:GITHUB_OUTPUT
+            throw "TAURI_SIGNING_PRIVATE_KEY is required to publish a Windows release with verified in-app updates."
           }
+          "configured=true" >> $env:GITHUB_OUTPUT
       - uses: actions/setup-node@v4
         if: steps.signing.outputs.configured == 'true'
         with:
@@ -49,10 +47,11 @@ jobs:
         if: steps.signing.outputs.configured == 'true'
       - name: Build signed Windows release and updater manifest
         if: steps.signing.outputs.configured == 'true'
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: .
           tauriScript: npm run tauri
@@ -60,3 +59,79 @@ jobs:
           releaseId: ${{ github.event.release.id }}
           args: --target x86_64-pc-windows-msvc
           uploadUpdaterJson: true
+
+  android-release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Android signing credentials
+        id: signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "Android release signing secrets are required to publish an updatable APK." >&2
+            exit 1
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.signing.outputs.configured == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        if: steps.signing.outputs.configured == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+        if: steps.signing.outputs.configured == 'true'
+      - name: Install Android SDK and NDK
+        if: steps.signing.outputs.configured == 'true'
+        run: |
+          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.13846066"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.13846066" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.13846066" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.signing.outputs.configured == 'true'
+        with:
+          targets: aarch64-linux-android
+      - run: npm ci
+        if: steps.signing.outputs.configured == 'true'
+      - name: Configure Android release signing
+        if: steps.signing.outputs.configured == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          keystore_path="$RUNNER_TEMP/sketchdraw-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          printf 'keyAlias=%s\nstoreFile=%s\nstorePassword=%s\nkeyPassword=%s\n' \
+            "$ANDROID_KEY_ALIAS" "$keystore_path" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_PASSWORD" \
+            > src-tauri/gen/android/keystore.properties
+      - name: Read Android app version
+        id: android_version
+        if: steps.signing.outputs.configured == 'true'
+        run: echo "version=$(jq -r '.version' src-tauri/tauri.android.conf.json)" >> "$GITHUB_OUTPUT"
+      - name: Build and upload signed Android APK
+        if: steps.signing.outputs.configured == 'true'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: .
+          tauriScript: npm run tauri
+          tagName: ${{ github.event.release.tag_name }}
+          releaseId: ${{ github.event.release.id }}
+          mobile: android
+          args: --apk --split-per-abi --target aarch64
+          releaseAssetNamePattern: SketchDraw-Android-v${{ steps.android_version.outputs.version }}-arm64.apk
+          uploadUpdaterJson: false

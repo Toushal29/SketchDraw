@@ -1,6 +1,6 @@
 import type { SketchFile } from "../../model";
 import { parseSketchFile, sketchFileResourceError } from "./parse-sketch";
-import { mergeLatestSnapshots } from "../../platform/windows/sync";
+import { mergeLatestSnapshots } from "./snapshot-merge";
 import { serializeSketchSnapshot } from "./document-codec";
 import { sketchFileStore } from "./sketch-file-store";
 

@@ -1,31 +1,6 @@
 /* Desktop and Windows window sizing; touch layouts override this in their own files. */
 .platform-windows .touch-gesture-menu { display: none !important; }
 
-/* A single, flat toolbar with clear spacing between tool groups. */
-.platform-windows .touch-tool-bar {
-    position: absolute;
-    z-index: 12;
-    top: 25px;
-    right: auto;
-    bottom: auto;
-    left: 50%;
-    display: flex;
-    width: max-content;
-    max-width: calc(100% - 92px);
-    max-height: calc(100% - 28px);
-    flex-flow: row wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 0px;
-    overflow: visible;
-    padding: 0px;
-    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 15%, transparent);
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
-    backdrop-filter: blur(14px);
-    transform: translateX(-50%);
-}
-
 .platform-windows .touch-tool-content,
 .platform-windows .touch-tool-actions { display: contents; }
 
@@ -180,7 +155,6 @@
     max-height: calc(100% - 36px);
 }
 
-.theme-dark.platform-windows .touch-tool-bar,
 .theme-dark.platform-windows .tool-deck .tool-collapse,
 .theme-dark.platform-windows .tool-deck-reopen {
     border-color: color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
@@ -197,7 +171,6 @@
     .app-shell.platform-windows .tool-deck .tool-cluster .tool-icon-button,
     .app-shell.platform-windows .tool-deck .tool-extra-family { display: flex !important; }
     .app-shell.platform-windows .tool-deck .tool-collapse { display: grid !important; }
-    .app-shell.platform-windows .touch-tool-bar { flex-wrap: wrap; overflow: visible; }
 }
 
 /* Windows-only desktop document tabs and focus controls. */
@@ -242,10 +215,6 @@
 /* Ruler-aware canvas controls reclaim their edge spacing when rulers are hidden. */
 .app-shell.platform-windows { --windows-canvas-control-inset: 10px; }
 .app-shell.platform-windows:has(> .canvas-wrap.canvas-rulers-visible) { --windows-canvas-control-inset: 32px; }
-.app-shell.platform-windows .touch-tool-bar {
-    top: var(--windows-canvas-control-inset);
-    transition: top .2s ease, left .2s ease, right .2s ease, background-color .18s ease, border-color .18s ease;
-}
 .app-shell.platform-windows .style-pane {
     top: var(--windows-canvas-control-inset);
     left: var(--windows-canvas-control-inset);

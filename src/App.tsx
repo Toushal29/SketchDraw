@@ -33,12 +33,11 @@ import { SKETCH_FORMAT_VERSION } from "./model";
 import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
 import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, textLayout, labelBox } from "./operations";
 import type { NoteKind } from "./model";
-import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryChartData, type LibraryComponentKind } from "./notes";
+import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryComponentKind } from "./notes";
 import { parseSchema } from "./schema";
-import { assignLibraryComponentIds, libraryComponentFields, libraryComponentFontSize, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryChartTrend, setLibraryCheckboxOption, setLibraryComponentField, setLibraryFormState, setLibraryFormTitle, setLibraryLifelineLength, setLibraryPortCount, setLibraryRadioOption } from "./features/components/library-component-editor";
+import { assignLibraryComponentIds, libraryComponentFields, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryCheckboxOption, setLibraryFormState, setLibraryLifelineLength, setLibraryRadioOption } from "./features/components/library-component-editor";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
 import { GestureSettings, TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, readTouchGestureAction, readTouchTapAction, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./platform/mobile/GestureSettings";
-import { MobileCommandBar } from "./platform/mobile/MobileCommandBar";
 import { MobileWorkspaceHeader } from "./platform/mobile/MobileWorkspaceHeader";
 import { TouchPageMenu } from "./platform/mobile/TouchPageMenu";
 import { TouchFocusTools } from "./platform/mobile/TouchFocusTools";
@@ -50,8 +49,8 @@ import { DesktopPageTabs } from "./platform/windows/DesktopPageTabs";
 import { WindowsShapePalette, type WindowsShapeChoice } from "./platform/windows/WindowsShapePalette";
 import { WindowsMenuRail } from "./platform/windows/WindowsMenuRail";
 import { CanvasOptionsMenu } from "./components/CanvasOptionsMenu";
+import { WelcomeScreen } from "./components/WelcomeScreen";
 import { AppSettingsMenu, type DisplayMetrics } from "./components/AppSettingsMenu";
-import { HelpFeatureCatalog } from "./components/HelpFeatureCatalog";
 import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/PropertyPanelIcons";
 import { FLOWCHART_MENU_SHAPES } from "./features/diagrams/config";
 import { arrowHeadPoints, arrowHeadSvgPath, pointInPolygon, traceFlowchart, flowchartPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, connectorSvgPath, flowchartSvgPath, vectorFlowchartPath, flowchartSvgDetailPath, flowchartDatabaseRimPath } from "./features/canvas/geometry";
@@ -107,6 +106,9 @@ const readDisplayMetrics = (): DisplayMetrics => {
 };
 
 const RELEASES_API = "https://api.github.com/repos/Toushal29/SketchDraw/releases/latest";
+const LibraryComponentEditor = lazy(() => import("./components/LibraryComponentEditor").then(module => ({ default: module.LibraryComponentEditor })));
+const HelpDialog = lazy(() => import("./components/HelpDialog").then(module => ({ default: module.HelpDialog })));
+const MobileCommandBar = lazy(() => import("./platform/mobile/MobileCommandBar").then(module => ({ default: module.MobileCommandBar })));
 
 function compareReleaseVersions(left: string, right: string): number {
   const parse = (version: string) => {
@@ -119,13 +121,16 @@ function compareReleaseVersions(left: string, right: string): number {
   return 0;
 }
 
-function releaseVersionForPlatform(release: Record<string, unknown>): string {
-  const tag = release.tag_name as string;
-  const userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent.toLowerCase();
-  const platform = userAgent.includes("android") ? "Android" : isWindowsPlatform() ? "Windows" : undefined;
-  if (!platform || typeof release.body !== "string") return tag;
-  const marker = new RegExp(`^\\s*${platform}\\s*:\\s*(v?\\d+\\.\\d+\\.\\d+)\\s*$`, "im").exec(release.body);
-  return marker?.[1] ?? tag;
+function androidReleaseApk(release: Record<string, unknown>): { version: string; url: string } | undefined {
+  if (!Array.isArray(release.assets)) return undefined;
+  for (const candidate of release.assets) {
+    if (!isRecord(candidate) || typeof candidate.name !== "string" || typeof candidate.browser_download_url !== "string") continue;
+    const match = /^SketchDraw-Android-v(\d+\.\d+\.\d+)-arm64\.apk$/i.exec(candidate.name);
+    if (match && candidate.browser_download_url.startsWith("https://github.com/Toushal29/SketchDraw/releases/download/")) {
+      return { version: match[1], url: candidate.browser_download_url };
+    }
+  }
+  return undefined;
 }
 
 const GRID_SIZE = 25;
@@ -304,8 +309,9 @@ function App() {
   const [componentAppearance, setComponentAppearance] = createSignal<"modern" | "simple">(readPreference("sketchdraw-component-appearance", "simple") === "modern" ? "modern" : "simple");
   const [toolbarColorChoice, setToolbarColorChoice] = createSignal((() => { const value = readPreference("sketchdraw-toolbar-color", "auto"); if (value.toLowerCase() === "#252c31") return "#171717"; return value === "auto" || /^#[\da-f]{6}$/i.test(value) ? value : "auto"; })());
   const [helpOpen, setHelpOpen] = createSignal(false);
-  const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "installing" | "error">("idle");
+  const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "permission" | "unavailable" | "installing" | "error">("idle");
   const [updateVersion, setUpdateVersion] = createSignal<string>();
+  const [androidUpdateUrl, setAndroidUpdateUrl] = createSignal<string>();
   let pendingUpdate: Update | undefined;
   const [helpSection, setHelpSection] = createSignal<"guide" | "shortcuts">("guide");
   const storedDefaultFontSize = Number(readPreference("sketchdraw-default-font-size", "12"));
@@ -400,7 +406,6 @@ function App() {
   let viewMenu!: HTMLDetailsElement;
   let gestureMenu!: HTMLDetailsElement;
   let helpMenu!: HTMLDetailsElement;
-  let portraitMenu!: HTMLDetailsElement;
   let appSettingsMenu!: HTMLDetailsElement;
   let drawing = false;
   let activeDrawingTool: Preview["type"] = "pen";
@@ -1983,6 +1988,13 @@ function App() {
     window.__sketchDrawReceiveAndroidStylusSamples = receiveAndroidStylusSamples;
     onCleanup(() => { if (window.__sketchDrawReceiveAndroidStylusSamples === receiveAndroidStylusSamples) window.__sketchDrawReceiveAndroidStylusSamples = previousHandler; });
   });
+  onMount(() => {
+    const onVisibilityChange = () => {
+      if (isAndroidPlatform() && !document.hidden && updateCheck() === "installing") setUpdateCheck("available");
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    onCleanup(() => document.removeEventListener("visibilitychange", onVisibilityChange));
+  });
   createEffect(() => { const session = noteEditorSession(); if (!session) return; requestAnimationFrame(() => { if (noteEditorTextarea?.isConnected) noteEditorTextarea.focus(); }); });
   createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); componentAppearance(); boardColor(); whiteboardStyle(); renderExportPreview(); });
   createEffect(() => {
@@ -2017,7 +2029,7 @@ function App() {
   });
 
   createEffect(() => {
-    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setRenameFileOpen(false); setSchemaDialog(false); setMermaidDialog(false); setShowClearConfirm(false); setContextMenu(undefined); closeToolOptions(); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (portraitMenu) portraitMenu.open = false; }
+    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setRenameFileOpen(false); setSchemaDialog(false); setMermaidDialog(false); setShowClearConfirm(false); setContextMenu(undefined); closeToolOptions(); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; }
   });
   createEffect(() => {
     const open = pageDialog() || renameFileOpen() || schemaDialog() || mermaidDialog() || exportOptionsOpen() || showClearConfirm() || recoveryPrompt() || syncConflict() || helpOpen() || (isWindowsPlatform() && shortcutDialogOpen());
@@ -2155,7 +2167,7 @@ function App() {
     };
     const updateDisplayMetrics = () => setDisplayMetrics(readDisplayMetrics());
     const outsideClick = (event: PointerEvent) => { document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => { if (!detail.contains(event.target as Node)) detail.open = false; }); if (!(event.target instanceof HTMLElement && event.target.closest(".tool-family"))) { closeToolOptions(); setStencilMenuOpen(false); } if (!(event.target instanceof HTMLElement && event.target.closest(".paint-brush-family"))) setPaintBrushMenuOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-options-family"))) setCanvasOptionsOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".quick-style-panel"))) setQuickStylePopover(undefined); if (!(event.target instanceof HTMLElement && event.target.closest(".touch-style-panel, .touch-style-open"))) setTouchStylePanel(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-context-menu"))) setContextMenu(undefined); if (textDraft() && event.target instanceof Element && !event.target.closest(".canvas-text-editor, .style-pane, .drawing-canvas")) commitTextDraft(); if (menu?.open && !menu.contains(event.target as Node)) menu.open = false; if (viewMenu?.open && !viewMenu.contains(event.target as Node)) viewMenu.open = false; if (gestureMenu?.open && !gestureMenu.contains(event.target as Node)) gestureMenu.open = false; };
-    const closeMenuOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { setQuickStylePopover(undefined); if (menu?.open) menu.open = false; if (viewMenu?.open) viewMenu.open = false; if (gestureMenu?.open) gestureMenu.open = false; if (helpMenu?.open) helpMenu.open = false; if (portraitMenu?.open) portraitMenu.open = false; if (appSettingsMenu?.open) appSettingsMenu.open = false; } };
+    const closeMenuOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { setQuickStylePopover(undefined); if (menu?.open) menu.open = false; if (viewMenu?.open) viewMenu.open = false; if (gestureMenu?.open) gestureMenu.open = false; if (helpMenu?.open) helpMenu.open = false; if (appSettingsMenu?.open) appSettingsMenu.open = false; } };
     const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
     const updateSystemTheme = (event: MediaQueryListEvent) => setSystemDark(event.matches);
     setSystemDark(colorScheme.matches); colorScheme.addEventListener("change", updateSystemTheme);
@@ -2175,6 +2187,8 @@ function App() {
             while (docController.isSaveInFlight()) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
             const path = activePath();
             if (path && dirty() && !syncConflict()) await saveToPath(path);
+            if (textDraft()) commitTextDraft();
+            if (dirty() || syncConflict()) persistRecovery();
             // The original close request was prevented while the async save ran.
             // Remove this listener before requesting close again so it cannot
             // intercept its own retry. Recovery data has already been persisted
@@ -2189,13 +2203,13 @@ function App() {
         }).then((unlisten) => { unlistenClose = unlisten; }).catch((cause) => setError(`Could not prepare safe closing: ${String(cause)}`));
       } catch (cause) { setError(`Could not prepare safe closing: ${String(cause)}`); }
     }
-    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("pointerdown", mouseShortcutPointerDown, true); window.addEventListener("auxclick", mouseShortcutAuxClick, true); window.addEventListener("contextmenu", mouseShortcutContextMenu, true); window.addEventListener("blur", blur); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", alignOpenTouchMenus); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", alignOpenTouchMenus); window.addEventListener("orientationchange", updateDisplayMetrics);
+    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("pointerdown", mouseShortcutPointerDown, true); window.addEventListener("auxclick", mouseShortcutAuxClick, true); window.addEventListener("contextmenu", mouseShortcutContextMenu, true); window.addEventListener("blur", blur); window.addEventListener("resize", alignViewSettingsPopover); window.addEventListener("resize", updateDisplayMetrics); window.addEventListener("orientationchange", updateDisplayMetrics);
     document.addEventListener("pointerdown", outsideClick); document.addEventListener("keydown", closeMenuOnEscape);
     let autosaveTimer: number | undefined;
     const scheduleAutosave = () => {
       autosaveTimer = window.setTimeout(() => {
         if (textDraft() && !recoveryPrompt() && !syncConflict()) persistRecovery();
-        if (activePath() && dirty() && !recoveryPrompt() && !textDraft() && !drawing && !panOrigin && !resizeOrigin && !moveOrigin && !labelMoveOrigin) {
+        if (activePath() && dirty() && !documentBusy() && !recoveryPrompt() && !textDraft() && !drawing && !panOrigin && !resizeOrigin && !moveOrigin && !labelMoveOrigin) {
           persistRecovery();
           if (!syncConflict() && !docController.isSaveInFlight()) void saveToPath(activePath()!);
         }
@@ -2205,7 +2219,7 @@ function App() {
     restartAutosave = () => { if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); scheduleAutosave(); };
     scheduleAutosave();
     syncPollTimer = window.setInterval(() => void pollSharedSketch(), 30_000);
-    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); if (syncPollTimer !== undefined) window.clearInterval(syncPollTimer); if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("pointerdown", mouseShortcutPointerDown, true); window.removeEventListener("auxclick", mouseShortcutAuxClick, true); window.removeEventListener("contextmenu", mouseShortcutContextMenu, true); window.removeEventListener("blur", blur); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", alignOpenTouchMenus); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", alignOpenTouchMenus); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
+    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); if (syncPollTimer !== undefined) window.clearInterval(syncPollTimer); if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("pointerdown", mouseShortcutPointerDown, true); window.removeEventListener("auxclick", mouseShortcutAuxClick, true); window.removeEventListener("contextmenu", mouseShortcutContextMenu, true); window.removeEventListener("blur", blur); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
   });
 
   function setThemePreference(mode: ThemeMode) {
@@ -2390,7 +2404,8 @@ function App() {
   async function reloadConflictingFile() {
     await docController.reloadConflict();
   }
-  async function saveToPath(path: string) {
+  async function saveToPath(path: string, duringDocumentTransition = false) {
+    if (documentBusy() && !duringDocumentTransition) return;
     await docController.save(path);
   }
 
@@ -2450,7 +2465,7 @@ function App() {
       commitTextDraft();
       if (syncConflict()) return;
       if (dirty()) {
-        await saveToPath(path);
+        await saveToPath(path, true);
         if (dirty() || syncConflict()) {
           setRenameFileError(syncConflict() ? "This file changed in the shared folder. Resolve that update before renaming it." : error() || "The latest sketch changes could not be saved, so the file was not renamed.");
           return;
@@ -2483,15 +2498,15 @@ function App() {
   }
 
   async function saveBeforeReplacingDocument(): Promise<boolean> {
+    while (docController.isSaveInFlight()) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
     if (readOnlyView()) return true;
     commitTextDraft();
     const path = activePath();
     if (!path) return true;
     if (syncConflict()) return false;
     if (dirty()) {
-      while (docController.isSaveInFlight()) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
       if (activePath() !== path || syncConflict()) return false;
-      if (dirty()) await saveToPath(path);
+      if (dirty()) await saveToPath(path, true);
       if (dirty() || syncConflict()) { setError("The current sketch could not be saved, so it was kept open."); return false; }
     }
     return true;
@@ -2704,7 +2719,7 @@ function App() {
 
   async function checkForUpdates() {
     if (updateCheck() === "checking" || updateCheck() === "installing") return;
-    setUpdateCheck("checking"); setUpdateVersion(undefined); setError("");
+    setUpdateCheck("checking"); setUpdateVersion(undefined); setAndroidUpdateUrl(undefined); setError("");
     if (pendingUpdate) { await pendingUpdate.close().catch(() => undefined); pendingUpdate = undefined; }
     try {
       if (isWindowsPlatform()) {
@@ -2721,13 +2736,29 @@ function App() {
       const release: unknown = await response.json();
       if (!isRecord(release) || typeof release.tag_name !== "string") throw new Error("GitHub returned an incomplete release record.");
       const currentVersion = await getVersion();
-      const releaseVersion = releaseVersionForPlatform(release);
-      setUpdateVersion(releaseVersion);
-      setUpdateCheck(compareReleaseVersions(releaseVersion, currentVersion) > 0 ? "available" : "current");
+      const androidRelease = androidReleaseApk(release);
+      if (!androidRelease) { setUpdateCheck("unavailable"); return; }
+      setUpdateVersion(androidRelease.version);
+      setAndroidUpdateUrl(androidRelease.url);
+      setUpdateCheck(compareReleaseVersions(androidRelease.version, currentVersion) > 0 ? "available" : "current");
     } catch (cause) { setUpdateCheck("error"); setError(`Update check failed: ${String(cause)}`); }
   }
 
   async function installUpdate() {
+    if (isAndroidPlatform()) {
+      const downloadUrl = androidUpdateUrl();
+      if (!downloadUrl || (updateCheck() !== "available" && updateCheck() !== "permission")) return;
+      setUpdateCheck("installing"); setError("");
+      try {
+        const result = await invoke<{ status: string }>("install_android_release_apk", { downloadUrl });
+        if (result.status === "permission_required") setUpdateCheck("permission");
+        else if (result.status !== "installer_opened") throw new Error("Android did not open the package installer.");
+      } catch (cause) {
+        setUpdateCheck("error");
+        setError(`Update installation failed: ${String(cause)}`);
+      }
+      return;
+    }
     const update = pendingUpdate;
     if (!update || updateCheck() === "installing") return;
     setUpdateCheck("installing"); setError("");
@@ -4017,12 +4048,7 @@ function App() {
   };
   const rotateSelection = (delta: number) => { if (boardLocked()) return; const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (!item || item.locked || item.type === "group" && !item.libraryComponent || isConnector(item)) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: (element.rotation ?? 0) + delta } as Element : element)); pushUndo(before); setDirty(true); };
   const resetSelectionRotation = () => { const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (boardLocked() || !item || item.locked || item.type === "group" && !item.libraryComponent || (item.rotation ?? 0) === 0) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: 0 } as Element : element)); pushUndo(before); setDirty(true); };
-  const closeSystemMenu = (action: () => void) => { if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (helpMenu) helpMenu.open = false; if (portraitMenu) portraitMenu.open = false; action(); };
-  const openPortraitMenuPanel = (target: HTMLDetailsElement) => {
-    if (portraitMenu) portraitMenu.open = false;
-    document.querySelectorAll<HTMLDetailsElement>(".app-menus details[open]").forEach(details => { if (details !== target) details.open = false; });
-    target.open = true;
-  };
+  const closeSystemMenu = (action: () => void) => { if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (helpMenu) helpMenu.open = false; action(); };
   const toggleSidebar = () => {
     setQuickStylePopover(undefined);
     if (styleMenuMode() === "quick") { setStyleMenuMode("full"); }
@@ -4109,7 +4135,7 @@ function App() {
         const family = document.querySelector<HTMLElement>(".stencil-family");
         const anchor = family?.querySelector<HTMLElement>(".tool-icon-button");
         const panel = family?.querySelector<HTMLElement>(".stencil-options");
-        placeTouchPopover(anchor, panel);
+        placeTouchPopover(anchor ?? null, panel ?? null);
       }
       if (canvasOptionsOpen()) {
         const family = document.querySelector<HTMLElement>(".canvas-options-family");
@@ -4133,12 +4159,18 @@ function App() {
     if (hasOpenPopover) scheduleTouchPopoverPlacement();
   });
   onMount(() => {
-    const reposition = () => scheduleTouchPopoverPlacement();
+    const reposition = () => {
+      scheduleTouchPopoverPlacement();
+      const openPageMenu = document.querySelector<HTMLDetailsElement>(".touch-page-control[open]");
+      if (openPageMenu) alignTouchMenuPopover(openPageMenu);
+    };
     window.addEventListener("resize", reposition);
+    window.addEventListener("orientationchange", reposition);
     window.visualViewport?.addEventListener("resize", reposition);
     window.visualViewport?.addEventListener("scroll", reposition);
     onCleanup(() => {
       window.removeEventListener("resize", reposition);
+      window.removeEventListener("orientationchange", reposition);
       window.visualViewport?.removeEventListener("resize", reposition);
       window.visualViewport?.removeEventListener("scroll", reposition);
     });
@@ -4175,8 +4207,7 @@ function App() {
       panel.style.setProperty("box-sizing", "border-box", "important");
       panel.style.setProperty("right", "auto", "important");
       panel.style.setProperty("bottom", "auto", "important");
-      const preferredWidth = panel.classList.contains("portrait-menu-list") ? 240
-        : panel.classList.contains("touch-pages-popover") ? 300
+      const preferredWidth = panel.classList.contains("touch-pages-popover") ? 300
         : panel.classList.contains("view-settings-popover") || panel.classList.contains("gesture-settings-popover") ? 560
         : panel.classList.contains("app-settings-popover") ? 440
         : 300;
@@ -4208,10 +4239,6 @@ function App() {
       panel.style.left = `${(targetLeft - menuBounds.left) / interfaceScale()}px`;
       panel.style.right = "auto";
     });
-  };
-  const alignOpenTouchMenus = () => {
-    if (!isCompactTouchLayout() || isWindowsPlatform()) return;
-    [menu, viewMenu, gestureMenu, helpMenu, portraitMenu, appSettingsMenu].forEach(details => { if (details?.open) alignTouchMenuPopover(details); });
   };
   const toggleWindowsFullscreen = async (enabled = !windowsFullscreenMode()) => {
     if (!isWindowsPlatform() || !activePath() || enabled === windowsFullscreenMode()) return;
@@ -4301,19 +4328,16 @@ function App() {
     const { value, label, key } = definition;
     const mobileShapeFamily = !isWindowsPlatform() && isCompactTouchLayout() && value === "rectangle";
     const windowsShapeFamily = isWindowsPlatform() && value === "flowchart";
-    const shapeIconPath = "M3 3h8v8H3zM21 7a4 4 0 1 1-8 0a4 4 0 1 1 8 0M16 14l5 8H11z";
-    const path = windowsShapeFamily ? shapeIconPath : definition.path;
-    const selectedShape = mobileShapeTools.has(tool()) ? tool() : "rectangle";
-    const shapeInfo = mobileShapeFamily ? { label: "Basic shapes", path: shapeIconPath } : tools.find(item => item.value === selectedShape) ?? tools.find(item => item.value === "rectangle")!;
+    const path = definition.path;
     const active = (value === "pen" ? tool() === "pen" && brushMode() === "fine" : mobileShapeFamily ? mobileShapeTools.has(tool()) : windowsShapeFamily ? mobileShapeTools.has(tool()) || tool() === "flowchart" : tool() === value) || (value === "pan" && spaceDown());
     const hasOptions = mobileShapeFamily || value === "flowchart" || value === "line" || value === "arrow" || value === "text";
-    const displayLabel = mobileShapeFamily ? shapeInfo.label : isWindowsPlatform() && value === "flowchart" ? "Shapes" : label;
+    const displayLabel = mobileShapeFamily ? "Basic shapes" : isWindowsPlatform() && value === "flowchart" ? "Shapes" : label;
     const mobileEssential = mobileEssentialTools.has(value);
     const shortcutId = shortcutIdByTool[value];
     const bindings = shortcutId ? shortcuts()[shortcutId] : undefined;
     const displayedKey = displayShortcut(bindings?.find(Boolean) ?? key);
     const shortcutLabel = bindings ? formatShortcutBindings(bindings) || key : key;
-    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value || mobileShapeFamily && mobileShapeTools.has(tool()) ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${displayLabel} (${shortcutLabel})`} aria-label={mobileShapeFamily ? `Shapes: ${displayLabel}` : displayLabel} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (mobileShapeFamily) { commitTextDraft(); setQuickStylePopover(undefined); if (openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } if (hasOptions) { if (!isWindowsPlatform() && isCompactTouchLayout()) { if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{mobileShapeFamily ? <path d={shapeInfo.path} /> : value === "flowchart" ? <><g class="desktop-flowchart-icon"><path d={path} /></g><g class="touch-flowchart-icon"><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></g></> : <path d={path} />}</svg><kbd>{displayedKey}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
+    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value || mobileShapeFamily && mobileShapeTools.has(tool()) ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${displayLabel} (${shortcutLabel})`} aria-label={mobileShapeFamily ? `Shapes: ${displayLabel}` : displayLabel} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (mobileShapeFamily) { commitTextDraft(); setQuickStylePopover(undefined); if (openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } if (hasOptions) { if (!isWindowsPlatform() && isCompactTouchLayout()) { if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{mobileShapeFamily || windowsShapeFamily ? <><rect x="3.25" y="3.25" width="7.5" height="7.5" rx="1.2"/><circle cx="17" cy="7" r="3.75"/><path d="m7 13.25 4.25 4.25L7 21.75l-4.25-4.25zM17 13.5l4.5 7.5h-9z"/></> : value === "flowchart" ? <><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></> : <path d={path} />}</svg><kbd>{displayedKey}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
     if (mobileShapeFamily) return <div class="tool-family shape-family" data-touch-popover={value} classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": true, "mobile-tool-current-family": mobileShapeTools.has(tool()) }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options shape-options" role="menu" aria-label="Basic shapes">{tools.filter(item => mobileShapeTools.has(item.value)).map(shape => <button class={tool() === shape.value ? "active" : ""} role="menuitemradio" aria-checked={tool() === shape.value} title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setTool(shape.value); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}</div></div>;
     if (value === "flowchart") return <div class="tool-family flowchart-family" data-touch-popover={value} classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}{isWindowsPlatform()
       ? <WindowsShapePalette activeTool={tool()} activeFlowchartShape={flowchartShape()} onSelect={(choice: WindowsShapeChoice) => { closeToolOptions(); if (choice.kind === "flowchart") { setFlowchartShape(choice.shape); setTool("flowchart"); } else setTool(choice.tool); setSidebarTab("properties"); setSelectedIndices([]); }} />
@@ -4383,114 +4407,7 @@ function App() {
     return activePath() ? commands : commands.filter(command => availableWithoutDocument.has(command.id));
   });
 
-  const renderLibraryComponentEditor = (readGroup: () => GroupElement, isDraft: boolean) => {
-    const group = readGroup;
-    const kind = () => group().libraryComponent?.kind ?? "custom";
-    const optionsFor = (component: GroupElement) => {
-      const stored = component.libraryComponent?.formOptions;
-      return stored?.length ? stored : defaultLibraryFormOptions(component.libraryComponent?.kind as LibraryComponentKind) ?? [];
-    };
-    const options = () => optionsFor(group());
-    const chartData = () => group().libraryComponent?.chartData ?? defaultLibraryChartData(kind() as LibraryComponentKind) ?? { labels: ["Item 1"], values: [0] };
-    const changeGroup = (operation: (current: GroupElement) => GroupElement) => {
-      if (isDraft) setLibraryComponentDraft(current => current ? operation(current) : current);
-      else updateSelectedLibraryComponent(operation);
-    };
-    const changeComponentFontSize = (requestedSize: number) => {
-      if (!Number.isFinite(requestedSize) || requestedSize < 8 || requestedSize > 160) return;
-      rememberFontSize(requestedSize);
-      changeGroup(current => resizeLibraryFont(current, requestedSize));
-    };
-    const componentDimensions = () => group().componentBounds ?? elementBounds({ ...group(), rotation: 0 });
-    const changeSize = (axis: "w" | "h", value: number) => {
-      if (!Number.isFinite(value)) return;
-      changeGroup(current => { const bounds = current.componentBounds ?? elementBounds({ ...current, rotation: 0 }); return resizeLibraryGroup(current, { ...bounds, [axis]: Math.max(libraryComponentMinimum(current, axis), Math.min(4000, value)) }); });
-    };
-    const changeOption = (index: number, value: string) => changeGroup(current => { const next = [...optionsFor(current)]; next[index] = value.slice(0, 120); return rebuildLibraryFormOptions(current, next); });
-    const changePortCount = (requested: number) => changeGroup(current => {
-      const count = Math.max(1, Math.min(32, Math.round(requested)));
-      return setLibraryPortCount(current, count);
-    });
-    const changeSelectedOption = (index: number) => changeGroup(current => current.libraryComponent?.kind === "form-radio" ? setLibraryRadioOption(current, index) : rebuildLibraryFormOptions(current, optionsFor(current), index));
-    const addOption = () => changeGroup(current => rebuildLibraryFormOptions(current, [...optionsFor(current), `Option ${optionsFor(current).length + 1}`]));
-    const removeOption = () => changeGroup(current => rebuildLibraryFormOptions(current, optionsFor(current).slice(0, -1)));
-    const updateChart = (operation: (data: LibraryChartData) => LibraryChartData) => changeGroup(current => {
-      const previous = current.libraryComponent?.chartData ?? defaultLibraryChartData(current.libraryComponent?.kind as LibraryComponentKind)!;
-      const next = operation(previous);
-      const values = next.values.map(value => Number.isFinite(value) ? Math.max(-1_000_000_000, Math.min(1_000_000_000, value)) : 0);
-      return { ...current, libraryComponent: { ...current.libraryComponent!, chartData: { ...next, values } } };
-    });
-    const setMetricTrend = (trendDirection: "up" | "down" | "steady") => changeGroup(current => setLibraryChartTrend(current, trendDirection));
-    const updateMetricDatum = (index: number, value: number) => updateChart(data => {
-      const labels = [...data.labels]; const values = [...data.values];
-      while (labels.length <= index) { labels.push(index === 0 ? "Value" : "Change"); values.push(0); }
-      values[index] = value;
-      return { ...data, labels, values };
-    });
-    const updateMetricCaption = (value: string) => updateChart(data => {
-      const labels = [...data.labels]; const values = [...data.values];
-      while (labels.length < 2) { labels.push("Change"); values.push(0); }
-      labels[1] = value;
-      return { ...data, labels, values };
-    });
-    const locked = () => !isDraft && (boardLocked() || !!group().locked);
-    return <div class="component-editor-content">
-      <div class="precision-grid component-size-grid"><label>Width<input aria-label="Component width" type="number" min={libraryComponentMinimum(group(), "w")} max="4000" step="1" value={Math.round(componentDimensions().w)} disabled={locked()} onChange={event => changeSize("w", Number(event.currentTarget.value))} /></label><label>Height<input aria-label="Component height" type="number" min={libraryComponentMinimum(group(), "h")} max="4000" step="1" value={Math.round(componentDimensions().h)} disabled={locked()} onChange={event => changeSize("h", Number(event.currentTarget.value))} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="160" value={libraryComponentFontSize(group())} disabled={locked()} onChange={event => changeComponentFontSize(Number(event.currentTarget.value))} /></label></div>
-      <Show when={kind() === "uml-lifeline"}><label class="property-label">Lifeline length<input aria-label="Lifeline length" type="number" min="24" max="4000" step="1" value={libraryLifelineLength(group())} disabled={locked()} onChange={event => changeGroup(current => setLibraryLifelineLength(current, Number(event.currentTarget.value)))} /></label></Show>
-      <div class="component-appearance-choice" role="group" aria-label="Component style"><span>Style</span>{(["simple", "modern"] as const).map(appearance => <button type="button" class={(group().libraryComponent?.appearance ?? componentAppearance()) === appearance ? "active" : ""} aria-pressed={(group().libraryComponent?.appearance ?? componentAppearance()) === appearance} disabled={locked()} onClick={() => changeGroup(current => ({ ...current, libraryComponent: { ...current.libraryComponent!, appearance } }))}>{appearance === "simple" ? "Simple" : "Modern"}</button>)}</div>
-      <Show when={kind() === "form-toggle"}>
-        <label class="property-label component-form-title">Title<input aria-label="Toggle title" maxlength="80" value={group().libraryComponent?.formTitle ?? defaultLibraryFormTitle(kind() as LibraryComponentKind) ?? ""} disabled={locked()} onInput={event => changeGroup(current => setLibraryFormTitle(current, event.currentTarget.value))} /></label>
-        <label class="component-state-control"><input type="checkbox" checked={group().libraryComponent?.formState ?? true} disabled={locked()} onChange={event => changeGroup(current => setLibraryFormState(current, event.currentTarget.checked))} /><span class="component-switch" aria-hidden="true" /><strong>{group().libraryComponent?.formState === false ? "Off" : "On"}</strong></label>
-      </Show>
-      <Show when={kind() === "network-switch" || kind() === "network-hub"}>
-        <section class="component-port-editor"><div><strong>Connection ports</strong><small>Draws {group().libraryComponent?.portCount ?? (kind() === "network-hub" ? 8 : 6)} visible ports</small></div><label>Count<input aria-label="Number of network ports" type="number" min="1" max="32" step="1" value={group().libraryComponent?.portCount ?? (kind() === "network-hub" ? 8 : 6)} disabled={locked()} onChange={event => changePortCount(Number(event.currentTarget.value))} /></label></section>
-      </Show>
-      <Show when={kind() === "form-radio" || kind() === "form-select" || kind() === "form-button" || kind() === "form-checkbox"}>
-        <section class="component-options-editor">
-          <header><strong>{kind() === "form-button" ? "Button choices" : kind() === "form-checkbox" ? "Checkbox options" : kind() === "form-radio" ? "Radio options" : "Select options"}</strong><span>{options().length}/12</span></header>
-          <Show when={kind() === "form-checkbox" || kind() === "form-radio" || kind() === "form-select"}>
-            <label class="property-label component-form-title">Title<input aria-label="Choice group title" maxlength="80" value={group().libraryComponent?.formTitle ?? defaultLibraryFormTitle(kind() as LibraryComponentKind) ?? ""} disabled={locked()} onInput={event => changeGroup(current => setLibraryFormTitle(current, event.currentTarget.value))} /></label>
-          </Show>
-          <div class="component-option-list"><For each={options().map((_, index) => index)}>{index => <div class="component-option-row">
-            <span>{index + 1}</span>
-            <Show when={kind() === "form-checkbox"}><input class="component-option-check" type="checkbox" aria-label={`Select ${options()[index] || `option ${index + 1}`}`} checked={group().libraryComponent?.formStates?.[index] ?? index === 0} disabled={locked()} onChange={event => changeGroup(current => setLibraryCheckboxOption(current, index, event.currentTarget.checked))} /></Show>
-            <Show when={kind() === "form-radio"}><input class="component-option-radio" type="radio" name={`component-radio-${group().id}`} aria-label={`Choose ${options()[index] || `option ${index + 1}`}`} checked={(group().libraryComponent?.selectedOption ?? 0) === index} disabled={locked()} onChange={() => changeGroup(current => setLibraryRadioOption(current, index))} /></Show>
-            <input aria-label={`Option ${index + 1} name`} maxlength="120" value={options()[index]} disabled={locked()} onInput={event => changeOption(index, event.currentTarget.value)} />
-          </div>}</For></div>
-          <div class="component-option-actions"><button type="button" disabled={locked() || options().length <= 1} onClick={removeOption}>Remove</button><button type="button" disabled={locked() || options().length >= 12} onClick={addOption}>Add option</button></div>
-        </section>
-        <Show when={kind() === "form-select" || kind() === "form-button"}><label class="property-label">Preview choice<select value={group().libraryComponent?.selectedOption ?? 0} disabled={locked()} onChange={event => changeSelectedOption(Number(event.currentTarget.value))}>{options().map((option, index) => <option value={index}>{option || `Option ${index + 1}`}</option>)}</select></label></Show>
-      </Show>
-      <Show when={kind().startsWith("viz-")}>
-        <>
-          <div class="component-chart-editor">
-            <label class="property-label">{kind() === "viz-kpi" ? "Metric title" : "Chart title"}<input maxlength="80" value={chartData().title ?? "Chart"} disabled={locked()} onInput={event => updateChart(data => ({ ...data, title: event.currentTarget.value }))} /></label>
-            <Show when={kind() === "viz-kpi"}>
-              <div class="component-kpi-editor">
-                <label class="property-label">Value<input aria-label="Metric value" type="number" step="any" value={chartData().values[0] ?? 0} disabled={locked()} onInput={event => { const value = event.currentTarget.valueAsNumber; if (Number.isFinite(value)) updateMetricDatum(0, value); }} /></label>
-                <label class="property-label">Change caption<input aria-label="Metric change caption" maxlength="60" value={chartData().labels[1] ?? "Change"} disabled={locked()} onInput={event => updateMetricCaption(event.currentTarget.value)} /></label>
-                <label class="property-label">Change (%)<input aria-label="Metric change percent" type="number" step="any" value={chartData().values[1] ?? 0} disabled={locked()} onInput={event => { const value = event.currentTarget.valueAsNumber; if (Number.isFinite(value)) updateMetricDatum(1, value); }} /></label>
-              </div>
-              <div class="component-trend-control" role="group" aria-label="Metric trend direction"><span>Trend direction</span><div>{([{ value: "up", label: "Rising" }, { value: "down", label: "Falling" }, { value: "steady", label: "Steady" }] as const).map(option => <button type="button" class={(group().libraryComponent?.trendDirection ?? ((chartData().values[1] ?? 0) > 0 ? "up" : (chartData().values[1] ?? 0) < 0 ? "down" : "steady")) === option.value ? "active" : ""} aria-pressed={(group().libraryComponent?.trendDirection ?? ((chartData().values[1] ?? 0) > 0 ? "up" : (chartData().values[1] ?? 0) < 0 ? "down" : "steady")) === option.value} disabled={locked()} onClick={() => setMetricTrend(option.value)}>{option.label}</button>)}</div></div>
-            </Show>
-            <Show when={kind() !== "viz-pie" && kind() !== "viz-donut" && kind() !== "viz-kpi"}><div class="component-chart-axis-row"><label class="property-label">X axis<input maxlength="80" value={chartData().xAxisLabel ?? ""} disabled={locked()} onInput={event => updateChart(data => ({ ...data, xAxisLabel: event.currentTarget.value }))} /></label><label class="property-label">Y axis<input maxlength="80" value={chartData().yAxisLabel ?? ""} disabled={locked()} onInput={event => updateChart(data => ({ ...data, yAxisLabel: event.currentTarget.value }))} /></label></div></Show>
-            <Show when={kind() !== "viz-kpi"}>
-              <div class="component-chart-data">
-                <div class="component-chart-data-heading"><strong>Data points</strong><span>{chartData().labels.length}/12</span></div>
-                <div class="component-chart-row component-chart-row-heading"><span>{kind() === "viz-pie" || kind() === "viz-donut" ? "Category" : "Label"}</span><span>Value</span><span></span></div>
-                <For each={chartData().labels.map((_, index) => index)}>{index => <div class="component-chart-row"><input aria-label={`Chart label ${index + 1}`} maxlength="60" value={chartData().labels[index]} disabled={locked()} onInput={event => updateChart(data => ({ ...data, labels: data.labels.map((label, current) => current === index ? event.currentTarget.value : label) }))} /><input aria-label={`Chart value ${index + 1}`} type="number" step="any" value={chartData().values[index]} disabled={locked()} onInput={event => { const value = event.currentTarget.valueAsNumber; if (Number.isFinite(value)) updateChart(data => ({ ...data, values: data.values.map((currentValue, current) => current === index ? value : currentValue) })); }} /><button type="button" class="component-chart-remove" aria-label={`Remove data point ${index + 1}`} disabled={locked() || chartData().labels.length <= 1} onClick={() => updateChart(data => ({ ...data, labels: data.labels.filter((_, current) => current !== index), values: data.values.filter((_, current) => current !== index) }))}>×</button></div>}</For>
-                <div class="component-option-actions"><button type="button" disabled={locked() || chartData().labels.length >= 12} onClick={() => updateChart(data => ({ ...data, labels: [...data.labels, `Item ${data.labels.length + 1}`], values: [...data.values, 0] }))}>Add data point</button></div>
-              </div>
-            </Show>
-          </div>
-        </>
-      </Show>
-      <Show when={libraryComponentFields(group()).length > 0}><div class="component-field-list"><For each={libraryComponentFields(group()).map(field => field.key)}>{key => { const field = () => libraryComponentFields(group()).find(entry => entry.key === key)!; return <label class="property-label"><span>{field().label}</span><textarea data-component-field-key={key} rows={Math.min(4, Math.max(1, field().value.split(/\r?\n/).length))} maxlength="2000" value={field().value} disabled={locked()} onInput={event => changeGroup(current => setLibraryComponentField(current, key, event.currentTarget.value))} /></label>; }}</For></div></Show>
-      <Show when={isDraft}><div class="component-draft-actions"><button type="button" class="quiet-button" onClick={() => setLibraryComponentDraft(undefined)}>Cancel</button><button type="button" class="save-button" disabled={boardLocked()} onClick={commitLibraryComponentDraft}>Add to canvas</button></div></Show>
-    </div>;
-  };
-
-  const mobileCommandBar = () => <MobileCommandBar
+  const mobileCommandBar = () => <Suspense fallback={null}><MobileCommandBar
     fileName={activePath() ? fileName() : "No file open"}
     hasFile={!!activePath()}
     canSave={!!activePath() && !readOnlyView()}
@@ -4554,8 +4471,8 @@ function App() {
     onInstallUpdate={() => void installUpdate()}
     updateStatus={updateCheck()}
     updateVersion={updateVersion() ?? "—"}
-    canInstallUpdate={false}
-  />;
+    canInstallUpdate={isAndroidPlatform() && !!androidUpdateUrl()}
+  /></Suspense>;
 
   return (
     <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() !== "canvas", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family, .stencil-options")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentColor()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 62%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
@@ -4625,7 +4542,6 @@ function App() {
           </Show>
           <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
           <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setShortcutDialogOpen(true))}>Customize shortcuts...</button><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>{formatShortcutBindings(shortcuts().commandPalette)}</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking" || updateCheck() === "installing"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "installing"}><span class="update-menu-status available">Installing update {updateVersion()}…</span></Show><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span><Show when={isWindowsPlatform()}><button onClick={() => void installUpdate()}>Download and install</button></Show></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Update check or installation failed.</span></Show></div></details>
-          <details class="menu-dropdown portrait-menu-dropdown" ref={portraitMenu} onToggle={() => alignTouchMenuPopover(portraitMenu)}><summary aria-label="More menus"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg><span>More</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover portrait-menu-list" role="menu" aria-label="More menus"><Show when={activePath() && workspaceArea() === "canvas"}><button role="menuitem" onClick={() => openPortraitMenuPanel(viewMenu)}>Canvas settings</button></Show><button role="menuitem" onClick={() => openPortraitMenuPanel(gestureMenu)}>Touch gestures</button><button role="menuitem" onClick={() => openPortraitMenuPanel(helpMenu)}>Help and updates</button></div></details>
           </WindowsMenuRail>
           </Show>
         </nav>
@@ -4643,51 +4559,7 @@ function App() {
           onNavigate={navigateWorkspace}
         /></div>
       </>}</For>
-      <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayNameForPath} onCreate={createFile} onNewProject={createProjectFromHome} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentProject={openRecentProject} /><section class="welcome-screen">
-  <div class="welcome-card">
-    <div class="welcome-intro">
-      <div class="welcome-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg></div>
-      <p class="eyebrow">YOUR IDEAS, ON ONE CANVAS</p>
-      <h1>Think it through.<br /><em>Draw it out.</em></h1>
-      <p class="welcome-copy">A calm, capable space for diagrams, plans, and the ideas in between. Start a sketch or pick up where you left off.</p>
-      <div class="welcome-actions"><button class="save-button large" onClick={createFile}>Create a sketch <span aria-hidden="true">&rarr;</span></button><button class="quiet-button large" onClick={openFile}>Open a file</button></div>
-      <div class="file-hint"><span class="file-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span><span><strong>Private by design</strong><br />Your portable .sketch files stay in folders you choose.</span></div>
-      <small class="copyright-notice">&copy; 2026 Toushal Sampat. All rights reserved.</small>
-    </div>
-    <div class="welcome-visual" aria-hidden="true">
-      <div class="welcome-visual-topline"><span><i></i> SKETCHDRAW CANVAS</span><b>FLOW 01</b></div>
-      <svg viewBox="0 0 440 350" role="presentation">
-        <defs><filter id="welcome-card-shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#3b493f" flood-opacity=".12" /></filter></defs>
-        <path class="welcome-wire" d="M116 111h53m62 0h46m-77 25v52m93-52v52m-93 0h-90m90 0h94m-184 0v32m184-32v32" />
-        <path class="welcome-wire-arrow" d="m163 106 7 5-7 5m47 65 5 7 5-7m87-65 7 5-7 5m-200 63-5 7 5 7m99 15 5 7 5-7m85-29 5 7 5-7" />
-        <g filter="url(#welcome-card-shadow)"><rect class="welcome-node welcome-node-lilac" x="26" y="78" width="90" height="66" rx="16" /><rect class="welcome-node welcome-node-sun" x="169" y="78" width="92" height="66" rx="16" /><rect class="welcome-node welcome-node-mint" x="277" y="78" width="104" height="66" rx="16" /><rect class="welcome-node welcome-node-paper" x="26" y="198" width="100" height="64" rx="16" /><rect class="welcome-node welcome-node-blue" x="169" y="198" width="92" height="64" rx="16" /><rect class="welcome-node welcome-node-paper" x="277" y="198" width="104" height="64" rx="16" /></g>
-        <g class="welcome-node-icon"><circle cx="48" cy="101" r="7" /><path d="M62 99h38M62 106h27" /><circle cx="191" cy="101" r="7" /><path d="M205 99h40M205 106h28" /><circle cx="299" cy="101" r="7" /><path d="M313 99h52M313 106h35" /><circle cx="48" cy="220" r="7" /><path d="M62 218h42M62 225h30" /><circle cx="191" cy="220" r="7" /><path d="M205 218h40M205 225h28" /><circle cx="299" cy="220" r="7" /><path d="M313 218h52M313 225h35" /></g>
-        <circle class="welcome-spark" cx="365" cy="53" r="13" /><path class="welcome-spark-line" d="M365 45v16m-8-8h16m-13-5 10 10m0-10-10 10" />
-        <circle class="welcome-dot" cx="80" cy="290" r="4" /><circle class="welcome-dot" cx="96" cy="290" r="4" /><circle class="welcome-dot" cx="112" cy="290" r="4" />
-      </svg>
-      <div class="welcome-visual-caption"><span>&#10022;</span> A little clarity, one connection at a time.</div>
-    </div>
-  </div>
-  <div class="recent-dashboard">
-    <div class="recent-heading"><span class="eyebrow">YOUR WORKSPACE</span><div class="recent-heading-row"><h2>Recent sketches</h2><span class="recent-count">{recentFiles().length}</span></div><p>Pick up right where you left off.</p></div>
-    <section class="home-project-hub" aria-labelledby="home-project-title">
-      <span class="home-project-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5h6l2 2h8v9H4zM4 10h16M8 13h3m-3 2.5h7" /></svg></span>
-      <div class="home-project-copy">
-        <span class="eyebrow">PROJECT SPACE</span>
-        <h2 id="home-project-title">A home for each project</h2>
-        <p>Keep notes, tasks, schedules, decisions, and reference files beside the sketch.</p>
-      </div>
-      <div class="home-project-actions">
-        <button class="save-button" onClick={() => void createProjectFromHome()}>New project <span aria-hidden="true">&rarr;</span></button>
-        <Show when={recentFiles().length > 0}><button class="quiet-button" onClick={() => void openRecentProject(recentFiles()[0])}>Open recent <span aria-hidden="true">&rarr;</span></button></Show>
-      </div>
-    </section>
-    <Show when={recentFiles().length > 0} fallback={<div class="recent-empty"><div class="recent-empty-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></div><strong>Your next idea starts here</strong><span>Open a sketch from your device to see it in this list.</span><button class="quiet-button" onClick={openFile}>Browse sketches <span aria-hidden="true">&rarr;</span></button></div>}>
-      <div class="recent-list">{recentFiles().map((path) => <button class="recent-file" onClick={() => void loadFile(path)}><span class="recent-file-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span><span class="recent-file-name">{displayNameForPath(path)}</span><span class="recent-file-path">{/^content:\/\//i.test(path) ? "Cloud drive or device folder" : path}</span><span class="recent-open">Open <span aria-hidden="true">&rarr;</span></span></button>)}</div>
-    </Show>
-    <div class="recent-footnote"><span class="recent-footnote-dot"></span> Saved on this device</div>
-  </div>
-</section></>}>
+      <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayNameForPath} onCreate={createFile} onNewProject={createProjectFromHome} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentProject={openRecentProject} /><WelcomeScreen recentFiles={recentFiles} displayNameForPath={displayNameForPath} onCreateFile={createFile} onOpenFile={openFile} onCreateProject={createProjectFromHome} onOpenRecentProject={openRecentProject} onOpenRecentFile={loadFile} /></>}>
         <>
           <section class="canvas-wrap" ref={canvasWrap} classList={{ "canvas-rulers-visible": showRulers(), "canvas-minimap-visible": showMinimap() }}>
             <Show when={touchFocusMode()}><TouchFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={chooseFocusTool} onExit={() => void toggleTouchFocusMode(false)} /></Show>
@@ -5037,8 +4909,8 @@ function App() {
                 <Show when={componentEditorCollapsed()} fallback={<>
                   <header class="component-editor-heading"><div><strong>{componentEditorTitle()}</strong></div><button type="button" aria-label="Collapse component editor" title="Collapse" aria-expanded="true" onClick={() => setComponentEditorCollapsed(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg></button></header>
                   <div class="component-editor-scroll">
-                    <Show when={libraryComponentDraft()}>{draft => renderLibraryComponentEditor(() => libraryComponentDraft() ?? draft(), true)}</Show>
-                    <Show when={!libraryComponentDraft() && selectedLibraryComponent()}>{component => renderLibraryComponentEditor(() => selectedLibraryComponent() ?? component(), false)}</Show>
+                    <Show when={libraryComponentDraft()}>{draft => <Suspense fallback={null}><LibraryComponentEditor group={() => libraryComponentDraft() ?? draft()} isDraft boardLocked={boardLocked} componentAppearance={componentAppearance()} onChangeGroup={operation => setLibraryComponentDraft(current => current ? operation(current) : current)} onRememberFontSize={rememberFontSize} onCancelDraft={() => setLibraryComponentDraft(undefined)} onCommitDraft={commitLibraryComponentDraft} /></Suspense>}</Show>
+                    <Show when={!libraryComponentDraft() && selectedLibraryComponent()}>{component => <Suspense fallback={null}><LibraryComponentEditor group={() => selectedLibraryComponent() ?? component()} isDraft={false} boardLocked={boardLocked} componentAppearance={componentAppearance()} onChangeGroup={updateSelectedLibraryComponent} onRememberFontSize={rememberFontSize} onCancelDraft={() => setLibraryComponentDraft(undefined)} onCommitDraft={commitLibraryComponentDraft} /></Suspense>}</Show>
                     <Show when={selectedClassComponentId() && !selectedLibraryComponent() && !classCardDraft() ? selectedClassComponentId() : undefined}>{componentId => <section class="component-editor-content"><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(selectedClassCardSize(componentId()).width)} disabled={boardLocked()} onChange={event => resizeClassCardSize(componentId(), "width", Number(event.currentTarget.value))} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(selectedClassCardSize(componentId()).height)} disabled={boardLocked()} onChange={event => resizeClassCardSize(componentId(), "height", Number(event.currentTarget.value))} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={quickCardFontSize()} disabled={boardLocked()} onChange={event => resizeClassCardFont(componentId(), Number(event.currentTarget.value))} /></label></div></section>}</Show>
                     <Show when={classCardDraft()}>{draft => <div class="component-editor-content class-card-editor"><label class="property-label">Class name<input value={draft().name} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label class="property-label">Attributes<textarea rows="5" value={draft().attributes} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label class="property-label">Methods<textarea rows="5" value={draft().methods} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(classCardSize(draft()).width)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, width: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(classCardSize(draft()).height)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, height: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={draft().fontSize} disabled={boardLocked()} onChange={event => updateClassCardDraftFont(Number(event.currentTarget.value))} /></label></div><div class="component-draft-actions"><button type="button" class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button type="button" class="save-button" disabled={boardLocked()} onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></div>}</Show>
                   </div>
@@ -5107,7 +4979,7 @@ function App() {
       <Show when={isWindowsPlatform()}><Suspense fallback={null}><WindowsCommandPalette open={commandPaletteOpen()} commands={windowsCommands()} onClose={() => setCommandPaletteOpen(false)} /></Suspense></Show>
       <Show when={isWindowsPlatform() && shortcutDialogOpen()}><Suspense fallback={null}><WindowsKeyboardShortcutsDialog shortcuts={shortcuts()} onChange={setWindowsShortcut} onReset={resetWindowsShortcuts} onClose={() => setShortcutDialogOpen(false)} /></Suspense></Show>
       <Show when={showClearConfirm()}><div class="confirm-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setShowClearConfirm(false); }}><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">Clear this canvas?</h2><p>This will remove all {elements().length} items from the open sketch. You can undo this action.</p><div><button class="quiet-button" onClick={() => setShowClearConfirm(false)}>Cancel</button><button class="danger-button" onClick={() => { if (elements().length && !boardLocked()) { pushUndo(cloneElements(elements())); setElements([]); setSelectedIndices([]); setDirty(true); } setShowClearConfirm(false); }}>Clear canvas</button></div></section></div></Show>
-      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">{helpSection() === "guide" ? "SKETCHDRAW GUIDE" : "SHORTCUT REFERENCE"}</span><h2 id="help-title">{helpSection() === "guide" ? "Guide" : "Keyboard shortcuts"}</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 8 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the toolbar, then click or drag on the canvas. Common style controls sit beside the canvas; open the properties button for the full settings panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Hold Space or choose Hand to pan, or use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Add and manage pages from the page strip. Use View to change the theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section><section class="touch-guide-section"><h3>Phone and tablet controls</h3><p>The compact tool dock stays on the left. Tap <strong>More</strong> to show the remaining tools, then tap it again to collapse the dock. The four-square button at the top of the dock opens canvas options such as grid, snapping, and fit-to-view.</p></section><section class="touch-guide-section"><h3>Properties and components</h3><p>Tap the Quick style or Advanced style button in the left dock. Quick style adjusts color and width; Advanced style adds tool-specific options. Close either panel with its top-corner button. Open Symbols and elements from the expanded tools and scroll its list vertically to browse components.</p></section><section class="touch-guide-section"><h3>Touch, stylus, and navigation</h3><p>Draw with a finger or stylus. Pinch with two fingers to zoom. Open Pages in the top bar to switch, add, rename, or organize pages. The zoom percentage button recenters the canvas and resets to 100%. Set tap-only actions under Gestures &gt; Tap actions. Configure one-finger drags and two- or three-finger movement separately under Gestures &gt; Finger movements. A compatible stylus uses the active tool. Tap a style button in the tool dock to change pen, brush, or shape settings.</p></section><HelpFeatureCatalog /></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 9 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
+      <Show when={helpOpen()}><Suspense fallback={null}><HelpDialog open section={helpSection()} shortcuts={helpShortcuts} onClose={() => setHelpOpen(false)} /></Suspense></Show>
       <Show when={error()}><div class="error-toast" role="alert">{error()}<button onClick={() => setError("")}>Dismiss</button></div></Show>
     </main>
   );
