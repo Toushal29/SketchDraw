@@ -92,6 +92,8 @@ jobs:
           java-version: 17
       - uses: android-actions/setup-android@v3
         if: steps.signing.outputs.configured == 'true'
+        with:
+          packages: ''
       - name: Install Android SDK and NDK
         if: steps.signing.outputs.configured == 'true'
         run: |
