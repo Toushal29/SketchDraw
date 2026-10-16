@@ -1,8 +1,8 @@
-import type { Binding, Element, ShapeElement, SchemaTableElement, TextElement, Point, FlowchartShape, Bounds } from "./model";
+import type { Binding, Element, GroupElement, ShapeElement, SchemaTableElement, TextElement, Point, FlowchartShape, Bounds } from "./model";
 
 export const isConnector = (element: Element): element is ShapeElement => element.type === "line" || element.type === "arrow";
 export const isLabelShape = (element: Element): element is ShapeElement => element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart";
-export const isConnectable = (element: Element): element is ShapeElement | SchemaTableElement | TextElement => isLabelShape(element) || element.type === "schemaTable" || element.type === "text";
+export const isConnectable = (element: Element): element is ShapeElement | SchemaTableElement | TextElement | GroupElement => isLabelShape(element) || element.type === "schemaTable" || element.type === "text" || element.type === "group" && !!element.componentBounds && !!element.libraryComponent;
 export const BOX_ANCHORS: readonly Point[] = [
   { x: 0, y: 0 }, { x: .5, y: 0 }, { x: 1, y: 0 },
   { x: 1, y: .5 }, { x: 1, y: 1 }, { x: .5, y: 1 },
@@ -28,8 +28,9 @@ export function ensureIds(items: Element[]): Element[] {
   return items.map(item => {
     const identified = item.id ? item : { ...item, id: crypto.randomUUID() };
     if (identified.type !== "group") return identified;
-    const children = ensureIds(identified.elements);
-    return children.every((child, index) => child === identified.elements[index]) ? identified : { ...identified, elements: children };
+    const sourceChildren = identified.libraryComponent?.kind === "uml-activation" ? identified.elements.filter(child => child.type !== "text") : identified.elements;
+    const children = ensureIds(sourceChildren);
+    return children.length === identified.elements.length && children.every((child, index) => child === identified.elements[index]) ? identified : { ...identified, elements: children };
   });
 }
 
@@ -50,12 +51,12 @@ export function validReferences(items: Element[]): boolean {
   }));
 }
 
-export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextElement, anchor: Point, rowId?: string): Point {
-  const box = shape.type === "text" ? textElementBox(shape) : { x: shape.x, y: shape.y, w: shape.w, h: shape.h };
+export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement, anchor: Point, rowId?: string): Point {
+  const box = shape.type === "group" ? shape.componentBounds! : shape.type === "text" ? textElementBox(shape) : { x: shape.x, y: shape.y, w: shape.w, h: shape.h };
   const cx = box.x + box.w / 2; const cy = box.y + box.h / 2;
   const x = Math.min(box.x, box.x + box.w) + Math.abs(box.w) * anchor.x;
   const rowIndex = shape.type === "schemaTable" && rowId ? shape.columns.findIndex(column => column.id === rowId) : -1;
-  const rowFontSize = shape.type === "schemaTable" ? shape.fontSize ?? 14 : 14;
+  const rowFontSize = shape.type === "schemaTable" ? shape.fontSize ?? 12 : 14;
   const rowHeaderHeight = Math.max(42, rowFontSize * 2.8); const rowHeight = Math.max(30, rowFontSize * 1.8);
   const y = shape.type === "schemaTable" && rowIndex >= 0
     ? shape.y + rowHeaderHeight + rowIndex * rowHeight + rowHeight / 2
@@ -71,7 +72,13 @@ export function nearestBinding(items: Element[], point: Point, threshold: number
     for (let index = children.length - 1; index >= 0; index--) {
       const item = children[index];
       if (item.hidden || item.locked) continue;
-      if (item.type === "group") { visit(item.elements); continue; }
+      if (item.type === "group") {
+        if (item.componentBounds && item.libraryComponent && item.id) for (const anchor of BOX_ANCHORS) {
+          const port = anchorPoint(item, anchor); const distance = Math.hypot(point.x - port.x, point.y - port.y);
+          if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id, anchor }, point: port, distance };
+        }
+        visit(item.elements); continue;
+      }
       if (!isConnectable(item) || !item.id) continue;
       if (item.type === "schemaTable") {
         for (const column of item.columns) for (const anchor of [{ x: 1, y: .5 }, { x: 0, y: .5 }]) {
@@ -131,7 +138,7 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
   const binding = (value?: Binding): Binding | undefined => value && remap.has(value.elementId) ? { ...value, elementId: remap.get(value.elementId)!, rowId: value.rowId ? rowRemap.get(value.rowId) ?? value.rowId : undefined } : undefined;
   const visit = (item: Element): Element => {
     const copy = { ...item, id: remap.get(item.id)!, componentId: item.componentId ? componentRemap.get(item.componentId) : undefined, locked: false };
-    if (copy.type === "group") return { ...copy, elements: copy.elements.map(visit) };
+    if (copy.type === "group") return { ...copy, ...(copy.componentBounds ? { componentBounds: { ...copy.componentBounds, x: copy.componentBounds.x + dx, y: copy.componentBounds.y + dy } } : {}), elements: copy.elements.map(visit) };
     if (copy.type === "freehand") return { ...copy, points: copy.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy })) };
     if (copy.type === "schemaTable") return { ...copy, schemaDiagramId: diagramRemap.get(copy.schemaDiagramId)!, columns: copy.columns.map(column => ({ ...column, id: rowRemap.get(column.id)! })), x: copy.x + dx, y: copy.y + dy };
     if (isConnector(copy)) {
@@ -150,12 +157,20 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
 
 export const textFont = (text: Pick<TextElement, "italic" | "bold" | "fontSize" | "fontFamily">) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : text.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : text.fontFamily === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : text.fontFamily === "display" ? "'Arial Black', Impact, sans-serif" : "'DM Sans', 'Segoe UI', sans-serif"}`;
 export function labelBox(shape: ShapeElement) {
-  // Keep ordinary shape-label padding in canvas units so resizing the shape
-  // does not make its text margins grow. Tapered symbols retain extra clearance.
+  // Keep padding proportional only while a shape is small. A fixed inset can
+  // consume the entire label area on compact components such as UML lifelines.
   const width = Math.abs(shape.w); const height = Math.abs(shape.h);
+  if (shape.type === "line" || shape.type === "arrow") {
+    const fontSize = shape.label?.fontSize ?? 12;
+    const lineCount = Math.max(1, shape.label?.text.split(/\r?\n/).length ?? 1);
+    const labelWidth = Math.max(120, width);
+    const centerX = shape.x + shape.w / 2 + (shape.label?.offsetX ?? 0);
+    const centerY = shape.y + shape.h / 2 - fontSize * 1.75 + (shape.label?.offsetY ?? 0);
+    return { x: centerX - labelWidth / 2, y: centerY, w: labelWidth, h: Math.max(fontSize * 1.25, lineCount * fontSize * 1.25) };
+  }
   const tapered = shape.type === "diamond" || ["decision", "data", "hexagon", "parallelogram", "trapezoid", "pentagon", "octagon", "chevron", "shield"].includes(shape.flowchartShape ?? "");
-  const insetX = Math.min(width / 2, tapered ? Math.max(12, width * .2) : 12);
-  const insetY = Math.min(height / 2, shape.flowchartShape === "database" ? Math.max(12, height * .22) : 12);
+  const insetX = Math.min(width / 2, tapered ? Math.min(12, width * .2) : Math.min(12, Math.max(1, width * .08)));
+  const insetY = Math.min(height / 2, shape.flowchartShape === "database" ? Math.min(12, height * .22) : Math.min(12, Math.max(1, height * .1)));
   return { x: Math.min(shape.x, shape.x + shape.w) + insetX, y: Math.min(shape.y, shape.y + shape.h) + insetY, w: Math.max(1, Math.abs(shape.w) - insetX * 2), h: Math.max(1, Math.abs(shape.h) - insetY * 2) };
 }
 

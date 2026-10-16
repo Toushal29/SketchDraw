@@ -3,6 +3,7 @@ import { BOX_ANCHORS, anchorPoint, isConnectable, isConnector } from "../../oper
 import { elementBounds } from "./bounds";
 import { traceConnector } from "./geometry";
 import { elementSpatialIndex } from "./spatial-index";
+import { gridStepForStyle, isometricRowHeight, isometricRowOffset, type CanvasGridStyle } from "./input";
 
 type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; snapTargets: { x: number[]; y: number[] }; targets: Map<string, Element> };
 type AlignmentGuides = { x?: number; y?: number };
@@ -63,28 +64,26 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
   function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, state: CanvasState) {
     const style = ports.whiteboardStyle();
     if (!ports.showGrid() || style === "plain") return;
-    const multiplier = Math.max(1, 2 ** Math.max(0, Math.ceil(Math.log2(0.65 / state.zoom))));
-    const baseStep = style === "small-dots" || style === "small-grid" ? 12 : style === "ruled" ? 30 : ports.gridSize;
-    const step = baseStep * multiplier; const left = -state.panX / state.zoom; const top = -state.panY / state.zoom;
+    const step = gridStepForStyle(style as CanvasGridStyle, ports.gridSize, state.zoom); const left = -state.panX / state.zoom; const top = -state.panY / state.zoom;
     const right = (width - state.panX) / state.zoom; const bottom = (height - state.panY) / state.zoom;
     const hex = ports.renderedBoardColor().replace("#", ""); const rgb = Number.parseInt(hex.length === 3 ? hex.split("").map(part => part + part).join("") : hex, 16); const luminance = (0.2126 * ((rgb >> 16) & 255)) + (0.7152 * ((rgb >> 8) & 255)) + (0.0722 * (rgb & 255));
     ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
-    const startX = Math.floor(left / step) * step; const startY = Math.floor(top / step) * step;
+    const startColumn = Math.floor(left / step); const startRowIndex = Math.floor(top / step);
     ctx.strokeStyle = luminance < 130 ? "#353a45" : "#e4e5e2"; ctx.lineWidth = 0.75 / state.zoom; ctx.beginPath();
     if (style === "lines" || style === "small-grid") {
-      for (let x = startX; x <= right; x += step) { ctx.moveTo(x, top); ctx.lineTo(x, bottom); }
-      for (let y = startY; y <= bottom; y += step) { ctx.moveTo(left, y); ctx.lineTo(right, y); }
+      for (let column = startColumn; column * step <= right; column++) { const x = column * step; ctx.moveTo(x, top); ctx.lineTo(x, bottom); }
+      for (let row = startRowIndex; row * step <= bottom; row++) { const y = row * step; ctx.moveTo(left, y); ctx.lineTo(right, y); }
       ctx.stroke();
     } else if (style === "ruled") {
-      for (let y = startY; y <= bottom; y += step) { ctx.moveTo(left, y); ctx.lineTo(right, y); }
+      for (let row = startRowIndex; row * step <= bottom; row++) { const y = row * step; ctx.moveTo(left, y); ctx.lineTo(right, y); }
       ctx.stroke();
     } else if (style === "isometric") {
       // Index from the document origin so the pattern shares the fixed grid snap origin.
-      const rowStep = step * Math.sqrt(3) / 2;
+      const rowStep = isometricRowHeight(step);
       const firstRow = Math.floor(top / rowStep) - 1; const lastRow = Math.ceil(bottom / rowStep) + 1;
       const firstX = left - step; const lastX = right + step;
       for (let row = firstRow; row <= lastRow; row++) {
-        const y = row * rowStep; const phase = Math.abs(row % 2) === 1 ? step / 2 : 0;
+        const y = row * rowStep; const phase = isometricRowOffset(row, step);
         const firstColumn = Math.floor((firstX - phase) / step); const lastColumn = Math.ceil((lastX - phase) / step);
         for (let column = firstColumn; column <= lastColumn; column++) {
           const x = column * step + phase;
@@ -96,7 +95,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     } else {
       ctx.fillStyle = luminance < 130 ? "#414653" : "#deddd6"; const radius = (style === "small-dots" ? 0.65 : 0.85) / state.zoom;
       ctx.beginPath();
-      for (let x = startX; x <= right; x += step) for (let y = startY; y <= bottom; y += step) { ctx.moveTo(x + radius, y); ctx.arc(x, y, radius, 0, Math.PI * 2); }
+      for (let column = startColumn; column * step <= right; column++) for (let row = startRowIndex; row * step <= bottom; row++) { const x = column * step; const y = row * step; ctx.moveTo(x + radius, y); ctx.arc(x, y, radius, 0, Math.PI * 2); }
       ctx.fill();
     }
     ctx.restore();
@@ -163,7 +162,15 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         const moved = !!drag?.targets.has(item.id ?? ""); const bounds = elementBounds(item);
         const visibleBounds = moved ? { ...bounds, x: bounds.x + drag!.dx, y: bounds.y + drag!.dy } : bounds;
         if (item.hidden || item.locked || !ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) continue;
-        if (item.type === "group") { drawPorts(item.elements); continue; } if (!isConnectable(item)) continue;
+        if (item.type === "group") {
+          if (item.componentBounds && item.libraryComponent) {
+            if (moved) { ctx.save(); ctx.translate(drag!.dx, drag!.dy); }
+            for (const anchor of BOX_ANCHORS) { const point = anchorPoint(item, anchor); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
+            if (moved) ctx.restore();
+          }
+          drawPorts(item.elements); continue;
+        }
+        if (!isConnectable(item)) continue;
         if (moved) { ctx.save(); ctx.translate(drag!.dx, drag!.dy); }
         const anchors: { anchor: Point; rowId?: string }[] = [
           ...BOX_ANCHORS.map(anchor => ({ anchor })),

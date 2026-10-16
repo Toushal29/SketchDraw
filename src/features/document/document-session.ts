@@ -17,7 +17,7 @@ export function createDocumentSession() {
   const [activePath, setActivePath] = createSignal<string>();
   const [projectWorkspaceData, setProjectWorkspaceData] = createSignal<ProjectWorkspaceData>(createProjectWorkspace());
   // Retired Library collections remain in the archive for round-trip safety.
-  // Notebook edits only quickNotes in the in-memory compatibility model.
+  // Legacy quick notes are moved into Planning when a document is opened.
   const [legacyLibraryData, setLegacyLibraryData] = createSignal<PersonalLibraryData>(createLegacyLibraryData());
   const [workspaceArea, setWorkspaceArea] = createSignal<WorkspaceArea>("canvas");
   const [readOnlyView, setReadOnlyView] = createSignal(false);

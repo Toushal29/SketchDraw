@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
-import type { ProjectFileEntry, ProjectLogEntry, ProjectMilestone, ProjectNote, ProjectTask, ProjectTaskStatus, ProjectWorkspaceData } from "../../model";
+import type { ProjectChecklistItem, ProjectFileEntry, ProjectLogEntry, ProjectMilestone, ProjectNote, ProjectTask, ProjectTaskStatus, ProjectWorkspaceData } from "../../model";
 import { ProjectCalendar } from "./ProjectCalendar";
 import { ProjectFiles } from "./ProjectFiles";
 import { ProjectLog } from "./ProjectLog";
@@ -8,7 +8,7 @@ import { formatProjectDate, isProjectTaskOverdue, projectTaskWarnings, TASK_PRIO
 import type { DocumentWorkspaceArea } from "../workspace/workspace-types";
 import "./project-workspace.css";
 
-export type ProjectWorkspaceView = "home" | "notes" | "tasks" | "kanban" | "timeline" | "calendar" | "log" | "files";
+export type ProjectWorkspaceView = "home" | "notes" | "tasks" | "checklist" | "kanban" | "timeline" | "calendar" | "log" | "files";
 type Props = {
   data: ProjectWorkspaceData;
   editable: boolean;
@@ -23,7 +23,7 @@ const TASK_COLUMNS: { value: ProjectTaskStatus; label: string }[] = [
 ];
 const VIEWS: { value: ProjectWorkspaceView; label: string }[] = [
   { value: "home", label: "Project Home" }, { value: "notes", label: "Notes" },
-  { value: "tasks", label: "Tasks" }, { value: "kanban", label: "Kanban" },
+  { value: "tasks", label: "Tasks" }, { value: "checklist", label: "Checklist" }, { value: "kanban", label: "Kanban" },
   { value: "timeline", label: "Timeline" }, { value: "calendar", label: "Calendar" },
   { value: "log", label: "Decision log" }, { value: "files", label: "Files" },
 ];
@@ -32,6 +32,7 @@ export function ProjectWorkspace(props: Props) {
   const [view, setView] = createSignal<ProjectWorkspaceView>("home");
   const [selectedNoteId, setSelectedNoteId] = createSignal(props.data.notes[0]?.id ?? "");
   const [taskDraft, setTaskDraft] = createSignal("");
+  const [checklistDraft, setChecklistDraft] = createSignal("");
   const [draggedTaskId, setDraggedTaskId] = createSignal<string>();
   const [dragOverTaskId, setDragOverTaskId] = createSignal<string>();
   const [dragOverColumn, setDragOverColumn] = createSignal<ProjectTaskStatus>();
@@ -45,6 +46,18 @@ export function ProjectWorkspace(props: Props) {
   const updateTask = (id: string, patch: Partial<ProjectTask>) => {
     const now = Date.now();
     update({ tasks: props.data.tasks.map(task => task.id === id ? { ...task, ...patch, updatedAt: now } : task) });
+  };
+  const updateChecklistItem = (id: string, patch: Partial<ProjectChecklistItem>) => {
+    if (!props.editable) return;
+    update({ checklist: props.data.checklist.map(item => item.id === id ? { ...item, ...patch } : item) });
+  };
+  const addChecklistItem = (event?: SubmitEvent) => {
+    event?.preventDefault();
+    const text = checklistDraft().trim();
+    if (!text || !props.editable) return;
+    const item: ProjectChecklistItem = { id: crypto.randomUUID(), text: text.slice(0, 2000), done: false };
+    update({ checklist: [...props.data.checklist, item] });
+    setChecklistDraft("");
   };
   const createNote = () => {
     if (!props.editable) return;
@@ -171,7 +184,7 @@ export function ProjectWorkspace(props: Props) {
   return (
     <section class="project-workspace-overlay" aria-label="Project workspace">
       <nav class="project-workspace-nav" aria-label="Project sections">
-        <For each={VIEWS}>{item => <button class={view() === item.value ? "active" : ""} aria-current={view() === item.value ? "page" : undefined} onClick={() => openView(item.value)}>{item.label}{item.value === "tasks" && <span>{props.data.tasks.length}</span>}</button>}</For>
+        <For each={VIEWS}>{item => <button class={view() === item.value ? "active" : ""} aria-current={view() === item.value ? "page" : undefined} onClick={() => openView(item.value)}>{item.label}{item.value === "tasks" && <span>{props.data.tasks.length}</span>}{item.value === "checklist" && <span>{props.data.checklist.filter(entry => entry.done).length}/{props.data.checklist.length}</span>}</button>}</For>
       </nav>
 
       <main class="project-workspace-content">
@@ -200,6 +213,7 @@ export function ProjectWorkspace(props: Props) {
             <nav class="project-home-shortcuts" aria-label="Project tools">
               <button onClick={() => setView("timeline")}><strong>Timeline</strong><span>{props.data.milestones.length} milestones</span></button>
               <button onClick={() => setView("calendar")}><strong>Calendar</strong><span>Deadlines &amp; dates</span></button>
+              <button onClick={() => setView("checklist")}><strong>Checklist</strong><span>{props.data.checklist.filter(item => item.done).length}/{props.data.checklist.length} complete</span></button>
               <button onClick={() => setView("log")}><strong>Decisions &amp; risks</strong><span>{props.data.logEntries.length} records</span></button>
               <button onClick={() => setView("files")}><strong>Project files</strong><span>{props.data.files.length} items</span></button>
             </nav>
@@ -228,7 +242,8 @@ export function ProjectWorkspace(props: Props) {
             <section class="project-task-list" aria-label="Project task list"><Show when={props.data.tasks.length} fallback={<div class="project-empty-state"><strong>No tasks yet</strong><p>Add one above to start a lightweight project plan.</p></div>}>
               <For each={props.data.tasks.map(task => task.id)}>{id => { const task = () => props.data.tasks.find(item => item.id === id)!; const warnings = () => projectTaskWarnings(task(), props.data.tasks); return <article class={`project-task-row ${task().status === "done" ? "is-done" : ""}`}>
                 <button class="project-task-check" disabled={!props.editable} aria-label={task().status === "done" ? `Mark ${task().title} as to do` : `Complete ${task().title}`} onClick={() => updateTask(id, { status: task().status === "done" ? "backlog" : "done" })}>{task().status === "done" ? "\u2713" : ""}</button>
-                <div class="project-task-main"><input disabled={!props.editable} value={task().title} maxlength="300" aria-label="Task title" onInput={event => updateTask(id, { title: event.currentTarget.value })} /><Show when={props.editable} fallback={<p>{task().description}</p>}><textarea value={task().description} maxlength="20000" placeholder="Add details" aria-label={`Details for ${task().title}`} onInput={event => updateTask(id, { description: event.currentTarget.value })} /></Show><Show when={warnings().length}><span class="project-task-warning" title={warnings().join("; ")}>{warnings()[0]}</span></Show></div>
+                <div class="project-task-main"><input disabled={!props.editable} value={task().title} maxlength="300" aria-label="Task title" onInput={event => updateTask(id, { title: event.currentTarget.value })} /><Show when={props.editable} fallback={<p>{task().description}</p>}><textarea value={task().description} maxlength="20000" placeholder="Add details" aria-label={`Details for ${task().title}`} onInput={event => updateTask(id, { description: event.currentTarget.value })} /></Show>
+                  <Show when={warnings().length}><span class="project-task-warning" title={warnings().join("; ")}>{warnings()[0]}</span></Show></div>
                 <label class="project-task-field"><span>Status</span><select disabled={!props.editable} value={task().status} onChange={event => updateTask(id, { status: event.currentTarget.value as ProjectTaskStatus })}>{TASK_COLUMNS.map(column => <option value={column.value}>{column.label}</option>)}</select></label>
                 <label class={`project-task-field project-priority-field priority-${task().priority}`}><span>Priority</span><select disabled={!props.editable} value={task().priority} onChange={event => updateTask(id, { priority: event.currentTarget.value as ProjectTask["priority"] })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
                 <label class="project-task-field"><span>Start</span><input type="date" disabled={!props.editable} value={task().startDate ?? ""} onInput={event => updateTask(id, { startDate: event.currentTarget.value || undefined })} /></label>
@@ -236,6 +251,20 @@ export function ProjectWorkspace(props: Props) {
                 <details class="project-dependency-picker"><summary>Dependencies ({(task().dependsOn ?? []).length})</summary><Show when={props.data.tasks.some(item => item.id !== id)} fallback={<small>Add another task first.</small>}><div>{props.data.tasks.filter(item => item.id !== id).map(dependency => <label><input type="checkbox" disabled={!props.editable} checked={(task().dependsOn ?? []).includes(dependency.id)} onChange={event => updateTask(id, { dependsOn: event.currentTarget.checked ? [...new Set([...(task().dependsOn ?? []), dependency.id])] : (task().dependsOn ?? []).filter(item => item !== dependency.id) })} /><span>{dependency.title || "Untitled task"}</span></label>)}</div></Show></details>
                 <div class="project-task-row-actions"><button disabled={!props.editable} title="Move task to the top" onClick={() => reorderTask(id, task().status, "top")}>Top</button><button disabled={!props.editable} title="Move task to the bottom" onClick={() => reorderTask(id, task().status, "bottom")}>Bottom</button><button class="project-task-delete" disabled={!props.editable} aria-label={`Delete ${task().title}`} title="Delete task" onClick={() => deleteTask(id)}>&times;</button></div>
               </article>; }}</For>
+            </Show></section>
+          </div>
+        </Show>
+
+        <Show when={view() === "checklist"}>
+          <div class="project-page project-checklist-page">
+            <div class="project-page-heading"><div><span class="project-eyebrow">PROJECT CHECKLIST</span><h1>Checklist</h1><p>Keep a standalone list of steps alongside the task board.</p></div><small class="project-checklist-progress">{props.data.checklist.filter(item => item.done).length} of {props.data.checklist.length} complete</small></div>
+            <form class="project-add-task project-add-checklist-item" onSubmit={addChecklistItem}><input value={checklistDraft()} disabled={!props.editable} maxlength="2000" placeholder="Add a checklist item..." aria-label="New checklist item" onInput={event => setChecklistDraft(event.currentTarget.value)} /><button disabled={!props.editable || !checklistDraft().trim()}>Add item</button></form>
+            <section class="project-checklist-list" aria-label="Project checklist items"><Show when={props.data.checklist.length} fallback={<div class="project-empty-state"><strong>No checklist items yet</strong><p>Add a few steps to track small pieces of work that do not need their own task.</p></div>}>
+              <For each={props.data.checklist.map(item => item.id)}>{id => { const item = () => props.data.checklist.find(entry => entry.id === id)!; return <div class={`project-checklist-row ${item().done ? "is-done" : ""}`}>
+                <input type="checkbox" checked={item().done} disabled={!props.editable} aria-label={`${item().done ? "Reopen" : "Complete"} ${item().text || "checklist item"}`} onChange={event => updateChecklistItem(id, { done: event.currentTarget.checked })} />
+                <Show when={props.editable} fallback={<span>{item().text}</span>}><input class="project-checklist-text" value={item().text} maxlength="2000" aria-label="Checklist item text" onInput={event => updateChecklistItem(id, { text: event.currentTarget.value })} /></Show>
+                <Show when={props.editable}><button type="button" aria-label={`Remove ${item().text || "checklist item"}`} title="Remove checklist item" onClick={() => update({ checklist: props.data.checklist.filter(entry => entry.id !== id) })}>&times;</button></Show>
+              </div>; }}</For>
             </Show></section>
           </div>
         </Show>

@@ -627,6 +627,18 @@
     background: #fff;
 }
 
+.help-guide-feature-map,
+.help-guide-use-cases { grid-column: 1 / -1; }
+.help-feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.help-feature-grid article { display: grid; align-content: start; gap: 4px; padding: 10px; border: 1px solid #eceee9; border-radius: 7px; background: #fafbf9; }
+.help-feature-grid strong,
+.help-use-case-grid strong { color: #41433d; font-size: 11px; }
+.help-feature-grid p { margin: 0; color: #6e7169; font-size: 11px; line-height: 1.5; }
+.help-guide-use-cases > p { margin: 0 0 10px; color: #6e7169; }
+.help-use-case-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 0; padding: 0; list-style: none; }
+.help-use-case-grid li { display: grid; align-content: start; gap: 4px; padding: 9px; border: 1px solid #eceee9; border-radius: 7px; background: #fafbf9; }
+.help-use-case-grid span { color: #6e7169; font-size: 10px; line-height: 1.45; }
+
 .help-guide h3,
 .help-shortcuts-section h3 {
     margin: 0 0 6px;
@@ -749,6 +761,13 @@
     border-color: #414550;
     background: #30343d;
 }
+.theme-dark .help-feature-grid article,
+.theme-dark .help-use-case-grid li { border-color: #414550; background: #292c33; }
+.theme-dark .help-feature-grid strong,
+.theme-dark .help-use-case-grid strong { color: #e0e2e6; }
+.theme-dark .help-feature-grid p,
+.theme-dark .help-guide-use-cases > p,
+.theme-dark .help-use-case-grid span { color: #b9bdc5; }
 
 .theme-dark .shortcut-table thead th,
 .theme-dark .shortcut-table tbody td {
@@ -787,6 +806,11 @@
     .help-guide {
         grid-template-columns: 1fr;
     }
+}
+
+@media (max-width: 540px) {
+    .help-feature-grid,
+    .help-use-case-grid { grid-template-columns: 1fr; }
 }
 
 .canvas-utility-button {

@@ -22,6 +22,7 @@ export function unionBounds(boxes: Bounds[]): Bounds | undefined {
 export function elementBounds(element: Element): Bounds {
   const cached = boundsCache.get(element); if (cached) return cached;
   if (element.type === "group") {
+    if (element.componentBounds) return cacheBounds(element, rotatedBounds(element.componentBounds, element.rotation ?? 0));
     if (element.note) {
       const surface = element.elements.find((child): child is ShapeElement => child.type === "rectangle");
       if (surface) return cacheBounds(element, rotatedBounds({ x: surface.x, y: surface.y, w: Math.abs(surface.w), h: Math.abs(surface.h) }, element.rotation ?? 0));
@@ -56,6 +57,40 @@ export function elementBounds(element: Element): Bounds {
     return cacheBounds(element, rotatedBounds(boundsOfPoints(points, element.thickness / 2 + doubleOffset), element.rotation ?? 0));
   }
   return cacheBounds(element, rotatedBounds({ x, y, w, h }, element.rotation ?? 0));
+}
+
+/** Returns the item's geometric bounds without stroke, shadow, or arrowhead padding. */
+export function elementGridBounds(element: Element): Bounds | undefined {
+  if (element.type === "group") {
+    if (element.componentBounds) return { ...element.componentBounds };
+    return unionBounds(element.elements.filter(child => !child.hidden).flatMap(child => {
+      const bounds = elementGridBounds(child);
+      return bounds ? [bounds] : [];
+    }));
+  }
+  if (element.type === "freehand") return boundsOfPoints(element.points);
+  if (element.type === "line" || element.type === "arrow") {
+    const points: Point[] = [
+      { x: element.x, y: element.y },
+      { x: element.x + element.w, y: element.y + element.h },
+      ...(element.routePoints ?? []),
+      ...(element.routeWaypoints ?? []),
+      ...(element.forkUpper?.end ? [element.forkUpper.end] : []),
+      ...(element.forkUpper?.routePoints ?? []),
+      ...(element.forkLower?.end ? [element.forkLower.end] : []),
+      ...(element.forkLower?.routePoints ?? []),
+    ];
+    return boundsOfPoints(points);
+  }
+  if (element.type === "text") return { x: element.x, y: element.y, w: 0, h: 0 };
+  if ("x" in element && "y" in element) {
+    const width = "w" in element ? element.w : 0;
+    const height = "h" in element ? element.h : 0;
+    const x = Math.min(element.x, element.x + width);
+    const y = Math.min(element.y, element.y + height);
+    return { x, y, w: Math.abs(width), h: Math.abs(height) };
+  }
+  return undefined;
 }
 
 export function rotatedBounds(bounds: Bounds, degrees: number): Bounds {

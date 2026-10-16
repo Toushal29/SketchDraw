@@ -63,6 +63,7 @@ function snapshotEntries(snapshot: SketchFile): Map<string, string> {
   current.set("w:meta", JSON.stringify({ name: project.name, description: project.description }));
   for (const note of project.notes) current.set(`w:n:${note.id}`, JSON.stringify(note));
   for (const task of project.tasks) current.set(`w:t:${task.id}`, JSON.stringify(task));
+  for (const item of project.checklist ?? []) current.set(`w:c:${item.id}`, JSON.stringify(item));
   for (const milestone of project.milestones) current.set(`w:m:${milestone.id}`, JSON.stringify(milestone));
   for (const entry of project.logEntries) current.set(`w:l:${entry.id}`, JSON.stringify(entry));
   for (const file of project.files) current.set(`w:f:${file.id}`, JSON.stringify(file));
@@ -78,7 +79,7 @@ function snapshotEntries(snapshot: SketchFile): Map<string, string> {
 }
 
 function emptyProject(): ProjectWorkspaceData {
-  return { name: "Untitled project", description: "", notes: [], tasks: [], milestones: [], logEntries: [], files: [] };
+  return { name: "Untitled project", description: "", notes: [], tasks: [], checklist: [], milestones: [], logEntries: [], files: [] };
 }
 
 function emptyLibrary(): PersonalLibraryData {
@@ -191,6 +192,7 @@ export function mergeLatestSnapshots(left: SketchFile, right: SketchFile): Sketc
     ...projectMetadata,
     notes: mergeWorkspaceItems("n", leftProject.notes, rightProject.notes),
     tasks: mergeWorkspaceItems("t", leftProject.tasks, rightProject.tasks),
+    checklist: mergeWorkspaceItems("c", leftProject.checklist ?? [], rightProject.checklist ?? []),
     milestones: mergeWorkspaceItems("m", leftProject.milestones, rightProject.milestones),
     logEntries: mergeWorkspaceItems("l", leftProject.logEntries, rightProject.logEntries),
     files: mergeWorkspaceItems("f", leftProject.files, rightProject.files),

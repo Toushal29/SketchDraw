@@ -23,6 +23,7 @@ import "./platform/windows/windows.css";
 import "./features/workspace/workspace-shell.css";
 import "./styles/dark-theme-refresh.css";
 import "./styles/workspace-ui.css";
+import "./styles/property-panel-redesign.css";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
@@ -31,7 +32,7 @@ import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, is
 import type { NoteKind } from "./model";
 import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryChartData, type LibraryComponentKind } from "./notes";
 import { parseSchema } from "./schema";
-import { assignLibraryComponentIds, libraryComponentFields, libraryComponentFontSize, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, setLibraryChartTrend, setLibraryCheckboxOption, setLibraryComponentField, setLibraryFormState, setLibraryFormTitle, setLibraryRadioOption } from "./features/components/library-component-editor";
+import { assignLibraryComponentIds, libraryComponentFields, libraryComponentFontSize, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryChartTrend, setLibraryCheckboxOption, setLibraryComponentField, setLibraryFormState, setLibraryFormTitle, setLibraryLifelineLength, setLibraryPortCount, setLibraryRadioOption } from "./features/components/library-component-editor";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
 import { GestureSettings, TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, readTouchGestureAction, readTouchTapAction, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./platform/mobile/GestureSettings";
 import { TouchPageMenu } from "./platform/mobile/TouchPageMenu";
@@ -45,18 +46,20 @@ import { DesktopPageTabs } from "./platform/windows/DesktopPageTabs";
 import { WindowsShapePalette, type WindowsShapeChoice } from "./platform/windows/WindowsShapePalette";
 import { CanvasOptionsMenu } from "./components/CanvasOptionsMenu";
 import { AppSettingsMenu, type DisplayMetrics } from "./components/AppSettingsMenu";
+import { HelpFeatureCatalog } from "./components/HelpFeatureCatalog";
 import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/PropertyPanelIcons";
 import { FLOWCHART_MENU_SHAPES } from "./features/diagrams/config";
 import { arrowHeadPoints, arrowHeadSvgPath, pointInPolygon, traceFlowchart, flowchartPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, connectorSvgPath, flowchartSvgPath, vectorFlowchartPath, flowchartSvgDetailPath, flowchartDatabaseRimPath } from "./features/canvas/geometry";
-import { unionBounds, elementBounds, distanceToSegment } from "./features/canvas/bounds";
+import { unionBounds, elementBounds, elementGridBounds, distanceToSegment } from "./features/canvas/bounds";
 import { elementSpatialIndex } from "./features/canvas/spatial-index";
 import { getToolLayers, reorderToolLayer, toggleToolLayer } from "./features/canvas/tool-layers";
 import { createCanvasHistory } from "./features/canvas/history";
-import { pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePoint } from "./features/canvas/input";
+import { gridStepForStyle, gridSvgPattern, pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePoint } from "./features/canvas/input";
 import { canGroupSelection, deletableSelectionCount as countDeletableSelection, focusedSelectionElement, isGroupSelection, primarySelectionIndex, selectedElements as getSelectedElements } from "./features/canvas/selection";
 import { createCanvasRenderScheduler, drawShapeLabel, fontCss, shapeLabelSvg, themeInk } from "./features/canvas/rendering";
 import { createCanvasSceneRenderer, transformHandlePoints } from "./features/canvas/scene-renderer";
 import { drawLibraryChart } from "./features/components/chart-renderer";
+import { drawModelComponent, modelComponentSvg } from "./features/components/model-component-renderer";
 import { createFreehandRenderer, freehandSvg, stylusStrokeWidth } from "./features/canvas/freehand-rendering";
 import { createStrokeSampleGate } from "./features/canvas/stroke-input";
 import { MAX_STROKE_POINTS } from "./features/canvas/stroke-limits";
@@ -72,7 +75,6 @@ import { autoRoutePoints } from "./platform/windows/connector-routing";
 import { ProjectWorkspace } from "./features/project/ProjectWorkspace";
 import { createProjectWorkspace } from "./features/project/project-data";
 import { createLegacyLibraryData } from "./features/files/legacy-library-data";
-import { Notebook } from "./features/notebook/Notebook";
 import { WorkspaceAreaTabs } from "./features/workspace/WorkspaceAreaTabs";
 import type { WorkspaceArea } from "./features/workspace/workspace-types";
 import { createDocumentSession } from "./features/document/document-session";
@@ -121,7 +123,7 @@ function releaseVersionForPlatform(release: Record<string, unknown>): string {
   return marker?.[1] ?? tag;
 }
 
-const GRID_SIZE = 24;
+const GRID_SIZE = 25;
 const TOUCH_DRAG_THRESHOLD = 8;
 const BOARD_COLORS = ["#ffffff", "#fffdf7", "#f4f7fb", "#fbf2ed", "#f1f5ed", "#f3f0fa"];
 const UI_ACCENTS = [
@@ -211,7 +213,7 @@ function App() {
     activePageId, setActivePageId,
     activePath, setActivePath,
     projectWorkspaceData, setProjectWorkspaceData,
-    legacyLibraryData, setLegacyLibraryData,
+    legacyLibraryData,
     workspaceArea, setWorkspaceArea,
     readOnlyView, setReadOnlyView,
     dirty, setDirty,
@@ -302,7 +304,15 @@ function App() {
   const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "error">("idle");
   const [updateVersion, setUpdateVersion] = createSignal<string>();
   const [helpSection, setHelpSection] = createSignal<"guide" | "shortcuts">("guide");
-  const [defaultFontSize, setDefaultFontSize] = createSignal(16);
+  const storedDefaultFontSize = Number(readPreference("sketchdraw-default-font-size", "12"));
+  const [defaultFontSize, setDefaultFontSize] = createSignal(Number.isFinite(storedDefaultFontSize) && storedDefaultFontSize >= 8 && storedDefaultFontSize <= 160 ? Math.round(storedDefaultFontSize) : 12);
+  const rememberFontSize = (requestedSize: number) => {
+    if (!Number.isFinite(requestedSize)) return defaultFontSize();
+    const size = Math.round(Math.max(8, Math.min(160, requestedSize)));
+    setDefaultFontSize(size);
+    try { localStorage.setItem("sketchdraw-default-font-size", String(size)); } catch { /* The selected size remains active for this session. */ }
+    return size;
+  };
   const [defaultFontFamily, setDefaultFontFamily] = createSignal<FontFamily>("sans");
   const [defaultBold, setDefaultBold] = createSignal(false);
   const [defaultItalic, setDefaultItalic] = createSignal(false);
@@ -414,6 +424,8 @@ function App() {
   let windowsFocusUsedDocumentFullscreen = false;
   let presentationOwnsFullscreen = false;
   let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; snapTargets: { x: number[]; y: number[] }; targets: Map<string, Element> } | undefined;
+  let libraryControlOrigin: { index: number } | undefined;
+  let labelMoveOrigin: { index: number; point: Point; before: Element[]; offsetX: number; offsetY: number; rotation: number; moved: boolean } | undefined;
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number } | undefined;
   let resizeOrigin: { index: number; handle: string; start: Point; original: Element; before: Element[]; moved: boolean } | undefined;
   const [nativeBusy, setNativeBusy] = createSignal(false);
@@ -489,15 +501,54 @@ function App() {
     setElements(items => items.map((item, index) => selected.has(index) && canMoveElement(item) ? operation(item) : item));
     if (JSON.stringify(before) !== JSON.stringify(elements())) { pushUndo(before); setDirty(true); }
   }
+  function geometryBounds(item: Element): Bounds | undefined {
+    if (item.type === "group") return item.note ? undefined : item.componentBounds ?? elementBounds(item.libraryComponent ? { ...item, rotation: 0 } : item);
+    if (item.type === "freehand" || isConnector(item)) return undefined;
+    if ("x" in item && "y" in item) return { x: item.x, y: item.y, w: "w" in item ? Math.abs(item.w) : 0, h: "h" in item ? Math.abs(item.h) : 0 };
+    return undefined;
+  }
+  function selectedGeometryElement(): Element | undefined {
+    return selectedIndices().length === 1 ? elements()[selectedIndices()[0]] : undefined;
+  }
+  function selectedLifelineGroup(): GroupElement | undefined {
+    const item = selectedGeometryElement();
+    return item?.type === "group" && item.libraryComponent?.kind === "uml-lifeline" ? item : undefined;
+  }
+  function selectedGeometryBounds(): Bounds | undefined {
+    const item = selectedGeometryElement();
+    return item ? geometryBounds(item) : undefined;
+  }
+  function selectedGeometryCanResize(): boolean {
+    const item = selectedGeometryElement();
+    return !!item && (item.type === "group" ? !item.note : item.type !== "freehand" && !isConnector(item) && "w" in item);
+  }
+  function selectedGeometryCanRotate(): boolean {
+    const item = selectedGeometryElement();
+    return !!item && !isConnector(item) && (item.type !== "group" || !!item.libraryComponent);
+  }
+  function selectedGeometryMin(axis: "w" | "h"): number {
+    const item = selectedGeometryElement();
+    if (!item) return 2;
+    if (item.type === "group" && item.libraryComponent) return libraryComponentMinimum(item, axis);
+    if (item.type === "schemaTable") return axis === "w" ? Math.max(190, ...item.columns.map(column => (column.name.length + (column.dataType || "type").length) * (item.fontSize ?? 12) * .36 + 80)) : Math.max(42, (item.fontSize ?? 12) * 2.8) + item.columns.length * Math.max(30, (item.fontSize ?? 12) * 1.8);
+    return 2;
+  }
   function precision(property: "x" | "y" | "w" | "h" | "rotation", value: number) {
     if (!Number.isFinite(value) || Math.abs(value) > 1_000_000) return;
     changeSelected(item => {
-      const bounds = elementBounds(item);
+      const bounds = geometryBounds(item) ?? elementBounds(item);
       if (property === "x" || property === "y") return moveElement(item, property === "x" ? value - bounds.x : 0, property === "y" ? value - bounds.y : 0);
-      if (property === "rotation") return isConnector(item) || item.type === "group" ? item : { ...item, rotation: value % 360 };
+      if (property === "rotation") return isConnector(item) || item.type === "group" && !item.libraryComponent ? item : { ...item, rotation: value % 360 };
       if (item.type === "text") return { ...item, fontSize: Math.round(Math.max(8, Math.min(160, item.fontSize * value / Math.max(1, bounds[property])))) };
-      if (item.type === "group" || item.type === "freehand" || isConnector(item)) return item;
-      return { ...item, [property]: Math.max(2, value) };
+      if (item.type === "group" && !item.note) {
+        const minimum = item.libraryComponent ? libraryComponentMinimum(item, property) : 2;
+        return resizeLibraryGroup(item, { ...bounds, [property]: Math.max(minimum, Math.min(4000, value)) });
+      }
+      if (item.type === "freehand" || isConnector(item) || !("w" in item)) return item;
+      const minWidth = item.type === "schemaTable" ? Math.max(190, ...item.columns.map(column => (column.name.length + (column.dataType || "type").length) * (item.fontSize ?? 12) * .36 + 80)) : 2;
+      const minHeight = item.type === "schemaTable" ? Math.max(42, (item.fontSize ?? 12) * 2.8) + item.columns.length * Math.max(30, (item.fontSize ?? 12) * 1.8) : 2;
+      const size = Math.max(property === "w" ? minWidth : 2, property === "h" ? minHeight : 2, value);
+      return { ...item, [property]: Math.sign(item[property]) * size };
     });
   }
   function alignSelection(command: "left" | "center" | "right" | "top" | "middle" | "bottom" | "horizontal" | "vertical") {
@@ -584,6 +635,12 @@ function App() {
     if (!isWindowsPlatform() || item.straightOnly || !item.autoRoute || (item.type !== "line" && item.type !== "arrow")) return item;
     return { ...item, lineRoute: item.type === "line" ? "straight" : undefined, arrowRoute: item.type === "arrow" ? "straight" : undefined, routePoints: autoRoutePoints(item, sourceItems) };
   }
+  function connectorIsStraight(item: Element | undefined): item is ShapeElement {
+    if (!item || !isConnector(item)) return false;
+    if (item.straightOnly) return true;
+    const route = item.type === "arrow" ? item.arrowRoute ?? "straight" : item.lineRoute ?? "straight";
+    return route === "straight" && !item.autoRoute && !item.routePoints?.length;
+  }
   function connectorHandles(item: ShapeElement) {
     const viewItem = connectorForView(item);
     if (item.straightOnly) return [{ id: "start", x: item.x, y: item.y }, { id: "end", x: item.x + item.w, y: item.y + item.h }];
@@ -649,6 +706,16 @@ function App() {
       return { ...item, x: start.x, y: start.y, w: finish.x - start.x, h: finish.y - start.y, [end === "start" ? "startBinding" : "endBinding"]: undefined };
     });
   }
+  function setStraightConnectorLength(requestedLength: number) {
+    const focused = focusedElement();
+    if (!Number.isFinite(requestedLength) || requestedLength < 1 || requestedLength > 1_000_000 || !connectorIsStraight(focused)) return;
+    const currentLength = Math.hypot(focused.w, focused.h);
+    if (currentLength < 1) return;
+    const scale = requestedLength / currentLength;
+    changeSelected(item => connectorIsStraight(item)
+      ? { ...item, w: item.w * scale, h: item.h * scale, endBinding: undefined }
+      : item);
+  }
   function setForkEndpoint(branchName: "upper" | "lower", axis: "x" | "y", value: number) {
     if (!Number.isFinite(value) || Math.abs(value) > 1_000_000) return;
     changeSelected(item => {
@@ -660,7 +727,7 @@ function App() {
     });
   }
   function editShapeLabel(index: number, pointerId?: number) {
-    const shape = elements()[index]; if (!shape || !isLabelShape(shape) || shape.locked || boardLocked()) return;
+    const shape = elements()[index]; if (!shape || !(isLabelShape(shape) || isConnector(shape)) || shape.locked || boardLocked()) return;
     commitTextDraft(); setSelectedIndices([index]); setTool("select");
     textEditorPendingPointerId = isWindowsPlatform() ? undefined : pointerId;
     const box = labelBox(shape); const label = shape.label;
@@ -677,7 +744,7 @@ function App() {
   function updateLabel(property: keyof ShapeLabel, value: string | number | boolean) {
     if (boardLocked() || focusedElement()?.locked) return;
     setTextDraft(draft => draft?.shapeLabel ? { ...draft, [property]: value } : draft);
-    changeSelected(item => isLabelShape(item) ? { ...item, label: { text: "", color: color(), fontSize: 16, verticalAlign: "middle", ...item.label, [property]: value } } : item);
+    changeSelected(item => isLabelShape(item) || isConnector(item) ? { ...item, label: { text: "", color: color(), fontSize: defaultFontSize(), verticalAlign: "middle", ...item.label, [property]: value } } : item);
   }
   function drawLabel(ctx: CanvasRenderingContext2D, shape: ShapeElement) {
     drawShapeLabel(ctx, shape, theme());
@@ -697,7 +764,7 @@ function App() {
   const groupSelected = () => isGroupSelection(selectedElements());
   const groupActionEnabled = () => canGroupSelection(selectedElements());
   const focusedElement = (): Element | undefined => { const selected = primarySelection() === undefined ? undefined : elements()[primarySelection()!]; return selected?.type === "group" && selected.libraryComponent ? selected : focusedSelectionElement(elements(), selectedIndices()); };
-  const selectedLabel = () => { const item = focusedElement(); return item && isLabelShape(item) ? item.label : undefined; };
+  const selectedLabel = () => { const item = focusedElement(); return item && (isLabelShape(item) || isConnector(item)) ? item.label : undefined; };
   const libraryChild = (group: GroupElement | undefined, predicate: (item: Element) => boolean): Element | undefined => {
     if (!group) return undefined;
     for (const item of group.elements) {
@@ -709,11 +776,11 @@ function App() {
   const selectedText = () => textDraft() ?? (() => { const item = focusedElement(); return item?.type === "text" ? item : item?.type === "group" && item.libraryComponent ? libraryChild(item, child => child.type === "text") as TextElement | undefined : selectedLabel(); })();
   const styleTargetElement = () => { const focused = focusedElement(); return tool() === "select" || focused?.type === tool() ? focused : undefined; };
   const hasStyleSelection = () => !!styleTargetElement() && selectedIndices().length > 0;
-  const selectedColor = () => { const draft = textDraft(); if (draft) return draft.color; const element = styleTargetElement(); if (element?.type === "group" && element.libraryComponent) { const textElement = libraryChild(element, child => child.type === "text"); if (textElement && "color" in textElement) return textElement.color; } return element && "color" in element ? element.color : color(); };
+  const selectedColor = () => { const draft = textDraft(); if (draft) return draft.color; const element = styleTargetElement(); if (element?.type === "group" && element.libraryComponent) { const textElement = libraryChild(element, child => child.type === "text"); if (textElement && "color" in textElement) return textElement.color; return element.libraryComponent.styleOverrides?.color ?? color(); } return element && "color" in element ? element.color : color(); };
   const selectedThickness = () => { const element = styleTargetElement(); const target = element?.type === "group" && element.libraryComponent ? libraryChild(element, child => "thickness" in child) : element; return Math.round(target && "thickness" in target ? target.thickness : thickness()); };
   const selectedOpacity = () => { const element = focusedElement(); return element && "opacity" in element ? element.opacity ?? 1 : 1; };
-  const selectedFillColor = () => { const element = styleTargetElement(); const target = element?.type === "group" && element.libraryComponent ? libraryChild(element, child => "fillColor" in child && !!child.fillColor) : element; return target && "fillColor" in target ? target.fillColor : undefined; };
-  const selectedFillOpacity = () => { const element = styleTargetElement(); const target = element?.type === "group" && element.libraryComponent ? libraryChild(element, child => "fillColor" in child && !!child.fillColor) : element; return target && "fillOpacity" in target ? target.fillOpacity ?? 1 : fillOpacity(); };
+  const selectedFillColor = () => { const element = styleTargetElement(); const target = element?.type === "group" && element.libraryComponent ? libraryChild(element, child => "fillColor" in child && !!child.fillColor) : element; return target && "fillColor" in target ? target.fillColor : element?.type === "group" && element.componentBounds ? element.libraryComponent?.styleOverrides?.fillColor ?? undefined : undefined; };
+  const selectedFillOpacity = () => { const element = styleTargetElement(); const target = element?.type === "group" && element.libraryComponent ? libraryChild(element, child => "fillColor" in child && !!child.fillColor) : element; return target && "fillOpacity" in target ? target.fillOpacity ?? 1 : element?.type === "group" && element.componentBounds ? element.libraryComponent?.styleOverrides?.fillOpacity ?? 1 : fillOpacity(); };
   const sidebarVisible = () => !!activePath();
   const showStrokeControls = () => { const focused = focusedElement(); return tool() !== "bucket" && (
     tool() === "pen" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || tool() === "line" || tool() === "arrow" || tool() === "text" ||
@@ -739,7 +806,7 @@ function App() {
   const quickCardFontSize = () => {
     const focused = focusedElement();
     const componentText = focused?.componentId ? elements().find(item => item.componentId === focused.componentId && item.type === "text") : undefined;
-    const size = noteEditor()?.fontSize ?? selectedNoteCard()?.note?.fontSize ?? (focused?.type === "schemaTable" ? focused.fontSize ?? 14 : undefined) ?? (componentText?.type === "text" ? componentText.fontSize : undefined) ?? selectedText()?.fontSize ?? defaultFontSize();
+    const size = noteEditor()?.fontSize ?? selectedNoteCard()?.note?.fontSize ?? (focused?.type === "schemaTable" ? focused.fontSize ?? 12 : undefined) ?? (componentText?.type === "text" ? componentText.fontSize : undefined) ?? selectedText()?.fontSize ?? defaultFontSize();
     return Math.round(size);
   };
   const quickIsConnector = () => quickElementType() === "line" || quickElementType() === "arrow";
@@ -782,7 +849,7 @@ function App() {
     const background = renderedBoardColor(); const currentTheme = theme(); const sync = windowsSyncMetadata();
     const observeWhenIdle = () => {
       if (activePath() !== path) return;
-      if (drawing || panOrigin || moveOrigin || resizeOrigin) { syncObservationTimer = window.setTimeout(observeWhenIdle, 250); return; }
+      if (drawing || panOrigin || moveOrigin || resizeOrigin || labelMoveOrigin) { syncObservationTimer = window.setTimeout(observeWhenIdle, 250); return; }
       syncObservationTimer = undefined;
       const snapshot = createSketchSnapshot({ pages: currentPages, activePageId: currentPageId, activeElements: currentElements, activeCanvasState: currentState, activeRenderedBoardColor: background, theme: currentTheme, project: currentProject, library: currentLibrary, windowsSync: sync });
       observeFileSync(snapshot);
@@ -880,7 +947,7 @@ function App() {
     if (indices.length < 2) return;
     const before = cloneElements(elements()); const selected = new Set(indices); const first = indices[0];
     const children = indices.map((index) => elements()[index]); const grouped: Element[] = [];
-    elements().forEach((element, index) => { if (index === first) grouped.push({ type: "group", elements: children }); if (!selected.has(index)) grouped.push(element); });
+    elements().forEach((element, index) => { if (index === first) grouped.push({ type: "group", id: crypto.randomUUID(), elements: children }); if (!selected.has(index)) grouped.push(element); });
     setElements(grouped); pushUndo(before); setSelectedIndices([first]); setDirty(true);
   }
 
@@ -890,9 +957,15 @@ function App() {
     const before = cloneElements(elements()); const next: Element[] = []; const selectedAfter: number[] = []; let changed = false;
     elements().forEach((element, index) => {
       if (indices.has(index) && element.type === "group" && !element.note && !element.locked) {
+        const restored = restoreDirectLibraryComponent(element);
+        if (!element.elements.length && !restored) { next.push(element); return; }
         changed = true;
-        const start = next.length; next.push(...element.elements);
-        for (let offset = 0; offset < element.elements.length; offset++) selectedAfter.push(start + offset);
+        const expanded = restored ?? [element];
+        const children = restored
+          ? expanded.flatMap(item => item.type === "group" && !item.componentBounds ? item.elements : [item])
+          : element.elements;
+        const start = next.length; next.push(...children);
+        for (let offset = 0; offset < children.length; offset++) selectedAfter.push(start + offset);
       } else next.push(element);
     });
     if (!changed) return;
@@ -901,6 +974,10 @@ function App() {
 
   function updateProperty(property: "color" | "thickness" | "opacity" | "fontSize" | "fontFamily" | "fillColor" | "fillOpacity" | "bold" | "italic" | "underline" | "textAlign" | "listType" | "lineStyle" | "lineRoute" | "arrowRoute" | "flowchartShape" | "edgeStyle" | "cornerRadius" | "startHead" | "endHead" | "forkUpperHead" | "forkLowerHead", value: string | number | boolean | undefined) {
     if (boardLocked()) return;
+    if (property === "fontSize") {
+      if (!Number.isFinite(Number(value)) || Number(value) < 8 || Number(value) > 160) return;
+      rememberFontSize(Number(value));
+    }
     const indices = new Set(selectedIndices().filter((index) => !!elements()[index] && !elements()[index].locked)); if (!indices.size) return;
     const before = cloneElements(elements());
     const update = (element: Element): Element => {
@@ -978,9 +1055,9 @@ function App() {
     const draft = textDraft();
     if (draft?.shapeLabel && draft.editingIndex !== undefined) {
       const index = draft.editingIndex; const item = elements()[index];
-      if (item && isLabelShape(item) && !item.locked && !boardLocked()) {
+      if (item && (isLabelShape(item) || isConnector(item)) && !item.locked && !boardLocked()) {
         const before = cloneElements(elements());
-        const label: ShapeLabel = { text: draft.value, color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType, verticalAlign: draft.verticalAlign ?? "middle" };
+        const label: ShapeLabel = { ...item.label, text: draft.value, color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType, verticalAlign: draft.verticalAlign ?? "middle" };
         setElements(items => items.map((element, i) => i === index ? { ...item, label: draft.value.trim() ? label : undefined } : element));
         if (JSON.stringify(before) !== JSON.stringify(elements())) { pushUndo(before); setDirty(true); }
       }
@@ -1026,7 +1103,7 @@ function App() {
     if (existing?.locked) return;
     const group = existing?.type === "group" ? existing : undefined;
     const bounds = group ? elementBounds(group) : undefined;
-    setNoteEditor({ x: bounds?.x ?? point.x, y: bounds?.y ?? point.y, width: group?.note?.width ?? bounds?.w ?? (kind === "sticky" ? 296 : 340), height: group?.note?.height ?? bounds?.h ?? 190, fontSize: group?.note?.fontSize ?? 14, kind, content: group?.note?.content ?? initial?.content ?? (kind === "checklist" ? "- [ ] New task" : ""), title: group?.note?.title ?? initial?.title ?? defaultNoteTitle(kind), editingIndex });
+    setNoteEditor({ x: bounds?.x ?? point.x, y: bounds?.y ?? point.y, width: group?.note?.width ?? bounds?.w ?? (kind === "sticky" ? 296 : 340), height: group?.note?.height ?? bounds?.h ?? 190, fontSize: group?.note?.fontSize ?? Math.min(32, defaultFontSize()), kind, content: group?.note?.content ?? initial?.content ?? (kind === "checklist" ? "- [ ] New task" : ""), title: group?.note?.title ?? initial?.title ?? defaultNoteTitle(kind), editingIndex });
     setNoteEditorSession(session => session + 1);
   }
 
@@ -1120,7 +1197,7 @@ function App() {
     }
     if (target?.componentId?.startsWith("uml-class:")) { const shell = target.type === "group" ? target.elements.find(item => item.componentRole === "class-shell") : elements().find(item => item.componentId === target.componentId && item.componentRole === "class-shell"); const box = elementBounds(shell ?? target); openClassCardDialog(box.x, box.y, target.componentId); return; }
     if (target?.type === "group" && target.note) { if (!noteCollapseHit(target, point)) openNoteEditor(point, target.note.kind, hit); return; }
-    if (hit !== undefined && isLabelShape(elements()[hit])) editShapeLabel(hit);
+    if (hit !== undefined && (isLabelShape(elements()[hit]) || isConnector(elements()[hit]))) editShapeLabel(hit);
     else if (hit !== undefined && elements()[hit]?.type === "text") startTextDraft(point, hit);
     else if (isWindowsPlatform() || !isCompactTouchLayout()) startTextDraft(point);
   }
@@ -1130,7 +1207,7 @@ function App() {
     const parts = componentId ? cardGroup?.elements ?? elements().filter(item => item.componentId === componentId) : [];
     const byRole = (role: string) => parts.find(item => item.componentRole === role);
     const shell = byRole("class-shell"); const name = byRole("class-name"); const attributes = byRole("class-attributes"); const methods = byRole("class-methods");
-    setClassCardDraft({ x, y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: name?.type === "text" ? name.fontSize : 13, ...(shell?.type === "rectangle" ? { width: shell.w, height: shell.h } : {}), componentId });
+    setClassCardDraft({ x, y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: name?.type === "text" ? name.fontSize : defaultFontSize(), ...(shell?.type === "rectangle" ? { width: shell.w, height: shell.h } : {}), componentId });
     setComponentEditorCollapsed(false); setSidebarTab("properties");
     setStencilMenuOpen(false);
   }
@@ -1172,6 +1249,7 @@ function App() {
   }
 
   function resizeClassCardFont(componentId: string, requestedSize: number) {
+    if (!Number.isFinite(requestedSize) || requestedSize < 8 || requestedSize > 48) return false;
     const cardIndex = elements().findIndex(item => item.type === "group" && item.componentId === componentId); const cardGroup = cardIndex >= 0 ? elements()[cardIndex] as GroupElement : undefined;
     const parts = cardGroup?.elements ?? elements().filter(item => item.componentId === componentId); const shell = parts.find(item => item.componentRole === "class-shell");
     if (!parts.length || !shell || shell.type !== "rectangle" || boardLocked() || parts.some(item => item.locked)) return false;
@@ -1181,7 +1259,7 @@ function App() {
     const before = cloneElements(elements()); const nextCard = classCardElements(draft);
     if (cardGroup && cardIndex >= 0) { setElements(items => items.map((item, index) => index === cardIndex ? nextCard : item)); setSelectedIndices([cardIndex]); }
     else { const indices = elements().flatMap((item, index) => item.componentId === componentId ? [index] : []); if (!indices.length) return false; const insertAt = Math.min(...indices); const remove = new Set(indices); const next = elements().filter((_, index) => !remove.has(index)); next.splice(insertAt, 0, nextCard); setElements(next); setSelectedIndices([insertAt]); }
-    pushUndo(before); setDirty(true); return true;
+    rememberFontSize(draft.fontSize); pushUndo(before); setDirty(true); return true;
   }
 
   function resizeClassCardSize(componentId: string, axis: "width" | "height", requestedSize: number) {
@@ -1190,13 +1268,19 @@ function App() {
     if (!parts.length || !shell || shell.type !== "rectangle" || boardLocked() || parts.some(item => item.locked) || !Number.isFinite(requestedSize)) return false;
     const textFor = (role: string) => parts.find(item => item.componentRole === role);
     const name = textFor("class-name"); const attributes = textFor("class-attributes"); const methods = textFor("class-methods");
-    const current = { x: shell.x, y: shell.y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: name?.type === "text" ? name.fontSize : 13, width: shell.w, height: shell.h, componentId };
+    const current = { x: shell.x, y: shell.y, name: name?.type === "text" ? name.text : "", attributes: attributes?.type === "text" ? attributes.text : "", methods: methods?.type === "text" ? methods.text : "", fontSize: name?.type === "text" ? name.fontSize : defaultFontSize(), width: shell.w, height: shell.h, componentId };
     const bounded = Math.max(axis === "width" ? 180 : 110, Math.min(axis === "width" ? 900 : 1800, requestedSize));
     const draft = { ...current, [axis]: bounded };
     const nextCard = classCardElements(draft); const before = cloneElements(elements());
     if (cardGroup && cardIndex >= 0) { setElements(items => items.map((item, index) => index === cardIndex ? nextCard : item)); setSelectedIndices([cardIndex]); }
     else { const indices = elements().flatMap((item, index) => item.componentId === componentId ? [index] : []); if (!indices.length) return false; const insertAt = Math.min(...indices); const remove = new Set(indices); const next = elements().filter((_, index) => !remove.has(index)); next.splice(insertAt, 0, nextCard); setElements(next); setSelectedIndices([insertAt]); }
     pushUndo(before); setDirty(true); return true;
+  }
+
+  function updateClassCardDraftFont(requestedSize: number) {
+    if (!Number.isFinite(requestedSize) || requestedSize < 8 || requestedSize > 48) return;
+    const fontSize = rememberFontSize(requestedSize);
+    setClassCardDraft(value => value ? { ...value, fontSize } : value);
   }
 
   function insertClassCard() {
@@ -1276,10 +1360,16 @@ function App() {
     const y = (rect.height / 2 - view.panY) / view.zoom - item.height / 2;
     const relationship = buildLibraryRelationship(kind, x, y);
     if (relationship) {
+      if (relationship.label) relationship.label = { ...relationship.label, fontSize: defaultFontSize() };
       const index = elements().length; pushUndo(cloneElements(elements())); setElements(items => [...items, relationship]);
       setSelectedIndices([index]); setTool("select"); setSidebarTab("properties"); setStencilMenuOpen(false); setDirty(true); return;
     }
-    const group = assignLibraryComponentIds(buildLibraryComponent(kind, x, y, { chartData: defaultLibraryChartData(kind) }), kind);
+    const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind);
+    if (!definition) return;
+    const builtGroup = kind.startsWith("form-") || kind.startsWith("viz-")
+      ? assignLibraryComponentIds({ type: "group", id: crypto.randomUUID(), elements: [], componentBounds: { x, y, w: definition.width, h: definition.height }, libraryComponent: { kind, label: definition.label, ...(defaultLibraryChartData(kind) ? { chartData: defaultLibraryChartData(kind) } : {}), ...(defaultLibraryFormOptions(kind) ? { formOptions: defaultLibraryFormOptions(kind) } : {}), ...(defaultLibraryFormTitle(kind) ? { formTitle: defaultLibraryFormTitle(kind) } : {}), ...(kind === "form-toggle" ? { formState: true } : {}) } }, kind)
+      : assignLibraryComponentIds(buildLibraryComponent(kind, x, y, { chartData: defaultLibraryChartData(kind), formOptions: defaultLibraryFormOptions(kind), formTitle: defaultLibraryFormTitle(kind), ...(kind === "network-hub" ? { portCount: 8 } : kind === "network-switch" ? { portCount: 6 } : {}) }), kind);
+    const group = resizeLibraryFont(builtGroup, defaultFontSize());
     setStencilMenuOpen(false);
     if (kind.startsWith("form-") || kind.startsWith("viz-")) { setComponentEditorCollapsed(false); setLibraryComponentDraft(group); return; }
     const index = elements().length;
@@ -1312,13 +1402,14 @@ function App() {
     if (kind === "bpmn-task") return <svg {...base}><rect x="4" y="6" width="24" height="20" rx="4"/><path d="M12 13h8m-8 5h8"/></svg>;
     if (kind === "bpmn-data") return <svg {...base}><path d="M7 3h14l6 6v20H7zM21 3v7h6"/><path d="M11 17h12m-12 5h9"/></svg>;
     if (kind === "bpmn-pool") return <svg {...base}><rect x="4" y="4" width="24" height="24"/><path d="M11 4v24M11 16h17"/></svg>;
+    if (kind === "network-hub") return <svg {...base}><circle cx="16" cy="15" r="5"/><circle cx="5" cy="6" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="27" cy="6" r="2"/><circle cx="5" cy="25" r="2"/><circle cx="16" cy="27" r="2"/><circle cx="27" cy="25" r="2"/><path d="m7 7 6 5m6-5-4 5M7 24l6-6m6 6-4-6m5-3h5"/></svg>;
     if (kind === "network-router") return <svg {...base}><path d="m8 5 16 0 7 11-7 11H8L1 16z"/><path d="M9 16h14m-7-7v14m-4-4 4 4 4-4"/></svg>;
     if (kind === "network-server") return <svg {...base}><rect x="5" y="3" width="22" height="8" rx="2"/><rect x="5" y="13" width="22" height="8" rx="2"/><rect x="5" y="23" width="22" height="6" rx="2"/><circle cx="9" cy="7" r="1" fill="currentColor"/><circle cx="9" cy="17" r="1" fill="currentColor"/></svg>;
     if (kind === "network-firewall") return <svg {...base}><rect x="3" y="5" width="26" height="22" rx="2"/><path d="M3 12h26M3 20h26M10 5v7m13-7v7m-7 0v8m-8 0v7m15-7v7"/></svg>;
     if (kind === "network-client") return <svg {...base}><rect x="4" y="4" width="24" height="19" rx="2"/><path d="M12 28h8m-4-5v5"/></svg>;
     if (kind === "network-switch") return <svg {...base}><rect x="3" y="7" width="26" height="18" rx="3"/><path d="M7 13h3v6H7zm6 0h3v6h-3zm6 0h3v6h-3zm6 0h1v6h-1"/><circle cx="8.5" cy="22" r=".7" fill="currentColor"/><circle cx="14.5" cy="22" r=".7" fill="currentColor"/></svg>;
     if (kind === "network-load-balancer") return <svg {...base}><circle cx="16" cy="8" r="4"/><path d="M16 12v6M6 18h20M7 18v8m9-8v8m9-8v8"/><circle cx="7" cy="27" r="1" fill="currentColor"/><circle cx="16" cy="27" r="1" fill="currentColor"/><circle cx="25" cy="27" r="1" fill="currentColor"/></svg>;
-    if (kind === "network-access-point") return <svg {...base}><rect x="5" y="19" width="22" height="8" rx="3"/><path d="M16 19v-4m-7-3a10 10 0 0 1 14 0m-10-4a5 5 0 0 1 6 0m-3-3v.01"/></svg>;
+    if (kind === "network-access-point") return <svg {...base}><circle cx="16" cy="16" r="12"/><circle cx="16" cy="16" r="9"/><path d="M10 16q6-7 12 0m-9 3q3-4 6 0"/><circle cx="16" cy="21" r="1" fill="currentColor"/><circle cx="12" cy="25" r=".7" fill="currentColor"/><circle cx="16" cy="25" r=".7" fill="currentColor"/><circle cx="20" cy="25" r=".7" fill="currentColor"/></svg>;
     if (kind.startsWith("viz-")) return kind === "viz-donut" ? <svg {...base}><circle cx="16" cy="16" r="11"/><path d="M16 5v11h11M16 16l8 8"/></svg> : kind === "viz-kpi" ? <svg {...base}><path d="M4 25V7m0 18h24M8 20l6-6 5 3 8-9"/><path d="M22 8h5v5"/></svg> : kind === "viz-scatter" ? <svg {...base}><path d="M5 25V6M5 25h23"/><circle cx="10" cy="19" r="1.5" fill="currentColor"/><circle cx="13" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="17" r="1.5" fill="currentColor"/><circle cx="22" cy="9" r="1.5" fill="currentColor"/><circle cx="26" cy="14" r="1.5" fill="currentColor"/></svg> : kind === "viz-bar" ? <svg {...base}><path d="M5 26V6M5 26h23"/><rect x="9" y="15" width="4" height="11" rx="1"/><rect x="16" y="10" width="4" height="16" rx="1"/><rect x="23" y="6" width="4" height="20" rx="1"/></svg> : <svg {...base}><path d="M5 26V6M5 26h23M7 22l6-5 5 2 8-11"/><path d="M7 22v4h19V12l-7 11-5-2-6 5" fill="currentColor" fill-opacity=".12"/></svg>;
     if (kind.startsWith("form-")) return kind === "form-button" ? <svg {...base}><rect x="3" y="8" width="26" height="16" rx="5" fill="currentColor" fill-opacity=".14"/><path d="M10 16h12"/></svg> : kind === "form-input" ? <svg {...base}><path d="M5 7h13M5 12h22M5 23h22M9 17v7m-4 0h8"/><path d="M17 10v5"/></svg> : kind === "form-select" ? <svg {...base}><path d="M4 8h24M4 24h24m-8-10 4 4 4-4"/></svg> : kind === "form-checkbox" ? <svg {...base}><rect x="5" y="7" width="18" height="18" rx="4"/><path d="m9 16 4 4 7-8"/></svg> : kind === "form-radio" ? <svg {...base}><circle cx="9" cy="16" r="6"/><circle cx="9" cy="16" r="2.5" fill="currentColor"/><circle cx="24" cy="16" r="6"/></svg> : <svg {...base}><rect x="3" y="7" width="26" height="18" rx="9"/><circle cx="20" cy="16" r="6" fill="currentColor" fill-opacity=".3"/></svg>;
     if (kind.startsWith("software-") || kind.startsWith("cloud-")) return kind === "software-client" ? <svg {...base}><rect x="3" y="4" width="26" height="23" rx="3"/><path d="M3 10h26M8 7h.01m4 0h.01m4 0h.01M8 15h7m-7 4h16m-16 4h12"/></svg> : kind === "software-api" ? <svg {...base}><rect x="3" y="7" width="26" height="18" rx="5"/><path d="M8 13h8v6H8zm12 3h6m-3-3 3 3-3 3"/></svg> : kind === "software-queue" || kind === "cloud-queue" ? <svg {...base}><rect x="4" y="8" width="7" height="15" rx="2"/><rect x="13" y="8" width="7" height="15" rx="2"/><rect x="22" y="8" width="6" height="15" rx="2"/><path d="M4 27h24"/></svg> : kind === "software-event-bus" ? <svg {...base}><path d="M4 16h24M9 9v14m7-14v14m7-14v14"/><circle cx="9" cy="7" r="2"/><circle cx="16" cy="7" r="2"/><circle cx="23" cy="7" r="2"/></svg> : kind === "software-cache" ? <svg {...base}><rect x="4" y="5" width="24" height="22" rx="4"/><path d="M9 11h14m-14 5h14m-14 5h9"/></svg> : kind === "cloud-boundary" ? <svg {...base}><path d="M5 25h21a5 5 0 0 0 0-10 9 9 0 0 0-17-2 6 6 0 0 0-4 12Z"/><rect x="10" y="15" width="12" height="7" rx="2"/></svg> : kind === "cloud-function" ? <svg {...base}><rect x="5" y="5" width="22" height="22" rx="5"/><path d="m18 8-7 9h5l-2 7 7-10h-5z"/></svg> : kind === "cloud-storage" ? <svg {...base}><path d="M5 7h22v18H5zM8 12h16m-16 5h16m-16 5h16"/></svg> : kind === "software-database" || kind === "cloud-database" ? <svg {...base}><ellipse cx="16" cy="7" rx="11" ry="4"/><path d="M5 7v18c0 2 5 4 11 4s11-2 11-4V7M5 16c0 2 5 4 11 4s11-2 11-4"/></svg> : kind === "software-service" ? <svg {...base}><rect x="4" y="4" width="24" height="24" rx="6"/><circle cx="16" cy="16" r="4"/><path d="M16 8v3m0 10v3m-8-8h3m10 0h3m-14-6 2 2m8 8 2 2m0-12-2 2m-8 8-2 2"/></svg> : <svg {...base}><rect x="4" y="4" width="24" height="24" rx="4"/><path d="M9 11h14m-14 5h14m-14 5h8"/></svg>;
@@ -1374,7 +1465,7 @@ function App() {
       const columnsPerRow = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(parsedTables.length))));
       const existing = schemaEditingDiagram() ? elements().filter((item): item is SchemaTableElement => item.type === "schemaTable" && item.schemaDiagramId === schemaEditingDiagram()) : [];
       const oldByName = new Map(existing.map(table => [table.name.toLowerCase(), table]));
-      const cardFontSize = (table: (typeof parsedTables)[number]) => oldByName.get(table.name.toLowerCase())?.fontSize ?? 14;
+      const cardFontSize = (table: (typeof parsedTables)[number]) => oldByName.get(table.name.toLowerCase())?.fontSize ?? defaultFontSize();
       const cardWidth = (table: (typeof parsedTables)[number]) => Math.max(width, oldByName.get(table.name.toLowerCase())?.w ?? 0, ...table.columns.map(column => (column.name.length + column.type.length) * cardFontSize(table) * .36 + 80));
       const cardHeight = (table: (typeof parsedTables)[number]) => Math.max(oldByName.get(table.name.toLowerCase())?.h ?? 0, Math.max(header, cardFontSize(table) * 2.8) + table.columns.length * Math.max(rowHeight, cardFontSize(table) * 1.8));
       const columnWidths = Array.from({ length: columnsPerRow }, (_, col) => Math.max(...parsedTables.filter((_table, index) => index % columnsPerRow === col).map(cardWidth)));
@@ -1389,7 +1480,7 @@ function App() {
         const old = oldByName.get(table.name.toLowerCase()); const id = old?.id ?? crypto.randomUUID();
         const fieldsByName = new Map(old?.columns.map(field => [field.name.toLowerCase(), field]) ?? []);
         const fields: SchemaField[] = table.columns.map(column => ({ id: fieldsByName.get(column.name.toLowerCase())?.id ?? crypto.randomUUID(), name: column.name, dataType: column.type, primaryKey: column.primaryKey, foreignTable: column.foreignTable, foreignColumn: column.foreignColumn, nullable: column.nullable }));
-        const fontSize = old?.fontSize ?? 14;
+        const fontSize = old?.fontSize ?? defaultFontSize();
         return { type: "schemaTable", id, schemaDiagramId: diagramId, schemaSource: source, name: table.name, columns: fields, x: originX + columnWidths.slice(0, col).reduce((sum, current) => sum + current + gapX, 0), y: originY + rowHeights.slice(0, row).reduce((sum, current) => sum + current + gapY, 0), w: columnWidths[col], h: cardHeight(table), fontSize, rotation: 0, opacity: 1 };
       });
       const tableIds = new Set(existing.map(table => table.id));
@@ -1448,6 +1539,7 @@ function App() {
         const bounds = elementBounds(element); const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }; const angle = -element.rotation * Math.PI / 180;
         const dx = point.x - center.x; const dy = point.y - center.y; point = { x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle), y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle) };
       }
+      if (element.componentBounds && element.libraryComponent) return point.x >= element.componentBounds.x - 5 / zoom && point.x <= element.componentBounds.x + element.componentBounds.w + 5 / zoom && point.y >= element.componentBounds.y - 5 / zoom && point.y <= element.componentBounds.y + element.componentBounds.h + 5 / zoom;
       if (element.elements.some((child) => hitElement(child, point, zoom))) return true;
       if (element.mermaid) { const box = elementBounds(element); const tolerance = 5 / zoom; return point.x >= box.x - tolerance && point.x <= box.x + box.w + tolerance && point.y >= box.y - tolerance && point.y <= box.y + box.h + tolerance; }
       return false;
@@ -1462,6 +1554,7 @@ function App() {
       return point.x >= bounds.x - tolerance && point.x <= bounds.x + bounds.w + tolerance && point.y >= bounds.y - tolerance && point.y <= bounds.y + bounds.h + tolerance;
     }
     if (element.type === "line" || element.type === "arrow") {
+      if (element.label?.text) { const textBox = labelBox(element); if (point.x >= textBox.x && point.x <= textBox.x + textBox.w && point.y >= textBox.y && point.y <= textBox.y + textBox.h) return true; }
       const routed = connectorForView(element);
       const route = routed.type === "arrow" ? routed.arrowRoute ?? "straight" : routed.lineRoute ?? "straight";
       for (const samples of connectorPolylines(routed, route, 33)) for (let index = 1; index < samples.length; index++) if (distanceToSegment(point, samples[index - 1], samples[index]) <= tolerance + (routed.lineStyle === "double" ? 3 : 0)) return true;
@@ -1485,7 +1578,7 @@ function App() {
     }
     if (element.type === "rectangle") {
       const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const width = Math.abs(element.w); const height = Math.abs(element.h);
-      const radius = element.edgeStyle === "pill" ? Math.min(width, height) / 2 : element.edgeStyle === "rounded" ? Math.min(element.cornerRadius ?? 14, width / 2, height / 2) : 0;
+      const radius = element.edgeStyle === "pill" ? Math.min(width, height) / 2 : element.edgeStyle === "rounded" ? Math.min(element.cornerRadius ?? 12, width / 2, height / 2) : 0;
       if (radius > 0 && canvas) { const context = canvas.getContext("2d"); if (context) { context.save(); context.setTransform(1, 0, 0, 1, 0, 0); context.beginPath(); context.roundRect(left, top, width, height, radius); const inside = !!element.fillColor && context.isPointInPath(point.x, point.y); context.lineWidth = tolerance * 2; const border = context.isPointInStroke(point.x, point.y); context.restore(); return inside || border; } }
       if (element.fillColor && point.x >= left && point.x <= left + width && point.y >= top && point.y <= top + height) return true;
       const points = rectanglePathPoints(element);
@@ -1542,10 +1635,11 @@ function App() {
 
   const componentViewCache = new WeakMap<Element, { key: string; element: Element }>();
   function simpleComponentElement(element: Element): Element {
-    const librarySimple = element.type === "group" && !!element.libraryComponent && (element.libraryComponent.kind.startsWith("viz-") ? (element.libraryComponent.appearance ?? componentAppearance()) === "simple" : componentAppearance() === "simple");
+    const appearance = element.type === "group" ? element.libraryComponent?.appearance ?? componentAppearance() : componentAppearance();
+    const librarySimple = element.type === "group" && !!element.libraryComponent && appearance === "simple";
     const classSimple = componentAppearance() === "simple" && !!element.componentId?.startsWith("uml-class:");
     if (!librarySimple && !classSimple) return element;
-    const key = `${componentAppearance()}:${theme()}`; const cached = componentViewCache.get(element);
+    const key = `${appearance}:${theme()}`; const cached = componentViewCache.get(element);
     if (cached?.key === key) return cached.element;
     const styleOverrides = element.type === "group" ? element.libraryComponent?.styleOverrides : undefined;
     const ink = styleOverrides?.color ?? (theme() === "dark" ? "#e5e7eb" : "#26313b"); const stroke = styleOverrides?.color ?? (theme() === "dark" ? "#aeb8c2" : "#52606d");
@@ -1594,6 +1688,12 @@ function App() {
     element = simpleComponentElement(element);
     if (element.type === "group") {
       if (element.note) { drawNoteCard(ctx, element, theme(), componentAppearance()); return; }
+      if (element.componentBounds && element.libraryComponent) {
+        if (element.rotation) { const bounds = element.componentBounds; const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
+        if (element.libraryComponent.kind.startsWith("viz-")) drawLibraryChart(ctx, element, theme(), componentAppearance());
+        else drawModelComponent(ctx, element, theme(), componentAppearance());
+        if (element.rotation) ctx.restore(); return;
+      }
       if (element.rotation && element.libraryComponent) { const bounds = elementBounds(element); const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
       if (element.libraryComponent?.kind.startsWith("viz-")) { drawLibraryChart(ctx, element, theme(), componentAppearance()); if (element.rotation) ctx.restore(); return; }
       for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems);
@@ -1618,7 +1718,7 @@ function App() {
       lines.forEach((line, index) => { const y = element.y + index * element.fontSize * 1.25; ctx.fillText(line, element.x, y); if (element.underline) { const measured = ctx.measureText(line).width; const startX = element.textAlign === "center" ? element.x - measured / 2 : element.textAlign === "right" ? element.x - measured : element.x; ctx.fillRect(startX, y + element.fontSize * 1.06, measured, Math.max(1, element.fontSize / 18)); } }); ctx.restore(); if (element.rotation) ctx.restore(); return;
     }
     if (element.type === "schemaTable") {
-      const left = element.x; const top = element.y; const width = Math.abs(element.w); const height = Math.abs(element.h); const simple = componentAppearance() === "simple"; const fontSize = element.fontSize ?? 14; const rowHeight = Math.max(30, fontSize * 1.8); const headerHeight = Math.max(42, fontSize * 2.8); const dark = theme() === "dark";
+      const left = element.x; const top = element.y; const width = Math.abs(element.w); const height = Math.abs(element.h); const simple = componentAppearance() === "simple"; const fontSize = element.fontSize ?? 12; const rowHeight = Math.max(30, fontSize * 1.8); const headerHeight = Math.max(42, fontSize * 2.8); const dark = theme() === "dark";
       const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const border = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const header = simple ? surface : (dark ? "#30465b" : "#e8f0f7"); const rule = simple ? border : (dark ? "#394856" : "#e6ebf0");
       ctx.save(); ctx.globalAlpha = element.opacity ?? 1; ctx.fillStyle = surface; ctx.strokeStyle = border; ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.roundRect(left, top, width, height, simple ? 0 : 10); ctx.fill(); ctx.stroke();
@@ -1648,7 +1748,7 @@ function App() {
     const renderedInk = themeInk(element.color, theme());
     ctx.strokeStyle = renderedInk; ctx.lineWidth = element.thickness; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath();
     if ("lineStyle" in element) ctx.setLineDash(element.lineStyle === "dashed" ? [element.thickness * 4, element.thickness * 2.5] : element.lineStyle === "dotted" ? [element.thickness, element.thickness * 2.2] : []);
-    if (element.type === "line" || element.type === "arrow") {
+      if (element.type === "line" || element.type === "arrow") {
       const routeElement = element;
       const route = routeElement.type === "arrow" ? routeElement.arrowRoute ?? "straight" : routeElement.lineRoute ?? "straight";
       if (element.lineStyle === "double") {
@@ -1676,7 +1776,7 @@ function App() {
           ctx.stroke();
         }
       }
-      ctx.restore(); if (element.rotation) ctx.restore(); return;
+      ctx.restore(); if (isConnector(element) && element.label && !(textDraft()?.shapeLabel && elements()[textDraft()!.editingIndex!]?.id === element.id)) drawLabel(ctx, element); if (element.rotation) ctx.restore(); return;
     }
     if (element.type === "freehand") {
       freehandRenderer.draw(ctx, element, renderedInk);
@@ -1684,7 +1784,7 @@ function App() {
     }
     if (element.type === "rectangle") {
       const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const width = Math.abs(element.w); const height = Math.abs(element.h);
-      if ((element.edgeStyle === "rounded" || element.edgeStyle === "pill") && typeof ctx.roundRect === "function") ctx.roundRect(left, top, width, height, element.edgeStyle === "pill" ? Math.min(width, height) / 2 : Math.min(element.cornerRadius ?? 14, width / 2, height / 2));
+      if ((element.edgeStyle === "rounded" || element.edgeStyle === "pill") && typeof ctx.roundRect === "function") ctx.roundRect(left, top, width, height, element.edgeStyle === "pill" ? Math.min(width, height) / 2 : Math.min(element.cornerRadius ?? 12, width / 2, height / 2));
       else if (element.edgeStyle === "cut") { const c = Math.min(element.cornerRadius ?? 12, width / 2, height / 2); ctx.moveTo(left + c, top); ctx.lineTo(left + width - c, top); ctx.lineTo(left + width, top + c); ctx.lineTo(left + width, top + height - c); ctx.lineTo(left + width - c, top + height); ctx.lineTo(left + c, top + height); ctx.lineTo(left, top + height - c); ctx.lineTo(left, top + c); ctx.closePath(); }
       else ctx.rect(left, top, width, height);
     } else if (element.type === "triangle") {
@@ -1749,10 +1849,15 @@ function App() {
     }
     if (element.type === "group") {
       if (element.libraryComponent) {
+        if (element.libraryComponent.kind === "uml-lifeline" && handle === "s") {
+          const angle = (element.rotation ?? 0) * Math.PI / 180;
+          const localLengthDelta = -(point.x - start.x) * Math.sin(angle) + (point.y - start.y) * Math.cos(angle);
+          return setLibraryLifelineLength(element, libraryLifelineLength(element) + localLengthDelta);
+        }
         const before = elementBounds(element); let { x, y, w, h } = before; const dx = point.x - start.x; const dy = point.y - start.y;
         if (handle.includes("w")) { x += dx; w -= dx; } if (handle.includes("e")) w += dx;
         if (handle.includes("n")) { y += dy; h -= dy; } if (handle.includes("s")) h += dy;
-        return resizeLibraryGroup(element, { x, y, w: Math.max(60, w), h: Math.max(40, h) });
+        return resizeLibraryGroup(element, { x, y, w: Math.max(libraryComponentMinimum(element, "w"), w), h: Math.max(libraryComponentMinimum(element, "h"), h) });
       }
       if (!element.note) return element;
       const before = elementBounds(element); let { x, y, w, h } = before; const dx = point.x - start.x; const dy = point.y - start.y;
@@ -1932,7 +2037,7 @@ function App() {
         if (exportOptionsOpen()) { event.preventDefault(); setExportOptionsOpen(false); return; }
         if (recoveryPrompt() || syncConflict()) return;
         if (textDraft()) commitTextDraft();
-        event.preventDefault(); setTool(readOnlyView() ? "laser" : isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform() && !readOnlyView()) setStyleMenuMode("quick"); setTouchStylePanel(false); setQuickStylePopover(undefined); setSelectedIndices([]); setHoveredIndex(undefined); setMarquee(undefined); marqueeOrigin = undefined; resizeOrigin = undefined; moveOrigin = undefined; setPreview(undefined); drawing = false; setSpaceDown(false); setIsPanning(false); panOrigin = undefined;
+        event.preventDefault(); setTool(readOnlyView() ? "laser" : isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform() && !readOnlyView()) setStyleMenuMode("quick"); setTouchStylePanel(false); setQuickStylePopover(undefined); setSelectedIndices([]); setHoveredIndex(undefined); setMarquee(undefined); marqueeOrigin = undefined; resizeOrigin = undefined; moveOrigin = undefined; labelMoveOrigin = undefined; libraryControlOrigin = undefined; setPreview(undefined); drawing = false; setSpaceDown(false); setIsPanning(false); panOrigin = undefined;
         if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; return;
       }
       if (event.key === "F1") { event.preventDefault(); setHelpOpen(true); return; }
@@ -2050,7 +2155,7 @@ function App() {
     const scheduleAutosave = () => {
       autosaveTimer = window.setTimeout(() => {
         if (textDraft() && !recoveryPrompt() && !syncConflict()) persistRecovery();
-        if (activePath() && dirty() && !recoveryPrompt() && !textDraft() && !drawing && !panOrigin && !resizeOrigin && !moveOrigin) {
+        if (activePath() && dirty() && !recoveryPrompt() && !textDraft() && !drawing && !panOrigin && !resizeOrigin && !moveOrigin && !labelMoveOrigin) {
           persistRecovery();
           if (!syncConflict() && !docController.isSaveInFlight()) void saveToPath(activePath()!);
         }
@@ -2199,7 +2304,7 @@ function App() {
     const snapshot = documentSnapshot(); const draft = textDraft(); if (!draft) return snapshot;
     const page = snapshot.pages.find(p => p.id === snapshot.activePageId); if (!page) return snapshot;
     const style = { color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType };
-    if (draft.shapeLabel && draft.editingIndex !== undefined) { const item = page.elements[draft.editingIndex]; if (item && isLabelShape(item)) item.label = { ...style, text: draft.value, verticalAlign: draft.verticalAlign ?? "middle" }; }
+    if (draft.shapeLabel && draft.editingIndex !== undefined) { const item = page.elements[draft.editingIndex]; if (item && (isLabelShape(item) || isConnector(item))) item.label = { ...item.label, ...style, text: draft.value, verticalAlign: draft.verticalAlign ?? "middle" }; }
     else { const item: TextElement = { ...style, type: "text", x: draft.x, y: draft.y, text: draft.value, id: draft.editingIndex !== undefined ? page.elements[draft.editingIndex]?.id : crypto.randomUUID() }; if (draft.editingIndex !== undefined) page.elements[draft.editingIndex] = item; else if (draft.value.trim()) page.elements.push(item); }
     return snapshot;
   }
@@ -2210,13 +2315,29 @@ function App() {
 
   function applySnapshot(snapshot: SketchFile, path: string, rawText: string, nextWorkspace: WorkspaceArea = "canvas") {
     canvasHistory.clearAll(); setTextDraft(undefined); setNoteEditor(undefined); setContextMenu(undefined); setLayerPanelOpen(false); setTouchStylePanel(false); setQuickStylePopover(undefined); setCanvasOptionsOpen(false); setPaintBrushMenuOpen(false); setStencilMenuOpen(false); closeToolOptions(); setPreview(undefined); setMarquee(undefined); drawing = false; moveOrigin = undefined; resizeOrigin = undefined;
-    const syncMeta = syncTracker.initializeMetadata(snapshot, snapshot.windowsSync ?? createWindowsSyncMetadata());
-    const preparedSnapshot = { ...snapshot, windowsSync: syncMeta };
+    let restoredComponents = false;
+    const pages = snapshot.pages.map(page => ({ ...page, elements: page.elements.flatMap(element => {
+      if (element.type !== "group") return [element];
+      const restored = restoreDirectLibraryComponent(element);
+      if (!restored) return [element];
+      restoredComponents = true;
+      return restored;
+    }) }));
+    const existingProject = snapshot.project ?? (snapshot.library?.quickNotes.length ? createProjectWorkspace(displayPathName(path).replace(/\.sketch$/i, "")) : undefined);
+    const mergedNotes = existingProject ? [...existingProject.notes] : [];
+    const knownNoteIds = new Set(mergedNotes.map(note => note.id));
+    for (const note of snapshot.library?.quickNotes ?? []) if (!knownNoteIds.has(note.id)) { mergedNotes.push(note); knownNoteIds.add(note.id); }
+    const migratedNotes = mergedNotes.length !== (snapshot.project?.notes.length ?? 0);
+    const project = existingProject && migratedNotes ? { ...existingProject, notes: mergedNotes } : existingProject;
+    const library = snapshot.library ? { ...snapshot.library, quickNotes: [] } : snapshot.library;
+    const migratedSnapshot = { ...snapshot, pages, ...(project ? { project } : {}), ...(library ? { library } : {}) };
+    const syncMeta = syncTracker.initializeMetadata(migratedSnapshot, snapshot.windowsSync ?? createWindowsSyncMetadata());
+    const preparedSnapshot = { ...migratedSnapshot, windowsSync: syncMeta };
     const currentPage = documentSession.activate(preparedSnapshot, path, nextWorkspace);
     setElements(cloneElements(currentPage.elements)); setCanvasState({ ...currentPage.canvasState });
     setBoardColor(currentPage.canvasState.backgroundColor); setBoardColorFollowsTheme(currentPage.canvasState.boardColorFollowsTheme ?? false);
     syncTracker.seed(preparedSnapshot);
-    rememberFile(path); setDirty(!snapshot.windowsSync); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); docController.setBaselineRaw(rawText);
+    rememberFile(path); setDirty(!snapshot.windowsSync || migratedNotes || restoredComponents); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); docController.setBaselineRaw(rawText);
     setError("");
   }
 
@@ -2376,7 +2497,7 @@ function App() {
       else if (tool() === "laser") setTool("pen");
     },
     restoreOpenedView: restoreOpenedViewAt100,
-    canCheckForUpdates: () => !document.hidden && !documentBusy() && !recoveryPrompt() && !docController.isSaveInFlight() && !drawing && !panOrigin && !moveOrigin && !resizeOrigin && !textDraft(),
+    canCheckForUpdates: () => !document.hidden && !documentBusy() && !recoveryPrompt() && !docController.isSaveInFlight() && !drawing && !panOrigin && !moveOrigin && !resizeOrigin && !labelMoveOrigin && !textDraft(),
     shouldKeepDocumentDirtyAfterUpdate: remote => isWindowsPlatform() && !remote.windowsSync,
     normalizePath: normalizeFileUri,
     isSketchPath,
@@ -2796,6 +2917,8 @@ function App() {
     const fontRegular = await doc.embedFont(StandardFonts.Helvetica); const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
     const fontItalic = await doc.embedFont(StandardFonts.HelveticaOblique); const fontBoldItalic = await doc.embedFont(StandardFonts.HelveticaBoldOblique); const fontMono = await doc.embedFont(StandardFonts.Courier);
     const fontSerif = await doc.embedFont(StandardFonts.TimesRoman); const fontSerifBold = await doc.embedFont(StandardFonts.TimesRomanBold); const fontSerifItalic = await doc.embedFont(StandardFonts.TimesRomanItalic); const fontSerifBoldItalic = await doc.embedFont(StandardFonts.TimesRomanBoldItalic);
+    // Standard PDF fonts use WinAnsi, so normalize text before measuring or drawing it.
+    const pdfText = (text: string) => text.replace(/[→⇒]/g, "->").replace(/[←⇐]/g, "<-").replace(/↔/g, "<->").replace(/[^\x20-\xff]/g, "?");
     const grayscale = pdfColorMode() === "grayscale"; const bleed = Math.max(0, Math.min(20, pdfBleedMm())) * 72 / 25.4; const margin = marginMm * 72 / 25.4; textMeasureContext ??= document.createElement("canvas").getContext("2d");
     const paperW = output.widthPt + bleed * 2; const paperH = output.heightPt + bleed * 2;
     const readImage = async (element: ImageElement) => {
@@ -2821,8 +2944,9 @@ function App() {
       const page = doc.addPage([paperW, paperH]); page.setTrimBox(bleed, bleed, output.widthPt, output.heightPt); page.setBleedBox(0, 0, paperW, paperH);
       const drawText = (text: string, x: number, y: number, color: string, size: number, family: FontFamily | undefined, bold: boolean, italic: boolean, opacity: number, rotation = 0, rotationCenter?: Point, align: TextElement["textAlign"] = "left") => {
         const font = family === "mono" ? fontMono : family === "serif" ? bold && italic ? fontSerifBoldItalic : bold ? fontSerifBold : italic ? fontSerifItalic : fontSerif : family === "hand" ? bold ? fontBoldItalic : fontItalic : bold && italic ? fontBoldItalic : bold ? fontBold : italic ? fontItalic : fontRegular;
-        let tx=x,ty=y;const textWidth=font.widthOfTextAtSize(text,size*scale)/scale;if(align==="center")tx-=textWidth/2;else if(align==="right")tx-=textWidth;if(rotation&&rotationCenter){const angle=rotation*Math.PI/180,dx=tx-rotationCenter.x,dy=y-rotationCenter.y;tx=rotationCenter.x+dx*Math.cos(angle)-dy*Math.sin(angle);ty=rotationCenter.y+dx*Math.sin(angle)+dy*Math.cos(angle);}
-        page.drawText(text.replace(/[^\x20-\xff]/g, "?"), { x: x0 + tx * scale, y: paperH - (bleed + margin + (ty - bounds.y) * scale) - size * scale, size: size * scale, font, color: pdfColor(themeInk(color, theme()), pdfColorMode()), opacity, rotate: degrees(-rotation) });
+        const safeText = pdfText(text);
+        let tx=x,ty=y;const textWidth=font.widthOfTextAtSize(safeText,size*scale)/scale;if(align==="center")tx-=textWidth/2;else if(align==="right")tx-=textWidth;if(rotation&&rotationCenter){const angle=rotation*Math.PI/180,dx=tx-rotationCenter.x,dy=y-rotationCenter.y;tx=rotationCenter.x+dx*Math.cos(angle)-dy*Math.sin(angle);ty=rotationCenter.y+dx*Math.sin(angle)+dy*Math.cos(angle);}
+        page.drawText(safeText, { x: x0 + tx * scale, y: paperH - (bleed + margin + (ty - bounds.y) * scale) - size * scale, size: size * scale, font, color: pdfColor(themeInk(color, theme()), pdfColorMode()), opacity, rotate: degrees(-rotation) });
       };
       const drawItem = async (element: Element): Promise<void> => {
         if (element.hidden) return;
@@ -2846,9 +2970,9 @@ function App() {
           for (const child of element.elements) await drawItem(child); return;
         }
         if (element.type === "image") { try { const embedded = await readImage(element); const centerX=x0+(element.x+element.w/2)*scale,centerY=paperH-(bleed+margin+(element.y+element.h/2-bounds.y)*scale),rotated=!!element.rotation;if(rotated)page.pushOperators(pushGraphicsState(),translate(centerX,centerY),rotateDegrees(-(element.rotation??0)),translate(-centerX,-centerY));page.drawImage(embedded, { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y - bounds.y + element.h) * scale), width: element.w * scale, height: element.h * scale, opacity: element.opacity ?? 1 });if(rotated)page.pushOperators(popGraphicsState()); } catch { /* Keep other vector content even if an embedded image cannot be decoded. */ } return; }
-        if (element.type === "text") { const lines = element.text.split(/\r?\n/).map((line,index)=>element.listType==="bullet"?`• ${line}`:element.listType==="number"?`${index+1}. ${line}`:line); const textBox=elementBounds(element); const center={x:textBox.x+textBox.w/2,y:textBox.y+textBox.h/2}; lines.forEach((line, index) => drawText(line, element.x, element.y + index * element.fontSize * 1.25, element.color, element.fontSize, element.fontFamily, !!element.bold, !!element.italic, element.opacity ?? 1, element.rotation ?? 0, center, element.textAlign)); if (element.underline) { const font = element.fontFamily === "mono" ? fontMono : element.fontFamily === "serif" ? fontSerif : element.fontFamily === "hand" || element.italic ? fontItalic : element.bold ? fontBold : fontRegular; const width = font.widthOfTextAtSize(lines[0] ?? "", element.fontSize) * scale; page.drawLine({ start: { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, end: { x: x0 + element.x * scale + width, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, thickness: Math.max(.5, scale), color: pdfColor(themeInk(element.color, theme()), pdfColorMode()) }); } return; }
+        if (element.type === "text") { const lines = element.text.split(/\r?\n/).map((line,index)=>element.listType==="bullet"?`• ${line}`:element.listType==="number"?`${index+1}. ${line}`:line); const textBox=elementBounds(element); const center={x:textBox.x+textBox.w/2,y:textBox.y+textBox.h/2}; lines.forEach((line, index) => drawText(line, element.x, element.y + index * element.fontSize * 1.25, element.color, element.fontSize, element.fontFamily, !!element.bold, !!element.italic, element.opacity ?? 1, element.rotation ?? 0, center, element.textAlign)); if (element.underline) { const font = element.fontFamily === "mono" ? fontMono : element.fontFamily === "serif" ? fontSerif : element.fontFamily === "hand" || element.italic ? fontItalic : element.bold ? fontBold : fontRegular; const width = font.widthOfTextAtSize(pdfText(lines[0] ?? ""), element.fontSize) * scale; page.drawLine({ start: { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, end: { x: x0 + element.x * scale + width, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, thickness: Math.max(.5, scale), color: pdfColor(themeInk(element.color, theme()), pdfColorMode()) }); } return; }
         if (element.type === "schemaTable") {
-          const dark = theme() === "dark"; const simple = componentAppearance() === "simple"; const fontSize = element.fontSize ?? 14; const headerHeight = Math.max(42, fontSize * 2.8); const rowHeight = Math.max(30, fontSize * 1.8); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const border = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const heading = simple ? surface : dark ? "#30465b" : "#e8f0f7"; const ink = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e"); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
+          const dark = theme() === "dark"; const simple = componentAppearance() === "simple"; const fontSize = element.fontSize ?? 12; const headerHeight = Math.max(42, fontSize * 2.8); const rowHeight = Math.max(30, fontSize * 1.8); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const border = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const heading = simple ? surface : dark ? "#30465b" : "#e8f0f7"; const ink = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e"); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
           const centerX = left + width / 2; const centerY = top - height / 2; const rotated = !!element.rotation;
           if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
           page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(surface, pdfColorMode()), opacity, borderColor: pdfColor(border, pdfColorMode()), borderWidth: 1.2 * scale, borderOpacity: opacity });
@@ -2930,17 +3054,17 @@ function App() {
             const filled = ["solid", "thick", "diamond"].includes(head.kind);
             pathStyle(page, headPath, element, scale, x0, yTop, filled ? themeInk(element.color, theme()) : undefined, element.opacity ?? 1);
           }
-          if (isLabelShape(element)) drawShapeLabel(element, drawText);
+          if (isLabelShape(element) || isConnector(element)) drawShapeLabel(element, drawText);
           return;
         }
          if(path)pathStyle(page,path,element,scale,x0,yTop,element.fillColor);
         if(element.type==="flowchart"&&element.flowchartShape==="database"){const detail=flowchartSvgDetailPath(element);if(detail)pathStyle(page,detail,element,scale,x0,yTop);}
-        if(isLabelShape(element))drawShapeLabel(element,drawText);
+        if(isLabelShape(element) || isConnector(element))drawShapeLabel(element,drawText);
       };
       const drawShapeLabel=(shape:ShapeElement,draw:(text:string,x:number,y:number,color:string,size:number,family:FontFamily|undefined,bold:boolean,italic:boolean,opacity:number,rotation?:number,rotationCenter?:Point)=>void)=>{if(!shape.label||!textMeasureContext)return;const bounds=elementBounds(shape),center={x:bounds.x+bounds.w/2,y:bounds.y+bounds.h/2};for(const run of textLayout(textMeasureContext,shape))draw(run.text,run.x,run.y,shape.label.color,shape.label.fontSize,shape.label.fontFamily,!!shape.label.bold,!!shape.label.italic,shape.label.opacity??1,shape.rotation??0,center);};
       for(const item of visible)await drawItem(item);
-      if(pdfHeader().trim())page.drawText(pdfHeader(),{x:bleed+margin,y:paperH-bleed-margin+4,size:9,font:fontBold,color:pdfColor("#333333",pdfColorMode())});
-      if(pdfFooter().trim())page.drawText(pdfFooter(),{x:bleed+margin,y:bleed+margin/2,size:9,font:fontRegular,color:pdfColor("#333333",pdfColorMode())});
+      if(pdfHeader().trim())page.drawText(pdfText(pdfHeader()),{x:bleed+margin,y:paperH-bleed-margin+4,size:9,font:fontBold,color:pdfColor("#333333",pdfColorMode())});
+      if(pdfFooter().trim())page.drawText(pdfText(pdfFooter()),{x:bleed+margin,y:bleed+margin/2,size:9,font:fontRegular,color:pdfColor("#333333",pdfColorMode())});
       page.drawText(`Page ${sceneIndex+1} of ${scenes.length}`,{x:paperW-bleed-margin-56,y:bleed+margin/2,size:9,font:fontRegular,color:pdfColor("#333333",pdfColorMode())});
       if(pdfCropMarks()){const t=bleed;const marks:{start:{x:number;y:number};end:{x:number;y:number}}[]=[{start:{x:t-7,y:t},end:{x:t-2,y:t}},{start:{x:t,y:t-7},end:{x:t,y:t-2}},{start:{x:paperW-t+2,y:t},end:{x:paperW-t+7,y:t}},{start:{x:paperW-t,y:t-7},end:{x:paperW-t,y:t-2}},{start:{x:t-7,y:paperH-t},end:{x:t-2,y:paperH-t}},{start:{x:t,y:paperH-t+2},end:{x:t,y:paperH-t+7}},{start:{x:paperW-t+2,y:paperH-t},end:{x:paperW-t+7,y:paperH-t}},{start:{x:paperW-t,y:paperH-t+2},end:{x:paperW-t,y:paperH-t+7}}];for(const mark of marks)page.drawLine({...mark,thickness:.35,color:rgb(0,0,0)});}
     }
@@ -3011,11 +3135,10 @@ function App() {
       } else {
         const state = exportViewFor(exportWidth(), exportHeight());
         const shapes = exportItems.map(elementToSvg).join("\n");
-        const pattern = whiteboardStyle(); const svgGridColor = theme() === "dark" ? "#414653" : "#deddd6"; const patternBase = pattern === "small-dots" || pattern === "small-grid" ? 12 : pattern === "ruled" ? 30 : GRID_SIZE; const gridStep = patternBase * state.zoom;
-        const isoHeight = gridStep * Math.sqrt(3);
-        const gridMark = pattern === "lines" || pattern === "small-grid" ? `<path d="M ${gridStep} 0 H 0 V ${gridStep}" fill="none" stroke="${svgGridColor}" stroke-width="0.65"/>` : pattern === "ruled" ? `<path d="M 0 ${gridStep} H 8" fill="none" stroke="${svgGridColor}" stroke-width="0.65"/>` : pattern === "isometric" ? `<path d="M 0 0 H ${gridStep} M 0 ${isoHeight / 2} H ${gridStep} M 0 ${isoHeight} H ${gridStep} M 0 0 L ${gridStep} ${isoHeight} M 0 ${isoHeight} L ${gridStep} 0" fill="none" stroke="${svgGridColor}" stroke-width="0.65"/>` : `<circle cx="1" cy="1" r="${pattern === "small-dots" ? 0.65 : 0.85}" fill="${svgGridColor}"/>`;
-        const gridWidth = pattern === "ruled" ? 8 : gridStep; const gridHeight = pattern === "isometric" ? isoHeight : gridStep;
-        const grid = exportGrid() && showGrid() && pattern !== "plain" && !exportTransparent() ? `<pattern id="grid" width="${gridWidth}" height="${gridHeight}" patternUnits="userSpaceOnUse" x="${state.panX}" y="${state.panY}">${gridMark}</pattern><rect width="100%" height="100%" fill="url(#grid)"/>` : "";
+        const pattern = whiteboardStyle(); const svgGridColor = theme() === "dark" ? "#414653" : "#deddd6"; const gridStep = gridStepForStyle(pattern as "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric", GRID_SIZE, state.zoom) * state.zoom;
+        const gridPattern = gridSvgPattern(pattern as "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric", gridStep);
+        const gridMark = gridPattern.path !== undefined ? `<path d="${gridPattern.path}" fill="none" stroke="${svgGridColor}" stroke-width="0.65"/>` : `<circle cx="0" cy="0" r="${gridPattern.dotRadius}" fill="${svgGridColor}"/>`;
+        const grid = exportGrid() && showGrid() && pattern !== "plain" && !exportTransparent() ? `<pattern id="grid" width="${gridPattern.width}" height="${gridPattern.height}" patternUnits="userSpaceOnUse" x="${state.panX}" y="${state.panY}">${gridMark}</pattern><rect width="100%" height="100%" fill="url(#grid)"/>` : "";
         const svgBackground = renderedBoardColor();
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${exportWidth()}" height="${exportHeight()}" viewBox="0 0 ${exportWidth()} ${exportHeight()}">${exportTransparent() ? "" : `<rect width="100%" height="100%" fill="${svgBackground}"/>`}${grid}<g transform="translate(${state.panX} ${state.panY}) scale(${state.zoom})">${shapes}</g></svg>`;
         await writeTextFile(target, svg);
@@ -3032,23 +3155,23 @@ function App() {
     let body = "";
     if (!collapsed) {
       if (meta.kind === "checklist") {
-        const rows = checklistRows(meta.content, width, meta.fontSize ?? 14); const done = rows.filter(row => row.done).length;
+        const rows = checklistRows(meta.content, width, meta.fontSize ?? 12); const done = rows.filter(row => row.done).length;
         body += `<text x="${x + 16}" y="${y + 53}" dominant-baseline="hanging" font-family="sans-serif" font-size="10" fill="${palette.muted}">${done} of ${rows.length} complete</text><rect x="${x + 16}" y="${y + 71}" width="${width - 32}" height="3" rx="${componentAppearance() === "simple" ? 0 : 2}" fill="${palette.rule}"/><rect x="${x + 16}" y="${y + 71}" width="${rows.length ? (width - 32) * done / rows.length : 0}" height="3" rx="${componentAppearance() === "simple" ? 0 : 2}" fill="${palette.check}"/>`;
-        body += rows.map(row => { const boxX = x + row.boxX, boxY = y + row.top + Math.max(0, (row.height - 16) / 2), textY = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2; return `<rect x="${boxX}" y="${boxY}" width="16" height="16" rx="${simple ? 0 : 4}" fill="${row.done ? palette.check : palette.surface}" stroke="${row.done ? palette.check : palette.border}"/>${row.done ? `<path d="M ${boxX + 4} ${boxY + 8} l3 3 5 -6" fill="none" stroke="${simple ? palette.ink : "#fff"}" stroke-width="1.8"/>` : ""}${row.labelLines.map((line, index) => `<text x="${x + row.textX}" y="${textY + index * row.lineHeight}" dominant-baseline="hanging" font-family="sans-serif" font-size="${meta.fontSize ?? 14}" fill="${row.done ? palette.muted : palette.ink}">${escapeXml(line)}</text>`).join("")}`; }).join("");
+        body += rows.map(row => { const boxX = x + row.boxX, boxY = y + row.top + Math.max(0, (row.height - 16) / 2), textY = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2; return `<rect x="${boxX}" y="${boxY}" width="16" height="16" rx="${simple ? 0 : 4}" fill="${row.done ? palette.check : palette.surface}" stroke="${row.done ? palette.check : palette.border}"/>${row.done ? `<path d="M ${boxX + 4} ${boxY + 8} l3 3 5 -6" fill="none" stroke="${simple ? palette.ink : "#fff"}" stroke-width="1.8"/>` : ""}${row.labelLines.map((line, index) => `<text x="${x + row.textX}" y="${textY + index * row.lineHeight}" dominant-baseline="hanging" font-family="sans-serif" font-size="${meta.fontSize ?? 12}" fill="${row.done ? palette.muted : palette.ink}">${escapeXml(line)}</text>`).join("")}`; }).join("");
       } else {
         let cursor = y + 58, inCode = false, language = "text", codeLines: string[] = [];
-        const addCode = () => { const fontSize = meta.fontSize ?? 14; const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => { const chunks: string[] = []; for (let index = 0; index < Math.max(1, line.length); index += max) chunks.push(line.slice(index, index + max)); return chunks; }); const blockHeight = Math.max(45, lines.length * fontSize * 1.5 + 26); body += `<rect x="${x + 10}" y="${cursor}" width="${width - 20}" height="${blockHeight}" rx="${simple ? 0 : 7}" fill="${simple ? palette.surface : "#202936"}" stroke="${simple ? palette.rule : "#344154"}"/><text x="${x + 20}" y="${cursor + 7}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" font-weight="600" fill="${simple ? palette.muted : "#91a1b5"}">${escapeXml(language.toUpperCase())}</text>${lines.map((line, index) => { let column = 0; return syntaxTokens(line, language).map(token => { const rendered = `<text x="${x + 20 + column * fontSize * .62}" y="${cursor + 22 + index * fontSize * 1.5}" dominant-baseline="hanging" font-family="monospace" font-size="${fontSize}" fill="${syntaxTokenColor(token.color, theme(), componentAppearance())}">${escapeXml(token.value)}</text>`; column += token.value.length; return rendered; }).join(""); }).join("")}`; cursor += blockHeight + 9; codeLines = []; inCode = false; };
-        const maxChars = Math.max(8, Math.floor((width - 36) / ((meta.fontSize ?? 14) * .56)));
+        const addCode = () => { const fontSize = meta.fontSize ?? 12; const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => { const chunks: string[] = []; for (let index = 0; index < Math.max(1, line.length); index += max) chunks.push(line.slice(index, index + max)); return chunks; }); const blockHeight = Math.max(45, lines.length * fontSize * 1.5 + 26); body += `<rect x="${x + 10}" y="${cursor}" width="${width - 20}" height="${blockHeight}" rx="${simple ? 0 : 7}" fill="${simple ? palette.surface : "#202936"}" stroke="${simple ? palette.rule : "#344154"}"/><text x="${x + 20}" y="${cursor + 7}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" font-weight="600" fill="${simple ? palette.muted : "#91a1b5"}">${escapeXml(language.toUpperCase())}</text>${lines.map((line, index) => { let column = 0; return syntaxTokens(line, language).map(token => { const rendered = `<text x="${x + 20 + column * fontSize * .62}" y="${cursor + 22 + index * fontSize * 1.5}" dominant-baseline="hanging" font-family="monospace" font-size="${fontSize}" fill="${syntaxTokenColor(token.color, theme(), componentAppearance())}">${escapeXml(token.value)}</text>`; column += token.value.length; return rendered; }).join(""); }).join("")}`; cursor += blockHeight + 9; codeLines = []; inCode = false; };
+        const maxChars = Math.max(8, Math.floor((width - 36) / ((meta.fontSize ?? 12) * .56)));
         for (const line of meta.content.split(/\r?\n/)) {
           const fence = /^\s*```\s*([\w+#.-]*)\s*$/.exec(line); if (fence) { if (!inCode) { inCode = true; language = fence[1] || "text"; } else addCode(); continue; }
           if (inCode) { codeLines.push(line); continue; } if (!line.trim()) { cursor += 8; continue; }
-          const heading = /^(#{1,3})\s+(.*)$/.exec(line); const value = heading?.[2] ?? line; const size = heading ? (meta.fontSize ?? 14) + (4 - heading[1].length) * 2 : (meta.fontSize ?? 14);
+          const heading = /^(#{1,3})\s+(.*)$/.exec(line); const value = heading?.[2] ?? line; const size = heading ? (meta.fontSize ?? 12) + (4 - heading[1].length) * 2 : (meta.fontSize ?? 12);
           for (let index = 0; index < Math.max(1, value.length); index += maxChars) { body += `<text x="${x + 16}" y="${cursor}" dominant-baseline="hanging" font-family="sans-serif" font-size="${size}" font-weight="${heading ? 650 : 400}" fill="${palette.ink}">${escapeXml(value.slice(index, index + maxChars))}</text>`; cursor += size * 1.5; }
         }
         if (inCode) addCode();
       }
     }
-    const summaryRows = collapsed && meta.kind === "checklist" ? checklistRows(meta.content, width, meta.fontSize ?? 14) : undefined;
+    const summaryRows = collapsed && meta.kind === "checklist" ? checklistRows(meta.content, width, meta.fontSize ?? 12) : undefined;
     const summary = summaryRows ? `${summaryRows.filter(row => row.done).length} of ${summaryRows.length} tasks` : meta.content.split(/\r?\n/).find(line => line.trim() && !/^\s*```/.test(line))?.trim() || "Empty card";
     const chevron = collapsed ? `M ${x + width - 26} ${y + 30} l5 5 5 -5` : `M ${x + width - 26} ${y + 23} l5 -5 5 5`;
     const radius = simple ? 0 : 12; const accent = simple ? "" : `<path d="M ${x + 2} ${y + 13} v ${Math.max(0, height - 26)}" stroke="${palette.accent}" stroke-width="3" stroke-linecap="round"/>`;
@@ -3058,10 +3181,18 @@ function App() {
 
   function elementToSvg(element: Element): string {
     if (element.hidden) return "";
-    if (element.type === "group") return element.note ? noteCardSvg(element) : `<g>${element.elements.map(elementToSvg).join("")}</g>`;
     element = simpleComponentElement(element);
+    if (element.type === "group") {
+      if (element.note) return noteCardSvg(element);
+      if (element.componentBounds) {
+        const bounds = elementBounds(element); const cx = bounds.x + bounds.w / 2; const cy = bounds.y + bounds.h / 2;
+        const content = modelComponentSvg(element, componentAppearance());
+        return element.rotation ? `<g transform="rotate(${element.rotation} ${cx} ${cy})">${content}</g>` : `<g>${content}</g>`;
+      }
+      return `<g>${element.elements.map(elementToSvg).join("")}</g>`;
+    }
     const bounds = elementBounds(element); const cx = bounds.x + bounds.w / 2; const cy = bounds.y + bounds.h / 2;
-    const content = elementSvgBody(element) + (isLabelShape(element) ? labelSvg(element) : "");
+    const content = elementSvgBody(element) + (isLabelShape(element) || isConnector(element) ? labelSvg(element) : "");
     return element.rotation ? `<g transform="rotate(${element.rotation} ${cx} ${cy})">${content}</g>` : content;
   }
 
@@ -3070,7 +3201,7 @@ function App() {
     if (element.hidden) return "";
     if (element.type === "image") { const sx = element.cropX ?? 0; const sy = element.cropY ?? 0; const sw = element.cropW ?? element.sourceWidth ?? element.w; const sh = element.cropH ?? element.sourceHeight ?? element.h; return `<svg x="${element.x}" y="${element.y}" width="${element.w}" height="${element.h}" viewBox="${sx} ${sy} ${sw} ${sh}" preserveAspectRatio="none" opacity="${element.opacity ?? 1}"><image width="${element.sourceWidth ?? sw}" height="${element.sourceHeight ?? sh}" href="${element.dataUrl}"/></svg>`; }
     if (element.type === "schemaTable") {
-      const simple = componentAppearance() === "simple"; const dark = theme() === "dark"; const size = element.fontSize ?? 14; const headerHeight = Math.max(42, size * 2.8); const rowHeight = Math.max(30, size * 1.8);
+      const simple = componentAppearance() === "simple"; const dark = theme() === "dark"; const size = element.fontSize ?? 12; const headerHeight = Math.max(42, size * 2.8); const rowHeight = Math.max(30, size * 1.8);
       const ink = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const header = simple ? surface : (dark ? "#30465b" : "#e8f0f7"); const mainText = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e");
       const rows = element.columns.map((column, index) => {
         const y = element.y + headerHeight + index * rowHeight;
@@ -3093,7 +3224,7 @@ function App() {
     const strokeOpacity = element.opacity ?? 1;
     const style = `fill="${fillColor ? escapeXml(fillColor) : "none"}"${fillColor ? ` fill-opacity="${fillOpacity}"` : ""} stroke="${escapeXml(ink)}" opacity="${strokeOpacity}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-linejoin="round"`;
     if (element.type === "freehand") return freehandSvg(element, ink);
-    if (element.type === "rectangle") { const width = Math.abs(element.w); const height = Math.abs(element.h); const radius = element.edgeStyle === "pill" ? Math.min(width, height) / 2 : element.edgeStyle === "rounded" ? Math.min(element.cornerRadius ?? 14, width / 2, height / 2) : 0; if (element.edgeStyle === "cut") { const x = Math.min(element.x, element.x + element.w); const y = Math.min(element.y, element.y + element.h); const c = Math.min(element.cornerRadius ?? 12, width / 2, height / 2); return `<path d="M ${x + c} ${y} H ${x + width - c} L ${x + width} ${y + c} V ${y + height - c} L ${x + width - c} ${y + height} H ${x + c} L ${x} ${y + height - c} V ${y + c} Z" ${style}/>`; } return `<rect x="${Math.min(element.x, element.x + element.w)}" y="${Math.min(element.y, element.y + element.h)}" width="${width}" height="${height}" rx="${radius}" ${style}/>`; }
+    if (element.type === "rectangle") { const width = Math.abs(element.w); const height = Math.abs(element.h); const radius = element.edgeStyle === "pill" ? Math.min(width, height) / 2 : element.edgeStyle === "rounded" ? Math.min(element.cornerRadius ?? 12, width / 2, height / 2) : 0; if (element.edgeStyle === "cut") { const x = Math.min(element.x, element.x + element.w); const y = Math.min(element.y, element.y + element.h); const c = Math.min(element.cornerRadius ?? 12, width / 2, height / 2); return `<path d="M ${x + c} ${y} H ${x + width - c} L ${x + width} ${y + c} V ${y + height - c} L ${x + width - c} ${y + height} H ${x + c} L ${x} ${y + height - c} V ${y + c} Z" ${style}/>`; } return `<rect x="${Math.min(element.x, element.x + element.w)}" y="${Math.min(element.y, element.y + element.h)}" width="${width}" height="${height}" rx="${radius}" ${style}/>`; }
     if (element.type === "diamond") return `<path d="M ${element.x + element.w / 2} ${element.y} L ${element.x + element.w} ${element.y + element.h / 2} L ${element.x + element.w / 2} ${element.y + element.h} L ${element.x} ${element.y + element.h / 2} Z" ${style}/>`;
     if (element.type === "triangle") { const left = Math.min(element.x, element.x + element.w); const right = Math.max(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const bottom = Math.max(element.y, element.y + element.h); return `<path d="M ${(left + right) / 2} ${top} L ${right} ${bottom} L ${left} ${bottom} Z" ${style}/>`; }
     if (element.type === "circle") return `<ellipse cx="${element.x + element.w / 2}" cy="${element.y + element.h / 2}" rx="${Math.abs(element.w / 2)}" ry="${Math.abs(element.h / 2)}" ${style}/>`;
@@ -3199,12 +3330,22 @@ function App() {
     if (boardLocked() && tool() !== "laser") return;
     if (isPenEraser) { event.preventDefault(); penEraserDrawing = true; drawing = true; eraseAtPoint(point); canvas.setPointerCapture(event.pointerId); return; }
     if (tool() === "select") {
+      libraryControlOrigin = undefined; labelMoveOrigin = undefined;
+      const labelHit = hitTest(point); const labelTarget = labelHit === undefined ? undefined : elements()[labelHit];
+      if (labelHit !== undefined && labelTarget && isConnector(labelTarget) && labelTarget.label?.text) {
+        const box = labelBox(labelTarget);
+        if (point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h) {
+          setSelectedIndices([labelHit]); setSidebarTab("properties");
+          labelMoveOrigin = { index: labelHit, point, before: elements(), offsetX: labelTarget.label.offsetX ?? 0, offsetY: labelTarget.label.offsetY ?? 0, rotation: labelTarget.rotation ?? 0, moved: false };
+          canvas.setPointerCapture(event.pointerId); return;
+        }
+      }
       const handle = findTransformHandle(point);
       if (handle) { const original = elements()[handle.index]; resizeOrigin = { ...handle, start: point, original, before: elements(), moved: false }; canvas.setPointerCapture(event.pointerId); return; }
       const hit = hitTest(point);
       if (hit !== undefined) {
         const target = elements()[hit];
-        if (target?.type === "group" && target.libraryComponent && activateLibraryControl(hit, point)) { canvas.setPointerCapture(event.pointerId); return; }
+        if (target?.type === "group" && target.libraryComponent) libraryControlOrigin = { index: hit };
         if (target?.type === "group" && target.note && noteCollapseHit(target, point)) { toggleNoteCollapsed(hit); canvas.setPointerCapture(event.pointerId); return; }
         if (target?.type === "group" && target.note?.kind === "checklist") {
           const row = checklistIndexAt(target, point);
@@ -3246,7 +3387,7 @@ function App() {
         else openNoteEditor(point, activeTextMode);
         return;
       }
-      const hit = hitTest(point) ?? hitInterior(point); if (hit !== undefined && isLabelShape(elements()[hit])) editShapeLabel(hit, event.pointerId); else startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined, event.pointerId); return;
+      const hit = hitTest(point) ?? hitInterior(point); if (hit !== undefined && (isLabelShape(elements()[hit]) || isConnector(elements()[hit]))) editShapeLabel(hit, event.pointerId); else startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined, event.pointerId); return;
     }
     if (tool() === "bucket") { const hit = hitInterior(point); if (hit !== undefined) updatePropertyForIndex(hit, fillColor()); return; }
     if (tool() === "eraser") { eraseAtPoint(point); drawing = true; canvas.setPointerCapture(event.pointerId); return; }
@@ -3278,17 +3419,18 @@ function App() {
   function cancelCanvasInteraction() {
     pendingAndroidStylusSamples = [];
     if (resizeOrigin) setElements(resizeOrigin.before);
+    if (labelMoveOrigin) setElements(labelMoveOrigin.before);
     if (moveOrigin) { moveOrigin = undefined; scheduleCanvasRender(); }
     drawing = false; currentPoints = []; strokePointLimitReached = false; penEraserDrawing = false;
     setPreview(undefined); setMarquee(undefined); setAttachmentHint(undefined); setAlignmentGuides(undefined);
-    resizeOrigin = undefined; moveOrigin = undefined; marqueeOrigin = undefined; panOrigin = undefined;
+    resizeOrigin = undefined; moveOrigin = undefined; labelMoveOrigin = undefined; libraryControlOrigin = undefined; marqueeOrigin = undefined; panOrigin = undefined;
     setIsPanning(false);
   }
 
   function pointerDown(event: PointerEvent) {
     if (!activePath()) return;
     if (event.pointerType === "pen") event.preventDefault();
-    if (event.pointerType === "touch" && activePenPointerId !== undefined && !drawing && !panOrigin && !resizeOrigin && !moveOrigin && !marqueeOrigin) activePenPointerId = undefined;
+    if (event.pointerType === "touch" && activePenPointerId !== undefined && !drawing && !panOrigin && !resizeOrigin && !moveOrigin && !labelMoveOrigin && !marqueeOrigin) activePenPointerId = undefined;
     if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
     if (event.pointerType === "pen") {
       activePenPointerId = event.pointerId;
@@ -3319,7 +3461,9 @@ function App() {
         touchTapTracker.maxFingers = Math.max(touchTapTracker.maxFingers, Math.min(3, touchPointers.size));
       }
       if (startTouchGesture(event)) return;
-      if (touchPointers.size === 1 && !readOnlyView() && (oneFingerTapAction() !== "none" || oneFingerDragAction() === "pan")) {
+      const touchHit = hitTest(toWorld(event)); const touchTarget = touchHit === undefined ? undefined : elements()[touchHit];
+      const directLibraryControl = touchTarget?.type === "group" && !!touchTarget.libraryComponent?.kind.startsWith("form-");
+      if (touchPointers.size === 1 && !readOnlyView() && !directLibraryControl && (oneFingerTapAction() !== "none" || oneFingerDragAction() === "pan")) {
         event.preventDefault();
         try { canvas.setPointerCapture(event.pointerId); } catch { /* The pointer can be canceled before capture. */ }
         return;
@@ -3384,7 +3528,18 @@ function App() {
       setCanvasState({ ...canvasState(), panX: panOrigin.panX + event.clientX - panOrigin.x, panY: panOrigin.panY + event.clientY - panOrigin.y }); setDirty(!readOnlyView());
       return;
     }
+    if (labelMoveOrigin) {
+      const origin = labelMoveOrigin; const point = toWorld(event); const dx = point.x - origin.point.x; const dy = point.y - origin.point.y; const angle = -origin.rotation * Math.PI / 180; const localDx = dx * Math.cos(angle) - dy * Math.sin(angle); const localDy = dx * Math.sin(angle) + dy * Math.cos(angle);
+      if (Math.hypot(dx, dy) > 0.5) origin.moved = true;
+      if (origin.moved) {
+        setElementsTransient(origin.before.map((element, index) => index === origin.index && isConnector(element) ? { ...element, label: { text: "", color: color(), fontSize: defaultFontSize(), verticalAlign: "middle", ...element.label, offsetX: origin.offsetX + localDx, offsetY: origin.offsetY + localDy } } : element));
+        setDirty(true);
+      }
+      return;
+    }
     if (resizeOrigin) {
+      // Transform handles use the raw pointer position. Grid snapping only runs
+      // through snapTranslation for moves, so resize remains continuous.
       const point = toWorld(event); if (Math.hypot(point.x - resizeOrigin.start.x, point.y - resizeOrigin.start.y) > 0.5) resizeOrigin.moved = true;
       const resized = resizeElement(resizeOrigin.original, resizeOrigin.handle, resizeOrigin.start, point);
       setElementsTransient(resizeOrigin.before.map((element, index) => index === resizeOrigin!.index ? resized : element)); setDirty(true); return;
@@ -3420,7 +3575,7 @@ function App() {
 
   function moveElement(element: Element, dx: number, dy: number): Element {
     if (element.locked) return element;
-    if (element.type === "group") return { ...element, elements: element.elements.map((child) => moveElement(child, dx, dy)) };
+    if (element.type === "group") return { ...element, ...(element.componentBounds ? { componentBounds: { ...element.componentBounds, x: element.componentBounds.x + dx, y: element.componentBounds.y + dy } } : {}), elements: element.elements.map((child) => moveElement(child, dx, dy)) };
     if (element.type === "freehand") return { ...element, points: element.points.map((point) => ({ ...point, x: point.x + dx, y: point.y + dy })) };
     if (isConnector(element)) {
       const shiftBranch = (branch: ShapeElement["forkUpper"]) => branch ? { ...branch, end: branch.end ? { x: branch.end.x + dx, y: branch.end.y + dy } : undefined, routePoints: branch.routePoints?.map(point => ({ x: point.x + dx, y: point.y + dy })) } : undefined;
@@ -3452,9 +3607,19 @@ function App() {
   }
 
   function snapTranslation(indices: number[], before: Element[], dx: number, dy: number, snapTargets: { x: number[]; y: number[] }) {
-    const selected = new Set(indices); const moving = unionBounds(before.flatMap((element, index) => selected.has(index) && !element.hidden ? [elementBounds(element)] : []));
+    const selected = new Set(indices); const moving = unionBounds(before.flatMap((element, index) => {
+      if (!selected.has(index) || element.hidden) return [];
+      const bounds = elementGridBounds(element);
+      return bounds ? [bounds] : [];
+    }));
     if (!moving) { setAlignmentGuides(undefined); return { dx, dy }; }
-    if (snapToGrid()) { dx = Math.round((moving.x + dx) / GRID_SIZE) * GRID_SIZE - moving.x; dy = Math.round((moving.y + dy) / GRID_SIZE) * GRID_SIZE - moving.y; }
+    if (snapToGrid()) {
+      // Snap the final canvas position using the same lattice as placement. Object
+      // snapping must not apply a later correction that moves the item off-grid.
+      const snapped = snapCanvasPoint({ x: moving.x + dx, y: moving.y + dy }, true, whiteboardStyle(), GRID_SIZE);
+      setAlignmentGuides(undefined);
+      return { dx: snapped.x - moving.x, dy: snapped.y - moving.y };
+    }
     if (!snapToObjects() || (!snapTargets.x.length && !snapTargets.y.length)) { setAlignmentGuides(undefined); return { dx, dy }; }
     const left = moving.x; const top = moving.y; const right = moving.x + moving.w; const bottom = moving.y + moving.h;
     const movingX = [left, (left + right) / 2, right]; const movingY = [top, (top + bottom) / 2, bottom];
@@ -3492,7 +3657,7 @@ function App() {
       else if (shape.type === "diamond") { context.moveTo(cx, top); context.lineTo(left + width, cy); context.lineTo(cx, top + height); context.lineTo(left, cy); context.closePath(); }
       else if (shape.type === "triangle") { context.moveTo(cx, top); context.lineTo(left + width, top + height); context.lineTo(left, top + height); context.closePath(); }
       else if (shape.type === "flowchart") { if (!flowchartPath) traceFlowchart(context, shape.flowchartShape ?? "process", shape.x, shape.y, shape.w, shape.h); }
-      else if (shape.edgeStyle === "rounded" || shape.edgeStyle === "pill") context.roundRect(left, top, width, height, shape.edgeStyle === "pill" ? Math.min(width, height) / 2 : Math.min(shape.cornerRadius ?? 14, width / 2, height / 2));
+      else if (shape.edgeStyle === "rounded" || shape.edgeStyle === "pill") context.roundRect(left, top, width, height, shape.edgeStyle === "pill" ? Math.min(width, height) / 2 : Math.min(shape.cornerRadius ?? 12, width / 2, height / 2));
       else if (shape.edgeStyle === "cut") { const c=Math.min(shape.cornerRadius ?? 12,width/2,height/2);context.moveTo(left+c,top);context.lineTo(left+width-c,top);context.lineTo(left+width,top+c);context.lineTo(left+width,top+height-c);context.lineTo(left+width-c,top+height);context.lineTo(left+c,top+height);context.lineTo(left,top+height-c);context.lineTo(left,top+c);context.closePath(); }
       else context.rect(left, top, width, height);
       const inside = flowchartPath ? context.isPointInPath(flowchartPath, local.x, local.y) : context.isPointInPath(local.x, local.y); context.restore(); if (inside) return index;
@@ -3557,7 +3722,11 @@ function App() {
         else startTouchGesture(event);
         return;
       }
-      if (handledTapAction) return;
+      if (handledTapAction) {
+        if (libraryControlOrigin && moveOrigin && !moveOrigin.moved) activateLibraryControl(libraryControlOrigin.index, toWorld(event));
+        libraryControlOrigin = undefined; moveOrigin = undefined;
+        return;
+      }
     }
     setAttachmentHint(undefined);
     if (panOrigin) { panOrigin = undefined; setIsPanning(false); return; }
@@ -3585,6 +3754,11 @@ function App() {
       }
       marqueeOrigin = undefined; setMarquee(undefined); return;
     }
+    if (labelMoveOrigin) {
+      const origin = labelMoveOrigin;
+      if (origin.moved) { setElements(elements()); pushUndo(origin.before); }
+      labelMoveOrigin = undefined; scheduleCanvasRender(); return;
+    }
     if (resizeOrigin) { const origin = resizeOrigin; if (origin.moved) { setElements(elements()); pushUndo(origin.before); } resizeOrigin = undefined; return; }
     if (moveOrigin) {
       const origin = moveOrigin;
@@ -3592,7 +3766,8 @@ function App() {
         const selected = new Set(origin.indices);
         setElements(origin.before.map((element, index) => selected.has(index) ? moveElement(element, origin.dx, origin.dy) : element));
         pushUndo(origin.before);
-      }
+      } else if (libraryControlOrigin) activateLibraryControl(libraryControlOrigin.index, toWorld(event));
+      libraryControlOrigin = undefined;
       moveOrigin = undefined; setAlignmentGuides(undefined); scheduleCanvasRender(); return;
     }
     if (!drawing) return;
@@ -3698,10 +3873,12 @@ function App() {
   const helpShortcuts: [string, string][] = [["V", "Select tool"], ["Space", "Hold to pan"], ["P", "Fine pen"], ["Y", "Laser pointer"], ["R", "Rectangle"], ["C / O", "Circle"], ["D", "Diamond"], ["N", "Triangle"], ["L", "Line"], ["A", "Arrow"], ["F", "Flowchart symbol"], ["T", "Text"], ["B", "Fill bucket"], ["E", "Eraser"], ["X", "Image crop"], ["Esc", "Pan tool and clear selection"], ["G", "Toggle grid"], ["Shift+G", "Snap to grid"], ["Shift+O", "Snap to objects"], ["K", "Lock canvas"], ["0", "Center view at 100%"], ["1 / 2", "Fit drawing / selection"], ["Ctrl / Cmd + N", "New sketch"], ["Ctrl / Cmd + O", "Open sketch"], ["Ctrl / Cmd + S", "Save"], ["Ctrl / Cmd + Z", "Undo"], ["Ctrl / Cmd + Y", "Redo"], ["Ctrl / Cmd + C / X / V", "Copy / cut / paste"], ["Ctrl / Cmd + D", "Duplicate selection"], ["Ctrl / Cmd + A", "Select all"], ["Ctrl / Cmd + G", "Group selection"], ["Ctrl / Cmd + Shift + G", "Ungroup"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge by 1 px"], ["Shift+Arrow", "Nudge by 10 px"], ["F1", "Open Help"]];
   const updateTextDraft = (value: string) => setTextDraft((draft) => draft ? { ...draft, value } : undefined);
   function setSelectedNoteFontSize(size: number) {
+    if (!Number.isFinite(size)) return;
     const bounded = Math.max(8, Math.min(32, Math.round(size)));
-    if (noteEditor()) { setNoteEditor(draft => draft ? { ...draft, fontSize: bounded } : draft); return; }
+    if (noteEditor()) { rememberFontSize(bounded); setNoteEditor(draft => draft ? { ...draft, fontSize: bounded } : draft); return; }
     const index = primarySelection(); const previous = index === undefined ? undefined : elements()[index];
     if (previous?.type !== "group" || !previous.note || previous.locked || boardLocked()) return;
+    rememberFontSize(bounded);
     const bounds = elementBounds(previous); const before = cloneElements(elements());
     const rebuilt = buildNoteGroup(bounds.x, bounds.y, previous.note.kind, previous.note.content, { width: previous.note.width ?? bounds.w, height: previous.note.height ?? bounds.h, fontSize: bounded, title: previous.note.title, collapsed: previous.note.collapsed });
     const replacement: Element = { ...rebuilt, ...previous, note: rebuilt.note, elements: rebuilt.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
@@ -3727,13 +3904,13 @@ function App() {
     const index = primarySelection(); const previous = index === undefined ? undefined : elements()[index];
     if (index === undefined || previous?.type !== "group" || previous.note?.kind !== "note" || previous.locked || boardLocked()) return;
     const bounds = elementBounds(previous); const before = cloneElements(elements());
-    const plain: TextElement = { type: "text", id: previous.id, x: bounds.x + 14, y: bounds.y + 58, text: previous.note.content, color: theme() === "dark" ? "#f4f4f2" : "#252525", fontSize: previous.note.fontSize ?? 14, fontFamily: "sans", textAlign: "left", listType: "none", rotation: previous.rotation, locked: previous.locked, hidden: previous.hidden };
+    const plain: TextElement = { type: "text", id: previous.id, x: bounds.x + 14, y: bounds.y + 58, text: previous.note.content, color: theme() === "dark" ? "#f4f4f2" : "#252525", fontSize: previous.note.fontSize ?? 12, fontFamily: "sans", textAlign: "left", listType: "none", rotation: previous.rotation, locked: previous.locked, hidden: previous.hidden };
     setElements(items => items.map((item, current) => current === index ? plain : item)); pushUndo(before); setSelectedIndices([index]); setTool("select"); setDirty(true);
   }
   const adjustQuickFont = (delta: number) => {
     if (noteEditor() || quickHasNoteCard()) { setSelectedNoteFontSize(quickCardFontSize() + delta); return; }
     const focused = focusedElement();
-    if (focused?.type === "schemaTable") { updateProperty("fontSize", Math.max(8, Math.min(48, (focused.fontSize ?? 14) + delta))); return; }
+    if (focused?.type === "schemaTable") { updateProperty("fontSize", Math.max(8, Math.min(48, (focused.fontSize ?? 12) + delta))); return; }
     if (focused?.componentId?.startsWith("uml-class:") && resizeClassCardFont(focused.componentId, quickCardFontSize() + delta)) return;
     setTextFormat("fontSize", Math.max(8, Math.min(160, (selectedText()?.fontSize ?? defaultFontSize()) + delta)));
   };
@@ -3743,8 +3920,9 @@ function App() {
     if (property === "fontSize") value = Math.round(Number(value));
     if (property === "fontSize" && (noteEditor() || quickHasNoteCard())) { setSelectedNoteFontSize(Number(value)); return; }
     if (property === "fontSize" && focusedElement()?.componentId?.startsWith("uml-class:")) { resizeClassCardFont(focusedElement()!.componentId!, Number(value)); return; }
-    if (property === "fontSize" && focusedElement()?.type === "schemaTable") { updateProperty("fontSize", Math.max(8, Math.min(48, Number(value)))); return; }
-    if (focusedElement() && isLabelShape(focusedElement()!)) updateLabel(property, value);
+    if (property === "fontSize" && focusedElement()?.type === "schemaTable") { const size = Math.max(8, Math.min(48, Number(value))); value = rememberFontSize(size); updateProperty("fontSize", size); return; }
+    if (property === "fontSize") value = rememberFontSize(Number(value));
+    if (focusedElement() && (isLabelShape(focusedElement()!) || isConnector(focusedElement()!))) updateLabel(property, value);
     else if (selectedText() && !textDraft()) updateProperty(property, value);
     else {
       if (property === "bold") setDefaultBold(Boolean(value)); else if (property === "italic") setDefaultItalic(Boolean(value)); else if (property === "underline") setDefaultUnderline(Boolean(value));
@@ -3980,11 +4158,21 @@ function App() {
       if (isDraft) setLibraryComponentDraft(current => current ? operation(current) : current);
       else updateSelectedLibraryComponent(operation);
     };
+    const changeComponentFontSize = (requestedSize: number) => {
+      if (!Number.isFinite(requestedSize) || requestedSize < 8 || requestedSize > 160) return;
+      rememberFontSize(requestedSize);
+      changeGroup(current => resizeLibraryFont(current, requestedSize));
+    };
+    const componentDimensions = () => group().componentBounds ?? elementBounds({ ...group(), rotation: 0 });
     const changeSize = (axis: "w" | "h", value: number) => {
       if (!Number.isFinite(value)) return;
-      changeGroup(current => { const bounds = elementBounds(current); return resizeLibraryGroup(current, { ...bounds, [axis]: Math.max(axis === "w" ? 60 : 40, Math.min(4000, value)) }); });
+      changeGroup(current => { const bounds = current.componentBounds ?? elementBounds({ ...current, rotation: 0 }); return resizeLibraryGroup(current, { ...bounds, [axis]: Math.max(libraryComponentMinimum(current, axis), Math.min(4000, value)) }); });
     };
     const changeOption = (index: number, value: string) => changeGroup(current => { const next = [...optionsFor(current)]; next[index] = value.slice(0, 120); return rebuildLibraryFormOptions(current, next); });
+    const changePortCount = (requested: number) => changeGroup(current => {
+      const count = Math.max(1, Math.min(32, Math.round(requested)));
+      return setLibraryPortCount(current, count);
+    });
     const changeSelectedOption = (index: number) => changeGroup(current => current.libraryComponent?.kind === "form-radio" ? setLibraryRadioOption(current, index) : rebuildLibraryFormOptions(current, optionsFor(current), index));
     const addOption = () => changeGroup(current => rebuildLibraryFormOptions(current, [...optionsFor(current), `Option ${optionsFor(current).length + 1}`]));
     const removeOption = () => changeGroup(current => rebuildLibraryFormOptions(current, optionsFor(current).slice(0, -1)));
@@ -4009,10 +4197,15 @@ function App() {
     });
     const locked = () => !isDraft && (boardLocked() || !!group().locked);
     return <div class="component-editor-content">
-      <div class="precision-grid component-size-grid"><label>Width<input aria-label="Component width" type="number" min="60" max="4000" value={Math.round(elementBounds(group()).w)} disabled={locked()} onChange={event => changeSize("w", Number(event.currentTarget.value))} /></label><label>Height<input aria-label="Component height" type="number" min="40" max="4000" value={Math.round(elementBounds(group()).h)} disabled={locked()} onChange={event => changeSize("h", Number(event.currentTarget.value))} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="160" value={libraryComponentFontSize(group())} disabled={locked()} onChange={event => changeGroup(current => resizeLibraryFont(current, Number(event.currentTarget.value)))} /></label></div>
+      <div class="precision-grid component-size-grid"><label>Width<input aria-label="Component width" type="number" min={libraryComponentMinimum(group(), "w")} max="4000" step="1" value={Math.round(componentDimensions().w)} disabled={locked()} onChange={event => changeSize("w", Number(event.currentTarget.value))} /></label><label>Height<input aria-label="Component height" type="number" min={libraryComponentMinimum(group(), "h")} max="4000" step="1" value={Math.round(componentDimensions().h)} disabled={locked()} onChange={event => changeSize("h", Number(event.currentTarget.value))} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="160" value={libraryComponentFontSize(group())} disabled={locked()} onChange={event => changeComponentFontSize(Number(event.currentTarget.value))} /></label></div>
+      <Show when={kind() === "uml-lifeline"}><label class="property-label">Lifeline length<input aria-label="Lifeline length" type="number" min="24" max="4000" step="1" value={libraryLifelineLength(group())} disabled={locked()} onChange={event => changeGroup(current => setLibraryLifelineLength(current, Number(event.currentTarget.value)))} /></label></Show>
+      <div class="component-appearance-choice" role="group" aria-label="Component style"><span>Style</span>{(["simple", "modern"] as const).map(appearance => <button type="button" class={(group().libraryComponent?.appearance ?? componentAppearance()) === appearance ? "active" : ""} aria-pressed={(group().libraryComponent?.appearance ?? componentAppearance()) === appearance} disabled={locked()} onClick={() => changeGroup(current => ({ ...current, libraryComponent: { ...current.libraryComponent!, appearance } }))}>{appearance === "simple" ? "Simple" : "Modern"}</button>)}</div>
       <Show when={kind() === "form-toggle"}>
         <label class="property-label component-form-title">Title<input aria-label="Toggle title" maxlength="80" value={group().libraryComponent?.formTitle ?? defaultLibraryFormTitle(kind() as LibraryComponentKind) ?? ""} disabled={locked()} onInput={event => changeGroup(current => setLibraryFormTitle(current, event.currentTarget.value))} /></label>
         <label class="component-state-control"><input type="checkbox" checked={group().libraryComponent?.formState ?? true} disabled={locked()} onChange={event => changeGroup(current => setLibraryFormState(current, event.currentTarget.checked))} /><span class="component-switch" aria-hidden="true" /><strong>{group().libraryComponent?.formState === false ? "Off" : "On"}</strong></label>
+      </Show>
+      <Show when={kind() === "network-switch" || kind() === "network-hub"}>
+        <section class="component-port-editor"><div><strong>Connection ports</strong><small>Draws {group().libraryComponent?.portCount ?? (kind() === "network-hub" ? 8 : 6)} visible ports</small></div><label>Count<input aria-label="Number of network ports" type="number" min="1" max="32" step="1" value={group().libraryComponent?.portCount ?? (kind() === "network-hub" ? 8 : 6)} disabled={locked()} onChange={event => changePortCount(Number(event.currentTarget.value))} /></label></section>
       </Show>
       <Show when={kind() === "form-radio" || kind() === "form-select" || kind() === "form-button" || kind() === "form-checkbox"}>
         <section class="component-options-editor">
@@ -4032,16 +4225,6 @@ function App() {
       </Show>
       <Show when={kind().startsWith("viz-")}>
         <>
-          <div class="component-appearance-choice" role="group" aria-label="Chart style">
-            <span>Style</span>
-            {(["simple", "modern"] as const).map(appearance => <button
-              type="button"
-              class={(group().libraryComponent?.appearance ?? componentAppearance()) === appearance ? "active" : ""}
-              aria-pressed={(group().libraryComponent?.appearance ?? componentAppearance()) === appearance}
-              disabled={locked()}
-              onClick={() => changeGroup(current => ({ ...current, libraryComponent: { ...current.libraryComponent!, appearance } }))}
-            >{appearance === "simple" ? "Simple" : "Modern"}</button>)}
-          </div>
           <div class="component-chart-editor">
             <label class="property-label">{kind() === "viz-kpi" ? "Metric title" : "Chart title"}<input maxlength="80" value={chartData().title ?? "Chart"} disabled={locked()} onInput={event => updateChart(data => ({ ...data, title: event.currentTarget.value }))} /></label>
             <Show when={kind() === "viz-kpi"}>
@@ -4142,11 +4325,6 @@ function App() {
           onChange={data => { if (!readOnlyView()) { setProjectWorkspaceData(data); setDirty(true); } }}
           onNavigate={navigateWorkspace}
         /></div>
-        <div class="workspace-area-layer" classList={{ active: workspaceArea() === "notebook" }}><Notebook
-          notes={legacyLibraryData().quickNotes}
-          editable={!readOnlyView()}
-          onChange={quickNotes => { if (!readOnlyView()) { setLegacyLibraryData(data => ({ ...data, quickNotes })); setDirty(true); } }}
-        /></div>
       </>}</For>
       <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayPathName} onCreate={createFile} onNewProject={createProjectFromHome} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentProject={openRecentProject} /><section class="welcome-screen">
   <div class="welcome-card">
@@ -4229,7 +4407,7 @@ function App() {
               forkLowerHead={quickShapeSelection()?.type === "arrow" ? quickShapeSelection()?.forkLower?.endHead ?? defaultForkLowerHead() : defaultForkLowerHead()}
               supportsCorners={quickElementType() === "rectangle"}
               edgeStyle={quickShapeSelection()?.type === "rectangle" ? quickShapeSelection()?.edgeStyle ?? "sharp" : edgeStyle()}
-              cornerRadius={quickShapeSelection()?.type === "rectangle" ? quickShapeSelection()?.cornerRadius ?? 14 : cornerRadius()}
+              cornerRadius={quickShapeSelection()?.type === "rectangle" ? quickShapeSelection()?.cornerRadius ?? 12 : cornerRadius()}
               supportsText={quickHasText()}
               fontSize={quickCardFontSize()}
               fontFamily={selectedText()?.fontFamily ?? defaultFontFamily()}
@@ -4282,7 +4460,7 @@ function App() {
               <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown and note content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write Markdown…\n\nUse # headings, **bold**, lists, tables, and fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); if (event.key === "Escape" && isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } } }} />
             </div>}</Show>
             <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
-            <Show when={showRulers()}><Suspense fallback={null}><CanvasRulers width={canvasWrap.clientWidth} height={canvasWrap.clientHeight} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} windows={isWindowsPlatform()} /></Suspense></Show>
+            <Show when={showRulers()}><Suspense fallback={null}><CanvasRulers viewport={canvas} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} interfaceScale={interfaceScale()} windows={isWindowsPlatform()} /></Suspense></Show>
             <Show when={showMinimap()}><Suspense fallback={null}><CanvasMinimap elements={elements()} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} viewportWidth={canvas.clientWidth} viewportHeight={canvas.clientHeight} onNavigate={center => setCanvasState(current => ({ ...current, panX: canvas.clientWidth / 2 - center.x * current.zoom, panY: canvas.clientHeight / 2 - center.y * current.zoom }))} onClose={() => { setShowMinimap(false); try { localStorage.setItem("sketchdraw-canvas-minimap", "false"); } catch { /* The current view still updates. */ } }} /></Suspense></Show>
             <Show when={presentationMode()}><div class="canvas-presentation-controls"><button title="Previous page" aria-label="Previous page" disabled={pages().findIndex(page => page.id === activePageId()) <= 0} onClick={() => changePresentationPage(-1)}>‹</button><span>{currentPage()?.name ?? "Sketch"}</span><button title="Next page" aria-label="Next page" disabled={pages().findIndex(page => page.id === activePageId()) >= pages().length - 1} onClick={() => changePresentationPage(1)}>›</button><button title="Exit presentation mode" onClick={() => void togglePresentationMode(false)}>Exit</button></div></Show>
             <Show when={deletableSelectionCount() > 1}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected elements`} aria-label={`Delete ${deletableSelectionCount()} selected elements`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
@@ -4456,14 +4634,21 @@ function App() {
                   </div>
                 </Show>
               </div>
-              <div class="full-inspector">
+              <div class="full-inspector" classList={{ "connector-properties": selectedIndices().length === 1 && !!focusedElement() && isConnector(focusedElement()!) }}>
               <div class="full-style-heading"><strong>Properties</strong><button onClick={() => { setStyleMenuMode("quick"); setQuickStylePopover(undefined); }}>Quick style</button></div>
 
               <Show when={sidebarTab() === "properties"}>
+                <Show when={selectedGeometryBounds()}>{bounds => <section class="pane-section geometry-properties"><div class="pane-heading">Position &amp; size</div><div class="geometry-property-grid">
+                  <label>X<input aria-label="Position X" type="number" step="0.1" value={Math.round(bounds().x * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("x", Number(event.currentTarget.value))} /></label>
+                  <label>Y<input aria-label="Position Y" type="number" step="0.1" value={Math.round(bounds().y * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("y", Number(event.currentTarget.value))} /></label>
+                  <Show when={selectedGeometryCanResize()}><label>Width<input aria-label="Object width" type="number" min={selectedGeometryMin("w")} max="4000" step="0.1" value={Math.round(bounds().w * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("w", Number(event.currentTarget.value))} /></label><label>Height<input aria-label="Object height" type="number" min={selectedGeometryMin("h")} max="4000" step="0.1" value={Math.round(bounds().h * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("h", Number(event.currentTarget.value))} /></label></Show>
+                  <Show when={selectedLifelineGroup()}>{lifeline => <label>Length<input aria-label="Lifeline length" type="number" min="24" max="4000" step="1" value={libraryLifelineLength(lifeline())} disabled={boardLocked() || !!lifeline().locked} onChange={event => changeSelected(item => item.type === "group" ? setLibraryLifelineLength(item, Number(event.currentTarget.value)) : item)} /></label>}</Show>
+                  <Show when={selectedGeometryCanRotate()}><label>Rotation<input aria-label="Rotation degrees" type="number" step="1" value={Math.round((selectedGeometryElement()?.rotation ?? 0) * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("rotation", Number(event.currentTarget.value))} /></label></Show>
+                </div></section>}</Show>
                 <Show when={selectedNoteCard()}>{card => <section class="pane-section note-card-properties"><div class="pane-heading">{card().note?.kind === "sticky" ? "Sticky note" : card().note?.kind === "checklist" ? "Checklist" : card().note?.title?.toLowerCase().includes("markdown") ? "Markdown" : "Note + code"}<button class="note-collapse-action" disabled={boardLocked() || card().locked} onClick={() => { const index = primarySelection(); if (index !== undefined) toggleNoteCollapsed(index); }}>{card().note?.collapsed ? "Expand" : "Collapse"}</button></div><label class="property-label">Title<input aria-label="Card title" maxlength="120" value={card().note?.title ?? defaultNoteTitle(card().note!.kind)} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label><Show when={card().note?.kind === "note"}><button class="quiet-button" disabled={boardLocked() || card().locked} onClick={convertSelectedMarkdownToText}>Convert to plain text</button></Show></section>}</Show>
 
                 <Show when={focusedElement()?.type === "text"}><section class="pane-section"><div class="pane-heading">Text</div><button class="quiet-button" disabled={boardLocked() || focusedElement()?.locked} onClick={convertSelectedTextToMarkdown}>Convert to Markdown card</button></section></Show>
-      <Show when={focusedElement()?.type === "schemaTable"}><section class="pane-section"><div class="pane-heading">Table schema</div><label class="property-label">Font size<input type="number" min="8" max="48" step="1" value={(focusedElement() as SchemaTableElement | undefined)?.fontSize ?? 14} onChange={event => updateProperty("fontSize", Math.round(Number(event.currentTarget.value)))} /></label></section></Show>
+      <Show when={focusedElement()?.type === "schemaTable"}><section class="pane-section"><div class="pane-heading">Table schema</div><label class="property-label">Font size<input type="number" min="8" max="48" step="1" value={(focusedElement() as SchemaTableElement | undefined)?.fontSize ?? 12} onChange={event => updateProperty("fontSize", Math.round(Number(event.currentTarget.value)))} /></label></section></Show>
                 <Show when={showStrokeControls()}><section class="pane-section"><div class="pane-heading">{tool() === "text" || focusedElement()?.type === "text" ? "Text color" : "Stroke color"}</div><div class="swatch-list stroke-swatches">{swatches.map((swatch) => <button class={`color-swatch ${selectedColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Set color ${swatch}`} title={swatch} onClick={() => updateStrokeColor(swatch)} />)}<label class="custom-color-swatch stroke-custom-swatch" title="Custom stroke color"><input aria-label="Custom stroke color" type="color" value={selectedColor()} onInput={(event) => updateStrokeColor(event.currentTarget.value)} /></label></div></section></Show>
                     <Show when={showThicknessControls()}>
                     <section class="pane-section">
@@ -4482,22 +4667,34 @@ function App() {
                       </Show>
                     </section>
                   </Show>
-                <Show when={tool() === "text" || selectedText() || focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Text formatting</div><div class="format-row"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button></div><label class="property-label">Font size<input type="number" min="8" max="160" step="1" value={selectedText()?.fontSize ?? defaultFontSize()} onInput={(event) => setTextFormat("fontSize", Math.round(Number(event.currentTarget.value)))} /></label><div class="property-label">Font family<div class="choice-deck font-choice-deck"><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "sans" ? "active" : ""} title="Modern sans-serif" aria-label="Modern sans-serif font" onClick={() => setTextFormat("fontFamily", "sans")}><span class="font-sans-icon">Aa</span><small>Sans</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""} title="Handwritten" aria-label="Handwritten font" onClick={() => setTextFormat("fontFamily", "hand")}><span class="font-hand-icon">Aa</span><small>Hand</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "serif" ? "active" : ""} title="Serif" aria-label="Serif font" onClick={() => setTextFormat("fontFamily", "serif")}><span style={{ "font-family": "Georgia,serif" }}>Aa</span><small>Serif</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "mono" ? "active" : ""} title="Monospaced" aria-label="Monospaced font" onClick={() => setTextFormat("fontFamily", "mono")}><span style={{ "font-family": "monospace" }}>Aa</span><small>Mono</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "rounded" ? "active" : ""} title="Rounded" aria-label="Rounded font" onClick={() => setTextFormat("fontFamily", "rounded")}><span style={{ "font-family": "'Arial Rounded MT Bold','Trebuchet MS',sans-serif" }}>Aa</span><small>Round</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "display" ? "active" : ""} title="Display" aria-label="Display font" onClick={() => setTextFormat("fontFamily", "display")}><span style={{ "font-family": "'Arial Black',Impact,sans-serif" }}>Aa</span><small>Display</small></button></div></div><div class="property-label">Alignment<div class="choice-deck compact"><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "left" ? "active" : ""} title="Align left" aria-label="Align left" onClick={() => setTextFormat("textAlign", "left")}><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "center" ? "active" : ""} title="Align center" aria-label="Align center" onClick={() => setTextFormat("textAlign", "center")}><svg viewBox="0 0 24 24"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "right" ? "active" : ""} title="Align right" aria-label="Align right" onClick={() => setTextFormat("textAlign", "right")}><svg viewBox="0 0 24 24"><path d="M4 5h16M9 10h11M4 15h16M9 20h11"/></svg></button></div></div><div class="property-label">Paragraphs<div class="choice-deck compact"><button class={(selectedText()?.listType ?? defaultListType()) === "none" ? "active" : ""} title="Plain paragraphs" aria-label="Plain paragraphs" onClick={() => setTextFormat("listType", "none")}><svg viewBox="0 0 24 24"><path d="M5 6h15M5 12h15M5 18h15"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "bullet" ? "active" : ""} title="Bulleted list" aria-label="Bulleted list" onClick={() => setTextFormat("listType", "bullet")}><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "number" ? "active" : ""} title="Numbered list" aria-label="Numbered list" onClick={() => setTextFormat("listType", "number")}><svg viewBox="0 0 24 24"><path d="M4 5h2v3M4 8h3M4 12h3l-3 3h3M10 6h10M10 12h10M10 18h10"/></svg></button></div></div></section></Show>
+                <Show when={tool() === "text" || selectedText() || focusedElement() && (isLabelShape(focusedElement()!) || isConnector(focusedElement()!))}><section class="pane-section"><div class="pane-heading">Text formatting</div><div class="format-row"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button></div><label class="property-label">Font size<input type="number" min="8" max="160" step="1" value={selectedText()?.fontSize ?? defaultFontSize()} onInput={(event) => setTextFormat("fontSize", Math.round(Number(event.currentTarget.value)))} /></label><div class="property-label">Font family<div class="choice-deck font-choice-deck"><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "sans" ? "active" : ""} title="Modern sans-serif" aria-label="Modern sans-serif font" onClick={() => setTextFormat("fontFamily", "sans")}><span class="font-sans-icon">Aa</span><small>Sans</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""} title="Handwritten" aria-label="Handwritten font" onClick={() => setTextFormat("fontFamily", "hand")}><span class="font-hand-icon">Aa</span><small>Hand</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "serif" ? "active" : ""} title="Serif" aria-label="Serif font" onClick={() => setTextFormat("fontFamily", "serif")}><span style={{ "font-family": "Georgia,serif" }}>Aa</span><small>Serif</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "mono" ? "active" : ""} title="Monospaced" aria-label="Monospaced font" onClick={() => setTextFormat("fontFamily", "mono")}><span style={{ "font-family": "monospace" }}>Aa</span><small>Mono</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "rounded" ? "active" : ""} title="Rounded" aria-label="Rounded font" onClick={() => setTextFormat("fontFamily", "rounded")}><span style={{ "font-family": "'Arial Rounded MT Bold','Trebuchet MS',sans-serif" }}>Aa</span><small>Round</small></button><button class={(selectedText()?.fontFamily ?? defaultFontFamily()) === "display" ? "active" : ""} title="Display" aria-label="Display font" onClick={() => setTextFormat("fontFamily", "display")}><span style={{ "font-family": "'Arial Black',Impact,sans-serif" }}>Aa</span><small>Display</small></button></div></div><div class="property-label">Alignment<div class="choice-deck compact"><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "left" ? "active" : ""} title="Align left" aria-label="Align left" onClick={() => setTextFormat("textAlign", "left")}><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "center" ? "active" : ""} title="Align center" aria-label="Align center" onClick={() => setTextFormat("textAlign", "center")}><svg viewBox="0 0 24 24"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></svg></button><button class={(selectedText()?.textAlign ?? defaultTextAlign()) === "right" ? "active" : ""} title="Align right" aria-label="Align right" onClick={() => setTextFormat("textAlign", "right")}><svg viewBox="0 0 24 24"><path d="M4 5h16M9 10h11M4 15h16M9 20h11"/></svg></button></div></div><div class="property-label">Paragraphs<div class="choice-deck compact"><button class={(selectedText()?.listType ?? defaultListType()) === "none" ? "active" : ""} title="Plain paragraphs" aria-label="Plain paragraphs" onClick={() => setTextFormat("listType", "none")}><svg viewBox="0 0 24 24"><path d="M5 6h15M5 12h15M5 18h15"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "bullet" ? "active" : ""} title="Bulleted list" aria-label="Bulleted list" onClick={() => setTextFormat("listType", "bullet")}><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/><path d="M9 6h11M9 12h11M9 18h11"/></svg></button><button class={(selectedText()?.listType ?? defaultListType()) === "number" ? "active" : ""} title="Numbered list" aria-label="Numbered list" onClick={() => setTextFormat("listType", "number")}><svg viewBox="0 0 24 24"><path d="M4 5h2v3M4 8h3M4 12h3l-3 3h3M10 6h10M10 12h10M10 18h10"/></svg></button></div></div></section></Show>
                 <Show when={selectedLibraryComponent() && !selectedLibraryComponent()!.libraryComponent!.kind.startsWith("viz-")}><section class="pane-section"><div class="pane-heading">Component style</div><label class="property-label">Line and text color<input type="color" value={selectedColor()} disabled={boardLocked()} onInput={event => updateProperty("color", event.currentTarget.value)} /></label><div class="fill-options"><button class={!selectedFillColor() ? "active" : ""} disabled={boardLocked()} onClick={() => updateProperty("fillColor", undefined)}>No fill</button><button class={!!selectedFillColor() ? "active" : ""} disabled={boardLocked()} onClick={() => updateProperty("fillColor", fillColor())}>Fill</button></div><label class="property-label">Fill color<input type="color" value={selectedFillColor() ?? fillColor()} disabled={boardLocked()} onInput={event => { setFillColor(event.currentTarget.value); updateProperty("fillColor", event.currentTarget.value); }} /></label><label class="property-label">Fill opacity<input type="range" min="0" max="100" value={Math.round(selectedFillOpacity() * 100)} disabled={boardLocked()} onInput={event => updateProperty("fillOpacity", Number(event.currentTarget.value) / 100)} /></label></section></Show>
-                <Show when={focusedElement() && isLabelShape(focusedElement()!)}><section class="pane-section"><div class="pane-heading">Shape label</div>
+                <Show when={focusedElement() && (isLabelShape(focusedElement()!) || isConnector(focusedElement()!))}><section class="pane-section"><div class="pane-heading">Shape label</div>
                   <button class="quiet-button" disabled={boardLocked() || focusedElement()?.locked} onClick={() => { const index = primarySelection(); if (index !== undefined) editShapeLabel(index); }}>Edit label</button>
                   <label class="property-label">Font color<input type="color" value={textDraft()?.shapeLabel ? textDraft()!.color : selectedLabel()?.color ?? color()} onInput={event => updateLabel("color", event.currentTarget.value)} /></label>
                   <div class="property-label">Vertical alignment<div class="choice-deck">{(["top", "middle", "bottom"] as const).map((alignment, index) => <button title={`Align ${alignment}`} aria-label={`Align ${alignment}`} class={(textDraft()?.verticalAlign ?? selectedLabel()?.verticalAlign ?? "middle") === alignment ? "active" : ""} onClick={() => updateLabel("verticalAlign", alignment)}><svg viewBox="0 0 24 24"><path d={`M3 ${index === 0 ? 4 : index === 1 ? 12 : 20}h18M8 ${6 + index * 2}v6m8-6v6`}/></svg><small>{alignment}</small></button>)}</div></div>
                   <button class={`quiet-button ${selectedText()?.textAlign === "justify" ? "active" : ""}`} onClick={() => setTextFormat("textAlign", "justify")}>Justify text</button>
                 </section></Show>
-                <Show when={tool() === "line" || tool() === "arrow" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || ["line", "arrow", "rectangle", "circle", "diamond", "triangle", "flowchart"].includes(focusedElement()?.type ?? "")}><section class="pane-section"><div class="pane-heading">Line style</div><div class="choice-deck line-choices"><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "solid" ? "active" : ""} title="Solid line" aria-label="Solid line" onClick={() => focusedElement() ? updateProperty("lineStyle", "solid") : setLineStyle("solid")}><svg viewBox="0 0 24 24"><path d="M3 12h18"/></svg><small>Solid</small></button><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "dashed" ? "active" : ""} title="Dashed line" aria-label="Dashed line" onClick={() => focusedElement() ? updateProperty("lineStyle", "dashed") : setLineStyle("dashed")}><svg viewBox="0 0 24 24" class="dash-icon"><path d="M3 12h18"/></svg><small>Dash</small></button><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "dotted" ? "active" : ""} title="Dotted line" aria-label="Dotted line" onClick={() => focusedElement() ? updateProperty("lineStyle", "dotted") : setLineStyle("dotted")}><svg viewBox="0 0 24 24" class="dot-icon"><path d="M3 12h18"/></svg><small>Dot</small></button><Show when={tool() === "line" || tool() === "arrow" || focusedElement()?.type === "line" || focusedElement()?.type === "arrow"}><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "double" ? "active" : ""} title="Double line" aria-label="Double line" onClick={() => focusedElement() ? updateProperty("lineStyle", "double") : setLineStyle("double")}><svg viewBox="0 0 24 24"><path d="M3 9h18M3 15h18"/></svg><small>Double</small></button></Show></div><Show when={focusedElement()?.type === "rectangle" || tool() === "rectangle"}><div class="property-label">Corners<div class="choice-deck compact"><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "sharp" ? "active" : ""} title="Square corners" aria-label="Square corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "sharp") : setEdgeStyle("sharp")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" ? "active" : ""} title="Rounded corners" aria-label="Rounded corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "rounded") : setEdgeStyle("rounded")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="4"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "pill" ? "active" : ""} title="Pill corners" aria-label="Pill corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "pill") : setEdgeStyle("pill")}><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="8" rx="4"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut" ? "active" : ""} title="Cut corners" aria-label="Cut corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "cut") : setEdgeStyle("cut")}><svg viewBox="0 0 24 24"><path d="m8 4h8l4 4v8l-4 4H8l-4-4V8z"/></svg></button></div></div></Show><Show when={tool() === "rectangle" || focusedElement()?.type === "rectangle"}><Show when={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" || ((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut"}><label class="property-label">{((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut" ? "Corner cut" : "Corner radius"}<input type="range" min="0" max="64" value={focusedElement()?.type === "rectangle" ? (focusedElement() as ShapeElement).cornerRadius ?? 14 : cornerRadius()} onInput={event => { const radius = Number(event.currentTarget.value); setCornerRadius(radius); if (focusedElement()?.type === "rectangle") updateProperty("cornerRadius", radius); }} /><span>{focusedElement()?.type === "rectangle" ? (focusedElement() as ShapeElement).cornerRadius ?? 14 : cornerRadius()} px</span></label></Show></Show><Show when={tool() === "arrow" || tool() === "line" || focusedElement()?.type === "arrow" || focusedElement()?.type === "line"}><div class="arrow-head-config"><span>Start head</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={quickArrowHead("start") === value ? "active" : ""} title={`${label} start`} aria-label={`${label} start head`} onClick={() => setConnectorHead("start", value)}><ArrowHeadIcon kind={value} /></button>)}</div><span>End head</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={quickArrowHead("end") === value ? "active" : ""} title={`${label} end`} aria-label={`${label} end head`} onClick={() => setConnectorHead("end", value)}><ArrowHeadIcon kind={value} /></button>)}</div></div></Show></section></Show>
+                <Show when={tool() === "line" || tool() === "arrow" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || ["line", "arrow", "rectangle", "circle", "diamond", "triangle", "flowchart"].includes(focusedElement()?.type ?? "")}><section class="pane-section"><div class="pane-heading">Line style</div><div class="choice-deck line-choices"><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "solid" ? "active" : ""} title="Solid line" aria-label="Solid line" onClick={() => focusedElement() ? updateProperty("lineStyle", "solid") : setLineStyle("solid")}><svg viewBox="0 0 24 24"><path d="M3 12h18"/></svg><small>Solid</small></button><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "dashed" ? "active" : ""} title="Dashed line" aria-label="Dashed line" onClick={() => focusedElement() ? updateProperty("lineStyle", "dashed") : setLineStyle("dashed")}><svg viewBox="0 0 24 24" class="dash-icon"><path d="M3 12h18"/></svg><small>Dash</small></button><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "dotted" ? "active" : ""} title="Dotted line" aria-label="Dotted line" onClick={() => focusedElement() ? updateProperty("lineStyle", "dotted") : setLineStyle("dotted")}><svg viewBox="0 0 24 24" class="dot-icon"><path d="M3 12h18"/></svg><small>Dot</small></button><Show when={tool() === "line" || tool() === "arrow" || focusedElement()?.type === "line" || focusedElement()?.type === "arrow"}><button class={((focusedElement() as ShapeElement | undefined)?.lineStyle ?? lineStyle()) === "double" ? "active" : ""} title="Double line" aria-label="Double line" onClick={() => focusedElement() ? updateProperty("lineStyle", "double") : setLineStyle("double")}><svg viewBox="0 0 24 24"><path d="M3 9h18M3 15h18"/></svg><small>Double</small></button></Show></div><Show when={focusedElement()?.type === "rectangle" || tool() === "rectangle"}><div class="property-label">Corners<div class="choice-deck compact"><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "sharp" ? "active" : ""} title="Square corners" aria-label="Square corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "sharp") : setEdgeStyle("sharp")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" ? "active" : ""} title="Rounded corners" aria-label="Rounded corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "rounded") : setEdgeStyle("rounded")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="4"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "pill" ? "active" : ""} title="Pill corners" aria-label="Pill corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "pill") : setEdgeStyle("pill")}><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="8" rx="4"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut" ? "active" : ""} title="Cut corners" aria-label="Cut corners" onClick={() => focusedElement() ? updateProperty("edgeStyle", "cut") : setEdgeStyle("cut")}><svg viewBox="0 0 24 24"><path d="m8 4h8l4 4v8l-4 4H8l-4-4V8z"/></svg></button></div></div></Show><Show when={tool() === "rectangle" || focusedElement()?.type === "rectangle"}><Show when={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" || ((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut"}><label class="property-label">{((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut" ? "Corner cut" : "Corner radius"}<input type="range" min="0" max="64" value={focusedElement()?.type === "rectangle" ? (focusedElement() as ShapeElement).cornerRadius ?? 12 : cornerRadius()} onInput={event => { const radius = Number(event.currentTarget.value); setCornerRadius(radius); if (focusedElement()?.type === "rectangle") updateProperty("cornerRadius", radius); }} /><span>{focusedElement()?.type === "rectangle" ? (focusedElement() as ShapeElement).cornerRadius ?? 12 : cornerRadius()} px</span></label></Show></Show><Show when={tool() === "arrow" || tool() === "line" || focusedElement()?.type === "arrow" || focusedElement()?.type === "line"}><div class="arrow-head-config"><span>Start head</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={quickArrowHead("start") === value ? "active" : ""} title={`${label} start`} aria-label={`${label} start head`} onClick={() => setConnectorHead("start", value)}><ArrowHeadIcon kind={value} /></button>)}</div><span>End head</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={quickArrowHead("end") === value ? "active" : ""} title={`${label} end`} aria-label={`${label} end head`} onClick={() => setConnectorHead("end", value)}><ArrowHeadIcon kind={value} /></button>)}</div></div></Show></section></Show>
                 <Show when={focusedElement() && isConnector(focusedElement()!) && !(focusedElement() as ShapeElement | undefined)?.straightOnly}><section class="pane-section"><div class="pane-heading">Connector routing</div><label class="auto-route-toggle"><input type="checkbox" checked={!!(focusedElement() as ShapeElement).autoRoute} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => setSelectedAutoRoute(event.currentTarget.checked)} /><span><strong>Route around shapes</strong><small>Drag a bend to add or move a waypoint.</small></span></label></section></Show>
                 <Show when={(tool() === "arrow" || focusedElement()?.type === "arrow") && (focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).arrowRoute : arrowRoute()) === "forked"}><section class="pane-section"><div class="pane-heading">Fork branch heads</div><div class="fork-head-config"><span>Upper branch</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={((focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).forkUpper?.endHead : undefined) ?? defaultForkUpperHead()) === value ? "active" : ""} title={`${label} upper branch head`} aria-label={`${label} upper branch head`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("forkUpperHead", value) : setDefaultForkUpperHead(value)}><ArrowHeadIcon kind={value} /></button>)}</div><span>Lower branch</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={((focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).forkLower?.endHead : undefined) ?? defaultForkLowerHead()) === value ? "active" : ""} title={`${label} lower branch head`} aria-label={`${label} lower branch head`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("forkLowerHead", value) : setDefaultForkLowerHead(value)}><ArrowHeadIcon kind={value} /></button>)}</div></div></section></Show>
             <Show when={tool() === "bucket"}><section class="pane-section"><div class="pane-heading">Bucket fill</div><div class="fill-palette">{FILL_SWATCHES.map((swatch) => <button class={`color-swatch ${fillColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Bucket color ${swatch}`} title={`Use ${swatch}`} onClick={() => setFillColor(swatch)} />)}<label class="custom-color-swatch" title="Choose custom bucket color"><input aria-label="Custom bucket color" type="color" value={fillColor()} onInput={(event) => setFillColor(event.currentTarget.value)} /></label></div></section></Show>
             <Show when={(tool() === "line" || focusedElement()?.type === "line") && !(focusedElement() as ShapeElement | undefined)?.straightOnly}><section class="pane-section"><div class="pane-heading">Line route</div><div class="connector-route-buttons">{LINE_ROUTES.map((route) => <button class={(focusedElement()?.type === "line" ? (focusedElement() as ShapeElement).lineRoute : lineRoute()) === route.value ? "active" : ""} title={route.label} aria-label={`${route.label} line`} onClick={() => focusedElement()?.type === "line" ? updateProperty("lineRoute", route.value) : setLineRoute(route.value)}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><small>{route.label}</small></button>)}</div></section></Show>
 <Show when={tool() === "arrow" || focusedElement()?.type === "arrow"}><section class="pane-section"><div class="pane-heading">Arrow route</div><div class="connector-route-buttons">{ARROW_ROUTES.map((route) => <button class={(focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).arrowRoute : arrowRoute()) === route.value ? "active" : ""} title={route.label} aria-label={`${route.label} arrow`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("arrowRoute", route.value) : setArrowRoute(route.value)}><svg viewBox="0 0 24 24"><path d={route.path} /></svg><small>{route.label}</small></button>)}</div></section></Show><Show when={tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || focusedElement()?.type === "rectangle" || focusedElement()?.type === "circle" || focusedElement()?.type === "diamond" || focusedElement()?.type === "triangle" || focusedElement()?.type === "flowchart"}><section class="pane-section"><div class="pane-heading">Fill</div><div class="fill-options"><button class={!(selectedFillColor()) && !fillEnabled() ? "active" : ""} onClick={() => { setFillEnabled(false); if (selectedIndices().length) updateProperty("fillColor", undefined); }}>None</button><button class={fillEnabled() || !!selectedFillColor() ? "active" : ""} onClick={() => { setFillEnabled(true); if (selectedIndices().length) updateProperty("fillColor", fillColor()); }}>Solid</button></div><div class="fill-style-row"><label class="fill-color-chip" title="Fill color"><input aria-label="Fill color" type="color" value={selectedFillColor() ?? fillColor()} onInput={(event) => { const value = event.currentTarget.value; setFillColor(value); if (hasStyleSelection()) updateProperty("fillColor", value); }} /></label><label class="fill-opacity-control">Opacity<input aria-label="Fill opacity" type="range" min="5" max="100" value={Math.round(((focusedElement() as ShapeElement | undefined)?.fillOpacity ?? fillOpacity()) * 100)} onInput={(event) => { const value = Number(event.currentTarget.value) / 100; setFillOpacity(value); if (selectedIndices().length) updateProperty("fillOpacity", value); }} /><span>{Math.round(((focusedElement() as ShapeElement | undefined)?.fillOpacity ?? fillOpacity()) * 100)}%</span></label></div></section></Show>
                 <Show when={selectedIndices().length === 1 && !groupSelected() && !selectedNoteCard()}><section class="pane-section"><div class="pane-heading">Precision</div><div class="precision-grid">{(["x", "y", "w", "h", "rotation"] as const).map(property => <label>{property === "rotation" ? "Angle °" : property.toUpperCase()}<input aria-label={`Selection ${property}`} type="number" step="1" disabled={boardLocked() || focusedElement()?.locked || (!!focusedElement() && isConnector(focusedElement()!) && (property === "w" || property === "h" || property === "rotation"))} value={Math.round((property === "rotation" ? focusedElement()?.rotation ?? 0 : focusedElement() ? elementBounds(focusedElement()!)[property] : 0) * 100) / 100} onChange={event => precision(property, Number(event.currentTarget.value))} /></label>)}</div>
-                  <Show when={focusedElement() && isConnector(focusedElement()!)}><div class="precision-grid">{(["start", "end"] as const).flatMap(end => (["x", "y"] as const).map(axis => <label>{end} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(((focusedElement() as ShapeElement)[axis] + (end === "end" ? (focusedElement() as ShapeElement)[axis === "x" ? "w" : "h"] : 0)) * 100) / 100} onChange={event => setEndpoint(end, axis, Number(event.currentTarget.value))} /></label>))}</div><Show when={focusedElement()?.type === "arrow" && (focusedElement() as ShapeElement).arrowRoute === "forked"}><div class="precision-grid">{(["upper", "lower"] as const).flatMap(branch => (["x", "y"] as const).map(axis => <label>{branch} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(forkGeometry(focusedElement() as ShapeElement)[branch] [axis] * 100) / 100} onChange={event => setForkEndpoint(branch, axis, Number(event.currentTarget.value))} /></label>))}</div></Show><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, startBinding: undefined, endBinding: undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, endBinding: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, endBinding: undefined } : undefined } : item)}>Detach endpoints</button><Show when={!(focusedElement() as ShapeElement | undefined)?.straightOnly}><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, routePoints: undefined, routeWaypoints: item.autoRoute ? [] : undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, routePoints: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, routePoints: undefined } : undefined } : item)}>Reset route</button></Show></Show>
+                  <Show when={focusedElement() && isConnector(focusedElement()!)}>
+                    <Show when={connectorIsStraight(focusedElement())}>
+                      <div class="geometry-property-grid connector-dimension-grid">
+                        <label>Width<input aria-label="Connector width" type="number" min="0" max="1000000" step="0.1" value={Math.round(Math.abs((focusedElement() as ShapeElement).w) * 10) / 10} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => { const item = focusedElement() as ShapeElement; setEndpoint("end", "x", item.x + Math.sign(item.w || 1) * Number(event.currentTarget.value)); }} /></label>
+                        <label>Height<input aria-label="Connector height" type="number" min="0" max="1000000" step="0.1" value={Math.round(Math.abs((focusedElement() as ShapeElement).h) * 10) / 10} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => { const item = focusedElement() as ShapeElement; setEndpoint("end", "y", item.y + Math.sign(item.h || 1) * Number(event.currentTarget.value)); }} /></label>
+                        <label>Length<input aria-label="Connector length" type="number" min="1" max="1000000" step="0.1" value={Math.round(Math.hypot((focusedElement() as ShapeElement).w, (focusedElement() as ShapeElement).h) * 10) / 10} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => setStraightConnectorLength(Number(event.currentTarget.value))} /></label>
+                      </div>
+                    </Show>
+                    <div class="precision-grid">{(["start", "end"] as const).flatMap(end => (["x", "y"] as const).map(axis => <label>{end} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(((focusedElement() as ShapeElement)[axis] + (end === "end" ? (focusedElement() as ShapeElement)[axis === "x" ? "w" : "h"] : 0)) * 100) / 100} onChange={event => setEndpoint(end, axis, Number(event.currentTarget.value))} /></label>))}</div>
+                    <Show when={focusedElement()?.type === "arrow" && (focusedElement() as ShapeElement).arrowRoute === "forked"}><div class="precision-grid">{(["upper", "lower"] as const).flatMap(branch => (["x", "y"] as const).map(axis => <label>{branch} {axis.toUpperCase()}<input type="number" disabled={boardLocked() || focusedElement()?.locked} value={Math.round(forkGeometry(focusedElement() as ShapeElement)[branch] [axis] * 100) / 100} onChange={event => setForkEndpoint(branch, axis, Number(event.currentTarget.value))} /></label>))}</div></Show>
+                    <button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, startBinding: undefined, endBinding: undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, endBinding: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, endBinding: undefined } : undefined } : item)}>Detach endpoints</button>
+                    <Show when={!(focusedElement() as ShapeElement | undefined)?.straightOnly}><button class="quiet-button" onClick={() => changeSelected(item => isConnector(item) ? { ...item, routePoints: undefined, routeWaypoints: item.autoRoute ? [] : undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, routePoints: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, routePoints: undefined } : undefined } : item)}>Reset route</button></Show>
+                  </Show>
                 </section></Show>
                 <Show when={selectedIndices().length > 1}><section class="pane-section"><div class="pane-heading">Align & distribute</div><div class="alignment-grid">{(["left", "center", "right", "top", "middle", "bottom", "horizontal", "vertical"] as const).map(command => <button disabled={boardLocked() || ((command === "horizontal" || command === "vertical") && selectedIndices().length < 3)} title={command === "horizontal" || command === "vertical" ? `Distribute ${command} gaps` : `Align ${command}`} onClick={() => alignSelection(command)}>{command}</button>)}</div></section></Show>
 
@@ -4514,7 +4711,7 @@ function App() {
                     <Show when={libraryComponentDraft()}>{draft => renderLibraryComponentEditor(() => libraryComponentDraft() ?? draft(), true)}</Show>
                     <Show when={!libraryComponentDraft() && selectedLibraryComponent()}>{component => renderLibraryComponentEditor(() => selectedLibraryComponent() ?? component(), false)}</Show>
                     <Show when={selectedClassComponentId() && !selectedLibraryComponent() && !classCardDraft() ? selectedClassComponentId() : undefined}>{componentId => <section class="component-editor-content"><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(selectedClassCardSize(componentId()).width)} disabled={boardLocked()} onChange={event => resizeClassCardSize(componentId(), "width", Number(event.currentTarget.value))} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(selectedClassCardSize(componentId()).height)} disabled={boardLocked()} onChange={event => resizeClassCardSize(componentId(), "height", Number(event.currentTarget.value))} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={quickCardFontSize()} disabled={boardLocked()} onChange={event => resizeClassCardFont(componentId(), Number(event.currentTarget.value))} /></label></div></section>}</Show>
-                    <Show when={classCardDraft()}>{draft => <div class="component-editor-content class-card-editor"><label class="property-label">Class name<input value={draft().name} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label class="property-label">Attributes<textarea rows="5" value={draft().attributes} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label class="property-label">Methods<textarea rows="5" value={draft().methods} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(classCardSize(draft()).width)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, width: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(classCardSize(draft()).height)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, height: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={draft().fontSize} disabled={boardLocked()} onChange={event => setClassCardDraft(value => value ? { ...value, fontSize: Math.round(Number(event.currentTarget.value)) } : value)} /></label></div><div class="component-draft-actions"><button type="button" class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button type="button" class="save-button" disabled={boardLocked()} onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></div>}</Show>
+                    <Show when={classCardDraft()}>{draft => <div class="component-editor-content class-card-editor"><label class="property-label">Class name<input value={draft().name} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label class="property-label">Attributes<textarea rows="5" value={draft().attributes} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label class="property-label">Methods<textarea rows="5" value={draft().methods} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(classCardSize(draft()).width)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, width: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(classCardSize(draft()).height)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, height: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={draft().fontSize} disabled={boardLocked()} onChange={event => updateClassCardDraftFont(Number(event.currentTarget.value))} /></label></div><div class="component-draft-actions"><button type="button" class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button type="button" class="save-button" disabled={boardLocked()} onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></div>}</Show>
                   </div>
                 </>}>
                   <button type="button" class="component-editor-expand" aria-label="Expand component editor" title="Expand component editor" aria-expanded="false" onClick={() => setComponentEditorCollapsed(false)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" /></svg></button>
@@ -4581,7 +4778,7 @@ function App() {
       <Show when={isWindowsPlatform()}><Suspense fallback={null}><WindowsCommandPalette open={commandPaletteOpen()} commands={windowsCommands()} onClose={() => setCommandPaletteOpen(false)} /></Suspense></Show>
       <Show when={isWindowsPlatform() && shortcutDialogOpen()}><Suspense fallback={null}><WindowsKeyboardShortcutsDialog shortcuts={shortcuts()} onChange={setWindowsShortcut} onReset={resetWindowsShortcuts} onClose={() => setShortcutDialogOpen(false)} /></Suspense></Show>
       <Show when={showClearConfirm()}><div class="confirm-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setShowClearConfirm(false); }}><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">Clear this canvas?</h2><p>This will remove all {elements().length} items from the open sketch. You can undo this action.</p><div><button class="quiet-button" onClick={() => setShowClearConfirm(false)}>Cancel</button><button class="danger-button" onClick={() => { if (elements().length && !boardLocked()) { pushUndo(cloneElements(elements())); setElements([]); setSelectedIndices([]); setDirty(true); } setShowClearConfirm(false); }}>Clear canvas</button></div></section></div></Show>
-      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">{helpSection() === "guide" ? "SKETCHDRAW GUIDE" : "SHORTCUT REFERENCE"}</span><h2 id="help-title">{helpSection() === "guide" ? "Guide" : "Keyboard shortcuts"}</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 8 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the toolbar, then click or drag on the canvas. Common style controls sit beside the canvas; open the properties button for the full settings panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Hold Space or choose Hand to pan, or use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Add and manage pages from the page strip. Use View to change the theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section><section class="touch-guide-section"><h3>Phone and tablet controls</h3><p>The compact tool dock stays on the left. Tap <strong>More</strong> to show the remaining tools, then tap it again to collapse the dock. The four-square button at the top of the dock opens canvas options such as grid, snapping, and fit-to-view.</p></section><section class="touch-guide-section"><h3>Properties and components</h3><p>Tap the Quick style or Advanced style button in the left dock. Quick style adjusts color and width; Advanced style adds tool-specific options. Close either panel with its top-corner button. Open Symbols and elements from the expanded tools and scroll its list vertically to browse components.</p></section><section class="touch-guide-section"><h3>Touch, stylus, and navigation</h3><p>Draw with a finger or stylus. Pinch with two fingers to zoom. Open Pages in the top bar to switch, add, rename, or organize pages. The zoom percentage button recenters the canvas and resets to 100%. Set tap-only actions under Gestures &gt; Tap actions. Configure one-finger drags and two- or three-finger movement separately under Gestures &gt; Finger movements. A compatible stylus uses the active tool. Tap a style button in the tool dock to change pen, brush, or shape settings.</p></section></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 9 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
+      <Show when={helpOpen()}><div class="confirm-backdrop help-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setHelpOpen(false); }}><section class="confirm-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><header><div><span class="eyebrow">{helpSection() === "guide" ? "SKETCHDRAW GUIDE" : "SHORTCUT REFERENCE"}</span><h2 id="help-title">{helpSection() === "guide" ? "Guide" : "Keyboard shortcuts"}</h2></div><button class="help-close" aria-label="Close help" onClick={() => setHelpOpen(false)}>&times;</button></header><div class="help-content"><Show when={helpSection() === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{helpShortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}><div class="help-guide"><section><h3>Start a sketch</h3><p>Create a new file or open a version 8 <code>.sketch</code> document. SketchDraw saves edits to the active file automatically. The save dot and time show whether changes are saved or still being written.</p></section><section><h3>Draw and style</h3><p>Choose a tool from the toolbar, then click or drag on the canvas. Common style controls sit beside the canvas; open the properties button for the full settings panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Hold Space or choose Hand to pan, or use the mouse wheel to zoom around the pointer.</p></section><section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section><section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Add and manage pages from the page strip. Use View to change the theme and whiteboard color. Autosave watches for outside file changes and asks before resolving conflicts.</p></section><section class="touch-guide-section"><h3>Phone and tablet controls</h3><p>The compact tool dock stays on the left. Tap <strong>More</strong> to show the remaining tools, then tap it again to collapse the dock. The four-square button at the top of the dock opens canvas options such as grid, snapping, and fit-to-view.</p></section><section class="touch-guide-section"><h3>Properties and components</h3><p>Tap the Quick style or Advanced style button in the left dock. Quick style adjusts color and width; Advanced style adds tool-specific options. Close either panel with its top-corner button. Open Symbols and elements from the expanded tools and scroll its list vertically to browse components.</p></section><section class="touch-guide-section"><h3>Touch, stylus, and navigation</h3><p>Draw with a finger or stylus. Pinch with two fingers to zoom. Open Pages in the top bar to switch, add, rename, or organize pages. The zoom percentage button recenters the canvas and resets to 100%. Set tap-only actions under Gestures &gt; Tap actions. Configure one-finger drags and two- or three-finger movement separately under Gestures &gt; Finger movements. A compatible stylus uses the active tool. Tap a style button in the tool dock to change pen, brush, or shape settings.</p></section><HelpFeatureCatalog /></div></Show></div><footer><span>&copy; 2026 Toushal Sampat. See the README and version 9 file format guide for details.</span><button class="save-button" onClick={() => setHelpOpen(false)}>Close</button></footer></section></div></Show>
       <Show when={error()}><div class="error-toast" role="alert">{error()}<button onClick={() => setError("")}>Dismiss</button></div></Show>
     </main>
   );

@@ -137,7 +137,7 @@ export function layoutMermaidFlowchart(diagram: MermaidFlowchart, center: Point)
     const minor = (slot - (members.length - 1) / 2) * (isHorizontal ? 142 : 244);
     const width = node.shape === "circle" ? 112 : 184; const height = node.shape === "circle" ? 92 : 78;
     const x = center.x + (isHorizontal ? major : minor) - width / 2; const y = center.y + (isHorizontal ? minor : major) - height / 2;
-    const shape: ShapeElement = { type: node.shape === "diamond" ? "diamond" : node.shape === "circle" ? "circle" : "rectangle", id: "mermaid-node:" + node.key, x, y, w: width, h: height, color: "#657f98", thickness: 1.6, fillColor: "#f3f7fb", fillOpacity: 1, edgeStyle: node.shape === "rounded" ? "pill" : "rounded", cornerRadius: node.shape === "rounded" ? 28 : 12, label: { text: node.label, color: "#33495d", fontSize: 14, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } };
+    const shape: ShapeElement = { type: node.shape === "diamond" ? "diamond" : node.shape === "circle" ? "circle" : "rectangle", id: "mermaid-node:" + node.key, x, y, w: width, h: height, color: "#657f98", thickness: 1.6, fillColor: "#f3f7fb", fillOpacity: 1, edgeStyle: node.shape === "rounded" ? "pill" : "rounded", cornerRadius: node.shape === "rounded" ? 28 : 12, label: { text: node.label, color: "#33495d", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } };
     positions.set(node.key, shape);
   });
   const framesById = new Map<string, ShapeElement>();

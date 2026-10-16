@@ -110,7 +110,7 @@ export function syntaxTokenColor(color: string, theme: Theme, appearance: "moder
 export function buildNoteGroup(x: number, y: number, kind: NoteKind, source: string, dimensions: { width?: number; height?: number; fontSize?: number; collapsed?: boolean; title?: string } = {}): GroupElement {
   const content = normalizeNoteContent(source, kind);
   const width = Math.max(180, Math.min(4000, dimensions.width ?? (kind === "sticky" ? 296 : 340)));
-  const fontSize = Math.round(Math.max(8, Math.min(32, dimensions.fontSize ?? 14)));
+  const fontSize = Math.round(Math.max(8, Math.min(32, dimensions.fontSize ?? 12)));
   const collapsed = dimensions.collapsed === true;
   const title = (dimensions.title ?? defaultNoteTitle(kind)).trim().slice(0, 120) || defaultNoteTitle(kind);
   const palette = noteCardPalette(kind, "light");
@@ -139,7 +139,7 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
   const meta = group.note; const background = group.elements.find((item): item is ShapeElement => item.type === "rectangle");
   if (!meta || !background) return;
   const { x, y } = background; const width = Math.abs(background.w); const height = Math.abs(background.h);
-  const palette = noteCardPalette(meta.kind, theme, appearance); const fontSize = Math.round(Math.max(8, Math.min(48, meta.fontSize ?? 14)));
+  const palette = noteCardPalette(meta.kind, theme, appearance); const fontSize = Math.round(Math.max(8, Math.min(48, meta.fontSize ?? 12)));
   ctx.save(); ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(x, y, width, height, appearance === "simple" ? 0 : 9); ctx.fillStyle = palette.surface; ctx.fill(); ctx.strokeStyle = palette.border; ctx.stroke();
   if (appearance !== "simple") { ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, width, height, 9); ctx.clip(); ctx.fillStyle = palette.accent; ctx.fillRect(x, y + 1, 3, Math.max(0, height - 2)); ctx.restore(); }
   const collapsed = meta.collapsed === true; const title = (meta.title || defaultNoteTitle(meta.kind)).slice(0, 120);
@@ -264,7 +264,7 @@ export function checklistIndexAt(group: GroupElement, point: { x: number; y: num
   if (group.note?.kind !== "checklist" || group.note.collapsed) return undefined;
   const background = group.elements.find((item): item is ShapeElement => item.type === "rectangle");
   if (!background) return undefined;
-  for (const row of checklistRows(group.note.content, Math.abs(background.w), group.note.fontSize ?? 14)) {
+  for (const row of checklistRows(group.note.content, Math.abs(background.w), group.note.fontSize ?? 12)) {
     const x = background.x + row.boxX; const y = background.y + row.top + Math.max(0, (row.height - 16) / 2);
     if (point.x >= x - 4 && point.x <= x + 24 && point.y >= y - 4 && point.y <= y + 20) return row.index;
   }
@@ -281,7 +281,7 @@ export function toggleChecklistContent(content: string, target: number): string 
   }).join("\n");
 }
 
-export type LibraryComponentKind = "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-one-many" | "er-many-many" | "c4-system" | "c4-container" | "c4-component" | "tech-service" | "data-flow" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-task" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-load-balancer" | "network-access-point" | "viz-bar" | "viz-line" | "viz-area" | "viz-scatter" | "viz-pie" | "viz-donut" | "viz-kpi" | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle" | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue";
+export type LibraryComponentKind = "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-one-many" | "er-many-many" | "c4-system" | "c4-container" | "c4-component" | "tech-service" | "data-flow" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-task" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-access-point" | "viz-bar" | "viz-line" | "viz-area" | "viz-scatter" | "viz-pie" | "viz-donut" | "viz-kpi" | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle" | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue";
 export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
   { kind: "uml-class", section: "UML | Classes & sequence", label: "Class card", description: "Name, attributes, and methods compartments", width: 230, height: 154 },
   { kind: "uml-lifeline", section: "UML | Classes & sequence", label: "Lifeline", description: "Participant header and dashed lifeline", width: 154, height: 250 },
@@ -319,11 +319,12 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "network-zone", section: "Network | Devices & zones", label: "Network zone", description: "Infrastructure enclosure with connection points", width: 280, height: 168 },
   { kind: "network-router", section: "Network | Devices", label: "Router", description: "Network router with directional ports", width: 104, height: 86 },
   { kind: "network-switch", section: "Network | Devices", label: "Switch", description: "Ethernet switch with visible ports", width: 132, height: 78 },
+  { kind: "network-hub", section: "Network | Devices", label: "Hub", description: "Central network hub with configurable connection ports", width: 144, height: 94 },
   { kind: "network-firewall", section: "Network | Devices", label: "Firewall", description: "Firewall device with segmented face", width: 116, height: 92 },
   { kind: "network-load-balancer", section: "Network | Devices", label: "Load balancer", description: "Traffic distributor with multiple outputs", width: 156, height: 98 },
   { kind: "network-server", section: "Network | Devices", label: "Server", description: "Stacked server node", width: 104, height: 118 },
   { kind: "network-client", section: "Network | Devices", label: "Client device", description: "Desktop client device", width: 118, height: 94 },
-  { kind: "network-access-point", section: "Network | Devices", label: "Wireless access point", description: "Access point with radio signal marks", width: 132, height: 98 },
+  { kind: "network-access-point", section: "Network | Devices", label: "Wireless access point", description: "Ceiling mounted access point puck with radio and status lights", width: 132, height: 98 },
   { kind: "viz-bar", section: "Data visualization | Charts", label: "Bar chart", description: "Compact comparison chart with sample series", width: 260, height: 176 },
   { kind: "viz-line", section: "Data visualization | Charts", label: "Line chart", description: "Trend chart with editable points and axis labels", width: 260, height: 176 },
   { kind: "viz-area", section: "Data visualization | Charts", label: "Area chart", description: "Filled trend bands for comparing totals", width: 260, height: 176 },
@@ -349,7 +350,8 @@ const lineElement = (x: number, y: number, w: number, h: number, color = "#74889
 
 export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, y: number): ShapeElement | undefined {
   const width = LIBRARY_COMPONENTS.find(item => item.kind === kind)?.width;
-  if (!width) return undefined;
+  const height = LIBRARY_COMPONENTS.find(item => item.kind === kind)?.height;
+  if (!width || !height) return undefined;
   const relationships: Partial<Record<LibraryComponentKind, { color: string; lineStyle: ShapeElement["lineStyle"]; startHead: ShapeElement["startHead"]; endHead: ShapeElement["endHead"] }>> = {
     "uml-inheritance": { color: "#7563ad", lineStyle: "solid", startHead: "none", endHead: "hollow" },
     "uml-realization": { color: "#7563ad", lineStyle: "dashed", startHead: "none", endHead: "hollow" },
@@ -357,12 +359,18 @@ export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, 
     "uml-composition": { color: "#7563ad", lineStyle: "solid", startHead: "diamond", endHead: "none" },
     "er-one-many": { color: "#31877e", lineStyle: "solid", startHead: "bar", endHead: "crow" },
     "er-many-many": { color: "#31877e", lineStyle: "solid", startHead: "crow", endHead: "crow" },
+    "sequence-sync": { color: "#7563ad", lineStyle: "solid", startHead: "none", endHead: "solid" },
+    "sequence-async": { color: "#7563ad", lineStyle: "solid", startHead: "none", endHead: "open" },
+    "data-flow": { color: "#476c88", lineStyle: "solid", startHead: "none", endHead: "solid" },
   };
   const style = relationships[kind]; if (!style) return undefined;
-  return {
-    type: "line", id: crypto.randomUUID(), x, y: y + 21, w: width, h: 0, thickness: 1.8, lineRoute: "straight", straightOnly: true,
+  const line: ShapeElement = {
+    type: "line", id: crypto.randomUUID(), x, y: y + height / 2, w: width, h: 0, thickness: 1.8, lineRoute: "straight", straightOnly: true,
     color: style.color, lineStyle: style.lineStyle, startHead: style.startHead, endHead: style.endHead,
   };
+  if (kind === "sequence-sync" || kind === "sequence-async") line.label = { text: kind === "sequence-sync" ? "Sync message" : "Async message", color: style.color, fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" };
+  if (kind === "data-flow") line.label = { text: "DATA FLOW", color: "#315a7a", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" };
+  return line;
 }
 
 export type LibraryChartData = { labels: string[]; values: number[]; title?: string; xAxisLabel?: string; yAxisLabel?: string };
@@ -390,7 +398,7 @@ export function defaultLibraryChartData(kind: LibraryComponentKind): LibraryChar
   return undefined;
 }
 
-function buildSupplementalLibraryComponent(kind: LibraryComponentKind, x: number, y: number, chartData?: LibraryChartData, formOptions?: string[], selectedOption = 0, formStates?: boolean[], formTitle?: string): Element[] | undefined {
+function buildSupplementalLibraryComponent(kind: LibraryComponentKind, x: number, y: number, chartData?: LibraryChartData, formOptions?: string[], selectedOption = 0, formStates?: boolean[], formTitle?: string, formState = true, portCount = kind === "network-hub" ? 8 : 6): Element[] | undefined {
   const stroke = (x1: number, y1: number, x2: number, y2: number, color: string, thickness = 1.4) => ({ ...lineElement(x1, y1, x2 - x1, y2 - y1, color), thickness });
   const dot = (cx: number, cy: number, radius: number, color: string) => ({ type: "circle" as const, x: cx - radius, y: cy - radius, w: radius * 2, h: radius * 2, color, thickness: 1, fillColor: color });
   if (kind.startsWith("viz-")) {
@@ -449,7 +457,7 @@ function buildSupplementalLibraryComponent(kind: LibraryComponentKind, x: number
       options.forEach((label, index) => { const yy = y + 37 + index * 26; items.push({ type: "circle", x: x + 15, y: yy, w: 16, h: 16, color: index === selectedOption ? blue : edge, thickness: 1.5, fillColor: "#ffffff", componentRole: `form-radio-option-${index}` }); if (index === selectedOption) items.push({ ...dot(x + 23, yy + 8, 4, blue), componentRole: `form-radio-dot-${index}` }); items.push({ ...text(x + 41, yy + 2, label, ink, 10), componentRole: `form-radio-label-${index}` }); });
       return items;
     }
-    if (kind === "form-toggle") return [rect(x, y, 206, 60, "#ffffff", "#e1e7ed", 10), { ...text(x + 14, y + 20, formTitle ?? defaultLibraryFormTitle(kind) ?? "Notifications", ink, 11, "sans", true), componentRole: "form-toggle-title" }, rect(x + 148, y + 16, 43, 26, "#dcece5", "#c7dfd4", 13), dot(x + 178, y + 29, 9, "#44a17f"), { ...text(x + 14, y + 39, "Enabled", "#628071", 9), componentRole: "form-toggle-state" }];
+    if (kind === "form-toggle") return [rect(x, y, 206, 60, "#ffffff", "#e1e7ed", 10), { ...text(x + 14, y + 20, formTitle ?? defaultLibraryFormTitle(kind) ?? "Notifications", ink, 11, "sans", true), componentRole: "form-toggle-title" }, rect(x + 148, y + 16, 43, 26, formState ? "#dcece5" : "#e6e9ed", formState ? "#c7dfd4" : "#cbd1d8", 13), { ...dot(x + (formState ? 178 : 160), y + 29, 9, formState ? "#44a17f" : "#8b949e"), componentRole: "form-toggle-knob" }, { ...text(x + 14, y + 39, formState ? "Enabled" : "Disabled", formState ? "#628071" : "#7b838d", 9), componentRole: "form-toggle-state" }];
   }
   if (kind === "data-flow") return [
     { type: "arrow", x, y: y + 28, w: 202, h: 0, color: "#476c88", thickness: 2, lineRoute: "straight", startHead: "none", endHead: "solid" },
@@ -468,25 +476,55 @@ function buildSupplementalLibraryComponent(kind: LibraryComponentKind, x: number
   }
   if (kind.startsWith("cloud-")) {
     const ink = "#93643d"; const edge = "#bd9262"; const pale = "#fbf4e9";
-    if (kind === "cloud-boundary") return [{ ...rect(x, y, 300, 190, "#fbf4e9", edge, 14), fillOpacity: .52, lineStyle: "dashed", label: { text: "", color: ink, fontSize: 13, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" } }, text(x + 15, y + 13, "CLOUD REGION", ink, 10, "sans", true), stroke(x + 18, y + 44, x + 48, y + 44, "#cfaa7c", 1), stroke(x + 48, y + 44, x + 48, y + 68, "#cfaa7c", 1)];
+    if (kind === "cloud-boundary") return [{ type: "flowchart", x, y, w: 300, h: 190, color: edge, thickness: 1.6, fillColor: pale, fillOpacity: .28, lineStyle: "dashed", flowchartShape: "cloud", label: { text: "CLOUD REGION", color: ink, fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } }];
     if (kind === "cloud-database") return [rect(x, y, 156, 108, pale, edge, 9), text(x + 12, y + 9, "MANAGED DATABASE", ink, 9, "sans", true), { type: "flowchart", x: x + 47, y: y + 28, w: 62, h: 52, color: edge, thickness: 1.6, fillColor: "#ffffff", flowchartShape: "database" }, text(x + 12, y + 88, "SQL · BACKUP · REPLICAS", ink, 8, "mono")];
     if (kind === "cloud-queue") return [rect(x, y, 156, 94, pale, edge, 9), text(x + 13, y + 9, "CLOUD QUEUE", ink, 9, "sans", true), ...[0, 1, 2].map(index => rect(x + 14 + index * 34, y + 31, 26, 25, "#ffffff", "#c7a57f", 4)), stroke(x + 14, y + 72, x + 142, y + 72, edge, 1.3), stroke(x + 134, y + 66, x + 142, y + 72, edge, 1.3), stroke(x + 134, y + 78, x + 142, y + 72, edge, 1.3), text(x + 13, y + 81, "MESSAGES · RETRIES", ink, 8, "mono")];
     if (kind === "cloud-function") return [rect(x, y, 152, 96, pale, edge, 13), rect(x + 14, y + 14, 39, 39, "#f5e4ca", "#dec49c", 10), text(x + 33, y + 19, "ƒ", ink, 21, "serif", true), text(x + 61, y + 20, "FUNCTION", ink, 9, "sans", true), text(x + 61, y + 37, "on demand", "#a58360", 9), text(x + 15, y + 69, "event  →  compute", "#8c7155", 9, "mono")];
     if (kind === "cloud-storage") return [rect(x, y, 156, 104, pale, edge, 13), rect(x + 14, y + 18, 54, 52, "#f5e4ca", "#dec49c", 9), stroke(x + 20, y + 34, x + 61, y + 34, "#c49762", 2), stroke(x + 20, y + 45, x + 61, y + 45, "#c49762", 2), stroke(x + 20, y + 56, x + 61, y + 56, "#c49762", 2), text(x + 77, y + 27, "OBJECT", ink, 9, "sans", true), text(x + 77, y + 43, "STORAGE", ink, 9, "sans", true), text(x + 14, y + 82, "bucket  ·  blobs  ·  files", "#8c7155", 8, "mono")];
   }
   if (kind.startsWith("network-")) {
-    const ink = "#287a84"; const edge = "#5da3a9"; const pale = "#eaf7f7";
-    if (kind === "network-switch") return [rect(x, y, 132, 62, pale, edge, 10), text(x + 12, y + 10, "SWITCH", ink, 9, "sans", true), ...[0,1,2,3,4,5].map(index => rect(x + 13 + index * 17, y + 31, 11, 14, "#ffffff", "#7fb4b8", 3)), ...[0,1,2,3,4,5].map(index => dot(x + 18 + index * 17, y + 52, 1.5, "#56a585") )];
+    const ink = "#287a84"; const edge = "#5da3a9"; const pale = "#eaf7f7"; const muted = "#6d9295";
+    if (kind === "network-switch") {
+      const count = Math.max(1, Math.min(32, Math.round(portCount))); const columns = Math.min(8, count); const rows = Math.ceil(count / columns); const height = Math.max(62, 35 + rows * 18);
+      const ports = Array.from({ length: count }, (_, index) => { const col = index % columns; const row = Math.floor(index / columns); const cell = 108 / columns; const cx = x + 12 + cell * (col + .5); const cy = y + 34 + row * 18; return [rect(cx - 5, cy - 5, 10, 10, "#ffffff", "#7fb4b8", 2), dot(cx, cy + 7, 1.5, "#56a585")]; }).flat();
+      return [rect(x, y, 132, height, pale, edge, 10), text(x + 12, y + 9, "SWITCH", ink, 9, "sans", true), ...ports];
+    }
+    if (kind === "network-hub") {
+      const count = Math.max(1, Math.min(32, Math.round(portCount))); const columns = Math.min(8, count); const rows = Math.ceil(count / columns); const height = Math.max(94, 52 + rows * 18); const cell = 120 / columns;
+      const ports = Array.from({ length: count }, (_, index) => {
+        const col = index % columns; const row = Math.floor(index / columns); const px = x + 12 + cell * (col + .5); const py = y + 38 + row * 18; const socketWidth = Math.min(12, cell - 2);
+        return { ...rect(px - socketWidth / 2, py, socketWidth, 9, "#ffffff", "#70a8ac", 2), componentRole: `hub-port-${index + 1}` };
+      });
+      return [
+        rect(x, y, 144, height, pale, edge, 7),
+        rect(x + 1, y + 1, 142, 27, "#d9eff0", edge, 6),
+        text(x + 12, y + 7, "ETHERNET HUB", ink, 10, "sans", true),
+        dot(x + 124, y + 14, 3, "#56a585"),
+        stroke(x + 10, y + 32, x + 134, y + 32, "#b3d8da", 1),
+        ...ports,
+        text(x + 12, y + height - 16, `${count} PORT${count === 1 ? "" : "S"}  ·  REPEATER`, muted, 8, "mono"),
+      ];
+    }
     if (kind === "network-load-balancer") return [rect(x, y, 156, 54, pale, edge, 12), text(x + 78, y + 10, "LOAD BALANCER", ink, 9, "sans", true), stroke(x + 78, y + 22, x + 78, y + 35, edge), stroke(x + 31, y + 35, x + 125, y + 35, edge), stroke(x + 31, y + 35, x + 31, y + 49, edge), stroke(x + 78, y + 35, x + 78, y + 49, edge), stroke(x + 125, y + 35, x + 125, y + 49, edge), dot(x + 78, y + 20, 5, "#4c95a0"), dot(x + 31, y + 53, 3, "#56a585"), dot(x + 78, y + 53, 3, "#56a585"), dot(x + 125, y + 53, 3, "#56a585")];
-    if (kind === "network-access-point") return [rect(x + 18, y + 47, 96, 35, pale, edge, 10), text(x + 66, y + 57, "ACCESS POINT", ink, 8, "sans", true), stroke(x + 66, y + 47, x + 66, y + 38, edge, 1.8), stroke(x + 45, y + 33, x + 87, y + 33, edge, 1.8), stroke(x + 52, y + 26, x + 80, y + 26, edge, 1.8), stroke(x + 59, y + 19, x + 73, y + 19, edge, 1.8), dot(x + 66, y + 15, 2.5, edge)];
+    if (kind === "network-access-point") {
+      const cx = x + 66;
+      return [
+        { type: "circle", x: cx - 32, y: y + 3, w: 64, h: 64, color: edge, thickness: 1.7, fillColor: pale },
+        { type: "circle", x: cx - 25, y: y + 10, w: 50, h: 50, color: "#c9e3e5", thickness: 1, fillColor: "#ffffff" },
+        stroke(cx - 10, y + 31, cx, y + 23, edge, 1.7), stroke(cx, y + 23, cx + 10, y + 31, edge, 1.7),
+        stroke(cx - 6, y + 35, cx, y + 30, edge, 1.7), stroke(cx, y + 30, cx + 6, y + 35, edge, 1.7),
+        dot(cx, y + 39, 2.3, edge), dot(cx - 7, y + 52, 1.7, "#59a786"), dot(cx, y + 52, 1.7, "#59a786"), dot(cx + 7, y + 52, 1.7, "#59a786"),
+        text(x + 22, y + 74, "ACCESS POINT", ink, 12, "sans", true),
+      ];
+    }
   }
   return undefined;
 }
 
-export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number, options?: { chartData?: LibraryChartData; formOptions?: string[]; selectedOption?: number; formStates?: boolean[]; formTitle?: string }): GroupElement {
+export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number, options?: { chartData?: LibraryChartData; formOptions?: string[]; selectedOption?: number; formStates?: boolean[]; formTitle?: string; formState?: boolean; portCount?: number }): GroupElement {
   const elements: Element[] = [];
   const titled = (color: string, fontSize = 12) => ({ text: "", color, fontSize, fontFamily: "sans" as const, bold: true, italic: false, underline: false, textAlign: "center" as const, listType: "none" as const, verticalAlign: "middle" as const });
-  const supplemental = buildSupplementalLibraryComponent(kind, x, y, options?.chartData, options?.formOptions, options?.selectedOption, options?.formStates, options?.formTitle);
+  const supplemental = buildSupplementalLibraryComponent(kind, x, y, options?.chartData, options?.formOptions, options?.selectedOption, options?.formStates, options?.formTitle, options?.formState, options?.portCount);
   if (supplemental) elements.push(...supplemental);
   else if (kind === "uml-actor") {
     const color = "#7563ad";
@@ -538,15 +576,15 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     elements.push(text(x + 12, y + 48, "", "#334453", 12, "mono"));
     elements.push(text(x + 12, y + 105, "", "#334453", 12, "mono"));
   } else if (kind === "uml-lifeline") {
-    elements.push({ ...rect(x + 12, y, 130, 42, "#edf4ff", "#7e94ad", 8), label: { text: "", color: "#345371", fontSize: 13, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } });
-    elements.push(lineElement(x + 77, y + 42, 0, 200, "#8497a8", true));
+    elements.push({ ...rect(x + 12, y, 130, 42, "#edf4ff", "#7e94ad", 8), label: { text: "", color: "#345371", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } });
+    elements.push({ ...lineElement(x + 77, y + 42, 0, 200, "#8497a8", true), componentRole: "lifeline-line" });
   } else if (kind === "uml-activation") {
     elements.push(rect(x + 5, y, 18, 82, "#d7e6f8", "#6887a6", 3));
   } else if (kind.startsWith("uml-") && ["uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition"].includes(kind)) {
     const dashed = kind === "uml-realization"; const relation = lineElement(x + 24, y + 21, 148, 0, "#657b91", dashed); relation.endHead = kind === "uml-inheritance" || dashed ? "open" : "none"; elements.push(relation);
     if (kind === "uml-aggregation" || kind === "uml-composition") elements.push({ type: "diamond", x: x + 9, y: y + 15, w: 12, h: 12, color: "#657b91", thickness: 1.4, fillColor: kind === "uml-composition" ? "#657b91" : "#ffffff" });
   } else if (kind === "sequence-sync" || kind === "sequence-async") {
-    const message = lineElement(x + 5, y + 25, 174, 0, "#617a92"); message.endHead = kind === "sequence-async" ? "open" : "solid"; message.label = { text: "", color: "#617a92", fontSize: 10, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" }; elements.push(message);
+    const message = lineElement(x + 5, y + 25, 174, 0, "#617a92"); message.endHead = kind === "sequence-async" ? "open" : "solid"; message.label = { text: "", color: "#617a92", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" }; elements.push(message);
   } else if (kind === "er-table") {
     elements.push(rect(x, y, 220, 156, "#fbfcfe", "#879caf", 9), rect(x, y, 220, 32, "#e8f0f7", "#879caf", 9));
     elements.push(text(x + 12, y + 9, "", "#36556e", 13, "sans", true));
@@ -559,10 +597,10 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     else { elements.push(lineElement(x + 174, y + 12, 0, 18, "#60788e"), ...foot(x + 182, y + 21, -1)); }
   } else if (kind === "c4-system" || kind === "c4-container" || kind === "c4-component") {
     const meta = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
-    elements.push({ ...rect(x, y, meta.width, meta.height, "#eef4ff", "#6884a0", 13), lineStyle: "dashed", label: { text: "", color: "#496681", fontSize: 13, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" } });
+    elements.push({ ...rect(x, y, meta.width, meta.height, "#eef4ff", "#6884a0", 13), lineStyle: "dashed", label: { text: "", color: "#496681", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" } });
   } else if (kind === "tech-service") {
     elements.push({ ...rect(x, y, 174, 92, "#edf5f0", "#759785", 11), label: { text: "", color: "#4c6a59", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } });
-    const pipe: ShapeElement = { type: "arrow", x: x + 5, y: y + 24, w: 192, h: 0, color: "#2d83a4", thickness: 4, lineStyle: "dashed", startHead: "none", endHead: "solid", label: { text: "", color: "#367991", fontSize: 10, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" } }; elements.push(pipe);
+    const pipe: ShapeElement = { type: "arrow", x: x + 5, y: y + 24, w: 192, h: 0, color: "#2d83a4", thickness: 4, lineStyle: "dashed", startHead: "none", endHead: "solid", label: { text: "", color: "#367991", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" } }; elements.push(pipe);
   } else if (kind === "network-zone") {
     elements.push({ ...rect(x, y, 280, 168, "#daf0f1", "#68a2a3", 13), fillOpacity: .42, lineStyle: "dashed", label: { text: "", color: "#3d7477", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" } });
   }

@@ -1,7 +1,12 @@
-import type { ProjectFileEntry, ProjectLogEntry, ProjectMilestone, ProjectNote, ProjectTask, ProjectWorkspaceData } from "../../model";
+import type { ProjectChecklistItem, ProjectFileEntry, ProjectLogEntry, ProjectMilestone, ProjectNote, ProjectTask, ProjectTaskChecklistItem, ProjectWorkspaceData } from "../../model";
 
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+const legacyChecklistId = (taskId: string, itemId: string) => {
+  let hash = 2166136261;
+  for (const char of `${taskId}\0${itemId}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return `legacy-${taskId.slice(0, 28)}-${itemId.slice(0, 48)}-${(hash >>> 0).toString(36)}`;
+};
 const validProjectDate = (value: unknown): value is string | undefined => {
   if (value === undefined) return true;
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -10,7 +15,7 @@ const validProjectDate = (value: unknown): value is string | undefined => {
 };
 
 export function createProjectWorkspace(name = "Untitled project"): ProjectWorkspaceData {
-  return { name: name.slice(0, 120), description: "", notes: [], tasks: [], milestones: [], logEntries: [], files: [] };
+  return { name: name.slice(0, 120), description: "", notes: [], tasks: [], checklist: [], milestones: [], logEntries: [], files: [] };
 }
 
 export function normalizeProjectWorkspace(value: unknown): ProjectWorkspaceData | undefined {
@@ -20,17 +25,43 @@ export function normalizeProjectWorkspace(value: unknown): ProjectWorkspaceData 
   const milestoneValues = value.milestones ?? [];
   const logValues = value.logEntries ?? [];
   const fileValues = value.files ?? [];
-  if (typeof value.name !== "string" || value.name.length > 120 || typeof value.description !== "string" || value.description.length > 4000 || !Array.isArray(value.notes) || value.notes.length > 2000 || !Array.isArray(value.tasks) || value.tasks.length > 2000 || !Array.isArray(milestoneValues) || milestoneValues.length > 1000 || !Array.isArray(logValues) || logValues.length > 2000 || !Array.isArray(fileValues) || fileValues.length > 200) return undefined;
+  const checklistValues = value.checklist ?? [];
+  if (typeof value.name !== "string" || value.name.length > 120 || typeof value.description !== "string" || value.description.length > 4000 || !Array.isArray(value.notes) || value.notes.length > 12_000 || !Array.isArray(value.tasks) || value.tasks.length > 2000 || !Array.isArray(checklistValues) || checklistValues.length > 5000 || !Array.isArray(milestoneValues) || milestoneValues.length > 1000 || !Array.isArray(logValues) || logValues.length > 2000 || !Array.isArray(fileValues) || fileValues.length > 200) return undefined;
   const notes: ProjectNote[] = [];
   for (const item of value.notes) {
     if (!isRecord(item) || typeof item.id !== "string" || !item.id || item.id.length > 100 || typeof item.title !== "string" || item.title.length > 200 || typeof item.content !== "string" || item.content.length > 100_000 || !finite(item.createdAt) || item.createdAt < 0 || !finite(item.updatedAt) || item.updatedAt < 0) return undefined;
     notes.push({ id: item.id, title: item.title, content: item.content, createdAt: item.createdAt, updatedAt: item.updatedAt });
   }
   const tasks: ProjectTask[] = [];
+  const migratedTaskChecklist: { taskId: string; items: ProjectTaskChecklistItem[] }[] = [];
+  let migratedChecklistCount = 0;
   for (const item of value.tasks) {
-    if (!isRecord(item) || typeof item.id !== "string" || !item.id || item.id.length > 100 || typeof item.title !== "string" || item.title.length > 300 || typeof item.description !== "string" || item.description.length > 20_000 || !["backlog", "inProgress", "done"].includes(String(item.status)) || !["low", "medium", "high"].includes(String(item.priority)) || !finite(item.createdAt) || item.createdAt < 0 || !finite(item.updatedAt) || item.updatedAt < 0 || !validProjectDate(item.startDate) || !validProjectDate(item.dueDate) || (item.dependsOn !== undefined && (!Array.isArray(item.dependsOn) || item.dependsOn.length > 500 || item.dependsOn.some(dependency => typeof dependency !== "string" || dependency.length > 100)))) return undefined;
+    if (!isRecord(item)) return undefined;
+    if (typeof item.id !== "string" || !item.id || item.id.length > 100 || typeof item.title !== "string" || item.title.length > 300 || typeof item.description !== "string" || item.description.length > 20_000 || !["backlog", "inProgress", "done"].includes(String(item.status)) || !["low", "medium", "high"].includes(String(item.priority)) || !finite(item.createdAt) || item.createdAt < 0 || !finite(item.updatedAt) || item.updatedAt < 0 || !validProjectDate(item.startDate) || !validProjectDate(item.dueDate)) return undefined;
+    if (item.dependsOn !== undefined && (!Array.isArray(item.dependsOn) || item.dependsOn.length > 500 || item.dependsOn.some(dependency => typeof dependency !== "string" || dependency.length > 100))) return undefined;
+    if (item.checklist !== undefined && (!Array.isArray(item.checklist) || item.checklist.length > 500)) return undefined;
+    const checklist: ProjectTaskChecklistItem[] = [];
+    for (const entry of Array.isArray(item.checklist) ? item.checklist : []) {
+      if (!isRecord(entry) || typeof entry.id !== "string" || !entry.id || entry.id.length > 100 || typeof entry.text !== "string" || entry.text.length > 2000 || typeof entry.done !== "boolean") return undefined;
+      checklist.push({ id: entry.id, text: entry.text, done: entry.done });
+    }
+    if (new Set(checklist.map(entry => entry.id)).size !== checklist.length) return undefined;
+    if (checklist.length && value.checklist === undefined) {
+      migratedChecklistCount += checklist.length;
+      if (migratedChecklistCount > 5000) return undefined;
+      migratedTaskChecklist.push({ taskId: item.id, items: checklist });
+    }
     tasks.push({ id: item.id, title: item.title, description: item.description, status: item.status as ProjectTask["status"], priority: item.priority as ProjectTask["priority"], ...(typeof item.startDate === "string" ? { startDate: item.startDate } : {}), ...(typeof item.dueDate === "string" ? { dueDate: item.dueDate } : {}), ...(Array.isArray(item.dependsOn) ? { dependsOn: [...new Set(item.dependsOn as string[])] } : {}), createdAt: item.createdAt, updatedAt: item.updatedAt });
   }
+  const checklist: ProjectChecklistItem[] = [];
+  for (const item of checklistValues) {
+    if (!isRecord(item) || typeof item.id !== "string" || !item.id || item.id.length > 100 || typeof item.text !== "string" || item.text.length > 2000 || typeof item.done !== "boolean") return undefined;
+    checklist.push({ id: item.id, text: item.text, done: item.done });
+  }
+  if (value.checklist === undefined) {
+    for (const legacy of migratedTaskChecklist) for (const item of legacy.items) checklist.push({ ...item, id: legacyChecklistId(legacy.taskId, item.id) });
+  }
+  if (checklist.length > 5000) return undefined;
   const milestones: ProjectMilestone[] = [];
   for (const item of milestoneValues) {
     if (!isRecord(item) || typeof item.id !== "string" || !item.id || item.id.length > 100 || typeof item.title !== "string" || item.title.length > 300 || typeof item.description !== "string" || item.description.length > 20_000 || !validProjectDate(item.date) || typeof item.date !== "string" || typeof item.completed !== "boolean" || !finite(item.createdAt) || item.createdAt < 0 || !finite(item.updatedAt) || item.updatedAt < 0) return undefined;
@@ -61,6 +92,6 @@ export function normalizeProjectWorkspace(value: unknown): ProjectWorkspaceData 
   }
   const taskIds = new Set(tasks.map(task => task.id));
   for (const task of tasks) task.dependsOn = (task.dependsOn ?? []).filter(id => id !== task.id && taskIds.has(id));
-  if (new Set(notes.map(item => item.id)).size !== notes.length || new Set(tasks.map(item => item.id)).size !== tasks.length || new Set(milestones.map(item => item.id)).size !== milestones.length || new Set(logEntries.map(item => item.id)).size !== logEntries.length || new Set(files.map(item => item.id)).size !== files.length) return undefined;
-  return { name, description, notes, tasks, milestones, logEntries, files };
+  if (new Set(notes.map(item => item.id)).size !== notes.length || new Set(tasks.map(item => item.id)).size !== tasks.length || new Set(checklist.map(item => item.id)).size !== checklist.length || new Set(milestones.map(item => item.id)).size !== milestones.length || new Set(logEntries.map(item => item.id)).size !== logEntries.length || new Set(files.map(item => item.id)).size !== files.length) return undefined;
+  return { name, description, notes, tasks, checklist, milestones, logEntries, files };
 }

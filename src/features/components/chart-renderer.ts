@@ -13,11 +13,11 @@ const niceStep = (range: number) => {
 export function drawLibraryChart(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, appearance: "simple" | "modern") {
   const kind = group.libraryComponent?.kind;
   if (!kind?.startsWith("viz-")) return;
-  const bounds = unionBounds(group.elements.filter(item => !item.hidden).map(elementBounds)); if (!bounds || bounds.w <= 0 || bounds.h <= 0) return;
+  const bounds = group.componentBounds ?? unionBounds(group.elements.filter(item => !item.hidden).map(elementBounds)); if (!bounds || bounds.w <= 0 || bounds.h <= 0) return;
   const x = bounds.x; const y = bounds.y; const width = bounds.w; const height = bounds.h;
   const chart: LibraryChartData = group.libraryComponent?.chartData ?? { labels: [], values: [] };
   const labels = chart.labels.slice(0, 12); const values = labels.map((_, index) => Number.isFinite(chart.values[index]) ? chart.values[index] : 0);
-  const simple = (group.libraryComponent?.appearance ?? appearance) === "simple"; const dark = theme === "dark"; const textStyle = group.libraryComponent?.textStyle; const baseSize = kind === "viz-kpi" ? { w: 220, h: 126 } : { w: 260, h: 176 }; const geometryScale = Math.min(width / baseSize.w, height / baseSize.h); const scale = Math.max(.65, Math.min(2, (textStyle?.fontSize ?? 10) / 10 * geometryScale));
+  const simple = (group.libraryComponent?.appearance ?? appearance) === "simple"; const dark = theme === "dark"; const textStyle = group.libraryComponent?.textStyle; const scale = (textStyle?.fontSize ?? 12) / 12;
   const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#242b33" : "#ffffff");
   const ink = group.libraryComponent?.styleOverrides?.color ?? (simple ? (dark ? "#f1f1f1" : "#242424") : (dark ? "#e2eaf2" : "#293a4e"));
   const muted = simple ? (dark ? "#bdbdbd" : "#686868") : (dark ? "#a6b4c2" : "#738195");
@@ -30,7 +30,7 @@ export function drawLibraryChart(ctx: CanvasRenderingContext2D, group: GroupElem
   ctx.save(); ctx.lineWidth = 1; ctx.textBaseline = "top"; ctx.font = font(10);
   ctx.beginPath(); if (typeof ctx.roundRect === "function" && !simple) ctx.roundRect(x, y, width, height, 8); else ctx.rect(x, y, width, height);
   ctx.fillStyle = surface; ctx.fill(); ctx.strokeStyle = stroke; ctx.stroke();
-  ctx.fillStyle = ink; ctx.font = font(10, 600); ctx.fillText(title.toUpperCase().slice(0, 48), x + 12, y + 10, Math.max(30, width - 24));
+  ctx.fillStyle = ink; ctx.font = font(12, 600); ctx.fillText(title.toUpperCase().slice(0, 48), x + 12, y + 10, Math.max(30, width - 24));
 
   if (kind === "viz-pie" || kind === "viz-donut") {
     const entries = labels.map((label, index) => ({ label, value: Math.max(0, values[index] ?? 0) })).filter(entry => entry.value > 0);

@@ -18,8 +18,8 @@ export type SchemaTableElement = LayerFlags & { type: "schemaTable"; x: number; 
 export type NoteKind = "note" | "sticky" | "checklist";
 export type NoteMetadata = { kind: NoteKind; content: string; title?: string; width?: number; height?: number; fontSize?: number; collapsed?: boolean };
 export type MermaidMetadata = { source: string };
-export type LibraryComponentData = { kind: string; formTitle?: string; formState?: boolean; formStates?: boolean[]; selectedOption?: number; formOptions?: string[]; chartData?: { labels: string[]; values: number[]; title?: string; xAxisLabel?: string; yAxisLabel?: string }; trendDirection?: "up" | "down" | "steady"; appearance?: "modern" | "simple"; styleOverrides?: { color?: string; fillColor?: string | null; fillOpacity?: number }; textStyle?: { fontSize?: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify" } };
-export type GroupElement = LayerFlags & { type: "group"; elements: Element[]; note?: NoteMetadata; mermaid?: MermaidMetadata; libraryComponent?: LibraryComponentData };
+export type LibraryComponentData = { kind: string; label?: string; portCount?: number; formTitle?: string; formState?: boolean; formStates?: boolean[]; selectedOption?: number; formOptions?: string[]; chartData?: { labels: string[]; values: number[]; title?: string; xAxisLabel?: string; yAxisLabel?: string }; trendDirection?: "up" | "down" | "steady"; appearance?: "modern" | "simple"; styleOverrides?: { color?: string; fillColor?: string | null; fillOpacity?: number }; textStyle?: { fontSize?: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify" } };
+export type GroupElement = LayerFlags & { type: "group"; elements: Element[]; componentBounds?: Bounds; note?: NoteMetadata; mermaid?: MermaidMetadata; libraryComponent?: LibraryComponentData };
 export type Element = FreehandElement | ShapeElement | TextElement | ImageElement | SchemaTableElement | GroupElement;
 export type Tool = "select" | "pan" | "pen" | "laser" | "rectangle" | "circle" | "diamond" | "triangle" | "flowchart" | "line" | "arrow" | "text" | "bucket" | "eraser" | "crop";
 export type CanvasState = { zoom: number; panX: number; panY: number; backgroundColor: string; boardColorFollowsTheme?: boolean };
@@ -27,7 +27,10 @@ export type SketchPage = { id: string; name: string; canvasState: CanvasState; e
 export type ProjectNote = { id: string; title: string; content: string; createdAt: number; updatedAt: number };
 export type ProjectTaskStatus = "backlog" | "inProgress" | "done";
 export type ProjectTaskPriority = "low" | "medium" | "high";
-export type ProjectTask = { id: string; title: string; description: string; status: ProjectTaskStatus; priority: ProjectTaskPriority; startDate?: string; dueDate?: string; dependsOn?: string[]; createdAt: number; updatedAt: number };
+export type ProjectChecklistItem = { id: string; text: string; done: boolean };
+/** Legacy alias retained so older planning payloads can be migrated on read. */
+export type ProjectTaskChecklistItem = ProjectChecklistItem;
+export type ProjectTask = { id: string; title: string; description: string; status: ProjectTaskStatus; priority: ProjectTaskPriority; startDate?: string; dueDate?: string; dependsOn?: string[]; checklist?: ProjectTaskChecklistItem[]; createdAt: number; updatedAt: number };
 export type ProjectMilestone = { id: string; title: string; description: string; date: string; completed: boolean; createdAt: number; updatedAt: number };
 export type ProjectLogKind = "decision" | "question" | "risk";
 export type ProjectLogEntry = { id: string; kind: ProjectLogKind; title: string; details: string; owner: string; nextStep: string; riskLevel?: ProjectTaskPriority; resolved: boolean; createdAt: number; updatedAt: number };
@@ -44,7 +47,7 @@ export type LibraryResearchSource = { id: string; title: string; url: string; au
 export type LibraryMediaKind = "book" | "film" | "game" | "podcast" | "article" | "other";
 export type LibraryMediaStatus = "want" | "inProgress" | "complete";
 export type LibraryMediaEntry = { id: string; title: string; kind: LibraryMediaKind; status: LibraryMediaStatus; rating?: number; notes: string; startedAt?: string; completedAt?: string; createdAt: number; updatedAt: number };
-/** Version 8 storage payload retained for backward compatibility. Notebook edits quickNotes. */
+/** Version 8 storage payload retained for backward compatibility. Retired quick notes are imported into Planning. */
 export type PersonalLibraryData = {
   quickNotes: ProjectNote[];
   studyNotes: ProjectNote[];
@@ -60,6 +63,7 @@ export type ProjectWorkspaceData = {
   description: string;
   notes: ProjectNote[];
   tasks: ProjectTask[];
+  checklist: ProjectChecklistItem[];
   milestones: ProjectMilestone[];
   logEntries: ProjectLogEntry[];
   files: ProjectFileEntry[];
@@ -76,7 +80,7 @@ export type SketchDocumentSectionsV9 = {
 };
 export const SKETCH_FORMAT_VERSION = 9 as const;
 export type SketchFileDocumentV9 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; sections: SketchDocumentSectionsV9; windowsSync?: WindowsSyncMetadata };
-/** In-memory shape. V9 serializes Notebook notes apart from archived Library records. */
+/** In-memory shape. Legacy quick notes remain readable for v9 file migration. */
 export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; project?: ProjectWorkspaceData; library?: PersonalLibraryData; windowsSync?: WindowsSyncMetadata };
 export type Preview = { type: Exclude<Tool, "select" | "pan" | "laser" | "text" | "bucket" | "eraser" | "crop">; start: Point; end: Point; color: string; thickness: number; opacity?: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute };
 export type Bounds = { x: number; y: number; w: number; h: number };
@@ -85,4 +89,4 @@ export type Theme = "light" | "dark";
 export type ThemeMode = Theme | "system";
 
 export type Binding = { elementId: string; anchor: Point; rowId?: string };
-export type ShapeLabel = Omit<TextElement, keyof LayerFlags | "type" | "x" | "y"> & { verticalAlign: "top" | "middle" | "bottom" };
+export type ShapeLabel = Omit<TextElement, keyof LayerFlags | "type" | "x" | "y"> & { verticalAlign: "top" | "middle" | "bottom"; offsetX?: number; offsetY?: number };

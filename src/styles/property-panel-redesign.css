@@ -1,0 +1,76 @@
+/* Keep the inspector as compact and plain as the component editor dock. */
+.app-shell .style-pane.full-style-mode > .full-inspector {
+    box-sizing: border-box;
+    display: flex;
+    width: min(270px, calc(100vw - 72px));
+    max-height: min(680px, calc(100vh - 92px));
+    flex-direction: column;
+    gap: 0;
+    overflow: auto;
+    padding: 0 10px 10px;
+    border: 1px solid var(--workspace-line, #d5dce2);
+    border-radius: 8px;
+    color: var(--workspace-ink, #202a35);
+    background: var(--workspace-surface, #fff);
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.app-shell .full-inspector .full-style-heading {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    box-sizing: border-box;
+    min-height: 42px;
+    flex: 0 0 auto;
+    margin: 0 -10px 2px;
+    padding: 6px 8px 6px 10px;
+    border-bottom: 1px solid var(--workspace-line, #e1e6eb);
+    background: var(--workspace-raised, #f7f9fa);
+}
+
+.app-shell .full-inspector .full-style-heading strong { color: var(--workspace-ink, #202a35); font-size: 12px; font-weight: 700; letter-spacing: 0; }
+.app-shell .full-inspector .full-style-heading button { min-height: 28px; padding: 4px 8px; border: 1px solid var(--workspace-line, #dfe4e9); border-radius: 6px; color: var(--workspace-ink, #46515c); background: var(--workspace-surface, #fff); font-size: 10px; }
+.app-shell .full-inspector .pane-section { flex: 0 0 auto; margin: 0; padding: 10px 0; border: 0; border-bottom: 1px solid var(--workspace-line, #e1e6eb); border-radius: 0; background: transparent; }
+.app-shell .full-inspector .pane-section:last-child { border-bottom: 0; }
+.app-shell .full-inspector .pane-section:hover { border-color: var(--workspace-line, #e1e6eb); background: transparent; }
+.app-shell .full-inspector .pane-heading { margin: 0 0 8px; color: var(--workspace-ink, #46515c); font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+.app-shell .full-inspector .property-label { gap: 5px; margin: 7px 0; color: var(--workspace-muted, #697581); font-size: 10px; font-weight: 600; }
+.app-shell .full-inspector input:not([type="checkbox"]):not([type="radio"]),
+.app-shell .full-inspector select,
+.app-shell .full-inspector textarea { box-sizing: border-box; min-height: 31px; padding: 5px 7px; border-color: var(--workspace-line, #d7dee5); border-radius: 5px; color: var(--workspace-ink, #202a35); background: var(--workspace-surface, #fff); font-size: 11px; }
+.app-shell .full-inspector input:focus,
+.app-shell .full-inspector select:focus,
+.app-shell .full-inspector textarea:focus { border-color: var(--workspace-accent, #5366a9); outline: 2px solid color-mix(in srgb, var(--workspace-accent, #5366a9) 20%, transparent); outline-offset: 1px; }
+
+.app-shell .geometry-property-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.app-shell .geometry-property-grid > label,
+.app-shell .component-port-editor > label { display: grid; min-width: 0; gap: 4px; color: var(--workspace-muted, #697581); font-size: 10px; font-weight: 650; }
+.app-shell .geometry-property-grid input { width: 100%; min-width: 0; }
+.app-shell .full-inspector:not(.connector-properties) .pane-section:has(> .pane-heading + .precision-grid) { display: none; }
+.app-shell .full-inspector.connector-properties .pane-section > .pane-heading + .precision-grid { display: none; }
+
+.app-shell .component-editor-dock { width: min(35px, calc(100vw - 72px)); }
+.app-shell .component-port-editor { display: grid; grid-template-columns: minmax(0, 1fr) 72px; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--workspace-line, #e1e6eb); border-radius: 8px; background: var(--workspace-raised, #f7f9fa); }
+.app-shell .component-port-editor > div { display: grid; gap: 4px; }
+.app-shell .component-port-editor strong { color: var(--workspace-ink, #202a35); font-size: 10px; }
+.app-shell .component-port-editor small { color: var(--workspace-muted, #697581); font-size: 9px; line-height: 1.4; }
+.app-shell .component-port-editor input { box-sizing: border-box; width: 100%; min-height: 34px; padding: 5px 7px; border: 1px solid var(--workspace-line, #d9e0e6); border-radius: 5px; color: var(--workspace-ink, #202a35); background: var(--workspace-surface, #fff); font: inherit; font-size: 11px; }
+
+.app-shell.theme-dark .style-pane.full-style-mode > .full-inspector { border-color: var(--workspace-line, #3d4851); color: var(--workspace-ink, #e6edf2); background: var(--workspace-surface, #20262b); }
+.app-shell.theme-dark .full-inspector .full-style-heading { border-color: var(--workspace-line, #3d4851); background: var(--workspace-raised, #272e34); }
+.app-shell.theme-dark .full-inspector .full-style-heading strong,
+.app-shell.theme-dark .full-inspector .pane-heading,
+.app-shell.theme-dark .geometry-property-grid > label,
+.app-shell.theme-dark .component-port-editor > label { color: var(--workspace-ink, #e6edf2); }
+.app-shell.theme-dark .full-inspector .full-style-heading button,
+.app-shell.theme-dark .full-inspector input:not([type="checkbox"]):not([type="radio"]),
+.app-shell.theme-dark .full-inspector select,
+.app-shell.theme-dark .full-inspector textarea,
+.app-shell.theme-dark .component-port-editor input { border-color: var(--workspace-line, #3d4851); color: var(--workspace-ink, #e6edf2); background: var(--workspace-surface, #20262b); }
+.app-shell.theme-dark .component-port-editor { border-color: var(--workspace-line, #3d4851); background: var(--workspace-raised, #272e34); }
+
+@media (max-width: 760px) {
+    .app-shell .style-pane.full-style-mode > .full-inspector { width: min(290px, calc(100vw - 76px)); max-height: calc(100dvh - 92px); }
+    .app-shell .component-editor-dock { width: min(35px, calc(100vw - 16px)); }
+}

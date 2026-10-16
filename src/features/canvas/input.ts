@@ -2,6 +2,51 @@ import type { CanvasState, Point, StrokePoint } from "../../model";
 
 export type CanvasGridStyle = "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric";
 
+export function gridSpacingForStyle(style: CanvasGridStyle, gridSize: number): number {
+  return style === "small-dots" || style === "small-grid" ? gridSize / 2 : gridSize;
+}
+
+export function gridStepForStyle(style: CanvasGridStyle, gridSize: number, zoom: number): number {
+  const baseStep = gridSpacingForStyle(style, gridSize);
+  // Fine paper uses exact half-grid subdivisions. At low zoom, skip by powers
+  // of two from the same origin so its visible lines still land on that lattice.
+  const downsample = Math.max(1, 2 ** Math.max(0, Math.ceil(Math.log2(12 / (baseStep * Math.max(0.02, zoom))))));
+  return baseStep * downsample;
+}
+
+export function isometricRowHeight(step: number): number {
+  return step * Math.sqrt(3) / 2;
+}
+
+export function isometricRowOffset(row: number, step: number): number {
+  return Math.abs(row % 2) === 1 ? step / 2 : 0;
+}
+
+export function gridSvgPattern(style: CanvasGridStyle, step: number): { width: number; height: number; path?: string; dotRadius?: number } {
+  if (style === "isometric") {
+    const rowHeight = isometricRowHeight(step);
+    const width = step * 2;
+    const segments: string[] = [];
+    for (let row = 0; row <= 2; row++) {
+      const phase = isometricRowOffset(row, step);
+      const firstColumn = Math.floor((0 - phase) / step) - 1;
+      const lastColumn = Math.ceil((width - phase) / step) + 1;
+      for (let column = firstColumn; column <= lastColumn; column++) {
+        const x = column * step + phase;
+        segments.push(`M ${x} ${row * rowHeight} H ${x + step}`);
+        if (row < 2) {
+          segments.push(`M ${x} ${row * rowHeight} L ${x - step / 2} ${(row + 1) * rowHeight}`);
+          segments.push(`M ${x} ${row * rowHeight} L ${x + step / 2} ${(row + 1) * rowHeight}`);
+        }
+      }
+    }
+    return { width, height: rowHeight * 2, path: segments.join(" ") };
+  }
+  if (style === "lines" || style === "small-grid") return { width: step, height: step, path: `M 0 0 H ${step} M 0 0 V ${step}` };
+  if (style === "ruled") return { width: step, height: step, path: `M 0 ${step} H ${step}` };
+  return { width: step, height: step, dotRadius: style === "small-dots" ? 0.65 : 0.85 };
+}
+
 export function pointerToWorld(clientX: number, clientY: number, rect: DOMRect, state: CanvasState): Point {
   return { x: (clientX - rect.left - state.panX) / state.zoom, y: (clientY - rect.top - state.panY) / state.zoom };
 }
@@ -17,11 +62,20 @@ export function strokePointFromPointer(event: PointerEvent, point: Point, pressu
 
 export function snapCanvasPoint(point: Point, enabled: boolean, style: CanvasGridStyle, gridSize: number): Point {
   if (!enabled) return point;
+  const step = gridSpacingForStyle(style, gridSize);
   if (style === "isometric") {
-    const rowStep = gridSize * Math.sqrt(3) / 2;
-    const row = Math.round(point.y / rowStep);
-    const phase = Math.abs(row % 2) === 1 ? gridSize / 2 : 0;
-    return { x: Math.round((point.x - phase) / gridSize) * gridSize + phase, y: row * rowStep };
+    const rowStep = isometricRowHeight(step);
+    const nearestRow = Math.floor(point.y / rowStep);
+    let closest = { x: 0, y: 0, distance: Infinity };
+    for (let row = nearestRow - 1; row <= nearestRow + 2; row++) {
+      const phase = isometricRowOffset(row, step);
+      const x = Math.round((point.x - phase) / step) * step + phase;
+      const y = row * rowStep;
+      const distance = (x - point.x) ** 2 + (y - point.y) ** 2;
+      if (distance < closest.distance) closest = { x, y, distance };
+    }
+    return { x: closest.x, y: closest.y };
   }
-  return { x: Math.round(point.x / gridSize) * gridSize, y: Math.round(point.y / gridSize) * gridSize };
+  const snapIndex = (value: number) => Math.round(value / step) * step;
+  return { x: snapIndex(point.x), y: snapIndex(point.y) };
 }

@@ -6,7 +6,7 @@ SketchDraw is an offline-first project workspace for Windows, Android, and iOS. 
 
 **Current release: Windows 9.0.0 | Android 4.0.0 | Document format: v9 | Copyright (c) 2026 Toushal Sampat**
 
-> SketchDraw saves version 9 `.sketch` documents on both platforms. New and opened sketches start on Canvas, with Planning and Notebook available from the workspace tabs. V9 stores Notebook notes separately and keeps retired Library records in an archive section. Versions 1-8 remain readable and migrate to v9 when opened and saved.
+> SketchDraw saves version 9 `.sketch` documents on both platforms. New and opened sketches start on Canvas, with Planning available from the workspace tabs. Older quick notes are moved into Planning when a file is opened. Versions 1-8 remain readable and migrate to v9 when opened and saved.
 
 ## Screenshots and previews
 
@@ -33,10 +33,6 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 ![Project Home with prioritized tasks, recent notes, and project tool shortcuts](docs/screenshots/project-home-preview.svg)
 
 *Project Home brings next actions, recent notes, project dates, and shortcuts together. Task priority and due dates stay visible in the overview.*
-
-![SketchDraw Notebook with the note editor, note list, and export controls](docs/screenshots/notebook-preview.svg)
-
-*Notebook keeps quick notes with the sketch. Open the notes list to select, delete, or export notes without a second writing area.*
 
 ![Markdown text editor, insert-table action, and rendered editable table card](docs/screenshots/markdown-tables-preview.svg)
 
@@ -112,20 +108,19 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 
 ## Features
 
-- **Document workspaces:** Each `.sketch` file includes a Canvas, Planning, and Notebook. New and opened sketches go straight to Canvas; switch to planning or notes without closing the file. All three stay in the same offline document.
-- **Project planning:** Keep project notes, prioritized and dated tasks, dependencies, milestones, decisions, risks, links, and attachments together. Use the Kanban board, drag tasks between stages, reorder cards, and review dates in Timeline or Calendar.
-- **Notebook:** Keep quick notes with a sketch, then select, delete, or export them as Markdown. Notebook notes stay separate from project notes and canvas note cards.
+- **Document workspaces:** Each `.sketch` file includes a Canvas and Planning. New and opened sketches go straight to Canvas; switch to Planning without closing the file. Both stay in the same offline document.
+- **Project planning:** Keep project notes, prioritized and dated tasks, task checklists, dependencies, milestones, decisions, risks, links, and attachments together. Use the Kanban board, drag tasks between stages, reorder cards, and review dates in Timeline or Calendar.
 - **Shared-file updates:** Open copies check a shared `.sketch` file every 1.6 seconds. Once OneDrive or another provider syncs a change, independent edits to pages, objects, notes, and tasks are merged; when the same item changes on two devices, the later edit wins. SketchDraw does not host files or live collaboration.
 - **Drawing tools:** Draw with pen, fine pen, pencil, soft brush, marker, highlighter, chalk, or a temporary laser pointer. Create and fill geometric shapes, crop imported images, and adjust stroke, fill, opacity, corners, and text styling.
 - **Flowchart symbols:** Build diagrams with process, terminator, decision, input/output, document, database, preparation, manual input, connector, delay, stored-data, and cloud shapes. Symbols remain editable after placement.
 - **Connectors:** Draw straight or curved lines, multi-point lines, and straight, elbow, forked, loop, or jagged arrows. Attach endpoints to shapes, choose line and arrowhead styles, and drag route handles. Windows also offers automatic obstacle routing with editable waypoints.
 - **Selection and layers:** Move, resize, rotate, group, duplicate, align, and distribute objects. Copy and paste objects or their styles, and edit precise values. Layers group all objects by drawing tool, so each tool has one selectable, reorderable, hideable, and lockable layer. Undo and redo history is kept per page for the current session.
 - **Canvas navigation:** Pan, zoom, fit the full drawing, or zoom to a selection. Set the board color and paper pattern, use grid and object snapping, and open Canvas options for rulers, alignment guides, and an optional minimap.
-- **Pages and project files:** Keep up to 100 named canvas pages plus planning and notebook records in one portable version 9 `.sketch` file. Older personal-library records are preserved when a file is opened and saved. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, recovery can restore interrupted edits, and up to eight recent file paths appear on Home. Recognized version 1-8 SketchDraw files are migrated when opened and saved.
+- **Pages and project files:** Keep up to 100 named canvas pages and planning records in one portable version 9 `.sketch` file. Older personal-library records are preserved when a file is opened and saved, and legacy quick notes are added to Planning Notes. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, recovery can restore interrupted edits, and up to eight recent file paths appear on Home. Recognized version 1-8 SketchDraw files are migrated when opened and saved.
 - **Text and note cards:** Add plain text, Markdown, tables, code notes, notes, sticky notes, and checklists to the canvas. Markdown supports headings, lists, tables, and syntax-colored code blocks. Resize, title, format, collapse, expand, and edit cards in place; collapsed cards retain a short content or progress summary.
 - **Diagram as code:** Paste Mermaid flowchart code, preview it, and generate native shapes and attached connectors. The source stays with the diagram, so it can be reopened, edited, and regenerated later.
 - **Database schema visualizer:** Paste SQL `CREATE TABLE` statements or JSON table definitions to create editable table cards with primary- and foreign-key fields. Generated connectors attach to matching field rows, and each card can reopen its saved source for editing.
-- **Modeling components:** Insert individual UML class cards, sequence lifelines and messages, ER tables and relationship motifs, or C4 architecture parts. Components can be edited separately; connector motifs stay grouped so their lines and arrowheads move together.
+- **Modeling components:** Insert editable UML, sequence, ER, C4, cloud, software, BPMN, and network shapes. Connectors attach to component shapes, and the Hub and Switch port counts are configurable.
 - **Import formats:** Import common raster images and SVG artwork. Images are embedded in the `.sketch` file; SVG artwork is rasterized for display. Mermaid, SQL, and JSON inputs can also generate editable diagrams or schema cards.
 - **Print preview:** Review page size, orientation, margins, page breaks, and tiled layout before printing or saving as PDF. Fit-to-page and poster layouts make it easier to check how a large sketch will be split across sheets.
 - **Export:** Review a live preview before exporting PNG, SVG, or PDF. PDFs support the current page, all pages, or a selected range, with fit-to-page or tiled output; configure page dimensions, headers, footers, crop marks, bleed, and RGB, CMYK, or grayscale output. PNG and SVG can use transparent backgrounds.
@@ -134,7 +129,7 @@ The launch and workspace SVGs have been reviewed against the current desktop and
 - **Touch and stylus input:** Draw and edit with a finger or compatible stylus. Use two fingers to pan and zoom, configure gesture actions, and use stylus pressure, tilt, and eraser-end input when the device reports them.
 - **Appearance:** Follow the system theme or choose light or dark mode, set accent and toolbar colors, and switch diagram and note components between modern and simple appearances.
 - **Presentation mode:** Hide the editing interface to present the canvas. Use the mouse, keyboard, or touch to move between sketch pages.
-- **View-only mode and help:** Open a sketch without editing or saving it; the laser pointer and note-card expand/collapse controls remain available. The in-app guide and shortcut reference explain drawing, selection, files, pages, and export.
+- **View-only mode and help:** Open a sketch without editing or saving it; the laser pointer and note-card expand/collapse controls remain available. The in-app guide and shortcut reference explain drawing, selection, files, pages, export, feature IDs 1–6, and diagram ideas.
 - **Release checks:** Use Help to compare the installed version with the latest public GitHub release. SketchDraw reports whether an update is available; downloads and installation remain manual.
 
 ## Modeling component follow-ups
@@ -148,7 +143,7 @@ Planned modeling improvements include:
 - **Data flows:** Add optional animated indicators to show direction through architecture diagrams.
 ## File format
 
-SketchDraw uses a JSON-based **version 9** format in `.sketch` files. Versions 1-8 are normalized to v9 when opened and saved back to their existing `.sketch` path. Version 9 stores `canvas`, `planning`, and `notebook` sections, with the retired Library collections held in `retiredLibraryArchive`. Version 8 and older Library collections are migrated into those v9 sections without dropping records. Edit-clock metadata supports shared-folder updates. Windows, phone, and tablet apps preserve the sections in the same document. `.sketchdraw` files and malformed or unrelated files remain unsupported.
+SketchDraw uses a JSON-based **version 9** format in `.sketch` files. Versions 1-8 are normalized to v9 when opened and saved back to their existing `.sketch` path. Version 9 files with a legacy `notebook` section remain readable; its quick notes are moved into Planning Notes on open. Retired Library collections are held in `retiredLibraryArchive`. Edit-clock metadata supports shared-folder updates. Windows, phone, and tablet apps preserve the supported sections in the same document. `.sketchdraw` files and malformed or unrelated files remain unsupported.
 
 To convert a file outside the app, run `npm run convert:sketch -- old.sketch converted.sketch`. The converter accepts supported SketchDraw versions 1-9, writes a v9 file to the requested destination, and refuses to overwrite the source or an existing destination.
 

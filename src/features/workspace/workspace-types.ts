@@ -1,2 +1,2 @@
-export type WorkspaceArea = "canvas" | "planning" | "notebook";
+export type WorkspaceArea = "canvas" | "planning";
 export type DocumentWorkspaceArea = WorkspaceArea;

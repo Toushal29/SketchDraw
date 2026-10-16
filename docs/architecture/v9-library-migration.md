@@ -2,7 +2,7 @@
 
 ## Current guarantee
 
-SketchDraw v8 still reads, writes, and syncs the complete `library` payload. Notebook edits only `quickNotes`; the retired study, wiki, journal, writing, research, and media records are kept unchanged when a v8 file is opened and saved. Keep that behavior while the v8 format is supported.
+SketchDraw still reads the v8 `library` payload. Legacy `quickNotes` are imported into Planning Notes when a file opens; the retired study, wiki, journal, writing, research, and media records are kept unchanged when a v8 file is opened and saved.
 
 ## Migration sequence
 

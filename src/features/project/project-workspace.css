@@ -93,7 +93,7 @@
 .project-home-note-list button { display: grid; gap: 4px; padding: 10px 0; border: 0; border-top: 1px solid var(--project-line); color: var(--project-ink); background: transparent; text-align: left; cursor: pointer; font: inherit; }
 .project-home-note-list strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .project-home-note-list span { overflow: hidden; color: var(--project-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.project-home-shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.project-home-shortcuts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
 .project-home-shortcuts button { display: grid; min-width: 0; min-height: 74px; align-content: center; gap: 6px; padding: 12px; border: 1px solid var(--project-line); border-radius: 10px; color: var(--project-ink); background: var(--project-surface); text-align: left; cursor: pointer; font: inherit; transition: border-color .14s ease, background-color .14s ease; }
 .project-home-shortcuts button:hover { border-color: color-mix(in srgb, var(--project-accent) 42%, var(--project-line)); background: var(--project-raised); }
 .project-home-shortcuts button:focus-visible { outline: 2px solid color-mix(in srgb, var(--project-accent) 55%, transparent); outline-offset: 2px; }
@@ -146,6 +146,20 @@
 .project-task-delete:hover { background: #fff0ef; }
 .project-kanban-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 12px; }
 .project-kanban-column { min-width: 0; padding: 10px; background: var(--project-raised); }
+
+.project-checklist-progress { color: var(--project-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.project-checklist-list { overflow: hidden; padding: 8px 18px; }
+.project-checklist-row { display: grid; min-height: 50px; grid-template-columns: 20px minmax(0, 1fr) 30px; align-items: center; gap: 12px; border-bottom: 1px solid var(--project-line); }
+.project-checklist-row:last-child { border-bottom: 0; }
+.project-checklist-row > input[type="checkbox"] { width: 17px; height: 17px; margin: 0; accent-color: var(--project-accent); }
+.project-checklist-row > span,
+.project-checklist-text { width: 100%; min-width: 0; padding: 8px 4px; border: 1px solid transparent; border-radius: 5px; color: var(--project-ink); background: transparent; font: inherit; font-size: 12px; }
+.project-checklist-text:focus { border-color: var(--project-line); background: var(--project-surface); outline: none; }
+.project-checklist-row.is-done > span,
+.project-checklist-row.is-done .project-checklist-text { color: var(--project-muted); text-decoration: line-through; }
+.project-checklist-row > button { width: 28px; height: 28px; border: 0; border-radius: 6px; color: var(--project-muted); background: transparent; cursor: pointer; font-size: 18px; }
+.project-checklist-row > button:hover { color: #ba5453; background: color-mix(in srgb, #ba5453 9%, transparent); }
+.project-checklist-page .project-add-task { max-width: 100%; }
 .project-kanban-column > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 2px 10px; color: var(--project-ink); font-size: 11px; font-weight: 700; }
 .project-kanban-column > header span { display: inline-flex; align-items: center; gap: 7px; }
 .project-kanban-column > header i { width: 8px; height: 8px; border-radius: 50%; background: #7c8b98; }
