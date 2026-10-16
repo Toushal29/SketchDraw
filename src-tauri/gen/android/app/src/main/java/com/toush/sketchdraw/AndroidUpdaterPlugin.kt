@@ -185,8 +185,15 @@ class AndroidUpdaterPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     val installedSigners = activeSigners(installed)
+    val updateSigners = activeSigners(update)
     val updateSignerHistory = signerHistory(update)
-    if (installedSigners.isEmpty() || updateSignerHistory.isEmpty() || !updateSignerHistory.containsAll(installedSigners)) {
+    val hasUpdateSigningInfo = updateSigners.isNotEmpty() || updateSignerHistory.isNotEmpty()
+    val currentSignersMatch = installedSigners.isNotEmpty() && installedSigners == updateSigners
+    val installedSignerIsInUpdateHistory = installedSigners.size == 1 && updateSignerHistory.containsAll(installedSigners)
+
+    // PackageManager may omit part of the signing metadata for APK archives on some devices.
+    // Only reject a positive mismatch here; Android's package installer remains authoritative.
+    if (installedSigners.isNotEmpty() && hasUpdateSigningInfo && !currentSignersMatch && !installedSignerIsInUpdateHistory) {
       throw SecurityException("This APK was not signed with the installed SketchDraw release key.")
     }
   }

@@ -69,6 +69,7 @@ type Props = {
   onInstallUpdate: () => void;
   updateStatus: "idle" | "checking" | "current" | "available" | "permission" | "unavailable" | "installing" | "error";
   updateVersion: string;
+  updateError: string;
   canInstallUpdate: boolean;
 };
 
@@ -264,7 +265,7 @@ export function MobileCommandBar(props: Props) {
               <Show when={props.updateStatus === "permission"}><p class="mobile-update-status available">Allow SketchDraw to install apps in Android Settings. Return here, then continue the installation.</p><Show when={props.canInstallUpdate}><button class="mobile-update-install" onClick={props.onInstallUpdate}>Continue installation</button></Show></Show>
               <Show when={props.updateStatus === "unavailable"}><p class="mobile-update-status">The latest GitHub release does not include an Android APK.</p></Show>
               <Show when={props.updateStatus === "installing"}><p class="mobile-update-status available">Downloading version {props.updateVersion} and opening Android’s installer…</p></Show>
-              <Show when={props.updateStatus === "error"}><p class="mobile-update-status error">The update check failed. Try again later.</p></Show>
+              <Show when={props.updateStatus === "error"}><p class="mobile-update-status error">{props.updateError || "The update could not be completed. Try again later."}</p></Show>
             </section>
           </Show>
         </div>

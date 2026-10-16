@@ -4478,6 +4478,7 @@ function App() {
     onInstallUpdate={() => void installUpdate()}
     updateStatus={updateCheck()}
     updateVersion={updateVersion() ?? "—"}
+    updateError={error()}
     canInstallUpdate={isAndroidPlatform() && !!androidUpdateUrl()}
   /></Suspense>;
 
