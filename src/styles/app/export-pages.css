@@ -14,14 +14,14 @@
     gap: 8px;
     margin: 14px 0 8px;
     padding: 12px;
-    border: 1px solid #e8e7e1;
+    border: 1px solid var(--theme-border);
     border-radius: 9px;
-    background: #fbfbf9;
+    background: var(--theme-surface-elevated);
 }
 
 .pdf-setting-heading {
     margin-top: 2px;
-    color: #666961;
+    color: var(--theme-text-secondary);
     font-size: 11px;
     font-weight: 700;
 }
@@ -40,10 +40,10 @@
     justify-content: center;
     gap: 6px;
     padding: 5px 7px;
-    border: 1px solid #e1e0da;
+    border: 1px solid var(--theme-border);
     border-radius: 7px;
-    color: #5f625b;
-    background: #fff;
+    color: var(--theme-text-secondary);
+    background: var(--theme-surface-input);
     font-size: 11px;
 }
 
@@ -51,9 +51,9 @@
 .pdf-choice-row button:hover,
 .pdf-paper-grid button.active,
 .pdf-choice-row button.active {
-    border-color: #b9cce5;
-    color: #315c9a;
-    background: #f0f5fc;
+    border-color: var(--theme-primary-border);
+    color: var(--theme-primary);
+    background: var(--theme-primary-muted);
 }
 
 .pdf-choice-row {
@@ -79,7 +79,7 @@
 .pdf-custom-size label {
     display: grid;
     gap: 4px;
-    color: #74766f;
+    color: var(--theme-text-secondary);
     font-size: 10px;
 }
 
@@ -89,10 +89,10 @@
     min-width: 0;
     height: 32px;
     padding: 0 7px;
-    border: 1px solid #e2e1db;
+    border: 1px solid var(--theme-border);
     border-radius: 6px;
-    color: #454841;
-    background: #fff;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
     font-size: 11px;
 }
 
@@ -105,7 +105,7 @@
     grid-template-columns: 1fr auto;
     align-items: center;
     gap: 6px;
-    color: #70736b;
+    color: var(--theme-text-secondary);
     font-size: 10px;
 }
 
@@ -120,8 +120,8 @@
     margin-top: 3px;
     padding: 9px;
     border-radius: 7px;
-    color: #315c9a;
-    background: #edf3fb;
+    color: var(--theme-info);
+    background: var(--theme-surface-hover);
 }
 
 .pdf-page-count strong {
@@ -129,7 +129,7 @@
 }
 
 .pdf-page-count span {
-    color: #66758b;
+    color: var(--theme-text-secondary);
     font-size: 10px;
     line-height: 1.4;
 }
@@ -145,10 +145,10 @@
     place-items: center;
     width: 25px;
     height: 25px;
-    border: 1px solid #e1e0da;
+    border: 1px solid var(--theme-border);
     border-radius: 6px;
-    color: #555850;
-    background: #fff;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
     font-size: 14px;
 }
 
@@ -173,14 +173,7 @@
 }
 
 .theme-dark .pdf-settings {
-    border-color: #414550;
-    background: #30343d;
-}
-
-.theme-dark .pdf-setting-heading,
-.theme-dark .pdf-custom-size label,
-.theme-dark .pdf-overlap-control {
-    color: #c1c5cd;
+    border-color: var(--theme-border);
 }
 
 .theme-dark .pdf-paper-grid button,
@@ -188,27 +181,7 @@
 .theme-dark .pdf-custom-size input,
 .theme-dark .pdf-custom-size select,
 .theme-dark .pdf-preview-pages button {
-    border-color: #4a4f5b;
-    color: #d5d7db;
-    background: #292c33;
-}
-
-.theme-dark .pdf-paper-grid button.active,
-.theme-dark .pdf-choice-row button.active,
-.theme-dark .pdf-paper-grid button:hover,
-.theme-dark .pdf-choice-row button:hover {
-    border-color: #526a8b;
-    color: #c4d8f3;
-    background: #3a4657;
-}
-
-.theme-dark .pdf-page-count {
-    color: #c4d8f3;
-    background: #303d52;
-}
-
-.theme-dark .pdf-page-count span {
-    color: #bdc9dc;
+    border-color: var(--theme-border);
 }
 
 @media (max-width: 760px) {
@@ -232,6 +205,13 @@
     overflow-wrap: anywhere;
 }
 
+.update-menu-version {
+    display: block;
+    padding: 4px 10px 6px;
+    color: var(--muted);
+    font-size: 10px;
+}
+
 .update-menu-status.current,
 .update-menu-status.available,
 .update-menu-status.error {
@@ -242,33 +222,18 @@
 }
 
 .update-menu-status.current {
-    color: #3b7254;
-    background: #edf7f0;
+    color: var(--theme-success);
+    background: var(--theme-surface-elevated);
 }
 
 .update-menu-status.available {
-    color: #315c9a;
-    background: #edf3fb;
+    color: var(--theme-info);
+    background: var(--theme-surface-elevated);
 }
 
 .update-menu-status.error {
-    color: #a14642;
-    background: #fff0ef;
-}
-
-.theme-dark .update-menu-status.current {
-    color: #a8d7b8;
-    background: #24352a;
-}
-
-.theme-dark .update-menu-status.available {
-    color: #bdd4f6;
-    background: #29364a;
-}
-
-.theme-dark .update-menu-status.error {
-    color: #f0b1aa;
-    background: #462b2b;
+    color: var(--theme-error);
+    background: var(--theme-error-muted);
 }
 
 /* Keep portrait PDF previews inside a real, bounded page frame. */

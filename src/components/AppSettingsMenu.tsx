@@ -21,7 +21,6 @@ type Props = {
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
   buttonChoices: boolean;
-  reduceMotion: boolean;
   displayMetrics: DisplayMetrics;
   onInterfaceScaleChange: (scale: number) => void;
   onMobileOrientationChange: (orientation: "landscape" | "portrait") => void;
@@ -31,7 +30,6 @@ type Props = {
   onToolbarColorChange: (value: string) => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: "presets" | "stepper") => void;
-  onReduceMotionChange: (reduce: boolean) => void;
   onRestoreDefaults: () => void;
   detailsRef?: (element: HTMLDetailsElement) => void;
   onToggle?: () => void;
@@ -79,7 +77,7 @@ export function AppSettingsMenu(props: Props) {
           <div class="app-toolbar-choices" role="group" aria-label="Toolbar surface">
             <button type="button" class={props.toolbarColorChoice === "auto" ? "active" : ""} aria-pressed={props.toolbarColorChoice === "auto"} onClick={() => props.onToolbarColorChange("auto")}><i class="app-toolbar-auto" /><span>Auto</span></button>
             {props.toolbarColorOptions.map(option => <button type="button" class={props.toolbarColorChoice === option.value ? "active" : ""} aria-pressed={props.toolbarColorChoice === option.value} title={option.label} onClick={() => props.onToolbarColorChange(option.value)}><i style={{ "background-color": option.value }} /><span>{option.label}</span></button>)}
-            <label class="app-toolbar-custom" title="Choose a custom toolbar color"><input type="color" aria-label="Custom toolbar color" value={props.toolbarColorChoice === "auto" ? "#f8faf7" : props.toolbarColorChoice} onInput={event => props.onToolbarColorChange(event.currentTarget.value)} /><i style={{ "background-color": props.toolbarColorChoice === "auto" ? "#f8faf7" : props.toolbarColorChoice }} /><span>Custom</span></label>
+            <label class="app-toolbar-custom" title="Choose a custom toolbar color"><input type="color" aria-label="Custom toolbar color" value={props.toolbarColorChoice === "auto" ? "#FFFFFF" : props.toolbarColorChoice} onInput={event => props.onToolbarColorChange(event.currentTarget.value)} /><i style={{ "background-color": props.toolbarColorChoice === "auto" ? "var(--theme-surface)" : props.toolbarColorChoice }} /><span>Custom</span></label>
           </div>
         </div>
         <Show when={props.showMobileLayoutSettings}>
@@ -101,7 +99,6 @@ export function AppSettingsMenu(props: Props) {
           <Show when={props.buttonChoices} fallback={<select aria-label="Interface scale" value={props.interfaceScale} onChange={event => props.onInterfaceScaleChange(Number(event.currentTarget.value))}>{interfaceScales.map(scale => <option value={scale}>{Math.round(scale * 100)}%</option>)}</select>}>
             <SettingChoices label="Interface scale" value={props.interfaceScale} options={interfaceScales.map(scale => ({ value: scale, label: `${Math.round(scale * 100)}%` }))} onChange={props.onInterfaceScaleChange} />
           </Show>
-          <small>Changes the app's control and text size. Device display resolution is managed by system settings.</small>
         </div>
         <div class="app-setting-field">
           <span>Autosave interval</span>
@@ -114,12 +111,7 @@ export function AppSettingsMenu(props: Props) {
           <Show when={props.buttonChoices} fallback={<select aria-label="Pen and brush thickness controls" value={props.thicknessPickerMode} onChange={event => props.onThicknessPickerModeChange(event.currentTarget.value as "presets" | "stepper")}><option value="presets">Preset thicknesses</option><option value="stepper">Fine tune with slider</option></select>}>
             <SettingChoices label="Pen and brush thickness controls" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} />
           </Show>
-          <small>Choose presets or fine tuning for pen and paint brushes. Other tools keep their existing controls.</small>
         </div>
-        <label class="app-setting-toggle">
-          <span><strong>Reduce motion</strong><small>Turn off most interface animations</small></span>
-          <input type="checkbox" checked={props.reduceMotion} onChange={event => props.onReduceMotionChange(event.currentTarget.checked)} />
-        </label>
         <section class="app-display-info" aria-label="Display information">
           <strong>Current display</strong>
           <span>{props.displayMetrics.physicalWidth} x {props.displayMetrics.physicalHeight} px</span>

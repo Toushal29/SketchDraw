@@ -3,11 +3,11 @@
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) {
-        --touch-line: color-mix(in srgb, var(--toolbar-ink, #526057) 13%, transparent);
-        --touch-muted: color-mix(in srgb, var(--toolbar-ink, #526057) 62%, transparent);
-        --touch-glass: color-mix(in srgb, var(--toolbar-surface, #fff) 96%, transparent);
-        background: #edf1ed;
-        color: #26342c;
+        --touch-line: color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 13%, transparent);
+        --touch-muted: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 62%, transparent);
+        --touch-glass: color-mix(in srgb, var(--toolbar-surface, var(--theme-surface)) 96%, transparent);
+        background: var(--theme-background);
+        color: var(--theme-text-primary);
         -webkit-tap-highlight-color: transparent;
     }
 
@@ -46,7 +46,7 @@
         padding: clamp(17px, 3vw, 26px);
         border-color: var(--touch-line);
         border-radius: 22px;
-        background: var(--toolbar-surface, #fff);
+        background: var(--toolbar-surface, var(--theme-background));
     }
 
     .app-shell.home-screen-active:not(.platform-windows) .welcome-symbol {
@@ -79,7 +79,7 @@
         padding: 16px;
         border-color: var(--touch-line);
         border-radius: 20px;
-        background: var(--toolbar-surface, #fff);
+        background: var(--toolbar-surface, var(--theme-background));
     }
 
     .app-shell.home-screen-active:not(.platform-windows) .recent-heading { padding-bottom: 10px; }
@@ -109,7 +109,7 @@
         min-width: 0;
         min-height: 0;
         flex: 1 1 auto;
-        background: #e9eee9;
+        background: var(--theme-background);
         isolation: isolate;
     }
 
@@ -128,7 +128,7 @@
         padding: 0 10px;
         border-color: var(--touch-line);
         border-radius: 13px;
-        color: var(--toolbar-ink, #46534a);
+        color: var(--toolbar-ink, var(--theme-text-primary));
         background: var(--touch-glass);
         transform: none;
     }
@@ -154,8 +154,6 @@
         border-radius: 15px;
         background: var(--touch-glass);
         /* The advanced inspector is fixed to the screen from inside this pane. */
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
     }
 
     .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-heading,
@@ -238,7 +236,7 @@
         -webkit-overflow-scrolling: touch;
         border: 1px solid var(--touch-line);
         border-radius: 15px;
-        background: var(--toolbar-surface, #fff);
+        background: var(--toolbar-surface, var(--theme-background));
         transform: translateY(-50%);
     }
 
@@ -260,8 +258,8 @@
         -webkit-overflow-scrolling: touch;
         border: 1px solid var(--touch-line);
         border-radius: 20px;
-        color: var(--toolbar-ink, #344239);
-        background: var(--toolbar-surface, #fff);
+        color: var(--toolbar-ink, var(--theme-text-primary));
+        background: var(--toolbar-surface, var(--theme-background));
     }
 
     .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-style-heading {
@@ -269,7 +267,7 @@
         margin: -12px -14px 9px;
         padding: 9px 14px 10px;
         border-color: var(--touch-line);
-        background: var(--toolbar-surface, #fff);
+        background: var(--toolbar-surface, var(--theme-background));
     }
 
     .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-style-heading button,
@@ -288,15 +286,15 @@
         padding: 12px;
         border: 1px solid var(--touch-line);
         border-radius: 18px;
-        color: var(--toolbar-ink, #344239);
-        background: var(--toolbar-surface, #fff);
+        color: var(--toolbar-ink, var(--theme-text-primary));
+        background: var(--toolbar-surface, var(--theme-background));
     }
 
     .app-shell:not(.platform-windows) .confirm-backdrop {
         z-index: 2600;
         align-items: end;
         padding: 8px 8px max(8px, env(safe-area-inset-bottom));
-        background: #10181370;
+        background: color-mix(in srgb, var(--theme-background) 43.92%, transparent);
     }
 
     .app-shell:not(.platform-windows) .confirm-dialog {
@@ -363,7 +361,7 @@
         gap: 5px;
         border: 1px solid var(--touch-line);
         border-radius: 11px;
-        color: var(--toolbar-ink, #46534a);
+        color: var(--toolbar-ink, var(--theme-text-primary));
         background: transparent;
         font: 600 10px system-ui, sans-serif;
     }
@@ -371,7 +369,7 @@
     .app-shell:not(.platform-windows) .quick-brush-picker svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
     /* Full-screen touch focus keeps the canvas and only three drawing tools visible. */
-    .app-shell:not(.platform-windows).touch-focus-mode { position: fixed; inset: 0; z-index: 10000; min-height: 0; overflow: hidden; background: var(--toolbar-surface, #fff); }
+    .app-shell:not(.platform-windows).touch-focus-mode { position: fixed; inset: 0; z-index: 10000; min-height: 0; overflow: hidden; background: var(--toolbar-surface, var(--theme-background)); }
     .app-shell:not(.platform-windows).touch-focus-mode > .mobile-workspace-header,
     .app-shell:not(.platform-windows).touch-focus-mode .touch-tool-bar,
     .app-shell:not(.platform-windows).touch-focus-mode .touch-tool-reopen,
@@ -383,7 +381,7 @@
     .app-shell:not(.platform-windows).touch-focus-mode .floating-layer-panel,
     .app-shell:not(.platform-windows).touch-focus-mode .selection-delete-action,
     .app-shell:not(.platform-windows).touch-focus-mode .canvas-help { display: none !important; }
-    .app-shell:not(.platform-windows).touch-focus-mode > .canvas-wrap { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; background: var(--toolbar-surface, #fff); }
+    .app-shell:not(.platform-windows).touch-focus-mode > .canvas-wrap { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; background: var(--toolbar-surface, var(--theme-background)); }
     .app-shell:not(.platform-windows).touch-focus-mode .drawing-canvas { width: 100%; height: 100%; touch-action: none; }
     .app-shell:not(.platform-windows) .touch-focus-tools {
         position: fixed;
@@ -396,18 +394,14 @@
         padding: 5px;
         border: 1px solid var(--touch-line);
         border-radius: 16px;
-        color: var(--toolbar-ink, #46534a);
-        background: color-mix(in srgb, var(--toolbar-surface, #fff) 94%, transparent);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
+        color: var(--toolbar-ink, var(--theme-text-primary));
+        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 94%, transparent);
     }
     .app-shell:not(.platform-windows) .touch-focus-tools button { display: grid; width: 44px; min-width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 12px; color: inherit; background: transparent; }
     .app-shell:not(.platform-windows) .touch-focus-tools button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .app-shell:not(.platform-windows) .touch-focus-tools svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .app-shell:not(.platform-windows) .touch-focus-tools .focus-tool-divider { width: 1px; height: 27px; margin: 0 1px; background: var(--touch-line); }
     .app-shell:not(.platform-windows) .touch-focus-tools .focus-exit { color: var(--touch-muted); }
-
-    .app-shell.theme-dark:not(.platform-windows) .quick-brush-picker button { color: #d9e2da; }
 }
 
 @media (max-width: 560px) {
@@ -439,27 +433,24 @@
 }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell.theme-dark:not(.platform-windows) { background: #171d19; color: #e3ebe4; }
     .app-shell.theme-dark:not(.platform-windows) .canvas-zoom-reset,
     .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode,
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode { border-color: #3e4a41; color: #d9e2da; background: color-mix(in srgb, var(--toolbar-surface, #242c26) 95%, transparent); }
-    .app-shell.theme-dark:not(.platform-windows) > .canvas-wrap { background: #131915; }
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode { border-color: var(--theme-border); color: var(--theme-text-primary); }
     .app-shell.theme-dark:not(.platform-windows) .welcome-card,
-    .app-shell.theme-dark:not(.platform-windows) .recent-dashboard { border-color: #39443c; background: linear-gradient(145deg, #252d27, #202722); }
+    .app-shell.theme-dark:not(.platform-windows) .recent-dashboard { border-color: var(--theme-border); background: linear-gradient(145deg, var(--theme-background), var(--theme-background)); }
     .app-shell.theme-dark:not(.platform-windows) .welcome-intro h1,
     .app-shell.theme-dark:not(.platform-windows) .recent-heading h2,
-    .app-shell.theme-dark:not(.platform-windows) .recent-file-name { color: #e1e9e2; }
+    .app-shell.theme-dark:not(.platform-windows) .recent-file-name { color: var(--theme-text-primary); }
     .app-shell.theme-dark:not(.platform-windows) .welcome-intro .welcome-copy,
     .app-shell.theme-dark:not(.platform-windows) .recent-heading > p,
-    .app-shell.theme-dark:not(.platform-windows) .recent-file-path { color: #aab6ac; }
-    .app-shell.theme-dark:not(.platform-windows) .recent-file { border-color: #39443c; }
+    .app-shell.theme-dark:not(.platform-windows) .recent-file-path { color: var(--theme-text-secondary); }
+    .app-shell.theme-dark:not(.platform-windows) .recent-file { border-color: var(--theme-border); }
     .app-shell.theme-dark:not(.platform-windows) .recent-file-icon,
-    .app-shell.theme-dark:not(.platform-windows) .recent-empty-icon { border-color: #3f4b42; color: #b0c6b2; background: #2a342d; }
-    .app-shell.theme-dark:not(.platform-windows) .recent-footnote { border-color: #39443c; color: #aab6ac; }
+    .app-shell.theme-dark:not(.platform-windows) .recent-empty-icon { border-color: var(--theme-border); color: var(--theme-text-secondary); background: var(--theme-background); }
+    .app-shell.theme-dark:not(.platform-windows) .recent-footnote { border-color: var(--theme-border); color: var(--theme-text-secondary); }
     .app-shell.theme-dark:not(.platform-windows) .style-pane .quick-style-popover,
     .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode > .full-inspector,
-    .app-shell.theme-dark:not(.platform-windows) .floating-layer-panel { border-color: #3d4940; color: #d9e2da; background: var(--toolbar-surface, #252d27); }
-    .app-shell.theme-dark:not(.platform-windows) .gesture-action-card { border-color: #3f4b42; background: #252e28; }
-    .app-shell.theme-dark:not(.platform-windows) .gesture-action-card select { border-color: #46534a; color: #d9e2da; background: #1e2621; }
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode .full-style-heading { border-color: #3d4940; background: var(--toolbar-surface, #252d27); }
+    .app-shell.theme-dark:not(.platform-windows) .floating-layer-panel { border-color: var(--theme-border); color: var(--theme-text-primary); }
+    .app-shell.theme-dark:not(.platform-windows) .gesture-action-card { border-color: var(--theme-border); background: var(--theme-background); }
+    .app-shell.theme-dark:not(.platform-windows) .gesture-action-card select { border-color: var(--theme-border); color: var(--theme-text-primary); background: var(--theme-background); }
 }

@@ -13,6 +13,31 @@ export function createLegacyLibraryData(): PersonalLibraryData {
   return { quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] };
 }
 
+export function hasRetiredLibraryData(library: PersonalLibraryData): boolean {
+  return library.studyNotes.length > 0 || library.studyCards.length > 0 || library.wikiArticles.length > 0 || library.journalEntries.length > 0 || library.writingDrafts.length > 0 || library.researchSources.length > 0 || library.mediaEntries.length > 0;
+}
+
+export function createRetiredLibraryArchive(library: PersonalLibraryData): string {
+  return JSON.stringify({
+    format: "SketchDraw Retired Library Archive",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: {
+      studyNotes: library.studyNotes,
+      studyCards: library.studyCards,
+      wikiArticles: library.wikiArticles,
+      journalEntries: library.journalEntries,
+      writingDrafts: library.writingDrafts,
+      researchSources: library.researchSources,
+      mediaEntries: library.mediaEntries,
+    },
+  }, null, 2);
+}
+
+export function clearRetiredLibraryData(library: PersonalLibraryData): PersonalLibraryData {
+  return { ...library, studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] };
+}
+
 export function normalizeLegacyLibraryData(value: unknown, legacyProject?: unknown): PersonalLibraryData | undefined {
   const source = isRecord(value) ? value : isRecord(legacyProject) ? legacyProject : undefined;
   if (!source) return value === undefined ? createLegacyLibraryData() : undefined;

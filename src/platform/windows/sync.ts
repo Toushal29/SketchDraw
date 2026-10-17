@@ -2,6 +2,8 @@ import type { PersonalLibraryData, ProjectWorkspaceData, SketchFile, WindowsSync
 
 export { mergeLatestSnapshots } from "../../features/files/snapshot-merge";
 
+const librarySyncEntriesCache = new WeakMap<PersonalLibraryData, [string, string][]>();
+
 export function getWindowsDeviceId() {
   try {
     let deviceId = localStorage.getItem("sketchdraw-windows-device-id");
@@ -29,15 +31,24 @@ function snapshotEntries(snapshot: SketchFile): Map<string, string> {
   for (const milestone of project.milestones) current.set(`w:m:${milestone.id}`, JSON.stringify(milestone));
   for (const entry of project.logEntries) current.set(`w:l:${entry.id}`, JSON.stringify(entry));
   for (const file of project.files) current.set(`w:f:${file.id}`, JSON.stringify(file));
-  for (const note of library.quickNotes) current.set(`w:quick-note:${note.id}`, JSON.stringify(note));
-  for (const note of library.studyNotes) current.set(`w:sn:${note.id}`, JSON.stringify(note));
-  for (const card of library.studyCards) current.set(`w:sc:${card.id}`, JSON.stringify(card));
-  for (const article of library.wikiArticles) current.set(`w:wiki:${article.id}`, JSON.stringify(article));
-  for (const entry of library.journalEntries) current.set(`w:journal:${entry.id}`, JSON.stringify(entry));
-  for (const draft of library.writingDrafts) current.set(`w:writing:${draft.id}`, JSON.stringify(draft));
-  for (const source of library.researchSources) current.set(`w:research:${source.id}`, JSON.stringify(source));
-  for (const entry of library.mediaEntries) current.set(`w:media:${entry.id}`, JSON.stringify(entry));
+  for (const [key, value] of librarySyncEntries(library)) current.set(key, value);
   return current;
+}
+
+function librarySyncEntries(library: PersonalLibraryData): [string, string][] {
+  const cached = librarySyncEntriesCache.get(library);
+  if (cached) return cached;
+  const entries: [string, string][] = [];
+  for (const note of library.quickNotes) entries.push([`w:quick-note:${note.id}`, JSON.stringify(note)]);
+  for (const note of library.studyNotes) entries.push([`w:sn:${note.id}`, JSON.stringify(note)]);
+  for (const card of library.studyCards) entries.push([`w:sc:${card.id}`, JSON.stringify(card)]);
+  for (const article of library.wikiArticles) entries.push([`w:wiki:${article.id}`, JSON.stringify(article)]);
+  for (const entry of library.journalEntries) entries.push([`w:journal:${entry.id}`, JSON.stringify(entry)]);
+  for (const draft of library.writingDrafts) entries.push([`w:writing:${draft.id}`, JSON.stringify(draft)]);
+  for (const source of library.researchSources) entries.push([`w:research:${source.id}`, JSON.stringify(source)]);
+  for (const entry of library.mediaEntries) entries.push([`w:media:${entry.id}`, JSON.stringify(entry)]);
+  librarySyncEntriesCache.set(library, entries);
+  return entries;
 }
 
 function emptyProject(): ProjectWorkspaceData {

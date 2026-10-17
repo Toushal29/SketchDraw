@@ -13,8 +13,11 @@
         overscroll-behavior-y: contain;
         -webkit-overflow-scrolling: touch;
         background:
-            radial-gradient(ellipse at 88% 2%, color-mix(in srgb, var(--ui-accent) 8%, transparent), transparent 38%),
-            linear-gradient(180deg, #f4f7f5 0%, #edf1ef 100%);
+            radial-gradient(ellipse at 88% 2%, color-mix(in srgb, var(--ui-accent) 18%, transparent), transparent 40%),
+            radial-gradient(ellipse at 8% 68%, color-mix(in srgb, var(--theme-info) 12%, transparent), transparent 42%),
+            radial-gradient(color-mix(in srgb, var(--ui-accent) 16%, transparent) 1px, transparent 1.5px),
+            linear-gradient(180deg, var(--theme-background) 0%, var(--theme-background) 100%);
+        background-size: auto, auto, 22px 22px, auto;
     }
 
     .app-shell.home-screen-active:not(.platform-windows) > .welcome-screen { display: none !important; }
@@ -44,7 +47,7 @@
         display: inline-flex;
         align-items: center;
         gap: 7px;
-        color: color-mix(in srgb, var(--toolbar-ink, #46534a) 58%, transparent);
+        color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 58%, transparent);
         font: 700 9px/1.2 system-ui, sans-serif;
         letter-spacing: .13em;
     }
@@ -57,13 +60,13 @@
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 {
         max-width: 640px;
         margin: 12px 0 5px;
-        color: #26342c;
+        color: var(--theme-text-primary);
         font-size: clamp(27px, 7vw, 39px);
         font-weight: 700;
         letter-spacing: -.045em;
         line-height: 1.08;
     }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro p { margin: 0; color: #748078; font-size: 12px; line-height: 1.5; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro p { margin: 0; color: var(--theme-text-secondary); font-size: 12px; line-height: 1.5; }
 
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-actions {
         grid-area: actions;
@@ -78,16 +81,14 @@
         align-items: center;
         gap: 10px;
         padding: 12px;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, #46534a) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent);
         border-radius: 17px;
-        color: var(--toolbar-ink, #46534a);
+        color: var(--toolbar-ink, var(--theme-text-primary));
         text-align: left;
-        background: color-mix(in srgb, var(--toolbar-surface, #fff) 96%, transparent);
-        transition: border-color .14s ease, background-color .14s ease, transform .14s ease;
+        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 96%, transparent);
     }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action:active { transform: scale(.985); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action.primary { border-color: color-mix(in srgb, var(--ui-accent) 28%, #fff); background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 10%, #fff), var(--toolbar-surface, #fff) 78%); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { box-shadow: 0 5px 16px #19251c0b; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action.primary { border-color: color-mix(in srgb, var(--ui-accent) 28%, var(--theme-border)); background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 10%, var(--theme-background)), var(--toolbar-surface, var(--theme-background)) 78%); }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { box-shadow: 0 5px 16px var(--theme-shadow); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action:hover { border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-icon {
         display: grid;
@@ -100,77 +101,62 @@
         color: var(--ui-accent-ink);
         background: var(--ui-accent-soft);
     }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action.secondary .mobile-home-action-icon { color: #586b78; background: #eaf0f3; border-color: #dfe7eb; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action.secondary .mobile-home-action-icon { color: var(--theme-text-secondary); background: var(--theme-background); border-color: var(--theme-border); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy { display: grid; min-width: 0; flex: 1 1 auto; gap: 4px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy strong { overflow: hidden; color: #303a33; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy small { color: #818b83; font-size: 9px; line-height: 1.35; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-arrow { flex: 0 0 15px; width: 15px; height: 15px; fill: none; stroke: #929b93; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy strong { overflow: hidden; color: var(--theme-text-primary); font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy small { color: var(--theme-text-secondary); font-size: 9px; line-height: 1.35; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-arrow { flex: 0 0 15px; width: 15px; height: 15px; fill: none; stroke: var(--theme-text-secondary); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { grid-area: project; display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 11px 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, #e2e6e9); border-radius: 14px; background: color-mix(in srgb, var(--toolbar-surface, #fff) 96%, transparent); box-shadow: 0 10px 24px #19251c0b; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-icon { display: grid; width: 36px; height: 36px; grid-row: 1; place-items: center; border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, transparent); border-radius: 11px; color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 8%, var(--toolbar-surface, #fff)); }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { grid-area: project; display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 11px 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, var(--theme-border)); border-radius: 14px; background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 96%, transparent); box-shadow: 0 10px 24px var(--theme-shadow); }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-icon { display: grid; width: 36px; height: 36px; grid-row: 1; place-items: center; border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, transparent); border-radius: 11px; color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 8%, var(--toolbar-surface, var(--theme-background))); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project > div { min-width: 0; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project h2 { margin: 4px 0 5px; color: #303a43; font-size: 14px; line-height: 1.25; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project p { max-width: 490px; margin: 0; color: #7b858d; font-size: 11px; line-height: 1.5; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project > button { display: flex; grid-column: 1 / -1; width: 100%; min-height: 40px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--ui-accent) 32%, transparent); border-radius: 9px; color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 7%, var(--toolbar-surface, #fff)); cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project h2 { margin: 4px 0 5px; color: var(--theme-text-primary); font-size: 14px; line-height: 1.25; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project p { max-width: 490px; margin: 0; color: var(--theme-text-secondary); font-size: 11px; line-height: 1.5; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project > button { display: flex; grid-column: 1 / -1; width: 100%; min-height: 40px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--ui-accent) 32%, transparent); border-radius: 9px; color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 7%, var(--toolbar-surface, var(--theme-background))); cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
 
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent {
         grid-area: recent;
         min-width: 0;
         padding: 15px;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, #46534a) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 10%, transparent);
         border-radius: 19px;
-        background: color-mix(in srgb, var(--toolbar-surface, #fff) 97%, transparent);
+        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 97%, transparent);
     }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading h2 { margin: 5px 0 0; color: #29362e; font-size: 17px; font-weight: 700; letter-spacing: -.025em; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-count { display: grid; min-width: 27px; height: 27px; place-items: center; padding: 0 7px; border: 1px solid #e3e9e3; border-radius: 99px; color: #6c786e; background: #f7f9f6; font-size: 10px; font-variant-numeric: tabular-nums; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading h2 { margin: 5px 0 0; color: var(--theme-text-primary); font-size: 17px; font-weight: 700; letter-spacing: -.025em; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-count { display: grid; min-width: 27px; height: 27px; place-items: center; padding: 0 7px; border: 1px solid var(--theme-border); border-radius: 99px; color: var(--theme-text-secondary); background: var(--theme-background); font-size: 10px; font-variant-numeric: tabular-nums; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-list { display: grid; gap: 4px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-row { display: flex; min-width: 0; align-items: center; gap: 3px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-item { display: flex; width: 100%; min-width: 0; min-height: 56px; align-items: center; gap: 10px; padding: 6px; border: 1px solid transparent; border-radius: 12px; color: inherit; text-align: left; background: transparent; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-row .mobile-home-recent-item { width: auto; flex: 1 1 auto; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-link { min-width: 62px; min-height: 32px; flex: 0 0 auto; padding: 0 8px; border: 1px solid #e1e6e8; border-radius: 7px; color: #68737c; background: transparent; cursor: pointer; font: inherit; font-size: 9px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-link { min-width: 62px; min-height: 32px; flex: 0 0 auto; padding: 0 8px; border: 1px solid var(--theme-border); border-radius: 7px; color: var(--theme-text-secondary); background: transparent; cursor: pointer; font: inherit; font-size: 9px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-item:hover { border-color: color-mix(in srgb, var(--ui-accent) 18%, transparent); background: color-mix(in srgb, var(--ui-accent) 5%, transparent); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-icon,
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty-icon { display: grid; flex: 0 0 37px; width: 37px; height: 39px; place-items: center; border: 1px solid #e5ebe5; border-radius: 11px; color: #758379; background: #f5f8f4; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty-icon { display: grid; flex: 0 0 37px; width: 37px; height: 39px; place-items: center; border: 1px solid var(--theme-border); border-radius: 11px; color: var(--theme-text-secondary); background: var(--theme-background); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-icon svg,
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty-icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy { display: grid; min-width: 0; flex: 1 1 auto; gap: 3px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy strong { overflow: hidden; color: #344138; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy small { color: #929b93; font-size: 9px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-arrow { flex: 0 0 14px; width: 14px; height: 14px; fill: none; stroke: #a1a9a2; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy strong { overflow: hidden; color: var(--theme-text-primary); font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy small { color: var(--theme-text-secondary); font-size: 9px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-arrow { flex: 0 0 14px; width: 14px; height: 14px; fill: none; stroke: var(--theme-text-secondary); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty { display: flex; min-height: 108px; align-items: center; gap: 11px; padding: 8px 5px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty > div { min-width: 0; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty strong { color: #46534a; font-size: 11px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty p { margin: 4px 0 0; color: #879188; font-size: 10px; line-height: 1.45; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer { grid-area: footer; display: flex; align-items: center; gap: 6px; padding: 0 3px; color: #879188; font-size: 9px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty strong { color: var(--theme-text-primary); font-size: 11px; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty p { margin: 4px 0 0; color: var(--theme-text-secondary); font-size: 10px; line-height: 1.45; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer { grid-area: footer; display: flex; align-items: center; gap: 6px; padding: 0 3px; color: var(--theme-text-secondary); font-size: 9px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer i { width: 3px; height: 3px; margin: 0 2px; border-radius: 50%; background: #b0b9b1; }
-
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-screen { background: radial-gradient(ellipse at 88% 2%, color-mix(in srgb, var(--ui-accent) 11%, transparent), transparent 38%), linear-gradient(180deg, #1b221d, #171d19); }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-intro h1,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-action-copy strong,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-section-heading h2,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-file-copy strong,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-empty strong,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project h2 { color: #e4e9ef; }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-intro p,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-action-copy small,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-file-copy small,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-empty p,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project p,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-footer { color: #a2aea4; }
+    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer i { width: 3px; height: 3px; margin: 0 2px; border-radius: 50%; background: var(--theme-background); }
     .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-action,
     .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-recent,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project { border-color: #39434e; background-color: color-mix(in srgb, var(--toolbar-surface, #252b34) 94%, transparent); }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project-icon { border-color: #414f68; color: #c1cef3; background: #303b50; }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project-link { border-color: #414a56; color: #c0c9d2; }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-action.primary { background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 21%, #252d27), #242c26 78%); }
+    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project { border-color: var(--theme-border); background-color: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 94%, transparent); }
+    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project-icon { border-color: var(--theme-border); }
+    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project-link { border-color: var(--theme-border); }
     .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-action.secondary .mobile-home-action-icon,
     .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-file-icon,
     .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-empty-icon,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-count { border-color: #414d44; color: #b6c3b8; background: #2a342d; }
+    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-count { border-color: var(--theme-border); }
 }
 
 @media (min-width: 700px) and (max-width: 1600px) and (pointer: coarse) {
@@ -194,10 +180,10 @@
         height: 100%;
         padding: 20px;
         overflow: hidden;
-        border: 1px solid color-mix(in srgb, var(--ui-accent) 19%, #e2e6e9);
+        border: 1px solid color-mix(in srgb, var(--ui-accent) 19%, var(--theme-border));
         border-radius: 24px;
-        background: linear-gradient(145deg, color-mix(in srgb, var(--toolbar-surface, #fff) 98%, transparent), color-mix(in srgb, var(--ui-accent) 3%, var(--toolbar-surface, #fff)));
-        box-shadow: 0 12px 30px #19251c0d;
+        background: linear-gradient(145deg, color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 98%, transparent), color-mix(in srgb, var(--ui-accent) 3%, var(--toolbar-surface, var(--theme-background))));
+        box-shadow: 0 12px 30px var(--theme-shadow);
     }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 { max-width: 400px; font-size: clamp(32px, 4vw, 46px); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-actions { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 10px; }
@@ -210,7 +196,7 @@
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-item { min-height: 62px; padding: 8px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy strong { font-size: 12px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer { display: none; }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-primary { border-color: #39434e; background: linear-gradient(145deg, #252d27, #222a25); box-shadow: 0 12px 30px #0003; }
+    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-primary { border-color: var(--theme-border); }
 }
 
 @media (max-width: 560px) {
@@ -276,10 +262,10 @@
         min-height: 0;
         padding: 12px;
         overflow: hidden;
-        border: 1px solid color-mix(in srgb, var(--ui-accent) 19%, #e2e6e9);
+        border: 1px solid color-mix(in srgb, var(--ui-accent) 19%, var(--theme-border));
         border-radius: 18px;
-        background: linear-gradient(145deg, color-mix(in srgb, var(--toolbar-surface, #fff) 98%, transparent), color-mix(in srgb, var(--ui-accent) 3%, var(--toolbar-surface, #fff)));
-        box-shadow: 0 12px 30px #19251c0d;
+        background: linear-gradient(145deg, color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 98%, transparent), color-mix(in srgb, var(--ui-accent) 3%, var(--toolbar-surface, var(--theme-background))));
+        box-shadow: 0 12px 30px var(--theme-shadow);
     }
 
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro { min-width: 0; padding: 0; }
@@ -305,7 +291,7 @@
         gap: 5px;
         padding: 8px 2px 0;
         border: 0;
-        border-top: 1px solid color-mix(in srgb, var(--toolbar-ink, #46534a) 12%, transparent);
+        border-top: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent);
         border-radius: 0;
         background: transparent;
         box-shadow: none;
@@ -322,10 +308,10 @@
         padding: 10px;
         overflow: hidden;
         border-radius: 14px;
-        box-shadow: 0 10px 24px #19251c0b;
+        box-shadow: 0 10px 24px var(--theme-shadow);
     }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-primary { border-color: #39434e; background: linear-gradient(145deg, #252d27, #222a25); box-shadow: 0 12px 30px #0003; }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project { border-color: transparent; border-top-color: #39434e; background: transparent; }
+    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-primary { border-color: var(--theme-border); }
+    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project { border-color: transparent; border-top-color: var(--theme-border); }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading { flex: 0 0 auto; margin-bottom: 5px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading h2 { font-size: 14px; }
     .app-shell.home-screen-active:not(.platform-windows) .mobile-home-count { min-width: 23px; height: 23px; }

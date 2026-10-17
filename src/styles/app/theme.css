@@ -1,0 +1,121 @@
+/* Single source of truth for application and component colors. */
+:root {
+    color-scheme: light;
+
+    --theme-background: #F8F9FA;
+    --theme-surface: #FFFFFF;
+    --theme-surface-elevated: #FFFFFF;
+    --theme-surface-input: #FFFFFF;
+    --theme-border: #E5E7EB;
+    --theme-border-strong: color-mix(in srgb, var(--theme-border) 70%, var(--theme-text-secondary));
+    --theme-text-primary: #111827;
+    --theme-text-secondary: #6B7280;
+    --theme-text-tertiary: #9CA3AF;
+    --theme-primary: #4F46E5;
+    --theme-primary-hover: #4338CA;
+    --theme-primary-muted: #EEF2FF;
+    --theme-primary-contrast: #FFFFFF;
+    --theme-ink-on-light: #111827;
+    --theme-ink-on-dark: #F3F4F6;
+    --theme-success: #059669;
+    --theme-warning: #D97706;
+    --theme-error: #DC2626;
+    --theme-info: #0284C7;
+    --theme-shadow: rgb(17 24 39 / 12%);
+
+    /* Diagram-family accents use the same contrast and surface system. */
+    --theme-diagram-uml: var(--theme-primary);
+    --theme-diagram-data: var(--theme-success);
+    --theme-diagram-architecture: var(--theme-info);
+    --theme-diagram-process: var(--theme-warning);
+    --theme-diagram-network: var(--theme-info);
+    --theme-diagram-forms: var(--theme-warning);
+
+    --theme-surface-hover: color-mix(in srgb, var(--theme-surface) 82%, var(--theme-background));
+    --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, transparent);
+    --theme-primary-border: color-mix(in srgb, var(--theme-primary) 38%, var(--theme-border));
+    --theme-success-border: color-mix(in srgb, var(--theme-success) 42%, var(--theme-border));
+    --theme-warning-border: color-mix(in srgb, var(--theme-warning) 42%, var(--theme-border));
+    --theme-error-border: color-mix(in srgb, var(--theme-error) 42%, var(--theme-border));
+    --theme-info-border: color-mix(in srgb, var(--theme-info) 42%, var(--theme-border));
+    --theme-success-muted: color-mix(in srgb, var(--theme-success) 10%, var(--theme-surface));
+    --theme-warning-muted: color-mix(in srgb, var(--theme-warning) 11%, var(--theme-surface));
+    --theme-error-muted: color-mix(in srgb, var(--theme-error) 9%, var(--theme-surface));
+    --theme-info-muted: color-mix(in srgb, var(--theme-info) 10%, var(--theme-surface));
+    --theme-diagram-uml-muted: color-mix(in srgb, var(--theme-diagram-uml) 10%, var(--theme-surface));
+    --theme-diagram-data-muted: color-mix(in srgb, var(--theme-diagram-data) 10%, var(--theme-surface));
+    --theme-diagram-architecture-muted: color-mix(in srgb, var(--theme-diagram-architecture) 10%, var(--theme-surface));
+    --theme-diagram-process-muted: color-mix(in srgb, var(--theme-diagram-process) 10%, var(--theme-surface));
+    --theme-diagram-network-muted: color-mix(in srgb, var(--theme-diagram-network) 10%, var(--theme-surface));
+    --theme-diagram-forms-muted: color-mix(in srgb, var(--theme-diagram-forms) 10%, var(--theme-surface));
+}
+
+.app-shell.theme-dark {
+    color-scheme: dark;
+
+    --theme-background: #0F1115;
+    --theme-surface: #181B22;
+    --theme-surface-elevated: #1F232D;
+    --theme-surface-input: #1F232D;
+    --theme-border: #2A2F3A;
+    --theme-text-primary: #F3F4F6;
+    --theme-text-secondary: #9CA3AF;
+    --theme-text-tertiary: #6B7280;
+    --theme-primary: #818CF8;
+    --theme-primary-hover: #A5B4FC;
+    --theme-primary-muted: #1E1B4B;
+    --theme-primary-contrast: #0F1115;
+    --theme-success: #34D399;
+    --theme-warning: #FBBF24;
+    --theme-error: #F87171;
+    --theme-info: #38BDF8;
+    --theme-shadow: rgb(0 0 0 / 34%);
+
+    --theme-success-muted: color-mix(in srgb, var(--theme-success) 15%, var(--theme-surface));
+    --theme-warning-muted: color-mix(in srgb, var(--theme-warning) 15%, var(--theme-surface));
+    --theme-error-muted: color-mix(in srgb, var(--theme-error) 14%, var(--theme-surface));
+    --theme-info-muted: color-mix(in srgb, var(--theme-info) 14%, var(--theme-surface));
+    --theme-diagram-uml-muted: color-mix(in srgb, var(--theme-diagram-uml) 16%, var(--theme-surface));
+    --theme-diagram-data-muted: color-mix(in srgb, var(--theme-diagram-data) 16%, var(--theme-surface));
+    --theme-diagram-architecture-muted: color-mix(in srgb, var(--theme-diagram-architecture) 16%, var(--theme-surface));
+    --theme-diagram-process-muted: color-mix(in srgb, var(--theme-diagram-process) 16%, var(--theme-surface));
+    --theme-diagram-network-muted: color-mix(in srgb, var(--theme-diagram-network) 16%, var(--theme-surface));
+    --theme-diagram-forms-muted: color-mix(in srgb, var(--theme-diagram-forms) 16%, var(--theme-surface));
+}
+
+.app-shell {
+    --ui-accent: var(--theme-primary);
+    --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 12%, var(--theme-surface));
+    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 42%, var(--theme-border));
+    --ui-accent-ink: var(--ui-accent);
+    --layer-ink: var(--theme-text-primary);
+    --layer-muted: var(--theme-text-secondary);
+    --layer-surface: var(--theme-surface);
+    --layer-inset: var(--theme-background);
+    --layer-border: var(--theme-border);
+
+    /* Compatibility aliases for older platform and feature rules. */
+    --dark-ui-base: var(--theme-background);
+    --dark-ui-surface: var(--theme-surface);
+    --dark-ui-raised: var(--theme-surface-elevated);
+    --dark-ui-inset: var(--theme-background);
+    --dark-ui-border: var(--theme-border);
+    --dark-ui-border-soft: var(--theme-border-subtle);
+    --dark-ui-ink: var(--theme-text-primary);
+    --dark-ui-muted: var(--theme-text-secondary);
+
+    --panel-ink: var(--theme-text-primary);
+    --panel-muted: var(--theme-text-secondary);
+    --panel-line: var(--theme-border);
+    --panel-surface: var(--theme-surface-elevated);
+    --panel-well: var(--theme-surface-input);
+    --panel-hover: var(--theme-surface-hover);
+    --view-ink: var(--theme-text-primary);
+    --view-muted: var(--theme-text-secondary);
+    --view-line: var(--theme-border);
+    --view-panel: var(--theme-surface-elevated);
+    --view-well: var(--theme-surface-input);
+    --view-hover: var(--theme-surface-hover);
+
+    color: var(--theme-text-primary);
+}

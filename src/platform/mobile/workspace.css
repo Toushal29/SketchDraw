@@ -1,29 +1,24 @@
 /* Finger actions are configured from the mobile/tablet header only. */
 .touch-gesture-menu { display: none; }
 .gesture-settings-popover { box-sizing: border-box; display: block; width: min(390px, calc(100vw - 16px)); max-height: min(80dvh, 560px); padding: 12px; overflow-x: hidden; overflow-y: auto; border-radius: 14px; }
-.gesture-menu-heading { display: flex; padding: 2px 3px 9px; border-bottom: 1px solid #e7ebe7; }
+.gesture-menu-heading { display: flex; padding: 2px 3px 9px; border-bottom: 1px solid var(--theme-border); }
 .gesture-menu-heading > div { display: grid; gap: 3px; }
-.gesture-menu-heading .eyebrow { color: var(--ui-accent); font-size: 9px; font-weight: 750; letter-spacing: .1em; }
-.gesture-menu-heading strong { color: #303832; font-size: 15px; }
-.gesture-menu-heading p { margin: 0; color: #858d85; font-size: 11px; }
+.gesture-menu-heading .eyebrow { font-size: 9px; font-weight: 750; letter-spacing: .1em; }
+.gesture-menu-heading strong { color: var(--theme-text-primary); font-size: 15px; }
+.gesture-menu-heading p { margin: 0; color: var(--theme-text-secondary); font-size: 11px; }
 .gesture-menu-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 7px 0 2px; }
-.gesture-menu-tabs button { min-width: 0; min-height: 32px; padding: 5px 7px; border: 1px solid transparent; border-radius: 8px; color: #68736a; background: transparent; font: 600 10px system-ui,sans-serif; }
-.gesture-menu-tabs button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+.gesture-menu-tabs button { min-width: 0; min-height: 32px; padding: 5px 7px; border-radius: 8px; font: 600 10px system-ui,sans-serif; }
 .gesture-action-grid { display: grid; gap: 7px; padding: 9px 0 5px; }
-.gesture-action-card { box-sizing: border-box; display: grid; grid-template-columns: 40px minmax(100px, .7fr) minmax(150px, 1fr); min-width: 0; min-height: 52px; align-items: center; gap: 9px; padding: 8px; border: 1px solid #e4e9e3; border-radius: 12px; background: #fff; }
-.gesture-finger-badge { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid var(--ui-accent-border); border-radius: 11px; color: var(--ui-accent-ink); background: var(--ui-accent-soft); font-size: 16px; font-weight: 700; }
+.gesture-action-card { box-sizing: border-box; display: grid; grid-template-columns: 40px minmax(100px, .7fr) minmax(150px, 1fr); min-width: 0; min-height: 52px; align-items: center; gap: 9px; padding: 8px; border-radius: 12px; }
+.gesture-finger-badge { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 11px; font-size: 16px; font-weight: 700; }
 .gesture-card-copy { display: grid; min-width: 0; gap: 3px; }
-.gesture-card-copy strong { color: #39443c; font-size: 11px; }
-.gesture-card-copy small { color: #858d85; font-size: 10px; }
-.gesture-action-card select { box-sizing: border-box; width: 100%; min-width: 0; height: 38px; padding: 5px 26px 5px 8px; border: 1px solid #dfe6df; border-radius: 9px; color: #39443c; background: #fff; font: 11px system-ui, sans-serif; }
-.gesture-menu-note { margin: 3px; color: #858d85; font-size: 10px; line-height: 1.45; }
-.theme-dark .gesture-menu-heading { border-color: #414c43; }
-.theme-dark .gesture-menu-heading strong, .theme-dark .gesture-card-copy strong { color: #e3ebe2; }
-.theme-dark .gesture-menu-heading p, .theme-dark .gesture-card-copy small, .theme-dark .gesture-menu-note { color: #a3aea4; }
-.theme-dark .gesture-menu-tabs button { color: #c7d0c8; }
-.theme-dark .gesture-menu-tabs button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-.theme-dark .gesture-action-card { border-color: #414c43; background: #29312b; }
-.theme-dark .gesture-action-card select { border-color: #465148; color: #d4ddd5; background: #252c27; }
+.gesture-card-copy strong { font-size: 11px; }
+.gesture-card-copy small { font-size: 10px; }
+.gesture-action-card select { box-sizing: border-box; width: 100%; min-width: 0; height: 38px; padding: 5px 26px 5px 8px; border: 1px solid var(--theme-border); border-radius: 9px; color: var(--theme-text-primary); background: var(--theme-surface-input); font: 11px system-ui, sans-serif; }
+.gesture-menu-note { margin: 3px; font-size: 10px; line-height: 1.45; }
+.theme-dark .gesture-menu-heading { border-color: var(--theme-border); }
+.theme-dark .gesture-action-card { border-color: var(--theme-border); }
+.theme-dark .gesture-action-card select { border-color: var(--theme-border); }
 
 @media (max-width: 420px) {
     .gesture-action-card { grid-template-columns: 34px minmax(0, 1fr); }
@@ -102,10 +97,9 @@
         max-height: 52px;
         padding: 5px 7px;
         overflow: visible;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 13%, transparent);
+        border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 13%, transparent);
         border-radius: 14px;
-        background: color-mix(in srgb, var(--toolbar-surface, #fff) 96%, transparent);
-        backdrop-filter: blur(14px);
+        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-surface-elevated)) 96%, transparent);
     }
     .style-pane.quick-style-mode > .quick-style-panel,
     .style-pane.full-style-mode > .quick-style-panel {
@@ -139,10 +133,10 @@
         height: 36px;
         min-height: 36px;
         padding: 0;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 13%, transparent);
+        border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 13%, transparent);
         border-radius: 10px;
-        color: var(--toolbar-ink, #59645a);
-        background: color-mix(in srgb, var(--toolbar-surface, #fff) 90%, #edf1ec);
+        color: var(--toolbar-ink, var(--theme-text-secondary));
+        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-surface-input)) 90%, var(--theme-surface-input));
         font-size: 0;
     }
     .style-pane .quick-style-heading button svg { width: 18px; height: 18px; }
@@ -214,9 +208,9 @@
         overflow-y: auto;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 15%, transparent);
+        border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 15%, transparent);
         border-radius: 15px;
-        background: color-mix(in srgb, var(--toolbar-surface, #fff) 98%, transparent);
+        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-surface-elevated)) 98%, transparent);
     }
     .style-pane.full-style-mode .full-style-heading {
         position: sticky;
@@ -224,7 +218,7 @@
         top: -13px;
         margin: -2px -2px 10px;
         padding: 4px 2px 9px;
-        background: var(--toolbar-surface, #fff);
+        background: var(--toolbar-surface, var(--theme-surface-elevated));
     }
     .style-pane.full-style-mode .full-style-heading button,
     .style-pane .full-inspector button { min-height: 36px; touch-action: manipulation; }
@@ -276,12 +270,7 @@
     }
     .help-dialog > footer { flex: 0 0 auto; gap: 8px; padding-top: 8px; font-size: 9px; }
     .help-dialog > footer .save-button { min-height: 34px; padding: 6px 12px; }
-
-    .theme-dark .style-pane.quick-style-mode,
-    .theme-dark .style-pane.full-style-mode { border-color: #465148; background: color-mix(in srgb, var(--toolbar-surface, #252b27) 96%, transparent); }
-    .theme-dark .style-pane .quick-style-heading button { border-color: #465148; color: #d4ddd5; background: #303833; }
-    .theme-dark .style-pane.full-style-mode > .full-inspector { border-color: #465148; background: color-mix(in srgb, var(--toolbar-surface, #252b27) 98%, transparent); }
-    .theme-dark .style-pane.full-style-mode .full-style-heading { background: var(--toolbar-surface, #252b27); }
+    .theme-dark .style-pane .quick-style-heading button { border-color: var(--theme-border); }
 }
 
 @media (max-height: 540px) and (max-width: 900px), (max-height: 540px) and (max-width: 1600px) and (pointer: coarse) {

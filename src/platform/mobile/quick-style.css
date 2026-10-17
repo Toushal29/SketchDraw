@@ -45,11 +45,11 @@
     .app-shell:not(.platform-windows) .touch-quick-custom-color {
         overflow: hidden;
         border-style: dashed;
-        color: #fff;
+        color: var(--theme-text-tertiary);
         background: var(--quick-color);
         cursor: pointer;
         font: 700 14px/1 system-ui, sans-serif;
-        text-shadow: 0 1px 3px #0009;
+        text-shadow: 0 1px 3px var(--theme-shadow);
     }
 
     .app-shell:not(.platform-windows) .touch-quick-custom-color i { font-style: normal; pointer-events: none; }
@@ -76,7 +76,7 @@
         padding: 0 3px;
         border: 1px solid var(--touch-line);
         border-radius: 8px;
-        color: var(--toolbar-ink, #263128);
+        color: var(--toolbar-ink, var(--theme-text-primary));
         background: var(--touch-glass);
         font: 700 8px 'DM Mono', monospace;
         touch-action: manipulation;
@@ -122,8 +122,8 @@
         padding: 7px;
         border: 1px solid var(--touch-line);
         border-radius: 12px;
-        background: var(--toolbar-surface, #fff);
-        box-shadow: 0 8px 26px #18251c24;
+        background: var(--toolbar-surface, var(--theme-background));
+        box-shadow: 0 8px 26px var(--theme-shadow);
     }
 
     .app-shell:not(.platform-windows) .touch-quick-width-panel {
@@ -136,8 +136,8 @@
         transform: translateY(-50%);
         border: 1px solid var(--touch-line);
         border-radius: 13px;
-        color: var(--toolbar-ink, #263128);
-        background: var(--toolbar-surface, #fff);
+        color: var(--toolbar-ink, var(--theme-text-primary));
+        background: var(--toolbar-surface, var(--theme-background));
     }
 
     .app-shell.mobile-toolbar-top:not(.platform-windows) .touch-quick-width-panel {
@@ -171,7 +171,7 @@
         padding: 4px 6px;
         border: 1px solid var(--touch-line);
         border-radius: 12px;
-        background: var(--toolbar-surface, #fff);
+        background: var(--toolbar-surface, var(--theme-background));
     }
 
     .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors {
@@ -243,12 +243,12 @@
     .app-shell.mobile-toolbar-left:not(.platform-windows) .touch-quick-width-panel { right: auto; left: max(62px, calc(env(safe-area-inset-left) + 58px)); }
     .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-quick-width-panel { right: max(62px, calc(env(safe-area-inset-right) + 58px)); left: auto; }
 
-    .app-shell.theme-dark.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors-dropdown { background: var(--toolbar-surface, #252d27); }
+    .app-shell.theme-dark.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors-dropdown { background: var(--toolbar-surface, var(--theme-background)); }
 
-    .app-shell.theme-dark.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-color-toggle { color: #d9e2da; background: #263029; }
+    .app-shell.theme-dark.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-color-toggle { color: var(--theme-text-primary); }
 
-    .app-shell.theme-dark.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors-dropdown .touch-quick-color { border-color: #536057; }
-    .app-shell.theme-dark.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors-dropdown .touch-quick-custom-color { border-color: #637066; }
+    .app-shell.theme-dark.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors-dropdown .touch-quick-color { border-color: var(--theme-border); }
+    .app-shell.theme-dark.mobile-toolbar-vertical:not(.platform-windows) .touch-quick-colors-dropdown .touch-quick-custom-color { border-color: var(--theme-border); }
 
     .app-shell:not(.platform-windows) .touch-quick-width-fine-row {
         display: grid;
@@ -342,12 +342,8 @@
         border-radius: 5px;
     }
 
-    .app-shell.theme-dark:not(.platform-windows) .touch-quick-color { border-color: #536057; }
-    .app-shell.theme-dark:not(.platform-windows) .touch-quick-custom-color { border-color: #637066; }
-    .app-shell.theme-dark:not(.platform-windows) .touch-quick-width { color: #d9e2da; background: #263029; }
-    .app-shell.theme-dark:not(.platform-windows) .touch-quick-width-panel { color: #d9e2da; background: var(--toolbar-surface, #252d27); }
-    .app-shell.theme-dark:not(.platform-windows) .touch-quick-width-preview { background: #252e28; }
-    .app-shell.theme-dark:not(.platform-windows) .touch-quick-colors-dropdown { background: var(--toolbar-surface, #252d27); }
+    .app-shell.theme-dark:not(.platform-windows) .touch-quick-color { border-color: var(--theme-border); }
+    .app-shell.theme-dark:not(.platform-windows) .touch-quick-custom-color { border-color: var(--theme-border); }
 }
 
 @media (max-width: 340px) {

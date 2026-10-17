@@ -13,6 +13,7 @@ type Props = {
   canRename: boolean;
   canImport: boolean;
   canExport: boolean;
+  canExportRetiredArchive: boolean;
   canClear: boolean;
   canClose: boolean;
   shortcuts: { newSketch: string; openSketch: string; saveSketch: string };
@@ -27,6 +28,7 @@ type Props = {
   onExportPng: () => void;
   onExportPdf: () => void;
   onExportSvg: () => void;
+  onExportRetiredArchive: () => void;
   onClearCanvas: () => void;
   onCloseFile: () => void;
   themeMode: "system" | "light" | "dark";
@@ -41,7 +43,6 @@ type Props = {
   showMobileLayoutSettings: boolean;
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
-  reduceMotion: boolean;
   displayMetrics: DisplayMetrics;
   onInterfaceScaleChange: (scale: number) => void;
   onMobileOrientationChange: (orientation: "landscape" | "portrait") => void;
@@ -51,7 +52,6 @@ type Props = {
   onToolbarColorChange: (value: string) => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: "presets" | "stepper") => void;
-  onReduceMotionChange: (reduce: boolean) => void;
   onRestoreDefaults: () => void;
   gestureSection: "taps" | "gestures";
   onGestureSectionChange: (section: "taps" | "gestures") => void;
@@ -71,6 +71,7 @@ type Props = {
   updateVersion: string;
   updateError: string;
   canInstallUpdate: boolean;
+  appVersion: string;
 };
 
 const scales = [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4];
@@ -157,6 +158,7 @@ export function MobileCommandBar(props: Props) {
     { label: "Export PNG", disabled: () => !props.canExport, action: props.onExportPng },
     { label: "Export PDF", disabled: () => !props.canExport, action: props.onExportPdf },
     { label: "Export SVG", disabled: () => !props.canExport, action: props.onExportSvg },
+    ...(props.canExportRetiredArchive ? [{ label: "Export retired Library data", disabled: () => false, action: props.onExportRetiredArchive }] : []),
     { label: "Clear canvas", disabled: () => !props.canClear, action: props.onClearCanvas },
     { label: "Close file", disabled: () => !props.canClose, action: props.onCloseFile },
   ];
@@ -232,7 +234,6 @@ export function MobileCommandBar(props: Props) {
               <label class="mobile-settings-field"><span>Interface scale <strong>{Math.round(props.interfaceScale * 100)}%</strong></span><select aria-label="Interface scale" value={props.interfaceScale} onChange={event => props.onInterfaceScaleChange(Number(event.currentTarget.value))}>{scales.map(scale => <option value={scale}>{Math.round(scale * 100)}%</option>)}</select></label>
               <label class="mobile-settings-field"><span>Autosave interval</span><select aria-label="Autosave interval" value={props.autosaveSeconds} onChange={event => props.onAutosaveChange(Number(event.currentTarget.value) as 5 | 10)}><option value={5}>Every 5 seconds</option><option value={10}>Every 10 seconds</option></select></label>
               <label class="mobile-settings-field"><span>Pen and brush thickness controls</span><select aria-label="Pen and brush thickness controls" value={props.thicknessPickerMode} onChange={event => props.onThicknessPickerModeChange(event.currentTarget.value as "presets" | "stepper")}><option value="presets">Preset thicknesses</option><option value="stepper">Fine tune with slider</option></select></label>
-              <label class="mobile-settings-toggle"><span><strong>Reduce motion</strong><small>Turn off most interface animations</small></span><input type="checkbox" checked={props.reduceMotion} onChange={event => props.onReduceMotionChange(event.currentTarget.checked)} /></label>
               <div class="mobile-display-info"><strong>Display</strong><span>{props.displayMetrics.physicalWidth} × {props.displayMetrics.physicalHeight} px</span><small>Viewport: {props.displayMetrics.viewportWidth} × {props.displayMetrics.viewportHeight} CSS px</small></div>
               <button class="mobile-settings-reset" onClick={props.onRestoreDefaults}>Restore app defaults</button>
             </section>
@@ -260,6 +261,7 @@ export function MobileCommandBar(props: Props) {
             <section class="mobile-settings-section"><h3>Help</h3><button class="mobile-help-action" onClick={() => run(props.onOpenGuide)}>Open the guide <span>›</span></button><button class="mobile-help-action" onClick={() => run(props.onOpenShortcuts)}>Keyboard shortcuts <kbd>F1</kbd></button></section>
             <section class="mobile-settings-section"><h3>Updates</h3>
               <button class="mobile-update-check" disabled={props.updateStatus === "checking" || props.updateStatus === "installing"} onClick={props.onCheckForUpdates}>{props.updateStatus === "checking" ? "Checking for updates…" : "Check for updates"}</button>
+              <div class="mobile-app-version"><span>Installed version</span><strong>{props.appVersion}</strong></div>
               <Show when={props.updateStatus === "current"}><p class="mobile-update-status current">SketchDraw is up to date.</p></Show>
               <Show when={props.updateStatus === "available"}><p class="mobile-update-status available">Version {props.updateVersion} is available.</p><Show when={props.canInstallUpdate}><button class="mobile-update-install" onClick={props.onInstallUpdate}>Download and install</button></Show></Show>
               <Show when={props.updateStatus === "permission"}><p class="mobile-update-status available">Allow SketchDraw to install apps in Android Settings. Return here, then continue the installation.</p><Show when={props.canInstallUpdate}><button class="mobile-update-install" onClick={props.onInstallUpdate}>Continue installation</button></Show></Show>

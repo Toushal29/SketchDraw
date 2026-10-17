@@ -328,6 +328,7 @@ pub fn run() {
             orientation::set_mobile_orientation,
             android_documents::pick_sketch_document,
             android_documents::create_sketch_document,
+            android_documents::create_legacy_library_archive,
             android_documents::write_sketch_document,
             android_documents::rename_sketch_document,
             android_documents::has_sketch_document_write_access,

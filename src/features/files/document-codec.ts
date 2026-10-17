@@ -4,6 +4,11 @@ import { createProjectWorkspace } from "../project/project-data";
 import { createLegacyLibraryData } from "./legacy-library-data";
 import { normalizeElement } from "./parse-sketch";
 
+// The retired collections are immutable document data. Reuse their encoded block
+// across saves while the library object stays unchanged.
+const retiredArchiveJson = new WeakMap<PersonalLibraryData, string>();
+const retiredArchiveMarker = "__SKETCHDRAW_RETIRED_LIBRARY_ARCHIVE_V9__";
+
 type CreateSnapshotOptions = {
   pages: SketchPage[];
   activePageId: string;
@@ -51,6 +56,19 @@ export function createSketchSnapshot(options: CreateSnapshotOptions): SketchFile
 
 export function serializeSketchSnapshot(snapshot: SketchFile): string {
   const library = snapshot.library ?? createLegacyLibraryData();
+  let archiveJson = retiredArchiveJson.get(library);
+  if (!archiveJson) {
+    archiveJson = JSON.stringify({
+      studyNotes: library.studyNotes,
+      studyCards: library.studyCards,
+      wikiArticles: library.wikiArticles,
+      journalEntries: library.journalEntries,
+      writingDrafts: library.writingDrafts,
+      researchSources: library.researchSources,
+      mediaEntries: library.mediaEntries,
+    }, null, 2);
+    retiredArchiveJson.set(library, archiveJson);
+  }
   const document: SketchFileDocumentV9 = {
     format: "SketchDraw",
     version: SKETCH_FORMAT_VERSION,
@@ -58,17 +76,12 @@ export function serializeSketchSnapshot(snapshot: SketchFile): string {
       canvas: { activePageId: snapshot.activePageId, pages: snapshot.pages },
       planning: snapshot.project ?? createProjectWorkspace(),
       notebook: { notes: library.quickNotes },
-      retiredLibraryArchive: {
-        studyNotes: library.studyNotes,
-        studyCards: library.studyCards,
-        wikiArticles: library.wikiArticles,
-        journalEntries: library.journalEntries,
-        writingDrafts: library.writingDrafts,
-        researchSources: library.researchSources,
-        mediaEntries: library.mediaEntries,
-      },
+      retiredLibraryArchive: retiredArchiveMarker as unknown as SketchFileDocumentV9["sections"]["retiredLibraryArchive"],
     },
     ...(snapshot.windowsSync ? { windowsSync: snapshot.windowsSync } : {}),
   };
-  return JSON.stringify(document, null, 2);
+  const documentJson = JSON.stringify(document, null, 2);
+  const marker = `"retiredLibraryArchive": "${retiredArchiveMarker}"`;
+  const archive = archiveJson.replace(/\n/g, "\n      ");
+  return documentJson.replace(marker, `"retiredLibraryArchive": ${archive}`);
 }

@@ -32,12 +32,10 @@ export type CanvasOptionsMenuProps = {
     onComponentAppearanceChange: (appearance: "modern" | "simple") => void;
   };
   canvasTools?: {
-    showRulers: boolean;
     showAlignmentGuides: boolean;
     showMinimap: boolean;
     presentation?: boolean;
     fullscreen?: boolean;
-    onToggleRulers: () => void;
     onToggleAlignmentGuides: () => void;
     onToggleMinimap: () => void;
     onTogglePresentation?: () => void;
@@ -108,7 +106,6 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
         {props.canvasTools && <section class="canvas-options-section canvas-tools-options">
           <span>CANVAS TOOLS</span>
           <div class="canvas-options-grid">
-            <button role="menuitemcheckbox" aria-checked={props.canvasTools.showRulers} class={props.canvasTools.showRulers ? "active" : ""} title="Show or hide canvas rulers" onClick={props.canvasTools.onToggleRulers}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 4v5m4-5v3m4-3v5M4 8h5m-5 4h3m-3 4h5" /></svg><span>Rulers</span></button>
             <button role="menuitemcheckbox" aria-checked={props.canvasTools.showAlignmentGuides} class={props.canvasTools.showAlignmentGuides ? "active" : ""} title="Show or hide alignment guides while moving objects" onClick={props.canvasTools.onToggleAlignmentGuides}><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M7 7l10 10m0-10L7 17" /></svg><span>Alignment guides</span></button>
             <button role="menuitemcheckbox" aria-checked={props.canvasTools.showMinimap} class={props.canvasTools.showMinimap ? "active" : ""} title="Show or hide the minimap" onClick={props.canvasTools.onToggleMinimap}><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M6 16l4-5 3 3 2-2 3 4M7 8h.01" /></svg><span>Minimap</span></button>
             {props.canvasTools.onTogglePresentation && <button role="menuitemcheckbox" aria-checked={props.canvasTools.presentation ?? false} class={props.canvasTools.presentation ? "active" : ""} title={props.canvasTools.presentation ? "Exit presentation mode" : "Start presentation mode"} onClick={props.canvasTools.onTogglePresentation}><svg viewBox="0 0 24 24"><path d="m9 6 10 6-10 6z" /></svg><span>{props.canvasTools.presentation ? "Exit presentation" : "Presentation mode"}</span></button>}

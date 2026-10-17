@@ -4,7 +4,7 @@ export function HelpFeatureCatalog() {
       <h3>Feature map</h3>
       <div class="help-feature-grid">
         <article><strong>[1] Canvas and drawing</strong><p>Draw freehand or place shapes and text. Connect objects with manual routes; Windows also supports automatic connector routing.</p></article>
-        <article><strong>[2] Styling</strong><p>Set line, fill, and text styles; choose themes and paper patterns; use snapping, grids, rulers, alignment guides, and the minimap.</p></article>
+        <article><strong>[2] Styling</strong><p>Set line, fill, and text styles; choose themes and paper patterns; use snapping, grids, alignment guides, and the minimap.</p></article>
         <article><strong>[3] Structure and interaction</strong><p>Split a sketch into pages, group objects into tool layers, and use tables, schema cards, and note or checklist cards to organize information.</p></article>
         <article><strong>[4] Shapes and reusable components</strong><p>Browse flowchart symbols and UML, ER, and C4 components in Symbols and elements. Reuse diagrams by duplicating a page.</p></article>
         <article><strong>[5] Import and diagram from text</strong><p>Import raster images and SVG artwork. Turn Mermaid flowcharts, SQL, or JSON schema input into editable diagram objects.</p></article>

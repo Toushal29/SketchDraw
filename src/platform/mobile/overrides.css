@@ -67,7 +67,7 @@
         overflow: visible;
         border-radius: 13px;
     }
-    .style-pane.full-style-mode.mobile-properties-expanded { z-index: 70; backdrop-filter: none; -webkit-backdrop-filter: none; }
+    .style-pane.full-style-mode.mobile-properties-expanded { z-index: 70; }
     .style-pane.mobile-properties-expanded > .quick-style-panel {
         display: flex !important;
         width: 100%;
@@ -133,9 +133,9 @@
     .theme-dark .style-pane.mobile-properties-collapsed .quick-style-heading > button,
     .theme-dark .style-pane.mobile-properties-expanded .quick-style-heading > button,
     .theme-dark .style-pane.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
-        border-color: #46505e;
-        color: #d4d9e2;
-        background: #292d36;
+        border-color: var(--theme-border);
+        color: var(--theme-text-primary);
+        background: var(--theme-surface-elevated);
     }
 }
 @media (max-width: 560px) {

@@ -138,6 +138,22 @@ class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) 
   }
 
   @Command
+  fun createLegacyLibraryArchive(invoke: Invoke) {
+    val args = invoke.parseArgs(CreateSketchDocumentArgs::class.java)
+    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+      addCategory(Intent.CATEGORY_OPENABLE)
+      type = "application/json"
+      putExtra(Intent.EXTRA_TITLE, args.fileName ?: "SketchDraw-Library-Archive.json")
+      addFlags(
+        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+          Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+          Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+      )
+    }
+    startActivityForResult(invoke, intent, "createLegacyLibraryArchiveResult")
+  }
+
+  @Command
   fun renameSketchDocument(invoke: Invoke) {
     try {
       val args = invoke.parseArgs(RenameSketchDocumentArgs::class.java)
@@ -165,6 +181,15 @@ class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) 
 
   @ActivityCallback
   fun createSketchDocumentResult(invoke: Invoke, result: ActivityResult) {
+    if (result.resultCode != Activity.RESULT_OK) {
+      resolveUri(invoke, null)
+      return
+    }
+    persistDocumentPermission(invoke, result.data)
+  }
+
+  @ActivityCallback
+  fun createLegacyLibraryArchiveResult(invoke: Invoke, result: ActivityResult) {
     if (result.resultCode != Activity.RESULT_OK) {
       resolveUri(invoke, null)
       return

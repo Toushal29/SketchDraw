@@ -6,34 +6,14 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Update } from "@tauri-apps/plugin-updater";
 import "./App.css";
-import "./styles/platform-responsive.css";
-import "./styles/tools.css";
-import "./platform/mobile/workspace.css";
-import "./platform/mobile/overrides.css";
-import "./platform/mobile/mobile.css";
-import "./styles/app-settings.css";
-import "./platform/mobile/ui-refresh.css";
-import "./platform/mobile/home.css";
-import "./platform/mobile/touch-style.css";
-import "./platform/mobile/quick-style.css";
-import "./styles/view-menu.css";
-import "./styles/menu-panels.css";
-import "./platform/windows/windows.css";
-import "./features/workspace/workspace-shell.css";
-import "./styles/dark-theme-refresh.css";
-import "./styles/workspace-ui.css";
-import "./styles/property-panel-redesign.css";
-import "./platform/mobile/layout-fixes.css";
-import "./platform/mobile/touch-bars.css";
-import "./platform/mobile/command-bar.css";
-import "./platform/mobile/touch-toolbar.css";
+import type { PdfRasterPage } from "./features/export/pdf-renderer";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
 import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily } from "./model";
-import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, textLayout, labelBox } from "./operations";
+import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox } from "./operations";
 import type { NoteKind } from "./model";
-import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistRows, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, syntaxTokens, syntaxTokenColor, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryComponentKind } from "./notes";
+import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryComponentKind } from "./notes";
 import { parseSchema } from "./schema";
 import { assignLibraryComponentIds, libraryComponentFields, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryCheckboxOption, setLibraryFormState, setLibraryLifelineLength, setLibraryRadioOption } from "./features/components/library-component-editor";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
@@ -52,8 +32,9 @@ import { CanvasOptionsMenu } from "./components/CanvasOptionsMenu";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { AppSettingsMenu, type DisplayMetrics } from "./components/AppSettingsMenu";
 import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/PropertyPanelIcons";
+import { LibraryComponentIcon } from "./components/LibraryComponentIcon";
 import { FLOWCHART_MENU_SHAPES } from "./features/diagrams/config";
-import { arrowHeadPoints, arrowHeadSvgPath, pointInPolygon, traceFlowchart, flowchartPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, connectorSvgPath, flowchartSvgPath, vectorFlowchartPath, flowchartSvgDetailPath, flowchartDatabaseRimPath } from "./features/canvas/geometry";
+import { arrowHeadPoints, pointInPolygon, traceFlowchart, flowchartPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, flowchartDatabaseRimPath } from "./features/canvas/geometry";
 import { unionBounds, elementBounds, elementGridBounds, distanceToSegment } from "./features/canvas/bounds";
 import { elementSpatialIndex } from "./features/canvas/spatial-index";
 import { getToolLayers, reorderToolLayer, toggleToolLayer } from "./features/canvas/tool-layers";
@@ -63,8 +44,8 @@ import { canGroupSelection, deletableSelectionCount as countDeletableSelection, 
 import { createCanvasRenderScheduler, drawShapeLabel, fontCss, shapeLabelSvg, themeInk } from "./features/canvas/rendering";
 import { createCanvasSceneRenderer, transformHandlePoints } from "./features/canvas/scene-renderer";
 import { drawLibraryChart } from "./features/components/chart-renderer";
-import { drawModelComponent, modelComponentSvg } from "./features/components/model-component-renderer";
-import { createFreehandRenderer, freehandSvg, stylusStrokeWidth } from "./features/canvas/freehand-rendering";
+import { drawModelComponent } from "./features/components/model-component-renderer";
+import { createFreehandRenderer } from "./features/canvas/freehand-rendering";
 import { createStrokeSampleGate } from "./features/canvas/stroke-input";
 import { MAX_STROKE_POINTS } from "./features/canvas/stroke-limits";
 import { isRecord, normalizeElement } from "./features/files/parse-sketch";
@@ -73,18 +54,19 @@ import { indentTextarea } from "./components/textarea-indent";
 import { ThicknessTuner } from "./components/ThicknessTuner";
 import { isWindowsPlatform } from "./platform/runtime";
 import type { PaletteCommand } from "./platform/windows/CommandPalette";
-import { createWindowsSyncMetadata, createWindowsSyncTracker, getWindowsDeviceId } from "./platform/windows/sync";
+import { createWindowsSyncMetadata } from "./platform/windows/sync";
 import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, displayShortcut, formatShortcutBindings, loadWindowsShortcuts, matchesWindowsMouseShortcut, matchesWindowsShortcut, normalizeShortcut, shortcutFromMouseEvent, type WindowsShortcutId, type WindowsShortcutMap, type WindowsShortcutSlot } from "./platform/windows/shortcuts";
 import { autoRoutePoints } from "./platform/windows/connector-routing";
 import { ProjectWorkspace } from "./features/project/ProjectWorkspace";
 import { createProjectWorkspace } from "./features/project/project-data";
-import { createLegacyLibraryData } from "./features/files/legacy-library-data";
+import { clearRetiredLibraryData, createLegacyLibraryData, createRetiredLibraryArchive, hasRetiredLibraryData } from "./features/files/legacy-library-data";
 import { WorkspaceAreaTabs } from "./features/workspace/WorkspaceAreaTabs";
 import type { WorkspaceArea } from "./features/workspace/workspace-types";
 import { createDocumentSession } from "./features/document/document-session";
+import { createDocumentSnapshotCoordinator } from "./features/document/document-snapshot";
 import { createDocumentController } from "./features/document/document-controller";
 import type { DocumentControllerStatus } from "./features/document/document-types";
-import { createSketchSnapshot, serializeSketchSnapshot } from "./features/files/document-codec";
+import { serializeSketchSnapshot } from "./features/files/document-codec";
 import { sketchFileStore } from "./features/files/sketch-file-store";
 import { sketchRecoveryStore } from "./features/files/sketch-recovery-store";
 
@@ -96,7 +78,6 @@ declare global {
   }
 }
 
-type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
 type TouchGesture = { fingerCount: 2 | 3; action: TouchGestureAction; initialDistance: number; initialZoom: number; initialPanX: number; initialPanY: number; initialMidpoint: Point; worldAnchor: Point };
 type TouchTapTracker = { startedAt: number; starts: Map<number, Point>; maxFingers: number; canceled: boolean; initialEvent: PointerEvent; deferredInteractionStarted?: boolean };
 type WhiteboardStyle = "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric";
@@ -135,9 +116,10 @@ function androidReleaseApk(release: Record<string, unknown>): { version: string;
 
 const GRID_SIZE = 25;
 const TOUCH_DRAG_THRESHOLD = 8;
+const DEFAULT_UI_ACCENT = "#4f46e5";
 const BOARD_COLORS = ["#ffffff", "#fffdf7", "#f4f7fb", "#fbf2ed", "#f1f5ed", "#f3f0fa"];
 const UI_ACCENTS = [
-  { label: "Sage", value: "#547a5b" }, { label: "Ocean", value: "#3f78a5" }, { label: "Indigo", value: "#6d67aa" },
+  { label: "Indigo", value: DEFAULT_UI_ACCENT }, { label: "Ocean", value: "#3f78a5" }, { label: "Sage", value: "#547a5b" },
   { label: "Teal", value: "#39877f" }, { label: "Amber", value: "#b47b35" }, { label: "Rose", value: "#ad6475" },
 ];
 const TOOLBAR_COLORS = [
@@ -176,7 +158,6 @@ const cloneElements = (items: Element[]): Element[] => JSON.parse(JSON.stringify
 const WINDOWS_SHAPE_TYPES = ["rectangle", "circle", "diamond", "triangle", "flowchart", "line", "arrow"] as const;
 const isShapeLike = (element: Element) => (WINDOWS_SHAPE_TYPES as readonly string[]).includes(element.type);
 const isShapeLikeType = (type: Element["type"]) => (WINDOWS_SHAPE_TYPES as readonly string[]).includes(type);
-let textMeasureContext: CanvasRenderingContext2D | null | undefined;
 const MermaidPreview = lazy(async () => {
   const module = await import("./MermaidPreview");
   return { default: module.MermaidPreview };
@@ -185,7 +166,6 @@ const WindowsCommandPalette = lazy(async () => { const module = await import("./
 const WindowsDocumentTabs = lazy(async () => { const module = await import("./platform/windows/DocumentTabs"); return { default: module.DocumentTabs }; });
 const WindowsKeyboardShortcutsDialog = lazy(async () => { const module = await import("./platform/windows/KeyboardShortcutsDialog"); return { default: module.KeyboardShortcutsDialog }; });
 const CanvasMinimap = lazy(async () => { const module = await import("./components/CanvasMinimap"); return { default: module.CanvasMinimap }; });
-const CanvasRulers = lazy(async () => { const module = await import("./components/CanvasRulers"); return { default: module.CanvasRulers }; });
 const WindowsFocusTools = lazy(async () => { const module = await import("./platform/windows/WindowsFocusTools"); return { default: module.WindowsFocusTools }; });
 
 function App() {
@@ -199,6 +179,8 @@ function App() {
     if (isAndroidPlatform()) return invoke<string | null>("create_sketch_document", { fileName });
     return save({ title: "Create SketchDraw file", defaultPath: fileName, filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
   }
+  const [documentRevision, setDocumentRevision] = createSignal(0);
+  const advanceDocumentRevision = () => setDocumentRevision(revision => revision + 1);
   const [elements, setElementsSignal] = createSignal<Element[]>([]);
   const toolLayers = createMemo(() => getToolLayers(elements()));
   function withWindowsRouteSnapshots(items: Element[]): Element[] {
@@ -211,26 +193,36 @@ function App() {
     return items.map(refresh);
   }
   function setElements(next: Element[] | ((previous: Element[]) => Element[])) {
+    advanceDocumentRevision();
     return setElementsSignal(previous => withWindowsRouteSnapshots(resolveBindings(ensureIds(typeof next === "function" ? next(previous) : next))));
   }
   // Pointer drags run once per display frame. Keep their immutable preview
   // updates cheap, then validate identities and connector bindings on release.
-  function setElementsTransient(next: Element[] | ((previous: Element[]) => Element[])) { return setElementsSignal(next); }
-  const [canvasState, setCanvasState] = createSignal<CanvasState>(emptyCanvas());
+  function setElementsTransient(next: Element[] | ((previous: Element[]) => Element[])) { advanceDocumentRevision(); return setElementsSignal(next); }
+  const [canvasState, setCanvasStateSignal] = createSignal<CanvasState>(emptyCanvas());
+  const setCanvasState: typeof setCanvasStateSignal = next => { advanceDocumentRevision(); return setCanvasStateSignal(next); };
   const documentSession = createDocumentSession();
   const {
-    pages, setPages,
-    activePageId, setActivePageId,
+    pages, setPages: setPagesSignal,
+    activePageId, setActivePageId: setActivePageIdSignal,
     activePath, setActivePath,
-    projectWorkspaceData, setProjectWorkspaceData,
-    legacyLibraryData,
+    projectWorkspaceData, setProjectWorkspaceData: setProjectWorkspaceDataSignal,
+    legacyLibraryData, setLegacyLibraryData: setLegacyLibraryDataSignal,
     workspaceArea, setWorkspaceArea,
     readOnlyView, setReadOnlyView,
-    dirty, setDirty,
+    dirty, setDirty: setDirtySignal,
     saving, setSaving,
     savedAt, setSavedAt,
     windowsSyncMetadata, setWindowsSyncMetadata,
   } = documentSession;
+  const setPages: typeof setPagesSignal = next => { advanceDocumentRevision(); return setPagesSignal(next); };
+  const setActivePageId: typeof setActivePageIdSignal = next => { advanceDocumentRevision(); return setActivePageIdSignal(next); };
+  const setProjectWorkspaceData: typeof setProjectWorkspaceDataSignal = next => { advanceDocumentRevision(); return setProjectWorkspaceDataSignal(next); };
+  const setLegacyLibraryData: typeof setLegacyLibraryDataSignal = next => { advanceDocumentRevision(); return setLegacyLibraryDataSignal(next); };
+  const setDirty = (value: boolean) => {
+    if (value) advanceDocumentRevision();
+    setDirtySignal(value);
+  };
   const [renameFileOpen, setRenameFileOpen] = createSignal(false);
   const [renameFileName, setRenameFileName] = createSignal("");
   const [renameFileError, setRenameFileError] = createSignal("");
@@ -256,7 +248,6 @@ function App() {
   const [noteToggleHovered, setNoteToggleHovered] = createSignal(false);
   const [showGrid, setShowGrid] = createSignal(true);
   const [showMinimap, setShowMinimap] = createSignal(readPreference("sketchdraw-canvas-minimap", readPreference("sketchdraw-windows-minimap", isWindowsPlatform() ? "true" : "false")) !== "false");
-  const [showRulers, setShowRulers] = createSignal(readPreference("sketchdraw-canvas-rulers", readPreference("sketchdraw-windows-rulers", "false")) === "true");
   const [showAlignmentGuides, setShowAlignmentGuides] = createSignal(readPreference("sketchdraw-canvas-guides", readPreference("sketchdraw-windows-guides", "true")) !== "false");
   const [commandPaletteOpen, setCommandPaletteOpen] = createSignal(false);
   const [shortcutDialogOpen, setShortcutDialogOpen] = createSignal(false);
@@ -304,11 +295,11 @@ function App() {
     if (saved === "down") return "bottom";
     return mobileOrientation() === "portrait" ? "top" : "left";
   })());
-  const [reduceMotion, setReduceMotion] = createSignal(readPreference("sketchdraw-reduce-motion", "false") === "true");
   const [displayMetrics, setDisplayMetrics] = createSignal<DisplayMetrics>(readDisplayMetrics());
   const [componentAppearance, setComponentAppearance] = createSignal<"modern" | "simple">(readPreference("sketchdraw-component-appearance", "simple") === "modern" ? "modern" : "simple");
   const [toolbarColorChoice, setToolbarColorChoice] = createSignal((() => { const value = readPreference("sketchdraw-toolbar-color", "auto"); if (value.toLowerCase() === "#252c31") return "#171717"; return value === "auto" || /^#[\da-f]{6}$/i.test(value) ? value : "auto"; })());
   const [helpOpen, setHelpOpen] = createSignal(false);
+  const [appVersion, setAppVersion] = createSignal("...");
   const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "permission" | "unavailable" | "installing" | "error">("idle");
   const [updateVersion, setUpdateVersion] = createSignal<string>();
   const [androidUpdateUrl, setAndroidUpdateUrl] = createSignal<string>();
@@ -379,8 +370,8 @@ function App() {
     catch { return "system"; }
   })());
   const [accentColor, setAccentColor] = createSignal((() => {
-    try { const saved = localStorage.getItem("sketchdraw-accent"); return saved && /^#[\da-f]{6}$/i.test(saved) ? saved : UI_ACCENTS[1].value; }
-    catch { return UI_ACCENTS[1].value; }
+    try { const saved = localStorage.getItem("sketchdraw-accent"); return saved && /^#[\da-f]{6}$/i.test(saved) ? saved : DEFAULT_UI_ACCENT; }
+    catch { return DEFAULT_UI_ACCENT; }
   })());
   const [systemDark, setSystemDark] = createSignal(window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
   const [recentFiles, setRecentFiles] = createSignal<string[]>((() => {
@@ -419,7 +410,6 @@ function App() {
   let penEraserDrawing = false;
   let laserTimer: number | undefined;
   let restartAutosave: (() => void) | undefined;
-  const syncTracker = createWindowsSyncTracker();
   let syncPollTimer: number | undefined;
   let syncObservationTimer: number | undefined;
   let panOrigin: { x: number; y: number; panX: number; panY: number } | undefined;
@@ -804,7 +794,8 @@ function App() {
   const fileName = () => activePath() ? displayNameForPath(activePath()!) : "Untitled sketch";
   const currentPage = () => pages().find((page) => page.id === activePageId());
   const theme = (): Theme => themeMode() === "system" ? systemDark() ? "dark" : "light" : themeMode() as Theme;
-  const toolbarColor = () => toolbarColorChoice() === "auto" ? theme() === "dark" ? "#1b1b1b" : "#f8faf7" : toolbarColorChoice();
+  const accentForTheme = () => accentColor() === DEFAULT_UI_ACCENT ? "var(--theme-primary)" : accentColor();
+  const toolbarColor = () => toolbarColorChoice() === "auto" ? "var(--theme-surface)" : toolbarColorChoice();
   const selectedSet = createMemo(() => new Set(selectedIndices()));
   const selectedElements = () => getSelectedElements(elements(), selectedIndices());
   const primarySelection = () => primarySelectionIndex(selectedIndices());
@@ -863,43 +854,34 @@ function App() {
   const quickFocusedHasLineStyle = () => { const focused = styleTargetElement(); return !!focused && "lineStyle" in focused; };
   const quickArrowHead = (end: "start" | "end") => { const focused = styleTargetElement(); if (focused && isConnector(focused)) return (end === "start" ? focused.startHead : focused.endHead) ?? (focused.type === "arrow" && end === "end" ? "open" : "none"); if (tool() === "line") return end === "start" ? defaultLineStartHead() : defaultLineEndHead(); return end === "start" ? defaultStartHead() : defaultEndHead(); };
   const renderedBoardColor = () => boardColorFollowsTheme() ? theme() === "dark" ? "#17191f" : "#ffffff" : boardColor();
+  createEffect(() => { if (boardColorFollowsTheme()) { theme(); advanceDocumentRevision(); } });
   const updateStrokeColor = (value: string) => { const selected = styleTargetElement(); if (boardLocked() || selected?.locked) return; if (textDraft()?.shapeLabel) { updateLabel("color", value); return; } setColor(value); setTextDraft((draft) => draft ? { ...draft, color: value } : undefined); if (hasStyleSelection()) updateProperty("color", value); };
   const updateThickness = (value: number) => { const bounded = Math.max(1, Math.min(24, Math.round(value))); setThickness(bounded); if (hasStyleSelection()) updateProperty("thickness", bounded); };
   const setThicknessPickerPreference = (mode: "presets" | "stepper") => { setThicknessPickerMode(mode); try { localStorage.setItem("sketchdraw-thickness-picker", mode); } catch { /* The setting still applies for this session. */ } };
   const status = () => !activePath() ? "No file selected" : readOnlyView() ? "View only · changes are not saved" : documentControllerStatus() === "opening" ? "Opening sketch…" : (saving() || documentControllerStatus() === "saving") ? "Saving…" : (dirty() || textDraft()) ? "Unsaved changes" : savedAt() ? `Saved ${savedAt()}` : "Saved locally";
-  function documentSnapshot(): SketchFile {
-    const snapshot = createSketchSnapshot({
-      pages: pages(),
-      activePageId: activePageId(),
-      activeElements: elements(),
-      activeCanvasState: canvasState(),
-      activeRenderedBoardColor: renderedBoardColor(),
-      theme: theme(),
-      project: projectWorkspaceData(),
-      library: legacyLibraryData(),
-      windowsSync: windowsSyncMetadata(),
-    });
-    observeFileSync(snapshot);
-    return { ...snapshot, ...(windowsSyncMetadata() ? { windowsSync: windowsSyncMetadata() } : {}) };
-  }
-  function observeFileSync(snapshot: SketchFile) {
-    if (!activePath()) return;
-    const next = syncTracker.observe(snapshot, windowsSyncMetadata() ?? createWindowsSyncMetadata(), getWindowsDeviceId());
-    if (next) setWindowsSyncMetadata(next);
-  }
+  const documentSnapshotCoordinator = createDocumentSnapshotCoordinator({
+    readDocument: () => ({
+      pages: pages(), activePageId: activePageId(), activeElements: elements(), activeCanvasState: canvasState(),
+      activeRenderedBoardColor: renderedBoardColor(), theme: theme(), project: projectWorkspaceData(), library: legacyLibraryData(),
+    }),
+    activePath,
+    revision: documentRevision,
+    windowsSyncMetadata,
+    setWindowsSyncMetadata,
+  });
+  const documentSnapshot = () => documentSnapshotCoordinator.snapshot();
   const snapshotRaw = serializeSketchSnapshot;
   createEffect(() => {
-    const path = activePath(); const currentPages = pages(); const currentPageId = activePageId(); const currentElements = elements(); const currentState = canvasState(); const currentProject = projectWorkspaceData(); const currentLibrary = legacyLibraryData();
+    const path = activePath();
+    pages(); activePageId(); elements(); canvasState(); renderedBoardColor(); theme(); projectWorkspaceData(); legacyLibraryData(); windowsSyncMetadata();
     if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer);
     syncObservationTimer = undefined;
-    if (!path || !currentPages.length || !currentPageId) return;
-    const background = renderedBoardColor(); const currentTheme = theme(); const sync = windowsSyncMetadata();
+    if (!path || !pages().length || !activePageId()) return;
     const observeWhenIdle = () => {
       if (activePath() !== path) return;
       if (drawing || panOrigin || moveOrigin || resizeOrigin || labelMoveOrigin) { syncObservationTimer = window.setTimeout(observeWhenIdle, 250); return; }
       syncObservationTimer = undefined;
-      const snapshot = createSketchSnapshot({ pages: currentPages, activePageId: currentPageId, activeElements: currentElements, activeCanvasState: currentState, activeRenderedBoardColor: background, theme: currentTheme, project: currentProject, library: currentLibrary, windowsSync: sync });
-      observeFileSync(snapshot);
+      documentSnapshotCoordinator.observeCurrent();
     };
     syncObservationTimer = window.setTimeout(observeWhenIdle, 250);
   });
@@ -1261,10 +1243,10 @@ function App() {
 
   function classCardLayout(draft: NonNullable<ReturnType<typeof classCardDraft>>) {
     const fontSize = Math.max(8, Math.min(48, Math.round(draft.fontSize)));
-    const longest = Math.max(12, ...[draft.name, draft.attributes, draft.methods].flatMap(text => text.split(/\r?\n/).map(line => line.length)));
+    const longest = Math.max(12, ...[draft.name, draft.attributes, draft.methods].flatMap(text => text.split(/\n?\n/).map(line => line.length)));
     const naturalWidth = Math.max(230, Math.min(640, longest * fontSize * .62 + 32));
     const width = Math.max(230, Math.min(640, draft.width ?? naturalWidth));
-    const wrap = (text: string) => text.split(/\r?\n/).flatMap(line => {
+    const wrap = (text: string) => text.split(/\n?\n/).flatMap(line => {
       const rows: string[] = []; let rest = line; const limit = Math.max(12, Math.floor((width - 28) / (fontSize * .62)));
       while (rest.length > limit) { let cut = rest.lastIndexOf(" ", limit); if (cut < 1) cut = limit; rows.push(rest.slice(0, cut)); rest = rest.slice(cut).trimStart(); }
       rows.push(rest); return rows;
@@ -1421,46 +1403,6 @@ function App() {
     if (kind.startsWith("form-") || kind.startsWith("viz-")) { setComponentEditorCollapsed(false); setLibraryComponentDraft(group); return; }
     const index = elements().length;
     pushUndo(cloneElements(elements())); setElements(items => [...items, group]); setSelectedIndices([index]); setTool("select"); setDirty(true);
-  }
-
-  function libraryIcon(kind: LibraryComponentKind) {
-    const base = { viewBox: "0 0 32 32", "aria-hidden": true as const, focusable: false as const };
-    if (kind === "uml-class") return <svg {...base}><rect x="5" y="4" width="22" height="24" rx="2"/><path d="M5 11h22M5 19h22M9 15h10M9 23h13"/></svg>;
-    if (kind === "uml-lifeline") return <svg {...base}><rect x="8" y="3" width="16" height="7" rx="2"/><path d="M16 10v19" stroke-dasharray="2 2"/><circle cx="16" cy="6.5" r="1" fill="currentColor"/></svg>;
-    if (kind === "uml-activation") return <svg {...base}><path d="M16 2v4m0 20v4"/><rect x="12" y="6" width="8" height="20" rx="1.5" fill="currentColor" fill-opacity=".16"/></svg>;
-    if (kind === "sequence-sync" || kind === "sequence-async") return <svg {...base}><path d="M4 10h24M4 22h24"/>{kind === "sequence-sync" ? <path d="m22 18 6 4-6 4z" fill="currentColor"/> : <path d="m23 18 6 4-6 4"/>}<rect x="14" y="11" width="4" height="6" rx="1" fill="currentColor" fill-opacity=".18"/></svg>;
-    if (kind === "uml-inheritance" || kind === "uml-realization") return <svg {...base}><path d="M4 16h21" stroke-dasharray={kind === "uml-realization" ? "3 2" : undefined}/><path d="m24 11 5 5-5 5z" fill="var(--stencil-icon-bg, #fff)"/></svg>;
-    if (kind === "uml-aggregation" || kind === "uml-composition") return <svg {...base}><path d="M10 16h19"/><path d="m5 16 5-5 5 5-5 5z" fill={kind === "uml-composition" ? "currentColor" : "var(--stencil-icon-bg, #fff)"}/></svg>;
-    if (kind === "er-table") return <svg {...base}><rect x="4" y="4" width="24" height="24" rx="2"/><path d="M4 11h24M14 11v17M14 17h14M14 23h14"/><path d="M7 15h4m-4 7h4" stroke-width="2"/></svg>;
-    if (kind === "er-one-many") return <svg {...base}><path d="M3 16h20m0-6v12m0-12 6 6-6 6m0-6 6-6m-6 6 6 6"/><path d="M6 12v8" stroke-width="2"/></svg>;
-    if (kind === "er-many-many") return <svg {...base}><path d="M9 10 3 16l6 6m0-12-6 6 6 6m14-12 6 6-6 6m0-12 6 6-6 6M9 16h14"/></svg>;
-    if (kind === "c4-system") return <svg {...base}><circle cx="5" cy="16" r="2"/><circle cx="27" cy="16" r="2"/><rect x="8" y="5" width="16" height="22" rx="3" stroke-dasharray="3 2"/><rect x="11" y="11" width="10" height="10" rx="2"/><path d="M13 15h6m-6 3h4"/></svg>;
-    if (kind === "c4-container") return <svg {...base}><rect x="4" y="4" width="24" height="24" rx="3" stroke-dasharray="3 2"/><rect x="7" y="9" width="8" height="12" rx="2"/><rect x="18" y="9" width="7" height="5" rx="1"/><rect x="18" y="17" width="7" height="5" rx="1"/></svg>;
-    if (kind === "c4-component") return <svg {...base}><rect x="4" y="4" width="24" height="24" rx="3"/><rect x="8" y="9" width="7" height="6" rx="1"/><rect x="17" y="9" width="7" height="6" rx="1"/><rect x="8" y="17" width="16" height="6" rx="1"/></svg>;
-    if (kind === "tech-service") return <svg {...base}><rect x="5" y="5" width="22" height="22" rx="5"/><path d="M16 10v3m0 6v3m-6-6h3m6 0h3m-10-4 2 2m4 4 2 2m0-8-2 2m-4 4-2 2"/><circle cx="16" cy="16" r="3"/></svg>;
-    if (kind === "data-flow") return <svg {...base}><path d="M3 12h18M3 20h18" stroke-width="3" stroke-dasharray="3 2"/><path d="m20 7 8 9-8 9z" fill="currentColor"/></svg>;
-    if (kind === "network-zone") return <svg {...base}><rect x="3" y="4" width="26" height="24" rx="4" stroke-dasharray="3 2"/><rect x="7" y="9" width="7" height="6" rx="1"/><rect x="18" y="17" width="7" height="6" rx="1"/><path d="m14 12 5 6"/></svg>;
-    if (kind === "uml-actor") return <svg {...base}><circle cx="16" cy="6" r="3.5"/><path d="M16 10v10m-7-5h14m-7 5-6 6m6-6 6 6"/></svg>;
-    if (kind === "uml-use-case") return <svg {...base}><ellipse cx="16" cy="16" rx="12" ry="8"/><path d="M10 16h12"/></svg>;
-    if (kind === "uml-package") return <svg {...base}><path d="M4 10h10l3 3h11v14H4zM4 10V5h10l3 3"/></svg>;
-    if (kind === "uml-interface") return <svg {...base}><rect x="5" y="4" width="22" height="24" rx="2"/><path d="M5 12h22M9 18h14m-14 5h10"/><circle cx="8" cy="8" r=".6" fill="currentColor"/></svg>;
-    if (kind === "bpmn-start" || kind === "bpmn-event" || kind === "bpmn-end") return <svg {...base}><circle cx="16" cy="16" r="12" stroke-width={kind === "bpmn-end" ? "3" : undefined}/>{kind === "bpmn-event" && <circle cx="16" cy="16" r="8.5"/>}</svg>;
-    if (kind === "bpmn-gateway" || kind === "bpmn-parallel-gateway") return <svg {...base}><path d="m16 3 13 13-13 13L3 16z"/>{kind === "bpmn-parallel-gateway" ? <path d="M16 10v12m-6-6h12"/> : <path d="m12 12 8 8m0-8-8 8"/>}</svg>;
-    if (kind === "bpmn-task") return <svg {...base}><rect x="4" y="6" width="24" height="20" rx="4"/><path d="M12 13h8m-8 5h8"/></svg>;
-    if (kind === "bpmn-data") return <svg {...base}><path d="M7 3h14l6 6v20H7zM21 3v7h6"/><path d="M11 17h12m-12 5h9"/></svg>;
-    if (kind === "bpmn-pool") return <svg {...base}><rect x="4" y="4" width="24" height="24"/><path d="M11 4v24M11 16h17"/></svg>;
-    if (kind === "network-hub") return <svg {...base}><circle cx="16" cy="15" r="5"/><circle cx="5" cy="6" r="2"/><circle cx="16" cy="4" r="2"/><circle cx="27" cy="6" r="2"/><circle cx="5" cy="25" r="2"/><circle cx="16" cy="27" r="2"/><circle cx="27" cy="25" r="2"/><path d="m7 7 6 5m6-5-4 5M7 24l6-6m6 6-4-6m5-3h5"/></svg>;
-    if (kind === "network-router") return <svg {...base}><path d="m8 5 16 0 7 11-7 11H8L1 16z"/><path d="M9 16h14m-7-7v14m-4-4 4 4 4-4"/></svg>;
-    if (kind === "network-server") return <svg {...base}><rect x="5" y="3" width="22" height="8" rx="2"/><rect x="5" y="13" width="22" height="8" rx="2"/><rect x="5" y="23" width="22" height="6" rx="2"/><circle cx="9" cy="7" r="1" fill="currentColor"/><circle cx="9" cy="17" r="1" fill="currentColor"/></svg>;
-    if (kind === "network-firewall") return <svg {...base}><rect x="3" y="5" width="26" height="22" rx="2"/><path d="M3 12h26M3 20h26M10 5v7m13-7v7m-7 0v8m-8 0v7m15-7v7"/></svg>;
-    if (kind === "network-client") return <svg {...base}><rect x="4" y="4" width="24" height="19" rx="2"/><path d="M12 28h8m-4-5v5"/></svg>;
-    if (kind === "network-switch") return <svg {...base}><rect x="3" y="7" width="26" height="18" rx="3"/><path d="M7 13h3v6H7zm6 0h3v6h-3zm6 0h3v6h-3zm6 0h1v6h-1"/><circle cx="8.5" cy="22" r=".7" fill="currentColor"/><circle cx="14.5" cy="22" r=".7" fill="currentColor"/></svg>;
-    if (kind === "network-load-balancer") return <svg {...base}><circle cx="16" cy="8" r="4"/><path d="M16 12v6M6 18h20M7 18v8m9-8v8m9-8v8"/><circle cx="7" cy="27" r="1" fill="currentColor"/><circle cx="16" cy="27" r="1" fill="currentColor"/><circle cx="25" cy="27" r="1" fill="currentColor"/></svg>;
-    if (kind === "network-access-point") return <svg {...base}><circle cx="16" cy="16" r="12"/><circle cx="16" cy="16" r="9"/><path d="M10 16q6-7 12 0m-9 3q3-4 6 0"/><circle cx="16" cy="21" r="1" fill="currentColor"/><circle cx="12" cy="25" r=".7" fill="currentColor"/><circle cx="16" cy="25" r=".7" fill="currentColor"/><circle cx="20" cy="25" r=".7" fill="currentColor"/></svg>;
-    if (kind.startsWith("viz-")) return kind === "viz-donut" ? <svg {...base}><circle cx="16" cy="16" r="11"/><path d="M16 5v11h11M16 16l8 8"/></svg> : kind === "viz-kpi" ? <svg {...base}><path d="M4 25V7m0 18h24M8 20l6-6 5 3 8-9"/><path d="M22 8h5v5"/></svg> : kind === "viz-scatter" ? <svg {...base}><path d="M5 25V6M5 25h23"/><circle cx="10" cy="19" r="1.5" fill="currentColor"/><circle cx="13" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="17" r="1.5" fill="currentColor"/><circle cx="22" cy="9" r="1.5" fill="currentColor"/><circle cx="26" cy="14" r="1.5" fill="currentColor"/></svg> : kind === "viz-bar" ? <svg {...base}><path d="M5 26V6M5 26h23"/><rect x="9" y="15" width="4" height="11" rx="1"/><rect x="16" y="10" width="4" height="16" rx="1"/><rect x="23" y="6" width="4" height="20" rx="1"/></svg> : <svg {...base}><path d="M5 26V6M5 26h23M7 22l6-5 5 2 8-11"/><path d="M7 22v4h19V12l-7 11-5-2-6 5" fill="currentColor" fill-opacity=".12"/></svg>;
-    if (kind.startsWith("form-")) return kind === "form-button" ? <svg {...base}><rect x="3" y="8" width="26" height="16" rx="5" fill="currentColor" fill-opacity=".14"/><path d="M10 16h12"/></svg> : kind === "form-input" ? <svg {...base}><path d="M5 7h13M5 12h22M5 23h22M9 17v7m-4 0h8"/><path d="M17 10v5"/></svg> : kind === "form-select" ? <svg {...base}><path d="M4 8h24M4 24h24m-8-10 4 4 4-4"/></svg> : kind === "form-checkbox" ? <svg {...base}><rect x="5" y="7" width="18" height="18" rx="4"/><path d="m9 16 4 4 7-8"/></svg> : kind === "form-radio" ? <svg {...base}><circle cx="9" cy="16" r="6"/><circle cx="9" cy="16" r="2.5" fill="currentColor"/><circle cx="24" cy="16" r="6"/></svg> : <svg {...base}><rect x="3" y="7" width="26" height="18" rx="9"/><circle cx="20" cy="16" r="6" fill="currentColor" fill-opacity=".3"/></svg>;
-    if (kind.startsWith("software-") || kind.startsWith("cloud-")) return kind === "software-client" ? <svg {...base}><rect x="3" y="4" width="26" height="23" rx="3"/><path d="M3 10h26M8 7h.01m4 0h.01m4 0h.01M8 15h7m-7 4h16m-16 4h12"/></svg> : kind === "software-api" ? <svg {...base}><rect x="3" y="7" width="26" height="18" rx="5"/><path d="M8 13h8v6H8zm12 3h6m-3-3 3 3-3 3"/></svg> : kind === "software-queue" || kind === "cloud-queue" ? <svg {...base}><rect x="4" y="8" width="7" height="15" rx="2"/><rect x="13" y="8" width="7" height="15" rx="2"/><rect x="22" y="8" width="6" height="15" rx="2"/><path d="M4 27h24"/></svg> : kind === "software-event-bus" ? <svg {...base}><path d="M4 16h24M9 9v14m7-14v14m7-14v14"/><circle cx="9" cy="7" r="2"/><circle cx="16" cy="7" r="2"/><circle cx="23" cy="7" r="2"/></svg> : kind === "software-cache" ? <svg {...base}><rect x="4" y="5" width="24" height="22" rx="4"/><path d="M9 11h14m-14 5h14m-14 5h9"/></svg> : kind === "cloud-boundary" ? <svg {...base}><path d="M5 25h21a5 5 0 0 0 0-10 9 9 0 0 0-17-2 6 6 0 0 0-4 12Z"/><rect x="10" y="15" width="12" height="7" rx="2"/></svg> : kind === "cloud-function" ? <svg {...base}><rect x="5" y="5" width="22" height="22" rx="5"/><path d="m18 8-7 9h5l-2 7 7-10h-5z"/></svg> : kind === "cloud-storage" ? <svg {...base}><path d="M5 7h22v18H5zM8 12h16m-16 5h16m-16 5h16"/></svg> : kind === "software-database" || kind === "cloud-database" ? <svg {...base}><ellipse cx="16" cy="7" rx="11" ry="4"/><path d="M5 7v18c0 2 5 4 11 4s11-2 11-4V7M5 16c0 2 5 4 11 4s11-2 11-4"/></svg> : kind === "software-service" ? <svg {...base}><rect x="4" y="4" width="24" height="24" rx="6"/><circle cx="16" cy="16" r="4"/><path d="M16 8v3m0 10v3m-8-8h3m10 0h3m-14-6 2 2m8 8 2 2m0-12-2 2m-8 8-2 2"/></svg> : <svg {...base}><rect x="4" y="4" width="24" height="24" rx="4"/><path d="M9 11h14m-14 5h14m-14 5h8"/></svg>;
-    return <svg {...base}><path d="M5 5h22v22H5zM9 11h14M9 16h14M9 21h9"/></svg>;
   }
 
   function openSchemaDialog(diagramId?: string, initialSource?: string) {
@@ -1761,7 +1703,7 @@ function App() {
       ctx.save(); ctx.globalAlpha = element.opacity ?? 1; ctx.fillStyle = themeInk(element.color, theme());
       ctx.font = (element.italic ? "italic " : "") + (element.bold ? "700 " : "400 ") + element.fontSize + "px " + fontCss(element.fontFamily); ctx.textBaseline = "top"; ctx.textAlign = element.textAlign === "justify" ? "left" : element.textAlign ?? "left";
       let lines = textLinesCache.get(element);
-      if (!lines) { lines = element.text.split(/\r?\n/).map((line, index) => element.listType === "bullet" ? "• " + line : element.listType === "number" ? (index + 1) + ". " + line : line); textLinesCache.set(element, lines); }
+      if (!lines) { lines = element.text.split(/\n?\n/).map((line, index) => element.listType === "bullet" ? "• " + line : element.listType === "number" ? (index + 1) + ". " + line : line); textLinesCache.set(element, lines); }
       lines.forEach((line, index) => { const y = element.y + index * element.fontSize * 1.25; ctx.fillText(line, element.x, y); if (element.underline) { const measured = ctx.measureText(line).width; const startX = element.textAlign === "center" ? element.x - measured / 2 : element.textAlign === "right" ? element.x - measured : element.x; ctx.fillRect(startX, y + element.fontSize * 1.06, measured, Math.max(1, element.fontSize / 18)); } }); ctx.restore(); if (element.rotation) ctx.restore(); return;
     }
     if (element.type === "schemaTable") {
@@ -1939,7 +1881,7 @@ function App() {
     lineStyle, edgeStyle, cornerRadius, fillEnabled, fillColor, fillOpacity,
     defaultLineStartHead, defaultLineEndHead, defaultStartHead, defaultEndHead, defaultForkUpperHead, defaultForkLowerHead,
     drawElement, drawLaserStroke, connectorForView, connectorHandles, resolveDraggedConnector, intersectsBounds,
-    drawFreehandPreview: (ctx, element) => { ctx.save(); ctx.globalAlpha = element.opacity ?? 1; freehandRenderer.draw(ctx, element, themeInk(element.color, theme()), false); ctx.restore(); },
+    drawFreehandPreview: (ctx, element) => { ctx.save(); ctx.globalAlpha = element.opacity ?? 1; freehandRenderer.draw(ctx, element, themeInk(element.color, theme()), false, true); ctx.restore(); },
   });
   const drawScene = sceneRenderer.drawScene;
 
@@ -1995,6 +1937,7 @@ function App() {
     document.addEventListener("visibilitychange", onVisibilityChange);
     onCleanup(() => document.removeEventListener("visibilitychange", onVisibilityChange));
   });
+  onMount(() => { void getVersion().then(setAppVersion).catch(() => setAppVersion("Unavailable")); });
   createEffect(() => { const session = noteEditorSession(); if (!session) return; requestAnimationFrame(() => { if (noteEditorTextarea?.isConnected) noteEditorTextarea.focus(); }); });
   createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); componentAppearance(); boardColor(); whiteboardStyle(); renderExportPreview(); });
   createEffect(() => {
@@ -2243,10 +2186,6 @@ function App() {
     setInterfaceScale(scale);
     try { localStorage.setItem("sketchdraw-interface-scale", String(scale)); } catch { /* The scale still applies for this session. */ }
   }
-  function setReduceMotionPreference(enabled: boolean) {
-    setReduceMotion(enabled);
-    try { localStorage.setItem("sketchdraw-reduce-motion", String(enabled)); } catch { /* The motion preference still applies for this session. */ }
-  }
   async function setMobileOrientationPreference(orientation: "landscape" | "portrait") {
     setMobileOrientation(orientation);
     setOrientationMessage("");
@@ -2270,12 +2209,11 @@ function App() {
   }
   function restoreAppSettings() {
     setThemePreference("system");
-    setAccentPreference(UI_ACCENTS[1].value);
+    setAccentPreference(UI_ACCENTS[0].value);
     setToolbarColorPreference("auto");
     setInterfaceScalePreference(1);
     setAutosavePreference(10);
     setThicknessPickerPreference("presets");
-    setReduceMotionPreference(false);
     setToolbarPositionPreference("left");
     void setMobileOrientationPreference("landscape");
   }
@@ -2336,9 +2274,10 @@ function App() {
     if (key === "rainbow") setLaserRainbow(value === "true");
   }
   const toolbarInk = () => {
+    if (toolbarColorChoice() === "auto") return "var(--theme-text-primary)";
     const value = toolbarColor().slice(1);
     const channels = [0, 2, 4].map(index => parseInt(value.slice(index, index + 2), 16) / 255).map(channel => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
-    return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2] > .42 ? "#303832" : "#f0f3f1";
+    return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2] > .42 ? "var(--theme-ink-on-light)" : "var(--theme-ink-on-dark)";
   };
 
   function recoverySnapshot(): SketchFile {
@@ -2372,12 +2311,12 @@ function App() {
     const project = existingProject && migratedNotes ? { ...existingProject, notes: mergedNotes } : existingProject;
     const library = snapshot.library ? { ...snapshot.library, quickNotes: [] } : snapshot.library;
     const migratedSnapshot = { ...snapshot, pages, ...(project ? { project } : {}), ...(library ? { library } : {}) };
-    const syncMeta = syncTracker.initializeMetadata(migratedSnapshot, snapshot.windowsSync ?? createWindowsSyncMetadata());
+    const syncMeta = documentSnapshotCoordinator.initializeMetadata(migratedSnapshot, snapshot.windowsSync ?? createWindowsSyncMetadata());
     const preparedSnapshot = { ...migratedSnapshot, windowsSync: syncMeta };
     const currentPage = documentSession.activate(preparedSnapshot, path, nextWorkspace);
     setElements(cloneElements(currentPage.elements)); setCanvasState({ ...currentPage.canvasState });
     setBoardColor(currentPage.canvasState.backgroundColor); setBoardColorFollowsTheme(currentPage.canvasState.boardColorFollowsTheme ?? false);
-    syncTracker.seed(preparedSnapshot);
+    documentSnapshotCoordinator.seed(preparedSnapshot);
     rememberFile(path); setDirty(!snapshot.windowsSync || migratedNotes || restoredComponents); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); docController.setBaselineRaw(rawText);
     setError("");
   }
@@ -2517,7 +2456,7 @@ function App() {
     setElements([]); setCanvasState(emptyCanvas());
     documentSession.reset();
     setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false);
-    setTextDraft(undefined); setPreview(undefined); setMarquee(undefined); setContextMenu(undefined); setLayerPanelOpen(false); syncTracker.reset(); setOpenSketchPaths([]);
+    setTextDraft(undefined); setPreview(undefined); setMarquee(undefined); setContextMenu(undefined); setLayerPanelOpen(false); documentSnapshotCoordinator.reset(); setOpenSketchPaths([]);
     setRecoveryPrompt(undefined); setSyncConflict(undefined);
     setTool("pen"); setToolBarOpen(true);
   }
@@ -2530,6 +2469,7 @@ function App() {
     recoveryPrompt, setRecoveryPrompt, syncConflict, setSyncConflict,
     workspaceArea, snapshot: documentSnapshot, snapshotRaw, applySnapshot,
     setStatus: setDocumentControllerStatus,
+    documentRevision,
     resetDocument: resetDocumentSession,
     beforeReplace: saveBeforeReplacingDocument,
     commitTextDraft,
@@ -2545,6 +2485,48 @@ function App() {
     normalizePath: normalizeFileUri,
     isSketchPath,
   });
+
+  async function exportRetiredLibraryArchive() {
+    const path = activePath();
+    const library = legacyLibraryData();
+    if (!path || readOnlyView() || !hasRetiredLibraryData(library)) return;
+    setNativeBusy(true);
+    setError("");
+    try {
+      const contents = createRetiredLibraryArchive(library);
+      if (isAndroidPlatform()) {
+        const uri = await invoke<string | null>("create_legacy_library_archive", { fileName: "SketchDraw-Library-Archive.json" });
+        if (!uri) return;
+        await invoke("write_sketch_document", { uri, contents });
+      } else {
+        const target = await save({
+          title: "Export retired Library data",
+          defaultPath: "SketchDraw-Library-Archive.json",
+          filters: [{ name: "JSON archive", extensions: ["json"] }],
+        });
+        if (!target) return;
+        await writeTextFile(target.toLowerCase().endsWith(".json") ? target : `${target}.json`, contents);
+      }
+
+      setLegacyLibraryData(current => clearRetiredLibraryData(current));
+      setDirty(true);
+      await docController.save(path);
+      if (dirty()) {
+        const saveError = error();
+        setError(syncConflict()
+          ? "The Library archive was exported. Resolve the sketch's sync conflict before removing its archived copy."
+          : saveError
+            ? `The Library archive was exported, but the sketch could not be updated. ${saveError}`
+            : "The Library archive was exported. The sketch still needs to be saved to remove its archived copy.");
+      } else {
+        setError("");
+      }
+    } catch (cause) {
+      setError(`Could not export retired Library data: ${String(cause)}`);
+    } finally {
+      setNativeBusy(false);
+    }
+  }
 
   async function closeFile() {
     if (!activePath() || documentBusy()) return;
@@ -2875,7 +2857,7 @@ function App() {
       const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page], project, library, ...(windowsSync ? { windowsSync } : {}) };
       const contents = snapshotRaw(document);
       await sketchFileStore.write(path, contents, null);
-      canvasHistory.clearAll(); documentSession.activate(document, path, "canvas"); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); syncTracker.seed(document); setDirty(false); setBoardLocked(false); setError(""); docController.setBaselineRaw(contents);
+      canvasHistory.clearAll(); documentSession.activate(document, path, "canvas"); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); documentSnapshotCoordinator.seed(document); setDirty(false); setBoardLocked(false); setError(""); docController.setBaselineRaw(contents);
     } catch (cause) { setError(`Could not create SketchDraw file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
 
@@ -2994,197 +2976,6 @@ function App() {
     })();
   }
 
-  function imagePdfPages(pages: PdfRasterPage[]): Uint8Array {
-    const encoder = new TextEncoder(); const parts: Uint8Array[] = []; const offsets: number[] = []; let size = 0;
-    const add = (part: Uint8Array) => { parts.push(part); size += part.length; };
-    const ascii = (text: string) => encoder.encode(text);
-    const object = (id: number, body: Uint8Array) => { offsets[id] = size; add(ascii(`${id} 0 obj\n`)); add(body); add(ascii("\nendobj\n")); };
-    const pageIds = pages.map((_, index) => 4 + index * 3);
-    const maxId = 3 + pages.length * 3;
-    add(ascii("%PDF-1.4\n%SketchDraw\n"));
-    object(1, ascii("<< /Type /Catalog /Pages 2 0 R >>"));
-    object(2, ascii(`<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`));
-    object(3, ascii("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"));
-    pages.forEach((page, index) => {
-      const pageId = pageIds[index]; const imageId = pageId + 1; const contentId = pageId + 2; const imageName = `Im${index}`; const bleed = page.bleedPt;
-      const width = page.pageWidth + bleed * 2; const height = page.pageHeight + bleed * 2;
-      object(pageId, ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /TrimBox [${bleed} ${bleed} ${bleed + page.pageWidth} ${bleed + page.pageHeight}] /Resources << /Font << /F1 3 0 R >> /XObject << /${imageName} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`));
-      offsets[imageId] = size; add(ascii(`${imageId} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${page.imageWidth} /Height ${page.imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Interpolate true /Length ${page.jpeg.length} >>\nstream\n`)); add(page.jpeg); add(ascii("\nendstream\nendobj\n"));
-      const escapePdf = (value: string) => value.replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7e]/g, "?");
-      const header = pdfHeader().trim() ? `BT /F1 9 Tf ${bleed + 18} ${height - bleed - 16} Td (${escapePdf(pdfHeader())}) Tj ET\n` : "";
-      const footer = pdfFooter().trim() ? `BT /F1 9 Tf ${bleed + 18} ${bleed + 8} Td (${escapePdf(pdfFooter())}) Tj ET\n` : "";
-      const pageNo = `BT /F1 9 Tf ${width - bleed - 52} ${bleed + 8} Td (Page ${index + 1} of ${pages.length}) Tj ET\n`;
-      const t = bleed; const marks = pdfCropMarks() ? `0 G .35 w ${t - 7} ${t} m ${t - 2} ${t} l S ${t} ${t - 7} m ${t} ${t - 2} l S ${width - t + 2} ${t} m ${width - t + 7} ${t} l S ${width - t} ${t - 7} m ${width - t} ${t - 2} l S ${t - 7} ${height - t} m ${t - 2} ${height - t} l S ${t} ${height - t + 2} m ${t} ${height - t + 7} l S ${width - t + 2} ${height - t} m ${width - t + 7} ${height - t} l S ${width - t} ${height - t + 2} m ${width - t} ${height - t + 7} l S\n` : "";
-      const content = ascii(`q\n${page.drawWidth} 0 0 ${page.drawHeight} ${page.x + bleed} ${page.y + bleed} cm\n/${imageName} Do\nQ\n${header}${footer}${pageNo}${marks}`);
-      object(contentId, new Uint8Array([...ascii(`<< /Length ${content.length} >>\nstream\n`), ...content, ...ascii("\nendstream")]));
-    });
-    const xrefStart = size; let xref = `xref\n0 ${maxId + 1}\n0000000000 65535 f \n`;
-    for (let id = 1; id <= maxId; id++) xref += `${String(offsets[id]).padStart(10, "0")} 00000 n \n`;
-    add(ascii(`${xref}trailer\n<< /Size ${maxId + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`));
-    const output = new Uint8Array(size); let cursor = 0; for (const part of parts) { output.set(part, cursor); cursor += part.length; } return output;
-  }
-
-  async function makeVectorPdf(scenes: { items: Element[]; view: CanvasState }[], output: { widthPt: number; heightPt: number }, marginMm: number) {
-    const { PDFDocument, StandardFonts, LineCapStyle, degrees, rgb, cmyk, pushGraphicsState, popGraphicsState, translate, rotateDegrees } = await import("pdf-lib");
-    const pdfColor = (color: string, mode: "rgb" | "cmyk" | "grayscale") => { const match=/^#([\da-f]{6})$/i.exec(color);if(!match)return rgb(.12,.12,.12);const channels=[0,2,4].map(i=>parseInt(match[1].slice(i,i+2),16)/255);if(mode==="grayscale"){const gray=channels[0]*.2126+channels[1]*.7152+channels[2]*.0722;return rgb(gray,gray,gray);}if(mode==="cmyk"){const black=1-Math.max(...channels);const divisor=1-black||1;return cmyk((1-channels[0]-black)/divisor,(1-channels[1]-black)/divisor,(1-channels[2]-black)/divisor,black);}return rgb(channels[0],channels[1],channels[2]);};
-    const doc = await PDFDocument.create();
-    const fontRegular = await doc.embedFont(StandardFonts.Helvetica); const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-    const fontItalic = await doc.embedFont(StandardFonts.HelveticaOblique); const fontBoldItalic = await doc.embedFont(StandardFonts.HelveticaBoldOblique); const fontMono = await doc.embedFont(StandardFonts.Courier);
-    const fontSerif = await doc.embedFont(StandardFonts.TimesRoman); const fontSerifBold = await doc.embedFont(StandardFonts.TimesRomanBold); const fontSerifItalic = await doc.embedFont(StandardFonts.TimesRomanItalic); const fontSerifBoldItalic = await doc.embedFont(StandardFonts.TimesRomanBoldItalic);
-    // Standard PDF fonts use WinAnsi, so normalize text before measuring or drawing it.
-    const pdfText = (text: string) => text.replace(/[→⇒]/g, "->").replace(/[←⇐]/g, "<-").replace(/↔/g, "<->").replace(/[^\x20-\xff]/g, "?");
-    const grayscale = pdfColorMode() === "grayscale"; const bleed = Math.max(0, Math.min(20, pdfBleedMm())) * 72 / 25.4; const margin = marginMm * 72 / 25.4; textMeasureContext ??= document.createElement("canvas").getContext("2d");
-    const paperW = output.widthPt + bleed * 2; const paperH = output.heightPt + bleed * 2;
-    const readImage = async (element: ImageElement) => {
-      let image = imageCache.get(element.dataUrl);
-      if (!image) { image = new Image(); image.src = element.dataUrl; imageCache.set(element.dataUrl, image); }
-      await image.decode();
-      const cropX=element.cropX??0,cropY=element.cropY??0,cropW=element.cropW??image.naturalWidth,cropH=element.cropH??image.naturalHeight; const cropped=cropX!==0||cropY!==0||cropW!==image.naturalWidth||cropH!==image.naturalHeight; if(grayscale||cropped){const gray=document.createElement("canvas");gray.width=Math.max(1,Math.round(cropW));gray.height=Math.max(1,Math.round(cropH));const context=gray.getContext("2d");if(context){context.drawImage(image,cropX,cropY,cropW,cropH,0,0,gray.width,gray.height);if(grayscale){const pixels=context.getImageData(0,0,gray.width,gray.height);for(let i=0;i<pixels.data.length;i+=4){const value=Math.round(pixels.data[i]*.2126+pixels.data[i+1]*.7152+pixels.data[i+2]*.0722);pixels.data[i]=value;pixels.data[i+1]=value;pixels.data[i+2]=value;}context.putImageData(pixels,0,0);}const blob=await new Promise<Blob>((resolve,reject)=>gray.toBlob(value=>value?resolve(value):reject(new Error("Could not prepare an imported image for PDF.")),"image/png"));return doc.embedPng(new Uint8Array(await blob.arrayBuffer()));}}
-      const data = element.dataUrl.slice(0, element.dataUrl.indexOf(",")); const bytes = Uint8Array.from(atob(element.dataUrl.slice(element.dataUrl.indexOf(",") + 1)), char => char.charCodeAt(0));
-      if (data.includes("image/png")) return doc.embedPng(bytes);
-      if (data.includes("image/jpeg")) return doc.embedJpg(bytes);
-      const temp = document.createElement("canvas"); temp.width = image.naturalWidth; temp.height = image.naturalHeight; temp.getContext("2d")!.drawImage(image, 0, 0); const blob = await new Promise<Blob>((resolve, reject) => temp.toBlob(value => value ? resolve(value) : reject(new Error("Could not encode an imported image for PDF.")), "image/png")); return doc.embedPng(new Uint8Array(await blob.arrayBuffer()));
-    };
-    const pathStyle = (page: import("pdf-lib").PDFPage, path: string, element: ShapeElement, scale: number, originX: number, originY: number, fill?: string, fillAlpha?: number) => {
-      const dash = element.lineStyle === "dashed" ? [element.thickness * scale * 4, element.thickness * scale * 2.5] : element.lineStyle === "dotted" ? [element.thickness * scale, element.thickness * scale * 2.2] : undefined;
-      const centerX=originX+(element.x+element.w/2)*scale; const centerY=originY-(element.y+element.h/2)*scale; const rotated=!!element.rotation;
-      if(rotated)page.pushOperators(pushGraphicsState(),translate(centerX,centerY),rotateDegrees(-(element.rotation??0)),translate(-centerX,-centerY));
-      page.drawSvgPath(path, { x: originX, y: originY, scale, color: fill ? pdfColor(fill, pdfColorMode()) : undefined, opacity: fill ? fillAlpha ?? (element.opacity ?? 1) * (element.fillOpacity ?? .2) : 1, borderColor: pdfColor(themeInk(element.color, theme()), pdfColorMode()), borderWidth: element.thickness * scale, borderOpacity: element.opacity ?? 1, borderDashArray: dash, borderLineCap: LineCapStyle.Round });
-      if(rotated)page.pushOperators(popGraphicsState());
-    };
-    for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex++) {
-      const scene = scenes[sceneIndex]; const visible = scene.items.filter(item => !item.hidden); const raw = unionBounds(visible.map(elementBounds)) ?? { x: 0, y: 0, w: 800, h: 600 }; const padding = 24; const bounds = { x: raw.x - padding, y: raw.y - padding, w: Math.max(1, raw.w + padding * 2), h: Math.max(1, raw.h + padding * 2) };
-      const usableW = output.widthPt - margin * 2; const usableH = output.heightPt - margin * 2; const scale = Math.max(.001, Math.min(usableW / bounds.w, usableH / bounds.h)); const x0 = bleed + margin - bounds.x * scale; const yTop = paperH - bleed - margin + bounds.y * scale;
-      const page = doc.addPage([paperW, paperH]); page.setTrimBox(bleed, bleed, output.widthPt, output.heightPt); page.setBleedBox(0, 0, paperW, paperH);
-      const drawText = (text: string, x: number, y: number, color: string, size: number, family: FontFamily | undefined, bold: boolean, italic: boolean, opacity: number, rotation = 0, rotationCenter?: Point, align: TextElement["textAlign"] = "left") => {
-        const font = family === "mono" ? fontMono : family === "serif" ? bold && italic ? fontSerifBoldItalic : bold ? fontSerifBold : italic ? fontSerifItalic : fontSerif : family === "hand" ? bold ? fontBoldItalic : fontItalic : bold && italic ? fontBoldItalic : bold ? fontBold : italic ? fontItalic : fontRegular;
-        const safeText = pdfText(text);
-        let tx=x,ty=y;const textWidth=font.widthOfTextAtSize(safeText,size*scale)/scale;if(align==="center")tx-=textWidth/2;else if(align==="right")tx-=textWidth;if(rotation&&rotationCenter){const angle=rotation*Math.PI/180,dx=tx-rotationCenter.x,dy=y-rotationCenter.y;tx=rotationCenter.x+dx*Math.cos(angle)-dy*Math.sin(angle);ty=rotationCenter.y+dx*Math.sin(angle)+dy*Math.cos(angle);}
-        page.drawText(safeText, { x: x0 + tx * scale, y: paperH - (bleed + margin + (ty - bounds.y) * scale) - size * scale, size: size * scale, font, color: pdfColor(themeInk(color, theme()), pdfColorMode()), opacity, rotate: degrees(-rotation) });
-      };
-      const drawItem = async (element: Element): Promise<void> => {
-        if (element.hidden) return;
-        element = simpleComponentElement(element);
-        if (element.type === "group") {
-          if (element.note) {
-            try {
-              const box = elementBounds(element); const width = Math.max(1, Math.abs(box.w)), height = Math.max(1, Math.abs(box.h));
-              const ratio = Math.max(.01, Math.min(2, 8192 / width, 8192 / height, Math.sqrt(16_000_000 / (width * height))));
-              const surface = document.createElement("canvas"); surface.width = Math.max(1, Math.ceil(width * ratio)); surface.height = Math.max(1, Math.ceil(height * ratio));
-              const context = surface.getContext("2d"); if (!context) throw new Error("Canvas renderer unavailable");
-              context.setTransform(ratio, 0, 0, ratio, -box.x * ratio, -box.y * ratio); drawNoteCard(context, element, theme(), componentAppearance());
-              const encoded = surface.toDataURL("image/png").split(",")[1]; const bytes = Uint8Array.from(atob(encoded), character => character.charCodeAt(0)); const image = await doc.embedPng(bytes);
-              const left = x0 + box.x * scale; const top = paperH - (bleed + margin + (box.y - bounds.y) * scale); const centerX = left + box.w * scale / 2; const centerY = top - box.h * scale / 2; const rotated = !!element.rotation;
-              if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
-              page.drawImage(image, { x: left, y: top - box.h * scale, width: box.w * scale, height: box.h * scale });
-              if (rotated) page.pushOperators(popGraphicsState());
-            } catch { for (const child of element.elements) await drawItem(child); }
-            return;
-          }
-          for (const child of element.elements) await drawItem(child); return;
-        }
-        if (element.type === "image") { try { const embedded = await readImage(element); const centerX=x0+(element.x+element.w/2)*scale,centerY=paperH-(bleed+margin+(element.y+element.h/2-bounds.y)*scale),rotated=!!element.rotation;if(rotated)page.pushOperators(pushGraphicsState(),translate(centerX,centerY),rotateDegrees(-(element.rotation??0)),translate(-centerX,-centerY));page.drawImage(embedded, { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y - bounds.y + element.h) * scale), width: element.w * scale, height: element.h * scale, opacity: element.opacity ?? 1 });if(rotated)page.pushOperators(popGraphicsState()); } catch { /* Keep other vector content even if an embedded image cannot be decoded. */ } return; }
-        if (element.type === "text") { const lines = element.text.split(/\r?\n/).map((line,index)=>element.listType==="bullet"?`• ${line}`:element.listType==="number"?`${index+1}. ${line}`:line); const textBox=elementBounds(element); const center={x:textBox.x+textBox.w/2,y:textBox.y+textBox.h/2}; lines.forEach((line, index) => drawText(line, element.x, element.y + index * element.fontSize * 1.25, element.color, element.fontSize, element.fontFamily, !!element.bold, !!element.italic, element.opacity ?? 1, element.rotation ?? 0, center, element.textAlign)); if (element.underline) { const font = element.fontFamily === "mono" ? fontMono : element.fontFamily === "serif" ? fontSerif : element.fontFamily === "hand" || element.italic ? fontItalic : element.bold ? fontBold : fontRegular; const width = font.widthOfTextAtSize(pdfText(lines[0] ?? ""), element.fontSize) * scale; page.drawLine({ start: { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, end: { x: x0 + element.x * scale + width, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, thickness: Math.max(.5, scale), color: pdfColor(themeInk(element.color, theme()), pdfColorMode()) }); } return; }
-        if (element.type === "schemaTable") {
-          const dark = theme() === "dark"; const simple = componentAppearance() === "simple"; const fontSize = element.fontSize ?? 12; const headerHeight = Math.max(42, fontSize * 2.8); const rowHeight = Math.max(30, fontSize * 1.8); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const border = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const heading = simple ? surface : dark ? "#30465b" : "#e8f0f7"; const ink = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e"); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
-          const centerX = left + width / 2; const centerY = top - height / 2; const rotated = !!element.rotation;
-          if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
-          page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(surface, pdfColorMode()), opacity, borderColor: pdfColor(border, pdfColorMode()), borderWidth: 1.2 * scale, borderOpacity: opacity });
-          page.drawRectangle({ x: left, y: top - headerHeight * scale, width, height: headerHeight * scale, color: pdfColor(heading, pdfColorMode()), opacity });
-          drawText(element.name, element.x + 14, element.y + 13, ink, fontSize, "sans", true, false, opacity);
-          element.columns.forEach((column, index) => {
-            const rowY = element.y + headerHeight + index * rowHeight;
-            if (index) page.drawLine({ start: { x: left + 10 * scale, y: top - rowY * scale }, end: { x: left + width - 10 * scale, y: top - rowY * scale }, thickness: .7 * scale, color: pdfColor(simple ? border : dark ? "#394856" : "#e6ebf0", pdfColorMode()), opacity });
-            drawText(column.primaryKey ? "PK" : column.foreignTable ? "FK" : "", element.x + 13, rowY + 7, simple ? ink : column.primaryKey ? (dark ? "#f0d58c" : "#826b2f") : (dark ? "#aed9ed" : "#436e85"), 9, "sans", true, false, opacity);
-            drawText(column.name, element.x + 44, rowY + 5, simple ? ink : dark ? "#dbe5ee" : "#354759", fontSize * .86, "mono", false, false, opacity);
-            drawText(column.dataType || "type", element.x + element.w - 14, rowY + 5, simple ? ink : dark ? "#a4b1bf" : "#768493", fontSize * .78, "mono", false, false, opacity, 0, undefined, "right");
-          });
-          if (rotated) page.pushOperators(popGraphicsState());
-          return;
-        }
-        if (element.type === "freehand") {
-          if (!element.points.length) return;
-          const points = element.points;
-          if (points.length === 1) {
-            const point = points[0]; const pressureAware = point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined;
-            const pressure = pressureAware ? stylusStrokeWidth(point, element.thickness) : element.thickness;
-            const tilt = pressureAware ? Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) : 0;
-            const radiusX = Math.max(.25, pressure * (pressureAware ? .5 + tilt * .35 : .5) * scale);
-            const radiusY = Math.max(.25, pressure * .5 * scale);
-            const centerX = x0 + point.x * scale; const centerY = yTop - point.y * scale;
-            const rotated = !!element.rotation;
-            if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
-            page.drawEllipse({ x: centerX, y: centerY, xScale: radiusX, yScale: radiusY, color: pdfColor(themeInk(element.color, theme()), pdfColorMode()), opacity: element.opacity ?? 1 });
-            if (rotated) page.pushOperators(popGraphicsState());
-            return;
-          }
-          if (points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined)) {
-            // Preserve the canvas pressure curve and composite opacity once in PDF.
-            const bounds = elementBounds(element);
-            const box = { x: bounds.x - 1, y: bounds.y - 1, w: bounds.w + 2, h: bounds.h + 2 };
-            const ratio = Math.min(Math.max(2, scale * 3), 8192 / box.w, 8192 / box.h, Math.sqrt(16_000_000 / (box.w * box.h)));
-            const surface = document.createElement("canvas");
-            surface.width = Math.max(1, Math.ceil(box.w * ratio)); surface.height = Math.max(1, Math.ceil(box.h * ratio));
-            const context = surface.getContext("2d"); if (!context) throw new Error("Canvas renderer unavailable");
-            context.setTransform(ratio, 0, 0, ratio, -box.x * ratio, -box.y * ratio);
-            drawElement(context, element);
-            const image = await readImage({ type: "image", x: box.x, y: box.y, w: box.w, h: box.h, dataUrl: surface.toDataURL("image/png") });
-            page.drawImage(image, { x: x0 + box.x * scale, y: yTop - (box.y + surface.height / ratio) * scale, width: surface.width / ratio * scale, height: surface.height / ratio * scale });
-            return;
-          }
-          let d = `M ${points[0].x} ${points[0].y}`;
-          for (let i=1;i<points.length;i++){const a=points[i-1],b=points[i];const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};d+=` Q ${a.x} ${a.y} ${mid.x} ${mid.y}`;} const last=points[points.length-1];d+=` L ${last.x} ${last.y}`;
-          const box = elementBounds(element); const centerX = x0 + (box.x + box.w / 2) * scale; const centerY = yTop - (box.y + box.h / 2) * scale; const rotated = !!element.rotation;
-          if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
-          const ink = pdfColor(themeInk(element.color, theme()), pdfColorMode());
-          page.drawSvgPath(d, { x: x0, y: yTop, scale, borderColor: ink, borderWidth: element.thickness * scale, borderOpacity: element.opacity ?? 1, borderLineCap: LineCapStyle.Round });
-          if (rotated) page.pushOperators(popGraphicsState()); return;
-        }
-        const x=element.x,y=element.y,w=element.w,h=element.h; let path="";
-        if(element.type==="rectangle") { const l=Math.min(x,x+w),t=Math.min(y,y+h),ww=Math.abs(w),hh=Math.abs(h); const r=element.edgeStyle==="pill"?Math.min(ww,hh)/2:element.edgeStyle==="rounded"?Math.min(element.cornerRadius??14,ww/2,hh/2):0; const c=Math.min(element.cornerRadius??12,ww/2,hh/2); path=element.edgeStyle==="cut"?`M ${l+c} ${t} H ${l+ww-c} L ${l+ww} ${t+c} V ${t+hh-c} L ${l+ww-c} ${t+hh} H ${l+c} L ${l} ${t+hh-c} V ${t+c} Z`:r?`M ${l+r} ${t} H ${l+ww-r} Q ${l+ww} ${t} ${l+ww} ${t+r} V ${t+hh-r} Q ${l+ww} ${t+hh} ${l+ww-r} ${t+hh} H ${l+r} Q ${l} ${t+hh} ${l} ${t+hh-r} V ${t+r} Q ${l} ${t} ${l+r} ${t} Z`:`M ${l} ${t} H ${l+ww} V ${t+hh} H ${l} Z`; }
-        else if(element.type==="circle"){const cx=x+w/2,cy=y+h/2,rx=Math.abs(w)/2,ry=Math.abs(h)/2,k=.55228475;path=`M ${cx+rx} ${cy} C ${cx+rx} ${cy+k*ry} ${cx+k*rx} ${cy+ry} ${cx} ${cy+ry} C ${cx-k*rx} ${cy+ry} ${cx-rx} ${cy+k*ry} ${cx-rx} ${cy} C ${cx-rx} ${cy-k*ry} ${cx-k*rx} ${cy-ry} ${cx} ${cy-ry} C ${cx+k*rx} ${cy-ry} ${cx+rx} ${cy-k*ry} ${cx+rx} ${cy} Z`; }
-        else if(element.type==="diamond")path=`M ${x+w/2} ${y} L ${x+w} ${y+h/2} L ${x+w/2} ${y+h} L ${x} ${y+h/2} Z`;
-        else if(element.type==="triangle"){const l=Math.min(x,x+w),r=Math.max(x,x+w),t=Math.min(y,y+h),b=Math.max(y,y+h);path=`M ${(l+r)/2} ${t} L ${r} ${b} L ${l} ${b} Z`;}
-        else if(element.type==="flowchart")path=vectorFlowchartPath(element);
-        else {
-          const route = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
-          path = connectorSvgPath(element);
-          if (element.lineStyle === "double") {
-            const normal = { x: -h / Math.max(1, Math.hypot(w, h)), y: w / Math.max(1, Math.hypot(w, h)) };
-            const offset = Math.max(2.5, element.thickness * 1.2);
-            for (const side of [-1, 1]) {
-              const shifted = path.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_match, a, b) => `${Number(a) + normal.x * offset * side} ${Number(b) + normal.y * offset * side}`);
-              pathStyle(page, shifted, element, scale, x0, yTop);
-            }
-          } else pathStyle(page, path, element, scale, x0, yTop);
-          if (element.type === "arrow" || element.type === "line") for (const head of arrowHeadEntries(element, route)) {
-            const radius = Math.max(3, element.thickness * 1.15);
-            if (head.kind === "dot") {
-              page.drawEllipse({ x: bleed + margin + (head.tip.x - bounds.x) * scale, y: paperH - bleed - margin - (head.tip.y - bounds.y) * scale, xScale: radius * scale, yScale: radius * scale, color: pdfColor(themeInk(element.color, theme()), pdfColorMode()), opacity: element.opacity ?? 1 });
-              continue;
-            }
-            const headPath = arrowHeadSvgPath(head.tip, head.angle, head.kind, element.thickness);
-            if (!headPath) continue;
-            const filled = ["solid", "thick", "diamond"].includes(head.kind);
-            pathStyle(page, headPath, element, scale, x0, yTop, filled ? themeInk(element.color, theme()) : undefined, element.opacity ?? 1);
-          }
-          if (isLabelShape(element) || isConnector(element)) drawShapeLabel(element, drawText);
-          return;
-        }
-         if(path)pathStyle(page,path,element,scale,x0,yTop,element.fillColor);
-        if(element.type==="flowchart"&&element.flowchartShape==="database"){const detail=flowchartSvgDetailPath(element);if(detail)pathStyle(page,detail,element,scale,x0,yTop);}
-        if(isLabelShape(element) || isConnector(element))drawShapeLabel(element,drawText);
-      };
-      const drawShapeLabel=(shape:ShapeElement,draw:(text:string,x:number,y:number,color:string,size:number,family:FontFamily|undefined,bold:boolean,italic:boolean,opacity:number,rotation?:number,rotationCenter?:Point)=>void)=>{if(!shape.label||!textMeasureContext)return;const bounds=elementBounds(shape),center={x:bounds.x+bounds.w/2,y:bounds.y+bounds.h/2};for(const run of textLayout(textMeasureContext,shape))draw(run.text,run.x,run.y,shape.label.color,shape.label.fontSize,shape.label.fontFamily,!!shape.label.bold,!!shape.label.italic,shape.label.opacity??1,shape.rotation??0,center);};
-      for(const item of visible)await drawItem(item);
-      if(pdfHeader().trim())page.drawText(pdfText(pdfHeader()),{x:bleed+margin,y:paperH-bleed-margin+4,size:9,font:fontBold,color:pdfColor("#333333",pdfColorMode())});
-      if(pdfFooter().trim())page.drawText(pdfText(pdfFooter()),{x:bleed+margin,y:bleed+margin/2,size:9,font:fontRegular,color:pdfColor("#333333",pdfColorMode())});
-      page.drawText(`Page ${sceneIndex+1} of ${scenes.length}`,{x:paperW-bleed-margin-56,y:bleed+margin/2,size:9,font:fontRegular,color:pdfColor("#333333",pdfColorMode())});
-      if(pdfCropMarks()){const t=bleed;const marks:{start:{x:number;y:number};end:{x:number;y:number}}[]=[{start:{x:t-7,y:t},end:{x:t-2,y:t}},{start:{x:t,y:t-7},end:{x:t,y:t-2}},{start:{x:paperW-t+2,y:t},end:{x:paperW-t+7,y:t}},{start:{x:paperW-t,y:t-7},end:{x:paperW-t,y:t-2}},{start:{x:t-7,y:paperH-t},end:{x:t-2,y:paperH-t}},{start:{x:t,y:paperH-t+2},end:{x:t,y:paperH-t+7}},{start:{x:paperW-t+2,y:paperH-t},end:{x:paperW-t+7,y:paperH-t}},{start:{x:paperW-t,y:paperH-t+2},end:{x:paperW-t,y:paperH-t+7}}];for(const mark of marks)page.drawLine({...mark,thickness:.35,color:rgb(0,0,0)});}
-    }
-    return doc.save();
-  }
-
   async function exportAs(format: "png" | "svg" | "pdf") {
     if (!canvas || nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
@@ -3210,9 +3001,10 @@ function App() {
         if (metrics.pageCount > 1000) throw new Error("This layout would create more than 1,000 PDF pages. Increase the page size, reduce the artwork dimensions, or lower the overlap.");
         if (metrics.innerWidthPx * metrics.innerHeightPx > 60_000_000 || (pdfLayout() === "tiled" && exportWidth() * exportHeight() > 60_000_000)) throw new Error("PDF raster dimensions exceed 60 megapixels. Reduce the page DPI or artwork size.");
         if (metrics.pageCount * metrics.innerWidthPx * metrics.innerHeightPx > 240_000_000) throw new Error("This PDF would exceed the 240-megapixel output budget. Lower print quality, reduce the page count, or use a smaller paper size.");
+        const pdfRenderer = await import("./features/export/pdf-renderer");
         if (pdfLayout() === "fit") {
           const scenes = pdfPageSet() === "current" ? [{ items: exportItems, view }] : selectedPdfPages().map(page => ({ items: cloneElements(page.elements).filter(item => !item.hidden), view: page.canvasState }));
-          await writeFile(target, await makeVectorPdf(scenes, { widthPt: metrics.page.widthPt, heightPt: metrics.page.heightPt }, metrics.marginMm));
+          await writeFile(target, await pdfRenderer.makeVectorPdf(scenes, { widthPt: metrics.page.widthPt, heightPt: metrics.page.heightPt }, metrics.marginMm, { pdfColorMode, pdfBleedMm, pdfHeader, pdfFooter, pdfCropMarks, imageCache, theme, componentAppearance, simpleComponentElement, drawElement, drawNoteCard }));
           setError("");
           return;
         }
@@ -3237,7 +3029,7 @@ function App() {
           tileCtx.drawImage(source, x, y, width, height, 0, 0, width, height);
           rasterPages.push({ jpeg: await toJpeg(tile), imageWidth: width, imageHeight: height, pageWidth: metrics.page.widthPt, pageHeight: metrics.page.heightPt, x: marginPt, y: marginPt, drawWidth: width * 72 / metrics.dpi, drawHeight: height * 72 / metrics.dpi, bleedPt: pdfBleedMm() * 72 / 25.4, grayscale: pdfColorMode() === "grayscale" });
         }
-        await writeFile(target, imagePdfPages(rasterPages));
+        await writeFile(target, pdfRenderer.imagePdfPages(rasterPages, { pdfHeader, pdfFooter, pdfCropMarks }));
       } else if (format === "png") {
         const width = Math.max(1, Math.min(12000, Math.floor(exportWidth()))); const height = Math.max(1, Math.min(12000, Math.floor(exportHeight())));
         if (width * height > 60_000_000) throw new Error("Export is too large. Choose dimensions totaling no more than 60 megapixels.");
@@ -3248,6 +3040,8 @@ function App() {
         await writeFile(target, new Uint8Array(await blob.arrayBuffer()));
       } else {
         const state = exportViewFor(exportWidth(), exportHeight());
+        const { createSvgElementSerializer } = await import("./features/export/svg-renderer");
+        const elementToSvg = createSvgElementSerializer({ theme, componentAppearance, simpleComponentElement, connectorForView, labelSvg });
         const shapes = exportItems.map(elementToSvg).join("\n");
         const pattern = whiteboardStyle(); const svgGridColor = theme() === "dark" ? "#414653" : "#deddd6"; const gridStep = gridStepForStyle(pattern as "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric", GRID_SIZE, state.zoom) * state.zoom;
         const gridPattern = gridSvgPattern(pattern as "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric", gridStep);
@@ -3260,111 +3054,6 @@ function App() {
       setError("");
     } catch (cause) { setError(`Could not export image: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
-
-  function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
-    const meta = group.note; const background = group.elements.find((child): child is ShapeElement => child.type === "rectangle");
-    if (!meta || !background) return "";
-    const x = background.x, y = background.y, width = Math.abs(background.w), height = Math.abs(background.h), palette = noteCardPalette(meta.kind, theme(), componentAppearance()), simple = componentAppearance() === "simple";
-    const title = escapeXml(meta.title || defaultNoteTitle(meta.kind)); const collapsed = meta.collapsed === true; const clipId = `note-${(group.id ?? crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, "")}`;
-    let body = "";
-    if (!collapsed) {
-      if (meta.kind === "checklist") {
-        const rows = checklistRows(meta.content, width, meta.fontSize ?? 12); const done = rows.filter(row => row.done).length;
-        body += `<text x="${x + 16}" y="${y + 53}" dominant-baseline="hanging" font-family="sans-serif" font-size="10" fill="${palette.muted}">${done} of ${rows.length} complete</text><rect x="${x + 16}" y="${y + 71}" width="${width - 32}" height="3" rx="${componentAppearance() === "simple" ? 0 : 2}" fill="${palette.rule}"/><rect x="${x + 16}" y="${y + 71}" width="${rows.length ? (width - 32) * done / rows.length : 0}" height="3" rx="${componentAppearance() === "simple" ? 0 : 2}" fill="${palette.check}"/>`;
-        body += rows.map(row => { const boxX = x + row.boxX, boxY = y + row.top + Math.max(0, (row.height - 16) / 2), textY = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2; return `<rect x="${boxX}" y="${boxY}" width="16" height="16" rx="${simple ? 0 : 4}" fill="${row.done ? palette.check : palette.surface}" stroke="${row.done ? palette.check : palette.border}"/>${row.done ? `<path d="M ${boxX + 4} ${boxY + 8} l3 3 5 -6" fill="none" stroke="${simple ? palette.ink : "#fff"}" stroke-width="1.8"/>` : ""}${row.labelLines.map((line, index) => `<text x="${x + row.textX}" y="${textY + index * row.lineHeight}" dominant-baseline="hanging" font-family="sans-serif" font-size="${meta.fontSize ?? 12}" fill="${row.done ? palette.muted : palette.ink}">${escapeXml(line)}</text>`).join("")}`; }).join("");
-      } else {
-        let cursor = y + 58, inCode = false, language = "text", codeLines: string[] = [];
-        const addCode = () => { const fontSize = meta.fontSize ?? 12; const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => { const chunks: string[] = []; for (let index = 0; index < Math.max(1, line.length); index += max) chunks.push(line.slice(index, index + max)); return chunks; }); const blockHeight = Math.max(45, lines.length * fontSize * 1.5 + 26); body += `<rect x="${x + 10}" y="${cursor}" width="${width - 20}" height="${blockHeight}" rx="${simple ? 0 : 7}" fill="${simple ? palette.surface : "#202936"}" stroke="${simple ? palette.rule : "#344154"}"/><text x="${x + 20}" y="${cursor + 7}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" font-weight="600" fill="${simple ? palette.muted : "#91a1b5"}">${escapeXml(language.toUpperCase())}</text>${lines.map((line, index) => { let column = 0; return syntaxTokens(line, language).map(token => { const rendered = `<text x="${x + 20 + column * fontSize * .62}" y="${cursor + 22 + index * fontSize * 1.5}" dominant-baseline="hanging" font-family="monospace" font-size="${fontSize}" fill="${syntaxTokenColor(token.color, theme(), componentAppearance())}">${escapeXml(token.value)}</text>`; column += token.value.length; return rendered; }).join(""); }).join("")}`; cursor += blockHeight + 9; codeLines = []; inCode = false; };
-        const maxChars = Math.max(8, Math.floor((width - 36) / ((meta.fontSize ?? 12) * .56)));
-        for (const line of meta.content.split(/\r?\n/)) {
-          const fence = /^\s*```\s*([\w+#.-]*)\s*$/.exec(line); if (fence) { if (!inCode) { inCode = true; language = fence[1] || "text"; } else addCode(); continue; }
-          if (inCode) { codeLines.push(line); continue; } if (!line.trim()) { cursor += 8; continue; }
-          const heading = /^(#{1,3})\s+(.*)$/.exec(line); const value = heading?.[2] ?? line; const size = heading ? (meta.fontSize ?? 12) + (4 - heading[1].length) * 2 : (meta.fontSize ?? 12);
-          for (let index = 0; index < Math.max(1, value.length); index += maxChars) { body += `<text x="${x + 16}" y="${cursor}" dominant-baseline="hanging" font-family="sans-serif" font-size="${size}" font-weight="${heading ? 650 : 400}" fill="${palette.ink}">${escapeXml(value.slice(index, index + maxChars))}</text>`; cursor += size * 1.5; }
-        }
-        if (inCode) addCode();
-      }
-    }
-    const summaryRows = collapsed && meta.kind === "checklist" ? checklistRows(meta.content, width, meta.fontSize ?? 12) : undefined;
-    const summary = summaryRows ? `${summaryRows.filter(row => row.done).length} of ${summaryRows.length} tasks` : meta.content.split(/\r?\n/).find(line => line.trim() && !/^\s*```/.test(line))?.trim() || "Empty card";
-    const chevron = collapsed ? `M ${x + width - 26} ${y + 30} l5 5 5 -5` : `M ${x + width - 26} ${y + 23} l5 -5 5 5`;
-    const radius = simple ? 0 : 12; const accent = simple ? "" : `<path d="M ${x + 2} ${y + 13} v ${Math.max(0, height - 26)}" stroke="${palette.accent}" stroke-width="3" stroke-linecap="round"/>`;
-    const toggleY = collapsed ? y + 6 : y + 11; const separator = collapsed ? "" : `<path d="M ${x + 14} ${y + 47} H ${x + width - 14}" stroke="${palette.rule}"/>`;
-    return `<g><defs><clipPath id="${clipId}"><rect x="${x + 8}" y="${y + 49}" width="${Math.max(0, width - 16)}" height="${Math.max(0, height - 57)}"/></clipPath></defs><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${palette.surface}" stroke="${palette.border}"/>${accent}<text x="${x + 14}" y="${y + (collapsed ? 8 : 13)}" dominant-baseline="hanging" font-family="sans-serif" font-size="${collapsed ? 12 : 13}" font-weight="600" fill="${palette.ink}">${title}</text>${collapsed ? `<text x="${x + 14}" y="${y + 31}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" fill="${palette.muted}">${escapeXml(summary.slice(0, 80))}</text>` : ""}<rect x="${x + width - 36}" y="${toggleY}" width="24" height="24" rx="${simple ? 0 : 7}" fill="${palette.soft}" stroke="${palette.rule}"/><path d="${chevron}" fill="none" stroke="${palette.muted}" stroke-width="1.5"/>${separator}${collapsed ? "" : `<g clip-path="url(#${clipId})">${body}</g>`}</g>`;
-  }
-
-  function elementToSvg(element: Element): string {
-    if (element.hidden) return "";
-    element = simpleComponentElement(element);
-    if (element.type === "group") {
-      if (element.note) return noteCardSvg(element);
-      if (element.componentBounds) {
-        const bounds = elementBounds(element); const cx = bounds.x + bounds.w / 2; const cy = bounds.y + bounds.h / 2;
-        const content = modelComponentSvg(element, componentAppearance());
-        return element.rotation ? `<g transform="rotate(${element.rotation} ${cx} ${cy})">${content}</g>` : `<g>${content}</g>`;
-      }
-      return `<g>${element.elements.map(elementToSvg).join("")}</g>`;
-    }
-    const bounds = elementBounds(element); const cx = bounds.x + bounds.w / 2; const cy = bounds.y + bounds.h / 2;
-    const content = elementSvgBody(element) + (isLabelShape(element) || isConnector(element) ? labelSvg(element) : "");
-    return element.rotation ? `<g transform="rotate(${element.rotation} ${cx} ${cy})">${content}</g>` : content;
-  }
-
-  function elementSvgBody(element: Element): string {
-    if (element.type === "group") return `<g>${element.elements.map(elementToSvg).join("")}</g>`;
-    if (element.hidden) return "";
-    if (element.type === "image") { const sx = element.cropX ?? 0; const sy = element.cropY ?? 0; const sw = element.cropW ?? element.sourceWidth ?? element.w; const sh = element.cropH ?? element.sourceHeight ?? element.h; return `<svg x="${element.x}" y="${element.y}" width="${element.w}" height="${element.h}" viewBox="${sx} ${sy} ${sw} ${sh}" preserveAspectRatio="none" opacity="${element.opacity ?? 1}"><image width="${element.sourceWidth ?? sw}" height="${element.sourceHeight ?? sh}" href="${element.dataUrl}"/></svg>`; }
-    if (element.type === "schemaTable") {
-      const simple = componentAppearance() === "simple"; const dark = theme() === "dark"; const size = element.fontSize ?? 12; const headerHeight = Math.max(42, size * 2.8); const rowHeight = Math.max(30, size * 1.8);
-      const ink = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const header = simple ? surface : (dark ? "#30465b" : "#e8f0f7"); const mainText = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e");
-      const rows = element.columns.map((column, index) => {
-        const y = element.y + headerHeight + index * rowHeight;
-        const badge = column.primaryKey || column.foreignTable ? '<rect x="' + (element.x + 11) + '" y="' + (y + 7) + '" width="24" height="16" rx="' + (simple ? 0 : 5) + '" fill="' + (simple ? (dark ? "#3a3a3a" : "#eeeeee") : column.primaryKey ? (dark ? "#6a5930" : "#f4e9c7") : (dark ? "#31556b" : "#e1eff6")) + '"/><text x="' + (element.x + 23) + '" y="' + (y + 18.5) + '" text-anchor="middle" font-family="sans-serif" font-size="9" font-weight="700" fill="' + (simple ? mainText : column.primaryKey ? (dark ? "#f0d58c" : "#826b2f") : (dark ? "#aed9ed" : "#436e85")) + '">' + (column.primaryKey ? "PK" : "FK") + "</text>" : "";
-        return (index ? '<path d="M ' + (element.x + 10) + " " + y + " H " + (element.x + element.w - 10) + '" stroke="' + (simple ? ink : dark ? "#394856" : "#e6ebf0") + '"/>' : "") + badge + '<text x="' + (element.x + 44) + '" y="' + (y + rowHeight * .64) + '" font-family="monospace" font-size="' + (size * .86) + '" fill="' + (simple ? mainText : dark ? "#dbe5ee" : "#354759") + '">' + escapeXml(column.name) + '</text><text x="' + (element.x + element.w - 14) + '" y="' + (y + rowHeight * .64) + '" text-anchor="end" font-family="monospace" font-size="' + (size * .78) + '" fill="' + (simple ? mainText : dark ? "#a4b1bf" : "#768493") + '">' + escapeXml(column.dataType || "type") + "</text>";
-      }).join("");
-      const headerShape = simple ? '<rect x="' + element.x + '" y="' + element.y + '" width="' + element.w + '" height="' + headerHeight + '" fill="' + header + '"/>' : '<path d="M ' + (element.x + 10) + " " + element.y + " H " + (element.x + element.w - 10) + " Q " + (element.x + element.w) + " " + element.y + " " + (element.x + element.w) + " " + (element.y + 10) + " V " + (element.y + headerHeight) + " H " + element.x + " V " + (element.y + 10) + " Q " + element.x + " " + element.y + " " + (element.x + 10) + " " + element.y + ' Z" fill="' + header + '"/>';
-      return '<g opacity="' + (element.opacity ?? 1) + '"><rect x="' + element.x + '" y="' + element.y + '" width="' + element.w + '" height="' + element.h + '" rx="' + (simple ? 0 : 10) + '" fill="' + surface + '" stroke="' + ink + '" stroke-width="1.4"/>' + headerShape + '<path d="M ' + element.x + " " + (element.y + headerHeight) + " H " + (element.x + element.w) + '" stroke="' + ink + '"/><text x="' + (element.x + 14) + '" y="' + (element.y + headerHeight * .62) + '" font-family="sans-serif" font-size="' + size + '" font-weight="600" fill="' + mainText + '">' + escapeXml(element.name) + "</text>" + rows + "</g>";
-    }
-    if (element.type === "text") {
-      const family = fontCss(element.fontFamily);
-      const lines = element.text.split(/\r?\n/).map((line, index) => { const formatted = element.listType === "bullet" ? `• ${line}` : element.listType === "number" ? `${index + 1}. ${line}` : line; return `<tspan x="${element.x}" dy="${index === 0 ? 0 : element.fontSize * 1.25}">${escapeXml(formatted)}</tspan>`; }).join("");
-      return `<text x="${element.x}" y="${element.y + element.fontSize}" fill="${escapeXml(themeInk(element.color, theme()))}" opacity="${element.opacity ?? 1}" font-size="${element.fontSize}" font-family="${family}" font-weight="${element.bold ? "700" : "400"}" font-style="${element.italic ? "italic" : "normal"}" text-decoration="${element.underline ? "underline" : "none"}" text-anchor="${element.textAlign === "center" ? "middle" : element.textAlign === "right" ? "end" : "start"}">${lines}</text>`;
-    }
-    const fillColor = "fillColor" in element ? element.fillColor : undefined;
-    const dash = "lineStyle" in element && element.lineStyle === "dashed" ? `${element.thickness * 4} ${element.thickness * 2.5}` : "lineStyle" in element && element.lineStyle === "dotted" ? `${element.thickness} ${element.thickness * 2.2}` : "";
-    const fillOpacity = "fillOpacity" in element ? element.fillOpacity ?? 0.2 : 0.2;
-    const ink = themeInk(element.color, theme());
-    const strokeWidth = element.thickness;
-    const strokeOpacity = element.opacity ?? 1;
-    const style = `fill="${fillColor ? escapeXml(fillColor) : "none"}"${fillColor ? ` fill-opacity="${fillOpacity}"` : ""} stroke="${escapeXml(ink)}" opacity="${strokeOpacity}" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-linejoin="round"`;
-    if (element.type === "freehand") return freehandSvg(element, ink);
-    if (element.type === "rectangle") { const width = Math.abs(element.w); const height = Math.abs(element.h); const radius = element.edgeStyle === "pill" ? Math.min(width, height) / 2 : element.edgeStyle === "rounded" ? Math.min(element.cornerRadius ?? 12, width / 2, height / 2) : 0; if (element.edgeStyle === "cut") { const x = Math.min(element.x, element.x + element.w); const y = Math.min(element.y, element.y + element.h); const c = Math.min(element.cornerRadius ?? 12, width / 2, height / 2); return `<path d="M ${x + c} ${y} H ${x + width - c} L ${x + width} ${y + c} V ${y + height - c} L ${x + width - c} ${y + height} H ${x + c} L ${x} ${y + height - c} V ${y + c} Z" ${style}/>`; } return `<rect x="${Math.min(element.x, element.x + element.w)}" y="${Math.min(element.y, element.y + element.h)}" width="${width}" height="${height}" rx="${radius}" ${style}/>`; }
-    if (element.type === "diamond") return `<path d="M ${element.x + element.w / 2} ${element.y} L ${element.x + element.w} ${element.y + element.h / 2} L ${element.x + element.w / 2} ${element.y + element.h} L ${element.x} ${element.y + element.h / 2} Z" ${style}/>`;
-    if (element.type === "triangle") { const left = Math.min(element.x, element.x + element.w); const right = Math.max(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const bottom = Math.max(element.y, element.y + element.h); return `<path d="M ${(left + right) / 2} ${top} L ${right} ${bottom} L ${left} ${bottom} Z" ${style}/>`; }
-    if (element.type === "circle") return `<ellipse cx="${element.x + element.w / 2}" cy="${element.y + element.h / 2}" rx="${Math.abs(element.w / 2)}" ry="${Math.abs(element.h / 2)}" ${style}/>`;
-    if (element.type === "flowchart") {
-      const detail = flowchartSvgDetailPath(element);
-      const detailStyle = `fill="none" stroke="${escapeXml(ink)}" opacity="${element.opacity ?? 1}" stroke-width="${element.thickness}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-linejoin="round"`;
-      return `<path d="${flowchartSvgPath(element)}" ${style}/>${detail ? `<path d="${detail}" ${detailStyle}/>` : ""}`;
-    }
-    if (element.type === "line" || element.type === "arrow") {
-      const routed = connectorForView(element); const path = connectorSvgPath(routed); const route = routed.type === "arrow" ? routed.arrowRoute ?? "straight" : routed.lineRoute ?? "straight";
-      const shift = routed.lineStyle === "double" ? Math.max(2.5, routed.thickness * 1.2) : 0; const first = routed.routePoints?.[0] ?? { x: routed.x + routed.w, y: routed.y + routed.h }; const normal = { x: -(first.y - routed.y) / Math.max(1, Math.hypot(first.x - routed.x, first.y - routed.y)), y: (first.x - routed.x) / Math.max(1, Math.hypot(first.x - routed.x, first.y - routed.y)) };
-      const paths = shift ? `<path d="${path}" transform="translate(${normal.x * shift} ${normal.y * shift})" ${style}/><path d="${path}" transform="translate(${-normal.x * shift} ${-normal.y * shift})" ${style}/>` : `<path d="${path}" ${style}/>`;
-      const headSvg = (tip: Point, direction: number, kind: ArrowHead) => {
-        if (kind === "none") return "";
-        if (kind === "dot") return `<circle cx="${tip.x}" cy="${tip.y}" r="${Math.max(3, routed.thickness * 1.15)}" fill="${ink}" opacity="${routed.opacity ?? 1}"/>`;
-        const points = arrowHeadPoints(tip, direction, kind, routed.thickness); const polygon = points.map((point) => `${point.x},${point.y}`).join(" ");
-        if (kind === "solid" || kind === "thick" || kind === "diamond") return `<polygon points="${polygon}" fill="${ink}" stroke="${ink}" stroke-width="${routed.thickness}" opacity="${routed.opacity ?? 1}"/>`;
-         if (kind === "open" || kind === "hollow" || kind === "open-diamond" || kind === "crow") return `<path d="${arrowHeadSvgPath(tip, direction, kind, routed.thickness)}" ${style}/>`;
-        return `<path d="M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}" ${style}/>`;
-      };
-      return `${paths}${arrowHeadEntries(routed, route).map(({ tip, angle: direction, kind }) => headSvg(tip, direction, kind)).join("")}`;
-    }
-    return "";
-  }
-
-  function escapeXml(value: string) { return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&apos;" })[char]!); }
 
   function touchGestureGeometry(points: Point[]) {
     const midpoint = points.reduce((sum, point) => ({ x: sum.x + point.x / points.length, y: sum.y + point.y / points.length }), { x: 0, y: 0 });
@@ -4382,7 +4071,6 @@ function App() {
       { id: "export-pdf", label: "Print preview and export PDF", category: "Export", keywords: "page breaks margins", run: () => openExportOptions("pdf") },
       { id: "export-png", label: "Export PNG", category: "Export", run: () => openExportOptions("png") },
       { id: "toggle-grid", label: "Toggle canvas grid", category: "View", shortcut: formatShortcutBindings(shortcuts().toggleGrid), run: () => setShowGrid(value => !value) },
-      { id: "toggle-rulers", label: "Toggle canvas rulers", category: "View", run: () => { const value = !showRulers(); setShowRulers(value); try { localStorage.setItem("sketchdraw-canvas-rulers", String(value)); } catch { /* Applied for this session. */ } } },
       { id: "toggle-minimap", label: "Toggle minimap", category: "View", run: () => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-canvas-minimap", String(value)); } catch { /* Applied for this session. */ } } },
       { id: "toggle-guides", label: "Toggle alignment guides", category: "View", run: () => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-canvas-guides", String(value)); } catch { /* Applied for this session. */ } } },
       { id: "fullscreen", label: "Toggle full screen focus mode", category: "View", run: () => void toggleWindowsFullscreen() },
@@ -4410,7 +4098,7 @@ function App() {
         return { id: `tool-${item.value}`, label: `${item.label} tool`, category: "Tools", shortcut: shortcutId ? formatShortcutBindings(shortcuts()[shortcutId]) : item.key, run: () => activateTool(item.value) };
       }),
     ];
-    const availableWithoutDocument = new Set(["new", "open", "shortcuts", "toggle-grid", "toggle-rulers", "toggle-minimap", "snap-grid", "snap-objects"]);
+    const availableWithoutDocument = new Set(["new", "open", "shortcuts", "toggle-grid", "toggle-minimap", "snap-grid", "snap-objects"]);
     return activePath() ? commands : commands.filter(command => availableWithoutDocument.has(command.id));
   });
 
@@ -4422,6 +4110,7 @@ function App() {
     canRename={!!activePath() && !readOnlyView()}
     canImport={!!activePath() && workspaceArea() === "canvas" && !readOnlyView()}
     canExport={!!activePath() && workspaceArea() === "canvas" && !readOnlyView()}
+    canExportRetiredArchive={!!activePath() && hasRetiredLibraryData(legacyLibraryData()) && !readOnlyView() && !documentBusy() && !nativeBusy()}
     canClear={!!activePath() && workspaceArea() === "canvas" && elements().length > 0 && !boardLocked() && !readOnlyView()}
     canClose={!!activePath() && !documentBusy()}
     shortcuts={{ newSketch: formatShortcutBindings(shortcuts().newSketch), openSketch: formatShortcutBindings(shortcuts().openSketch), saveSketch: formatShortcutBindings(shortcuts().saveSketch) }}
@@ -4436,6 +4125,7 @@ function App() {
     onExportPng={() => { if (activePath()) openExportOptions("png"); }}
     onExportPdf={() => { if (activePath()) openExportOptions("pdf"); }}
     onExportSvg={() => { if (activePath()) openExportOptions("svg"); }}
+    onExportRetiredArchive={() => void exportRetiredLibraryArchive()}
     onClearCanvas={() => setShowClearConfirm(true)}
     onCloseFile={() => void closeFile()}
     themeMode={themeMode()}
@@ -4450,7 +4140,6 @@ function App() {
     showMobileLayoutSettings={isCompactTouchLayout()}
     autosaveSeconds={autosaveSeconds()}
     thicknessPickerMode={thicknessPickerMode()}
-    reduceMotion={reduceMotion()}
     displayMetrics={displayMetrics()}
     onInterfaceScaleChange={setInterfaceScalePreference}
     onMobileOrientationChange={setMobileOrientationPreference}
@@ -4460,7 +4149,6 @@ function App() {
     onToolbarColorChange={setToolbarColorPreference}
     onAutosaveChange={setAutosavePreference}
     onThicknessPickerModeChange={setThicknessPickerPreference}
-    onReduceMotionChange={setReduceMotionPreference}
     onRestoreDefaults={restoreAppSettings}
     gestureSection={gestureMenuSection()}
     onGestureSectionChange={setGestureMenuSection}
@@ -4477,13 +4165,14 @@ function App() {
     onCheckForUpdates={() => void checkForUpdates()}
     onInstallUpdate={() => void installUpdate()}
     updateStatus={updateCheck()}
+    appVersion={appVersion()}
     updateVersion={updateVersion() ?? "—"}
     updateError={error()}
     canInstallUpdate={isAndroidPlatform() && !!androidUpdateUrl()}
   /></Suspense>;
 
   return (
-    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "reduce-motion": reduceMotion(), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() !== "canvas", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family, .stencil-options")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentColor()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentColor()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 62%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
+    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() !== "canvas", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family, .stencil-options")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 62%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
       <Show when={!isWindowsPlatform()}>
         <MobileWorkspaceHeader
           brandName={activePath() ? fileName() : "SketchDraw"}
@@ -4516,7 +4205,6 @@ function App() {
             autosaveSeconds={autosaveSeconds()}
             thicknessPickerMode={thicknessPickerMode()}
             buttonChoices={isWindowsPlatform() || isCompactTouchLayout()}
-            reduceMotion={reduceMotion()}
             displayMetrics={displayMetrics()}
             onInterfaceScaleChange={setInterfaceScalePreference}
             onMobileOrientationChange={setMobileOrientationPreference}
@@ -4526,13 +4214,13 @@ function App() {
             onToolbarColorChange={setToolbarColorPreference}
             onAutosaveChange={setAutosavePreference}
             onThicknessPickerModeChange={setThicknessPickerPreference}
-            onReduceMotionChange={setReduceMotionPreference}
             onRestoreDefaults={restoreAppSettings}
             detailsRef={element => { appSettingsMenu = element; }}
             onToggle={() => alignTouchMenuPopover(appSettingsMenu)}
           />}>
           <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{activePath() ? fileName() : "No file open"}</div>
             <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><div class="menu-separator" /><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
+            <Show when={hasRetiredLibraryData(legacyLibraryData())}><button disabled={!activePath() || readOnlyView() || documentBusy() || nativeBusy()} onClick={() => closeSystemMenu(() => void exportRetiredLibraryArchive())}>Export retired Library data...</button></Show>
           </div></details>
           <Show when={activePath() && workspaceArea() === "canvas"}>
             <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={() => alignViewSettingsPopover()}>
@@ -4543,13 +4231,13 @@ function App() {
                   <section class="view-menu-section board-view-section"><div class="view-section-heading"><span class="menu-section-title">Whiteboard color</span><span>{boardLocked() ? "Board locked" : "Canvas background"}</span></div><div class="board-color-palette"><button class={`board-color-choice ${boardColorFollowsTheme() ? "active" : ""}`} aria-pressed={boardColorFollowsTheme()} disabled={boardLocked()} onClick={() => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } }}><i class="board-auto-dot" /><span>Auto</span></button>{BOARD_COLORS.map(value => <button class={`board-color-choice ${!boardColorFollowsTheme() && boardColor() === value ? "active" : ""}`} aria-pressed={!boardColorFollowsTheme() && boardColor() === value} disabled={boardLocked()} onClick={() => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } }}><i style={{ background: value }} /><span>{BOARD_COLOR_NAMES[value] ?? value}</span></button>)}</div><div class="board-custom-choice"><span>Custom color</span><label class="custom-color-swatch" title="Custom whiteboard color"><input aria-label="Custom whiteboard color" type="color" value={renderedBoardColor()} disabled={boardLocked()} onInput={event => { if (!boardLocked()) { setBoardColor(event.currentTarget.value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: event.currentTarget.value, boardColorFollowsTheme: false }); setDirty(true); } }} /></label></div></section>
                   <section class="view-menu-section pattern-setting-section"><div class="view-section-heading"><span class="menu-section-title">Paper pattern</span><span>Choose a writing surface</span></div><div class="whiteboard-style-options">{([{ value: "plain", label: "Plain" }, { value: "dots", label: "Dots" }, { value: "small-dots", label: "Fine dots" }, { value: "lines", label: "Grid" }, { value: "small-grid", label: "Fine grid" }, { value: "ruled", label: "Ruled" }, { value: "isometric", label: "Isometric" }] as const).map(option => <button class={`whiteboard-style-choice ${whiteboardStyle() === option.value ? "active" : ""}`} aria-pressed={whiteboardStyle() === option.value} onClick={() => setWhiteboardStylePreference(option.value)}><i class={`paper-pattern-swatch ${option.value}`} /><span>{option.label}</span></button>)}</div></section>
                   <section class="view-menu-section component-setting-section"><div class="view-section-heading"><span class="menu-section-title">Component style</span><span>Canvas note and diagram cards</span></div><div class="component-style-options"><button class={componentAppearance() === "modern" ? "active" : ""} aria-pressed={componentAppearance() === "modern"} onClick={() => setComponentAppearancePreference("modern")}>Modern</button><button class={componentAppearance() === "simple" ? "active" : ""} aria-pressed={componentAppearance() === "simple"} onClick={() => setComponentAppearancePreference("simple")}>Simple</button></div></section>
-                  <section class="view-menu-section canvas-display-section"><div class="view-section-heading"><span class="menu-section-title">Canvas aids</span><span>Show tools while working on the board</span></div><div class="component-style-options"><button class={showRulers() ? "active" : ""} aria-pressed={showRulers()} onClick={() => { const value = !showRulers(); setShowRulers(value); try { localStorage.setItem("sketchdraw-canvas-rulers", String(value)); } catch { /* Applied for this session. */ } }}>Rulers</button><button class={showAlignmentGuides() ? "active" : ""} aria-pressed={showAlignmentGuides()} onClick={() => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-canvas-guides", String(value)); } catch { /* Applied for this session. */ } }}>Alignment guides</button><button class={showMinimap() ? "active" : ""} aria-pressed={showMinimap()} onClick={() => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-canvas-minimap", String(value)); } catch { /* Applied for this session. */ } }}>Minimap</button></div></section>
+                  <section class="view-menu-section canvas-display-section"><div class="view-section-heading"><span class="menu-section-title">Canvas aids</span><span>Show tools while working on the board</span></div><div class="component-style-options"><button class={showAlignmentGuides() ? "active" : ""} aria-pressed={showAlignmentGuides()} onClick={() => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-canvas-guides", String(value)); } catch { /* Applied for this session. */ } }}>Alignment guides</button><button class={showMinimap() ? "active" : ""} aria-pressed={showMinimap()} onClick={() => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-canvas-minimap", String(value)); } catch { /* Applied for this session. */ } }}>Minimap</button></div></section>
                 </div>
               </div>
             </details>
           </Show>
           <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
-          <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setShortcutDialogOpen(true))}>Customize shortcuts...</button><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>{formatShortcutBindings(shortcuts().commandPalette)}</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking" || updateCheck() === "installing"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><Show when={updateCheck() === "installing"}><span class="update-menu-status available">Installing update {updateVersion()}…</span></Show><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span><Show when={isWindowsPlatform()}><button onClick={() => void installUpdate()}>Download and install</button></Show></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Update check or installation failed.</span></Show></div></details>
+          <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => alignTouchMenuPopover(helpMenu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setShortcutDialogOpen(true))}>Customize shortcuts...</button><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>{formatShortcutBindings(shortcuts().commandPalette)}</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking" || updateCheck() === "installing"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><span class="update-menu-version">Installed version {appVersion()}</span><Show when={updateCheck() === "installing"}><span class="update-menu-status available">Installing update {updateVersion()}…</span></Show><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span><Show when={isWindowsPlatform()}><button onClick={() => void installUpdate()}>Download and install</button></Show></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Update check or installation failed.</span></Show></div></details>
           </WindowsMenuRail>
           </Show>
         </nav>
@@ -4569,7 +4257,7 @@ function App() {
       </>}</For>
       <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayNameForPath} onCreate={createFile} onNewProject={createProjectFromHome} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentProject={openRecentProject} /><WelcomeScreen recentFiles={recentFiles} displayNameForPath={displayNameForPath} onCreateFile={createFile} onOpenFile={openFile} onCreateProject={createProjectFromHome} onOpenRecentProject={openRecentProject} onOpenRecentFile={loadFile} /></>}>
         <>
-          <section class="canvas-wrap" ref={canvasWrap} classList={{ "canvas-rulers-visible": showRulers(), "canvas-minimap-visible": showMinimap() }}>
+          <section class="canvas-wrap" ref={canvasWrap} classList={{ "canvas-minimap-visible": showMinimap() }}>
             <Show when={touchFocusMode()}><TouchFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={chooseFocusTool} onExit={() => void toggleTouchFocusMode(false)} /></Show>
             <Show when={isWindowsPlatform() && windowsFullscreenMode()}><WindowsFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={selectedTool => { if (readOnlyView() && selectedTool !== "select" && selectedTool !== "laser") { setTool("laser"); return; } if (selectedTool === "select") { setTool("select"); setStyleMenuMode("quick"); } else activateTool(selectedTool); }} onExit={() => void toggleWindowsFullscreen(false)} /></Show>
             <Show when={touchStylePanel() && !isWindowsPlatform() && isCompactTouchLayout()}><TouchStylePanel
@@ -4657,7 +4345,6 @@ function App() {
               <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown and note content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write Markdown…\n\nUse # headings, **bold**, lists, tables, and fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); if (event.key === "Escape" && isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } } }} />
             </div>}</Show>
             <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
-            <Show when={showRulers()}><Suspense fallback={null}><CanvasRulers viewport={canvas} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} interfaceScale={interfaceScale()} windows={isWindowsPlatform()} /></Suspense></Show>
             <Show when={showMinimap()}><Suspense fallback={null}><CanvasMinimap elements={elements()} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} viewportWidth={canvas.clientWidth} viewportHeight={canvas.clientHeight} onNavigate={center => setCanvasState(current => ({ ...current, panX: canvas.clientWidth / 2 - center.x * current.zoom, panY: canvas.clientHeight / 2 - center.y * current.zoom }))} onClose={() => { setShowMinimap(false); try { localStorage.setItem("sketchdraw-canvas-minimap", "false"); } catch { /* The current view still updates. */ } }} /></Suspense></Show>
             <Show when={presentationMode()}><div class="canvas-presentation-controls"><button title="Previous page" aria-label="Previous page" disabled={pages().findIndex(page => page.id === activePageId()) <= 0} onClick={() => changePresentationPage(-1)}>‹</button><span>{currentPage()?.name ?? "Sketch"}</span><button title="Next page" aria-label="Next page" disabled={pages().findIndex(page => page.id === activePageId()) >= pages().length - 1} onClick={() => changePresentationPage(1)}>›</button><button title="Exit presentation mode" onClick={() => void togglePresentationMode(false)}>Exit</button></div></Show>
             <Show when={deletableSelectionCount() > (isWindowsPlatform() ? 1 : 0)}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} aria-label={`Delete ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
@@ -4709,15 +4396,11 @@ function App() {
                   onPaperPatternChange: setWhiteboardStylePreference,
                   onComponentAppearanceChange: setComponentAppearancePreference,
                 }}
-                canvasTools={{
-                  showRulers: showRulers(),
-                  showAlignmentGuides: showAlignmentGuides(),
+                canvasTools={{                  showAlignmentGuides: showAlignmentGuides(),
                   showMinimap: showMinimap(),
                   presentation: presentationMode(),
                   onTogglePresentation: () => void togglePresentationMode(),
-                  ...(isWindowsPlatform() ? { fullscreen: windowsFullscreenMode(), onToggleFullscreen: () => void toggleWindowsFullscreen() } : {}),
-                  onToggleRulers: () => { const value = !showRulers(); setShowRulers(value); try { localStorage.setItem("sketchdraw-canvas-rulers", String(value)); } catch { /* Current session still uses this setting. */ } },
-                  onToggleAlignmentGuides: () => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-canvas-guides", String(value)); } catch { /* Current session still uses this setting. */ } },
+                  ...(isWindowsPlatform() ? { fullscreen: windowsFullscreenMode(), onToggleFullscreen: () => void toggleWindowsFullscreen() } : {}),                  onToggleAlignmentGuides: () => { const value = !showAlignmentGuides(); setShowAlignmentGuides(value); try { localStorage.setItem("sketchdraw-canvas-guides", String(value)); } catch { /* Current session still uses this setting. */ } },
                   onToggleMinimap: () => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-canvas-minimap", String(value)); } catch { /* Current session still uses this setting. */ } },
                 }}
               />
@@ -4731,7 +4414,7 @@ function App() {
                   <div class="stencil-picker-heading"><div><strong>Modeling library</strong><small>Original SketchDraw diagram components</small></div><label class="stencil-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input type="search" aria-label="Search modeling components" placeholder="Search library" value={stencilSearch()} onInput={event => setStencilSearch(event.currentTarget.value)} /></label></div>
                   <div class="stencil-featured-actions"><button type="button" class="stencil-schema-action" title="Paste SQL or JSON to create linked table cards" onClick={() => openSchemaDialog()}><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/><path d="M8 16h8m-8 4h5"/></svg><span><strong>Visualize database schema</strong><small>Generate linked tables from SQL or JSON</small></span><kbd>SQL</kbd></button></div>
                   <div class="stencil-category-filter" role="group" aria-label="Filter diagram library">{stencilCategories.map(category => <button type="button" class={stencilCategory() === category.id ? "active" : ""} aria-pressed={stencilCategory() === category.id} onClick={() => setStencilCategory(category.id)}>{category.label}</button>)}</div>
-                  {visibleStencilSections().map(section => <><strong class={"tool-options-heading stencil-heading stencil-heading-" + stencilGroup(section)}>{section}</strong>{visibleStencilComponents().filter(component => component.section === section).map(component => <button type="button" class={"stencil-template stencil-" + stencilGroup(component.section)} title={component.description} aria-label={component.label + ". " + component.description} onClick={() => component.kind === "er-table" ? openSchemaDialog(undefined, "CREATE TABLE table_name (\n  id INTEGER PRIMARY KEY,\n  name TEXT\n);") : component.kind === "uml-class" ? (() => { const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; const rect = canvas!.getBoundingClientRect(); const view = canvasState(); openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind)}><span class="stencil-symbol">{libraryIcon(component.kind)}</span><span class="stencil-template-copy"><strong>{component.label}</strong><small>{component.description}</small></span></button>)}</>)}
+                  {visibleStencilSections().map(section => <><strong class="tool-options-heading stencil-heading">{section}</strong>{visibleStencilComponents().filter(component => component.section === section).map(component => <button type="button" class="stencil-template" title={component.description} aria-label={component.label + ". " + component.description} onClick={() => component.kind === "er-table" ? openSchemaDialog(undefined, "CREATE TABLE table_name (\n  id INTEGER PRIMARY KEY,\n  name TEXT\n);") : component.kind === "uml-class" ? (() => { const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; const rect = canvas!.getBoundingClientRect(); const view = canvasState(); openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind)}><LibraryComponentIcon kind={component.kind} /><span class="stencil-template-copy"><strong>{component.label}</strong><small>{component.description}</small></span></button>)}</>)}
                   {visibleStencilComponents().length === 0 && <p class="stencil-empty">No matches. Try another search or category.</p>}
                 </div></div>              <div class="tool-cluster tool-cluster-history mobile-cluster-has-essential" role="group" aria-label="History, selection, and canvas state">
                 <button class={layerPanelOpen() ? "tool-icon-button canvas-utility-button selected" : "tool-icon-button canvas-utility-button"} title="Layers" aria-label="Open layers panel" aria-pressed={layerPanelOpen()} onClick={() => setLayerPanelOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4"/></svg></button>

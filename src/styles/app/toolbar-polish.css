@@ -58,10 +58,8 @@
     width: max-content;
     max-width: calc(100vw - 24px);
     padding: 7px;
-    border: 1px solid #e3e8e0;
+    border: 1px solid var(--theme-border);
     border-radius: 20px;
-    background: rgba(250, 252, 249, .94);
-    backdrop-filter: blur(18px) saturate(1.2);
 }
 
 .tool-cluster {
@@ -70,27 +68,25 @@
     align-items: center;
     gap: 2px;
     padding: 3px;
-    border: 1px solid #edf0eb;
+    border: 1px solid var(--theme-border);
     border-radius: 14px;
-    background: #f4f6f2;
 }
 
 .tool-cluster-canvas {
     border-color: transparent;
-    background: transparent;
 }
 
 .tool-cluster-connectors {
-    background: #f2f6f4;
+    background: var(--theme-surface-elevated);
 }
 
 .tool-cluster-shapes {
-    background: #f6f5f1;
+    background: var(--theme-surface-elevated);
 }
 
 .tool-cluster-content,
 .tool-cluster-history {
-    background: #f4f6f5;
+    background: var(--theme-surface-elevated);
 }
 
 .tool-icon-button {
@@ -98,26 +94,22 @@
     height: 50px;
     gap: 2px;
     border-radius: 11px;
-    color: #59645a;
-    transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+    color: var(--theme-text-secondary);
 }
 
 .tool-icon-button:hover:not(:disabled) {
-    transform: translateY(-1px);
-    border-color: #dce6da;
-    color: #3d6344;
-    background: #fff;
+    border-color: var(--theme-border);
+    color: var(--theme-text-tertiary);
+    background: var(--theme-surface-input);
 }
 
 .tool-icon-button.selected {
-    border-color: #cadbc9;
-    color: #3c6843;
-    background: #eaf3e8;
+    color: var(--theme-primary);
 }
 
 .tool-icon-button.selected:hover {
-    border-color: #bfd3bd;
-    background: #e5f0e3;
+    border-color: var(--theme-primary-border);
+    background: var(--theme-primary-muted);
 }
 
 .tool-icon-button svg:not(.tool-family-caret) {
@@ -126,13 +118,13 @@
 }
 
 .tool-icon-button kbd {
-    color: #858d84;
+    color: var(--theme-text-secondary);
     font: 8px 'DM Mono', monospace;
     line-height: 10px;
 }
 
 .tool-icon-button.selected kbd {
-    color: #527355;
+    color: var(--theme-primary);
 }
 
 .tool-icon-button.has-options {
@@ -145,10 +137,10 @@
     width: 11px;
     height: 11px;
     padding: 2px;
-    border: 1px solid #e5eae3;
+    border: 1px solid var(--theme-border);
     border-radius: 50%;
-    color: #788578;
-    background: #f8faf7;
+    color: var(--theme-text-secondary);
+    background: var(--theme-surface-input);
 }
 
 .tool-family {
@@ -157,9 +149,9 @@
 
 .tool-family.options-open > .tool-icon-button,
 .tool-family:focus-within > .tool-icon-button {
-    border-color: #cbdcc9;
-    color: #416b47;
-    background: #edf5eb;
+    border-color: var(--theme-primary-border);
+    color: var(--theme-primary);
+    background: var(--theme-primary-muted);
 }
 
 .tool-options {
@@ -167,40 +159,28 @@
     top: 100%;
     gap: 6px;
     padding: 9px;
-    border-color: #e2e8df;
     border-radius: 15px;
-    color: #4f5d51;
-    background: rgba(252, 253, 251, .98);
-    backdrop-filter: blur(18px);
+    color: var(--theme-text-primary);
 }
 
-.tool-options button {
-    min-width: 66px;
-    min-height: 66px;
+.tool-options:not(.stencil-options) button {
+    min-width: 40px;
+    min-height: 40px;
     gap: 7px;
     padding: 8px 7px;
     border: 1px solid transparent;
     border-radius: 11px;
-    color: #59665b;
+    color: var(--theme-text-secondary);
     background: transparent;
-    transition: transform .14s ease, border-color .14s ease, background .14s ease, color .14s ease;
 }
 
-.tool-options button:hover,
-.tool-options button.active {
-    transform: translateY(-1px);
-    border-color: #d7e4d4;
-    color: #3d6844;
-    background: #f1f7ef;
-}
-
-.tool-options button svg {
+.tool-options:not(.stencil-options) button > svg {
     width: 27px;
     height: 27px;
     color: inherit;
 }
 
-.tool-options button span {
+.tool-options:not(.stencil-options) button > span {
     color: inherit;
     font-size: 10px;
     line-height: 1.25;
@@ -212,105 +192,16 @@
     grid-template-columns: repeat(4, minmax(72px, 1fr));
 }
 
-.tool-family.options-open .route-options {
-    gap: 5px;
-}
-
 .tool-collapse,
 .tool-deck-reopen {
     width: 32px;
     height: 42px;
     border-radius: 11px;
-    color: #7a857b;
-    transition: background .15s ease, color .15s ease, border-color .15s ease;
-}
-
-.tool-collapse:hover,
-.tool-deck-reopen:hover {
-    border-color: #dce6da;
-    color: #416b47;
-    background: #eef5ec;
-}
-
-.theme-dark .tool-deck {
-    border-color: #404942;
-    background: rgba(37, 42, 39, .96);
-}
-
-.theme-dark .tool-cluster {
-    border-color: #39433b;
-    background: #2b322d;
-}
-
-.theme-dark .tool-cluster-canvas {
-    border-color: transparent;
-    background: transparent;
-}
-
-.theme-dark .tool-cluster-connectors,
-.theme-dark .tool-cluster-shapes,
-.theme-dark .tool-cluster-content,
-.theme-dark .tool-cluster-history {
-    background: #2a312c;
-}
-
-.theme-dark .tool-icon-button {
-    color: #b7c1b8;
-}
-
-.theme-dark .tool-icon-button:hover:not(:disabled) {
-    border-color: #4b5b4b;
-    color: #d7e6d4;
-    background: #343d36;
-}
-
-.theme-dark .tool-icon-button.selected {
-    border-color: #587456;
-    color: #d2e6cf;
-    background: #354638;
-}
-
-.theme-dark .tool-icon-button kbd {
-    color: #9aa59a;
-}
-
-.theme-dark .tool-icon-button.selected kbd {
-    color: #c3d9bf;
+    color: var(--theme-text-secondary);
 }
 
 .theme-dark .tool-icon-button .tool-family-caret {
-    border-color: #4a544b;
-    color: #c4cec3;
-    background: #343b35;
-}
-
-.theme-dark .tool-options {
-    border-color: #414a43;
-    color: #d3dcd2;
-    background: rgba(40, 46, 41, .98);
-}
-
-.theme-dark .tool-options button {
-    color: #c1ccc0;
-}
-
-.theme-dark .tool-options button:hover,
-.theme-dark .tool-options button.active {
-    border-color: #50684e;
-    color: #d6e8d2;
-    background: #354438;
-}
-
-.theme-dark .tool-collapse,
-.theme-dark .tool-deck-reopen {
-    color: #bdc8bd;
-}
-
-.theme-dark .tool-collapse:hover,
-.theme-dark .tool-deck-reopen:hover {
-    border-color: #4a5b49;
-    color: #d6e8d2;
-    background: #354438;
+    border-color: var(--theme-border);
 }
 
 @media (max-width: 760px) {
@@ -330,7 +221,7 @@
 }
 
 .canvas-utility-button kbd {
-    color: #85877f;
+    color: var(--theme-text-secondary);
     font: 8px 'DM Mono', monospace;
     line-height: 10px;
     white-space: nowrap;
@@ -339,10 +230,6 @@
 .canvas-utility-button:disabled {
     opacity: .35;
     cursor: default;
-}
-
-.theme-dark .canvas-utility-button kbd {
-    color: #aeb3bd;
 }
 
 @media (max-width: 760px) {

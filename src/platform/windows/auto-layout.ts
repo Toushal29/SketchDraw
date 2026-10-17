@@ -1,8 +1,9 @@
-import ELK, { type ElkNode } from "elkjs/lib/elk.bundled.js";
+import ELK, { type ElkNode } from "elkjs/lib/elk-api.js";
+import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import type { Element, ShapeElement } from "../../model";
 import { elementBounds, unionBounds } from "../../features/canvas/bounds";
 
-const elk = new ELK();
+const elk = new ELK({ workerUrl: elkWorkerUrl, algorithms: ["layered"] });
 
 function hasLockedChild(element: Element): boolean {
   return element.type === "group" && element.elements.some(child => child.locked || hasLockedChild(child));
@@ -24,6 +25,8 @@ export async function autoLayoutElements(elements: Element[], selectedIndices: n
   });
   if (nodes.length < 2) return elements;
 
+  const nodesById = new Map(nodes.map(node => [node.id, node] as const));
+  const nodesByIndex = new Map(nodes.map(node => [node.index, node] as const));
   const nodeIds = new Set(nodes.map(node => node.id));
   const rootByChildId = new Map<string, string>();
   for (const node of nodes) {
@@ -59,7 +62,7 @@ export async function autoLayoutElements(elements: Element[], selectedIndices: n
 
   const result = await elk.layout(graph);
   const positions = new Map((result.children ?? []).flatMap(node => {
-    const source = nodes.find(item => item.id === node.id);
+    const source = nodesById.get(node.id);
     if (!source || !Number.isFinite(node.x) || !Number.isFinite(node.y)) return [];
     return [[source.index, { x: node.x!, y: node.y! }] as const];
   }));
@@ -74,7 +77,7 @@ export async function autoLayoutElements(elements: Element[], selectedIndices: n
 
   return elements.map((element, index) => {
     const position = positions.get(index);
-    const original = nodes.find(node => node.index === index);
+    const original = nodesByIndex.get(index);
     if (!position || !original) return element;
     const dx = offsetX + position.x - original.bounds.x;
     const dy = offsetY + position.y - original.bounds.y;

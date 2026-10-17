@@ -6,7 +6,6 @@ import { ProjectLog } from "./ProjectLog";
 import { ProjectTimeline } from "./ProjectTimeline";
 import { formatProjectDate, isProjectTaskOverdue, projectTaskWarnings, TASK_PRIORITY_LABELS } from "./project-utils";
 import type { DocumentWorkspaceArea } from "../workspace/workspace-types";
-import "./project-workspace.css";
 
 export type ProjectWorkspaceView = "home" | "notes" | "tasks" | "checklist" | "kanban" | "timeline" | "calendar" | "log" | "files";
 type Props = {

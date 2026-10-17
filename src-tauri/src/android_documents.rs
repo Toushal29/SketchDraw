@@ -98,6 +98,19 @@ pub(crate) async fn create_sketch_document(
 }
 
 #[tauri::command]
+pub(crate) async fn create_legacy_library_archive(
+    file_name: String,
+    state: State<'_, AndroidDocumentsHandle>,
+) -> Result<Option<String>, String> {
+    run_picker(
+        state,
+        "createLegacyLibraryArchive",
+        CreateDocumentArgs { file_name },
+    )
+    .await
+}
+
+#[tauri::command]
 pub(crate) async fn write_sketch_document(
     uri: String,
     contents: String,

@@ -21,10 +21,10 @@
         gap: 5px;
         padding: 0 7px;
         overflow: hidden;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 14%, transparent);
+        border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 14%, transparent);
         border-radius: 10px;
-        color: var(--toolbar-ink, #59645a);
-        background: color-mix(in srgb, var(--toolbar-surface, #fff) 96%, transparent);
+        color: var(--toolbar-ink, var(--theme-text-secondary));
+        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-surface)) 96%, transparent);
         list-style: none;
         cursor: pointer;
     }
@@ -32,7 +32,7 @@
     .touch-page-more > summary::-webkit-details-marker { display: none; }
     .touch-page-control > summary > svg { width: 16px; height: 16px; flex: 0 0 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
     .touch-page-current { min-width: 0; flex: 1 1 auto; overflow: hidden; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-    .touch-page-control > summary > small { flex: 0 0 auto; color: color-mix(in srgb, var(--toolbar-ink, #59645a) 65%, transparent); font: 9px system-ui,sans-serif; }
+    .touch-page-control > summary > small { flex: 0 0 auto; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 65%, transparent); font: 9px system-ui,sans-serif; }
     .touch-page-control[open] > summary { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .touch-pages-popover {
         box-sizing: border-box;
@@ -41,40 +41,36 @@
         gap: 6px;
         padding: 8px;
         overflow: visible;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 15%, transparent);
+        border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 15%, transparent);
         border-radius: 13px;
-        color: var(--toolbar-ink, #59645a);
-        background: color-mix(in srgb, var(--toolbar-surface, #fff) 98%, transparent);
-        backdrop-filter: blur(16px);
+        color: var(--toolbar-ink, var(--theme-text-secondary));
+        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-surface-elevated)) 98%, transparent);
     }
     .touch-pages-popover > header,
     .touch-pages-popover > footer { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-    .touch-pages-popover > header { padding: 0 2px 5px; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 12%, transparent); }
+    .touch-pages-popover > header { padding: 0 2px 5px; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent); }
     .touch-pages-popover > header strong { font-size: 11px; }
     .touch-pages-popover button { box-sizing: border-box; min-width: 0; min-height: 32px; border-radius: 8px; font-size: 10px; touch-action: manipulation; }
     .touch-page-add { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .touch-page-add span { font-size: 15px; line-height: 1; }
     .touch-page-list { display: grid; min-height: 0; gap: 3px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
-    .touch-page-option { display: flex; align-items: center; gap: 8px; padding: 4px 7px; border: 1px solid transparent; color: var(--toolbar-ink, #59645a); background: transparent; text-align: left; }
-    .touch-page-option > small { display: grid; width: 21px; height: 21px; flex: 0 0 21px; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--toolbar-ink, #59645a) 65%, transparent); background: color-mix(in srgb, var(--toolbar-ink, #59645a) 7%, transparent); font-size: 9px; }
+    .touch-page-option { display: flex; align-items: center; gap: 8px; padding: 4px 7px; border: 1px solid transparent; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; text-align: left; }
+    .touch-page-option > small { display: grid; width: 21px; height: 21px; flex: 0 0 21px; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 65%, transparent); background: color-mix(in srgb, var(--toolbar-ink, var(--theme-surface)) 7%, transparent); font-size: 9px; }
     .touch-page-option > span { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .touch-page-option > svg { width: 15px; height: 15px; flex: 0 0 15px; fill: none; stroke: currentColor; stroke-width: 2; }
     .touch-page-option.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .touch-page-option.active > small { color: var(--ui-accent-ink); background: color-mix(in srgb, var(--ui-accent) 14%, transparent); }
     .touch-page-rename,
-    .touch-page-more > summary { display: grid; min-width: 64px; min-height: 30px; place-items: center; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 12%, transparent); border-radius: 8px; color: var(--toolbar-ink, #59645a); background: transparent; list-style: none; cursor: pointer; }
+    .touch-page-more > summary { display: grid; min-width: 64px; min-height: 30px; place-items: center; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent); border-radius: 8px; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; list-style: none; cursor: pointer; }
     .touch-page-more { position: relative; }
-    .touch-page-more-menu { position: absolute; z-index: 2; right: 0; bottom: calc(100% + 4px); display: grid; width: 150px; gap: 2px; padding: 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, #59645a) 15%, transparent); border-radius: 10px; background: var(--toolbar-surface, #fff); }
-    .touch-page-more-menu button { padding: 5px 7px; color: var(--toolbar-ink, #59645a); background: transparent; text-align: left; }
+    .touch-page-more-menu { position: absolute; z-index: 2; right: 0; bottom: calc(100% + 4px); display: grid; width: 150px; gap: 2px; padding: 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 15%, transparent); border-radius: 10px; background: var(--toolbar-surface, var(--theme-surface-elevated)); }
+    .touch-page-more-menu button { padding: 5px 7px; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; text-align: left; }
     .touch-page-more-menu button:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 9%, transparent); }
 
-    .theme-dark .touch-page-control > summary { border-color: var(--dark-ui-border); color: var(--dark-ui-ink); }
-    .theme-dark .touch-pages-popover { border-color: var(--dark-ui-border); color: var(--dark-ui-ink); background: var(--dark-ui-surface); }
+    .theme-dark .touch-page-control > summary { border-color: var(--dark-ui-border); }
+    .theme-dark .touch-pages-popover { border-color: var(--dark-ui-border); }
     .theme-dark .touch-pages-popover > header { border-color: var(--dark-ui-border-soft); }
-    .theme-dark .touch-page-option { color: var(--dark-ui-ink); }
-    .theme-dark .touch-page-option > small { color: var(--dark-ui-muted); }
     .theme-dark .touch-page-rename,
-    .theme-dark .touch-page-more > summary { border-color: var(--dark-ui-border); color: var(--dark-ui-ink); }
-    .theme-dark .touch-page-more-menu { border-color: var(--dark-ui-border); background: var(--dark-ui-raised); }
-    .theme-dark .touch-page-more-menu button { color: var(--dark-ui-ink); }
+    .theme-dark .touch-page-more > summary { border-color: var(--dark-ui-border); }
+    .theme-dark .touch-page-more-menu { border-color: var(--dark-ui-border); }
 }

@@ -4,7 +4,7 @@
 
 SketchDraw is an offline-first drawing and planning app for Windows and Android. Draw diagrams, plan work, and keep notes and tasks together in one portable `.sketch` file. Save locally or in a folder managed by OneDrive, Dropbox, Google Drive, or another sync service.
 
-**App versions: Windows 12.1.1 | Android 7.1.1 | Document format: v9 | Copyright (c) 2026 Toushal Sampat**
+**App versions: Windows 12.3.0 | Android 7.3.0 | Document format: v9 | Copyright (c) 2026 Toushal Sampat**
 
 > SketchDraw saves version 9 `.sketch` documents on Windows and Android. New and opened sketches start on Canvas, with Planning available from the workspace tabs. Older quick notes are moved into Planning when a file is opened. Versions 1-8 remain readable and migrate to v9 when opened and saved.
 
@@ -115,7 +115,7 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 - **Flowchart symbols:** Build diagrams with process, terminator, decision, input/output, document, database, preparation, manual input, connector, delay, stored-data, and cloud shapes. Symbols remain editable after placement.
 - **Connectors:** Draw straight or curved lines, multi-point lines, and straight, elbow, forked, loop, or jagged arrows. Attach endpoints to shapes, choose line and arrowhead styles, and drag route handles. Windows also offers automatic obstacle routing with editable waypoints.
 - **Selection and layers:** Move, resize, rotate, group, duplicate, align, and distribute objects. Copy and paste objects or their styles, and edit precise values. Layers group all objects by drawing tool, so each tool has one selectable, reorderable, hideable, and lockable layer. Undo and redo history is kept per page for the current session.
-- **Canvas navigation:** Pan, zoom, fit the full drawing, or zoom to a selection. Set the board color and paper pattern, use grid and object snapping, and open Canvas options for rulers, alignment guides, and an optional minimap.
+- **Canvas navigation:** Pan, zoom, fit the full drawing, or zoom to a selection. Set the board color and paper pattern, use grid and object snapping, and open Canvas options for alignment guides and an optional minimap.
 - **Pages and project files:** Keep up to 100 named canvas pages and planning records in one portable version 9 `.sketch` file. Older personal-library records are preserved when a file is opened and saved, and legacy quick notes are added to Planning Notes. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, recovery can restore interrupted edits, and up to eight recent file paths appear on Home. Recognized version 1-8 SketchDraw files are migrated when opened and saved.
 - **Text and note cards:** Add plain text, Markdown, tables, code notes, notes, sticky notes, and checklists to the canvas. Markdown supports headings, lists, tables, and syntax-colored code blocks. Resize, title, format, collapse, expand, and edit cards in place; collapsed cards retain a short content or progress summary.
 - **Diagram as code:** Paste Mermaid flowchart code, preview it, and generate native shapes and attached connectors. The source stays with the diagram, so it can be reopened, edited, and regenerated later.

@@ -1,4 +1,5 @@
-@import "./styles/app/tokens.css";
+/* Ordered global style manifest. Keep platform and polish sheets after the base rules they extend. */
+@import "./styles/app/theme.css";
 @import "./styles/app/foundation.css";
 @import "./styles/canvas-navigation.css";
 @import "./styles/app/inspector.css";
@@ -11,3 +12,24 @@
 @import "./styles/app/note-cards.css";
 @import "./styles/app/canvas-polish.css";
 @import "./styles/app/ui-overrides.css";
+@import "./styles/platform-responsive.css";
+@import "./styles/tools.css";
+@import "./platform/mobile/workspace.css";
+@import "./platform/mobile/overrides.css";
+@import "./platform/mobile/mobile.css";
+@import "./styles/app-settings.css";
+@import "./platform/mobile/ui-refresh.css";
+@import "./platform/mobile/home.css";
+@import "./platform/mobile/touch-style.css";
+@import "./platform/mobile/quick-style.css";
+@import "./styles/view-menu.css";
+@import "./styles/menu-panels.css";
+@import "./platform/windows/windows.css";
+@import "./features/workspace/workspace-shell.css";
+@import "./styles/workspace-ui.css";
+@import "./styles/property-panel-redesign.css";
+@import "./features/project/project-workspace.css";
+@import "./platform/mobile/layout-fixes.css";
+@import "./platform/mobile/touch-bars.css";
+@import "./platform/mobile/command-bar.css";
+@import "./platform/mobile/touch-toolbar.css";

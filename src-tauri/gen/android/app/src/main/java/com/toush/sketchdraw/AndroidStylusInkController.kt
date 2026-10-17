@@ -226,21 +226,39 @@ internal object AndroidStylusInkController {
 
   private fun dispatchCapturedSamples(event: MotionEvent, pointerIndex: Int) {
     val mainActivity = activity ?: return
-    val webView = findWebView(mainActivity.window.decorView) ?: return
     if (pointerIndex !in 0 until event.pointerCount) return
+    val decorView = mainActivity.window.decorView
+    val webView = findWebView(decorView) ?: return
+    // Historical samples in one MotionEvent share the same view geometry. Read
+    // it once per batch instead of walking the view tree and querying both
+    // locations for every sample.
+    val rootLocation = IntArray(2)
+    val webViewLocation = IntArray(2)
+    decorView.getLocationOnScreen(rootLocation)
+    webView.getLocationOnScreen(webViewLocation)
+    val densityScale = density
+    val clientOffsetX = (rootLocation[0] - webViewLocation[0]) / densityScale
+    val clientOffsetY = (rootLocation[1] - webViewLocation[1]) / densityScale
     val samples = JSONArray()
     for (historyIndex in 0 until event.historySize) {
-      appendSample(samples, event, pointerIndex, historyIndex)
+      appendSample(samples, event, pointerIndex, historyIndex, densityScale, clientOffsetX, clientOffsetY)
     }
-    appendSample(samples, event, pointerIndex, null)
+    appendSample(samples, event, pointerIndex, null, densityScale, clientOffsetX, clientOffsetY)
     if (samples.length() == 0) return
     webView.evaluateJavascript("window.__sketchDrawReceiveAndroidStylusSamples?.($samples)", null)
   }
 
-  private fun appendSample(samples: JSONArray, event: MotionEvent, pointerIndex: Int, historyIndex: Int?) {
+  private fun appendSample(
+    samples: JSONArray,
+    event: MotionEvent,
+    pointerIndex: Int,
+    historyIndex: Int?,
+    densityScale: Float,
+    clientOffsetX: Float,
+    clientOffsetY: Float,
+  ) {
     val x = if (historyIndex == null) event.getX(pointerIndex) else event.getHistoricalX(pointerIndex, historyIndex)
     val y = if (historyIndex == null) event.getY(pointerIndex) else event.getHistoricalY(pointerIndex, historyIndex)
-    val client = clientPosition(x, y) ?: return
     val pressure = if (historyIndex == null) event.getAxisValue(MotionEvent.AXIS_PRESSURE, pointerIndex) else event.getHistoricalAxisValue(MotionEvent.AXIS_PRESSURE, pointerIndex, historyIndex)
     val tilt = if (historyIndex == null) event.getAxisValue(MotionEvent.AXIS_TILT, pointerIndex) else event.getHistoricalAxisValue(MotionEvent.AXIS_TILT, pointerIndex, historyIndex)
     val orientation = if (historyIndex == null) event.getAxisValue(MotionEvent.AXIS_ORIENTATION, pointerIndex) else event.getHistoricalAxisValue(MotionEvent.AXIS_ORIENTATION, pointerIndex, historyIndex)
@@ -255,8 +273,8 @@ internal object AndroidStylusInkController {
     }
     samples.put(
       JSONObject()
-        .put("clientX", client.first.toDouble())
-        .put("clientY", client.second.toDouble())
+        .put("clientX", (x / densityScale + clientOffsetX).toDouble())
+        .put("clientY", (y / densityScale + clientOffsetY).toDouble())
         .put("pressure", (pressure.takeIf { it.isFinite() } ?: 0f).coerceIn(0f, 1f).toDouble())
         .put("tiltX", (tiltDegrees * cos(orientationRadians)).toDouble())
         .put("tiltY", (tiltDegrees * sin(orientationRadians)).toDouble())

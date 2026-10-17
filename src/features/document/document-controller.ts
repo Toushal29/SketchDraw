@@ -26,6 +26,7 @@ type DocumentControllerPorts = {
   workspaceArea: () => WorkspaceArea;
   snapshot: () => SketchFile;
   snapshotRaw: (snapshot: SketchFile) => string;
+  documentRevision?: () => number;
   applySnapshot: (snapshot: SketchFile, path: string, raw: string, area?: WorkspaceArea) => void;
   resetDocument: () => void;
   beforeReplace: () => Promise<boolean>;
@@ -77,6 +78,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
     try {
       ports.commitTextDraft();
       const snapshot = ports.snapshot();
+      const savedRevision = ports.documentRevision?.();
       const saved = await saveSketchDocument(path, snapshot, !isNewPath ? baselineRaw ?? null : null);
       if (saved.conflictRaw !== undefined) {
         ports.setSyncConflict({ path, remote: saved.conflictRaw });
@@ -89,7 +91,10 @@ export function createDocumentController(ports: DocumentControllerPorts) {
       baselineRaw = saved.contents;
       ports.setSyncConflict(undefined);
       sketchRecoveryStore.remove(path);
-      ports.setDirty(ports.snapshotRaw(ports.snapshot()) !== saved.contents);
+      const changedWhileSaving = savedRevision === undefined
+        ? ports.snapshotRaw(ports.snapshot()) !== saved.contents
+        : ports.documentRevision?.() !== savedRevision;
+      ports.setDirty(changedWhileSaving);
       ports.setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
       ports.setError("");
       finalStatus = "saved";
