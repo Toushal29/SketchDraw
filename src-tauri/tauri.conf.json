@@ -49,7 +49,7 @@
     "createUpdaterArtifacts": true,
     "targets": "all",
     "publisher": "Toushal Sampat",
-    "copyright": "Copyright © 2026 Toushal Sampat",
+    "copyright": "Copyright \u00a9 2026 Toushal Sampat",
     "shortDescription": "A private, local-first desktop whiteboard",
     "fileAssociations": [
       {
