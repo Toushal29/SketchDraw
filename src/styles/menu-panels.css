@@ -105,7 +105,7 @@
 .app-settings-reset:disabled { opacity: .45; cursor: not-allowed; }
 
 .gesture-settings-popover {
-    display: flex !important;
+    display: flex;
     width: min(560px, calc(100vw - 24px));
     max-height: min(720px, calc(100dvh - 24px));
     flex-direction: column;

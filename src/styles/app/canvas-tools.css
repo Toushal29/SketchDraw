@@ -7,10 +7,6 @@
     display: block;
 }
 
-.quick-style-mode> :not(.quick-style-panel) {
-    display: none !important;
-}
-
 .quick-style-heading,
 .full-style-heading {
     display: flex;

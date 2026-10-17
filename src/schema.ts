@@ -100,12 +100,55 @@ function parseSql(source: string): SchemaTable[] {
   return tables;
 }
 
+function jsonSchemaColumns(properties: Record<string, unknown>, required: Set<string>): SchemaColumn[] {
+  return Object.entries(properties).flatMap(([name, property]) => {
+    if (!property || typeof property !== "object" || Array.isArray(property)) return [];
+    const schema = property as Record<string, unknown>;
+    const declaredTypes = Array.isArray(schema.type) ? schema.type.map(String) : [String(schema.type ?? "")];
+    const type = declaredTypes.find(value => value !== "null") ?? "string";
+    const fallbackTypes: Record<string, string> = { integer: "INTEGER", number: "REAL", boolean: "BOOLEAN", string: schema.format === "date" ? "DATE" : schema.format === "time" ? "TIME" : schema.format === "date-time" ? "TIMESTAMP" : "TEXT" };
+    const nullable = typeof schema["x-sketchdraw-nullable"] === "boolean" ? schema["x-sketchdraw-nullable"] : declaredTypes.includes("null") || !required.has(name);
+    return [{
+      name,
+      type: typeof schema["x-sketchdraw-dataType"] === "string" ? schema["x-sketchdraw-dataType"] : fallbackTypes[type] ?? "TEXT",
+      primaryKey: schema["x-sketchdraw-primaryKey"] === true,
+      nullable,
+      ...(typeof schema["x-sketchdraw-foreignTable"] === "string" ? { foreignTable: schema["x-sketchdraw-foreignTable"] } : {}),
+      ...(typeof schema["x-sketchdraw-foreignColumn"] === "string" ? { foreignColumn: schema["x-sketchdraw-foreignColumn"] } : {}),
+    }];
+  });
+}
+
+function jsonSchemaTables(root: Record<string, unknown>): unknown[] | undefined {
+  const definitions = root.$defs ?? root.definitions;
+  if (definitions && typeof definitions === "object" && !Array.isArray(definitions)) {
+    return Object.entries(definitions as Record<string, unknown>).flatMap(([definitionName, value]) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+      const definition = value as Record<string, unknown>;
+      const properties = definition.properties;
+      if (!properties || typeof properties !== "object" || Array.isArray(properties)) return [];
+      const required = new Set(Array.isArray(definition.required) ? definition.required.map(String) : []);
+      const columns = jsonSchemaColumns(properties as Record<string, unknown>, required);
+      return columns.length ? [{ name: String(definition.title ?? definitionName), columns }] : [];
+    });
+  }
+  const properties = root.properties;
+  if (root.type === "object" && properties && typeof properties === "object" && !Array.isArray(properties)) {
+    const required = new Set(Array.isArray(root.required) ? root.required.map(String) : []);
+    const directProperties = Object.fromEntries(Object.entries(properties as Record<string, unknown>).filter(([, property]) => !!property && typeof property === "object" && !Array.isArray(property) && !("$ref" in property)));
+    const columns = jsonSchemaColumns(directProperties, required);
+    if (columns.length) return [{ name: String(root.title ?? "Table"), columns }];
+  }
+  return undefined;
+}
+
 function parseJson(source: string): SchemaTable[] {
   const parsed: unknown = JSON.parse(source);
-  const root = parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined;
+  const root = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
   const rawTables = Array.isArray(parsed) ? parsed : Array.isArray(root?.tables) ? root.tables : root?.tables && typeof root.tables === "object" ? Object.entries(root.tables as Record<string, unknown>).map(([name, value]) => value && typeof value === "object" && !Array.isArray(value) && "columns" in value ? { name, ...(value as Record<string, unknown>) } : { name, columns: value }) : undefined;
-  if (!rawTables) throw new Error("JSON schema must have a tables array or a tables object.");
-  return rawTables.flatMap((raw): SchemaTable[] => {
+  const tablesInput = rawTables ?? (root ? jsonSchemaTables(root) : undefined);
+  if (!tablesInput) throw new Error("JSON input must have a tables array/object or a JSON Schema object with properties or $defs.");
+  return tablesInput.flatMap((raw): SchemaTable[] => {
     if (!raw || typeof raw !== "object") return [];
     const table = raw as Record<string, unknown>; const name = String(table.name ?? table.tableName ?? table.table_name ?? "").trim();
     const rawColumns = Array.isArray(table.columns) ? table.columns : table.columns && typeof table.columns === "object" ? Object.entries(table.columns as Record<string, unknown>).map(([columnName, value]) => typeof value === "string" ? { name: columnName, type: value } : value && typeof value === "object" ? { name: columnName, ...(value as Record<string, unknown>) } : { name: columnName }) : undefined;
@@ -128,7 +171,7 @@ function parseJson(source: string): SchemaTable[] {
 
 export function parseSchema(source: string): SchemaTable[] {
   if (source.length > 500_000) throw new Error("Schema input is limited to 500,000 characters.");
-  const input = source.trim(); if (!input) throw new Error("Paste SQL CREATE TABLE statements or a JSON schema first.");
+  const input = source.trim(); if (!input) throw new Error("Paste SQL CREATE TABLE statements or a JSON table definition first.");
   const tables = input.startsWith("{") || input.startsWith("[") ? parseJson(input) : parseSql(input);
   if (!tables.length) throw new Error("No tables with columns were found. Check the SQL CREATE TABLE syntax or the JSON tables array.");
   if (tables.length > 50) throw new Error("A visualizer import can include up to 50 tables at once.");

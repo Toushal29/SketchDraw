@@ -10,16 +10,14 @@
 .minimap-viewport { fill: color-mix(in srgb, var(--ui-accent) 10%, transparent); stroke: var(--ui-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .app-shell.presentation-mode > .canvas-wrap { position: fixed; z-index: 60; inset: 0; width: 100vw; height: 100dvh; min-height: 100dvh; }
 .app-shell.presentation-mode .topbar,
-.app-shell.presentation-mode .touch-tool-bar,
-.app-shell.presentation-mode .touch-tool-reopen,
 .app-shell.presentation-mode .tool-deck,
 .app-shell.presentation-mode .style-pane,
 .app-shell.presentation-mode .desktop-page-tabs,
 .app-shell.presentation-mode .touch-page-control,
 .app-shell.presentation-mode .canvas-zoom-reset,
 .app-shell.presentation-mode .selection-delete-action,
-.app-shell.presentation-mode .floating-layer-panel { display: none !important; }
-.app-shell.presentation-mode .canvas-minimap { display: none !important; }
+.app-shell.presentation-mode .floating-layer-panel { display: none; }
+.app-shell.presentation-mode .canvas-minimap { display: none; }
 .canvas-presentation-controls { position: absolute; z-index: 30; top: max(16px, env(safe-area-inset-top)); left: 50%; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 24px); padding: 7px 10px; border: 1px solid color-mix(in srgb, var(--theme-border) 18.82%, transparent); border-radius: 10px; color: var(--theme-text-tertiary); background: color-mix(in srgb, var(--theme-surface-elevated) 90.98%, transparent); transform: translateX(-50%); }
 .canvas-presentation-controls button { min-width: 36px; height: 34px; border: 0; border-radius: 6px; color: inherit; background: color-mix(in srgb, var(--theme-surface-input) 8.63%, transparent); cursor: pointer; touch-action: manipulation; }
 .canvas-presentation-controls button:hover:not(:disabled) { background: color-mix(in srgb, var(--theme-surface) 16.86%, transparent); }

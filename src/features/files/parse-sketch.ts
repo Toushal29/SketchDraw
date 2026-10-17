@@ -119,11 +119,17 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     return { type: "text", ...flags, x: value.x, y: value.y, text: value.text, color: value.color, fontSize: Math.round(value.fontSize), fontFamily, bold: value.bold === true, italic: value.italic === true, underline: value.underline === true, textAlign, listType, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
   }
   if (value.type === "image") {
-    if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w <= 0 || !finite(value.h) || value.h <= 0 || !isEmbeddedRasterImage(value.dataUrl) || !finite(value.sourceWidth) || value.sourceWidth <= 0 || !finite(value.sourceHeight) || value.sourceHeight <= 0) return undefined;
+    if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w <= 0 || !finite(value.h) || value.h <= 0 || !isEmbeddedRasterImage(value.dataUrl)) return undefined;
+    const sourceWidth = finite(value.sourceWidth) && value.sourceWidth > 0 ? value.sourceWidth : value.w;
+    const sourceHeight = finite(value.sourceHeight) && value.sourceHeight > 0 ? value.sourceHeight : value.h;
     const cropX = finite(value.cropX) ? value.cropX : 0; const cropY = finite(value.cropY) ? value.cropY : 0;
-    const cropW = finite(value.cropW) ? value.cropW : value.sourceWidth; const cropH = finite(value.cropH) ? value.cropH : value.sourceHeight;
-    if (cropX < 0 || cropY < 0 || cropW <= 0 || cropH <= 0 || cropX + cropW > value.sourceWidth || cropY + cropH > value.sourceHeight) return undefined;
-    return { type: "image", ...flags, x: value.x, y: value.y, w: value.w, h: value.h, dataUrl: value.dataUrl, sourceWidth: value.sourceWidth, sourceHeight: value.sourceHeight, cropX, cropY, cropW, cropH, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
+    const cropW = finite(value.cropW) ? value.cropW : sourceWidth; const cropH = finite(value.cropH) ? value.cropH : sourceHeight;
+    if (cropX < 0 || cropY < 0 || cropW <= 0 || cropH <= 0 || cropX + cropW > sourceWidth || cropY + cropH > sourceHeight) return undefined;
+    let previewUrl: string | undefined;
+    if (typeof value.previewUrl === "string" && value.previewUrl.length <= 2048) {
+      try { const url = new URL(value.previewUrl); if (url.protocol === "https:" && !url.username && !url.password) previewUrl = url.toString(); } catch { /* Ignore malformed or non-HTTPS preview links. */ }
+    }
+    return { type: "image", ...flags, x: value.x, y: value.y, w: value.w, h: value.h, dataUrl: value.dataUrl, sourceWidth, sourceHeight, cropX, cropY, cropW, cropH, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(previewUrl ? { previewUrl } : {}) };
   }
   if (value.type === "schemaTable") {
     if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w < 120 || !finite(value.h) || value.h < 45 || typeof value.name !== "string" || !value.name.trim() || value.name.length > 200 || typeof value.schemaDiagramId !== "string" || !value.schemaDiagramId || typeof value.schemaSource !== "string" || value.schemaSource.length > 500_000 || !Array.isArray(value.columns) || !value.columns.length || value.columns.length > 500) return undefined;
@@ -189,8 +195,8 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
   const version = Number(value.version);
   if (!Number.isInteger(version) || version < 1 || version > SKETCH_FORMAT_VERSION) return undefined;
   const sections = isRecord(value.sections) ? value.sections : undefined;
-  if (sections && (!isRecord(sections.canvas) || !isRecord(sections.planning))) return undefined;
-  if (sections && version === 8 && !isRecord(sections.library)) return undefined;
+  if (sections && !isRecord(sections.canvas)) return undefined;
+  if (sections && version === 8 && (!isRecord(sections.planning) || !isRecord(sections.library))) return undefined;
   if (sections && version >= 9 && (!isRecord(sections.notebook) || !Array.isArray(sections.notebook.notes) || !isRecord(sections.retiredLibraryArchive))) return undefined;
   if (sections && version < 8) return undefined;
   const canvasSection = sections ? sections.canvas as Record<string, unknown> : value;

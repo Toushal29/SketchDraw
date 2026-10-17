@@ -1,4 +1,4 @@
-/* Ordered global style manifest. Keep platform and polish sheets after the base rules they extend. */
+/* Ordered style manifest; ownership and platform rules are documented in ../docs/architecture/styles.md. */
 @import "./styles/app/theme.css";
 @import "./styles/app/foundation.css";
 @import "./styles/canvas-navigation.css";

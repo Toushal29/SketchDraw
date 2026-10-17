@@ -9,6 +9,14 @@ export function withSketchExtension(path: string): string {
   return path;
 }
 
+export function withPlanningExtension(path: string): string {
+  path = path.trim().replace(/^(["'])(.*)\1$/, "$2");
+  if (/^content:\/\//i.test(path)) return path;
+  path = normalizeFileUri(path);
+  if (!isPlanningPath(path)) throw new Error("Choose a filename ending in .sdplan in the save dialog.");
+  return path;
+}
+
 export function normalizeFileUri(path: string): string {
   const candidate = path.trim().replace(/^(["'])(.*)\1$/, "$2");
   if (!/^file:\/\//i.test(candidate)) return candidate.replace(/^\/([a-z]:[\\/])/i, "$1");
@@ -30,6 +38,17 @@ export function isSketchPath(path: string): boolean {
     catch { break; }
   }
   return decoded.trim().replace(/^(["'])(.*)\1$/, "$2").toLowerCase().endsWith(".sketch");
+}
+
+export function isPlanningPath(path: string): boolean {
+  const normalized = normalizeFileUri(path);
+  if (/^content:\/\//i.test(normalized)) return true;
+  let decoded = normalized;
+  for (let pass = 0; pass < 2; pass++) {
+    try { const next = decodeURIComponent(decoded); if (next === decoded) break; decoded = next; }
+    catch { break; }
+  }
+  return decoded.trim().replace(/^(["'])(.*)\1$/, "$2").toLowerCase().endsWith(".sdplan");
 }
 
 export function displayPathName(path: string): string {

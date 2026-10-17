@@ -1,4 +1,4 @@
-import type { PersonalLibraryData, ProjectWorkspaceData, SketchFile, WindowsSyncMetadata } from "../../model";
+import type { PersonalLibraryData, SketchFile, WindowsSyncMetadata } from "../../model";
 
 export { mergeLatestSnapshots } from "../../features/files/snapshot-merge";
 
@@ -22,15 +22,7 @@ function snapshotEntries(snapshot: SketchFile): Map<string, string> {
     current.set(`p:${page.id}`, JSON.stringify({ name: page.name, canvasState: page.canvasState }));
     for (const element of page.elements) if (element.id) current.set(`e:${page.id}:${element.id}`, JSON.stringify(element));
   }
-  const project = snapshot.project ?? emptyProject();
   const library = snapshot.library ?? emptyLibrary();
-  current.set("w:meta", JSON.stringify({ name: project.name, description: project.description }));
-  for (const note of project.notes) current.set(`w:n:${note.id}`, JSON.stringify(note));
-  for (const task of project.tasks) current.set(`w:t:${task.id}`, JSON.stringify(task));
-  for (const item of project.checklist ?? []) current.set(`w:c:${item.id}`, JSON.stringify(item));
-  for (const milestone of project.milestones) current.set(`w:m:${milestone.id}`, JSON.stringify(milestone));
-  for (const entry of project.logEntries) current.set(`w:l:${entry.id}`, JSON.stringify(entry));
-  for (const file of project.files) current.set(`w:f:${file.id}`, JSON.stringify(file));
   for (const [key, value] of librarySyncEntries(library)) current.set(key, value);
   return current;
 }
@@ -49,10 +41,6 @@ function librarySyncEntries(library: PersonalLibraryData): [string, string][] {
   for (const entry of library.mediaEntries) entries.push([`w:media:${entry.id}`, JSON.stringify(entry)]);
   librarySyncEntriesCache.set(library, entries);
   return entries;
-}
-
-function emptyProject(): ProjectWorkspaceData {
-  return { name: "Untitled project", description: "", notes: [], tasks: [], checklist: [], milestones: [], logEntries: [], files: [] };
 }
 
 function emptyLibrary(): PersonalLibraryData {

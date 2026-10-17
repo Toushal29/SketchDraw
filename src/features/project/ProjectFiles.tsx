@@ -59,11 +59,11 @@ export function ProjectFiles(props: Props) {
 
   return (
     <div class="project-page project-files-page">
-      <div class="project-page-heading"><div><span class="project-eyebrow">PROJECT REFERENCES</span><h1>Project files</h1><p>Keep attachments, reference images, exported documents, and useful links with this sketch.</p></div><Show when={props.editable}><button class="project-primary-action" onClick={() => void attachFiles()}>Attach files</button></Show></div>
+      <div class="project-page-heading"><div><span class="project-eyebrow">PLANNING REFERENCES</span><h1>Planning files</h1><p>Keep attachments, reference images, exported documents, and useful links with this plan.</p></div><Show when={props.editable}><button class="project-primary-action" onClick={() => void attachFiles()}>Attach files</button></Show></div>
       <Show when={props.editable}><form class="project-link-form" onSubmit={addLink}><input value={linkName()} maxlength="500" placeholder="Link name (optional)" aria-label="Link name" onInput={event => setLinkName(event.currentTarget.value)} /><input value={linkUrl()} maxlength="2048" type="url" placeholder="https://example.com" aria-label="Web link" onInput={event => setLinkUrl(event.currentTarget.value)} /><button disabled={!linkUrl().trim()}>Add link</button></form></Show>
       <Show when={fileError()}><p class="project-file-error" role="alert">{fileError()}</p></Show>
       <section class="project-file-grid" aria-label="Project files">
-        <Show when={props.files.length} fallback={<div class="project-empty-state"><strong>No project files yet</strong><p>Attach a reference image or exported document, or save a web link here. Attachments are stored inside this .sketch file.</p></div>}>
+        <Show when={props.files.length} fallback={<div class="project-empty-state"><strong>No planning files yet</strong><p>Attach a reference image or exported document, or save a web link here. Attachments are stored inside this .sdplan file.</p></div>}>
           <For each={props.files.map(file => file.id)}>{id => {
             const file = () => props.files.find(item => item.id === id)!;
             return <article class={`project-file-card file-kind-${file().kind}`}>

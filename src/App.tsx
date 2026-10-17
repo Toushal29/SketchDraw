@@ -3,9 +3,11 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile, watch, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Update } from "@tauri-apps/plugin-updater";
 import "./App.css";
+import "/src/styles/app/web-preview.css";
 import type { PdfRasterPage } from "./features/export/pdf-renderer";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
@@ -15,6 +17,11 @@ import { ensureIds, resolveBindings, copyElements, isConnector, isLabelShape, is
 import type { NoteKind } from "./model";
 import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryComponentKind } from "./notes";
 import { parseSchema } from "./schema";
+import { importDrawio, importExcalidraw, exportDrawio, exportExcalidraw } from "./features/diagrams/interchange";
+import { csvToDiagram } from "./features/diagrams/csv-diagram";
+import { dotToDiagram } from "./features/diagrams/dot";
+import { exportDiagramCode, plantUmlToDiagram, type DiagramCodeFormat } from "./features/diagrams/code-formats";
+import { makeWebPreviewCard, webEmbedUrl } from "./features/canvas/web-preview";
 import { assignLibraryComponentIds, libraryComponentFields, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryCheckboxOption, setLibraryFormState, setLibraryLifelineLength, setLibraryRadioOption } from "./features/components/library-component-editor";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
 import { GestureSettings, TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, readTouchGestureAction, readTouchTapAction, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./platform/mobile/GestureSettings";
@@ -36,7 +43,7 @@ import { LibraryComponentIcon } from "./components/LibraryComponentIcon";
 import { FLOWCHART_MENU_SHAPES } from "./features/diagrams/config";
 import { arrowHeadPoints, pointInPolygon, traceFlowchart, flowchartPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, flowchartDatabaseRimPath } from "./features/canvas/geometry";
 import { unionBounds, elementBounds, elementGridBounds, distanceToSegment } from "./features/canvas/bounds";
-import { elementSpatialIndex } from "./features/canvas/spatial-index";
+import { ElementSpatialIndex } from "./features/canvas/spatial-index";
 import { getToolLayers, reorderToolLayer, toggleToolLayer } from "./features/canvas/tool-layers";
 import { createCanvasHistory } from "./features/canvas/history";
 import { gridStepForStyle, gridSvgPattern, pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePoint } from "./features/canvas/input";
@@ -47,6 +54,7 @@ import { drawLibraryChart } from "./features/components/chart-renderer";
 import { drawModelComponent } from "./features/components/model-component-renderer";
 import { createFreehandRenderer } from "./features/canvas/freehand-rendering";
 import { createStrokeSampleGate } from "./features/canvas/stroke-input";
+import { appendSimplifiedStrokePoint } from "./features/canvas/stroke-simplification";
 import { MAX_STROKE_POINTS } from "./features/canvas/stroke-limits";
 import { isRecord, normalizeElement } from "./features/files/parse-sketch";
 import { withSketchExtension, normalizeFileUri, isSketchPath, displayPathName } from "./features/files/paths";
@@ -57,8 +65,7 @@ import type { PaletteCommand } from "./platform/windows/CommandPalette";
 import { createWindowsSyncMetadata } from "./platform/windows/sync";
 import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, displayShortcut, formatShortcutBindings, loadWindowsShortcuts, matchesWindowsMouseShortcut, matchesWindowsShortcut, normalizeShortcut, shortcutFromMouseEvent, type WindowsShortcutId, type WindowsShortcutMap, type WindowsShortcutSlot } from "./platform/windows/shortcuts";
 import { autoRoutePoints } from "./platform/windows/connector-routing";
-import { ProjectWorkspace } from "./features/project/ProjectWorkspace";
-import { createProjectWorkspace } from "./features/project/project-data";
+import { createPlanningSession } from "./features/project/planning-session";
 import { clearRetiredLibraryData, createLegacyLibraryData, createRetiredLibraryArchive, hasRetiredLibraryData } from "./features/files/legacy-library-data";
 import { WorkspaceAreaTabs } from "./features/workspace/WorkspaceAreaTabs";
 import type { WorkspaceArea } from "./features/workspace/workspace-types";
@@ -155,6 +162,7 @@ function ArrowHeadIcon(props: { kind: ArrowHead }) {
 }
 const emptyCanvas = (): CanvasState => ({ zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff", boardColorFollowsTheme: true });
 const cloneElements = (items: Element[]): Element[] => JSON.parse(JSON.stringify(items)) as Element[];
+const sameCanvasPoints = (left: Point[] | undefined, right: Point[]) => !!left && left.length === right.length && left.every((point, index) => point.x === right[index].x && point.y === right[index].y);
 const WINDOWS_SHAPE_TYPES = ["rectangle", "circle", "diamond", "triangle", "flowchart", "line", "arrow"] as const;
 const isShapeLike = (element: Element) => (WINDOWS_SHAPE_TYPES as readonly string[]).includes(element.type);
 const isShapeLikeType = (type: Element["type"]) => (WINDOWS_SHAPE_TYPES as readonly string[]).includes(type);
@@ -167,6 +175,7 @@ const WindowsDocumentTabs = lazy(async () => { const module = await import("./pl
 const WindowsKeyboardShortcutsDialog = lazy(async () => { const module = await import("./platform/windows/KeyboardShortcutsDialog"); return { default: module.KeyboardShortcutsDialog }; });
 const CanvasMinimap = lazy(async () => { const module = await import("./components/CanvasMinimap"); return { default: module.CanvasMinimap }; });
 const WindowsFocusTools = lazy(async () => { const module = await import("./platform/windows/WindowsFocusTools"); return { default: module.WindowsFocusTools }; });
+const ProjectWorkspace = lazy(async () => { const module = await import("./features/project/ProjectWorkspace"); return { default: module.ProjectWorkspace }; });
 
 function App() {
   const isAndroidPlatform = () => isTauri() && typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
@@ -179,26 +188,97 @@ function App() {
     if (isAndroidPlatform()) return invoke<string | null>("create_sketch_document", { fileName });
     return save({ title: "Create SketchDraw file", defaultPath: fileName, filters: [{ name: "SketchDraw", extensions: ["sketch"] }] });
   }
+  async function choosePlanningDocument() {
+    if (isAndroidPlatform()) return invoke<string | null>("pick_planning_document");
+    const selected = await open({ title: "Open Planning file", multiple: false, pickerMode: "document", filters: [{ name: "SketchDraw Planning", extensions: ["sdplan"] }] });
+    return typeof selected === "string" ? selected : null;
+  }
+  async function choosePlanningDocuments() {
+    if (isAndroidPlatform()) {
+      const selected = await invoke<string | null>("pick_planning_document");
+      return selected ? [selected] : [];
+    }
+    const selected = await open({ title: "Add Planning files to overview", multiple: true, pickerMode: "document", filters: [{ name: "SketchDraw Planning", extensions: ["sdplan"] }] });
+    return Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
+  }
+  async function createPlanningDocument(fileName: string) {
+    if (isAndroidPlatform()) return invoke<string | null>("create_planning_document", { fileName });
+    return save({ title: "Create Planning file", defaultPath: fileName, filters: [{ name: "SketchDraw Planning", extensions: ["sdplan"] }] });
+  }
+  async function exportPlanningText(fileName: string, extension: "html" | "csv" | "ics", contents: string): Promise<boolean> {
+    try {
+      const filters = [{ name: extension === "ics" ? "Calendar" : extension === "csv" ? "Comma-separated values" : "HTML report", extensions: [extension] }];
+      if (isAndroidPlatform()) {
+        const uri = await invoke<string | null>("create_planning_export", { fileName });
+        if (!uri) return false;
+        await invoke("write_sketch_document", { uri, contents });
+        return true;
+      }
+      const target = await save({ title: `Export Planning ${extension.toUpperCase()}`, defaultPath: fileName, filters });
+      if (!target) return false;
+      await writeTextFile(target, contents);
+      return true;
+    } catch (cause) {
+      setError(`Could not export Planning file: ${String(cause)}`);
+      return false;
+    }
+  }
+  async function exportTextDocument(fileName: string, extension: DiagramCodeFormat, contents: string): Promise<boolean> {
+    try {
+      if (isAndroidPlatform()) {
+        const uri = await invoke<string | null>("create_text_export", { fileName });
+        if (!uri) return false;
+        await invoke("write_sketch_document", { uri, contents });
+        return true;
+      }
+      const labels: Record<DiagramCodeFormat, string> = { mmd: "Mermaid flowchart", dot: "Graphviz DOT", csv: "Diagram CSV", sql: "SQL schema", json: "JSON Schema", puml: "PlantUML" };
+      const selected = await save({ title: `Export ${labels[extension]}`, defaultPath: fileName, filters: [{ name: labels[extension], extensions: [extension] }] });
+      if (!selected) return false;
+      const target = selected.toLowerCase().endsWith(`.${extension}`) ? selected : `${selected}.${extension}`;
+      await writeTextFile(target, contents);
+      return true;
+    } catch (cause) {
+      setError(`Could not export diagram code: ${String(cause)}`);
+      return false;
+    }
+  }
   const [documentRevision, setDocumentRevision] = createSignal(0);
   const advanceDocumentRevision = () => setDocumentRevision(revision => revision + 1);
   const [elements, setElementsSignal] = createSignal<Element[]>([]);
+  const activeElementSpatialIndex = new ElementSpatialIndex();
   const toolLayers = createMemo(() => getToolLayers(elements()));
   function withWindowsRouteSnapshots(items: Element[]): Element[] {
     if (!isWindowsPlatform()) return items;
     const refresh = (item: Element): Element => {
-      if (item.type === "group") return { ...item, elements: item.elements.map(refresh) };
+      if (item.type === "group") {
+        const elements = item.elements.map(refresh);
+        return elements.every((child, index) => child === item.elements[index]) ? item : { ...item, elements };
+      }
       if (!isConnector(item) || !item.autoRoute) return item;
-      return { ...item, routePoints: autoRoutePoints(item, items) };
+      const routePoints = autoRoutePoints(item, items);
+      return sameCanvasPoints(item.routePoints, routePoints) ? item : { ...item, routePoints };
     };
     return items.map(refresh);
   }
   function setElements(next: Element[] | ((previous: Element[]) => Element[])) {
     advanceDocumentRevision();
-    return setElementsSignal(previous => withWindowsRouteSnapshots(resolveBindings(ensureIds(typeof next === "function" ? next(previous) : next))));
+    return setElementsSignal(previous => {
+      const updated = withWindowsRouteSnapshots(resolveBindings(ensureIds(typeof next === "function" ? next(previous) : next)));
+      activeElementSpatialIndex.update(updated);
+      return updated;
+    });
   }
   // Pointer drags run once per display frame. Keep their immutable preview
-  // updates cheap, then validate identities and connector bindings on release.
-  function setElementsTransient(next: Element[] | ((previous: Element[]) => Element[])) { advanceDocumentRevision(); return setElementsSignal(next); }
+  // updates cheap, while the incremental index refreshes changed objects only.
+  function setElementsTransient(next: Element[] | ((previous: Element[]) => Element[]), changedIndices?: readonly number[]) {
+    advanceDocumentRevision();
+    return setElementsSignal(previous => {
+      const updated = typeof next === "function" ? next(previous) : next;
+      if (changedIndices) activeElementSpatialIndex.updateChanged(updated, changedIndices);
+      else activeElementSpatialIndex.update(updated);
+      return updated;
+    });
+  }
   const [canvasState, setCanvasStateSignal] = createSignal<CanvasState>(emptyCanvas());
   const setCanvasState: typeof setCanvasStateSignal = next => { advanceDocumentRevision(); return setCanvasStateSignal(next); };
   const documentSession = createDocumentSession();
@@ -206,7 +286,6 @@ function App() {
     pages, setPages: setPagesSignal,
     activePageId, setActivePageId: setActivePageIdSignal,
     activePath, setActivePath,
-    projectWorkspaceData, setProjectWorkspaceData: setProjectWorkspaceDataSignal,
     legacyLibraryData, setLegacyLibraryData: setLegacyLibraryDataSignal,
     workspaceArea, setWorkspaceArea,
     readOnlyView, setReadOnlyView,
@@ -217,7 +296,6 @@ function App() {
   } = documentSession;
   const setPages: typeof setPagesSignal = next => { advanceDocumentRevision(); return setPagesSignal(next); };
   const setActivePageId: typeof setActivePageIdSignal = next => { advanceDocumentRevision(); return setActivePageIdSignal(next); };
-  const setProjectWorkspaceData: typeof setProjectWorkspaceDataSignal = next => { advanceDocumentRevision(); return setProjectWorkspaceDataSignal(next); };
   const setLegacyLibraryData: typeof setLegacyLibraryDataSignal = next => { advanceDocumentRevision(); return setLegacyLibraryDataSignal(next); };
   const setDirty = (value: boolean) => {
     if (value) advanceDocumentRevision();
@@ -360,10 +438,21 @@ function App() {
   const [mermaidEditingDiagram, setMermaidEditingDiagram] = createSignal<string>();
   const [mermaidInput, setMermaidInput] = createSignal("flowchart TD\n  Start([Start]) --> Check{Ready?}\n  Check -->|Yes| Done[Finish]\n  Check -->|No| Wait[Wait]");
   const [mermaidError, setMermaidError] = createSignal("");
+  const [diagramCodeExportOpen, setDiagramCodeExportOpen] = createSignal(false);
+  const [diagramCodeFormat, setDiagramCodeFormat] = createSignal<DiagramCodeFormat>("mmd");
+  const [webEmbedDialog, setWebEmbedDialog] = createSignal(false);
+  const [webEmbedInput, setWebEmbedInput] = createSignal("");
+  const [webEmbedError, setWebEmbedError] = createSignal("");
+  const [activeWebPreview, setActiveWebPreview] = createSignal<{ id: string; url: string; embedUrl: string }>();
+  createEffect(() => {
+    const preview = activeWebPreview();
+    if (preview && (workspaceArea() !== "canvas" || !activePath() || !elements().some(item => item.type === "image" && item.id === preview.id && !!item.previewUrl))) setActiveWebPreview(undefined);
+  });
   const [isPanning, setIsPanning] = createSignal(false);
   const [spaceDown, setSpaceDown] = createSignal(false);
   const [historyVersion, setHistoryVersion] = createSignal(0);
   const imageCache = new Map<string, HTMLImageElement>();
+  const [canvasAssetRevision, setCanvasAssetRevision] = createSignal(0);
   const textLinesCache = new WeakMap<TextElement, string[]>();
   const [themeMode, setThemeMode] = createSignal<ThemeMode>((() => {
     try { const saved = localStorage.getItem("sketchdraw-theme"); return saved === "light" || saved === "dark" ? saved : "system"; }
@@ -401,6 +490,7 @@ function App() {
   let drawing = false;
   let activeDrawingTool: Preview["type"] = "pen";
   let currentPoints: StrokePoint[] = [];
+  let currentPointsRevision = 0;
   const strokeSampleGate = createStrokeSampleGate();
   let strokePointLimitReached = false;
   let pendingAndroidStylusSamples: AndroidStylusSample[] = [];
@@ -429,6 +519,8 @@ function App() {
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number } | undefined;
   let resizeOrigin: { index: number; handle: string; start: Point; original: Element; before: Element[]; moved: boolean } | undefined;
   const [nativeBusy, setNativeBusy] = createSignal(false);
+  const planningSession = createPlanningSession({ busy: nativeBusy, setBusy: setNativeBusy, chooseDocument: choosePlanningDocument, createDocument: createPlanningDocument, activeSketchPath: activePath, displayNameForPath, setError });
+  const { recentPlans, data: projectWorkspaceData, path: planningPath, dirty: planningDirty, saving: planningSaving, savedAt: planningSavedAt, legacyPending: legacyPlanningPending, needsExtraction: planningNeedsExtraction } = planningSession;
   const [documentBusy, setDocumentBusy] = createSignal(false);
   const [openToolOptions, setOpenToolOptions] = createSignal<Tool>();
   const [stencilMenuOpen, setStencilMenuOpen] = createSignal(false);
@@ -772,6 +864,28 @@ function App() {
   function displayNameForPath(path: string) {
     return providerDocumentNames()[path] ?? (/^content:\/\//i.test(path) ? "Selected document" : displayPathName(path));
   }
+  const openingAssociatedFiles = new Set<string>();
+  const recentAssociatedFileOpens = new Map<string, number>();
+  async function openAssociatedFile(candidate: string) {
+    const path = normalizeFileUri(candidate);
+    const key = path.toLowerCase();
+    const lastOpened = recentAssociatedFileOpens.get(key) ?? 0;
+    if (!path || openingAssociatedFiles.has(key) || Date.now() - lastOpened < 1500) return;
+    openingAssociatedFiles.add(key);
+    try {
+      if (/^content:\/\//i.test(path)) await resolveAndroidDocumentName(path);
+      const name = displayNameForPath(path).toLowerCase();
+      if (name.endsWith(".sdplan")) {
+        if (await planningSession.load(path)) { setWorkspaceArea("planning"); recentAssociatedFileOpens.set(key, Date.now()); }
+      } else if (name.endsWith(".sketch")) {
+        await loadFile(path);
+        recentAssociatedFileOpens.set(key, Date.now());
+      }
+    } finally { openingAssociatedFiles.delete(key); }
+  }
+  async function openAssociatedFiles(paths: string[]) {
+    for (const path of paths) await openAssociatedFile(path);
+  }
   function resolveAndroidDocumentName(path: string): Promise<string | undefined> {
     if (!isAndroidPlatform() || !/^content:\/\//i.test(path)) return Promise.resolve(undefined);
     const existing = providerDocumentNames()[path];
@@ -862,7 +976,7 @@ function App() {
   const documentSnapshotCoordinator = createDocumentSnapshotCoordinator({
     readDocument: () => ({
       pages: pages(), activePageId: activePageId(), activeElements: elements(), activeCanvasState: canvasState(),
-      activeRenderedBoardColor: renderedBoardColor(), theme: theme(), project: projectWorkspaceData(), library: legacyLibraryData(),
+      activeRenderedBoardColor: renderedBoardColor(), theme: theme(), library: legacyLibraryData(),
     }),
     activePath,
     revision: documentRevision,
@@ -873,7 +987,7 @@ function App() {
   const snapshotRaw = serializeSketchSnapshot;
   createEffect(() => {
     const path = activePath();
-    pages(); activePageId(); elements(); canvasState(); renderedBoardColor(); theme(); projectWorkspaceData(); legacyLibraryData(); windowsSyncMetadata();
+    pages(); activePageId(); elements(); canvasState(); renderedBoardColor(); theme(); legacyLibraryData(); windowsSyncMetadata();
     if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer);
     syncObservationTimer = undefined;
     if (!path || !pages().length || !activePageId()) return;
@@ -888,14 +1002,14 @@ function App() {
   function storeCurrentPage() {
     const id = activePageId();
     if (!id) return;
-    setPages((items) => items.map((page) => page.id === id ? { ...page, elements: cloneElements(elements()), canvasState: { ...canvasState(), backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() } } : page));
+    setPages((items) => items.map((page) => page.id === id ? { ...page, elements: elements(), canvasState: { ...canvasState(), backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() } } : page));
   }
   function switchPage(id: string) {
     if (id === activePageId()) return;
     const target = pages().find((page) => page.id === id);
     if (!target) return;
     commitTextDraft(); rememberPageHistory(); storeCurrentPage();
-    setElements(cloneElements(target.elements)); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false);
+    setElements(target.elements); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false);
     setActivePageId(id); setSelectedIndices([]); setHoveredIndex(undefined); setTextDraft(undefined); setMarquee(undefined);
     restorePageHistory(); setDirty(!readOnlyView());
   }
@@ -910,19 +1024,26 @@ function App() {
   function deleteCurrentPage() {
     if (boardLocked() || pages().length <= 1) return;
     const nextPages = pages().filter((page) => page.id !== activePageId()); const target = nextPages[Math.max(0, pages().findIndex((page) => page.id === activePageId()) - 1)] ?? nextPages[0];
-    setPages(nextPages); setActivePageId(target.id); setElements(cloneElements(target.elements)); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false); setSelectedIndices([]); setTextDraft(undefined); setHoveredIndex(undefined); setMarquee(undefined); restorePageHistory(); setDirty(true);
+    setPages(nextPages); setActivePageId(target.id); setElements(target.elements); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false); setSelectedIndices([]); setTextDraft(undefined); setHoveredIndex(undefined); setMarquee(undefined); restorePageHistory(); setDirty(true);
   }
   const canUndo = () => { historyVersion(); return canvasHistory.canUndo(); };
   const canRedo = () => { historyVersion(); return canvasHistory.canRedo(); };
   const toWorld = (event: PointerEvent): Point => pointerToWorld(event.clientX, event.clientY, canvas.getBoundingClientRect(), canvasState());
   const strokePointFromPointer = (event: PointerEvent, point: Point): StrokePoint => makeStrokePoint(event, point, penPressure(), penTilt());
   function appendStrokePoint(point: StrokePoint) {
-    if (currentPoints.length >= MAX_STROKE_POINTS) {
+    const simplifyInk = activeDrawingTool === "pen" && tool() === "pen";
+    if (simplifyInk) {
+      // Keep the maximum geometric error below a quarter screen pixel at the
+      // capture zoom, while retaining bends and pressure/tilt transitions.
+      appendSimplifiedStrokePoint(currentPoints, point, .25 / Math.max(.01, canvasState().zoom));
+    } else currentPoints.push(point);
+    if (currentPoints.length > MAX_STROKE_POINTS) {
+      currentPoints.pop();
       if (!strokePointLimitReached) setError(`A stroke reached the ${MAX_STROKE_POINTS.toLocaleString()}-point limit. Its captured section was kept.`);
       strokePointLimitReached = true;
       return false;
     }
-    currentPoints.push(point);
+    currentPointsRevision++;
     return true;
   }
   function appendAndroidStylusSamples(samples: AndroidStylusSample[]) {
@@ -1195,11 +1316,12 @@ function App() {
   }
 
   function handleCanvasDoubleClick(event: MouseEvent) {
-    if (readOnlyView() || boardLocked() || tool() === "text") return;
-    event.preventDefault();
     const rect = canvas.getBoundingClientRect(); const view = canvasState();
     const point = { x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom };
     const hit = hitTest(point) ?? hitInterior(point); const target = hit === undefined ? undefined : elements()[hit];
+    if (target?.type === "image" && target.previewUrl) { event.preventDefault(); setActiveWebPreview({ id: target.id!, url: target.previewUrl, embedUrl: webEmbedUrl(target.previewUrl) }); return; }
+    if (readOnlyView() || boardLocked() || tool() === "text") return;
+    event.preventDefault();
     if (target?.type === "schemaTable") { openSchemaDialog(target.schemaDiagramId); return; }
     if (target?.type === "group" && target.mermaid) { openMermaidDialog(target.id); return; }
     if (target?.type === "group" && !target.note && !target.mermaid && hit !== undefined) {
@@ -1612,7 +1734,7 @@ function App() {
     const zoom = canvasState().zoom;
     const tolerance = 12 / zoom;
     const items = elements();
-    const candidates = elementSpatialIndex(items).query({ x: point.x - tolerance, y: point.y - tolerance, w: tolerance * 2, h: tolerance * 2 });
+    const candidates = activeElementSpatialIndex.query({ x: point.x - tolerance, y: point.y - tolerance, w: tolerance * 2, h: tolerance * 2 });
     for (let candidateIndex = candidates.length - 1; candidateIndex >= 0; candidateIndex--) {
       const index = candidates[candidateIndex];
       const element = items[index]; const bounds = elementBounds(element);
@@ -1874,15 +1996,17 @@ function App() {
   }
 
   const sceneRenderer = createCanvasSceneRenderer({
-    elements, canvasState, renderedBoardColor, whiteboardStyle, showGrid, gridSize: GRID_SIZE, selectedSet,
+    elements, spatialIndex: () => activeElementSpatialIndex, canvasState, renderedBoardColor, whiteboardStyle, showGrid, gridSize: GRID_SIZE, selectedSet,
     moveOrigin: () => moveOrigin, resizeOrigin: () => resizeOrigin,
     hoveredIndex, boardLocked, tool, attachmentHint, alignmentGuides, showAlignmentGuides, marquee,
+    tileCacheKey: () => `${theme()}|${componentAppearance()}|${canvasAssetRevision()}`, tileCacheAllowed: () => !textDraft() && !noteEditor() && !resizeOrigin && !labelMoveOrigin,
     laserTrail, laserThickness, preview, currentPoints: () => currentPoints,
     lineStyle, edgeStyle, cornerRadius, fillEnabled, fillColor, fillOpacity,
     defaultLineStartHead, defaultLineEndHead, defaultStartHead, defaultEndHead, defaultForkUpperHead, defaultForkLowerHead,
     drawElement, drawLaserStroke, connectorForView, connectorHandles, resolveDraggedConnector, intersectsBounds,
     drawFreehandPreview: (ctx, element) => { ctx.save(); ctx.globalAlpha = element.opacity ?? 1; freehandRenderer.draw(ctx, element, themeInk(element.color, theme()), false, true); ctx.restore(); },
   });
+  onCleanup(sceneRenderer.dispose);
   const drawScene = sceneRenderer.drawScene;
 
   const canvasRenderScheduler = createCanvasRenderScheduler({
@@ -1893,7 +2017,7 @@ function App() {
   });
   const scheduleCanvasRender = canvasRenderScheduler.schedule;
   onCleanup(canvasRenderScheduler.dispose);
-  createEffect(() => { activePath(); elements(); canvasState(); preview(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); componentAppearance(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
+  createEffect(() => { workspaceArea(); activePath(); elements(); canvasState(); preview(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); componentAppearance(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
   let lastAndroidStylusConfig = "";
   createEffect(() => {
     if (!isAndroidPlatform()) return;
@@ -1962,7 +2086,7 @@ function App() {
     const visit = (children: Element[]) => { for (const child of children) { if (child.type === "image") retained.add(child.dataUrl); else if (child.type === "group") visit(child.elements); } };
     visit(items);
     for (const key of imageCache.keys()) if (!retained.has(key)) imageCache.delete(key);
-    for (const key of retained) if (!imageCache.has(key)) { const image = new Image(); image.onload = () => { if (imageCache.get(key) === image) scheduleCanvasRender(); }; image.src = key; imageCache.set(key, image); }
+    for (const key of retained) if (!imageCache.has(key)) { const image = new Image(); image.onload = () => { if (imageCache.get(key) === image) { setCanvasAssetRevision(version => version + 1); scheduleCanvasRender(); } }; image.src = key; imageCache.set(key, image); }
   });
   createEffect(() => {
     if (!activePath() || !canvasWrap) return;
@@ -1972,10 +2096,10 @@ function App() {
   });
 
   createEffect(() => {
-    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setRenameFileOpen(false); setSchemaDialog(false); setMermaidDialog(false); setShowClearConfirm(false); setContextMenu(undefined); closeToolOptions(); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; }
+    if (syncConflict() || recoveryPrompt()) { setExportOptionsOpen(false); setPageDialog(undefined); setRenameFileOpen(false); setSchemaDialog(false); setMermaidDialog(false); setWebEmbedDialog(false); setShowClearConfirm(false); setContextMenu(undefined); closeToolOptions(); if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; }
   });
   createEffect(() => {
-    const open = pageDialog() || renameFileOpen() || schemaDialog() || mermaidDialog() || exportOptionsOpen() || showClearConfirm() || recoveryPrompt() || syncConflict() || helpOpen() || (isWindowsPlatform() && shortcutDialogOpen());
+    const open = pageDialog() || renameFileOpen() || schemaDialog() || mermaidDialog() || webEmbedDialog() || exportOptionsOpen() || showClearConfirm() || recoveryPrompt() || syncConflict() || helpOpen() || (isWindowsPlatform() && shortcutDialogOpen());
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     const frame = requestAnimationFrame(() => { const dialog = document.querySelector<HTMLElement>("[aria-modal='true']"); (dialog?.querySelector<HTMLElement>("[autofocus], input, button") ?? dialog)?.focus(); });
@@ -2005,10 +2129,19 @@ function App() {
       try { localStorage.setItem("sketchdraw-v8-recent-files", JSON.stringify(combined)); } catch { /* Native storage remains the durable copy. */ }
       if (combined.length) void invoke("save_recent_sketches", { paths: combined }).catch(() => undefined);
     }).catch(() => undefined);
-    void invoke<string[]>("take_startup_files").then((paths) => {
-      const path = paths.find((candidate) => candidate.toLowerCase().endsWith(".sketch"));
-      if (path) void loadFile(path);
-    }).catch((cause) => setError(`Could not check for a SketchDraw file to open: ${String(cause)}`));
+    let openFileEventsDisposed = false;
+    let unlistenOpenFiles: (() => void) | undefined;
+    onCleanup(() => { openFileEventsDisposed = true; unlistenOpenFiles?.(); });
+    void (async () => {
+      try {
+        const unlisten = await listen<string[]>("open-files", event => { void openAssociatedFiles(event.payload); });
+        if (openFileEventsDisposed) unlisten(); else unlistenOpenFiles = unlisten;
+      } catch (cause) { setError(`Could not listen for files opened by the operating system: ${String(cause)}`); }
+      try {
+        const paths = await invoke<string[]>("take_startup_files");
+        await openAssociatedFiles(paths);
+      } catch (cause) { setError(`Could not check for a SketchDraw file to open: ${String(cause)}`); }
+    })();
     const keyDown = (event: KeyboardEvent) => {
       if (isWindowsPlatform() && activePath() && event.key === "F11") { event.preventDefault(); void toggleWindowsFullscreen(); return; }
       if (event.key === "Escape") {
@@ -2020,6 +2153,8 @@ function App() {
         if (noteEditor()) { event.preventDefault(); saveNoteEditor(); if (isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } return; }
         if (schemaDialog()) { event.preventDefault(); setSchemaDialog(false); return; }
         if (mermaidDialog()) { event.preventDefault(); setMermaidDialog(false); return; }
+        if (diagramCodeExportOpen()) { event.preventDefault(); setDiagramCodeExportOpen(false); return; }
+        if (webEmbedDialog()) { event.preventDefault(); setWebEmbedDialog(false); return; }
         if (renameFileOpen()) { event.preventDefault(); setRenameFileOpen(false); return; }
         if (pageDialog()) { event.preventDefault(); setPageDialog(undefined); return; }
         if (helpOpen()) { event.preventDefault(); setHelpOpen(false); return; }
@@ -2037,7 +2172,7 @@ function App() {
         if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; return;
       }
       if (event.key === "F1") { event.preventDefault(); setHelpOpen(true); return; }
-      if (recoveryPrompt() || syncConflict() || exportOptionsOpen() || showClearConfirm() || pageDialog() || renameFileOpen() || schemaDialog() || mermaidDialog() || noteEditor() || contextMenu()) return;
+      if (recoveryPrompt() || syncConflict() || exportOptionsOpen() || showClearConfirm() || pageDialog() || renameFileOpen() || schemaDialog() || mermaidDialog() || webEmbedDialog() || noteEditor() || contextMenu()) return;
       if (event.target instanceof HTMLElement && event.target.closest("details[open], .tool-options")) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
       if (isWindowsPlatform()) {
@@ -2047,6 +2182,7 @@ function App() {
         if (reassignedDefault) { event.preventDefault(); return; }
         if (presentationMode() && (event.key === "ArrowRight" || event.key === "ArrowLeft")) { event.preventDefault(); changePresentationPage(event.key === "ArrowRight" ? 1 : -1); return; }
       }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && workspaceArea() === "planning") { event.preventDefault(); void savePlanningDocument(); return; }
       if (!activePath()) return;
       if (readOnlyView()) {
         const key = event.key.toLowerCase();
@@ -2060,7 +2196,7 @@ function App() {
       const key = event.key.toLowerCase();
       if ((event.ctrlKey || event.metaKey) && key === "n") { event.preventDefault(); void createFile(); return; }
       if ((event.ctrlKey || event.metaKey) && key === "o") { event.preventDefault(); void openFile(); return; }
-      if ((event.ctrlKey || event.metaKey) && key === "s") { event.preventDefault(); if (activePath()) void saveToPath(activePath()!); else void saveAs(); return; }
+      if ((event.ctrlKey || event.metaKey) && key === "s") { event.preventDefault(); void saveCurrentWorkspace(); return; }
       if ((event.ctrlKey || event.metaKey) && key === "g") { event.preventDefault(); if (event.shiftKey) ungroupSelection(); else groupSelection(); return; }
       if ((event.ctrlKey || event.metaKey) && key === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); return; }
       if ((event.ctrlKey || event.metaKey) && key === "y") { event.preventDefault(); redo(); return; }
@@ -2078,7 +2214,7 @@ function App() {
       if (key === "v") activateTool("select"); else if (key === "p") activateTool("pen"); else if (key === "y") activateTool("laser"); else if (key === "r") activateTool("rectangle"); else if (key === "c" || key === "o") activateTool("circle"); else if (key === "d") activateTool("diamond"); else if (key === "n") activateTool("triangle"); else if (key === "l") activateTool("line"); else if (key === "a") activateTool("arrow"); else if (key === "f") activateTool("flowchart"); else if (key === "t") activateTool("text"); else if (key === "b") activateTool("bucket"); else if (key === "e") activateTool("eraser"); else if (key === "x") activateTool("crop");
       else if (key === "delete" || key === "backspace") { event.preventDefault(); deleteSelected(); }
     };
-    const clipboardAllowed = (target: EventTarget | null) => !readOnlyView() && activePath() && !pageDialog() && !schemaDialog() && !mermaidDialog() && !exportOptionsOpen() && !showClearConfirm() && !recoveryPrompt() && !syncConflict() && !noteEditor() && !(target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea")));
+    const clipboardAllowed = (target: EventTarget | null) => !readOnlyView() && activePath() && !pageDialog() && !schemaDialog() && !mermaidDialog() && !webEmbedDialog() && !exportOptionsOpen() && !showClearConfirm() && !recoveryPrompt() && !syncConflict() && !noteEditor() && !(target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea")));
     const copy = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || !selectedElements().length) return; event.preventDefault(); event.clipboardData?.setData("text/plain", clipboardPayload()); clipboardItems = copyElements(selectedElements(), 0, 0); };
     const paste = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || boardLocked()) return; const raw = event.clipboardData?.getData("text/plain"); if (raw) { event.preventDefault(); pastePayload(raw); } };
     const cut = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || boardLocked()) return; copy(event); if (event.defaultPrevented) deleteSelected(); };
@@ -2087,7 +2223,7 @@ function App() {
     const keyUp = (event: KeyboardEvent) => { if (event.code === "Space") setSpaceDown(false); };
     let lastMouseShortcut: { binding: string; at: number } | undefined;
     const runMouseShortcut = (event: MouseEvent, allowAction: boolean) => {
-      if (!isWindowsPlatform() || shortcutDialogOpen() || recoveryPrompt() || syncConflict() || helpOpen() || pageDialog() || renameFileOpen() || schemaDialog() || mermaidDialog() || exportOptionsOpen() || showClearConfirm() || noteEditor()) return;
+      if (!isWindowsPlatform() || shortcutDialogOpen() || recoveryPrompt() || syncConflict() || helpOpen() || pageDialog() || renameFileOpen() || schemaDialog() || mermaidDialog() || webEmbedDialog() || exportOptionsOpen() || showClearConfirm() || noteEditor()) return;
       if (event instanceof PointerEvent && event.pointerType !== "mouse") return;
       const binding = shortcutFromMouseEvent(event);
       if (!binding) return;
@@ -2282,9 +2418,11 @@ function App() {
 
   function recoverySnapshot(): SketchFile {
     const snapshot = documentSnapshot(); const draft = textDraft(); if (!draft) return snapshot;
-    const page = snapshot.pages.find(p => p.id === snapshot.activePageId); if (!page) return snapshot;
+    const pageIndex = snapshot.pages.findIndex(page => page.id === snapshot.activePageId); if (pageIndex < 0) return snapshot;
+    const page = { ...snapshot.pages[pageIndex], elements: [...snapshot.pages[pageIndex].elements] };
+    snapshot.pages = snapshot.pages.map((current, index) => index === pageIndex ? page : current);
     const style = { color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType };
-    if (draft.shapeLabel && draft.editingIndex !== undefined) { const item = page.elements[draft.editingIndex]; if (item && (isLabelShape(item) || isConnector(item))) item.label = { ...item.label, ...style, text: draft.value, verticalAlign: draft.verticalAlign ?? "middle" }; }
+    if (draft.shapeLabel && draft.editingIndex !== undefined) { const item = page.elements[draft.editingIndex]; if (item && (isLabelShape(item) || isConnector(item))) page.elements[draft.editingIndex] = { ...item, label: { ...item.label, ...style, text: draft.value, verticalAlign: draft.verticalAlign ?? "middle" } }; }
     else { const item: TextElement = { ...style, type: "text", x: draft.x, y: draft.y, text: draft.value, id: draft.editingIndex !== undefined ? page.elements[draft.editingIndex]?.id : crypto.randomUUID() }; if (draft.editingIndex !== undefined) page.elements[draft.editingIndex] = item; else if (draft.value.trim()) page.elements.push(item); }
     return snapshot;
   }
@@ -2303,21 +2441,21 @@ function App() {
       restoredComponents = true;
       return restored;
     }) }));
-    const existingProject = snapshot.project ?? (snapshot.library?.quickNotes.length ? createProjectWorkspace(displayNameForPath(path).replace(/\.sketch$/i, "")) : undefined);
-    const mergedNotes = existingProject ? [...existingProject.notes] : [];
-    const knownNoteIds = new Set(mergedNotes.map(note => note.id));
-    for (const note of snapshot.library?.quickNotes ?? []) if (!knownNoteIds.has(note.id)) { mergedNotes.push(note); knownNoteIds.add(note.id); }
-    const migratedNotes = mergedNotes.length !== (snapshot.project?.notes.length ?? 0);
-    const project = existingProject && migratedNotes ? { ...existingProject, notes: mergedNotes } : existingProject;
+    const migratedNotes = planningSession.importLegacyFromSketch({
+      path,
+      project: snapshot.project,
+      quickNotes: snapshot.library?.quickNotes ?? [],
+    });
+    const planningCleanSync = planningSession.removeLegacySyncMetadata(snapshot.windowsSync);
     const library = snapshot.library ? { ...snapshot.library, quickNotes: [] } : snapshot.library;
-    const migratedSnapshot = { ...snapshot, pages, ...(project ? { project } : {}), ...(library ? { library } : {}) };
-    const syncMeta = documentSnapshotCoordinator.initializeMetadata(migratedSnapshot, snapshot.windowsSync ?? createWindowsSyncMetadata());
+    const migratedSnapshot = { ...snapshot, pages, project: undefined, windowsSync: planningCleanSync, ...(library ? { library } : {}) };
+    const syncMeta = documentSnapshotCoordinator.initializeMetadata(migratedSnapshot, planningCleanSync ?? createWindowsSyncMetadata());
     const preparedSnapshot = { ...migratedSnapshot, windowsSync: syncMeta };
     const currentPage = documentSession.activate(preparedSnapshot, path, nextWorkspace);
-    setElements(cloneElements(currentPage.elements)); setCanvasState({ ...currentPage.canvasState });
+    setElements(currentPage.elements); setCanvasState({ ...currentPage.canvasState });
     setBoardColor(currentPage.canvasState.backgroundColor); setBoardColorFollowsTheme(currentPage.canvasState.boardColorFollowsTheme ?? false);
     documentSnapshotCoordinator.seed(preparedSnapshot);
-    rememberFile(path); setDirty(!snapshot.windowsSync || migratedNotes || restoredComponents); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); docController.setBaselineRaw(rawText);
+    rememberFile(path); setDirty(!snapshot.windowsSync || migratedNotes || restoredComponents || !!snapshot.project); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); docController.setBaselineRaw(rawText);
     setError("");
   }
 
@@ -2345,10 +2483,46 @@ function App() {
   }
   async function saveToPath(path: string, duringDocumentTransition = false) {
     if (documentBusy() && !duringDocumentTransition) return;
+    if (planningNeedsExtraction()) {
+      const migrated = legacyPlanningPending();
+      if (migrated) {
+        if (!await planningSession.saveLegacyCopy(migrated)) return;
+      } else if (planningDirty() && !planningPath()) {
+        if (!await savePlanningAs()) return;
+      }
+    }
     await docController.save(path);
   }
 
+  async function savePlanningAs() { return planningSession.saveAs(); }
+  async function savePlanningDocument() { return planningSession.save(); }
+  async function saveCurrentWorkspace() {
+    if (workspaceArea() === "planning") return savePlanningDocument();
+    if (activePath()) return saveToPath(activePath()!);
+    return saveAs();
+  }
+  async function openPlanningFile() {
+    if (documentBusy()) return;
+    if (await planningSession.openPicker()) setWorkspaceArea("planning");
+  }
+  async function createPlanningFromHome() {
+    if (documentBusy()) return;
+    if (await planningSession.create()) setWorkspaceArea("planning");
+  }
+  async function openRecentPlan(path: string) {
+    if (await planningSession.load(path)) setWorkspaceArea("planning");
+  }
+  async function addPlansToOverview() {
+    try {
+      const paths = await choosePlanningDocuments();
+      for (const path of paths) planningSession.remember(path);
+      if (!paths.length) return;
+      setError("");
+    } catch (cause) { setError(`Could not add Planning files: ${String(cause)}`); }
+  }
+
   async function saveAs() {
+    if (workspaceArea() === "planning") { await savePlanningAs(); return; }
     if (!activePath()) { await createFile(); return; }
     if (nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
@@ -2610,12 +2784,12 @@ function App() {
   }
 
   function runWindowsShortcut(id: WindowsShortcutId) {
-    if (readOnlyView() && !["commandPalette", "openSketch", "fitDrawing", "fitSelection", "resetZoom", "presentation"].includes(id)) return;
+    if (workspaceArea() === "canvas" && readOnlyView() && !["commandPalette", "openSketch", "fitDrawing", "fitSelection", "resetZoom", "presentation"].includes(id)) return;
     switch (id) {
       case "commandPalette": setCommandPaletteOpen(true); break;
       case "newSketch": void createFile(); break;
       case "openSketch": void openFile(); break;
-      case "saveSketch": if (activePath()) void saveToPath(activePath()!); else void saveAs(); break;
+      case "saveSketch": void saveCurrentWorkspace(); break;
       case "saveAs": void saveAs(); break;
       case "undo": undo(); break;
       case "redo": redo(); break;
@@ -2821,6 +2995,101 @@ function App() {
     pushUndo(cloneElements(elements())); setElements(items => [...items, item]); imageCache.set(dataUrl, new Image()); imageCache.get(dataUrl)!.src = dataUrl; setSelectedIndices([elements().length - 1]); setDirty(true);
   }
 
+  function remapImportedElementIds(imported: Element[]): Element[] {
+    const remapped = new Map<string, string>();
+    const collect = (items: Element[]) => { for (const item of items) { if (item.id && !remapped.has(item.id)) remapped.set(item.id, crypto.randomUUID()); if (item.type === "group") collect(item.elements); } };
+    collect(imported);
+    const binding = (value?: Binding): Binding | undefined => value ? { ...value, elementId: remapped.get(value.elementId) ?? value.elementId } : undefined;
+    const convert = (item: Element): Element => {
+      const id = item.id ? remapped.get(item.id) ?? crypto.randomUUID() : crypto.randomUUID();
+      if (item.type === "group") return { ...item, id, elements: item.elements.map(convert) };
+      if (item.type === "line" || item.type === "arrow") return { ...item, id, startBinding: binding(item.startBinding), endBinding: binding(item.endBinding), forkUpper: item.forkUpper ? { ...item.forkUpper, endBinding: binding(item.forkUpper.endBinding) } : undefined, forkLower: item.forkLower ? { ...item.forkLower, endBinding: binding(item.forkLower.endBinding) } : undefined };
+      if (item.type === "schemaTable") return { ...item, id, columns: item.columns.map(column => ({ ...column, id: crypto.randomUUID() })) };
+      return { ...item, id };
+    };
+    return imported.map(convert);
+  }
+
+  function placeImportedElements(source: Element[]) {
+    if (!source.length) throw new Error("No editable objects were found in this file.");
+    const unique = remapImportedElementIds(source);
+    const bounds = unionBounds(unique.map(elementBounds));
+    if (!bounds) throw new Error("The imported diagram has no drawable objects.");
+    const view = canvasState(); const rect = canvas.getBoundingClientRect();
+    const center = { x: (rect.width / 2 - view.panX) / view.zoom, y: (rect.height / 2 - view.panY) / view.zoom };
+    const moved = unique.map(item => moveElement(item, center.x - bounds.x - bounds.w / 2, center.y - bounds.y - bounds.h / 2));
+    const resolved = resolveBindings([...elements(), ...moved]).slice(elements().length);
+    const offset = elements().length;
+    pushUndo(cloneElements(elements())); setElements(current => [...current, ...resolved]);
+    setSelectedIndices(resolved.map((_, index) => offset + index)); setTool("select"); setDirty(true);
+  }
+
+  async function importDiagramFile() {
+    if (!activePath() || readOnlyView() || nativeBusy() || documentBusy() || boardLocked()) return;
+    setNativeBusy(true);
+    try {
+      const selected = await open({ title: "Import editable diagram or diagram code", multiple: false, filters: [{ name: "Diagrams and data", extensions: ["drawio", "xml", "excalidraw", "csv", "dot", "mmd", "mermaid", "puml", "plantuml"] }] });
+      if (!selected || Array.isArray(selected)) return;
+      const path = normalizeFileUri(selected); const fileName = path.split(/[\\/]/).pop() ?? ""; const extension = fileName.split(".").pop()?.toLowerCase();
+      const source = await readTextFile(selected);
+      let imported: Element[];
+      if (extension === "drawio" || extension === "xml") imported = await importDrawio(source);
+      else if (extension === "excalidraw") imported = importExcalidraw(source);
+      else if (extension === "csv") imported = csvToDiagram(source);
+      else if (extension === "dot") imported = dotToDiagram(source);
+      else if (extension === "mmd" || extension === "mermaid") imported = layoutMermaidFlowchart(parseMermaidFlowchart(source), { x: 0, y: 0 });
+      else if (extension === "puml" || extension === "plantuml") imported = plantUmlToDiagram(source);
+      else throw new Error("Choose a draw.io, Excalidraw, CSV, DOT, Mermaid, or PlantUML file.");
+      placeImportedElements(imported); setError("");
+    } catch (cause) { setError(`Could not import editable diagram: ${String(cause)}`); }
+    finally { setNativeBusy(false); }
+  }
+
+  async function exportEditableDiagram(format: "drawio" | "excalidraw") {
+    if (!activePath() || readOnlyView() || nativeBusy() || documentBusy()) return;
+    setNativeBusy(true);
+    try {
+      commitTextDraft();
+      const source = format === "drawio" ? exportDrawio(elements()) : exportExcalidraw(elements());
+      const selected = await save({ title: `Export editable ${format === "drawio" ? "draw.io" : "Excalidraw"} diagram`, defaultPath: `SketchDraw.${format}`, filters: [{ name: format === "drawio" ? "draw.io diagram" : "Excalidraw scene", extensions: [format] }] });
+      if (!selected) return;
+      const target = selected.toLowerCase().endsWith(`.${format}`) ? selected : `${selected}.${format}`;
+      await writeTextFile(target, source); setError("");
+    } catch (cause) { setError(`Could not export editable diagram: ${String(cause)}`); }
+    finally { setNativeBusy(false); }
+  }
+
+  async function exportDiagramAsCode() {
+    if (!activePath() || readOnlyView() || nativeBusy() || documentBusy()) return;
+    setNativeBusy(true);
+    try {
+      commitTextDraft();
+      const format = diagramCodeFormat();
+      const contents = exportDiagramCode(format, elements());
+      const baseName = displayNameForPath(activePath()!).replace(/\.sketch$/i, "") || "SketchDraw";
+      const saved = await exportTextDocument(`${baseName}.${format}`, format, contents);
+      if (saved) setError("");
+      setDiagramCodeExportOpen(false);
+    } catch (cause) {
+      setError(`Could not export diagram code: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } finally { setNativeBusy(false); }
+  }
+
+  function openWebEmbedDialog() {
+    if (!activePath() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()) return;
+    setWebEmbedInput(""); setWebEmbedError(""); setWebEmbedDialog(true);
+  }
+
+  function insertWebEmbed() {
+    if (!activePath() || readOnlyView() || boardLocked()) return;
+    try {
+      const card = makeWebPreviewCard(webEmbedInput()); const view = canvasState(); const rect = canvas.getBoundingClientRect();
+      const { width, height } = card;
+      const item: ImageElement = { type: "image", id: crypto.randomUUID(), x: (rect.width / 2 - view.panX) / view.zoom - width / 2, y: (rect.height / 2 - view.panY) / view.zoom - height / 2, w: width, h: height, dataUrl: card.dataUrl, sourceWidth: card.width, sourceHeight: card.height, previewUrl: card.url };
+      const index = elements().length; pushUndo(cloneElements(elements())); setElements(current => [...current, item]); setSelectedIndices([index]); setDirty(true); setWebEmbedDialog(false); setWebEmbedInput(""); setWebEmbedError(""); setError("");
+    } catch (cause) { setWebEmbedError(cause instanceof Error ? cause.message : String(cause)); }
+  }
+
   function toggleLayer(key: Element["type"], property: "hidden" | "locked") {
     if (boardLocked()) return;
     const before = cloneElements(elements());
@@ -2850,25 +3119,14 @@ function App() {
       const path = withSketchExtension(selected);
       if (/^content:\/\//i.test(path)) await sketchFileStore.authorize(path);
       const page: SketchPage = { id: "page-1", name: "Page 1", canvasState: emptyCanvas(), elements: [] };
-      const project = createProjectWorkspace(requestedName.replace(/\.sketch$/i, ""));
       const library = createLegacyLibraryData();
       const windowsSync = createWindowsSyncMetadata();
-      if (windowsSync) { windowsSync.clocks[`p:${page.id}`] = windowsSync.updatedAt; windowsSync.clocks["w:meta"] = windowsSync.updatedAt; }
-      const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page], project, library, ...(windowsSync ? { windowsSync } : {}) };
+      if (windowsSync) windowsSync.clocks[`p:${page.id}`] = windowsSync.updatedAt;
+      const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page], library, ...(windowsSync ? { windowsSync } : {}) };
       const contents = snapshotRaw(document);
       await sketchFileStore.write(path, contents, null);
       canvasHistory.clearAll(); documentSession.activate(document, path, "canvas"); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); documentSnapshotCoordinator.seed(document); setDirty(false); setBoardLocked(false); setError(""); docController.setBaselineRaw(contents);
     } catch (cause) { setError(`Could not create SketchDraw file: ${String(cause)}`); } finally { setNativeBusy(false); }
-  }
-
-  async function createProjectFromHome() {
-    const startingPath = activePath();
-    await createFile();
-    if (activePath() && activePath() !== startingPath) setWorkspaceArea("planning");
-  }
-
-  async function openRecentProject(path: string) {
-    await loadFile(path);
   }
 
   function openExportOptions(format: "png" | "svg" | "pdf") {
@@ -3300,9 +3558,9 @@ function App() {
 
   function pointerRawUpdate(event: PointerEvent) {
     if (event.pointerType !== "pen" || activePenPointerId !== event.pointerId || activeDrawingTool !== "pen" || (!drawing && !preview())) return;
-    const previousLength = currentPoints.length;
+    const previousRevision = currentPointsRevision;
     appendPenSamples(event);
-    if (currentPoints.length !== previousLength) canvasRenderScheduler.schedulePreview();
+    if (currentPointsRevision !== previousRevision) canvasRenderScheduler.schedulePreview();
   }
 
   function pointerMove(event: PointerEvent) {
@@ -3335,7 +3593,7 @@ function App() {
       const origin = labelMoveOrigin; const point = toWorld(event); const dx = point.x - origin.point.x; const dy = point.y - origin.point.y; const angle = -origin.rotation * Math.PI / 180; const localDx = dx * Math.cos(angle) - dy * Math.sin(angle); const localDy = dx * Math.sin(angle) + dy * Math.cos(angle);
       if (Math.hypot(dx, dy) > 0.5) origin.moved = true;
       if (origin.moved) {
-        setElementsTransient(origin.before.map((element, index) => index === origin.index && isConnector(element) ? { ...element, label: { text: "", color: color(), fontSize: defaultFontSize(), verticalAlign: "middle", ...element.label, offsetX: origin.offsetX + localDx, offsetY: origin.offsetY + localDy } } : element));
+        setElementsTransient(origin.before.map((element, index) => index === origin.index && isConnector(element) ? { ...element, label: { text: "", color: color(), fontSize: defaultFontSize(), verticalAlign: "middle", ...element.label, offsetX: origin.offsetX + localDx, offsetY: origin.offsetY + localDy } } : element), [origin.index]);
         setDirty(true);
       }
       return;
@@ -3345,7 +3603,7 @@ function App() {
       // through snapTranslation for moves, so resize remains continuous.
       const point = toWorld(event); if (Math.hypot(point.x - resizeOrigin.start.x, point.y - resizeOrigin.start.y) > 0.5) resizeOrigin.moved = true;
       const resized = resizeElement(resizeOrigin.original, resizeOrigin.handle, resizeOrigin.start, point);
-      setElementsTransient(resizeOrigin.before.map((element, index) => index === resizeOrigin!.index ? resized : element)); setDirty(true); return;
+      setElementsTransient(resizeOrigin.before.map((element, index) => index === resizeOrigin!.index ? resized : element), [resizeOrigin.index]); setDirty(true); return;
     }
     if (moveOrigin) {
       const point = toWorld(event); const dx = point.x - moveOrigin.point.x; const dy = point.y - moveOrigin.point.y;
@@ -3365,10 +3623,10 @@ function App() {
     }
     if (penEraserDrawing || tool() === "eraser") { eraseAtPoint(toWorld(event)); return; }
     if (activeDrawingTool === "pen") {
-      const previousLength = currentPoints.length;
+      const previousRevision = currentPointsRevision;
       if (event.pointerType === "pen") { event.preventDefault(); appendPenSamples(event); }
       else appendStrokeSample(event, toWorld(event));
-      if (currentPoints.length !== previousLength) canvasRenderScheduler.schedulePreview();
+      if (currentPointsRevision !== previousRevision) canvasRenderScheduler.schedulePreview();
       return;
     }
     const raw = toWorld(event); const port = activeDrawingTool === "line" || activeDrawingTool === "arrow" ? nearestBinding(elements(), raw, 18 / canvasState().zoom) : undefined;
@@ -3771,22 +4029,22 @@ function App() {
       const availableAbove = anchorBounds.top - viewportTop - gap - margin;
       const opensBelow = availableBelow >= availableAbove;
       const availableHeight = Math.max(80, Math.min(viewportHeight - margin * 2, opensBelow ? availableBelow : availableAbove));
-      panel.style.setProperty("max-width", `${(viewportWidth - margin * 2) / uiScale}px`, "important");
-      panel.style.setProperty("max-height", `${availableHeight / uiScale}px`, "important");
+      panel.style.setProperty("max-width", `${(viewportWidth - margin * 2) / uiScale}px`);
+      panel.style.setProperty("max-height", `${availableHeight / uiScale}px`);
       const measuredHeight = Math.min(panel.getBoundingClientRect().height || 280, availableHeight);
       left = Math.max(viewportLeft + margin, Math.min(anchorBounds.left, viewportLeft + viewportWidth - panelWidth - margin));
       top = opensBelow
         ? anchorBounds.bottom + gap
         : anchorBounds.top - measuredHeight - gap;
     } else {
-      panel.style.setProperty("max-height", `${(viewportHeight - margin * 2) / uiScale}px`, "important");
+      panel.style.setProperty("max-height", `${(viewportHeight - margin * 2) / uiScale}px`);
       const availableRight = viewportLeft + viewportWidth - anchorBounds.right - gap - margin;
       const availableLeft = anchorBounds.left - viewportLeft - gap - margin;
       const opensRight = availableRight >= availableLeft;
       panelWidth = Math.min(panelWidth, Math.max(160, opensRight ? availableRight : availableLeft));
-      panel.style.setProperty("width", `${panelWidth / uiScale}px`, "important");
-      panel.style.setProperty("max-width", `${panelWidth / uiScale}px`, "important");
-      panel.style.setProperty("max-height", `${(viewportHeight - margin * 2) / uiScale}px`, "important");
+      panel.style.setProperty("width", `${panelWidth / uiScale}px`);
+      panel.style.setProperty("max-width", `${panelWidth / uiScale}px`);
+      panel.style.setProperty("max-height", `${(viewportHeight - margin * 2) / uiScale}px`);
       left = opensRight
         ? anchorBounds.right + gap
         : anchorBounds.left - panelWidth - gap;
@@ -3798,13 +4056,13 @@ function App() {
 
     const measuredHeight = Math.min(panel.getBoundingClientRect().height || 280, viewportHeight - margin * 2);
     top = Math.max(viewportTop + margin, Math.min(top, viewportTop + viewportHeight - measuredHeight - margin));
-    panel.style.setProperty("position", "fixed", "important");
-    panel.style.setProperty("z-index", "2000", "important");
-    panel.style.setProperty("left", `${left / uiScale}px`, "important");
-    panel.style.setProperty("right", "auto", "important");
-    panel.style.setProperty("top", `${top / uiScale}px`, "important");
-    panel.style.setProperty("bottom", "auto", "important");
-    panel.style.setProperty("transform", "none", "important");
+    panel.style.setProperty("position", "fixed");
+    panel.style.setProperty("z-index", "2000");
+    panel.style.setProperty("left", `${left / uiScale}px`);
+    panel.style.setProperty("right", "auto");
+    panel.style.setProperty("top", `${top / uiScale}px`);
+    panel.style.setProperty("bottom", "auto");
+    panel.style.setProperty("transform", "none");
     panel.setAttribute("data-positioned", "true");
   };
   const scheduleTouchPopoverPlacement = () => {
@@ -3896,37 +4154,37 @@ function App() {
       const uiScale = Math.max(0.5, interfaceScale());
       const edge = 8;
       const maxWidth = Math.max(0, viewportWidth - edge * 2);
-      panel.style.setProperty("position", "fixed", "important");
-      panel.style.setProperty("z-index", "1800", "important");
-      panel.style.setProperty("box-sizing", "border-box", "important");
-      panel.style.setProperty("right", "auto", "important");
-      panel.style.setProperty("bottom", "auto", "important");
+      panel.style.setProperty("position", "fixed");
+      panel.style.setProperty("z-index", "1800");
+      panel.style.setProperty("box-sizing", "border-box");
+      panel.style.setProperty("right", "auto");
+      panel.style.setProperty("bottom", "auto");
       const preferredWidth = panel.classList.contains("touch-pages-popover") ? 300
         : panel.classList.contains("view-settings-popover") || panel.classList.contains("gesture-settings-popover") ? 560
         : panel.classList.contains("app-settings-popover") ? 440
         : 300;
       const preferredHeight = panel.classList.contains("app-settings-popover") ? 560 : panel.classList.contains("touch-pages-popover") ? 620 : 720;
-      panel.style.setProperty("width", `${Math.min(preferredWidth, maxWidth) / uiScale}px`, "important");
-      panel.style.setProperty("max-width", `${maxWidth / uiScale}px`, "important");
-      panel.style.setProperty("max-height", `${Math.min(preferredHeight, Math.max(0, viewportHeight - edge * 2)) / uiScale}px`, "important");
-      panel.style.setProperty("overflow-y", "auto", "important");
-      panel.style.setProperty("margin", "0", "important");
-      panel.style.setProperty("transform", "none", "important");
+      panel.style.setProperty("width", `${Math.min(preferredWidth, maxWidth) / uiScale}px`);
+      panel.style.setProperty("max-width", `${maxWidth / uiScale}px`);
+      panel.style.setProperty("max-height", `${Math.min(preferredHeight, Math.max(0, viewportHeight - edge * 2)) / uiScale}px`);
+      panel.style.setProperty("overflow-y", "auto");
+      panel.style.setProperty("margin", "0");
+      panel.style.setProperty("transform", "none");
       const panelWidth = Math.min(panel.getBoundingClientRect().width || Math.min(preferredWidth, maxWidth), maxWidth);
       const naturalHeight = Math.min(panel.getBoundingClientRect().height || preferredHeight, preferredHeight, viewportHeight - edge * 2);
       const availableBelow = Math.max(0, viewportTop + viewportHeight - anchorRect.bottom - 6 - edge);
       const availableAbove = Math.max(0, anchorRect.top - viewportTop - 6 - edge);
       const opensBelow = availableBelow >= naturalHeight || availableBelow >= availableAbove;
       const availableHeight = Math.max(80, Math.min(viewportHeight - edge * 2, opensBelow ? availableBelow : availableAbove));
-      panel.style.setProperty("max-height", `${availableHeight / uiScale}px`, "important");
+      panel.style.setProperty("max-height", `${availableHeight / uiScale}px`);
       const panelHeight = Math.min(panel.getBoundingClientRect().height || availableHeight, availableHeight);
       const maxTop = Math.max(viewportTop + edge, viewportTop + viewportHeight - panelHeight - edge);
       const top = Math.max(viewportTop + edge, Math.min(opensBelow ? anchorRect.bottom + 6 : anchorRect.top - panelHeight - 6, maxTop));
       const inset = viewportLeft + edge;
       const maxLeft = Math.max(inset, viewportLeft + viewportWidth - panelWidth - edge);
       const left = Math.max(inset, Math.min(anchorRect.left, maxLeft));
-      panel.style.setProperty("left", `${left / uiScale}px`, "important");
-      panel.style.setProperty("top", `${top / uiScale}px`, "important");
+      panel.style.setProperty("left", `${left / uiScale}px`);
+      panel.style.setProperty("top", `${top / uiScale}px`);
     });
   };
   const alignViewSettingsPopover = () => {
@@ -4055,7 +4313,7 @@ function App() {
     const commands: PaletteCommand[] = [
       { id: "new", label: "New sketch", category: "File", shortcut: formatShortcutBindings(shortcuts().newSketch), run: () => void createFile() },
       { id: "open", label: "Open sketch", category: "File", shortcut: formatShortcutBindings(shortcuts().openSketch), run: () => void openFile() },
-      { id: "save", label: "Save sketch", category: "File", shortcut: formatShortcutBindings(shortcuts().saveSketch), run: () => activePath() ? void saveToPath(activePath()!) : void saveAs() },
+      { id: "save", label: workspaceArea() === "planning" ? "Save plan" : "Save sketch", category: "File", shortcut: formatShortcutBindings(shortcuts().saveSketch), run: () => void saveCurrentWorkspace() },
       { id: "save-as", label: "Save sketch as", category: "File", shortcut: formatShortcutBindings(shortcuts().saveAs), run: () => void saveAs() },
       { id: "undo", label: "Undo", category: "Edit", shortcut: formatShortcutBindings(shortcuts().undo), run: undo },
       { id: "redo", label: "Redo", category: "Edit", shortcut: formatShortcutBindings(shortcuts().redo), run: redo },
@@ -4065,9 +4323,14 @@ function App() {
       { id: "select-all", label: "Select all objects", category: "Edit", shortcut: formatShortcutBindings(shortcuts().selectAll), run: () => setSelectedIndices(elements().flatMap((item, index) => !item.hidden && !item.locked ? [index] : [])) },
       { id: "import-image", label: "Import image", category: "Import", keywords: "png jpeg webp gif", run: () => void importImage() },
       { id: "import-svg", label: "Import SVG", category: "Import", keywords: "vector", run: () => void importSvg() },
+      { id: "import-editable-diagram", label: "Import diagram or diagram code", category: "Import", keywords: "diagram graphviz csv dot mermaid plantuml drawio excalidraw", run: () => void importDiagramFile() },
+      { id: "embed-web-page", label: "Embed web page on canvas", category: "Import", keywords: "website document link preview iframe", run: openWebEmbedDialog },
       { id: "import-schema", label: "Import SQL or JSON schema", category: "Import", keywords: "database tables", run: () => openSchemaDialog() },
       { id: "mermaid", label: "Create Mermaid diagram", category: "Create", keywords: "flowchart code", run: () => openMermaidDialog() },
       { id: "export-svg", label: "Export SVG", category: "Export", keywords: "vector", run: () => openExportOptions("svg") },
+      { id: "export-drawio", label: "Export editable draw.io diagram", category: "Export", keywords: "mxgraph interchange", run: () => void exportEditableDiagram("drawio") },
+      { id: "export-excalidraw", label: "Export editable Excalidraw scene", category: "Export", keywords: "json interchange", run: () => void exportEditableDiagram("excalidraw") },
+      { id: "export-diagram-code", label: "Export diagram as code", category: "Export", keywords: "mermaid dot csv sql json schema plantuml", run: () => setDiagramCodeExportOpen(true) },
       { id: "export-pdf", label: "Print preview and export PDF", category: "Export", keywords: "page breaks margins", run: () => openExportOptions("pdf") },
       { id: "export-png", label: "Export PNG", category: "Export", run: () => openExportOptions("png") },
       { id: "toggle-grid", label: "Toggle canvas grid", category: "View", shortcut: formatShortcutBindings(shortcuts().toggleGrid), run: () => setShowGrid(value => !value) },
@@ -4103,28 +4366,34 @@ function App() {
   });
 
   const mobileCommandBar = () => <Suspense fallback={null}><MobileCommandBar
-    fileName={activePath() ? fileName() : "No file open"}
-    hasFile={!!activePath()}
-    canSave={!!activePath() && !readOnlyView()}
-    canSaveAs={!!activePath() && !documentBusy()}
-    canRename={!!activePath() && !readOnlyView()}
-    canImport={!!activePath() && workspaceArea() === "canvas" && !readOnlyView()}
-    canExport={!!activePath() && workspaceArea() === "canvas" && !readOnlyView()}
+    fileName={workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}
+    hasFile={!!activePath() || !!planningPath()}
+    canSave={workspaceArea() === "planning" || !!activePath() && !readOnlyView()}
+    canSaveAs={workspaceArea() === "planning" || !!activePath() && !documentBusy()}
+    canRename={workspaceArea() === "canvas" && !!activePath() && !readOnlyView()}
+    canImport={!!activePath() && workspaceArea() === "canvas" && !readOnlyView() && !boardLocked() && !documentBusy() && !nativeBusy()}
+    canExport={!!activePath() && workspaceArea() === "canvas" && !readOnlyView() && !documentBusy() && !nativeBusy()}
     canExportRetiredArchive={!!activePath() && hasRetiredLibraryData(legacyLibraryData()) && !readOnlyView() && !documentBusy() && !nativeBusy()}
     canClear={!!activePath() && workspaceArea() === "canvas" && elements().length > 0 && !boardLocked() && !readOnlyView()}
-    canClose={!!activePath() && !documentBusy()}
+    canClose={workspaceArea() === "canvas" && !!activePath() && !documentBusy()}
     shortcuts={{ newSketch: formatShortcutBindings(shortcuts().newSketch), openSketch: formatShortcutBindings(shortcuts().openSketch), saveSketch: formatShortcutBindings(shortcuts().saveSketch) }}
     onNewSketch={() => void createFile()}
     onOpenSketch={() => void openFile()}
+    onNewPlan={() => void createPlanningFromHome()}
+    onOpenPlan={() => void openPlanningFile()}
     onOpenAsView={() => void openFileAsView()}
-    onSave={() => { if (activePath()) void saveToPath(activePath()!); }}
-    onSaveAs={() => { if (activePath()) void saveAs(); }}
+    onSave={() => void saveCurrentWorkspace()}
+    onSaveAs={() => { if (workspaceArea() === "planning") void savePlanningAs(); else if (activePath()) void saveAs(); }}
     onRename={openRenameFileDialog}
     onImportImage={() => { if (activePath()) void importImage(); }}
     onImportSvg={() => { if (activePath()) void importSvg(); }}
+    onImportDiagram={() => { if (activePath()) void importDiagramFile(); }}
+    onEmbedWeb={openWebEmbedDialog}
     onExportPng={() => { if (activePath()) openExportOptions("png"); }}
     onExportPdf={() => { if (activePath()) openExportOptions("pdf"); }}
     onExportSvg={() => { if (activePath()) openExportOptions("svg"); }}
+    onExportDrawio={() => { if (activePath()) void exportEditableDiagram("drawio"); }}
+    onExportExcalidraw={() => { if (activePath()) void exportEditableDiagram("excalidraw"); }}
     onExportRetiredArchive={() => void exportRetiredLibraryArchive()}
     onClearCanvas={() => setShowClearConfirm(true)}
     onCloseFile={() => void closeFile()}
@@ -4172,23 +4441,23 @@ function App() {
   /></Suspense>;
 
   return (
-    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": !activePath(), "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() !== "canvas", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family, .stencil-options")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 62%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
+    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": !activePath() && workspaceArea() === "canvas", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() !== "canvas", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family, .stencil-options")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 62%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
       <Show when={!isWindowsPlatform()}>
         <MobileWorkspaceHeader
-          brandName={activePath() ? fileName() : "SketchDraw"}
-          hasFile={!!activePath()}
+          brandName={workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}
+          hasFile={!!activePath() || workspaceArea() === "planning"}
           readOnly={readOnlyView()}
           planning={workspaceArea() === "planning"}
           headerRef={element => { appTopbar = element; }}
           commands={<nav class="mobile-command-host" aria-label="File and application settings">{mobileCommandBar()}</nav>}
-          workspaceTabs={<Show when={activePath()}><WorkspaceAreaTabs active={workspaceArea()} onSelect={navigateWorkspace} /></Show>}
+          workspaceTabs={<Show when={activePath() || workspaceArea() === "planning"}><WorkspaceAreaTabs active={workspaceArea()} onSelect={navigateWorkspace} /></Show>}
           pageMenu={<Show when={activePath() && workspaceArea() === "canvas"}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} onToggle={alignTouchMenuPopover} /></Show>}
-          status={<Show when={activePath()}><div class="mobile-header-status"><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /></span></div></Show>}
+          status={<Show when={activePath() || workspaceArea() === "planning"}><div class="mobile-header-status"><span class={`save-status ${workspaceArea() === "planning" ? planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved" : saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={workspaceArea() === "planning" ? planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved" : status()} title={workspaceArea() === "planning" ? planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status" : status()}><i /></span></div></Show>}
         />
       </Show>
       <Show when={isWindowsPlatform()}>
       <header class="topbar" ref={element => { appTopbar = element; }}>
-        <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={activePath() ? fileName() : "SketchDraw"}>{activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
+        <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}>{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView() && workspaceArea() === "canvas"}><span class="view-only-badge">VIEW ONLY</span></Show></div>
         <nav class="app-menus" aria-label="Application menus">
           <Show when={isWindowsPlatform()}>
           <WindowsMenuRail settings={<AppSettingsMenu
@@ -4218,8 +4487,9 @@ function App() {
             detailsRef={element => { appSettingsMenu = element; }}
             onToggle={() => alignTouchMenuPopover(appSettingsMenu)}
           />}>
-          <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{activePath() ? fileName() : "No file open"}</div>
-            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><div class="menu-separator" /><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close file</button>
+          <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}</div>
+            <button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button><button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button><button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button><div class="menu-separator" />
+            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open sketch as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save sketch <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save sketch as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile())}>Import editable diagram/code...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView() || boardLocked()} onClick={() => closeSystemMenu(openWebEmbedDialog)}>Embed web page...</button><div class="menu-separator" /><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("drawio"))}>Export draw.io...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("excalidraw"))}>Export Excalidraw...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => setDiagramCodeExportOpen(true))}>Export diagram code...</button><button disabled={!activePath() || workspaceArea() !== "canvas" || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close sketch</button>
             <Show when={hasRetiredLibraryData(legacyLibraryData())}><button disabled={!activePath() || readOnlyView() || documentBusy() || nativeBusy()} onClick={() => closeSystemMenu(() => void exportRetiredLibraryArchive())}>Export retired Library data...</button></Show>
           </div></details>
           <Show when={activePath() && workspaceArea() === "canvas"}>
@@ -4241,21 +4511,34 @@ function App() {
           </WindowsMenuRail>
           </Show>
         </nav>
-        <Show when={activePath()}><WorkspaceAreaTabs active={workspaceArea()} onSelect={navigateWorkspace} /></Show>
+        <Show when={activePath() || workspaceArea() === "planning"}><WorkspaceAreaTabs active={workspaceArea()} onSelect={navigateWorkspace} /></Show>
         <Show when={isWindowsPlatform() && activePath() && openSketchPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openSketchPaths()} activePath={activePath()} displayName={displayNameForPath} onSelect={path => { if (path !== activePath()) void loadFile(path); }} onClose={path => void closeSketchTab(path)} /></Suspense></Show>
 
-          <Show when={activePath()}><div class="top-actions"><span class="live-sync-indicator" title="Watches this open .sketch file for changes from another app, with a 30 second polling fallback for cloud folders."><i />Live file updates</span><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
+          <Show when={workspaceArea() === "planning"}><div class="top-actions"><span class={`save-status ${planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved"} title={planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status"}><i /><time>{planningSavedAt() || "—"}</time></span></div></Show>
+          <Show when={workspaceArea() === "canvas" && activePath()}><div class="top-actions"><span class="live-sync-indicator" title="Watches this open .sketch file for changes from another app, with a 30 second polling fallback for cloud folders."><i />Live file updates</span><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
       </header>
       </Show>
-      <For each={activePath() ? [activePath()!] : []}>{() => <>
-        <div class="workspace-area-layer" classList={{ active: workspaceArea() === "planning" }}><ProjectWorkspace
+      <Show when={workspaceArea() === "planning"}><Suspense fallback={null}><ProjectWorkspace
           data={projectWorkspaceData()}
-          editable={!readOnlyView()}
-          onChange={data => { if (!readOnlyView()) { setProjectWorkspaceData(data); setDirty(true); } }}
+          editable
+          fileName={planningPath() ? displayNameForPath(planningPath()!) : "Unsaved plan"}
+          recentPlans={recentPlans()}
+          planningPath={planningPath()}
+          canvasFileName={activePath() ? fileName() : undefined}
+          dirty={planningDirty()}
+          saving={planningSaving()}
+          onChange={planningSession.update}
           onNavigate={navigateWorkspace}
-        /></div>
-      </>}</For>
-      <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} displayPathName={displayNameForPath} onCreate={createFile} onNewProject={createProjectFromHome} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentProject={openRecentProject} /><WelcomeScreen recentFiles={recentFiles} displayNameForPath={displayNameForPath} onCreateFile={createFile} onOpenFile={openFile} onCreateProject={createProjectFromHome} onOpenRecentProject={openRecentProject} onOpenRecentFile={loadFile} /></>}>
+          onNew={() => void createPlanningFromHome()}
+          onOpen={() => void openPlanningFile()}
+          onSave={() => void savePlanningDocument()}
+          onSaveAs={() => void savePlanningAs()}
+          onAddPlans={() => void addPlansToOverview()}
+          onOpenPlan={openRecentPlan}
+          onExport={exportPlanningText}
+        /></Suspense></Show>
+      <Show when={workspaceArea() === "canvas"}>
+      <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} recentPlans={recentPlans()} displayPathName={displayNameForPath} onCreate={createFile} onNewPlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentPlan={openRecentPlan} /><WelcomeScreen recentFiles={recentFiles} recentPlans={recentPlans} displayNameForPath={displayNameForPath} onCreateFile={createFile} onOpenFile={openFile} onCreatePlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpenRecentPlan={openRecentPlan} onOpenRecentFile={loadFile} /></>}>
         <>
           <section class="canvas-wrap" ref={canvasWrap} classList={{ "canvas-minimap-visible": showMinimap() }}>
             <Show when={touchFocusMode()}><TouchFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={chooseFocusTool} onExit={() => void toggleTouchFocusMode(false)} /></Show>
@@ -4344,7 +4627,16 @@ function App() {
               <div class="note-card-details"><label>Title<input aria-label="Card title" maxlength="120" value={draft().title} onInput={event => setNoteEditor(current => current ? { ...current, title: event.currentTarget.value } : undefined)} /></label></div>
               <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown and note content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write Markdown…\n\nUse # headings, **bold**, lists, tables, and fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); if (event.key === "Escape" && isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } } }} />
             </div>}</Show>
-            <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} /><button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
+            <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} />
+            <Show when={activeWebPreview()}>{preview => <Show when={elements().find((item): item is ImageElement => item.type === "image" && item.id === preview().id)}>{item => {
+              const zoom = canvasState().zoom; const width = Math.min(Math.max(320, item().w * zoom), Math.max(280, canvasWrap.clientWidth - 16)); const height = Math.min(Math.max(260, item().h * zoom), Math.max(220, canvasWrap.clientHeight - 16));
+              const left = Math.max(8, Math.min(canvasWrap.clientWidth - width - 8, canvasState().panX + item().x * zoom)); const top = Math.max(8, Math.min(canvasWrap.clientHeight - height - 8, canvasState().panY + item().y * zoom));
+              return <section class="canvas-web-preview" role="dialog" aria-label={`Web preview for ${new URL(preview().url).hostname}`} style={{ left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px`, transform: `rotate(${item().rotation ?? 0}deg)` }} onPointerDown={event => event.stopPropagation()}>
+                <header><strong>{new URL(preview().url).hostname}</strong><a href={preview().url} target="_blank" rel="noreferrer">Open in browser</a><button type="button" aria-label="Close web preview" title="Close preview" onClick={() => setActiveWebPreview(undefined)}>&times;</button></header>
+                 <iframe title={`Web preview of ${new URL(preview().url).hostname}`} src={preview().embedUrl} loading="lazy" referrerPolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />
+              </section>;
+            }}</Show>}</Show>
+            <button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
             <Show when={showMinimap()}><Suspense fallback={null}><CanvasMinimap elements={elements()} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} viewportWidth={canvas.clientWidth} viewportHeight={canvas.clientHeight} onNavigate={center => setCanvasState(current => ({ ...current, panX: canvas.clientWidth / 2 - center.x * current.zoom, panY: canvas.clientHeight / 2 - center.y * current.zoom }))} onClose={() => { setShowMinimap(false); try { localStorage.setItem("sketchdraw-canvas-minimap", "false"); } catch { /* The current view still updates. */ } }} /></Suspense></Show>
             <Show when={presentationMode()}><div class="canvas-presentation-controls"><button title="Previous page" aria-label="Previous page" disabled={pages().findIndex(page => page.id === activePageId()) <= 0} onClick={() => changePresentationPage(-1)}>‹</button><span>{currentPage()?.name ?? "Sketch"}</span><button title="Next page" aria-label="Next page" disabled={pages().findIndex(page => page.id === activePageId()) >= pages().length - 1} onClick={() => changePresentationPage(1)}>›</button><button title="Exit presentation mode" onClick={() => void togglePresentationMode(false)}>Exit</button></div></Show>
             <Show when={deletableSelectionCount() > (isWindowsPlatform() ? 1 : 0)}><button class="selection-delete-action" disabled={boardLocked()} title={`Delete ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} aria-label={`Delete ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6"/></svg><span>Delete {deletableSelectionCount()}</span></button></Show>
@@ -4627,6 +4919,7 @@ function App() {
         <button role="menuitem" disabled={!selectedIndices().length} onClick={() => { setExportScope("selection"); openExportOptions("png"); }}>Export selection…</button>
         <button role="menuitem" disabled={boardLocked() || !selectedIndices().length} onClick={deleteSelected}>Delete <kbd>Del</kbd></button>
       </div>}</Show>
+      <Show when={diagramCodeExportOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setDiagramCodeExportOpen(false); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="diagram-code-export-title"><header><div><span class="eyebrow">DIAGRAM CODE</span><h2 id="diagram-code-export-title">Export editable diagram data</h2></div><button class="help-close" aria-label="Close code export" onClick={() => setDiagramCodeExportOpen(false)}>&times;</button></header><p>Mermaid, DOT, CSV, and PlantUML export shape labels and simple connector relationships. SQL and JSON Schema export editable database table cards; JSON Schema uses SketchDraw extensions to preserve SQL types and key metadata. Unsupported details are simplified to the format's supported subset.</p><label>Format<select value={diagramCodeFormat()} onChange={event => setDiagramCodeFormat(event.currentTarget.value as DiagramCodeFormat)}><option value="mmd">Mermaid flowchart (.mmd)</option><option value="dot">Graphviz DOT (.dot)</option><option value="csv">Nodes and relationships (.csv)</option><option value="puml">PlantUML class/object diagram (.puml)</option><option value="sql">SQL schema (.sql)</option><option value="json">JSON Schema (.json)</option></select></label><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setDiagramCodeExportOpen(false)}>Cancel</button><button class="save-button" disabled={nativeBusy() || documentBusy() || !elements().length} onClick={() => void exportDiagramAsCode()}>{nativeBusy() ? "Exporting…" : "Export file"}</button></div></section></div></Show>
       <Show when={mermaidDialog()}>
         <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) closeMermaidDialog(); }}>
           <section class="confirm-dialog schema-dialog mermaid-dialog" role="dialog" aria-modal="true" aria-labelledby="mermaid-title">
@@ -4643,7 +4936,8 @@ function App() {
           </section>
         </div>
       </Show>
-      <Show when={schemaDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) { setSchemaDialog(false); setSchemaEditingDiagram(undefined); } }}><section class="confirm-dialog schema-dialog" role="dialog" aria-modal="true" aria-labelledby="schema-title"><header><div><span class="eyebrow">DATABASE SCHEMA VISUALIZER</span><h2 id="schema-title">{schemaEditingDiagram() ? "Update linked table cards" : "Generate linked table cards"}</h2></div><button class="help-close" aria-label="Close schema visualizer" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>&times;</button></header><p>Paste SQL <code>CREATE TABLE</code> statements or JSON with a <code>tables</code> array. Primary and foreign keys become labeled rows with connectors anchored to those rows. Double-click any generated table to edit this source and regenerate the diagram. Press Tab to indent and Shift+Tab to outdent.</p><textarea autofocus class="schema-input" aria-label="SQL or JSON schema" value={schemaInput()} placeholder={'CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  name VARCHAR(80) NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  user_id INTEGER REFERENCES users(id)\n);'} onInput={event => { setSchemaInput(event.currentTarget.value); setSchemaError(""); }} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, setSchemaInput); }} /><Show when={schemaError()}><p class="schema-error" role="alert">{schemaError()}</p></Show><div class="schema-dialog-footer"><span>Up to 50 tables per import</span><div><button class="quiet-button" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={insertSchemaVisual}>{schemaEditingDiagram() ? "Update diagram" : "Add to canvas"}</button></div></div></section></div></Show>
+      <Show when={webEmbedDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setWebEmbedDialog(false); }}><section class="confirm-dialog web-embed-dialog" role="dialog" aria-modal="true" aria-labelledby="web-embed-title"><header><div><span class="eyebrow">CANVAS CONTENT</span><h2 id="web-embed-title">Embed a web page</h2></div><button class="help-close" aria-label="Close web embed dialog" onClick={() => setWebEmbedDialog(false)}>&times;</button></header><p>Add a lightweight card to the canvas. Double-click it to load the live page. YouTube, Vimeo, Google Drive, Google Docs, and websites that allow embedded views can preview here; others can still open in your browser.</p><label>HTTPS address<input autofocus type="url" maxlength="2048" value={webEmbedInput()} placeholder="https://example.com" onInput={event => { setWebEmbedInput(event.currentTarget.value); setWebEmbedError(""); }} onKeyDown={event => { if (event.key === "Enter") insertWebEmbed(); }} /></label><Show when={webEmbedError()}><p class="schema-error" role="alert">{webEmbedError()}</p></Show><div><button class="quiet-button" onClick={() => setWebEmbedDialog(false)}>Cancel</button><button class="save-button" disabled={boardLocked() || !webEmbedInput().trim()} onClick={insertWebEmbed}>Add to canvas</button></div></section></div></Show>
+      <Show when={schemaDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) { setSchemaDialog(false); setSchemaEditingDiagram(undefined); } }}><section class="confirm-dialog schema-dialog" role="dialog" aria-modal="true" aria-labelledby="schema-title"><header><div><span class="eyebrow">DATABASE SCHEMA VISUALIZER</span><h2 id="schema-title">{schemaEditingDiagram() ? "Update linked table cards" : "Generate linked table cards"}</h2></div><button class="help-close" aria-label="Close schema visualizer" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>&times;</button></header><p>Paste SQL <code>CREATE TABLE</code> statements, JSON with a <code>tables</code> array, or a JSON Schema object with <code>properties</code> or <code>$defs</code>. Primary and foreign keys become labeled rows with connectors anchored to those rows. Double-click any generated table to edit this source and regenerate the diagram. Press Tab to indent and Shift+Tab to outdent.</p><textarea autofocus class="schema-input" aria-label="SQL or JSON schema" value={schemaInput()} placeholder={'CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  name VARCHAR(80) NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  user_id INTEGER REFERENCES users(id)\n);'} onInput={event => { setSchemaInput(event.currentTarget.value); setSchemaError(""); }} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, setSchemaInput); }} /><Show when={schemaError()}><p class="schema-error" role="alert">{schemaError()}</p></Show><div class="schema-dialog-footer"><span>Up to 50 tables per import</span><div><button class="quiet-button" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={insertSchemaVisual}>{schemaEditingDiagram() ? "Update diagram" : "Add to canvas"}</button></div></div></section></div></Show>
       <Show when={pageDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setPageDialog(undefined); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="page-dialog-title"><h2 id="page-dialog-title">{pageDialog() === "rename" ? "Rename page" : "Delete page?"}</h2><Show when={pageDialog() === "rename"} fallback={<p>Delete “{currentPage()?.name}” and its contents? This page deletion cannot be undone.</p>}><label>Page name<input autofocus maxlength="80" value={pageName()} onInput={event => setPageName(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter" && pageName().trim()) confirmPageDialog(); }} /></label></Show><div><button class="quiet-button" onClick={() => setPageDialog(undefined)}>Cancel</button><button class={pageDialog() === "delete" ? "danger-button" : "save-button"} disabled={boardLocked() || (pageDialog() === "rename" && !pageName().trim())} onClick={confirmPageDialog}>{pageDialog() === "rename" ? "Rename" : "Delete page"}</button></div></section></div></Show>
       <Show when={renameFileOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setRenameFileOpen(false); }}><section class="confirm-dialog rename-file-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-file-title"><h2 id="rename-file-title">Rename sketch file</h2><p>Choose a new name for <strong>{displayNameForPath(activePath() ?? "")}</strong>. The <code>.sketch</code> extension is kept automatically.</p><Show when={renameFileError()}><p class="rename-file-error" role="alert">{renameFileError()}</p></Show><label>File name<input autofocus maxlength="180" value={renameFileName()} onInput={event => setRenameFileName(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter" && renameFileName().trim()) void confirmRenameFile(); }} /></label><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setRenameFileOpen(false)}>Cancel</button><button class="save-button" disabled={!renameFileName().trim() || nativeBusy() || documentBusy()} onClick={() => void confirmRenameFile()}>{nativeBusy() ? "Renaming…" : "Rename file"}</button></div></section></div></Show>
       <Show when={exportOptionsOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setExportOptionsOpen(false); }}><section class="confirm-dialog export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-title">
@@ -4667,9 +4961,10 @@ function App() {
       </section></div></Show>
       <Show when={recoveryPrompt()}>{(recovery) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="recovery-title"><h2 id="recovery-title">Recover unsaved work?</h2><p>SketchDraw found a local recovery copy for <strong>{recovery().path.split(/[\\/]/).pop()}</strong>. Restore it or continue with the saved file.</p><div><button class="quiet-button" onClick={discardRecovery}>Use saved file</button><button class="save-button" onClick={restoreRecovery}>Restore recovery</button></div></section></div>}</Show>
       <Show when={syncConflict()}>{(conflict) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title"><h2 id="conflict-title">File changed elsewhere</h2><p><strong>{displayPathName(conflict().path)}</strong> changed after you opened it, so SketchDraw paused this save to protect the newer copy. Your current work is still open. Save it as a separate file or load the disk version, which replaces your current work.</p><div class="conflict-actions"><button class="quiet-button" onClick={() => void saveAs()}>Save my version as…</button><button class="quiet-button" onClick={reloadConflictingFile}>Load disk version</button></div></section></div>}</Show>
+      <Show when={showClearConfirm()}><div class="confirm-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setShowClearConfirm(false); }}><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">Clear this canvas?</h2><p>This will remove all {elements().length} items from the open sketch. You can undo this action.</p><div><button class="quiet-button" onClick={() => setShowClearConfirm(false)}>Cancel</button><button class="danger-button" onClick={() => { if (elements().length && !boardLocked()) { pushUndo(cloneElements(elements())); setElements([]); setSelectedIndices([]); setDirty(true); } setShowClearConfirm(false); }}>Clear canvas</button></div></section></div></Show>
+      </Show>
       <Show when={isWindowsPlatform()}><Suspense fallback={null}><WindowsCommandPalette open={commandPaletteOpen()} commands={windowsCommands()} onClose={() => setCommandPaletteOpen(false)} /></Suspense></Show>
       <Show when={isWindowsPlatform() && shortcutDialogOpen()}><Suspense fallback={null}><WindowsKeyboardShortcutsDialog shortcuts={shortcuts()} onChange={setWindowsShortcut} onReset={resetWindowsShortcuts} onClose={() => setShortcutDialogOpen(false)} /></Suspense></Show>
-      <Show when={showClearConfirm()}><div class="confirm-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setShowClearConfirm(false); }}><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">Clear this canvas?</h2><p>This will remove all {elements().length} items from the open sketch. You can undo this action.</p><div><button class="quiet-button" onClick={() => setShowClearConfirm(false)}>Cancel</button><button class="danger-button" onClick={() => { if (elements().length && !boardLocked()) { pushUndo(cloneElements(elements())); setElements([]); setSelectedIndices([]); setDirty(true); } setShowClearConfirm(false); }}>Clear canvas</button></div></section></div></Show>
       <Show when={helpOpen()}><Suspense fallback={null}><HelpDialog open section={helpSection()} shortcuts={helpShortcuts} onClose={() => setHelpOpen(false)} /></Suspense></Show>
       <Show when={error()}><div class="error-toast" role="alert">{error()}<button onClick={() => setError("")}>Dismiss</button></div></Show>
     </main>

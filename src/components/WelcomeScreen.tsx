@@ -2,50 +2,93 @@ import { Show } from "solid-js";
 
 type Props = {
   recentFiles: () => string[];
+  recentPlans: () => string[];
   displayNameForPath: (path: string) => string;
   onCreateFile: () => void;
   onOpenFile: () => void;
-  onCreateProject: () => unknown;
-  onOpenRecentProject: (path: string) => unknown;
+  onCreatePlan: () => unknown;
+  onOpenPlan: () => unknown;
+  onOpenRecentPlan: (path: string) => unknown;
   onOpenRecentFile: (path: string) => unknown;
 };
 
 export function WelcomeScreen(props: Props) {
-  return <section class="welcome-screen">
-    <div class="welcome-card">
-      <div class="welcome-intro">
-        <div class="welcome-symbol"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg></div>
-        <p class="eyebrow">YOUR IDEAS, ON ONE CANVAS</p>
-        <h1>Think it through.<br /><em>Draw it out.</em></h1>
-        <p class="welcome-copy">A calm, capable space for diagrams, plans, and the ideas in between. Start a sketch or pick up where you left off.</p>
-        <div class="welcome-actions"><button type="button" class="save-button large" onClick={props.onCreateFile}>Create a sketch <span aria-hidden="true">&rarr;</span></button><button type="button" class="quiet-button large" onClick={props.onOpenFile}>Open a file</button></div>
-        <div class="file-hint"><span class="file-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span><span><strong>Private by design</strong><br />Your portable .sketch files stay in folders you choose.</span></div>
-        <small class="copyright-notice">&copy; 2026 Toushal Sampat. All rights reserved.</small>
-      </div>
-      <div class="welcome-visual" aria-hidden="true">
-        <div class="welcome-visual-topline"><span><i></i> SKETCHDRAW CANVAS</span><b>FLOW 01</b></div>
-        <svg viewBox="0 0 440 350" role="presentation">
-          <path class="welcome-wire" d="M116 111h53m62 0h46m-77 25v52m93-52v52m-93 0h-90m90 0h94m-184 0v32m184-32v32" />
-          <path class="welcome-wire-arrow" d="m163 106 7 5-7 5m47 65 5 7 5-7m87-65 7 5-7 5m-200 63-5 7 5 7m99 15 5 7 5-7m85-29 5 7 5-7" />
-          <g class="welcome-node-cards"><rect class="welcome-node welcome-node-lilac" x="26" y="78" width="90" height="66" rx="16" /><rect class="welcome-node welcome-node-sun" x="169" y="78" width="92" height="66" rx="16" /><rect class="welcome-node welcome-node-mint" x="277" y="78" width="104" height="66" rx="16" /><rect class="welcome-node welcome-node-paper" x="26" y="198" width="100" height="64" rx="16" /><rect class="welcome-node welcome-node-blue" x="169" y="198" width="92" height="64" rx="16" /><rect class="welcome-node welcome-node-paper" x="277" y="198" width="104" height="64" rx="16" /></g>
-          <g class="welcome-node-icon"><circle cx="48" cy="101" r="7" /><path d="M62 99h38M62 106h27" /><circle cx="191" cy="101" r="7" /><path d="M205 99h40M205 106h28" /><circle cx="299" cy="101" r="7" /><path d="M313 99h52M313 106h35" /><circle cx="48" cy="220" r="7" /><path d="M62 218h42M62 225h30" /><circle cx="191" cy="220" r="7" /><path d="M205 218h40M205 225h28" /><circle cx="299" cy="220" r="7" /><path d="M313 218h52M313 225h35" /></g>
-          <circle class="welcome-spark" cx="365" cy="53" r="13" /><path class="welcome-spark-line" d="M365 45v16m-8-8h16m-13-5 10 10m0-10-10 10" />
-          <circle class="welcome-dot" cx="80" cy="290" r="4" /><circle class="welcome-dot" cx="96" cy="290" r="4" /><circle class="welcome-dot" cx="112" cy="290" r="4" />
-        </svg>
-        <div class="welcome-visual-caption"><span>&#10022;</span> A little clarity, one connection at a time.</div>
-      </div>
-    </div>
-    <div class="recent-dashboard">
-      <div class="recent-heading"><span class="eyebrow">YOUR WORKSPACE</span><div class="recent-heading-row"><h2>Recent sketches</h2><span class="recent-count">{props.recentFiles().length}</span></div><p>Pick up right where you left off.</p></div>
-      <section class="home-project-hub" aria-labelledby="home-project-title">
-        <span class="home-project-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5h6l2 2h8v9H4zM4 10h16M8 13h3m-3 2.5h7" /></svg></span>
-        <div class="home-project-copy"><span class="eyebrow">PROJECT SPACE</span><h2 id="home-project-title">A home for each project</h2><p>Keep notes, tasks, schedules, decisions, and reference files beside the sketch.</p></div>
-        <div class="home-project-actions"><button type="button" class="save-button" onClick={() => void props.onCreateProject()}>New project <span aria-hidden="true">&rarr;</span></button><Show when={props.recentFiles().length > 0}><button type="button" class="quiet-button" onClick={() => void props.onOpenRecentProject(props.recentFiles()[0])}>Open recent <span aria-hidden="true">&rarr;</span></button></Show></div>
+  return <section class="home-screen home-screen-desktop" aria-label="SketchDraw home">
+    <div class="home-desktop-layout">
+      <section class="home-hero" aria-labelledby="home-title">
+        <header class="home-brand">
+          <span class="home-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg></span>
+          <span class="home-brand-name">SketchDraw</span>
+          <span class="home-brand-type">WHITEBOARD</span>
+        </header>
+
+        <div class="home-hero-main">
+          <div class="home-intro">
+            <p class="home-kicker">A CLEAR SPACE TO THINK</p>
+            <h1 class="home-title" id="home-title">Think freely.<br /><em>Draw clearly.</em></h1>
+            <p class="home-copy">Make diagrams, sketch ideas, and work things out on a fast, flexible whiteboard.</p>
+            <div class="home-actions" aria-label="Start or open a whiteboard">
+              <button type="button" class="home-action home-action-primary" onClick={props.onCreateFile}>Create a sketch <span aria-hidden="true">&rarr;</span></button>
+              <button type="button" class="home-action home-action-secondary" onClick={props.onOpenFile}>Open a sketch</button>
+            </div>
+            <div class="home-file-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg><span>Your portable <strong>.sketch</strong> files stay in folders you choose.</span></div>
+          </div>
+
+          <div class="home-preview" aria-hidden="true">
+            <div class="home-preview-bar"><span><i></i> UNTITLED BOARD</span><span>100%</span></div>
+            <svg class="home-flow" viewBox="0 0 440 300" role="presentation">
+              <path class="home-flow-wire" d="M125 87h58m74 0h55M220 111v72m-95 0h190M125 207v32m190-56v56" />
+              <path class="home-flow-arrow" d="m176 81 7 6-7 6m74-12 7 6-7 6m-36 78 6 6-6 6m-95 27 6 6-6 6m190-45 6 6-6 6m-190 42 6 6-6 6m190-6 6 6-6 6" />
+              <g class="home-flow-cards">
+                <rect class="home-flow-node home-flow-node-primary" x="32" y="54" width="93" height="66" rx="10" />
+                <rect class="home-flow-node home-flow-node-surface" x="183" y="54" width="93" height="66" rx="10" />
+                <rect class="home-flow-node home-flow-node-info" x="312" y="54" width="96" height="66" rx="10" />
+                <rect class="home-flow-node home-flow-node-surface" x="78" y="183" width="94" height="58" rx="10" />
+                <rect class="home-flow-node home-flow-node-success" x="268" y="183" width="94" height="58" rx="10" />
+              </g>
+              <g class="home-flow-ink">
+                <circle cx="54" cy="77" r="6" /><path d="M68 76h42m-42 8h29" />
+                <circle cx="205" cy="77" r="6" /><path d="M219 76h42m-42 8h29" />
+                <circle cx="334" cy="77" r="6" /><path d="M348 76h43m-43 8h29" />
+                <circle cx="100" cy="204" r="6" /><path d="M114 203h43m-43 8h29" />
+                <circle cx="290" cy="204" r="6" /><path d="M304 203h43m-43 8h29" />
+              </g>
+              <circle class="home-flow-spark" cx="374" cy="31" r="8" />
+              <path class="home-flow-cross" d="M374 26v10m-5-5h10" />
+            </svg>
+            <div class="home-preview-caption"><span>+</span> Connect ideas as they come.</div>
+          </div>
+        </div>
+
+        <footer class="home-hero-footer"><span class="home-status-dot"></span> Private by design <span class="home-footer-separator">&middot;</span> Saved on your device <small class="home-copyright">&copy; 2026 Toushal Sampat</small></footer>
       </section>
-      <Show when={props.recentFiles().length > 0} fallback={<div class="recent-empty"><div class="recent-empty-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></div><strong>Your next idea starts here</strong><span>Open a sketch from your device to see it in this list.</span><button type="button" class="quiet-button" onClick={props.onOpenFile}>Browse sketches <span aria-hidden="true">&rarr;</span></button></div>}>
-        <div class="recent-list">{props.recentFiles().map(path => <button type="button" class="recent-file" onClick={() => void props.onOpenRecentFile(path)}><span class="recent-file-icon"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span><span class="recent-file-name">{props.displayNameForPath(path)}</span><span class="recent-file-path">{/^content:\/\//i.test(path) ? "Cloud drive or device folder" : path}</span><span class="recent-open">Open <span aria-hidden="true">&rarr;</span></span></button>)}</div>
-      </Show>
-      <div class="recent-footnote"><span class="recent-footnote-dot"></span> Saved on this device</div>
+
+      <section class="home-library" aria-labelledby="home-recent-title">
+        <header class="home-library-heading">
+          <div><p class="home-section-label">YOUR WORKSPACE</p><h2 id="home-recent-title">Recent sketches</h2></div>
+          <span class="home-count" aria-label={`${props.recentFiles().length} recent sketches`}>{props.recentFiles().length}</span>
+        </header>
+        <Show when={props.recentFiles().length > 0} fallback={
+          <div class="home-empty">
+            <span class="home-empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span>
+            <strong>Your sketches will appear here</strong>
+            <p>Open a sketch from your device to pick up where you left off.</p>
+            <button type="button" class="home-action home-action-secondary" onClick={props.onOpenFile}>Browse sketches</button>
+          </div>
+        }>
+          <div class="home-recent-list" aria-label="Recent sketches">{props.recentFiles().map(path => <button type="button" class="home-file" onClick={() => void props.onOpenRecentFile(path)}>
+            <span class="home-file-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span>
+            <span class="home-file-copy"><strong>{props.displayNameForPath(path)}</strong><small>{/^content:\/\//i.test(path) ? "Cloud drive or device folder" : path}</small></span>
+            <span class="home-file-open">Open <span aria-hidden="true">&rarr;</span></span>
+          </button>)}</div>
+        </Show>
+
+        <section class="home-planning" aria-labelledby="home-planning-title">
+          <div class="home-planning-copy"><h3 id="home-planning-title">Planning</h3><p>Notes and tasks in separate .sdplan files.</p></div>
+          <div class="home-planning-actions"><button type="button" onClick={() => void props.onCreatePlan()}>New plan</button><button type="button" onClick={() => void props.onOpenPlan()}>Open plan</button></div>
+          <Show when={props.recentPlans().length > 0}><div class="home-planning-recents" aria-label="Recent Planning files">{props.recentPlans().slice(0, 2).map(path => <button type="button" onClick={() => void props.onOpenRecentPlan(path)}>{props.displayNameForPath(path)}</button>)}</div></Show>
+        </section>
+      </section>
     </div>
   </section>;
 }

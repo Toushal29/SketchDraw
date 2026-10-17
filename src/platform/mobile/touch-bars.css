@@ -94,11 +94,11 @@
 
     .app-shell:not(.platform-windows) .tool-family.options-open .tool-options,
     .app-shell:not(.platform-windows) .canvas-options-family.options-open .canvas-options-menu {
-        position: fixed !important;
-        z-index: 1600 !important;
+        position: fixed;
+        z-index: 1600;
         right: auto;
         bottom: auto;
-        transform: none !important;
+        transform: none;
         max-height: calc(100dvh - 16px);
         overflow-x: hidden;
         overflow-y: auto;
@@ -165,7 +165,7 @@
         border-radius: 9px;
     }
     .app-shell:not(.platform-windows) .touch-tool-reopen svg { width: 18px; height: 18px; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .app-shell:not(.platform-windows) .style-pane { display: none !important; }
+    .app-shell:not(.platform-windows) .style-pane { display: none; }
     .app-shell:not(.platform-windows) .selection-delete-action {
         position: fixed;
         z-index: 1450;
@@ -173,7 +173,7 @@
         right: max(8px, env(safe-area-inset-right));
         bottom: calc(var(--mobile-horizontal-toolbar-height) + max(12px, env(safe-area-inset-bottom)) + 8px);
         left: auto;
-        display: inline-flex !important;
+        display: inline-flex;
         box-sizing: border-box;
         width: max-content;
         max-width: calc(100vw - 16px);

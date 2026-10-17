@@ -1,5 +1,5 @@
 import type { Point, Element, Bounds, ShapeElement } from "../../model";
-import { textElementBox } from "../../operations";
+import { labelBox, textElementBox } from "../../operations";
 import { connectorPolylines, arrowHeadEntries, arrowHeadPoints } from "./geometry";
 import { stylusStrokeWidth } from "./freehand-rendering";
 
@@ -54,7 +54,9 @@ export function elementBounds(element: Element): Bounds {
       if (head.kind === "dot") { const radius = Math.max(3, element.thickness * 1.15); points.push({ x: head.tip.x - radius, y: head.tip.y - radius }, { x: head.tip.x + radius, y: head.tip.y + radius }); }
     }
     const doubleOffset = element.lineStyle === "double" ? Math.max(2.5, element.thickness * 1.2) : 0;
-    return cacheBounds(element, rotatedBounds(boundsOfPoints(points, element.thickness / 2 + doubleOffset), element.rotation ?? 0));
+    const routeBounds = rotatedBounds(boundsOfPoints(points, element.thickness / 2 + doubleOffset), element.rotation ?? 0);
+    const labelBounds = element.label?.text ? rotatedBounds(labelBox(element), element.rotation ?? 0) : undefined;
+    return cacheBounds(element, labelBounds ? unionBounds([routeBounds, labelBounds])! : routeBounds);
   }
   return cacheBounds(element, rotatedBounds({ x, y, w, h }, element.rotation ?? 0));
 }

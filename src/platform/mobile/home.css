@@ -1,356 +1,142 @@
-/* A fresh touch home surface; the original welcome screen remains the desktop home. */
-.mobile-home-screen { display: none; }
+/* Touch home layout and component visibility. Shared visuals live in styles/app/home.css. */
+.app-shell:not(.platform-windows) .home-screen-mobile { display: none; }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-screen {
+    .app-shell.home-screen-active:not(.platform-windows) .home-screen-desktop { display: none; }
+
+    .app-shell.home-screen-active:not(.platform-windows) .home-screen-mobile {
         display: block;
-        flex: 1 1 0;
-        width: 100%;
-        min-width: 0;
-        min-height: 0;
+        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior-y: contain;
         -webkit-overflow-scrolling: touch;
-        background:
-            radial-gradient(ellipse at 88% 2%, color-mix(in srgb, var(--ui-accent) 18%, transparent), transparent 40%),
-            radial-gradient(ellipse at 8% 68%, color-mix(in srgb, var(--theme-info) 12%, transparent), transparent 42%),
-            radial-gradient(color-mix(in srgb, var(--ui-accent) 16%, transparent) 1px, transparent 1.5px),
-            linear-gradient(180deg, var(--theme-background) 0%, var(--theme-background) 100%);
-        background-size: auto, auto, 22px 22px, auto;
     }
 
-    .app-shell.home-screen-active:not(.platform-windows) > .welcome-screen { display: none !important; }
-
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout {
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-layout {
         display: grid;
-        grid-template-areas: "primary" "recent" "footer";
+        grid-template-areas: "hero" "library" "planning" "footer";
         grid-template-columns: minmax(0, 1fr);
         align-content: start;
-        gap: 17px;
-        width: min(100%, 920px);
+        gap: 12px;
+        width: min(100%, 780px);
         min-height: 100%;
         margin: 0 auto;
-        padding: clamp(16px, 4vw, 30px) max(14px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
     }
 
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-primary {
-        grid-area: primary;
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-hero {
         display: grid;
-        grid-template-areas: "intro" "actions" "project";
-        grid-template-columns: minmax(0, 1fr);
+        grid-area: hero;
         gap: 17px;
         min-width: 0;
+        padding: 18px;
+        border: 1px solid var(--theme-border);
+        border-radius: 17px;
+        background: var(--theme-surface);
+        box-shadow: 0 8px 22px var(--theme-shadow);
     }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro { grid-area: intro; padding: 3px 2px 0; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 58%, transparent);
-        font: 700 9px/1.2 system-ui, sans-serif;
-        letter-spacing: .13em;
-    }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-eyebrow > i {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: var(--ui-accent);
-    }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 {
-        max-width: 640px;
-        margin: 12px 0 5px;
-        color: var(--theme-text-primary);
-        font-size: clamp(27px, 7vw, 39px);
-        font-weight: 700;
-        letter-spacing: -.045em;
-        line-height: 1.08;
-    }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro p { margin: 0; color: var(--theme-text-secondary); font-size: 12px; line-height: 1.5; }
 
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-actions {
-        grid-area: actions;
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro { min-width: 0; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-kicker { margin-bottom: 7px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-title { max-width: 520px; font-size: clamp(29px, 7vw, 40px); }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-copy { margin: 8px 0 0; font-size: 11px; }
+
+    .app-shell.home-screen-active:not(.platform-windows) .home-actions-mobile {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 9px;
+        gap: 7px;
     }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action {
+
+    .app-shell.home-screen-active:not(.platform-windows) .home-actions-mobile .home-action {
+        min-height: 44px;
+        justify-content: space-between;
+        gap: 5px;
+        padding-inline: 10px;
+        font-size: 10px;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile {
+        grid-area: library;
+        min-height: 0;
+        padding: 14px;
+        border-radius: 16px;
+        box-shadow: 0 6px 18px var(--theme-shadow);
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile .home-library-heading { padding-bottom: 9px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile .home-library-heading h2 { font-size: 16px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile .home-recent-list { flex: 0 1 auto; max-height: 34dvh; gap: 4px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile { min-height: 48px; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 6px 8px; border-radius: 9px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile .home-file-copy strong { font-size: 11px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile .home-file-copy small { font-size: 9px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile .home-file-open { font-size: 15px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-empty-mobile { min-height: 70px; flex: 0 0 auto; align-items: flex-start; padding: 8px 2px; text-align: left; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-empty-mobile p { margin: 0; }
+
+    .app-shell.home-screen-active:not(.platform-windows) .home-planning-mobile {
+        grid-area: planning;
+        margin-top: 0;
+        padding-top: 9px;
+    }
+
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-footer {
         display: flex;
-        min-width: 0;
-        min-height: 82px;
+        grid-area: footer;
         align-items: center;
-        gap: 10px;
-        padding: 12px;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent);
-        border-radius: 17px;
-        color: var(--toolbar-ink, var(--theme-text-primary));
-        text-align: left;
-        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 96%, transparent);
+        gap: 8px;
+        padding: 2px 3px;
+        color: var(--theme-text-tertiary);
+        font-size: 9px;
     }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action.primary { border-color: color-mix(in srgb, var(--ui-accent) 28%, var(--theme-border)); background: linear-gradient(135deg, color-mix(in srgb, var(--ui-accent) 10%, var(--theme-background)), var(--toolbar-surface, var(--theme-background)) 78%); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { box-shadow: 0 5px 16px var(--theme-shadow); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action:hover { border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-icon {
-        display: grid;
-        flex: 0 0 36px;
-        width: 36px;
-        height: 36px;
-        place-items: center;
-        border: 1px solid color-mix(in srgb, var(--ui-accent) 16%, transparent);
-        border-radius: 12px;
-        color: var(--ui-accent-ink);
-        background: var(--ui-accent-soft);
-    }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action.secondary .mobile-home-action-icon { color: var(--theme-text-secondary); background: var(--theme-background); border-color: var(--theme-border); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy { display: grid; min-width: 0; flex: 1 1 auto; gap: 4px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy strong { overflow: hidden; color: var(--theme-text-primary); font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy small { color: var(--theme-text-secondary); font-size: 9px; line-height: 1.35; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-arrow { flex: 0 0 15px; width: 15px; height: 15px; fill: none; stroke: var(--theme-text-secondary); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { grid-area: project; display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 11px 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, var(--theme-border)); border-radius: 14px; background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 96%, transparent); box-shadow: 0 10px 24px var(--theme-shadow); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-icon { display: grid; width: 36px; height: 36px; grid-row: 1; place-items: center; border: 1px solid color-mix(in srgb, var(--ui-accent) 20%, transparent); border-radius: 11px; color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 8%, var(--toolbar-surface, var(--theme-background))); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project > div { min-width: 0; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project h2 { margin: 4px 0 5px; color: var(--theme-text-primary); font-size: 14px; line-height: 1.25; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project p { max-width: 490px; margin: 0; color: var(--theme-text-secondary); font-size: 11px; line-height: 1.5; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project > button { display: flex; grid-column: 1 / -1; width: 100%; min-height: 40px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--ui-accent) 32%, transparent); border-radius: 9px; color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 7%, var(--toolbar-surface, var(--theme-background))); cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
-
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent {
-        grid-area: recent;
-        min-width: 0;
-        padding: 15px;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 10%, transparent);
-        border-radius: 19px;
-        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 97%, transparent);
+    .app-shell.home-screen-active:not(.platform-windows) .home-screen-mobile button:focus-visible {
+        outline: 2px solid var(--theme-primary);
+        outline-offset: 2px;
     }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading h2 { margin: 5px 0 0; color: var(--theme-text-primary); font-size: 17px; font-weight: 700; letter-spacing: -.025em; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-count { display: grid; min-width: 27px; height: 27px; place-items: center; padding: 0 7px; border: 1px solid var(--theme-border); border-radius: 99px; color: var(--theme-text-secondary); background: var(--theme-background); font-size: 10px; font-variant-numeric: tabular-nums; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-list { display: grid; gap: 4px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-row { display: flex; min-width: 0; align-items: center; gap: 3px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-item { display: flex; width: 100%; min-width: 0; min-height: 56px; align-items: center; gap: 10px; padding: 6px; border: 1px solid transparent; border-radius: 12px; color: inherit; text-align: left; background: transparent; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-row .mobile-home-recent-item { width: auto; flex: 1 1 auto; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-link { min-width: 62px; min-height: 32px; flex: 0 0 auto; padding: 0 8px; border: 1px solid var(--theme-border); border-radius: 7px; color: var(--theme-text-secondary); background: transparent; cursor: pointer; font: inherit; font-size: 9px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-item:hover { border-color: color-mix(in srgb, var(--ui-accent) 18%, transparent); background: color-mix(in srgb, var(--ui-accent) 5%, transparent); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-icon,
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty-icon { display: grid; flex: 0 0 37px; width: 37px; height: 39px; place-items: center; border: 1px solid var(--theme-border); border-radius: 11px; color: var(--theme-text-secondary); background: var(--theme-background); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-icon svg,
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty-icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy { display: grid; min-width: 0; flex: 1 1 auto; gap: 3px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy strong { overflow: hidden; color: var(--theme-text-primary); font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy small { color: var(--theme-text-secondary); font-size: 9px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-arrow { flex: 0 0 14px; width: 14px; height: 14px; fill: none; stroke: var(--theme-text-secondary); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty { display: flex; min-height: 108px; align-items: center; gap: 11px; padding: 8px 5px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty > div { min-width: 0; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty strong { color: var(--theme-text-primary); font-size: 11px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty p { margin: 4px 0 0; color: var(--theme-text-secondary); font-size: 10px; line-height: 1.45; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer { grid-area: footer; display: flex; align-items: center; gap: 6px; padding: 0 3px; color: var(--theme-text-secondary); font-size: 9px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer i { width: 3px; height: 3px; margin: 0 2px; border-radius: 50%; background: var(--theme-background); }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-action,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-recent,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project { border-color: var(--theme-border); background-color: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 94%, transparent); }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project-icon { border-color: var(--theme-border); }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project-link { border-color: var(--theme-border); }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-action.secondary .mobile-home-action-icon,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-file-icon,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-empty-icon,
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-count { border-color: var(--theme-border); }
 }
 
-@media (min-width: 700px) and (max-width: 1600px) and (pointer: coarse) {
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-screen { overflow: hidden; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout {
-        grid-template-areas: "primary recent";
-        grid-template-columns: minmax(245px, .82fr) minmax(0, 1.18fr);
-        grid-template-rows: minmax(0, 1fr);
-        align-content: stretch;
-        align-items: stretch;
-        gap: 18px clamp(18px, 3vw, 38px);
-        height: 100%;
-        min-height: 0;
-        padding: clamp(24px, 4vw, 52px) clamp(22px, 5vw, 70px) max(18px, env(safe-area-inset-bottom));
+@media (min-width: 561px) and (max-width: 900px) and (orientation: landscape), (min-width: 700px) and (max-width: 1600px) and (pointer: coarse) and (orientation: landscape) {
+    .app-shell.home-screen-active:not(.platform-windows) .home-screen-mobile {
+        display: block;
         overflow: hidden;
     }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-primary {
+
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-layout {
         box-sizing: border-box;
-        grid-template-rows: auto auto minmax(0, 1fr);
-        gap: 18px;
+        grid-template-areas: "hero library" "hero planning" "footer footer";
+        grid-template-columns: minmax(240px, .82fr) minmax(0, 1.18fr);
+        grid-template-rows: minmax(0, 1fr) auto auto;
+        align-content: stretch;
+        gap: 10px 16px;
+        width: min(1120px, 100%);
         height: 100%;
-        padding: 20px;
-        overflow: hidden;
-        border: 1px solid color-mix(in srgb, var(--ui-accent) 19%, var(--theme-border));
-        border-radius: 24px;
-        background: linear-gradient(145deg, color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 98%, transparent), color-mix(in srgb, var(--ui-accent) 3%, var(--toolbar-surface, var(--theme-background))));
-        box-shadow: 0 12px 30px var(--theme-shadow);
+        padding: 10px 4px;
     }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 { max-width: 400px; font-size: clamp(32px, 4vw, 46px); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-actions { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 10px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { min-height: 74px; padding: 12px 14px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy strong { font-size: 13px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy small { font-size: 10px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { grid-template-columns: minmax(0, 1fr); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent { display: flex; min-height: 0; flex-direction: column; padding: 18px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-list { gap: 6px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-item { min-height: 62px; padding: 8px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy strong { font-size: 12px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer { display: none; }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-primary { border-color: var(--theme-border); }
+
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-hero { box-sizing: border-box; align-content: center; gap: 18px; padding: 18px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-title { font-size: clamp(27px, 3vw, 37px); }
+    .app-shell.home-screen-active:not(.platform-windows) .home-actions-mobile { grid-template-columns: minmax(0, 1fr); }
+    .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile { display: flex; box-sizing: border-box; overflow: hidden; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile .home-recent-list { min-height: 0; max-height: none; flex: 1 1 auto; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-planning-mobile { align-self: end; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-footer { display: none; }
 }
 
 @media (max-width: 560px) {
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout { gap: 14px; padding-top: 15px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 { max-width: 340px; font-size: clamp(27px, 8vw, 34px); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro p { font-size: 11px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-actions { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { padding: 12px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { min-height: 66px; gap: 10px; padding: 10px 12px; border-radius: 15px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-icon { flex-basis: 36px; width: 36px; height: 36px; border-radius: 11px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-icon svg { width: 18px; height: 18px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy strong { font-size: 12px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy small { font-size: 10px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-arrow { display: block; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent { padding: 12px; border-radius: 16px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty { min-height: 88px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-icon { flex-basis: 33px; width: 33px; height: 35px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-item { min-height: 50px; gap: 8px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy strong { font-size: 12px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy small { font-size: 10px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer { flex-wrap: wrap; gap: 5px; font-size: 8px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-screen-mobile { padding-top: max(9px, env(safe-area-inset-top)); }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-layout { gap: 10px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-hero { gap: 14px; padding: 15px; border-radius: 15px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-title { font-size: clamp(27px, 8vw, 34px); }
+    .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile { padding: 12px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-planning-mobile { gap: 5px 7px; }
 }
 
-@media (max-height: 540px) and (max-width: 900px) {
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout { gap: 10px; padding-top: 9px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 { margin-top: 7px; font-size: 25px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { min-height: 58px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent { padding: 9px 11px; }
-}
-
-@media (max-width: 900px) and (orientation: landscape), (max-width: 1600px) and (pointer: coarse) and (orientation: landscape) {
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-screen {
-        display: block;
-        min-height: 0;
-        overflow: hidden;
-        overscroll-behavior: none;
-        -webkit-overflow-scrolling: auto;
-    }
-
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout {
-        box-sizing: border-box;
-        grid-template-areas: "primary recent";
-        grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
-        grid-template-rows: minmax(0, 1fr);
-        align-content: stretch;
-        align-items: stretch;
-        gap: 8px clamp(12px, 2.2vw, 24px);
-        width: min(100%, 1080px);
-        height: 100%;
-        min-height: 0;
-        padding: max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
-        overflow: hidden;
-    }
-
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-primary {
-        box-sizing: border-box;
-        grid-template-areas: "intro" "actions" "project";
-        grid-template-rows: auto auto minmax(0, 1fr);
-        align-content: stretch;
-        align-items: stretch;
-        gap: 8px;
-        height: 100%;
-        min-height: 0;
-        padding: 12px;
-        overflow: hidden;
-        border: 1px solid color-mix(in srgb, var(--ui-accent) 19%, var(--theme-border));
-        border-radius: 18px;
-        background: linear-gradient(145deg, color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 98%, transparent), color-mix(in srgb, var(--ui-accent) 3%, var(--toolbar-surface, var(--theme-background))));
-        box-shadow: 0 12px 30px var(--theme-shadow);
-    }
-
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro { min-width: 0; padding: 0; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 { margin: 5px 0 3px; font-size: clamp(21px, 3.7vw, 31px); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro p { font-size: 10px; line-height: 1.35; }
-
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-actions {
-        grid-template-columns: minmax(0, 1fr);
-        align-content: start;
-        gap: 5px;
-    }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { min-height: 44px; gap: 0; padding: 7px 10px; border-radius: 11px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy { gap: 2px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy strong { font-size: 11px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action-copy small { font-size: 8px; }
-
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project {
-        grid-template-columns: minmax(0, 1fr);
-        align-self: stretch;
-        min-height: 0;
-        grid-template-rows: minmax(0, 1fr) auto;
-        align-content: stretch;
-        gap: 5px;
-        padding: 8px 2px 0;
-        border: 0;
-        border-top: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent);
-        border-radius: 0;
-        background: transparent;
-        box-shadow: none;
-    }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project h2 { margin: 3px 0; font-size: 12px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project p { margin: 0; font-size: 9px; line-height: 1.3; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project > button { grid-column: 1; width: max-content; min-height: 29px; align-self: end; margin-top: auto; padding-inline: 9px; font-size: 9px; }
-
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent {
-        display: flex;
-        min-height: 0;
-        flex-direction: column;
-        align-self: stretch;
-        padding: 10px;
-        overflow: hidden;
-        border-radius: 14px;
-        box-shadow: 0 10px 24px var(--theme-shadow);
-    }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-primary { border-color: var(--theme-border); }
-    .app-shell.theme-dark.home-screen-active:not(.platform-windows) .mobile-home-project { border-color: transparent; border-top-color: var(--theme-border); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading { flex: 0 0 auto; margin-bottom: 5px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-section-heading h2 { font-size: 14px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-count { min-width: 23px; height: 23px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-list {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-auto-rows: minmax(0, 1fr);
-        min-height: 0;
-        flex: 1 1 auto;
-        gap: 4px;
-        overflow: hidden;
-    }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-row { gap: 3px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-item { min-height: 36px; gap: 4px; padding: 4px; border-radius: 8px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy strong { font-size: 10px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-file-copy small { display: none; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-link { min-width: 46px; min-height: 26px; padding-inline: 4px; font-size: 8px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty { min-height: 0; flex: 1 1 auto; justify-content: center; padding: 4px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty strong { font-size: 10px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-empty p { font-size: 9px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-footer { display: none; }
-}
-
-@media (max-width: 600px) and (orientation: landscape) {
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout { grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); gap: 7px 9px; padding-inline: max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-right)); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent { padding: 7px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project-link { display: none; }
-}
-
-@media (max-height: 380px) and (orientation: landscape) {
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-layout { row-gap: 6px; padding-block: max(5px, env(safe-area-inset-top)) max(5px, env(safe-area-inset-bottom)); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro h1 { margin: 3px 0 2px; font-size: clamp(19px, 3vw, 25px); }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-intro p,
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project p { display: none; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-action { min-height: 38px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project { gap: 4px; padding: 7px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-project > button { min-height: 26px; }
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent { padding: 7px; }
-}
-
-@media (max-height: 280px) and (orientation: landscape) {
-    .app-shell.home-screen-active:not(.platform-windows) .mobile-home-recent-row:nth-child(n + 5) { display: none; }
+@media (max-height: 430px) and (orientation: landscape) {
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-layout { gap: 7px 12px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-hero { gap: 10px; padding: 12px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-kicker { margin-bottom: 4px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-title { font-size: 25px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-copy { display: none; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile { padding: 10px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-planning-mobile p { display: none; }
 }

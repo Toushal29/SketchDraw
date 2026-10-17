@@ -1,7 +1,7 @@
-/* Touch property and page controls. The touch menu and toolbar live in touch-bars.css. */
-.mobile-advanced-properties { display: none; }
+/* Mobile-only page and property panel adjustments. */
+.app-shell:not(.platform-windows) .mobile-advanced-properties { display: none; }
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .page-tabs {
+    .app-shell:not(.platform-windows) .page-tabs {
         box-sizing: border-box;
         width: min(280px, calc(100vw - 122px));
         max-width: min(280px, calc(100vw - 122px));
@@ -9,11 +9,11 @@
         gap: 1px;
         padding: 2px;
     }
-    .page-tab { max-width: min(92px, 21vw); height: 27px; padding: 0 5px; font-size: 9px; }
-    .page-tabs > button,
-    .page-menu > summary { min-width: 26px; min-height: 27px; padding: 2px 4px; }
+    .app-shell:not(.platform-windows) .page-tab { max-width: min(92px, 21vw); height: 27px; padding: 0 5px; font-size: 9px; }
+    .app-shell:not(.platform-windows) .page-tabs > button,
+    .app-shell:not(.platform-windows) .page-menu > summary { min-width: 26px; min-height: 27px; padding: 2px 4px; }
 
-    .style-pane.quick-style-mode.mobile-properties-collapsed {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-collapsed {
         top: 8px;
         right: 8px;
         bottom: auto;
@@ -26,34 +26,34 @@
         overflow: visible;
         border-radius: 50%;
     }
-    .style-pane.mobile-properties-collapsed > .quick-style-panel {
-        display: flex !important;
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed > .quick-style-panel {
+        display: flex;
         width: 100%;
         height: 100%;
         align-items: center;
         justify-content: center;
         gap: 0;
     }
-    .style-pane.mobile-properties-collapsed .quick-style-heading {
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-heading {
         width: 36px;
         min-width: 36px;
         height: 36px;
         flex: 0 0 36px;
         margin: 0;
     }
-    .style-pane.mobile-properties-collapsed .quick-style-heading > button {
-        width: 36px !important;
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-heading > button {
+        width: 36px;
         min-width: 36px;
         max-width: 36px;
         height: 36px;
         min-height: 36px;
         border-radius: 50%;
     }
-    .style-pane.mobile-properties-collapsed .quick-style-controls,
-    .style-pane.mobile-properties-collapsed .mobile-advanced-properties { display: none !important; }
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-controls,
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed .mobile-advanced-properties { display: none; }
 
-    .style-pane.quick-style-mode.mobile-properties-expanded,
-    .style-pane.full-style-mode.mobile-properties-expanded {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded,
+    .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded {
         top: 8px;
         right: 8px;
         bottom: auto;
@@ -67,9 +67,9 @@
         overflow: visible;
         border-radius: 13px;
     }
-    .style-pane.full-style-mode.mobile-properties-expanded { z-index: 70; }
-    .style-pane.mobile-properties-expanded > .quick-style-panel {
-        display: flex !important;
+    .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded { z-index: 70; }
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded > .quick-style-panel {
+        display: flex;
         width: 100%;
         height: auto;
         min-width: 0;
@@ -77,7 +77,7 @@
         gap: 4px;
         overflow: visible;
     }
-    .style-pane.mobile-properties-expanded .quick-style-heading {
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading {
         width: auto;
         min-width: 36px;
         height: 36px;
@@ -85,11 +85,11 @@
         margin: 0;
         gap: 3px;
     }
-    .style-pane.mobile-properties-expanded .quick-style-heading > button,
-    .style-pane .quick-style-heading > .mobile-advanced-properties {
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > button,
+    .app-shell:not(.platform-windows) .style-pane .quick-style-heading > .mobile-advanced-properties {
         display: grid;
         box-sizing: border-box;
-        width: 34px !important;
+        width: 34px;
         min-width: 34px;
         max-width: 34px;
         height: 34px;
@@ -98,9 +98,9 @@
         place-items: center;
         border-radius: 10px;
     }
-    .style-pane .quick-style-heading > .mobile-advanced-properties { display: none; }
-    .style-pane.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties { display: grid; }
-    .style-pane.mobile-properties-expanded .quick-style-controls {
+    .app-shell:not(.platform-windows) .style-pane .quick-style-heading > .mobile-advanced-properties { display: none; }
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties { display: grid; }
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-controls {
         display: flex;
         min-width: 0;
         max-height: calc(min(46dvh, 300px) - 12px);
@@ -112,7 +112,7 @@
         overscroll-behavior: contain;
         touch-action: pan-y;
     }
-    .style-pane.mobile-properties-expanded .quick-style-popover {
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-popover {
         top: 50px;
         right: auto;
         bottom: auto;
@@ -122,7 +122,7 @@
         max-height: min(48dvh, 320px);
         transform: none;
     }
-    .style-pane.full-style-mode.mobile-properties-expanded > .full-inspector {
+    .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded > .full-inspector {
         top: 58px;
         right: auto;
         bottom: max(8px, env(safe-area-inset-bottom));
@@ -130,15 +130,15 @@
         width: min(720px, calc(100vw - max(66px, calc(env(safe-area-inset-left) + 60px)) - max(8px, env(safe-area-inset-right))));
         max-height: none;
     }
-    .theme-dark .style-pane.mobile-properties-collapsed .quick-style-heading > button,
-    .theme-dark .style-pane.mobile-properties-expanded .quick-style-heading > button,
-    .theme-dark .style-pane.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-heading > button,
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > button,
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
         border-color: var(--theme-border);
         color: var(--theme-text-primary);
         background: var(--theme-surface-elevated);
     }
 }
 @media (max-width: 560px) {
-    .page-tabs { width: min(236px, calc(100vw - 122px)); max-width: min(236px, calc(100vw - 122px)); }
-    .page-tab { max-width: min(78px, 22vw); }
+    .app-shell:not(.platform-windows) .page-tabs { width: min(236px, calc(100vw - 122px)); max-width: min(236px, calc(100vw - 122px)); }
+    .app-shell:not(.platform-windows) .page-tab { max-width: min(78px, 22vw); }
 }

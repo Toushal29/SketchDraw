@@ -323,7 +323,7 @@
 }
 
 .color-swatch:not(.custom-color-swatch) {
-    border-radius: 50% !important;
+    border-radius: 50%;
 }
 
 .class-card-dialog {
@@ -493,9 +493,9 @@
 }
 
 .laser-rainbow {
-    display: flex !important;
+    display: flex;
     align-items: center;
-    gap: 6px !important;
+    gap: 6px;
     font-size: 10px;
 }
 
@@ -1015,12 +1015,12 @@
 }
 
 .thickness-fine-slider {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 7px !important;
-    margin: 10px 0 0 !important;
-    color: var(--theme-text-secondary) !important;
-    font-size: 10px !important;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 7px;
+    margin: 10px 0 0;
+    color: var(--theme-text-secondary);
+    font-size: 10px;
 }
 
 .thickness-fine-slider input {

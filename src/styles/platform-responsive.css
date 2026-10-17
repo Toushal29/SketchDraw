@@ -83,36 +83,6 @@ body,
         display: none;
     }
 
-    .welcome-screen {
-        flex: 1 1 auto;
-        width: 100%;
-        height: auto;
-        min-height: 0;
-        padding: 14px;
-        padding-bottom: max(14px, env(safe-area-inset-bottom));
-    }
-
-    .welcome-card {
-        min-height: 0;
-        padding: 22px;
-        border-radius: 21px;
-    }
-
-    .welcome-symbol {
-        margin-bottom: 20px;
-    }
-
-    .welcome-intro h1 {
-        font-size: clamp(36px, 8vw, 52px);
-    }
-
-    .recent-dashboard {
-        min-height: 250px;
-        max-height: none;
-        padding: 21px 18px;
-        border-radius: 21px;
-    }
-
     .canvas-wrap {
         flex: 1 1 auto;
     }
@@ -297,40 +267,6 @@ body,
         font-size: 10px;
     }
 
-    .welcome-screen {
-        gap: 12px;
-        padding: 10px;
-        padding-bottom: max(10px, env(safe-area-inset-bottom));
-    }
-
-    .welcome-card {
-        padding: 19px 17px;
-        border-radius: 18px;
-    }
-
-    .welcome-intro .welcome-copy {
-        margin: 15px 0 18px;
-        font-size: 13px;
-    }
-
-    .welcome-actions {
-        display: grid;
-        grid-template-columns: 1fr;
-    }
-
-    .welcome-actions button {
-        min-height: 46px;
-    }
-
-    .file-hint {
-        margin-top: 21px;
-    }
-
-    .recent-dashboard {
-        min-height: 225px;
-        padding: 18px 14px;
-    }
-
     .page-tabs {
         max-width: calc(100% - 68px);
     }
@@ -359,21 +295,6 @@ body,
 }
 
 @media (max-height: 540px) and (max-width: 900px) {
-    .welcome-screen {
-        align-content: start;
-    }
-
-    .welcome-card {
-        padding-top: 14px;
-        padding-bottom: 14px;
-    }
-
-    .welcome-symbol,
-    .file-hint,
-    .copyright-notice {
-        display: none;
-    }
-
     .style-pane.quick-style-mode,
     .style-pane.full-style-mode {
         bottom: calc(env(safe-area-inset-bottom) + 62px);

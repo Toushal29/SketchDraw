@@ -122,6 +122,26 @@ class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) 
   }
 
   @Command
+  fun pickPlanningDocument(invoke: Invoke) {
+    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+      addCategory(Intent.CATEGORY_OPENABLE)
+      type = "*/*"
+      putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/vnd.sketchdraw.planning+json", "application/json", "text/plain", "application/octet-stream"))
+      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+    }
+    startActivityForResult(invoke, intent, "pickPlanningDocumentResult")
+  }
+
+  @ActivityCallback
+  fun pickPlanningDocumentResult(invoke: Invoke, result: ActivityResult) {
+    if (result.resultCode != Activity.RESULT_OK) {
+      resolveUri(invoke, null)
+      return
+    }
+    persistDocumentPermission(invoke, result.data)
+  }
+
+  @Command
   fun createSketchDocument(invoke: Invoke) {
     val args = invoke.parseArgs(CreateSketchDocumentArgs::class.java)
     val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -135,6 +155,95 @@ class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) 
       )
     }
     startActivityForResult(invoke, intent, "createSketchDocumentResult")
+  }
+
+  @Command
+  fun createPlanningDocument(invoke: Invoke) {
+    val args = invoke.parseArgs(CreateSketchDocumentArgs::class.java)
+    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+      addCategory(Intent.CATEGORY_OPENABLE)
+      type = "application/vnd.sketchdraw.planning+json"
+      putExtra(Intent.EXTRA_TITLE, args.fileName ?: "Untitled.sdplan")
+      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+    }
+    startActivityForResult(invoke, intent, "createPlanningDocumentResult")
+  }
+
+  @Command
+  fun createPlanningExport(invoke: Invoke) {
+    try {
+      val args = invoke.parseArgs(CreateSketchDocumentArgs::class.java)
+      val fileName = args.fileName?.trim() ?: throw IllegalArgumentException("The export file name is missing.")
+      val extension = fileName.substringAfterLast('.', "").lowercase()
+      val mimeType = when (extension) {
+        "html" -> "text/html"
+        "csv" -> "text/csv"
+        "ics" -> "text/calendar"
+        else -> throw IllegalArgumentException("Planning exports must be HTML, CSV, or ICS files.")
+      }
+      val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+        addCategory(Intent.CATEGORY_OPENABLE)
+        type = mimeType
+        putExtra(Intent.EXTRA_TITLE, fileName)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+      }
+      startActivityForResult(invoke, intent, "createPlanningExportResult")
+    } catch (error: Exception) {
+      invoke.reject(error.message ?: "Could not create the Planning export.")
+    }
+  }
+
+  @Command
+  fun createTextExport(invoke: Invoke) {
+    try {
+      val args = invoke.parseArgs(CreateSketchDocumentArgs::class.java)
+      val fileName = args.fileName?.trim() ?: throw IllegalArgumentException("The export file name is missing.")
+      val extension = fileName.substringAfterLast('.', "").lowercase()
+      val mimeType = when (extension) {
+        "csv" -> "text/csv"
+        "dot" -> "text/vnd.graphviz"
+        "json" -> "application/json"
+        "sql" -> "text/plain"
+        "mmd", "mermaid", "puml", "plantuml" -> "text/plain"
+        else -> throw IllegalArgumentException("This diagram code export type is not supported.")
+      }
+      val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+        addCategory(Intent.CATEGORY_OPENABLE)
+        type = mimeType
+        putExtra(Intent.EXTRA_TITLE, fileName)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+      }
+      startActivityForResult(invoke, intent, "createTextExportResult")
+    } catch (error: Exception) {
+      invoke.reject(error.message ?: "Could not create the diagram code export.")
+    }
+  }
+
+  @ActivityCallback
+  fun createPlanningDocumentResult(invoke: Invoke, result: ActivityResult) {
+    if (result.resultCode != Activity.RESULT_OK) {
+      resolveUri(invoke, null)
+      return
+    }
+    persistDocumentPermission(invoke, result.data)
+  }
+
+  @ActivityCallback
+  fun createPlanningExportResult(invoke: Invoke, result: ActivityResult) {
+    if (result.resultCode != Activity.RESULT_OK) {
+      resolveUri(invoke, null)
+      return
+    }
+    persistDocumentPermission(invoke, result.data)
+  }
+
+  @ActivityCallback
+  fun createTextExportResult(invoke: Invoke, result: ActivityResult) {
+    if (result.resultCode != Activity.RESULT_OK) {
+      resolveUri(invoke, null)
+      return
+    }
+    persistDocumentPermission(invoke, result.data)
   }
 
   @Command

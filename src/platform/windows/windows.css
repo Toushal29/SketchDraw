@@ -203,7 +203,7 @@
     position: absolute;
     top: 50%;
     right: -47px;
-    display: grid !important;
+    display: grid;
     width: 38px;
     min-width: 38px;
     height: 38px;
@@ -281,17 +281,17 @@
 @media (max-width: 900px),
 (max-width: 1600px) and (pointer: coarse) {
     .app-shell.platform-windows .tool-deck .tool-cluster {
-        display: flex !important;
+        display: flex;
         flex-wrap: nowrap;
     }
 
     .app-shell.platform-windows .tool-deck .tool-cluster .tool-icon-button,
     .app-shell.platform-windows .tool-deck .tool-extra-family {
-        display: flex !important;
+        display: flex;
     }
 
     .app-shell.platform-windows .tool-deck .tool-collapse {
-        display: grid !important;
+        display: grid;
     }
 }
 
@@ -340,11 +340,11 @@
 }
 
 .app-shell.platform-windows .windows-document-tab-name {
-    flex: 1 1 auto !important;
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     padding: 5px 7px;
-    color: inherit !important;
+    color: inherit;
     text-align: left;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -359,8 +359,8 @@
     place-items: center;
     margin-right: 3px;
     padding: 0;
-    border-radius: 6px !important;
-    color: inherit !important;
+    border-radius: 6px;
+    color: inherit;
     opacity: .7;
 }
 
@@ -1334,38 +1334,4 @@
         gap: 5px;
         padding-inline: 9px;
     }
-}
-
-/* Windows keeps its frame spacing while sharing the welcome theme and surfaces. */
-.app-shell.platform-windows.home-screen-active .welcome-screen {
-    box-sizing: border-box;
-    width: min(1440px, 100%);
-    height: calc(100% - 64px);
-    max-width: 1440px;
-    grid-template-columns: minmax(0, 1.5fr) minmax(320px, .72fr);
-    gap: clamp(16px, 2vw, 28px);
-    padding: clamp(22px, 3vw, 40px);
-}
-
-.app-shell.platform-windows.home-screen-active .welcome-card {
-    grid-template-columns: minmax(0, .93fr) minmax(250px, 1.07fr);
-    gap: clamp(18px, 2.4vw, 32px);
-    padding: clamp(22px, 2.5vw, 34px);
-}
-
-.app-shell.platform-windows.home-screen-active .welcome-symbol { margin-bottom: 22px; }
-.app-shell.platform-windows.home-screen-active .welcome-visual { min-height: 340px; }
-
-@media (max-width: 1120px) {
-    .app-shell.platform-windows.home-screen-active .welcome-screen {
-        grid-template-columns: minmax(0, 1fr);
-        height: auto;
-    }
-
-    .app-shell.platform-windows.home-screen-active .welcome-card {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .app-shell.platform-windows.home-screen-active .welcome-visual { display: none; }
-    .app-shell.platform-windows.home-screen-active .recent-dashboard { min-height: 260px; }
 }

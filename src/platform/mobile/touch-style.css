@@ -1,4 +1,4 @@
-.touch-style-panel { display: none; }
+.app-shell:not(.platform-windows) .touch-style-panel { display: none; }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) .touch-style-panel {
@@ -129,7 +129,7 @@
     .app-shell:not(.platform-windows) .touch-style-palette { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
 }
 
-.app-shell:not(.platform-windows).touch-focus-mode .touch-style-panel { display: none !important; }
+.app-shell:not(.platform-windows).touch-focus-mode .touch-style-panel { display: none; }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) .help-backdrop {

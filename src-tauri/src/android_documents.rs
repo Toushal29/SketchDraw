@@ -98,6 +98,37 @@ pub(crate) async fn create_sketch_document(
 }
 
 #[tauri::command]
+pub(crate) async fn pick_planning_document(
+    state: State<'_, AndroidDocumentsHandle>,
+) -> Result<Option<String>, String> {
+    run_picker(state, "pickPlanningDocument", ()).await
+}
+
+#[tauri::command]
+pub(crate) async fn create_planning_document(
+    file_name: String,
+    state: State<'_, AndroidDocumentsHandle>,
+) -> Result<Option<String>, String> {
+    run_picker(state, "createPlanningDocument", CreateDocumentArgs { file_name }).await
+}
+
+#[tauri::command]
+pub(crate) async fn create_planning_export(
+    file_name: String,
+    state: State<'_, AndroidDocumentsHandle>,
+) -> Result<Option<String>, String> {
+    run_picker(state, "createPlanningExport", CreateDocumentArgs { file_name }).await
+}
+
+#[tauri::command]
+pub(crate) async fn create_text_export(
+    file_name: String,
+    state: State<'_, AndroidDocumentsHandle>,
+) -> Result<Option<String>, String> {
+    run_picker(state, "createTextExport", CreateDocumentArgs { file_name }).await
+}
+
+#[tauri::command]
 pub(crate) async fn create_legacy_library_archive(
     file_name: String,
     state: State<'_, AndroidDocumentsHandle>,

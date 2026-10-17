@@ -1,167 +1,175 @@
-# SketchDraw feature audit
+# SketchDraw feature inventory and code audit
 
 Reviewed: 17 October 2026
-App versions: Windows 12.3.0; Android 7.3.0
+App versions in source: Windows 12.4.0; Android 7.4.0
+Base source revision: a662f08; this audit update is uncommitted.
 
-This is a source-level audit of the app UI, document model, project workspace, file handling, platform code, README, and existing screenshots. It describes features present in the code and identifies gaps against Excalidraw, draw.io, and collaborative planning boards. The listed gaps are recommendations, not claims that the features are already underway.
+This document records features implemented in the current source and a static review of the application, platform adapters, document handling, styles, build configuration, README, and canvas-performance code. It distinguishes current behavior from suggested work. See [the v12.4.0 / 7.4.0 release notes](docs/release-notes-v12.4.0.md) for this release's summary.
 
-## Features in the app
+## Features available in the app
 
-- **Local sketch files:** Create, open, rename, save, and close portable `.sketch` documents stored in a folder chosen by the user. Files can live in OneDrive, Dropbox, Google Drive, or another synced folder.
-- **Canvas and Planning workspaces:** Each sketch keeps its drawing pages and planning information in one document.
-- **Canvas pages:** Create, name, duplicate, reorder, and delete pages. A document supports up to 100 pages.
-- **Recent files and desktop tabs:** Home lists recent sketches. Windows supports multiple open sketch tabs.
-- **Autosave and recovery:** Choose a 5- or 10-second autosave interval. Recover changes after an interrupted session.
-- **Older-file support:** Read SketchDraw document versions 1–8 and migrate them to the current version when saved.
-- **Drawing tools:** Use pen, fine pen, pencil, soft brush, marker, highlighter, chalk, laser pointer, eraser, bucket fill, and image crop tools.
-- **Touch and stylus input:** Draw and navigate with touch; supported styluses can provide pressure, tilt, and eraser-end input. Touch gestures can be configured.
-- **Shapes and symbols:** Add geometric shapes and a broad built-in set of flowchart, process, database, network, UML, ER, C4, BPMN, cloud, software, chart, and wireframe components.
-- **Connectors:** Create straight, curved, multi-point, elbow, forked, loop, and jagged connectors. Attach ends to shapes, edit route points, and choose line and arrowhead styles. Windows also has obstacle-aware connector routing.
-- **Edit and arrange:** Select, move, resize, rotate, group, duplicate, align, and distribute objects. Copy, cut, and paste objects or copy their style.
-- **Layers and history:** Hide, lock, and reorder layers. Each drawing tool has one layer containing all objects drawn with that tool. Undo and redo are available per page during the current session.
-- **Canvas navigation:** Pan, zoom, fit the drawing, zoom to a selection, and use optional grid, snapping, alignment guides, and minimap. Choose a board color and paper pattern.
-- **Text and cards:** Add plain text, Markdown, tables, code notes, notes, sticky notes, and checklists. Edit cards on the canvas, change their formatting, resize or collapse them, and expand them to continue editing.
-- **Mermaid flowcharts:** Turn supported Mermaid flowchart source into editable shapes and connectors. The source is saved with the diagram for later editing.
-- **Database diagrams:** Turn SQL `CREATE TABLE` statements or JSON schema input into editable table cards and foreign-key connectors.
-- **Editable modeling components:** Add and configure UML, sequence, ER, C4, BPMN, cloud, software, network, chart, and wireframe components.
-- **Project overview:** Keep a project name, description, project notes, tasks, a checklist, milestones, decisions, questions, risks, links, and file attachments alongside the canvas.
-- **Project views:** Review and edit tasks in a task list or three-column Kanban board. Set priority, status, start and due dates, and task dependencies; keep a separate project checklist. See tasks and milestones in a timeline or day, week, and month calendar.
-- **Import:** Import common raster images and SVG artwork. Images are stored in the sketch file. Imported SVG artwork is converted to a raster image. Mermaid, SQL, and JSON inputs can generate editable diagrams.
-- **Export and printing:** Preview and export PNG, SVG, and PDF. PDF supports selected pages, page ranges or all pages; standard or custom paper sizes; fit-to-page or tiled output; margins, headers, footers, bleed, crop marks, and RGB, CMYK, or grayscale output. PNG and SVG can have transparent backgrounds. Older retired Library collections can be exported to JSON and removed from the sketch after it saves.
-- **View and presentation modes:** Open a local sketch in view-only mode, or hide editing controls and present its pages with next and previous navigation.
-- **Desktop tools:** Windows has a command palette, customizable shortcuts, and a full-screen focus mode.
-- **Appearance and settings:** Choose light, dark, or system theme; set accent and toolbar colors using compact color swatches; choose component appearance; adjust interface scale and supported mobile orientation and toolbar position. The Help and updates menu shows the installed app version below the update control. The light and dark palettes are centralized in one theme file.
-- **Help and updates:** The app includes a feature guide and shortcut help. Windows checks for signed app updates; Android can download a matching release and open the system installer for the user to approve.
-- **Shared-folder update merging:** On Windows, SketchDraw detects edits to an open file after the sync provider updates it. It merges independent record changes and resolves same-record conflicts with edit timestamps. This depends on file sync and is not live collaboration.
+### Documents and files
 
-## Performance review
+- **Local sketch documents:** Create, open, save, rename, and close portable SketchDraw files. Files are stored at a location chosen by the user.
+- **Separate canvas and planning files:** Whiteboards use `.sketch` files and plans use `.sdplan` files. Switching workspaces keeps the open sketch available. Older sketches with embedded planning data can be migrated when opened.
+- **Pages:** Create, rename, duplicate, reorder, and delete drawing pages. A sketch can contain up to 100 pages.
+- **Recent files:** Home shows up to eight recent file locations. Windows also supports multiple open documents in tabs.
+- **Autosave and recovery:** Choose a 5- or 10-second autosave interval. Recover edits from a local recovery snapshot after an interrupted session.
+- **Older file migration:** Read SketchDraw file versions 1 through 8 and migrate them to the current version 9 format when saved.
+- **Windows sketch-file update merging:** Detect changes delivered to an open `.sketch` file by a synced folder, merge independent record changes, and resolve same-record conflicts using edit timestamps. Standalone `.sdplan` files use explicit saves; Windows compares the on-disk contents before replacing a changed plan.
+- **Retired Library data:** Older quick notes are carried into current Planning notes. Other retired Library records can be exported to a separate JSON archive and removed from the sketch.
 
-### Work already completed
+### Canvas and drawing
 
-The repository contains a canvas performance audit dated 10 October 2026: [canvas performance audit](docs/audits/canvas-performance-2026-10-10.md). It records improvements already present in the code, including cached rendering for pressure strokes, reuse of the scene during live drawing, indexed visible-object rendering, deferred background snapshot work, and reduced minimap and grid work.
+- **Freehand tools:** Draw with Pen, Fine Pen, Pencil, Soft Brush, Marker, Highlighter, and Chalk. Each completed stroke is stored as one freehand object with sampled points and available pressure, tilt, and orientation data. Conservative online simplification removes only samples that stay within a small visual and stylus-attribute tolerance.
+- **Laser pointer:** Point at canvas content with adjustable color, thickness, fade duration, and optional rainbow trails.
+- **Other canvas tools:** Select, pan, draw geometric shapes, add text, fill shapes, erase, and crop imported images.
+- **Touch and stylus input:** Draw and navigate with touch. Compatible styluses can provide pressure, tilt, orientation, and eraser-end input. Android uses a native ink preview and passes stylus samples into the canvas.
+- **Shapes and symbols:** Add rectangles, circles, diamonds, triangles, and built-in flowchart symbols, including process, decision, document, database, cloud, and other common shapes.
+- **Connectors:** Draw straight, curved, multi-point, elbow, forked, loop, or jagged connectors. Set line styles and arrowheads, attach endpoints to shapes, and edit route points. Windows also provides automatic obstacle-aware routing with editable waypoints.
+- **Modeling components:** Insert editable UML, sequence, ER, C4, BPMN, cloud, software, network, chart, form-control, and wireframe components. Configure supported component fields, labels, chart data, ports, and visual style.
+- **Selection and editing:** Move, resize, rotate, group, duplicate, copy, cut, paste, delete, and clear canvas objects. Align and distribute selections, copy object styles, and edit object properties.
+- **Tool layers:** Objects are grouped by drawing tool. Layers can be reordered, hidden, or locked.
+- **Undo and redo:** Undo and redo changes on the active page during the current editing session.
+- **Canvas navigation:** Pan, zoom, fit the drawing, zoom to a selection, use an optional minimap, and enable grid, snapping, or alignment guides.
+- **Board appearance:** Choose a board color and paper pattern. Board color can follow the selected app theme.
 
-That audit measured panning 160 pressure strokes at a median of 104.5 ms before and 0.8 ms after the rendering changes, once the cache was warm. It also notes that long live strokes still redraw their current geometry. The measurement is for the stroke-rendering workload, not full app input latency or physical-device frame rate.
+### Text, notes, and diagrams
 
-This audit also replaced the post-save full-document comparison with a document revision check. A snapshot is cached for the current revision, and Windows sync observation is skipped when the path and revision have not changed. The retired Library archive JSON and Windows sync JSON entries are cached by immutable library data reference, so normal edits do not re-encode those collections. Users can export the old collections as a separate JSON file on Windows or Android, then save the sketch without the retired copy.
+- **Text:** Add formatted text with font family, size, emphasis, alignment, and list styles.
+- **Canvas cards:** Add notes, sticky notes, checklists, Markdown, tables, and code notes. Edit, format, resize, collapse, and expand cards in place.
+- **Mermaid diagrams:** Convert supported Mermaid flowchart source into editable shapes and connectors. Keep the source with the diagram for later editing.
+- **Graphviz DOT diagrams:** Import a practical DOT subset with graph direction, node labels and shapes, edge chains, and edge labels into editable cards and connectors.
+- **Database diagrams:** Convert SQL CREATE TABLE statements, table-definition JSON, or JSON Schema object definitions into editable table cards and foreign-key connectors. JSON Schema export uses standard `$defs` with SketchDraw `x-` extensions for SQL types and key metadata.
+- **Schema editing:** Edit generated table fields and relationship endpoints; generated connectors can attach to matching field rows.
 
-PDF and SVG element rendering now live in separate feature modules and load only when those export formats are used. The stylesheet imports are listed in order in `src/App.css`. The theme cleanup removed duplicate color declarations and empty override rules; the current production CSS bundle is 389.44 KB (53.36 KB gzip), down from 421.17 KB.
+### Project planning
 
-### Remaining performance work
+- **Standalone planning files:** Create and open plans separately from whiteboard documents. Planning files use the `.sdplan` extension; opening Planning keeps the current `.sketch` file available for returning to it.
+- **Project overview:** Keep a project name, description, and notes in a plan file.
+- **Tasks:** Create tasks with descriptions, configurable workflow stages, priorities, dates, estimates, recurring schedules, dependencies, and checklists.
+- **Task views and filters:** Search and filter the task list; move tasks between workflow columns; review dates in a draggable timeline and day, week, or month calendar. Large lists show tasks in batches.
+- **Scheduling:** Show dependency links and schedule warnings, identify the longest dependency path, configure working weekdays, and compare current dates with a saved baseline.
+- **Plan library:** Add recently opened or selected `.sdplan` files to one searchable overview with project, task, and milestone summaries.
+- **Planning exchange and reports:** Import and export tasks and milestones as CSV or iCalendar; export a project report as HTML or print it.
+- **Project checklist:** Maintain checklist items separately from task checklists.
+- **Project records:** Keep milestones, decisions, questions, and risks with owner, next step, status, and risk level fields.
+- **Project files and links:** Attach files or save links beside the project. The attachment reader enforces an 8 MB file limit.
 
-1. **Profile opening and switching large documents.** Opening parses and normalizes the whole file, and activating it deep-copies every page and its elements. Measure load time and memory with large multi-page sketches and embedded images. If those measurements show a problem, load or clone page content on demand and avoid keeping redundant copies of embedded image data.
-2. **Keep large exports responsive.** PDF export is now loaded on demand, but tiled PDF rendering still prepares rasterized pages and builds the file on the app thread. Profile large multi-page exports and consider worker rendering with progress and cancellation if it blocks editing.
-3. **Measure long-stroke latency on actual Android devices.** The earlier performance audit identifies repainting the full active stroke as a remaining limit. If device profiling confirms it is noticeable, evaluate dirty-region rendering while checking that pressure, opacity, caps, and stroke appearance stay the same.
+### Import, export, and viewing
 
-These remaining opportunities come from reading the implementation; their benefit has not been measured in this audit.
+- **Image import:** Import common raster formats and embed the image data in the sketch. SVG artwork can be imported, but it is rasterized.
+- **Editable diagram interchange:** Import the first page of draw.io XML and Excalidraw JSON, then export the active canvas page to either format. Common shapes, text, connectors, freehand paths, and embedded raster images remain editable. Unsupported items may be skipped, while schema tables and component groups flatten to basic shapes and labels.
+- **Data imports:** Import CSV as editable cards and, when `from`/`to` columns are present, connectors. Import a supported Graphviz DOT subset with nodes, edges, labels, basic shapes, and graph direction.
+- **Live web previews:** Place an HTTPS link card on the canvas and double-click it to load a preview. YouTube, Vimeo, Google Drive, and Google Docs links are converted to preview URLs. Other pages work when their server permits embedding; the card also offers an external browser link.
+- **Diagram generation and source export:** Import Mermaid, DOT, CSV, and a supported PlantUML class/object subset as editable shapes and connectors. Export editable shape labels and basic relationships as Mermaid, DOT, CSV, or PlantUML. Generate database table cards from SQL or JSON Schema and export those cards as SQL or JSON Schema. SketchDraw `x-` extensions preserve SQL types and key metadata. Styling and format-specific details are simplified.
+- **Image export:** Preview and export PNG, with transparent-background support.
+- **SVG export:** Export canvas objects as SVG, with transparent-background support.
+- **PDF and printing:** Preview and export the current page, all pages, or a selected range. Configure standard or custom paper sizes, orientation, margins, fit-to-page or tiled output, headers, footers, bleed, crop marks, and RGB, CMYK, or grayscale output.
+- **View-only mode:** Open a sketch without editing or saving it.
+- **Presentation mode:** Hide editing controls and move between drawing pages with previous/next navigation.
 
-## Code cleanup, redundant code, and wiring review
+### Platform, settings, and help
 
-### Findings
+- **Windows desktop:** Multiple document tabs, a command palette, customizable keyboard and mouse shortcuts, full-screen focus mode, automatic diagram layout, and obstacle-aware connector routing. Windows automatic layout and routing are not available in the Android UI.
+- **Android touch layout:** Touch-focused toolbar and controls, configurable gesture actions, and supported portrait/landscape and toolbar-position settings.
+- **Themes and appearance:** Choose light, dark, or system theme; select accent and toolbar colors; choose modern or simple component appearance; and adjust interface scale.
+- **Help:** Open the in-app guide and keyboard-shortcut reference.
+- **App version and updates:** Find the installed version under the update control in Help. Windows installs signed Tauri updates. Android downloads a matching signed APK and opens Android's installer for the user to approve.
 
-- **No confirmed unused TypeScript locals or parameters were found.** The static check `npx tsc --noEmit --noUnusedLocals --noUnusedParameters` completed without diagnostics. The project, document, canvas, and platform components checked are imported or called by the app.
-- **Retired Library data now has an export-and-prune path.** The old collections remain in the v9 compatibility shape until the user exports them. Windows and Android provide native JSON save dialogs; after export, the app clears the archived collections and saves the sketch. The serializer reuses the archived JSON for an unchanged library object. Old-file readers remain intact during the compatibility period in the migration plan.
-- **Color ownership is centralized and duplicate assignments are removed.** `theme.css` contains the light and dark palette. The other app stylesheets use semantic tokens; a scan found no remaining literal CSS colors outside the palette file. Superseded color declarations were removed from identical selector, state, and property groups. The ordered stylesheet manifest remains in `App.css`; separate hover, selected, responsive, and platform states still have their own rules.
-- **The app shell is smaller and has clearer feature boundaries, but remains large.** PDF and SVG serializers moved to lazy-loaded export modules, and document snapshot plus Windows sync tracking moved to a coordinator. `src/App.tsx` is still 4,578 lines and contains substantial canvas interaction and UI wiring. Continue extracting cohesive canvas and menu behavior when those areas are changed; the build still reports a large main chunk.
-- **Restored toolbar dropdown styling and corrected the Canvas popup.** Text, line, arrow, and brush menus use their original option layout again. Modeling keeps its categorized card grid. The Canvas popup has one token-based stylesheet with its original compact proportions; its paper-pattern swatches now have visible marks in both themes. No additional broken document or project data wiring was confirmed; device-specific interactions still need a manual Windows and Android pass.
+## Code and maintenance audit
 
-## Full code and platform audit
+### Confirmed strengths and improvements already present
 
-### Platform wiring
+- **Central theme palette:** Light and dark theme hex colors are defined in `src/styles/app/theme.css`. The CSS scan found no hex color literals outside that file. No CSS transition, animation, or keyframe declarations were found. A few canvas-renderer overlay colors remain hard-coded in TypeScript and are separate from CSS theme tokens.
+- **Canvas rendering:** The renderer queries visible objects through a spatial index and caches settled canvas regions as bounded 512-unit tiles. Editing invalidates tiles that intersect changed object bounds; complex scenes, high zoom, and active interactions fall back to direct rendering.
+- **Incremental spatial index:** The active page index retains bounds and grid membership for unchanged objects. Appends, removals, same-size replacements, and explicitly identified live resize/label changes update affected entries; reordered scenes refresh the affected scene cache.
+- **Page-aware document work:** Page element arrays are reused across page switches and opening a document no longer deep-clones every page. Snapshot normalization and page JSON serialization use bounded caches, so unchanged page element arrays can reuse their normalized and encoded data.
+- **Incremental live drawing:** Live pen previews extend cached geometry; pressure strokes use a bounded preview surface and reuse the same geometry on pen-up when the view is unchanged. A 24 MiB LRU bounds settled-stroke rasters.
+- **Document snapshot and sync work:** A coordinator caches snapshots by path and document revision, and skips repeated Windows sync observation for unchanged revisions.
+- **Save efficiency:** The document controller can compare revisions after an asynchronous save instead of serializing the entire document again just to detect later edits. A bounded cache reuses unchanged serialized page blocks and element JSON when page metadata alone changes.
+- **Lazy feature code:** PDF and SVG renderers load only when those export formats are requested. Windows automatic layout uses a separate ELK worker asset. Diagram interchange, CSV/DOT conversion, and some other feature utilities are imported eagerly from `src/App.tsx`.
+- **Android stylus batching:** The native bridge reuses view geometry for a batch of stylus samples instead of looking it up for every sample.
+- **File safety checks:** The document parser validates object data and bounds nesting, page size, object counts, stroke points, and text size before accepting a file.
+- **Planning separation:** New `.sketch` saves no longer serialize planning data or its per-record Windows sync clocks. Planning data has its own versioned `.sdplan` format, save/open controller, native file commands, and lazily loaded workspace UI. Older sketches that contain embedded planning data can still be opened and migrated to a separate plan file before the sketch is saved.
+- **Planning workspace:** The redesigned Planning views use one component stylesheet with theme tokens and scoped touch behavior. The old duplicate mobile Planning overrides and Planning-specific `!important` declarations were removed. Task warnings, task lookup, timeline ranges, dependencies, and critical-path calculations reuse memoized data; task lists, boards, and timelines render in batches, and dependency choices load only when opened. The plan library still reads and parses each indexed plan to generate its summary.
+- **README, screenshots, and file association:** The README describes separate `.sketch` and `.sdplan` files, local-data behavior, diagram import/export limits, and separate recent lists. Windows and Android file-open associations include `.sdplan`; the startup handler routes planning files to the Planning workspace while retaining the open sketch.
 
-| Area | Windows | Android | Audit result |
-|---|---|---|---|
-| Sketch files | Native file picker and filesystem APIs; Rust validates and atomically replaces local `.sketch` files. | Android document picker returns Storage Access Framework URIs; Kotlin reads and writes through the selected provider. | Separate adapters feed the shared document controller. Android provider files correctly avoid Windows-style background polling. |
-| Shared-folder changes | Filesystem watch events plus a 30-second fallback check; independent records are merged. | No background merge loop for provider URIs. | Intentional platform difference, documented in the feature list. |
-| Stylus | Browser pointer input supplies supported pressure, tilt, and eraser data. | Native Ink overlay renders the wet stroke; Kotlin sends batched MotionEvent samples into the shared canvas input path. | The data path is connected. The Android bridge did unnecessary per-sample view lookup and screen-coordinate queries; this was reduced to one geometry lookup per event batch. |
-| Automatic layout | Windows command dynamically loads ELK and arranges eligible objects. | No automatic-layout command is exposed. | Confirmed platform gap, already listed under missing features. The ELK engine now runs in a separate worker asset. |
-| Updates | Signed Tauri updater plugin. | GitHub release lookup, APK package/version/signature checks, and Android's installer confirmation. | Separate implementations are expected and are connected to the same update controls. |
-| Workspace | Desktop tabs, keyboard shortcuts, command palette, focus mode, and desktop menus. | Touch toolbar, gestures, mobile navigation, orientation, and touch-focused controls. | Shared document and project data sit behind platform-specific presentation layers. |
+### Findings and recommended maintenance
 
-### Code changes made during this audit
+| Priority | Finding | Recommended update |
+| --- | --- | --- |
+| Medium | `npx tsc --noEmit` now completes without diagnostics, but the GitHub workflow does not run a TypeScript check or lint step. The strict options in `tsconfig.json` only help when the compiler is invoked. | Add a type-check script and run it in push/pull-request CI. Add linting if the project adopts a maintained lint configuration. |
+| Medium | `src/App.tsx` is 4,975 lines and owns much of the canvas interaction, menu state, and feature wiring. The production build emits a 595.46 kB main JavaScript chunk and a 1,595.33 kB ELK worker chunk. Diagram interchange and conversion modules are imported eagerly. | Continue extracting canvas interaction, document commands, and menu flows. Lazy-load infrequent diagram import/export tools and profile the startup bundle. |
+| Medium | Planning and canvas now use separate files, but the app shell still coordinates their workspace switch and legacy sketch migration. Older embedded planning records must be written to `.sdplan` before the migrated `.sketch` is saved. | Keep file lifecycle and validation in `src/features/project/`; keep `App.tsx` limited to workspace and document-session integration. Add an explicit migration prompt if users need to choose when to export older embedded records. |
+| Medium | Styles remain spread across 34 ordered imports in `src/App.css`, plus the separately imported web-preview sheet. `src/platform/windows/windows.css` is 1,337 lines and `src/styles/app/ui-overrides.css` is 1,136 lines. Six `!important` declarations remain in the CSS scan. Later refinement layers still make the cascade difficult to trace. | Keep component rules in the owners listed in [the stylesheet map](docs/architecture/styles.md), then remove superseded refinements as components are reviewed. No incorrect CSS color token was confirmed in this static scan. |
+| Low | Android Planning writes use a native command named `write_sketch_document`, even though it writes selected Planning document URIs too. | Rename or wrap it as a generic selected-document write command so platform routing is clearer. |
+| Medium | Windows `.sdplan` saves compare the saved baseline before replacement. Android document-provider plan saves write directly and do not compare the expected baseline, so an external edit may be overwritten by a later save. | Add a provider-aware baseline check where Android document providers support reliable rereads, or warn users before overwriting a plan that changed outside the app. |
+| Medium | Platform selection checks whether the WebView user-agent contains “windows” or “android”. A future WebView change could select the wrong UI or native bridge without a compile-time error. | Use a native platform value from Tauri where available, keeping a browser fallback only if browser use is intended. |
+| Medium | Android generated Gradle settings are not part of the tracked source and are produced by Android initialization. A clean checkout depends on running that initialization before an Android build. | Document and automate the Android initialization step for fresh developer checkouts; do not commit machine-specific generated output. |
+| Medium | Opening a `.sketch` still reads and parses the complete JSON file and normalizes every page. Saving still constructs and writes a complete JSON string; page caching avoids re-encoding unchanged pages but does not provide disk-level delta writes. Undo history and recovery snapshots can also clone large element arrays. | Introduce a backward-compatible, versioned page-chunk container with lazy page decoding and streaming or range-based platform file adapters. Preserve a recovery path that can export or migrate to ordinary `.sketch` JSON, and coordinate the change with Android SAF, Windows atomic saves, conflict checks, recovery, and sync merge. Profile large notebooks before choosing chunk size and caching limits. |
+| Medium | General element-array updates still compare element references across the page to discover changed entries. Known live resize and connector-label edits can supply their changed index directly, while other edits use the reference-diff path. | Extend explicit change hints to high-frequency and large-page edit commands where profiling shows the reference scan is material. Keep a safe full-diff fallback for reorder, import, undo, and bulk operations. |
+| Medium | Windows automatic routing considers nearby obstacle shapes when an element update runs. Connector identity is now preserved when the computed route is unchanged, but route candidate discovery still runs for each auto connector during Windows document updates. | Track which connectors can be affected by changed obstacle bounds and recompute only those routes if routing shows up in large-diagram profiles. |
+| Medium | Browser benchmark on the current renderer covers software-rendered drawing and panning, preview-to-final alpha differences, and pen-up finalization, but no physical Android device was connected. The pan workload was 160 strokes × 240 points at 1200×800 (median 1.2 ms, p95 1.7 ms); a live 3,200-point pressure stroke measured median 3.6 ms, p95 4.3 ms. Preview-to-final maximum alpha difference was 0 for non-pressure and 1 for pressure, with zero pixels differing by more than 2. Pen-up finalization at 180/800/3,200 samples measured p95 1.1/0.9/1.6 ms. These are renderer microbenchmarks, not full-scene or device measurements. | Repeat with the full application on representative low-end Android hardware and measure end-to-end input-to-display latency, pan/zoom redraw, and stylus pen-up delay. |
+| Low | PDF generation uses DOM canvas surfaces and pdf-lib while processing page elements on the app thread. Large, tiled, image-heavy exports may interrupt editing. | Measure large exports first. Add progress, cancellation, or worker rendering if profiling shows visible stalls. |
+| Low | Windows sync conflict ordering uses device timestamps. Clock drift can make a stale `.sketch` record appear newer. Android document-provider files do not have the Windows background watcher and merge loop. | Keep the platform difference visible in help. Consider logical clocks or explicit conflict review if timestamp conflicts become a reported data-loss issue. |
+| Low | `npm run test:canvas` exists, but the current GitHub workflow does not run it or any UI interaction suite. The workflow runs `npm run build`; there is no explicit TypeScript or lint command. | Add repeatable non-hardware checks to CI and schedule manual device checks for stylus, file-provider, and gesture changes. |
 
-1. **Reduced Android stylus coordinate work.** A MotionEvent may contain several historical samples. The Kotlin bridge previously searched the view tree and allocated coordinate arrays for each sample. It now finds the WebView and reads the root/WebView locations once, then applies the same offset to the whole batch. This preserves the existing coordinate transform and sample order.
-2. **Moved automatic layout off the UI thread.** The app imported ELK's workerless bundle. It now imports ELK's worker API and emits the ELK worker as a separate asset, loading it only when the existing Windows auto-layout action is used. The auto-layout module dropped from about 1,434 KB to 7 KB in the production build; the worker remains a separate 1,595 KB raw asset.
-3. **Removed repeated graph searches from layout result mapping.** ELK results were matched to input nodes with repeated linear searches. ID and index maps now perform these lookups directly, changing that mapping step from quadratic to linear work as the graph grows.
-4. **Avoided the second full serialization after save.** The document controller captures a revision with the saved snapshot and compares it after the asynchronous write to see whether later edits remain. It uses the old serialized comparison only when a caller does not provide revisions.
-5. **Moved snapshot and sync coordination behind a module boundary.** The coordinator caches the document snapshot by path and revision, and avoids repeat sync observation when neither changed. This prevents repeated JSON serialization during idle polling and duplicate snapshot callers.
-6. **Added a safe retired Library archive export.** Windows and Android can save legacy collections into a standalone JSON file. After the archive is written, the app clears those collections from the in-memory sketch and saves the sketch; if that save fails, the exported copy remains and the sketch stays dirty.
-7. **Separated and deferred export rendering.** PDF and SVG serializers were extracted from `App.tsx` and split into lazy chunks, reducing the main app chunk from about 634 KB to 571.14 KB. Removing the unused motion preference and related settings wiring brought it to 570.36 KB.
-8. **Made the stylesheet cascade easier to inspect.** App-wide CSS imports now appear in their existing order in `App.css`. Two same-file selector rules that were fully superseded or duplicated were removed without changing final values.
-9. **Rebuilt the application theme around one palette file.** `src/styles/app/theme.css` now owns the supplied light and dark colors, derived status colors, shared surface colors, and compatibility aliases. Repeated declarations for identical CSS selectors, states, and color properties were removed. The CSS audit found 144 duplicate groups before cleanup and none after.
-10. **Removed UI motion and reclaimed settings space.** Removed 35 CSS transition and animation declarations, all keyframes, 36 backdrop blur declarations, and 11 hover or press shifts. Removed the unused “Reduce motion” setting from desktop and mobile settings. Removed two explanatory paragraphs from the settings UI and tightened the remaining settings spacing.
-11. **Made paint brush, text, line, and arrow menus compact horizontal lists.** Each subtool uses the same 68-by-52-pixel box in one row, with its icon above its name. Long menus scroll horizontally on narrow screens, and clipped labels retain their full accessible names.
-12. **Fixed the accent restored by Reset settings.** Reset now selects the first preset, Indigo, which is also the app's default accent.
-13. **Restored the Modeling components dropdown layout.** The searchable component library uses its original categorized card grid again. Its explicit grid rule wins over the shared toolbar layout, and shared option sizing no longer changes the search, filters, schema action, or cards.
-14. **Restored the Canvas popup's original compact layout.** It uses the original menu width and action rows while sharing the theme palette. Paper-pattern swatches now have visible marks and borders in both themes.
-15. **Restored the original toolbar dropdowns.** Removed the horizontal-only menu styling for text, line, arrow, and brush subtools. Their original desktop and touch layouts are back, with the existing Modeling card grid preserved. Toolbar and popup colors still come from the shared theme tokens.
-16. **Removed canvas rulers and their controls.** Removed the ruler display, setting, command, and popup action; restored the original toolbar and quick-style placement without ruler-specific spacing. Ruled paper remains a separate background pattern.
-17. **Tightened color settings.** Reduced accent and toolbar surface swatches to compact sizes and added a more visible, theme-aware background pattern to the welcome screen.
-18. **Reduced live drawing work per frame.** Pan and zoom keep the existing viewport index and cached stroke rasters. Live pen previews now extend a cached path instead of rebuilding or copying the full stroke each pointer frame; the pressure-shaped outline is built on pen-up and uses the stroke's selected thickness.
+### Broken-code status
 
-### Remaining maintenance and performance findings
+Switching from Planning back to Canvas could leave the renderer idle until the user interacted with the canvas. The render effect did not depend on the active workspace; it now schedules a frame when the workspace changes. This pass also fixed DOT rank-direction narrowing, removed an unreachable image-export branch, replaced unsupported `.at()` calls, and corrected type narrowing and optional-value checks in diagram exchange and Planning views. `npx tsc --noEmit` now passes. No physical Android device was available, so device-specific drawing behavior remains unverified.
 
-- **The main application shell remains large.** Export rendering and document snapshot/sync work now sit in focused modules, and export code is loaded on demand. `src/App.tsx` is still 4,578 lines, mainly because it owns canvas interaction and much of the app UI. The production app chunk is 570.46 KB (160.24 KB gzip); continue extracting cohesive canvas and menu behavior as those features are changed.
-- **Opening and large-document activation still duplicate page data.** The app normalizes the file and clones pages into the active session. Profile this with large boards and embedded images before changing the storage model.
-- **Repeated sync observations no longer rebuild snapshots or stringify Library records.** The coordinator caches the document snapshot by path and revision, and the tracker runs once per observed revision. Library entries reuse their encoded JSON while that data object is unchanged. Changed revisions still rebuild the sync map and serialize canvas and project records, so a changed-record queue could further reduce work for very large projects.
-- **Platform checks rely on user-agent text.** Windows and Android detection checks for `windows` or `android` in the WebView user agent. That works for the current targets but can silently choose the wrong UI or native bridge if a WebView changes its user-agent string. Prefer a single native platform value if the app adds more targets or sees detection failures.
-- **Android's checked-in Gradle project needs Tauri's generated settings file.** `settings.gradle` applies `tauri.settings.gradle`, and `.gitignore` excludes that generated file. The file is absent in this checkout, so Gradle stops before compiling the Kotlin changes. Run the Android initialization step before building from a fresh checkout and document it alongside development setup; do not commit a machine-specific generated file.
-- **Very long stroke finalization still needs device profiling.** Live preview work now grows with new pointer samples rather than rebuilding the whole stroke each frame. Pen-up still creates the detailed pressure outline once; profile that single finalization on low-memory Android devices before introducing background workers or changing stroke geometry.
+### Document and platform limits
 
-### Redundancy, conflicts, and wiring conclusions
-
-- The strict TypeScript check reports no unused locals or parameters. No safely removable dead TypeScript code was confirmed.
-- Old Library fields and platform no-op Tauri plugin shims are deliberate compatibility/wiring code, not dead code: they preserve older project data and keep shared command registration compilable across Windows and Android.
-- No confirmed mismatch was found between the shared document controller, Windows filesystem store, Android document-provider bridge, and the corresponding UI entry points.
-- The source audit did not prove every interaction works on hardware. The Android build could not compile because the ignored Tauri-generated settings file is missing, and the canvas browser benchmark could not launch Chromium in this sandbox (`spawn EPERM`).
-
-### Validation performed
-
-- `npx tsc --noEmit` — passed after the refactors.
-- `npm run build` — passed after the toolbar and paper-pattern styling updates. The main app chunk is 570.36 KB (160.22 KB gzip); the PDF renderer is a 14.49 KB lazy chunk and the SVG renderer is 10.79 KB. The app chunk still exceeds Vite's 500 KB warning threshold. CSS is 389.44 KB (53.36 KB gzip).
-- `cargo check --manifest-path src-tauri/Cargo.toml` — passed for the current Windows host target.
-- `git diff --check` — passed.
-- `npm run test:canvas` — could not run because Chromium process launch returned `EPERM`.
-- Android `:app:compileDebugKotlin` — blocked before compilation because `src-tauri/gen/android/tauri.settings.gradle` is absent and ignored by Git.
-
-## Comparison references
-
-The comparison uses public feature descriptions for [Excalidraw+](https://plus.excalidraw.com/excalidraw-for-teams), [draw.io](https://www.drawio.com/docs/features/), and [Miro](https://miro.com/features/). Their feature sets can vary by plan and integration.
+- Current `.sketch` format is version 9; versions 1 through 8 and older version 9 planning sections are accepted for migration. New sketch files contain canvas, notebook, retired-library archive, and sync data only.
+- Planning files use the separate `SketchDrawPlanning` format version 1 with the `.sdplan` extension.
+- Windows saves `.sdplan` atomically with an on-disk baseline check. Android saves through the selected document-provider URI without a baseline comparison or background watcher.
+- Planning schedules use date-only values, Monday-to-Sunday working-day selections, and daily, weekly, or monthly repeats. Holiday calendars, working hours, time zones, and custom recurrence rules are not included.
+- The plan index searches up to 100 recently opened or selected files. It currently reads and parses each plan file to build its summary.
+- `.sketch` and `.sdplan` are registered as Windows and Android file types. Android's open-file event is routed to the matching workspace; actual file-manager behavior can depend on the installed app registration and the content provider's MIME type.
+- A sketch supports up to 100 pages, 20,000 direct elements per page or group, 100,000 total element nodes, 64 levels of grouping, 100,000 points per stroke, 1,000,000 stroke points per document, and 100,000 characters per canvas text item.
+- Project-file attachments are limited to 8 MB each.
+- Android uses the system package installer for app updates; the app does not silently install APKs.
+- The published native release targets are Windows desktop and Android.
 
 ## Missing features and recommended updates
 
-### Collaboration and sharing
-
-1. **Live collaboration is missing.** Add simultaneous editing, presence, live cursors, and a reliable way to merge offline edits.
-2. **Comments and review are missing.** Add comments anchored to canvas objects, tasks, or regions, with replies and resolved states.
-3. **Share links and access controls are missing.** Add optional hosted workspaces, view-only and edit links, invite controls, and clear permissions. The current view-only mode opens a file the user can already access.
-4. **Remote access to a shared project is missing.** A synced folder is the current way to move files between devices. Add browser access or an optional service that can open a project without manually locating its file.
+The following gaps are grounded in the current implementation and reviewed against the product’s planning and diagramming goals.
 
 ### Diagramming and whiteboarding
 
-5. **Starter templates are missing.** Add ready-to-edit boards for common flowcharts, architecture diagrams, brainstorming sessions, project plans, and retrospectives.
-6. **User-managed and community libraries are missing.** Let users save, search, import, export, and share their own components and symbol collections.
-7. **Common diagram formats are not supported as editable files.** Add import and export for draw.io and Excalidraw documents, then evaluate Visio and other common formats. Imported SVG artwork is currently rasterized.
-8. **Some advanced diagram structures need dedicated tools.** Add editable swimlanes, custom shapes, shape tags and metadata, and clickable links attached to canvas objects.
-9. **Diagram search is missing.** Add find-in-canvas for text, labels, notes, and symbols, with a way to jump to a result.
-10. **Automatic layout is platform-limited.** Windows has automatic diagram arrangement; Android has no equivalent in its code path. Bring layout actions to mobile and add more layout choices for large graphs.
-11. **More data-to-diagram options are missing.** Add CSV-based diagram generation and broader diagram-code support. An optional text-to-diagram generator could help users start a board quickly.
-12. **Embedded web content is missing.** Add live previews for useful links, such as videos, documents, and spreadsheets, alongside the existing image and file attachments.
+- **Interchange fidelity:** Expand draw.io and Excalidraw coverage for advanced routing, styles, custom shapes, groups, schema metadata, and diagram-specific behaviors. Add round-trip examples for supported objects and make simplified conversions visible during import/export.
+- **Editable SVG import:** Convert supported SVG shapes and text into native canvas objects, or retain SVG as a scalable vector object instead of rasterizing it.
+- **Custom shape library:** Let users create, edit, organize, and reuse their own components locally, with user-authored fields and connector ports.
+- **Fine-grained layers:** Current layers group objects by tool. Add named user layers so users can organize, hide, lock, and reorder parts of a diagram independently of the tool used to draw them.
+- **Canvas search and replace:** Find text, labels, notes, and symbols, jump to a result, and update repeated labels across a board.
+- **Diagram structure tools:** Add first-class swimlanes, object-to-object links, richer relationship types, and more diagram-specific editing for UML, ER, BPMN, and architecture diagrams.
+- **More layout choices:** Automatic layout is Windows-only. Add a mobile layout action, additional layout algorithms, and layout controls for large graphs.
+- **Diagram-code round-trip fidelity:** Reverse exports now cover Mermaid, DOT, CSV, PlantUML, SQL, and JSON Schema. Expand import/export fidelity for connector types, groups, schema metadata, styling, and external CSV conventions. Add D2 or broader PlantUML constructs and verify round trips with representative fixtures.
+- **Selection and region export:** Export selected objects or a chosen board region directly, instead of exporting only a page or page range.
+
+### Documents and interoperability
+
+- **Large-document storage:** Add versioned page/chunk storage and lazy page decoding. Opening and saving currently read/write the full JSON document even though cached page serialization avoids some repeat work.
+- **More interchange coverage:** Add tested round trips for groups, embedded assets, connector attachment semantics, and imported diagram-specific metadata. The current interchange implementation covers common objects and may simplify or skip advanced items.
+- **Scalable embedded assets:** Support linked or separately stored large images and vector assets, with clear portability and missing-file handling.
 
 ### Planning and project work
 
-13. **A multi-project overview is missing.** Each project lives in its own sketch file. Add a project library with folders or collections, search, and an overview of active projects.
-14. **Team task ownership is missing.** Add task assignees, labels, watchers, custom workflow columns, recurring tasks, and effort estimates.
-15. **The timeline is not a full scheduling tool.** Add movable task bars, visual dependency links, working-day calendars, critical-path highlighting, and baseline comparison.
-16. **External planning integrations are missing.** Add CSV import and export, calendar export or sync, and connections to commonly used task-planning tools.
-17. **Canvas objects and planning items are separate.** Add links between a shape or note and its related task, milestone, decision, or project file.
-18. **Project reporting and export are missing.** Add a printable project summary and exports for tasks, milestones, and decision records. Current PNG, SVG, and PDF export covers the canvas.
+- **Advanced scheduling rules:** Add public holiday calendars, working hours, time zones, arbitrary recurrence rules, and schedule-level critical-path slack calculations.
+- **Task ownership and workload:** Add assignees, labels, actual time tracking, and capacity/workload views. Tasks currently have estimates but no owner or actual-effort fields.
+- **Plan library scale:** Index plan summaries without reading each entire `.sdplan` file, and let users organize saved groups, folders, or tags of plans. The current library scans up to 100 recently opened or selected plans and parses each full file.
+- **Planning exchange fidelity:** Preserve custom workflow metadata and richer recurrence/dependency data across CSV and calendar exchange, and provide field mapping for external CSV schemas.
+- **Planning lifecycle tools:** Add archive/restore, duplicate-plan, and plan rename actions that work consistently across Windows paths and Android document-provider URIs.
+- **Canvas-to-plan links:** Connect a canvas object or note to its related task, milestone, decision, or project file.
 
-### Presentations and workshops
+### Presentation, history, and platform reach
 
-19. **Presentation controls are basic.** Add frames or slide regions, speaker notes, reveal steps, and a presentation export such as PowerPoint.
-20. **Workshop facilitation tools are missing.** Add a session timer, voting, participant follow mode, and tools for grouping or summarizing sticky-note ideas.
+- **Presentation authoring:** Add frames or slide regions, speaker notes, reveal steps, and presentation-file export.
+- **Saved versions:** Add named document snapshots with comparison and restore. Undo and redo currently cover the active session rather than durable document history.
+- **Accessibility and regression coverage:** Add systematic keyboard-only, screen-reader, contrast, import round-trip, and low-end-device interaction checks to CI or release validation. The current workflow only builds the frontend and release packages.
+- **Additional native platforms:** Provide and document supported macOS and Linux releases if those targets are in scope.
 
-### History and platform reach
+## Review scope
 
-21. **Saved version history is missing.** Add named snapshots and a way to compare or restore older saved versions. Current undo and redo history lasts only for the page's active session.
-22. **Broader platform builds are not present in the repository documentation.** The documented releases target Windows and Android. Add browser, macOS, or Linux builds if SketchDraw is meant to be available across the same range of devices as its references.
+This audit covers the source prepared for Windows 12.4.0 and Android 7.4.0. The production build and `cargo check --manifest-path src-tauri/Cargo.toml` pass. The 41-check canvas renderer benchmark passed. `npx tsc --noEmit` passes after the fixes noted above. No physical Android device was connected (`adb devices -l` returned no devices), so stylus latency and pan behavior on low-end hardware could not be measured.

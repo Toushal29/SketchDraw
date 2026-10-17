@@ -2,6 +2,8 @@ use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::Manager;
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+use tauri::Emitter;
 use tauri_plugin_fs::FsExt;
 
 mod android_documents;
@@ -12,21 +14,34 @@ mod orientation;
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const CURRENT_SKETCH_FORMAT_VERSION: u64 = 9;
 
-fn validate_sketch_document(contents: &str) -> Result<(), String> {
+fn validate_document(contents: &str, extension: &str) -> Result<(), String> {
     let document: serde_json::Value = serde_json::from_str(contents).map_err(|e| e.to_string())?;
-    if document.get("format").and_then(serde_json::Value::as_str) != Some("SketchDraw")
-        || document.get("version").and_then(serde_json::Value::as_u64)
-            != Some(CURRENT_SKETCH_FORMAT_VERSION)
-    {
-        return Err(format!(
-            "Only SketchDraw format v{CURRENT_SKETCH_FORMAT_VERSION} can be saved."
-        ));
+    let valid = match extension {
+        "sketch" => document.get("format").and_then(serde_json::Value::as_str) == Some("SketchDraw")
+            && document.get("version").and_then(serde_json::Value::as_u64) == Some(CURRENT_SKETCH_FORMAT_VERSION),
+        "sdplan" => document.get("format").and_then(serde_json::Value::as_str) == Some("SketchDrawPlanning")
+            && document.get("version").and_then(serde_json::Value::as_u64) == Some(1),
+        _ => false,
+    };
+    if !valid {
+        return Err("The document content does not match its file type.".into());
     }
     Ok(())
 }
 
 // Write next to the destination: rename must stay on the same filesystem.
-// The dialog or authorize_sketch_file must grant access before this command runs.
+// The file dialog or the matching authorize command must grant access first.
+async fn atomic_save_document(
+    app: tauri::AppHandle,
+    path: String,
+    contents: String,
+    expected: Option<String>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || save_document_atomic(app, path, contents, expected))
+        .await
+        .map_err(|error| format!("Save worker failed: {error}"))?
+}
+
 #[tauri::command]
 async fn atomic_save_sketch(
     app: tauri::AppHandle,
@@ -34,29 +49,34 @@ async fn atomic_save_sketch(
     contents: String,
     expected: Option<String>,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || save_sketch_atomic(app, path, contents, expected))
-        .await
-        .map_err(|error| format!("Save worker failed: {error}"))?
+    atomic_save_document(app, path, contents, expected).await
 }
 
-fn save_sketch_atomic(
+#[tauri::command]
+async fn atomic_save_planning(
+    app: tauri::AppHandle,
+    path: String,
+    contents: String,
+    expected: Option<String>,
+) -> Result<(), String> {
+    atomic_save_document(app, path, contents, expected).await
+}
+
+fn save_document_atomic(
     app: tauri::AppHandle,
     path: String,
     contents: String,
     expected: Option<String>,
 ) -> Result<(), String> {
     let target = std::path::PathBuf::from(&path);
+    let extension = target.extension().and_then(|ext| ext.to_str()).map(str::to_ascii_lowercase);
     if !target.is_absolute()
-        || !target
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("sketch"))
+        || !matches!(extension.as_deref(), Some("sketch" | "sdplan"))
         || !app.fs_scope().is_allowed(&target)
     {
-        return Err(
-            "The selected .sketch path is not authorized. Use Save As to select it.".into(),
-        );
+        return Err("The selected document path is not authorized. Use Save As to select it.".into());
     }
-    validate_sketch_document(&contents)?;
+    validate_document(&contents, extension.as_deref().unwrap_or_default())?;
     let parent = target
         .parent()
         .ok_or("The destination has no parent folder.")?;
@@ -84,14 +104,14 @@ fn save_sketch_atomic(
                 .map_err(|e| format!("Could not check the destination: {e}"))?;
             if current != baseline {
                 return Err(
-                    "CONFLICT: The sketch changed on disk. Reload it or save a separate copy."
+                    "CONFLICT: The document changed on disk. Reload it or save a separate copy."
                         .into(),
                 );
             }
         }
         // Rust uses replacement semantics on Windows (MoveFileExW) and rename on Unix.
         std::fs::rename(&temporary, &target)
-            .map_err(|e| format!("Could not replace the sketch: {e}"))?;
+            .map_err(|e| format!("Could not replace the document: {e}"))?;
         #[cfg(unix)]
         std::fs::File::open(parent)
             .and_then(|directory| directory.sync_all())
@@ -146,6 +166,25 @@ fn authorize_sketch_file(app: tauri::AppHandle, path: String) -> Result<String, 
         .into_os_string()
         .into_string()
         .map_err(|_| "The selected sketch path is not valid Unicode.".into())
+}
+
+#[tauri::command]
+fn authorize_planning_file(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    if path.to_lowercase().starts_with("content://") {
+        app.fs_scope().allow_file(std::path::PathBuf::from(&path))
+            .map_err(|error| format!("Could not grant access to the selected Planning file: {error}"))?;
+        return Ok(path);
+    }
+    let candidate = std::path::PathBuf::from(path);
+    if !candidate.extension().and_then(|extension| extension.to_str()).is_some_and(|extension| extension.eq_ignore_ascii_case("sdplan")) {
+        return Err("Only .sdplan files can be opened as Planning documents.".into());
+    }
+    let canonical = candidate.canonicalize().map_err(|error| format!("Could not access the selected Planning file: {error}"))?;
+    if !canonical.is_file() { return Err("The selected Planning document is not a file.".into()); }
+    app.fs_scope().allow_file(&canonical)
+        .map_err(|error| format!("Could not grant access to the selected Planning file: {error}"))?;
+    canonical.into_os_string().into_string()
+        .map_err(|_| "The selected Planning path is not valid Unicode.".into())
 }
 
 #[tauri::command]
@@ -296,11 +335,14 @@ fn save_recent_sketches(app: tauri::AppHandle, paths: Vec<String>) -> Result<(),
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(StartupFiles(Mutex::new(
             std::env::args()
                 .skip(1)
-                .filter(|argument| argument.to_lowercase().ends_with(".sketch"))
+                .filter(|argument| {
+                    let argument = argument.to_lowercase();
+                    argument.ends_with(".sketch") || argument.ends_with(".sdplan")
+                })
                 .collect(),
         )))
         .plugin(tauri_plugin_dialog::init())
@@ -321,13 +363,19 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             take_startup_files,
             authorize_sketch_file,
+            authorize_planning_file,
             rename_sketch_file,
             atomic_save_sketch,
+            atomic_save_planning,
             load_recent_sketches,
             save_recent_sketches,
             orientation::set_mobile_orientation,
             android_documents::pick_sketch_document,
             android_documents::create_sketch_document,
+            android_documents::pick_planning_document,
+            android_documents::create_planning_document,
+            android_documents::create_planning_export,
+            android_documents::create_text_export,
             android_documents::create_legacy_library_archive,
             android_documents::write_sketch_document,
             android_documents::rename_sketch_document,
@@ -336,22 +384,51 @@ pub fn run() {
             android_stylus::set_android_stylus_preview,
             android_updater::install_android_release_apk,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+    app.run(|_app, _event| {
+        #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+        {
+            if let tauri::RunEvent::Opened { urls } = _event {
+                let paths: Vec<String> = urls
+                    .into_iter()
+                    .map(|url| {
+                        url.to_file_path()
+                            .map(|path| path.to_string_lossy().into_owned())
+                            .unwrap_or_else(|_| url.to_string())
+                    })
+                    .filter(|path| {
+                        let lower = path.to_lowercase();
+                        lower.ends_with(".sketch")
+                            || lower.ends_with(".sdplan")
+                            || lower.starts_with("content://")
+                    })
+                    .collect();
+                if !paths.is_empty() {
+                    if let Some(files) = _app.try_state::<StartupFiles>() {
+                        if let Ok(mut pending) = files.0.lock() {
+                            pending.extend(paths.iter().cloned());
+                        }
+                    }
+                    let _ = _app.emit("open-files", paths);
+                }
+            }
+        }
+    });
 }
 
 #[cfg(test)]
 mod tests {
-    use super::validate_sketch_document;
+    use super::validate_document;
 
     #[test]
     fn accepts_current_sketch_format() {
-        assert!(validate_sketch_document(r#"{"format":"SketchDraw","version":9}"#).is_ok());
+        assert!(validate_document(r#"{"format":"SketchDraw","version":9}"#, "sketch").is_ok());
     }
 
     #[test]
     fn rejects_older_sketch_format_with_current_version_hint() {
-        let error = validate_sketch_document(r#"{"format":"SketchDraw","version":6}"#).unwrap_err();
-        assert_eq!(error, "Only SketchDraw format v9 can be saved.");
+        let error = validate_document(r#"{"format":"SketchDraw","version":6}"#, "sketch").unwrap_err();
+        assert_eq!(error, "The document content does not match its file type.");
     }
 }

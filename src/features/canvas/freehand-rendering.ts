@@ -7,11 +7,11 @@ export const stylusStrokeWidthAt = (points: StrokePoint[], index: number, thickn
 type StrokeCache = {
   length: number;
   pressureAware: boolean;
-  body: Path2D;
   preview: Path2D;
   previewWidthTotal: number;
   pressureOutline?: Path2D;
   pressureThickness?: number;
+  pressureLength: number;
   complete?: Path2D;
   left: number;
   top: number;
@@ -21,24 +21,30 @@ type StrokeCache = {
 };
 
 const midpoint = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-const newCache = (pressureAware = false): StrokeCache => ({ length: 0, pressureAware, body: new Path2D(), preview: new Path2D(), previewWidthTotal: 0, left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, maxWidth: 1 });
+const newCache = (pressureAware = false): StrokeCache => ({ length: 0, pressureAware, preview: new Path2D(), previewWidthTotal: 0, pressureLength: 0, left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, maxWidth: 1 });
 
-function perfectPressurePath(points: StrokePoint[], thickness: number): Path2D {
-  const outline = getStroke(points.map(point => [point.x, point.y, Math.max(.01, Math.min(1, stylusStrokeWidth(point, 1) / 2))] as [number, number, number]), {
-    size: Math.max(.5, thickness * 2),
-    thinning: 1,
-    smoothing: .55,
-    streamline: .4,
-    simulatePressure: false,
-    last: true,
-  });
-  const path = new Path2D();
-  if (outline.length) {
-    path.moveTo(outline[0][0], outline[0][1]);
-    for (let index = 1; index < outline.length; index++) path.lineTo(outline[index][0], outline[index][1]);
-    path.closePath();
+function appendPressureSample(path: Path2D, points: StrokePoint[], index: number, thickness: number) {
+  const point = points[index]; const radius = Math.max(.25, stylusStrokeWidth(point, thickness) / 2);
+  if (index === 0) {
+    const width = radius * 2; const tilt = Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90);
+    path.ellipse(point.x, point.y, Math.max(.25, width * (.5 + tilt * .35)), Math.max(.25, width * .5), Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0), 0, Math.PI * 2);
+    return;
   }
-  return path;
+  if (index > 0) {
+    const previous = points[index - 1]; const previousRadius = Math.max(.25, stylusStrokeWidth(previous, thickness) / 2);
+    const dx = point.x - previous.x; const dy = point.y - previous.y; const length = Math.hypot(dx, dy);
+    if (length > 0) {
+      const nx = -dy / length; const ny = dx / length;
+      path.moveTo(previous.x + nx * previousRadius, previous.y + ny * previousRadius);
+      path.lineTo(point.x + nx * radius, point.y + ny * radius);
+      path.lineTo(point.x - nx * radius, point.y - ny * radius);
+      path.lineTo(previous.x - nx * previousRadius, previous.y - ny * previousRadius);
+      path.closePath();
+    }
+  }
+  path.moveTo(point.x + radius, point.y);
+  path.arc(point.x, point.y, radius, 0, Math.PI * 2);
+  path.closePath();
 }
 
 type StrokePath = Pick<Path2D, "moveTo" | "lineTo" | "quadraticCurveTo">;
@@ -50,6 +56,8 @@ export function createFreehandRenderer() {
   const rasters = new Map<StrokePoint[], Raster>();
   const rasterBudget = 24 * 1024 * 1024;
   let rasterBytes = 0;
+  type PreviewLayer = { points: StrokePoint[]; canvas: HTMLCanvasElement; context: CanvasRenderingContext2D; length: number; ink: string; thickness: number; transform: [number, number, number, number, number, number] };
+  let previewLayer: PreviewLayer | undefined;
 
   function releaseRaster(points: StrokePoint[]) {
     const raster = rasters.get(points); if (!raster) return;
@@ -69,7 +77,7 @@ export function createFreehandRenderer() {
       releaseRaster(element.points); raster = undefined;
     }
     if (!raster) {
-      const padding = Math.max(1, element.thickness * cache.maxWidth * .85) * scale + 2;
+      const padding = Math.max(1, element.thickness * cache.maxWidth * 1.5) * scale + 2;
       const left = Math.floor(cache.left * scale - padding); const top = Math.floor(cache.top * scale - padding);
       const width = Math.ceil(cache.right * scale + padding) - left; const height = Math.ceil(cache.bottom * scale + padding) - top;
       const bytes = width * height * 4;
@@ -95,9 +103,16 @@ export function createFreehandRenderer() {
     return true;
   }
 
-  function pathsFor(points: StrokePoint[]) {
+  function pathsFor(points: StrokePoint[], thickness: number) {
     let cache = caches.get(points);
     if (!cache || points.length < cache.length) { cache = newCache(); caches.set(points, cache); }
+    if (cache.pressureAware && cache.pressureThickness !== thickness) {
+      cache.pressureOutline = new Path2D(); cache.pressureThickness = thickness; cache.pressureLength = 0;
+      while (cache.pressureLength < points.length) {
+        appendPressureSample(cache.pressureOutline, points, cache.pressureLength, thickness);
+        cache.pressureLength++;
+      }
+    }
     if (cache.length === points.length) return cache;
     for (let index = cache.length; index < points.length; index++) {
       const point = points[index];
@@ -110,30 +125,69 @@ export function createFreehandRenderer() {
       cache.right = Math.max(cache.right, point.x); cache.bottom = Math.max(cache.bottom, point.y);
       cache.maxWidth = Math.max(cache.maxWidth, stylusStrokeWidth(point, 1));
       cache.previewWidthTotal += stylusStrokeWidth(point, 1);
-      if (index === 0) { cache.body.moveTo(point.x, point.y); cache.preview.moveTo(point.x, point.y); }
+      if (index === 0) cache.preview.moveTo(point.x, point.y);
       else {
-        const previous = points[index - 1];
-        const to = midpoint(previous, point);
-        if (!cache.pressureAware) cache.body.quadraticCurveTo(previous.x, previous.y, to.x, to.y);
-        // Live input uses an incremental path. Building the full pressure
-        // outline on every frame made long stylus strokes progressively lag.
         cache.preview.lineTo(point.x, point.y);
       }
       cache.length = index + 1;
+      if (cache.pressureAware) {
+        if (cache.pressureThickness !== thickness) {
+          cache.pressureOutline = new Path2D(); cache.pressureThickness = thickness; cache.pressureLength = 0;
+        }
+        while (cache.pressureLength < points.length) {
+          appendPressureSample(cache.pressureOutline!, points, cache.pressureLength, thickness);
+          cache.pressureLength++;
+        }
+      }
     }
     return cache;
   }
 
-  function finalizePaths(points: StrokePoint[], cache: StrokeCache, thickness: number) {
-    if (cache.pressureAware && (!cache.pressureOutline || cache.pressureThickness !== thickness)) {
-      cache.pressureOutline = perfectPressurePath(points, thickness); cache.pressureThickness = thickness;
+  function finalizePaths(cache: StrokeCache) {
+    if (!cache.pressureAware && !cache.complete) {
+      // Use the same path before and after pen-up so the stroke does not jump.
+      cache.complete = new Path2D(cache.preview);
     }
-    else if (!cache.complete) {
-      const last = points[points.length - 1];
-      // The final pen-up render copies this path once. Live frames use the
-      // incremental preview path above and never clone the growing stroke.
-      cache.complete = new Path2D(cache.body); cache.complete.lineTo(last.x, last.y);
+  }
+
+  function drawPressurePreview(ctx: CanvasRenderingContext2D, element: FreehandElement, ink: string) {
+    const targetWidth = ctx.canvas.width; const targetHeight = ctx.canvas.height;
+    const transform = ctx.getTransform();
+    const scale = Math.min(1, Math.sqrt((4 * 1024 * 1024) / Math.max(1, targetWidth * targetHeight * 4)));
+    const signature: [number, number, number, number, number, number] = [transform.a * scale, transform.b * scale, transform.c * scale, transform.d * scale, transform.e * scale, transform.f * scale];
+    let surface = previewLayer;
+    const matches = surface && surface.points === element.points && surface.canvas.width === Math.max(1, Math.round(targetWidth * scale)) && surface.canvas.height === Math.max(1, Math.round(targetHeight * scale)) && surface.ink === ink && surface.thickness === element.thickness && surface.transform.every((value, index) => value === signature[index]) && surface.length <= element.points.length;
+    if (!matches) {
+      const canvas = surface?.canvas ?? document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(targetWidth * scale)); canvas.height = Math.max(1, Math.round(targetHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.setTransform(1, 0, 0, 1, 0, 0); context.clearRect(0, 0, canvas.width, canvas.height);
+      surface = previewLayer = { points: element.points, canvas, context, length: 0, ink, thickness: element.thickness, transform: signature };
     }
+    if (!surface) return;
+    if (surface.length < element.points.length) {
+      const additions = new Path2D();
+      for (let index = surface.length; index < element.points.length; index++) appendPressureSample(additions, element.points, index, element.thickness);
+      surface.context.setTransform(...signature); surface.context.fillStyle = ink; surface.context.globalAlpha = 1; surface.context.fill(additions);
+      surface.length = element.points.length;
+    }
+    ctx.save(); const opacity = ctx.globalAlpha; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = opacity;
+    ctx.drawImage(surface.canvas, 0, 0, targetWidth, targetHeight); ctx.restore();
+  }
+
+  function drawRetainedPreview(ctx: CanvasRenderingContext2D, element: FreehandElement, ink: string) {
+    const surface = previewLayer;
+    if (!surface || surface.points !== element.points || surface.ink !== ink || surface.thickness !== element.thickness || surface.length !== element.points.length) return false;
+    const targetWidth = ctx.canvas.width; const targetHeight = ctx.canvas.height;
+    const scale = Math.min(1, Math.sqrt((4 * 1024 * 1024) / Math.max(1, targetWidth * targetHeight * 4)));
+    if (surface.canvas.width !== Math.max(1, Math.round(targetWidth * scale)) || surface.canvas.height !== Math.max(1, Math.round(targetHeight * scale))) return false;
+    const transform = ctx.getTransform();
+    const signature = [transform.a * scale, transform.b * scale, transform.c * scale, transform.d * scale, transform.e * scale, transform.f * scale];
+    if (!surface.transform.every((value, index) => value === signature[index])) return false;
+    ctx.save(); const opacity = ctx.globalAlpha; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = opacity;
+    ctx.drawImage(surface.canvas, 0, 0, targetWidth, targetHeight); ctx.restore();
+    return true;
   }
 
   function paint(ctx: CanvasRenderingContext2D, element: FreehandElement, cache: StrokeCache, ink: string) {
@@ -153,26 +207,29 @@ export function createFreehandRenderer() {
 
   function draw(ctx: CanvasRenderingContext2D, element: FreehandElement, ink: string, cacheRaster = true, preview = false) {
     if (!element.points.length || ctx.globalAlpha === 0) return;
-    const cache = pathsFor(element.points);
+    const cache = pathsFor(element.points, element.thickness);
     if (preview) {
       ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.setLineDash([]);
       if (element.points.length === 1) {
         const point = element.points[0]; const width = stylusStrokeWidth(point, element.thickness);
         const tilt = Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90);
         ctx.beginPath(); ctx.ellipse(point.x, point.y, Math.max(.25, width * (.5 + tilt * .35)), Math.max(.25, width * .5), Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0), 0, Math.PI * 2); ctx.fill();
+      } else if (cache.pressureAware && cache.pressureOutline) {
+        drawPressurePreview(ctx, element, ink);
       } else {
         const averageWidth = cache.previewWidthTotal / Math.max(1, cache.length);
         ctx.lineWidth = Math.max(.5, element.thickness * averageWidth); ctx.stroke(cache.preview);
       }
       return;
     }
-    finalizePaths(element.points, cache, element.thickness);
+    if (cache.pressureAware && drawRetainedPreview(ctx, element, ink)) return;
+    finalizePaths(cache);
     if (cacheRaster && drawRaster(ctx, element, cache, ink)) return;
     paint(ctx, element, cache, ink);
   }
 
   function clearRasterCache() { for (const points of rasters.keys()) releaseRaster(points); }
-  function dispose() { clearRasterCache(); }
+  function dispose() { clearRasterCache(); if (previewLayer) { previewLayer.canvas.width = 0; previewLayer.canvas.height = 0; previewLayer = undefined; } }
 
   return { draw, clearRasterCache, dispose };
 }

@@ -19,19 +19,23 @@ function stroke(pressure: boolean, count = 180, thickness = 12, opacity = .28): 
     return { x: 35 + 270 * t, y: 100 + 35 * Math.sin(t * Math.PI * 2), ...(pressure ? { pressure: .5 + .4 * Math.sin(t * 6), tiltX: 15, tiltY: 10 } : {}) };
   }) };
 }
-function draw(renderer: Renderer, target: HTMLCanvasElement, element: FreehandElement, cached = true, zoom = 1) {
+function draw(renderer: Renderer, target: HTMLCanvasElement, element: FreehandElement, cached = true, zoom = 1, preview = false) {
   const ctx = target.getContext("2d")!;
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, target.width, target.height);
   ctx.setTransform(zoom, 0, 0, zoom, 0, 0); ctx.globalAlpha = element.opacity ?? 1;
-  renderer.draw(ctx, element, element.color, cached);
+  renderer.draw(ctx, element, element.color, cached, preview);
   return ctx;
 }
 function alphaDifference(a: HTMLCanvasElement, b: HTMLCanvasElement) {
   const left = a.getContext("2d")!.getImageData(0, 0, a.width, a.height).data;
   const right = b.getContext("2d")!.getImageData(0, 0, b.width, b.height).data;
-  let maximum = 0; let total = 0;
-  for (let i = 3; i < left.length; i += 4) { const delta = Math.abs(left[i] - right[i]); maximum = Math.max(maximum, delta); total += delta; }
-  return { maximum, mean: total / (left.length / 4) };
+  let maximum = 0; let total = 0; let changedPixels = 0; let maxAt: { x: number; y: number; actual: number; reference: number } | undefined;
+  for (let i = 3; i < left.length; i += 4) {
+    const delta = Math.abs(left[i] - right[i]); total += delta;
+    if (delta > 2) changedPixels++;
+    if (delta > maximum) { maximum = delta; const pixel = (i - 3) / 4; maxAt = { x: pixel % a.width, y: Math.floor(pixel / a.width), actual: left[i], reference: right[i] }; }
+  }
+  return { maximum, mean: total / (left.length / 4), changedPixels, maxAt };
 }
 function maxAlpha(target: HTMLCanvasElement) {
   const data = target.getContext("2d")!.getImageData(0, 0, target.width, target.height).data;
@@ -135,16 +139,45 @@ async function run() {
     const times: number[] = [];
     for (let i = 0; i < allPoints.length; i += 40) {
       element.points.push(...allPoints.slice(i, i + 40));
-      const start = performance.now(); const context = draw(painter, output, element, false);
+      const start = performance.now(); const context = draw(painter, output, element, false, 1, true);
       context.getImageData(0, 0, 1, 1); if (i >= 1600) times.push(performance.now() - start);
     }
     painter.dispose?.();
     return { medianMs: +percentile(times, .5).toFixed(2), p95Ms: +percentile(times, .95).toFixed(2) };
   }
+  function previewToFinal() {
+    const painter = createFreehandRenderer(); const previewCanvas = canvas(); const finalCanvas = canvas();
+    const comparisons = [];
+    for (const pressure of [false, true]) for (const opacity of [.28, .62]) {
+      const element = stroke(pressure, 180, 12, opacity);
+      draw(painter, previewCanvas, element, false, 1, true);
+      draw(painter, finalCanvas, element, false, 1, false);
+      comparisons.push({ pressure, opacity, ...alphaDifference(previewCanvas, finalCanvas) });
+    }
+    painter.dispose();
+    return comparisons;
+  }
+  function penUpFinalize(factory: () => Renderer, count: number) {
+    const painter = factory(); const output = canvas(1200, 800); const context = output.getContext("2d")!; const times: number[] = [];
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const element = stroke(true, count, 18, .62);
+      const points = element.points.map((point, index) => ({ ...point, x: 20 + index * (1160 / Math.max(1, count - 1)), y: 400 + 150 * Math.sin(index / 25) }));
+      element.points = points;
+      context.clearRect(0, 0, output.width, output.height); context.globalAlpha = element.opacity!;
+      painter.draw(context, element, element.color, true, true);
+      context.clearRect(0, 0, output.width, output.height);
+      const start = performance.now(); painter.draw(context, element, element.color, true, false); context.getImageData(0, 0, 1, 1);
+      if (attempt > 1) times.push(performance.now() - start);
+    }
+    painter.dispose?.();
+    return { samples: count, medianMs: +percentile(times, .5).toFixed(2), p95Ms: +percentile(times, .95).toFixed(2) };
+  }
   const performanceResults = {
     workload: "160 pressure strokes, 240 samples each, 1200x800 canvas, software-rendered panning",
     baseline: globalThis.__baselineRenderer ? crowded(globalThis.__baselineRenderer) : undefined, updated: crowded(createFreehandRenderer),
     liveStroke: { samples: 3200, baseline: globalThis.__baselineRenderer ? live(globalThis.__baselineRenderer) : undefined, updated: live(createFreehandRenderer) },
+    previewToFinal: previewToFinal(),
+    penUpFinalize: [180, 800, 3200].map(count => penUpFinalize(createFreehandRenderer, count)),
   };
   renderer.dispose(); reference.dispose?.();
   return { checks: checks.length, failures, visualDifferences, performance: performanceResults };

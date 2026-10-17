@@ -11,7 +11,7 @@
   </g>
   <rect x="951" y="25" width="22" height="22" rx="8" fill="#f3f6f3" stroke="#e1e7e2"/><circle cx="962" cy="36" r="4" fill="#78a37d"/>
   <rect x="10" y="72" width="980" height="538" fill="#fff"/><rect x="10" y="72" width="980" height="538" fill="url(#landscape-grid)"/>
-  <rect x="94" y="85" width="220" height="29" rx="8" fill="#fbfcfb" stroke="#e4e9e5"/><text x="108" y="104" fill="#3d493f" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">Sprint planning.sketch</text><circle cx="296" cy="99" r="3" fill="#78a37d"/>
+  <rect x="94" y="85" width="220" height="29" rx="8" fill="#fbfcfb" stroke="#e4e9e5"/><text x="108" y="104" fill="#3d493f" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">Sprint board.sketch</text><circle cx="296" cy="99" r="3" fill="#78a37d"/>
   <rect x="17" y="93" width="52" height="344" rx="17" fill="#fbfcfb" stroke="#e0e7e1" filter="url(#landscape-shadow)"/>
   <g fill="none" stroke="#58675b" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
     <rect x="23" y="100" width="40" height="40" rx="11" fill="#f0f4f0" stroke="#e0e7e1"/><path d="M34 112h18v16H34zM39 112v16m8-16v16m-13-8h18"/>

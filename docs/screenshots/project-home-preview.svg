@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 640" role="img" aria-labelledby="title desc">
-  <title id="title">SketchDraw project home with task, notes, and workspace shortcuts</title>
-  <desc id="desc">A project dashboard shows project actions, prioritized tasks with dates, recent notes, and shortcuts to the project tools.</desc>
+  <title id="title">SketchDraw Planning Home in a separate sdplan file</title>
+  <desc id="desc">A standalone Northstar launch.sdplan file shows project actions, tasks, notes, and dates. The Canvas tab returns to the still-open whiteboard.</desc>
   <rect width="1120" height="640" rx="20" fill="#f4f6f4"/>
   <rect x="22" y="22" width="1076" height="596" rx="17" fill="#fff" stroke="#e1e6e1"/>
   <rect x="22" y="22" width="1076" height="54" rx="17" fill="#fbfcfb"/>
@@ -8,10 +8,9 @@
   <text x="48" y="54" fill="#34453a" font-family="Segoe UI,Arial,sans-serif" font-size="13" font-weight="700">SketchDraw</text>
   <rect x="802" y="35" width="74" height="29" rx="8" fill="#edf1ed"/><text x="839" y="53" text-anchor="middle" fill="#56645a" font-family="Segoe UI,Arial,sans-serif" font-size="10">Canvas</text>
   <rect x="882" y="35" width="90" height="29" rx="8" fill="#e8efe9"/><text x="927" y="53" text-anchor="middle" fill="#42634a" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="700">Planning</text>
-  <rect x="978" y="35" width="72" height="29" rx="8" fill="#edf1ed"/><text x="1014" y="53" text-anchor="middle" fill="#56645a" font-family="Segoe UI,Arial,sans-serif" font-size="10">Library</text>
   <text x="60" y="124" fill="#728178" font-family="Segoe UI,Arial,sans-serif" font-size="10" letter-spacing="2">PROJECT HOME</text>
-  <text x="60" y="161" fill="#25332a" font-family="Segoe UI,Arial,sans-serif" font-size="28" font-weight="650">Northstar launch</text>
-  <text x="60" y="185" fill="#748078" font-family="Segoe UI,Arial,sans-serif" font-size="12">Your project space for decisions, tasks, notes, dates, and the sketch.</text>
+  <text x="60" y="161" fill="#25332a" font-family="Segoe UI,Arial,sans-serif" font-size="28" font-weight="650">Northstar launch.sdplan</text>
+  <text x="60" y="185" fill="#748078" font-family="Segoe UI,Arial,sans-serif" font-size="12">Standalone Planning file. The open Canvas sketch stays available in its tab.</text>
   <g font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="600">
     <rect x="750" y="130" width="95" height="34" rx="9" fill="#fff" stroke="#dfe5df"/><text x="797" y="151" text-anchor="middle" fill="#526057">New note</text>
     <rect x="853" y="130" width="91" height="34" rx="9" fill="#fff" stroke="#dfe5df"/><text x="898" y="151" text-anchor="middle" fill="#526057">Add task</text>

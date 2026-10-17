@@ -1,10 +1,10 @@
 /* Touch page controls. Menu and toolbar surfaces are styled in touch-bars.css. */
-.touch-page-control { display: none; }
+.app-shell:not(.platform-windows) .touch-page-control { display: none; }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .desktop-page-tabs { display: none !important; }
+    .app-shell:not(.platform-windows) .desktop-page-tabs { display: none; }
 
-    .mobile-workspace-header > .touch-page-control {
+    .app-shell:not(.platform-windows) .mobile-workspace-header > .touch-page-control {
         position: relative;
         display: block;
         flex: 0 1 156px;
@@ -12,7 +12,7 @@
         max-width: min(156px, 24vw);
         margin-left: auto;
     }
-    .touch-page-control > summary {
+    .app-shell:not(.platform-windows) .touch-page-control > summary {
         box-sizing: border-box;
         display: flex;
         min-width: 0;
@@ -28,13 +28,13 @@
         list-style: none;
         cursor: pointer;
     }
-    .touch-page-control > summary::-webkit-details-marker,
-    .touch-page-more > summary::-webkit-details-marker { display: none; }
-    .touch-page-control > summary > svg { width: 16px; height: 16px; flex: 0 0 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-    .touch-page-current { min-width: 0; flex: 1 1 auto; overflow: hidden; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-    .touch-page-control > summary > small { flex: 0 0 auto; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 65%, transparent); font: 9px system-ui,sans-serif; }
-    .touch-page-control[open] > summary { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-    .touch-pages-popover {
+    .app-shell:not(.platform-windows) .touch-page-control > summary::-webkit-details-marker,
+    .app-shell:not(.platform-windows) .touch-page-more > summary::-webkit-details-marker { display: none; }
+    .app-shell:not(.platform-windows) .touch-page-control > summary > svg { width: 16px; height: 16px; flex: 0 0 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .app-shell:not(.platform-windows) .touch-page-current { min-width: 0; flex: 1 1 auto; overflow: hidden; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .app-shell:not(.platform-windows) .touch-page-control > summary > small { flex: 0 0 auto; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 65%, transparent); font: 9px system-ui,sans-serif; }
+    .app-shell:not(.platform-windows) .touch-page-control[open] > summary { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .touch-pages-popover {
         box-sizing: border-box;
         display: grid;
         grid-template-rows: auto minmax(0, 1fr) auto;
@@ -46,31 +46,31 @@
         color: var(--toolbar-ink, var(--theme-text-secondary));
         background: color-mix(in srgb, var(--toolbar-surface, var(--theme-surface-elevated)) 98%, transparent);
     }
-    .touch-pages-popover > header,
-    .touch-pages-popover > footer { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-    .touch-pages-popover > header { padding: 0 2px 5px; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent); }
-    .touch-pages-popover > header strong { font-size: 11px; }
-    .touch-pages-popover button { box-sizing: border-box; min-width: 0; min-height: 32px; border-radius: 8px; font-size: 10px; touch-action: manipulation; }
-    .touch-page-add { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-    .touch-page-add span { font-size: 15px; line-height: 1; }
-    .touch-page-list { display: grid; min-height: 0; gap: 3px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
-    .touch-page-option { display: flex; align-items: center; gap: 8px; padding: 4px 7px; border: 1px solid transparent; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; text-align: left; }
-    .touch-page-option > small { display: grid; width: 21px; height: 21px; flex: 0 0 21px; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 65%, transparent); background: color-mix(in srgb, var(--toolbar-ink, var(--theme-surface)) 7%, transparent); font-size: 9px; }
-    .touch-page-option > span { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .touch-page-option > svg { width: 15px; height: 15px; flex: 0 0 15px; fill: none; stroke: currentColor; stroke-width: 2; }
-    .touch-page-option.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-    .touch-page-option.active > small { color: var(--ui-accent-ink); background: color-mix(in srgb, var(--ui-accent) 14%, transparent); }
-    .touch-page-rename,
-    .touch-page-more > summary { display: grid; min-width: 64px; min-height: 30px; place-items: center; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent); border-radius: 8px; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; list-style: none; cursor: pointer; }
-    .touch-page-more { position: relative; }
-    .touch-page-more-menu { position: absolute; z-index: 2; right: 0; bottom: calc(100% + 4px); display: grid; width: 150px; gap: 2px; padding: 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 15%, transparent); border-radius: 10px; background: var(--toolbar-surface, var(--theme-surface-elevated)); }
-    .touch-page-more-menu button { padding: 5px 7px; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; text-align: left; }
-    .touch-page-more-menu button:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 9%, transparent); }
+    .app-shell:not(.platform-windows) .touch-pages-popover > header,
+    .app-shell:not(.platform-windows) .touch-pages-popover > footer { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .app-shell:not(.platform-windows) .touch-pages-popover > header { padding: 0 2px 5px; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent); }
+    .app-shell:not(.platform-windows) .touch-pages-popover > header strong { font-size: 11px; }
+    .app-shell:not(.platform-windows) .touch-pages-popover button { box-sizing: border-box; min-width: 0; min-height: 32px; border-radius: 8px; font-size: 10px; touch-action: manipulation; }
+    .app-shell:not(.platform-windows) .touch-page-add { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .touch-page-add span { font-size: 15px; line-height: 1; }
+    .app-shell:not(.platform-windows) .touch-page-list { display: grid; min-height: 0; gap: 3px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+    .app-shell:not(.platform-windows) .touch-page-option { display: flex; align-items: center; gap: 8px; padding: 4px 7px; border: 1px solid transparent; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; text-align: left; }
+    .app-shell:not(.platform-windows) .touch-page-option > small { display: grid; width: 21px; height: 21px; flex: 0 0 21px; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 65%, transparent); background: color-mix(in srgb, var(--toolbar-ink, var(--theme-surface)) 7%, transparent); font-size: 9px; }
+    .app-shell:not(.platform-windows) .touch-page-option > span { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .app-shell:not(.platform-windows) .touch-page-option > svg { width: 15px; height: 15px; flex: 0 0 15px; fill: none; stroke: currentColor; stroke-width: 2; }
+    .app-shell:not(.platform-windows) .touch-page-option.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .touch-page-option.active > small { color: var(--ui-accent-ink); background: color-mix(in srgb, var(--ui-accent) 14%, transparent); }
+    .app-shell:not(.platform-windows) .touch-page-rename,
+    .app-shell:not(.platform-windows) .touch-page-more > summary { display: grid; min-width: 64px; min-height: 30px; place-items: center; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent); border-radius: 8px; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; list-style: none; cursor: pointer; }
+    .app-shell:not(.platform-windows) .touch-page-more { position: relative; }
+    .app-shell:not(.platform-windows) .touch-page-more-menu { position: absolute; z-index: 2; right: 0; bottom: calc(100% + 4px); display: grid; width: 150px; gap: 2px; padding: 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 15%, transparent); border-radius: 10px; background: var(--toolbar-surface, var(--theme-surface-elevated)); }
+    .app-shell:not(.platform-windows) .touch-page-more-menu button { padding: 5px 7px; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; text-align: left; }
+    .app-shell:not(.platform-windows) .touch-page-more-menu button:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 9%, transparent); }
 
-    .theme-dark .touch-page-control > summary { border-color: var(--dark-ui-border); }
-    .theme-dark .touch-pages-popover { border-color: var(--dark-ui-border); }
-    .theme-dark .touch-pages-popover > header { border-color: var(--dark-ui-border-soft); }
-    .theme-dark .touch-page-rename,
-    .theme-dark .touch-page-more > summary { border-color: var(--dark-ui-border); }
-    .theme-dark .touch-page-more-menu { border-color: var(--dark-ui-border); }
+    .app-shell.theme-dark:not(.platform-windows) .touch-page-control > summary { border-color: var(--dark-ui-border); }
+    .app-shell.theme-dark:not(.platform-windows) .touch-pages-popover { border-color: var(--dark-ui-border); }
+    .app-shell.theme-dark:not(.platform-windows) .touch-pages-popover > header { border-color: var(--dark-ui-border-soft); }
+    .app-shell.theme-dark:not(.platform-windows) .touch-page-rename,
+    .app-shell.theme-dark:not(.platform-windows) .touch-page-more > summary { border-color: var(--dark-ui-border); }
+    .app-shell.theme-dark:not(.platform-windows) .touch-page-more-menu { border-color: var(--dark-ui-border); }
 }

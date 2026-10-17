@@ -236,7 +236,7 @@
 }
 
 .orientation-setting-message {
-    color: var(--theme-warning) !important;
+    color: var(--theme-warning);
 }
 
 .theme-options {
@@ -546,22 +546,22 @@
 @media (max-width: 900px),
 (max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) .app-menus .view-menu-dropdown .view-settings-popover {
-        position: fixed !important;
+        position: fixed;
         z-index: 320;
-        top: calc(var(--touch-header-height, 50px) + env(safe-area-inset-top) + 6px) !important;
-        right: max(8px, env(safe-area-inset-right)) !important;
-        bottom: max(8px, env(safe-area-inset-bottom)) !important;
-        left: max(8px, env(safe-area-inset-left)) !important;
-        width: auto !important;
-        max-width: none !important;
-        max-height: none !important;
+        top: calc(var(--touch-header-height, 50px) + env(safe-area-inset-top) + 6px);
+        right: max(8px, env(safe-area-inset-right));
+        bottom: max(8px, env(safe-area-inset-bottom));
+        left: max(8px, env(safe-area-inset-left));
+        width: auto;
+        max-width: none;
+        max-height: none;
         padding: 12px;
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior-y: contain;
         -webkit-overflow-scrolling: touch;
         touch-action: pan-y;
-        transform: none !important;
+        transform: none;
     }
 
     .app-shell:not(.platform-windows) .view-menu-heading {

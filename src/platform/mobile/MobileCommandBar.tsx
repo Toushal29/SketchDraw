@@ -19,15 +19,21 @@ type Props = {
   shortcuts: { newSketch: string; openSketch: string; saveSketch: string };
   onNewSketch: () => void;
   onOpenSketch: () => void;
+  onNewPlan: () => void;
+  onOpenPlan: () => void;
   onOpenAsView: () => void;
   onSave: () => void;
   onSaveAs: () => void;
   onRename: () => void;
   onImportImage: () => void;
   onImportSvg: () => void;
+  onImportDiagram: () => void;
+  onEmbedWeb: () => void;
   onExportPng: () => void;
   onExportPdf: () => void;
   onExportSvg: () => void;
+  onExportDrawio: () => void;
+  onExportExcalidraw: () => void;
   onExportRetiredArchive: () => void;
   onClearCanvas: () => void;
   onCloseFile: () => void;
@@ -116,28 +122,28 @@ export function MobileCommandBar(props: Props) {
       const anchor = trigger.getBoundingClientRect();
       const width = Math.min(activePanel === "file" ? 280 : 540, Math.max(0, viewportWidth - edge * 2));
 
-      popover.style.setProperty("position", "fixed", "important");
-      popover.style.setProperty("z-index", "1800", "important");
-      popover.style.setProperty("box-sizing", "border-box", "important");
-      popover.style.setProperty("width", `${width / scale}px`, "important");
-      popover.style.setProperty("max-width", `${width / scale}px`, "important");
-      popover.style.setProperty("left", `${Math.max(viewportLeft + edge, Math.min(anchor.left, viewportLeft + viewportWidth - width - edge)) / scale}px`, "important");
-      popover.style.setProperty("right", "auto", "important");
-      popover.style.setProperty("bottom", "auto", "important");
-      popover.style.setProperty("margin", "0", "important");
-      popover.style.setProperty("transform", "none", "important");
+      popover.style.setProperty("position", "fixed");
+      popover.style.setProperty("z-index", "1800");
+      popover.style.setProperty("box-sizing", "border-box");
+      popover.style.setProperty("width", `${width / scale}px`);
+      popover.style.setProperty("max-width", `${width / scale}px`);
+      popover.style.setProperty("left", `${Math.max(viewportLeft + edge, Math.min(anchor.left, viewportLeft + viewportWidth - width - edge)) / scale}px`);
+      popover.style.setProperty("right", "auto");
+      popover.style.setProperty("bottom", "auto");
+      popover.style.setProperty("margin", "0");
+      popover.style.setProperty("transform", "none");
 
       const below = Math.max(0, viewportTop + viewportHeight - anchor.bottom - gap - edge);
       const above = Math.max(0, anchor.top - viewportTop - gap - edge);
       const opensBelow = below >= above || below >= 190;
       const availableHeight = Math.max(80, Math.min(viewportHeight - edge * 2, opensBelow ? below : above));
-      popover.style.setProperty("max-height", `${availableHeight / scale}px`, "important");
+      popover.style.setProperty("max-height", `${availableHeight / scale}px`);
       const settingsContent = popover.querySelector<HTMLElement>(".mobile-settings-content");
-      if (settingsContent) settingsContent.style.setProperty("max-height", `${Math.max(0, availableHeight - 112) / scale}px`, "important");
+      if (settingsContent) settingsContent.style.setProperty("max-height", `${Math.max(0, availableHeight - 112) / scale}px`);
 
       const measuredHeight = Math.min(popover.getBoundingClientRect().height || availableHeight, availableHeight);
       const top = opensBelow ? anchor.bottom + gap : anchor.top - measuredHeight - gap;
-      popover.style.setProperty("top", `${Math.max(viewportTop + edge, Math.min(top, viewportTop + viewportHeight - measuredHeight - edge)) / scale}px`, "important");
+      popover.style.setProperty("top", `${Math.max(viewportTop + edge, Math.min(top, viewportTop + viewportHeight - measuredHeight - edge)) / scale}px`);
     });
   };
 
@@ -149,15 +155,21 @@ export function MobileCommandBar(props: Props) {
   const fileActions = [
     { label: "New sketch", disabled: () => false, action: props.onNewSketch, shortcut: () => props.shortcuts.newSketch },
     { label: "Open sketch", disabled: () => false, action: props.onOpenSketch },
+    { label: "New plan", disabled: () => false, action: props.onNewPlan },
+    { label: "Open plan", disabled: () => false, action: props.onOpenPlan },
     { label: "Open view only", disabled: () => false, action: props.onOpenAsView },
     { label: "Save", disabled: () => !props.canSave, action: props.onSave, shortcut: () => props.shortcuts.saveSketch },
     { label: "Save as…", disabled: () => !props.canSaveAs, action: props.onSaveAs },
     { label: "Rename", disabled: () => !props.canRename, action: props.onRename },
     { label: "Import image", disabled: () => !props.canImport, action: props.onImportImage },
     { label: "Import SVG", disabled: () => !props.canImport, action: props.onImportSvg },
+    { label: "Import diagram, CSV or DOT", disabled: () => !props.canImport, action: props.onImportDiagram },
+    { label: "Embed web page", disabled: () => !props.canImport, action: props.onEmbedWeb },
     { label: "Export PNG", disabled: () => !props.canExport, action: props.onExportPng },
     { label: "Export PDF", disabled: () => !props.canExport, action: props.onExportPdf },
     { label: "Export SVG", disabled: () => !props.canExport, action: props.onExportSvg },
+    { label: "Export draw.io", disabled: () => !props.canExport, action: props.onExportDrawio },
+    { label: "Export Excalidraw", disabled: () => !props.canExport, action: props.onExportExcalidraw },
     ...(props.canExportRetiredArchive ? [{ label: "Export retired Library data", disabled: () => false, action: props.onExportRetiredArchive }] : []),
     { label: "Clear canvas", disabled: () => !props.canClear, action: props.onClearCanvas },
     { label: "Close file", disabled: () => !props.canClose, action: props.onCloseFile },

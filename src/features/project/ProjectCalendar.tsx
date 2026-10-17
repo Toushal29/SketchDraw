@@ -1,6 +1,6 @@
 import { For, Show, createSignal } from "solid-js";
 import type { ProjectWorkspaceData } from "../../model";
-import { dateValue, formatProjectDate, parseProjectDate, todayProjectDate } from "./project-utils";
+import { dateValue, formatProjectDate, isProjectTaskComplete, parseProjectDate, todayProjectDate } from "./project-utils";
 
 type Mode = "month" | "week" | "day";
 type Props = { data: ProjectWorkspaceData; onOpenTasks: () => void };
@@ -52,7 +52,7 @@ export function ProjectCalendar(props: Props) {
             <button class="project-calendar-day-number" aria-label={`Select ${formatProjectDate(day)}`} onClick={() => { setSelectedDate(day); if (mode() === "month") setMode("day"); }}>{new Date(`${day}T00:00:00Z`).getUTCDate()}</button>
             <div class="project-calendar-events">
               <For each={milestones()}>{milestone => <button class="project-calendar-event milestone-event" title={`Milestone: ${milestone.title}`} onClick={() => setSelectedDate(day)}><i />{milestone.title}</button>}</For>
-              <For each={tasks()}>{task => <button class={`project-calendar-event task-event priority-${task.priority} ${task.status === "done" ? "is-done" : ""}`} title={`${task.title} - ${task.priority} priority`} onClick={props.onOpenTasks}><i />{task.title}</button>}</For>
+              <For each={tasks()}>{task => <button class={`project-calendar-event task-event priority-${task.priority} ${isProjectTaskComplete(task, props.data.workflowColumns ?? []) ? "is-done" : ""}`} title={`${task.title} - ${task.priority} priority`} onClick={props.onOpenTasks}><i />{task.title}</button>}</For>
               <Show when={!tasks().length && !milestones().length && mode() === "day"}><span class="project-calendar-no-events">No scheduled items</span></Show>
             </div>
           </section>;

@@ -1,4 +1,4 @@
-import type { ProjectChecklistItem, ProjectFileEntry, ProjectLogEntry, ProjectMilestone, ProjectNote, ProjectTask, ProjectTaskChecklistItem, ProjectWorkspaceData } from "../../model";
+import type { ProjectChecklistItem, ProjectFileEntry, ProjectLogEntry, ProjectMilestone, ProjectNote, ProjectTask, ProjectTaskChecklistItem, ProjectWorkspaceData, ProjectWorkflowColumn } from "../../model";
 
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
@@ -7,6 +7,12 @@ const legacyChecklistId = (taskId: string, itemId: string) => {
   for (const char of `${taskId}\0${itemId}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
   return `legacy-${taskId.slice(0, 28)}-${itemId.slice(0, 48)}-${(hash >>> 0).toString(36)}`;
 };
+export const DEFAULT_WORKFLOW_COLUMNS: ProjectWorkflowColumn[] = [
+  { id: "backlog", label: "To do" },
+  { id: "inProgress", label: "In progress" },
+  { id: "done", label: "Done", completed: true },
+];
+export const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
 const validProjectDate = (value: unknown): value is string | undefined => {
   if (value === undefined) return true;
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -15,7 +21,7 @@ const validProjectDate = (value: unknown): value is string | undefined => {
 };
 
 export function createProjectWorkspace(name = "Untitled project"): ProjectWorkspaceData {
-  return { name: name.slice(0, 120), description: "", notes: [], tasks: [], checklist: [], milestones: [], logEntries: [], files: [] };
+  return { name: name.slice(0, 120), description: "", notes: [], tasks: [], workflowColumns: DEFAULT_WORKFLOW_COLUMNS.map(column => ({ ...column })), workingDays: [...DEFAULT_WORKING_DAYS], checklist: [], milestones: [], logEntries: [], files: [] };
 }
 
 export function normalizeProjectWorkspace(value: unknown): ProjectWorkspaceData | undefined {
@@ -26,7 +32,18 @@ export function normalizeProjectWorkspace(value: unknown): ProjectWorkspaceData 
   const logValues = value.logEntries ?? [];
   const fileValues = value.files ?? [];
   const checklistValues = value.checklist ?? [];
+  const columnValues = value.workflowColumns ?? DEFAULT_WORKFLOW_COLUMNS;
+  const workingDayValues = value.workingDays ?? DEFAULT_WORKING_DAYS;
   if (typeof value.name !== "string" || value.name.length > 120 || typeof value.description !== "string" || value.description.length > 4000 || !Array.isArray(value.notes) || value.notes.length > 12_000 || !Array.isArray(value.tasks) || value.tasks.length > 2000 || !Array.isArray(checklistValues) || checklistValues.length > 5000 || !Array.isArray(milestoneValues) || milestoneValues.length > 1000 || !Array.isArray(logValues) || logValues.length > 2000 || !Array.isArray(fileValues) || fileValues.length > 200) return undefined;
+  if (!Array.isArray(columnValues) || columnValues.length < 2 || columnValues.length > 12 || !Array.isArray(workingDayValues) || !workingDayValues.length || workingDayValues.length > 7 || workingDayValues.some(day => !Number.isInteger(day) || Number(day) < 0 || Number(day) > 6)) return undefined;
+  const workflowColumns: ProjectWorkflowColumn[] = [];
+  for (const column of columnValues) {
+    if (!isRecord(column) || typeof column.id !== "string" || !/^[a-zA-Z0-9_-]{1,50}$/.test(column.id) || typeof column.label !== "string" || !column.label.trim() || column.label.length > 60 || (column.completed !== undefined && typeof column.completed !== "boolean")) return undefined;
+    workflowColumns.push({ id: column.id, label: column.label.trim(), ...(column.completed ? { completed: true } : {}) });
+  }
+  if (new Set(workflowColumns.map(column => column.id)).size !== workflowColumns.length || !workflowColumns.some(column => column.completed)) return undefined;
+  const workflowIds = new Set(workflowColumns.map(column => column.id));
+  const workingDays = [...new Set(workingDayValues as number[])].sort();
   const notes: ProjectNote[] = [];
   for (const item of value.notes) {
     if (!isRecord(item) || typeof item.id !== "string" || !item.id || item.id.length > 100 || typeof item.title !== "string" || item.title.length > 200 || typeof item.content !== "string" || item.content.length > 100_000 || !finite(item.createdAt) || item.createdAt < 0 || !finite(item.updatedAt) || item.updatedAt < 0) return undefined;
@@ -37,7 +54,7 @@ export function normalizeProjectWorkspace(value: unknown): ProjectWorkspaceData 
   let migratedChecklistCount = 0;
   for (const item of value.tasks) {
     if (!isRecord(item)) return undefined;
-    if (typeof item.id !== "string" || !item.id || item.id.length > 100 || typeof item.title !== "string" || item.title.length > 300 || typeof item.description !== "string" || item.description.length > 20_000 || !["backlog", "inProgress", "done"].includes(String(item.status)) || !["low", "medium", "high"].includes(String(item.priority)) || !finite(item.createdAt) || item.createdAt < 0 || !finite(item.updatedAt) || item.updatedAt < 0 || !validProjectDate(item.startDate) || !validProjectDate(item.dueDate)) return undefined;
+    if (typeof item.id !== "string" || !item.id || item.id.length > 100 || typeof item.title !== "string" || item.title.length > 300 || typeof item.description !== "string" || item.description.length > 20_000 || typeof item.status !== "string" || !workflowIds.has(item.status) || !["low", "medium", "high"].includes(String(item.priority)) || !finite(item.createdAt) || item.createdAt < 0 || !finite(item.updatedAt) || item.updatedAt < 0 || !validProjectDate(item.startDate) || !validProjectDate(item.dueDate) || !validProjectDate(item.baselineStartDate) || !validProjectDate(item.baselineDueDate) || (item.estimateMinutes !== undefined && (!finite(item.estimateMinutes) || item.estimateMinutes < 0 || item.estimateMinutes > 1_000_000)) || (item.recurrence !== undefined && !["daily", "weekly", "monthly"].includes(String(item.recurrence)))) return undefined;
     if (item.dependsOn !== undefined && (!Array.isArray(item.dependsOn) || item.dependsOn.length > 500 || item.dependsOn.some(dependency => typeof dependency !== "string" || dependency.length > 100))) return undefined;
     if (item.checklist !== undefined && (!Array.isArray(item.checklist) || item.checklist.length > 500)) return undefined;
     const checklist: ProjectTaskChecklistItem[] = [];
@@ -51,7 +68,7 @@ export function normalizeProjectWorkspace(value: unknown): ProjectWorkspaceData 
       if (migratedChecklistCount > 5000) return undefined;
       migratedTaskChecklist.push({ taskId: item.id, items: checklist });
     }
-    tasks.push({ id: item.id, title: item.title, description: item.description, status: item.status as ProjectTask["status"], priority: item.priority as ProjectTask["priority"], ...(typeof item.startDate === "string" ? { startDate: item.startDate } : {}), ...(typeof item.dueDate === "string" ? { dueDate: item.dueDate } : {}), ...(Array.isArray(item.dependsOn) ? { dependsOn: [...new Set(item.dependsOn as string[])] } : {}), createdAt: item.createdAt, updatedAt: item.updatedAt });
+    tasks.push({ id: item.id, title: item.title, description: item.description, status: item.status, priority: item.priority as ProjectTask["priority"], ...(typeof item.startDate === "string" ? { startDate: item.startDate } : {}), ...(typeof item.dueDate === "string" ? { dueDate: item.dueDate } : {}), ...(typeof item.baselineStartDate === "string" ? { baselineStartDate: item.baselineStartDate } : {}), ...(typeof item.baselineDueDate === "string" ? { baselineDueDate: item.baselineDueDate } : {}), ...(typeof item.estimateMinutes === "number" ? { estimateMinutes: item.estimateMinutes } : {}), ...(item.recurrence ? { recurrence: item.recurrence as ProjectTask["recurrence"] } : {}), ...(Array.isArray(item.dependsOn) ? { dependsOn: [...new Set(item.dependsOn as string[])] } : {}), createdAt: item.createdAt, updatedAt: item.updatedAt });
   }
   const checklist: ProjectChecklistItem[] = [];
   for (const item of checklistValues) {
@@ -93,5 +110,5 @@ export function normalizeProjectWorkspace(value: unknown): ProjectWorkspaceData 
   const taskIds = new Set(tasks.map(task => task.id));
   for (const task of tasks) task.dependsOn = (task.dependsOn ?? []).filter(id => id !== task.id && taskIds.has(id));
   if (new Set(notes.map(item => item.id)).size !== notes.length || new Set(tasks.map(item => item.id)).size !== tasks.length || new Set(checklist.map(item => item.id)).size !== checklist.length || new Set(milestones.map(item => item.id)).size !== milestones.length || new Set(logEntries.map(item => item.id)).size !== logEntries.length || new Set(files.map(item => item.id)).size !== files.length) return undefined;
-  return { name, description, notes, tasks, checklist, milestones, logEntries, files };
+  return { name, description, notes, tasks, workflowColumns, workingDays, checklist, milestones, logEntries, files };
 }

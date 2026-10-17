@@ -1,27 +1,7 @@
-/* Keep planning and project workspaces usable on small touch screens. */
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell:not(.platform-windows) > .mobile-workspace-header,
-    .app-shell:not(.platform-windows) > .workspace-area-layer,
-    .app-shell:not(.platform-windows) .project-workspace-overlay,
-    .app-shell:not(.platform-windows) .project-workspace-content,
-    .app-shell:not(.platform-windows) .project-page {
-        min-width: 0;
-        max-width: 100%;
-    }
-    .app-shell:not(.platform-windows) .project-workspace-overlay { inset-inline: 0; }
-    .app-shell:not(.platform-windows) .project-workspace-nav { overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
-    .app-shell:not(.platform-windows) .project-page { width: 100%; }
-    .app-shell:not(.platform-windows) .project-calendar-toolbar { flex-wrap: wrap; justify-content: flex-start; }
-    .app-shell:not(.platform-windows) .project-calendar-nav { min-width: 0; flex-wrap: wrap; }
-    .app-shell:not(.platform-windows) .project-calendar-nav strong { min-width: min(180px, 100%); }
-    .app-shell:not(.platform-windows) .project-milestone-form { flex-wrap: wrap; }
-    .app-shell:not(.platform-windows) .project-milestone-form input[type="date"] { flex: 1 1 130px; }
-    .app-shell:not(.platform-windows) .project-workspace-footer { flex-wrap: wrap; }
-}
-
-@media (max-width: 800px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell:not(.platform-windows) .project-log-form { grid-template-columns: minmax(0, 1fr); }
-    .app-shell:not(.platform-windows) .project-log-form .project-log-wide,
-    .app-shell:not(.platform-windows) .project-log-form > button { grid-column: auto; }
-    .app-shell:not(.platform-windows) .project-log-meta { grid-template-columns: minmax(0, 1fr); }
+  .app-shell:not(.platform-windows) > .mobile-workspace-header,
+  .app-shell:not(.platform-windows) > .workspace-area-layer {
+    min-width: 0;
+    max-width: 100%;
+  }
 }

@@ -2,11 +2,11 @@
 
 `This app is made entirely using AI. Use at your own risk.`
 
-SketchDraw is an offline-first drawing and planning app for Windows and Android. Draw diagrams, plan work, and keep notes and tasks together in one portable `.sketch` file. Save locally or in a folder managed by OneDrive, Dropbox, Google Drive, or another sync service.
+SketchDraw is an offline-first drawing and planning app for Windows and Android. Canvas drawings and pages are stored in `.sketch` files; Planning notes, tasks, milestones, and project records are stored separately in `.sdplan` files. Switch between Canvas and Planning without closing the open sketch. Save either file locally or in a folder managed by OneDrive, Dropbox, Google Drive, or another sync service.
 
-**App versions: Windows 12.3.0 | Android 7.3.0 | Document format: v9 | Copyright (c) 2026 Toushal Sampat**
+**App versions: Windows 12.4.0 | Android 7.4.0 | Document format: v9 | Copyright (c) 2026 Toushal Sampat**
 
-> SketchDraw saves version 9 `.sketch` documents on Windows and Android. New and opened sketches start on Canvas, with Planning available from the workspace tabs. Older quick notes are moved into Planning when a file is opened. Versions 1-8 remain readable and migrate to v9 when opened and saved.
+> SketchDraw saves version 9 `.sketch` documents for Canvas and version 1 `.sdplan` documents for Planning. New and opened sketches start on Canvas; Planning opens or creates its own file and leaves the sketch open. Legacy quick notes embedded in older sketches are offered for extraction to a separate `.sdplan` file. Sketch versions 1-8 remain readable and migrate to v9 when opened and saved.
 
 ## Screenshots and previews
 
@@ -14,7 +14,7 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 
 ![SketchDraw desktop launch screen with welcome actions and recent sketches](docs/screenshots/home-screen-current.svg)
 
-*Launch screen: create a sketch, browse for a file, or reopen a recent sketch.*
+*Launch screen: create or reopen a `.sketch` canvas file, or create/open a separate `.sdplan` Planning file. The recent sketches and recent plans are listed separately.*
 
 ![SketchDraw Windows workspace with grouped toolbar, direct canvas actions, contextual Properties, and flowchart](docs/screenshots/workspace-current.svg)
 
@@ -22,7 +22,7 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 
 ![Portrait SketchDraw mobile home with File and Menu controls, new/open actions, and recent sketches](docs/screenshots/mobile-home-preview.svg)
 
-*Mobile home preview: create or open a sketch and browse recent files in a touch-friendly layout.*
+*Mobile home preview: create or open a `.sketch` canvas file, or create/open a separate `.sdplan` Planning file. Recent sketches and plans remain separate.*
 
 ![SketchDraw landscape tablet workspace with vertical dock, quick-style strip, color dropdown, and zoom reset](docs/screenshots/mobile-workspace-preview.svg)
 
@@ -32,7 +32,7 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 
 ![Project Home with prioritized tasks, recent notes, and project tool shortcuts](docs/screenshots/project-home-preview.svg)
 
-*Project Home brings next actions, recent notes, project dates, and shortcuts together. Task priority and due dates stay visible in the overview.*
+*Planning Home for the standalone `Northstar launch.sdplan` file. Its Canvas tab returns to the still-open whiteboard; saving Planning updates the `.sdplan` file.*
 
 ![Markdown text editor, insert-table action, and rendered editable table card](docs/screenshots/markdown-tables-preview.svg)
 
@@ -64,7 +64,7 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 
 ![Mermaid code generated into a native editable flowchart](docs/screenshots/diagram-as-code-preview.svg)
 
-*Diagram as code: paste a Mermaid flowchart, save its source with the diagram, and double-click it later to edit and regenerate it in place.*
+*Diagram as code: generate an editable Mermaid flowchart and keep its source with the group for later editing. Mermaid, DOT, CSV, and a PlantUML subset can import or export editable diagram data; SQL and JSON Schema can generate editable database table cards and be exported again.*
 
 ![Connector routing and line style gallery](docs/screenshots/connector-routes.svg)
 
@@ -84,7 +84,7 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 
 ![Database schema visualizer generating linked tables](docs/screenshots/database-schema-preview.svg)
 
-*Paste SQL `CREATE TABLE` statements or JSON and generate table cards with foreign-key links attached to field rows.*
+*Paste SQL `CREATE TABLE` statements or JSON Schema and generate editable table cards with key links attached to field rows.*
 
 ![UML, ER, and architecture component palette](docs/screenshots/modeling-components-preview.svg)
 
@@ -108,20 +108,20 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 
 ## Features
 
-- **Document workspaces:** Each `.sketch` file includes a Canvas and Planning. New and opened sketches go straight to Canvas; switch to Planning without closing the file. Both stay in the same offline document.
-- **Project planning:** Keep project notes, prioritized and dated tasks, task checklists, dependencies, milestones, decisions, risks, links, and attachments together. Use the Kanban board, drag tasks between stages, reorder cards, and review dates in Timeline or Calendar.
-- **Shared-file updates:** On Windows, file-watch events detect outside changes to an open `.sketch` file, with a 30-second polling fallback for cloud folders and removable drives. Once a provider syncs a change, independent edits to pages, objects, notes, and tasks are merged; conflicting edits to the same item are resolved by edit clocks. Android document-provider files do not use background polling. SketchDraw does not host files or live collaboration.
+- **Document workspaces:** `.sketch` stores the Canvas and its pages. `.sdplan` stores Planning data in its own versioned file. Switch between Canvas and Planning without closing the open sketch; create or open plans from Home, and open `.sdplan` files directly from Windows or Android when SketchDraw is registered for that extension.
+- **Project planning:** Keep project notes, prioritized and dated tasks, task checklists, dependencies, milestones, decisions, risks, links, and attachments in a `.sdplan` file. Use the Kanban board, drag tasks between stages, reorder cards, and review dates in Timeline or Calendar.
+- **File updates:** On Windows, file-watch events detect outside changes to an open `.sketch` file, with a 30-second polling fallback for cloud folders and removable drives. Independent Canvas page and object edits can merge after a provider syncs the changed file; conflicting edits use edit clocks. `.sdplan` files are saved with a baseline check to detect external changes, but they do not use the Canvas background watcher or merge. Android document-provider files do not use background polling. SketchDraw does not host files or live collaboration.
 - **Drawing tools:** Draw with pen, fine pen, pencil, soft brush, marker, highlighter, chalk, or a temporary laser pointer. Create and fill geometric shapes, crop imported images, and adjust stroke, fill, opacity, corners, and text styling.
 - **Flowchart symbols:** Build diagrams with process, terminator, decision, input/output, document, database, preparation, manual input, connector, delay, stored-data, and cloud shapes. Symbols remain editable after placement.
 - **Connectors:** Draw straight or curved lines, multi-point lines, and straight, elbow, forked, loop, or jagged arrows. Attach endpoints to shapes, choose line and arrowhead styles, and drag route handles. Windows also offers automatic obstacle routing with editable waypoints.
 - **Selection and layers:** Move, resize, rotate, group, duplicate, align, and distribute objects. Copy and paste objects or their styles, and edit precise values. Layers group all objects by drawing tool, so each tool has one selectable, reorderable, hideable, and lockable layer. Undo and redo history is kept per page for the current session.
 - **Canvas navigation:** Pan, zoom, fit the full drawing, or zoom to a selection. Set the board color and paper pattern, use grid and object snapping, and open Canvas options for alignment guides and an optional minimap.
-- **Pages and project files:** Keep up to 100 named canvas pages and planning records in one portable version 9 `.sketch` file. Older personal-library records are preserved when a file is opened and saved, and legacy quick notes are added to Planning Notes. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, recovery can restore interrupted edits, and up to eight recent file paths appear on Home. Recognized version 1-8 SketchDraw files are migrated when opened and saved.
+- **Pages and project files:** Keep up to 100 named Canvas pages in a version 9 `.sketch` file. Planning records live in a version 1 `.sdplan` file; up to 100 recent plan paths are remembered separately from up to eight recent sketch paths. Legacy quick notes in older sketches can be extracted into a new Planning file. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, and Canvas recovery can restore interrupted edits. Recognized version 1-8 SketchDraw files are migrated when opened and saved.
 - **Text and note cards:** Add plain text, Markdown, tables, code notes, notes, sticky notes, and checklists to the canvas. Markdown supports headings, lists, tables, and syntax-colored code blocks. Resize, title, format, collapse, expand, and edit cards in place; collapsed cards retain a short content or progress summary.
-- **Diagram as code:** Paste Mermaid flowchart code, preview it, and generate native shapes and attached connectors. The source stays with the diagram, so it can be reopened, edited, and regenerated later.
-- **Database schema visualizer:** Paste SQL `CREATE TABLE` statements or JSON table definitions to create editable table cards with primary- and foreign-key fields. Generated connectors attach to matching field rows, and each card can reopen its saved source for editing.
+- **Diagram as code:** Paste Mermaid flowchart code, preview it, and generate native shapes and attached connectors. Mermaid groups made in this editor keep their source for later editing and regeneration. Import Mermaid, DOT, CSV, and a supported PlantUML class/object subset from files. Export editable diagram labels and relationships as Mermaid, DOT, CSV, or PlantUML. Format-specific constructs and visual styling beyond the supported subset are simplified.
+- **Database schema visualizer:** Paste SQL `CREATE TABLE` statements, JSON table definitions, or JSON Schema object definitions to create editable table cards. Primary- and foreign-key fields become linked rows; each card can reopen its saved source for editing. Export table cards as SQL or Draft 2020-12 JSON Schema. SketchDraw `x-` extensions preserve SQL types and key metadata for re-import.
 - **Modeling components:** Insert editable UML, sequence, ER, C4, cloud, software, BPMN, and network shapes. Connectors attach to component shapes, and the Hub and Switch port counts are configurable.
-- **Import formats:** Import common raster images and SVG artwork. Images are embedded in the `.sketch` file; SVG artwork is rasterized for display. Mermaid, SQL, and JSON inputs can also generate editable diagrams or schema cards.
+- **Import formats:** Import common raster images and SVG artwork. Images are embedded in the `.sketch` file; SVG artwork is rasterized for display. Import draw.io XML, Excalidraw JSON, CSV, DOT, Mermaid, and supported PlantUML diagrams as editable canvas objects. Mermaid flowcharts and SQL/JSON Schema inputs can also generate editable diagrams or schema cards.
 - **Print preview:** Review page size, orientation, margins, page breaks, and tiled layout before printing or saving as PDF. Fit-to-page and poster layouts make it easier to check how a large sketch will be split across sheets.
 - **Export:** Review a live preview before exporting PNG, SVG, or PDF. PDFs support the current page, all pages, or a selected range, with fit-to-page or tiled output; configure page dimensions, headers, footers, crop marks, bleed, and RGB, CMYK, or grayscale output. PNG and SVG can use transparent backgrounds.
 - **Windows workspace:** Windows adds multiple open sketch tabs, customizable shortcuts, the `Ctrl+K` command palette, and a full-screen focus mode. The palette searches tools, actions, settings, and symbols; the desktop toolbar groups common tools and keeps object properties close to the canvas.
@@ -132,7 +132,7 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 - **View-only mode and help:** Open a sketch without editing or saving it; the laser pointer and note-card expand/collapse controls remain available. The in-app guide and shortcut reference explain drawing, selection, files, pages, export, feature IDs 1–6, and diagram ideas.
 - **App updates:** Windows checks the signed Tauri updater manifest on GitHub and can download and install a published update. Android checks the latest GitHub release for a matching arm64 APK, downloads it into app cache, checks its package, version code, and signing certificate, then opens Android's installer for the user to approve. Android does not install updates silently.
 
-SketchDraw does not host online workspaces or live cursors. Shared-file updates use the local file or provider URI and the sync service managing that folder; there is no SketchDraw server or cloud account. Conflicts use last-edit-wins metadata, so devices should have reasonably accurate system clocks. Offline changes merge after the provider delivers them.
+SketchDraw does not host online workspaces or live cursors. Canvas file updates use the local `.sketch` path or provider URI and the sync service managing that folder; there is no SketchDraw server or cloud account. Canvas conflicts use last-edit-wins metadata, so devices should have reasonably accurate system clocks. Planning files do not merge offline edits; a save checks whether the `.sdplan` file changed since it was opened.
 
 
 ## License
@@ -145,13 +145,13 @@ SketchDraw has no account system, analytics, telemetry, or application service t
 
 Some app data is kept in local WebView storage on this device:
 
-- Up to eight recent `.sketch` file paths, to populate the launch screen.
+- Up to eight recent `.sketch` paths and up to 100 recent `.sdplan` paths or Android document-provider URIs, so the launch screen and Planning overview can reopen those files.
 - Theme and tool accent preferences.
-- A recovery snapshot for an open document when it has unsaved changes. Recovery data is removed after the document is saved or recovery is discarded; if neither happens, it remains in local app storage.
+- A recovery snapshot for an open `.sketch` canvas document when it has unsaved changes. Recovery data is removed after the document is saved or recovery is discarded; if neither happens, it remains in local app storage. Planning files do not use this Canvas recovery snapshot.
 
 The recovery snapshot can contain the document's text, shapes, and embedded image data. It is stored locally so an interrupted session can be recovered. Other apps or accounts on this device may have access according to the operating system's user-account and device security.
 
-If you save a project inside a cloud-sync folder, that folder's provider may upload and process the file under its own terms and settings. SketchDraw does not control that service. Exported files are written to the location you choose. The installer and operating system also have their own download, security, and update behavior; this project does not receive those reports.
+If you save a `.sketch` or `.sdplan` file inside a cloud-sync folder, that folder's provider may upload and process the file under its own terms and settings. SketchDraw does not control that service. Windows can merge independent Canvas edits after a provider syncs them; Planning files use a save-time baseline check and do not receive automatic background merging. Exported files are written to the location you choose. The installer and operating system also have their own download, security, and update behavior; this project does not receive those reports.
 
 The optional **Check for updates** action contacts GitHub only when you select it. Windows checks the public signed updater manifest. Android queries the public Releases API; if a newer APK is available and you choose to install it, the app downloads that release asset to its private cache and hands it to Android's package installer. These requests do not include sketch content, file paths, or drawing data; GitHub receives ordinary network requests under its own privacy terms.
 

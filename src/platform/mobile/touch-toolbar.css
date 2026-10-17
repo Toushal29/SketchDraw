@@ -1,16 +1,16 @@
 /* Touch tool rail and its popovers. This stylesheet owns the compact non-Windows toolbar. */
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
   .app-shell:not(.platform-windows) .touch-tool-host,
-  .app-shell:not(.platform-windows) .touch-toolbar-layout { display: contents !important; }
+  .app-shell:not(.platform-windows) .touch-toolbar-layout { display: contents; }
 
   .app-shell.home-screen-active:not(.platform-windows) .touch-tool-bar,
   .app-shell.home-screen-active:not(.platform-windows) .touch-tool-reopen,
   .app-shell.home-screen-active:not(.platform-windows) .touch-quick-style-dock,
-  .app-shell.touch-focus-mode:not(.platform-windows) .touch-quick-style-dock { display: none !important; }
+  .app-shell.touch-focus-mode:not(.platform-windows) .touch-quick-style-dock { display: none; }
 
   .app-shell:not(.platform-windows) .touch-tool-bar,
   .app-shell:not(.platform-windows) .touch-quick-style-dock {
-    position: fixed !important;
+    position: fixed;
     box-sizing: border-box;
     color: var(--toolbar-ink, var(--theme-text-primary));
     border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 16%, transparent);
@@ -20,7 +20,7 @@
 
   .app-shell:not(.platform-windows) .touch-tool-bar {
     z-index: 1900;
-    display: flex !important;
+    display: flex;
     min-width: 0;
     min-height: 46px;
     align-items: center;
@@ -33,7 +33,7 @@
 
   .app-shell:not(.platform-windows) .touch-tool-content,
   .app-shell:not(.platform-windows) .touch-tool-actions {
-    display: flex !important;
+    display: flex;
     min-width: 0;
     min-height: 0;
     align-items: center;
@@ -53,7 +53,7 @@
   .app-shell:not(.platform-windows) .touch-tool-content::-webkit-scrollbar-thumb { border-radius: 3px; background: color-mix(in srgb, var(--ui-accent, var(--theme-success-muted)) 42%, transparent); }
 
   .app-shell:not(.platform-windows) .touch-tool-content > .tool-cluster {
-    display: flex !important;
+    display: flex;
     min-width: 0;
     flex: 0 0 auto;
     align-items: center;
@@ -67,7 +67,7 @@
   .app-shell:not(.platform-windows) .touch-tool-content > .tool-cluster .tool-family > .tool-icon-button,
   .app-shell:not(.platform-windows) .touch-tool-content > .tool-family > .tool-icon-button,
   .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-trigger {
-    display: grid !important;
+    display: grid;
     box-sizing: border-box;
     width: 38px;
     min-width: 38px;
@@ -106,13 +106,13 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .app-shell:not(.platform-windows) .touch-tool-content .tool-icon-button kbd { display: none !important; }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-icon-button kbd { display: none; }
   .app-shell:not(.platform-windows) .touch-tool-content .tool-family > .tool-icon-button { position: relative; }
   .app-shell:not(.platform-windows) .touch-tool-content .tool-family > .tool-icon-button .tool-family-caret {
     position: absolute;
     right: 2px;
     bottom: 2px;
-    display: block !important;
+    display: block;
     width: 8px;
     height: 8px;
     fill: none;
@@ -125,35 +125,35 @@
   .app-shell:not(.platform-windows) .touch-tool-content .tool-family,
   .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family,
   .app-shell:not(.platform-windows) .touch-tool-content > .stencil-family {
-    display: flex !important;
+    display: flex;
     flex: 0 0 auto;
     align-items: center;
   }
-  .app-shell:not(.platform-windows) .touch-tool-content .tool-cluster-shapes > .tool-icon-button { display: none !important; }
-  .app-shell:not(.platform-windows) .touch-tool-content .tool-cluster-history > .canvas-utility-button[title="Layers"] { display: none !important; }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-cluster-shapes > .tool-icon-button { display: none; }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-cluster-history > .canvas-utility-button[title="Layers"] { display: none; }
   .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family { position: relative; }
 
   /* Popovers are viewport anchored by placeTouchPopover in App.tsx. */
   .app-shell:not(.platform-windows) .touch-tool-content .tool-family > .tool-options,
   .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-menu {
-    position: fixed !important;
-    z-index: 2000 !important;
+    position: fixed;
+    z-index: 2000;
     box-sizing: border-box;
-    max-width: calc(100vw - 16px) !important;
-    max-height: calc(100dvh - 16px) !important;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    transform: none !important;
+    transform: none;
   }
   .app-shell:not(.platform-windows) .touch-tool-content .tool-family > .tool-options:not([data-positioned="true"]),
   .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-menu:not([data-positioned="true"]) { visibility: hidden; }
 
   .app-shell:not(.platform-windows) .touch-tool-content .tool-family:not(.options-open) > .tool-options,
-  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family:not(.options-open) > .canvas-options-menu { display: none !important; }
-  .app-shell:not(.platform-windows) .touch-tool-content .tool-family.options-open > .tool-options { display: grid !important; }
-  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family.options-open > .canvas-options-menu { display: block !important; }
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family:not(.options-open) > .canvas-options-menu { display: none; }
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-family.options-open > .tool-options { display: grid; }
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family.options-open > .canvas-options-menu { display: block; }
 
   .app-shell:not(.platform-windows) .touch-tool-content .tool-options:not(.stencil-options) > button,
   .app-shell:not(.platform-windows) .touch-tool-content .route-options > button {
@@ -239,8 +239,8 @@
     border-radius: 11px;
   }
   .app-shell:not(.platform-windows) .touch-quick-style-dock .touch-quick-style-controls {
-    position: static !important;
-    z-index: auto !important;
+    position: static;
+    z-index: auto;
     display: flex;
     width: auto;
     min-width: 0;
@@ -263,7 +263,7 @@
   .app-shell:not(.platform-windows) .touch-quick-style-dock .touch-quick-width-panel { z-index: 2000; }
 
   .app-shell:not(.platform-windows) .touch-tool-reopen {
-    position: fixed !important;
+    position: fixed;
     z-index: 1400;
     display: grid;
     width: 38px;
@@ -312,10 +312,10 @@
   .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-tool-actions { flex-direction: column-reverse; }
   .app-shell.mobile-toolbar-right:not(.platform-windows) .touch-quick-style-dock { right: calc(max(8px, env(safe-area-inset-right)) + 52px); left: auto; }
   .app-shell.mobile-toolbar-vertical:not(.platform-windows) .tool-family > .tool-options,
-  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .canvas-options-menu { max-width: calc(100vw - 64px) !important; }
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .canvas-options-menu { max-width: calc(100vw - 64px); }
 
   .app-shell:not(.platform-windows) .touch-style-panel { z-index: 2000; }
-  .app-shell:not(.platform-windows) .style-pane { display: none !important; }
+  .app-shell:not(.platform-windows) .style-pane { display: none; }
 }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
@@ -338,3 +338,8 @@
   .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-tool-bar { min-height: 44px; }
   .app-shell.mobile-orientation-portrait:not(.platform-windows) .touch-quick-style-dock { min-height: 32px; padding: 2px 5px; }
 }
+
+/* Presentation hides mobile controls after the normal toolbar layout is applied. */
+.app-shell.presentation-mode:not(.platform-windows) .touch-tool-bar,
+.app-shell.presentation-mode:not(.platform-windows) .touch-tool-reopen,
+.app-shell.presentation-mode:not(.platform-windows) .touch-quick-style-dock { display: none; }

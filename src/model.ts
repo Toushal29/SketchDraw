@@ -12,7 +12,7 @@ export type FreehandElement = LayerFlags & { type: "freehand"; points: StrokePoi
 export type ForkBranch = { end?: Point; routePoints?: Point[]; endHead?: ArrowHead; endBinding?: Binding };
 export type ShapeElement = LayerFlags & { type: "rectangle" | "circle" | "diamond" | "triangle" | "flowchart" | "line" | "arrow"; x: number; y: number; w: number; h: number; color: string; thickness: number; fillColor?: string; fillOpacity?: number; opacity?: number; lineStyle?: StrokeStyle; edgeStyle?: EdgeStyle; cornerRadius?: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute; autoRoute?: boolean; straightOnly?: boolean; routeWaypoints?: Point[]; startHead?: ArrowHead; endHead?: ArrowHead; startBinding?: Binding; endBinding?: Binding; routePoints?: Point[]; forkUpper?: ForkBranch; forkLower?: ForkBranch; label?: ShapeLabel; schemaDiagramId?: string };
 export type TextElement = LayerFlags & { type: "text"; x: number; y: number; text: string; color: string; fontSize: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify"; listType?: "none" | "bullet" | "number"; opacity?: number };
-export type ImageElement = LayerFlags & { type: "image"; x: number; y: number; w: number; h: number; dataUrl: string; sourceWidth?: number; sourceHeight?: number; cropX?: number; cropY?: number; cropW?: number; cropH?: number; opacity?: number };
+export type ImageElement = LayerFlags & { type: "image"; x: number; y: number; w: number; h: number; dataUrl: string; sourceWidth?: number; sourceHeight?: number; cropX?: number; cropY?: number; cropW?: number; cropH?: number; opacity?: number; previewUrl?: string };
 export type SchemaField = { id: string; name: string; dataType: string; primaryKey?: boolean; foreignTable?: string; foreignColumn?: string; nullable?: boolean };
 export type SchemaTableElement = LayerFlags & { type: "schemaTable"; x: number; y: number; w: number; h: number; name: string; columns: SchemaField[]; schemaDiagramId: string; schemaSource: string; fontSize?: number; opacity?: number };
 export type NoteKind = "note" | "sticky" | "checklist";
@@ -25,12 +25,13 @@ export type Tool = "select" | "pan" | "pen" | "laser" | "rectangle" | "circle" |
 export type CanvasState = { zoom: number; panX: number; panY: number; backgroundColor: string; boardColorFollowsTheme?: boolean };
 export type SketchPage = { id: string; name: string; canvasState: CanvasState; elements: Element[] };
 export type ProjectNote = { id: string; title: string; content: string; createdAt: number; updatedAt: number };
-export type ProjectTaskStatus = "backlog" | "inProgress" | "done";
+export type ProjectTaskStatus = string;
+export type ProjectWorkflowColumn = { id: string; label: string; completed?: boolean };
 export type ProjectTaskPriority = "low" | "medium" | "high";
 export type ProjectChecklistItem = { id: string; text: string; done: boolean };
 /** Legacy alias retained so older planning payloads can be migrated on read. */
 export type ProjectTaskChecklistItem = ProjectChecklistItem;
-export type ProjectTask = { id: string; title: string; description: string; status: ProjectTaskStatus; priority: ProjectTaskPriority; startDate?: string; dueDate?: string; dependsOn?: string[]; checklist?: ProjectTaskChecklistItem[]; createdAt: number; updatedAt: number };
+export type ProjectTask = { id: string; title: string; description: string; status: ProjectTaskStatus; priority: ProjectTaskPriority; startDate?: string; dueDate?: string; baselineStartDate?: string; baselineDueDate?: string; estimateMinutes?: number; recurrence?: "daily" | "weekly" | "monthly"; dependsOn?: string[]; checklist?: ProjectTaskChecklistItem[]; createdAt: number; updatedAt: number };
 export type ProjectMilestone = { id: string; title: string; description: string; date: string; completed: boolean; createdAt: number; updatedAt: number };
 export type ProjectLogKind = "decision" | "question" | "risk";
 export type ProjectLogEntry = { id: string; kind: ProjectLogKind; title: string; details: string; owner: string; nextStep: string; riskLevel?: ProjectTaskPriority; resolved: boolean; createdAt: number; updatedAt: number };
@@ -63,24 +64,26 @@ export type ProjectWorkspaceData = {
   description: string;
   notes: ProjectNote[];
   tasks: ProjectTask[];
+  workflowColumns?: ProjectWorkflowColumn[];
+  workingDays?: number[];
   checklist: ProjectChecklistItem[];
   milestones: ProjectMilestone[];
   logEntries: ProjectLogEntry[];
   files: ProjectFileEntry[];
 };
+export type SketchDrawPlanningFile = { format: "SketchDrawPlanning"; version: 1; project: ProjectWorkspaceData };
 /** V8 library records remain in memory for round-trip compatibility. */
 export type SketchDocumentSectionsV8 = { canvas: { activePageId: string; pages: SketchPage[] }; planning: ProjectWorkspaceData; library: PersonalLibraryData };
 export type WindowsSyncMetadata = { version: 1; updatedAt: number; deviceId: string; clocks: Record<string, number>; tombstones: Record<string, number> };
 export type SketchFileDocumentV8 = { format: "SketchDraw"; version: 8; sections: SketchDocumentSectionsV8; windowsSync?: WindowsSyncMetadata };
 export type SketchDocumentSectionsV9 = {
   canvas: { activePageId: string; pages: SketchPage[] };
-  planning: ProjectWorkspaceData;
   notebook: { notes: ProjectNote[] };
   retiredLibraryArchive: Omit<PersonalLibraryData, "quickNotes">;
 };
 export const SKETCH_FORMAT_VERSION = 9 as const;
 export type SketchFileDocumentV9 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; sections: SketchDocumentSectionsV9; windowsSync?: WindowsSyncMetadata };
-/** In-memory shape. Legacy quick notes remain readable for v9 file migration. */
+/** In-memory shape. `project` is read only from older sketch files for migration. */
 export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; project?: ProjectWorkspaceData; library?: PersonalLibraryData; windowsSync?: WindowsSyncMetadata };
 export type Preview = { type: Exclude<Tool, "select" | "pan" | "laser" | "text" | "bucket" | "eraser" | "crop">; start: Point; end: Point; color: string; thickness: number; opacity?: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute };
 export type Bounds = { x: number; y: number; w: number; h: number };

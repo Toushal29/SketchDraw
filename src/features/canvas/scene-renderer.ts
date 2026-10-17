@@ -2,7 +2,8 @@ import type { ArrowHead, Bounds, CanvasState, EdgeStyle, Element, FreehandElemen
 import { BOX_ANCHORS, anchorPoint, isConnectable, isConnector } from "../../operations";
 import { elementBounds } from "./bounds";
 import { traceConnector } from "./geometry";
-import { elementSpatialIndex } from "./spatial-index";
+import { ElementSpatialIndex, elementSpatialIndex } from "./spatial-index";
+import { SceneTileCache } from "./scene-tile-cache";
 import { gridStepForStyle, isometricRowHeight, isometricRowOffset, type CanvasGridStyle } from "./input";
 
 type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; snapTargets: { x: number[]; y: number[] }; targets: Map<string, Element> };
@@ -10,6 +11,9 @@ type AlignmentGuides = { x?: number; y?: number };
 
 export type CanvasSceneRendererPorts = {
   elements: () => Element[];
+  spatialIndex: () => ElementSpatialIndex;
+  tileCacheKey: () => string;
+  tileCacheAllowed: () => boolean;
   canvasState: () => CanvasState;
   renderedBoardColor: () => string;
   whiteboardStyle: () => string;
@@ -57,6 +61,7 @@ export function transformHandlePoints(bounds: Bounds, zoom: number, includeRotat
 }
 
 export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
+  const tileCache = new SceneTileCache();
   function drawLaserStroke(ctx: CanvasRenderingContext2D, points: Point[], opacity: number, thickness: number) {
     ports.drawLaserStroke(ctx, points, opacity, thickness);
   }
@@ -120,7 +125,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     const currentMove = ports.moveOrigin();
     const drag = includeSelection && sourceItems === ports.elements() && currentMove?.moved ? currentMove : undefined;
     const spatialItems = drag?.before ?? sourceItems;
-    const paintIndices = new Set(elementSpatialIndex(spatialItems).query(viewport));
+    const paintIndices = new Set((spatialItems === ports.elements() ? ports.spatialIndex() : elementSpatialIndex(spatialItems)).query(viewport));
     if (drag) {
       const movedIds = new Set(drag.targets.keys());
       for (const index of drag.indices) paintIndices.add(index);
@@ -130,6 +135,11 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         if (bindings.some(binding => binding && movedIds.has(binding.elementId)) || element.autoRoute) paintIndices.add(index);
       });
     }
+    const tileDrawing = includeSelection && !transparent && !viewOverride && !drag && sourceItems === ports.elements() && ports.tileCacheAllowed()
+      && tileCache.draw(ctx, viewport, state.zoom, dpr, sourceItems, ports.spatialIndex(), ports.tileCacheKey(), (tileContext, element, tileViewport, items) => {
+        const drawn = isConnector(element) ? ports.connectorForView(element as ShapeElement, items) : element;
+        ports.drawElement(tileContext, drawn, tileViewport, items);
+      });
     for (const index of [...paintIndices].sort((a, b) => a - b)) {
       const element = sourceItems[index];
       if (!element) continue;
@@ -142,7 +152,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       if (!ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) continue;
       ctx.save(); if (moved) ctx.translate(drag!.dx, drag!.dy);
       const drawViewport = moved ? { ...viewport, x: viewport.x - drag!.dx, y: viewport.y - drag!.dy } : viewport;
-      ports.drawElement(ctx, drawnElement, drawViewport);
+      if (!tileDrawing) ports.drawElement(ctx, drawnElement, drawViewport, sourceItems);
       const isSelected = selected.has(index);
       if (includeSelection && (isSelected || ports.hoveredIndex() === index) && isConnector(element)) {
         ctx.save(); ctx.strokeStyle = "#548ce8"; ctx.globalAlpha = .65; ctx.lineWidth = (isSelected ? 2 : 1) / state.zoom; traceConnector(ctx, drawnElement as ShapeElement); ctx.stroke();
@@ -180,7 +190,8 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         if (moved) ctx.restore();
       } }; ctx.save(); ctx.fillStyle = "#5d94e7"; ctx.globalAlpha = .7;
       const portElements = ports.elements();
-      const portIndices = new Set(elementSpatialIndex(drag?.before ?? portElements).query(viewport));
+      const portItems = drag?.before ?? portElements;
+      const portIndices = new Set((portItems === ports.elements() ? ports.spatialIndex() : elementSpatialIndex(portItems)).query(viewport));
       for (const index of drag?.indices ?? []) portIndices.add(index);
       drawPorts([...portIndices].sort((a, b) => a - b).map(index => portElements[index]).filter((item): item is Element => !!item));
       const hint = ports.attachmentHint(); if (hint) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(hint.x, hint.y, 8 / state.zoom, 0, Math.PI * 2); ctx.strokeStyle = "#2675f5"; ctx.lineWidth = 2 / state.zoom; ctx.stroke(); } ctx.restore();
@@ -218,6 +229,6 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     ctx.restore();
   }
 
-  return { drawGrid, drawTransformHandles, drawScene, drawStrokePreview };
+  return { drawGrid, drawTransformHandles, drawScene, drawStrokePreview, dispose: () => tileCache.clear() };
 
 }
