@@ -122,14 +122,6 @@
         max-height: min(48dvh, 320px);
         transform: none;
     }
-    .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded > .full-inspector {
-        top: 58px;
-        right: auto;
-        bottom: max(8px, env(safe-area-inset-bottom));
-        left: max(66px, calc(env(safe-area-inset-left) + 60px));
-        width: min(720px, calc(100vw - max(66px, calc(env(safe-area-inset-left) + 60px)) - max(8px, env(safe-area-inset-right))));
-        max-height: none;
-    }
     .app-shell.theme-dark:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-heading > button,
     .app-shell.theme-dark:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > button,
     .app-shell.theme-dark:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {

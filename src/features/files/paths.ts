@@ -29,6 +29,34 @@ export function normalizeFileUri(path: string): string {
   } catch { return candidate; }
 }
 
+/** Canonical identity key used to merge paths reported by the web and native layers. */
+export function filePathIdentity(path: string): string {
+  let normalized = normalizeFileUri(path).trim();
+  if (/^content:\/\//i.test(normalized)) return normalized;
+  normalized = normalized.replace(/^\\\\\?\\UNC\\/i, "\\\\").replace(/^\\\\\?\\/, "");
+  const isWindowsPath = /^[a-z]:[\\/]/i.test(normalized) || /^[\\/]{2}/.test(normalized);
+  if (isWindowsPath) {
+    const unc = /^[\\/]{2}/.test(normalized);
+    normalized = normalized.replace(/[\\/]+/g, "\\").replace(/\\+$/, "");
+    if (unc && !normalized.startsWith("\\\\")) normalized = `\\\\${normalized.replace(/^\\+/, "")}`;
+    return normalized.toLowerCase();
+  }
+  return normalized.replace(/\\/g, "/").replace(/\/+$/, "");
+}
+
+/** Return a safe, readable parent path for recent-file cards. */
+export function displayPathLocation(path: string): string {
+  if (/^content:\/\//i.test(path)) return "Cloud drive or device folder";
+  let normalized = normalizeFileUri(path)
+    .replace(/^\\\\\?\\UNC\\/i, "\\\\")
+    .replace(/^\\\\\?\\/, "")
+    .replace(/[\\/]+$/, "");
+  const separator = Math.max(normalized.lastIndexOf("\\"), normalized.lastIndexOf("/"));
+  if (separator < 0) return "On this device";
+  const parent = normalized.slice(0, separator);
+  return parent || "On this device";
+}
+
 export function isSketchPath(path: string): boolean {
   const normalized = normalizeFileUri(path);
   if (/^content:\/\//i.test(normalized)) return true;
@@ -70,6 +98,7 @@ export function displayPathName(path: string): string {
     try { decoded = decodeURIComponent(decoded); } catch { /* Retain malformed URI escapes as shown by the picker. */ }
   }
   decoded = decoded
+    .replace(/^\\\\\?\\UNC\\/i, "\\\\")
     .replace(/^\\\\\?\\/, "")
     .replace(/^\/+([a-z]:[\\/])/i, "$1")
     .replace(/[\\/]+$/, "");

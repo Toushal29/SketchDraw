@@ -129,7 +129,7 @@ function exportSchema(tables: SchemaTableElement[], format: "sql" | "json") {
           ...(field.foreignTable ? { "x-sketchdraw-foreignTable": field.foreignTable, ...(field.foreignColumn ? { "x-sketchdraw-foreignColumn": field.foreignColumn } : {}) } : {}),
         }];
       }));
-      return { id, table, schema: { title: table.name, type: "object", properties, required, additionalProperties: false } };
+      return { id, table, schema: { title: table.name, type: "object", properties, required, additionalProperties: false, ...(table.indexes?.length ? { "x-sketchdraw-indexes": table.indexes } : {}), ...(table.constraints?.length ? { "x-sketchdraw-constraints": table.constraints } : {}) } };
     });
     return JSON.stringify({
       $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -141,11 +141,25 @@ function exportSchema(tables: SchemaTableElement[], format: "sql" | "json") {
     }, null, 2) + "\n";
   }
   return tables.map(table => {
+    const constraints = table.constraints ?? [];
+    const tablePrimaryKey = constraints.some(item => item.kind === "primary-key");
+    const foreignKeyColumns = new Set(constraints.filter(item => item.kind === "foreign-key").flatMap(item => item.columns ?? []));
     const columns = table.columns.map(field => {
-      const parts = [`  ${quoteSql(field.name)} ${field.dataType || "TEXT"}`, ...(field.primaryKey ? ["PRIMARY KEY"] : []), ...(field.nullable === false || field.primaryKey ? ["NOT NULL"] : []), ...(field.foreignTable ? [`REFERENCES ${quoteSql(field.foreignTable)} (${quoteSql(field.foreignColumn || "id")})`] : [])];
+      const parts = [`  ${quoteSql(field.name)} ${field.dataType || "TEXT"}`, ...(!tablePrimaryKey && field.primaryKey ? ["PRIMARY KEY"] : []), ...(field.nullable === false || field.primaryKey ? ["NOT NULL"] : []), ...(!foreignKeyColumns.has(field.name) && field.foreignTable ? [`REFERENCES ${quoteSql(field.foreignTable)} (${quoteSql(field.foreignColumn || "id")})`] : [])];
       return parts.join(" ");
     });
-    return `CREATE TABLE ${quoteSql(table.name)} (\n${columns.join(",\n")}\n);`;
+    const tableConstraints = constraints.flatMap(constraint => {
+      const prefix = constraint.name ? `CONSTRAINT ${quoteSql(constraint.name)} ` : "";
+      const list = (constraint.columns ?? []).map(quoteSql).join(", ");
+      if (constraint.kind === "primary-key" && list) return [`  ${prefix}PRIMARY KEY (${list})`];
+      if (constraint.kind === "unique" && list) return [`  ${prefix}UNIQUE (${list})`];
+      if (constraint.kind === "check" && constraint.expression) return [`  ${prefix}CHECK (${constraint.expression})`];
+      if (constraint.kind === "foreign-key" && list && constraint.referencedTable) return [`  ${prefix}FOREIGN KEY (${list}) REFERENCES ${quoteSql(constraint.referencedTable)} (${(constraint.referencedColumns ?? []).map(quoteSql).join(", ") || quoteSql("id")})`];
+      return [];
+    });
+    const definition = `CREATE TABLE ${quoteSql(table.name)} (\n${[...columns, ...tableConstraints].join(",\n")}\n);`;
+    const indexes = (table.indexes ?? []).map(index => `CREATE ${index.unique ? "UNIQUE " : ""}INDEX ${quoteSql(index.name)} ON ${quoteSql(table.name)} (${index.columns.map(quoteSql).join(", ")})${index.expression ? ` ${index.expression}` : ""};`);
+    return [definition, ...indexes].join("\n");
   }).join("\n\n") + "\n";
 }
 

@@ -40,9 +40,9 @@
     }
 
     .app-shell:not(.platform-windows) .mobile-header-leading { grid-area: brand; display: flex; min-width: 0; align-items: center; gap: 4px; overflow: hidden; }
-    .app-shell:not(.platform-windows) .mobile-brand { display: flex; min-width: 0; align-items: center; gap: 5px; color: var(--toolbar-ink, var(--theme-text-primary)); font: 650 10px/1.15 system-ui, sans-serif; }
+    .app-shell:not(.platform-windows) .mobile-brand { display: flex; min-width: 0; align-items: center; gap: 5px; color: var(--toolbar-ink, var(--theme-text-primary)); font: 650 10px/1.15 var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-brand span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .app-shell:not(.platform-windows) .mobile-view-only-badge { flex: 0 0 auto; padding: 3px 5px; border-radius: 5px; color: var(--ui-accent-ink); background: var(--ui-accent-soft); font: 700 7px/1 system-ui, sans-serif; }
+    .app-shell:not(.platform-windows) .mobile-view-only-badge { flex: 0 0 auto; padding: 3px 5px; border-radius: 5px; color: var(--ui-accent-ink); background: var(--ui-accent-soft); font: 700 var(--font-size-micro)/1 var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-command-host,
     .app-shell:not(.platform-windows) .mobile-command-bar,
     .app-shell:not(.platform-windows) .mobile-command-actions { display: contents; }
@@ -60,18 +60,18 @@
     .app-shell:not(.platform-windows) .mobile-header-canvas > .touch-page-control { grid-area: pages; box-sizing: border-box; width: 100%; min-width: 0; max-width: none; margin: 0; }
     .app-shell:not(.platform-windows) .mobile-header-planning > .document-workspace-tabs,
     .app-shell:not(.platform-windows) .mobile-header-canvas > .document-workspace-tabs { grid-area: project; box-sizing: border-box; display: flex; width: 100%; min-width: 0; max-width: none; align-items: center; justify-content: stretch; gap: 2px; padding: 0; overflow: hidden; border: 0; border-radius: 0; background: transparent; }
-    .app-shell:not(.platform-windows) .mobile-workspace-header .document-workspace-tabs button { box-sizing: border-box; display: flex; min-width: 0; height: 30px; min-height: 30px; flex: 1 1 0; align-items: center; justify-content: center; padding: 0 3px; overflow: hidden; border: 1px solid transparent; border-radius: 8px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 72%, transparent); background: transparent; font: 650 9px/1 system-ui, sans-serif; text-overflow: ellipsis; }
+    .app-shell:not(.platform-windows) .mobile-workspace-header .document-workspace-tabs button { box-sizing: border-box; display: flex; min-width: 0; height: 30px; min-height: 30px; flex: 1 1 0; align-items: center; justify-content: center; padding: 0 3px; overflow: hidden; border: 1px solid transparent; border-radius: 8px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 90%, transparent); background: transparent; font: 650 9px/1 var(--font-ui); text-overflow: ellipsis; }
     .app-shell:not(.platform-windows) .mobile-workspace-header .document-workspace-tabs button:hover { background: color-mix(in srgb, var(--toolbar-ink, var(--theme-background)) 6%, transparent); }
     .app-shell:not(.platform-windows) .mobile-workspace-header .document-workspace-tabs button.active { border-color: color-mix(in srgb, var(--ui-accent) 24%, transparent); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .app-shell:not(.platform-windows) .mobile-header-canvas .touch-page-control > summary { box-sizing: border-box; display: flex; width: 100%; min-width: 0; height: 32px; align-items: center; justify-content: center; gap: 4px; padding: 0 4px; border: 1px solid var(--touch-control-line); border-radius: 8px; background: transparent; }
     .app-shell:not(.platform-windows) .mobile-header-canvas .touch-page-control > summary .touch-page-current { display: none; }
     .app-shell:not(.platform-windows) .mobile-header-canvas .touch-page-control > summary > svg { width: 15px; height: 15px; flex: 0 0 15px; }
-    .app-shell:not(.platform-windows) .mobile-header-canvas .touch-page-control > summary > small { font-size: 8px; }
+    .app-shell:not(.platform-windows) .mobile-header-canvas .touch-page-control > summary > small { font-size: var(--font-size-micro); }
 
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header { grid-template-columns: 34px minmax(0, 1fr) 32px 52px minmax(84px, 96px) 22px; gap: 3px; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header.mobile-header-planning { grid-template-columns: 34px minmax(0, 1fr) 32px minmax(84px, 96px) 22px; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header.mobile-header-home { grid-template-columns: 34px minmax(0, 1fr) 32px; }
-    .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-workspace-header .document-workspace-tabs button { height: 30px; min-height: 30px; padding-inline: 2px; font-size: 8px; }
+    .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-workspace-header .document-workspace-tabs button { height: 30px; min-height: 30px; padding-inline: 2px; font-size: var(--font-size-micro); }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-brand { font-size: 9px; }
 
     .app-shell.mobile-toolbar-top:not(.platform-windows) .touch-tool-reopen { top: calc(var(--touch-header-height) + var(--touch-toolbar-top-offset)); right: auto; bottom: auto; left: max(6px, env(safe-area-inset-left)); }
@@ -205,7 +205,7 @@
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header.mobile-header-canvas { grid-template-columns: 32px minmax(0, 1fr) 30px 46px minmax(72px, 84px) 20px; gap: 2px; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header.mobile-header-planning { grid-template-columns: 32px minmax(0, 1fr) 30px minmax(72px, 84px) 20px; gap: 2px; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header.mobile-header-home { grid-template-columns: 32px minmax(0, 1fr) 30px; gap: 2px; }
-    .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-brand { font-size: 8px; }
+    .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-brand { font-size: var(--font-size-micro); }
 }
 
 @media (max-width: 480px) {

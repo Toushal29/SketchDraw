@@ -17,7 +17,6 @@
 @import "./platform/mobile/workspace.css";
 @import "./platform/mobile/overrides.css";
 @import "./platform/mobile/mobile.css";
-@import "./styles/app-settings.css";
 @import "./platform/mobile/ui-refresh.css";
 @import "./platform/mobile/home.css";
 @import "./platform/mobile/touch-style.css";
@@ -27,9 +26,13 @@
 @import "./platform/windows/windows.css";
 @import "./features/workspace/workspace-shell.css";
 @import "./styles/workspace-ui.css";
-@import "./styles/property-panel-redesign.css";
 @import "./features/project/project-workspace.css";
 @import "./platform/mobile/layout-fixes.css";
 @import "./platform/mobile/touch-bars.css";
 @import "./platform/mobile/command-bar.css";
 @import "./platform/mobile/touch-toolbar.css";
+@import "./styles/property-panel-redesign.css";
+@import "./styles/full-inspector.css";
+@import "./styles/view-panel.css";
+@import "./styles/app-settings.css";
+@import "./styles/diagram-templates.css";

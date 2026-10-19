@@ -17,7 +17,7 @@ export async function openSketchDocument(path: string): Promise<OpenedSketchDocu
   const raw: unknown = JSON.parse(rawText);
   const snapshot = parseSketchFile(raw);
   if (!snapshot) throw new Error("This file is invalid or uses an unsupported SketchDraw format.");
-  return { path: authorizedPath, rawText, snapshot, needsMigration: !!raw && typeof raw === "object" && "version" in raw && raw.version !== snapshot.version };
+  return { path: authorizedPath, rawText, snapshot, needsMigration: !!raw && typeof raw === "object" && "version" in raw && Number(raw.version) !== snapshot.version };
 }
 
 export function decodeSketchDocument(value: unknown): SketchFile | undefined {

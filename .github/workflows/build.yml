@@ -19,7 +19,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run build
+      - name: Check canvas input, diagram imports, and control accessibility
+        run: npm run test:canvas
+        env:
+          CANVAS_TEST_BROWSER: /usr/bin/google-chrome
 
   windows-release:
     if: github.event_name == 'release'

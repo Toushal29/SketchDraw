@@ -1,5 +1,7 @@
 export type SchemaColumn = { name: string; type: string; primaryKey?: boolean; foreignTable?: string; foreignColumn?: string; nullable?: boolean };
-export type SchemaTable = { name: string; columns: SchemaColumn[] };
+export type SchemaIndex = { name: string; columns: string[]; unique?: boolean; expression?: string };
+export type SchemaConstraint = { name?: string; kind: "unique" | "check" | "foreign-key" | "primary-key"; columns?: string[]; expression?: string; referencedTable?: string; referencedColumns?: string[] };
+export type SchemaTable = { name: string; columns: SchemaColumn[]; indexes?: SchemaIndex[]; constraints?: SchemaConstraint[] };
 
 const identifier = (value: string) => value.replace(/^[`"\[]/, "").replace(/[`"\]]$/, "").trim();
 const sqlNamePart = '(?:`[^`]+`|"[^"]+"|\\[[^\\]]+\\]|[\\w$-]+)';
@@ -76,13 +78,23 @@ function parseSql(source: string): SchemaTable[] {
     const name = unqualifiedSqlName(match[1]);
     const openIndex = (match.index ?? 0) + match[0].lastIndexOf("("); const closeIndex = matchingParen(sql, openIndex);
     if (!name || closeIndex < 0) continue;
-    const columns: SchemaColumn[] = []; const primaryKeys = new Set<string>(); const foreignKeys: { column: string; table: string; target: string }[] = [];
+    const columns: SchemaColumn[] = []; const primaryKeys = new Set<string>(); const foreignKeys: { column: string; table: string; target: string }[] = []; const constraints: SchemaConstraint[] = [];
     for (const item of splitSqlItems(sql.slice(openIndex + 1, closeIndex))) {
-      const primary = /PRIMARY\s+KEY\s*\(([^)]+)\)/i.exec(item);
-      if (primary) { primary[1].split(",").forEach(part => primaryKeys.add(identifier(part.trim().split(/\s+/)[0]).toLowerCase())); continue; }
+      const constraintName = /^\s*CONSTRAINT\s+((?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$-]+)\s+)/i.exec(item)?.[1];
+      const cleanItem = item.replace(/^\s*CONSTRAINT\s+(?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$-]+)\s+/i, "").trim();
+      const primary = /PRIMARY\s+KEY\s*\(([^)]+)\)/i.exec(cleanItem);
+      if (primary) { const keyColumns = primary[1].split(",").map(part => identifier(part.trim().split(/\s+/)[0])); keyColumns.forEach(name => primaryKeys.add(name.toLowerCase())); constraints.push({ ...(constraintName ? { name: identifier(constraintName.trim()) } : {}), kind: "primary-key", columns: keyColumns }); continue; }
       const foreign = foreignKeyPattern.exec(item);
-      if (foreign) { foreignKeys.push({ column: identifier(foreign[1].split(",")[0]), table: unqualifiedSqlName(foreign[2]), target: identifier(foreign[3].split(",")[0]) }); continue; }
-      if (/^(?:CONSTRAINT|UNIQUE|CHECK|INDEX|KEY)\b/i.test(item)) continue;
+      if (foreign) {
+        const sourceColumns = foreign[1].split(",").map(part => identifier(part.trim())); const targetColumns = foreign[3].split(",").map(part => identifier(part.trim()));
+        foreignKeys.push({ column: sourceColumns[0], table: unqualifiedSqlName(foreign[2]), target: targetColumns[0] });
+        constraints.push({ ...(constraintName ? { name: identifier(constraintName.trim()) } : {}), kind: "foreign-key", columns: sourceColumns, referencedTable: unqualifiedSqlName(foreign[2]), referencedColumns: targetColumns }); continue;
+      }
+      const unique = /^(?:UNIQUE(?:\s+(?:KEY|INDEX))?)(?:\s+((?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$-]+)))?\s*\(([^)]+)\)/i.exec(cleanItem);
+      if (unique) { constraints.push({ ...(constraintName ? { name: identifier(constraintName.trim()) } : {}), kind: "unique", columns: unique[2].split(",").map(part => identifier(part.trim())) }); continue; }
+      const check = /^CHECK\s*\(([\s\S]*)\)\s*$/i.exec(cleanItem);
+      if (check) { constraints.push({ ...(constraintName ? { name: identifier(constraintName.trim()) } : {}), kind: "check", expression: check[1].trim() }); continue; }
+      if (/^(?:INDEX|KEY)\b/i.test(cleanItem)) continue;
       const field = /^\s*(`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$.-]+)\s+([\w]+(?:\s+PRECISION)?(?:\s*\([^)]*\))?(?:\s+UNSIGNED)?)([\s\S]*)$/i.exec(item);
       if (!field) continue;
       const columnName = identifier(field[1]); const details = field[3] ?? "";
@@ -95,7 +107,26 @@ function parseSql(source: string): SchemaTable[] {
       const foreign = foreignKeys.find(item => item.column.toLowerCase() === column.name.toLowerCase());
       if (foreign) { column.foreignTable = foreign.table; column.foreignColumn = foreign.target; }
     }
-    if (columns.length) tables.push({ name, columns });
+    if (columns.length) tables.push({ name, columns, ...(constraints.length ? { constraints } : {}) });
+  }
+  const indexPattern = /CREATE\s+(UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?((?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$.-]+))\s+ON\s+((?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$.-]+)(?:\s*\.\s*(?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$.-]+))?)\s*\(([^)]*)\)(?:\s+WHERE\s+([\s\S]*?))?\s*;/ig;
+  for (const match of sql.matchAll(indexPattern)) {
+    const table = tables.find(item => item.name.toLowerCase() === unqualifiedSqlName(match[3]).toLowerCase());
+    if (!table) continue;
+    const expression = match[4].trim();
+    (table.indexes ??= []).push({ name: unqualifiedSqlName(match[2]), columns: expression.split(",").map(part => identifier(part.trim())), unique: !!match[1], ...(match[5] ? { expression: `WHERE ${match[5].trim()}` } : {}) });
+  }
+  const alterPattern = /ALTER\s+TABLE\s+((?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$.-]+)(?:\s*\.\s*(?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$.-]+))?)\s+ADD\s+(?:CONSTRAINT\s+((?:`[^`]+`|"[^"]+"|\[[^\]]+\]|[\w$-]+))\s+)?([\s\S]*?);/ig;
+  for (const match of sql.matchAll(alterPattern)) {
+    const table = tables.find(item => item.name.toLowerCase() === unqualifiedSqlName(match[1]).toLowerCase());
+    if (!table) continue;
+    const definition = match[3].trim(); const name = match[2] ? identifier(match[2]) : undefined;
+    const primary = /PRIMARY\s+KEY\s*\(([^)]+)\)/i.exec(definition); const unique = /UNIQUE(?:\s+(?:KEY|INDEX))?\s*(?:[^()]*)\(([^)]+)\)/i.exec(definition);
+    const foreign = foreignKeyPattern.exec(definition); const check = /CHECK\s*\(([\s\S]*)\)\s*$/i.exec(definition);
+    if (primary) table.constraints = [...table.constraints ?? [], { ...(name ? { name } : {}), kind: "primary-key", columns: primary[1].split(",").map(part => identifier(part.trim())) }];
+    else if (unique) table.constraints = [...table.constraints ?? [], { ...(name ? { name } : {}), kind: "unique", columns: unique[1].split(",").map(part => identifier(part.trim())) }];
+    else if (foreign) table.constraints = [...table.constraints ?? [], { ...(name ? { name } : {}), kind: "foreign-key", columns: foreign[1].split(",").map(part => identifier(part.trim())), referencedTable: unqualifiedSqlName(foreign[2]), referencedColumns: foreign[3].split(",").map(part => identifier(part.trim())) }];
+    else if (check) table.constraints = [...table.constraints ?? [], { ...(name ? { name } : {}), kind: "check", expression: check[1].trim() }];
   }
   return tables;
 }
@@ -129,7 +160,7 @@ function jsonSchemaTables(root: Record<string, unknown>): unknown[] | undefined 
       if (!properties || typeof properties !== "object" || Array.isArray(properties)) return [];
       const required = new Set(Array.isArray(definition.required) ? definition.required.map(String) : []);
       const columns = jsonSchemaColumns(properties as Record<string, unknown>, required);
-      return columns.length ? [{ name: String(definition.title ?? definitionName), columns }] : [];
+      return columns.length ? [{ name: String(definition.title ?? definitionName), columns, indexes: definition["x-sketchdraw-indexes"], constraints: definition["x-sketchdraw-constraints"] }] : [];
     });
   }
   const properties = root.properties;
@@ -137,7 +168,7 @@ function jsonSchemaTables(root: Record<string, unknown>): unknown[] | undefined 
     const required = new Set(Array.isArray(root.required) ? root.required.map(String) : []);
     const directProperties = Object.fromEntries(Object.entries(properties as Record<string, unknown>).filter(([, property]) => !!property && typeof property === "object" && !Array.isArray(property) && !("$ref" in property)));
     const columns = jsonSchemaColumns(directProperties, required);
-    if (columns.length) return [{ name: String(root.title ?? "Table"), columns }];
+    if (columns.length) return [{ name: String(root.title ?? "Table"), columns, indexes: root["x-sketchdraw-indexes"], constraints: root["x-sketchdraw-constraints"] }];
   }
   return undefined;
 }
@@ -165,7 +196,24 @@ function parseJson(source: string): SchemaTable[] {
       const primaryKey = column.primaryKey === true || column.primary_key === true || column.pk === true || primaryKeys.has(columnName.toLowerCase());
       return [{ name: columnName, type: String(column.type ?? column.dataType ?? column.data_type ?? ""), primaryKey, foreignTable, foreignColumn, nullable: !primaryKey && column.nullable !== false }];
     });
-    return columns.length ? [{ name, columns }] : [];
+    const indexes = Array.isArray(table.indexes) ? table.indexes : Array.isArray(table["x-sketchdraw-indexes"]) ? table["x-sketchdraw-indexes"] : [];
+    const constraints = Array.isArray(table.constraints) ? table.constraints : Array.isArray(table["x-sketchdraw-constraints"]) ? table["x-sketchdraw-constraints"] : [];
+    const parsedIndexes: SchemaIndex[] = indexes.flatMap((rawIndex, indexPosition) => {
+      if (!rawIndex || typeof rawIndex !== "object" || Array.isArray(rawIndex)) return [];
+      const index = rawIndex as Record<string, unknown>;
+      const indexColumns = Array.isArray(index.columns) ? index.columns.map(String) : [];
+      if (!indexColumns.length || indexColumns.length > 100) return [];
+      return [{ name: String(index.name ?? `idx_${name}_${indexPosition + 1}`).slice(0, 200), columns: indexColumns.map(value => value.slice(0, 200)), unique: index.unique === true, ...(typeof index.expression === "string" ? { expression: index.expression.slice(0, 2000) } : {}) }];
+    });
+    const parsedConstraints: SchemaConstraint[] = constraints.flatMap(rawConstraint => {
+      if (!rawConstraint || typeof rawConstraint !== "object" || Array.isArray(rawConstraint)) return [];
+      const constraint = rawConstraint as Record<string, unknown>;
+      if (!["unique", "check", "foreign-key", "primary-key"].includes(String(constraint.kind))) return [];
+      const constraintColumns = Array.isArray(constraint.columns) ? constraint.columns.map(String).slice(0, 100) : undefined;
+      const referencedColumns = Array.isArray(constraint.referencedColumns) ? constraint.referencedColumns.map(String).slice(0, 100) : undefined;
+      return [{ kind: constraint.kind as SchemaConstraint["kind"], ...(typeof constraint.name === "string" ? { name: constraint.name.slice(0, 200) } : {}), ...(constraintColumns ? { columns: constraintColumns.map(value => value.slice(0, 200)) } : {}), ...(typeof constraint.expression === "string" ? { expression: constraint.expression.slice(0, 2000) } : {}), ...(typeof constraint.referencedTable === "string" ? { referencedTable: constraint.referencedTable.slice(0, 200) } : {}), ...(referencedColumns ? { referencedColumns: referencedColumns.map(value => value.slice(0, 200)) } : {}) }];
+    });
+    return columns.length ? [{ name, columns, ...(parsedIndexes.length ? { indexes: parsedIndexes } : {}), ...(parsedConstraints.length ? { constraints: parsedConstraints } : {}) }] : [];
   });
 }
 

@@ -154,6 +154,9 @@
   .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family:not(.options-open) > .canvas-options-menu { display: none; }
   .app-shell:not(.platform-windows) .touch-tool-content .tool-family.options-open > .tool-options { display: grid; }
   .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family.options-open > .canvas-options-menu { display: block; }
+  .app-shell:not(.platform-windows) .canvas-options-family.mobile-simple-mode:not(.show-advanced-tools) .mobile-advanced-canvas-tools { display: none; }
+  .app-shell:not(.platform-windows) .mobile-more-canvas-tools { display: flex; width: 100%; min-height: 40px; justify-content: space-between; align-items: center; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--panel-border, #d5dbe0); border-radius: 7px; background: var(--panel-subtle, #f5f6f7); color: inherit; font: inherit; text-align: left; }
+  .app-shell:not(.platform-windows) .mobile-more-canvas-tools span { font-size: 18px; line-height: 1; }
 
   .app-shell:not(.platform-windows) .touch-tool-content .tool-options:not(.stencil-options) > button,
   .app-shell:not(.platform-windows) .touch-tool-content .route-options > button {
@@ -169,7 +172,7 @@
     border-radius: 9px;
     color: inherit;
     background: transparent;
-    font: 550 12px/1.25 system-ui, sans-serif;
+    font: 550 12px/1.25 var(--font-ui);
     text-align: left;
     touch-action: manipulation;
   }

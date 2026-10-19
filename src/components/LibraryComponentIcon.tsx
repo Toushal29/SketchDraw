@@ -61,8 +61,10 @@ import {
 } from "@tabler/icons-solidjs";
 import type { LibraryComponentKind } from "../notes";
 
-const icons: Record<LibraryComponentKind, Component<IconProps>> = {
+const icons: Partial<Record<LibraryComponentKind, Component<IconProps>>> = {
   "uml-class": IconListDetails,
+  "diagram-frame": IconBox,
+  "diagram-swimlane": IconColumns3,
   "uml-lifeline": IconTimeline,
   "uml-activation": IconRectangleVertical,
   "sequence-sync": IconArrowRight,
@@ -132,5 +134,13 @@ type LibraryComponentIconProps = {
 };
 
 export function LibraryComponentIcon(props: LibraryComponentIconProps) {
-  return <Dynamic component={icons[props.kind]} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />;
+  const providerIcon = props.kind.includes("lambda") || props.kind.includes("function") ? IconCloudCode
+    : props.kind.includes("storage") || props.kind.includes("s3") || props.kind.includes("blob") ? IconCloudDataConnection
+      : props.kind.includes("rds") || props.kind.includes("sql") ? IconDatabase
+        : props.kind.includes("gateway") || props.kind.includes("api-management") ? IconApi
+          : props.kind.includes("sqs") || props.kind.includes("bus") || props.kind.includes("pubsub") ? IconStack
+            : props.kind.includes("vpc") || props.kind.includes("vnet") ? IconNetwork
+              : props.kind.includes("front") || props.kind.includes("balancing") ? IconArrowsSplit
+                : IconServer;
+  return <Dynamic component={icons[props.kind] ?? providerIcon} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />;
 }

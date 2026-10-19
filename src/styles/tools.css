@@ -1,9 +1,35 @@
 /* Keep Canvas options in the original compact popover layout. */
-.canvas-options-family { position: relative; z-index: 30; flex: 0 0 auto; }
-.canvas-options-trigger { position: relative; display: grid; width: 42px; height: 42px; place-items: center; padding: 4px; border: 1px solid var(--theme-border); border-radius: 10px; color: var(--theme-text-secondary); background: var(--theme-surface); }
+.canvas-options-family {
+    position: relative;
+    z-index: 30;
+    flex: 0 0 auto;
+}
+
+.canvas-options-trigger {
+    position: relative;
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    padding: 4px;
+    border: 1px solid var(--theme-border);
+    border-radius: 10px;
+    color: var(--theme-text-secondary);
+    background: var(--theme-surface);
+}
+
 .canvas-options-trigger:hover,
-.canvas-options-trigger.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-.canvas-options-trigger svg { width: 18px; height: 18px; }
+.canvas-options-trigger.active {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+}
+
+.canvas-options-trigger svg {
+    width: 18px;
+    height: 18px;
+}
+
 .canvas-options-menu {
     position: absolute;
     top: calc(100% + 9px);
@@ -22,15 +48,51 @@
     background: var(--theme-surface-elevated);
     box-shadow: 0 12px 34px var(--theme-shadow);
 }
-.canvas-options-family.options-open > .canvas-options-menu { display: block; }
-.canvas-options-heading { display: flex; flex-direction: column; gap: 3px; padding: 7px 7px 10px; border-bottom: 1px solid var(--theme-border); }
-.canvas-options-heading strong { color: var(--theme-text-primary); font-size: 13px; font-weight: 680; }
-.canvas-options-heading small { color: var(--theme-text-secondary); font-size: 10px; }
-.canvas-options-section { padding: 9px 0 7px; border-bottom: 1px solid var(--theme-border); }
-.canvas-options-section:last-child { padding-bottom: 0; border-bottom: 0; }
-.canvas-appearance-heading { padding: 7px 7px 4px; color: var(--theme-text-secondary); font: 750 9px/1.2 system-ui, sans-serif; }
-.canvas-options-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
-.canvas-options-grid > button {
+
+.canvas-options-family.options-open>.canvas-options-menu {
+    display: block;
+}
+
+.canvas-options-section {
+    padding: 9px 0 7px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.canvas-options-section:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.canvas-appearance-heading {
+    padding: 7px 7px 4px;
+    color: var(--theme-text-secondary);
+    font: 750 9px/1.2 var(--font-ui);
+}
+
+.canvas-appearance-options select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 32px;
+    padding: 4px 7px;
+    border: 1px solid var(--theme-border);
+    border-radius: 5px;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
+    font: 10px var(--font-ui);
+}
+
+.canvas-view-color-row { display: flex; align-items: center; gap: 5px; }
+.canvas-view-color-row select { flex: 1 1 auto; }
+.canvas-view-color-row .custom-color-swatch { flex: 0 0 30px; width: 30px; height: 30px; }
+
+.canvas-options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+}
+
+.canvas-options-grid>button {
     position: relative;
     display: grid;
     min-width: 0;
@@ -47,51 +109,227 @@
     font-size: 10px;
     text-align: left;
 }
-.canvas-options-grid > button:hover:not(:disabled),
-.canvas-options-grid > button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-.canvas-options-grid > button:disabled { opacity: .38; }
-.canvas-options-grid > button:focus-visible,
-.canvas-appearance-options button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
-.canvas-options-grid > button svg { width: 18px; height: 18px; color: var(--theme-text-secondary); fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.canvas-options-grid > button kbd { justify-self: end; padding: 2px 4px; border: 1px solid var(--theme-border); border-radius: 4px; color: var(--theme-text-tertiary); background: var(--theme-surface); font: 8px 'DM Mono', monospace; }
-.canvas-appearance-colors { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
-.canvas-color-choice { position: relative; display: flex; min-width: 0; min-height: 34px; align-items: center; gap: 5px; padding: 4px 5px; border: 1px solid transparent; border-radius: 7px; color: var(--theme-text-secondary); background: transparent; font: 9px system-ui, sans-serif; }
+
+.canvas-options-grid>button:hover:not(:disabled),
+.canvas-options-grid>button.active {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+}
+
+.canvas-options-grid>button:disabled {
+    opacity: .38;
+}
+
+.canvas-options-grid>button:focus-visible,
+.canvas-appearance-options button:focus-visible {
+    outline: 2px solid var(--ui-accent);
+    outline-offset: 1px;
+}
+
+.canvas-options-grid>button svg {
+    width: 18px;
+    height: 18px;
+    color: var(--theme-text-secondary);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.canvas-options-grid>button kbd {
+    justify-self: end;
+    padding: 2px 4px;
+    border: 1px solid var(--theme-border);
+    border-radius: 4px;
+    color: var(--theme-text-tertiary);
+    background: var(--theme-surface);
+    font: var(--font-size-micro) var(--font-mono);
+}
+
+.canvas-appearance-colors {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+}
+
+.canvas-color-choice {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 34px;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 5px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: var(--theme-text-secondary);
+    background: transparent;
+    font: 9px var(--font-ui);
+}
+
 .canvas-color-choice:hover:not(:disabled),
-.canvas-color-choice.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-.canvas-color-choice:disabled { opacity: .45; }
-.canvas-color-choice > i { box-sizing: border-box; width: 17px; height: 17px; flex: 0 0 17px; border: 1px solid var(--theme-border-strong); border-radius: 50%; }
-.canvas-color-choice > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.canvas-color-auto { background: conic-gradient(var(--theme-surface) 0 25%, var(--theme-border) 0 50%, var(--theme-surface-elevated) 0 75%, var(--theme-text-tertiary) 0); }
-.canvas-custom-color { overflow: hidden; }
-.canvas-custom-color input { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.canvas-custom-color > i { pointer-events: none; }
-.canvas-pattern-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
-.canvas-pattern-options > button { display: flex; min-width: 0; min-height: 48px; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 3px; border: 1px solid transparent; border-radius: 7px; color: var(--theme-text-secondary); background: transparent; font-size: 8px; cursor: pointer; }
-.canvas-pattern-options > button:hover,
-.canvas-pattern-options > button.active,
-.canvas-component-appearance > button:hover,
-.canvas-component-appearance > button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-.canvas-pattern-options .paper-pattern-swatch { display: block; box-sizing: border-box; width: 34px; height: 20px; flex: 0 0 34px; border: 1px solid var(--theme-border-strong); border-radius: 4px; background-color: var(--theme-surface); }
-.canvas-pattern-options .paper-pattern-swatch.plain { background-image: none; }
-.canvas-pattern-options .paper-pattern-swatch.dots { background-image: radial-gradient(circle, var(--theme-text-secondary) 1.2px, transparent 1.4px); background-size: 7px 7px; }
-.canvas-pattern-options .paper-pattern-swatch.small-dots { background-image: radial-gradient(circle, var(--theme-text-secondary) 1px, transparent 1.2px); background-size: 4px 4px; }
+.canvas-color-choice.active {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+}
+
+.canvas-color-choice:disabled {
+    opacity: .45;
+}
+
+.canvas-color-choice>i {
+    box-sizing: border-box;
+    width: 17px;
+    height: 17px;
+    flex: 0 0 17px;
+    border: 1px solid var(--theme-border-strong);
+    border-radius: 50%;
+}
+
+.canvas-color-choice>span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.canvas-color-auto {
+    background: conic-gradient(var(--theme-surface) 0 25%, var(--theme-border) 0 50%, var(--theme-surface-elevated) 0 75%, var(--theme-text-tertiary) 0);
+}
+
+.canvas-custom-color {
+    overflow: hidden;
+}
+
+.canvas-custom-color input {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.canvas-custom-color>i {
+    pointer-events: none;
+}
+
+.canvas-pattern-options {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+}
+
+.canvas-pattern-options>button {
+    display: flex;
+    min-width: 0;
+    min-height: 48px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: var(--theme-text-secondary);
+    background: transparent;
+    font-size: var(--font-size-micro);
+    cursor: pointer;
+}
+
+.canvas-pattern-options>button:hover,
+.canvas-pattern-options>button.active,
+.canvas-component-appearance>button:hover,
+.canvas-component-appearance>button.active {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+}
+
+.canvas-pattern-options .paper-pattern-swatch {
+    display: block;
+    box-sizing: border-box;
+    width: 34px;
+    height: 20px;
+    flex: 0 0 34px;
+    border: 1px solid var(--theme-border-strong);
+    border-radius: 4px;
+    background-color: var(--theme-surface);
+}
+
+.canvas-pattern-options .paper-pattern-swatch.plain {
+    background-image: none;
+}
+
+.canvas-pattern-options .paper-pattern-swatch.dots {
+    background-image: radial-gradient(circle, var(--theme-text-secondary) 1.2px, transparent 1.4px);
+    background-size: 7px 7px;
+}
+
+.canvas-pattern-options .paper-pattern-swatch.small-dots {
+    background-image: radial-gradient(circle, var(--theme-text-secondary) 1px, transparent 1.2px);
+    background-size: 4px 4px;
+}
+
 .canvas-pattern-options .paper-pattern-swatch.lines,
-.canvas-pattern-options .paper-pattern-swatch.small-grid { background-image: linear-gradient(to right, var(--theme-text-tertiary) 1px, transparent 1px), linear-gradient(to bottom, var(--theme-text-tertiary) 1px, transparent 1px); }
-.canvas-pattern-options .paper-pattern-swatch.lines { background-size: 8px 8px; }
-.canvas-pattern-options .paper-pattern-swatch.small-grid { background-size: 5px 5px; }
-.canvas-pattern-options .paper-pattern-swatch.ruled { background-image: linear-gradient(to bottom, transparent 6px, var(--theme-text-tertiary) 7px, transparent 7.5px); background-size: 100% 8px; }
-.canvas-pattern-options .paper-pattern-swatch.isometric { background-image: repeating-linear-gradient(60deg, transparent 0 6px, var(--theme-text-tertiary) 6px 7px), repeating-linear-gradient(-60deg, transparent 0 6px, var(--theme-text-tertiary) 6px 7px), repeating-linear-gradient(0deg, transparent 0 6px, var(--theme-text-tertiary) 6px 7px); background-size: 16px 14px; }
-.canvas-component-appearance { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-.canvas-component-appearance > button { min-height: 34px; border: 1px solid var(--theme-border); border-radius: 7px; color: var(--theme-text-secondary); background: var(--theme-surface); font: 600 9px system-ui, sans-serif; }
+.canvas-pattern-options .paper-pattern-swatch.small-grid {
+    background-image: linear-gradient(to right, var(--theme-text-tertiary) 1px, transparent 1px), linear-gradient(to bottom, var(--theme-text-tertiary) 1px, transparent 1px);
+}
+
+.canvas-pattern-options .paper-pattern-swatch.lines {
+    background-size: 8px 8px;
+}
+
+.canvas-pattern-options .paper-pattern-swatch.small-grid {
+    background-size: 5px 5px;
+}
+
+.canvas-pattern-options .paper-pattern-swatch.ruled {
+    background-image: linear-gradient(to bottom, transparent 6px, var(--theme-text-tertiary) 7px, transparent 7.5px);
+    background-size: 100% 8px;
+}
+
+.canvas-pattern-options .paper-pattern-swatch.isometric {
+    background-image: repeating-linear-gradient(60deg, transparent 0 6px, var(--theme-text-tertiary) 6px 7px), repeating-linear-gradient(-60deg, transparent 0 6px, var(--theme-text-tertiary) 6px 7px), repeating-linear-gradient(0deg, transparent 0 6px, var(--theme-text-tertiary) 6px 7px);
+    background-size: 16px 14px;
+}
+
+.canvas-component-appearance {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.canvas-component-appearance>button {
+    min-height: 34px;
+    border: 1px solid var(--theme-border);
+    border-radius: 7px;
+    color: var(--theme-text-secondary);
+    background: var(--theme-surface);
+    font: 600 9px var(--font-ui);
+}
 
 @media (max-width: 480px) {
-    .canvas-options-menu { right: -20px; width: min(326px, calc(100vw - 16px)); }
-    .canvas-options-grid { grid-template-columns: minmax(0, 1fr); }
+    .canvas-options-menu {
+        right: -20px;
+        width: min(326px, calc(100vw - 16px));
+    }
+
+    .canvas-options-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 /* Compact desktop rails keep their controls visible and scroll within the dock. */
-@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .tool-deck .tool-collapse { display: none; }
+@media (max-width: 900px),
+(max-width: 1600px) and (pointer: coarse) {
+    .tool-deck .tool-collapse {
+        display: none;
+    }
 }
 
 @media (max-width: 560px) {
@@ -102,9 +340,15 @@
 }
 
 /* Mobile home menus stay in the viewport and the drawing dock sits on the left. */
-.touch-gesture-menu { display: none; }
-@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .touch-gesture-menu { display: block; }
+.touch-gesture-menu {
+    display: none;
+}
+
+@media (max-width: 900px),
+(max-width: 1600px) and (pointer: coarse) {
+    .touch-gesture-menu {
+        display: block;
+    }
 
     .app-shell.home-screen-active .topbar {
         justify-content: flex-start;
@@ -119,8 +363,13 @@
         max-width: 31vw;
     }
 
-    .app-shell.home-screen-active .topbar .brand { gap: 5px; }
-    .app-shell.home-screen-active .topbar .brand > span { max-width: 22vw; }
+    .app-shell.home-screen-active .topbar .brand {
+        gap: 5px;
+    }
+
+    .app-shell.home-screen-active .topbar .brand>span {
+        max-width: 22vw;
+    }
 
     .app-shell.home-screen-active .app-menus {
         min-width: 0;
@@ -130,15 +379,22 @@
         margin: 0;
     }
 
-    .app-shell.home-screen-active .app-menus > .menu-dropdown { flex: 0 0 auto; }
-    .app-shell.home-screen-active .topbar .menu-dropdown > summary {
+    .app-shell.home-screen-active .app-menus>.menu-dropdown {
+        flex: 0 0 auto;
+    }
+
+    .app-shell.home-screen-active .topbar .menu-dropdown>summary {
         min-height: 38px;
         gap: 2px;
         padding: 4px 4px;
         font-size: 10px;
         white-space: nowrap;
     }
-    .app-shell.home-screen-active .topbar .menu-dropdown > summary svg { width: 10px; height: 10px; }
+
+    .app-shell.home-screen-active .topbar .menu-dropdown>summary svg {
+        width: 10px;
+        height: 10px;
+    }
 
     .app-shell .app-menus .system-menu-popover {
         position: fixed;
@@ -156,18 +412,66 @@
         border-radius: 13px;
     }
 
-    .app-shell .app-menus .view-popover { width: auto; }
-    .app-shell .app-menus .view-settings-popover { padding: 8px 12px 10px; }
-    .app-shell .app-menus .touch-gesture-menu .system-menu-popover { display: grid; gap: 10px; }
+    .app-shell .app-menus .view-popover {
+        width: auto;
+    }
 
-    .gesture-menu-heading { display: flex; flex-direction: column; gap: 3px; padding: 3px 4px 8px; border-bottom: 1px solid var(--theme-border); }
-    .gesture-menu-heading strong { color: var(--theme-text-primary); font-size: 13px; }
-    .gesture-menu-heading span { color: var(--theme-text-secondary); font-size: 10px; }
-    .gesture-settings-popover > label { display: grid; grid-template-columns: minmax(90px, .65fr) minmax(0, 1fr); align-items: center; gap: 10px; padding: 0 4px; color: var(--theme-text-secondary); font-size: 11px; }
-    .gesture-settings-popover select { min-width: 0; height: 38px; padding: 5px 8px; border: 1px solid var(--theme-border); border-radius: 8px; color: var(--theme-text-primary); background: var(--theme-surface-input); font: inherit; }
+    .app-shell .app-menus .view-settings-popover {
+        padding: 8px 12px 10px;
+    }
 
-    .theme-dark .gesture-menu-heading { border-color: var(--theme-border); }
-    .theme-dark .gesture-settings-popover select { border-color: var(--theme-border); background-color: var(--theme-surface-input); }
+    .app-shell .app-menus .touch-gesture-menu .system-menu-popover {
+        display: grid;
+        gap: 10px;
+    }
+
+    .gesture-menu-heading {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 3px 4px 8px;
+        border-bottom: 1px solid var(--theme-border);
+    }
+
+    .gesture-menu-heading strong {
+        color: var(--theme-text-primary);
+        font-size: 13px;
+    }
+
+    .gesture-menu-heading span {
+        color: var(--theme-text-secondary);
+        font-size: 10px;
+    }
+
+    .gesture-settings-popover>label {
+        display: grid;
+        grid-template-columns: minmax(90px, .65fr) minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        padding: 0 4px;
+        color: var(--theme-text-secondary);
+        font-size: 11px;
+    }
+
+    .gesture-settings-popover select {
+        min-width: 0;
+        height: 38px;
+        padding: 5px 8px;
+        border: 1px solid var(--theme-border);
+        border-radius: 8px;
+        color: var(--theme-text-primary);
+        background: var(--theme-surface-input);
+        font: inherit;
+    }
+
+    .theme-dark .gesture-menu-heading {
+        border-color: var(--theme-border);
+    }
+
+    .theme-dark .gesture-settings-popover select {
+        border-color: var(--theme-border);
+        background-color: var(--theme-surface-input);
+    }
 
     .tool-deck {
         top: 50%;
@@ -189,12 +493,33 @@
         touch-action: pan-y;
     }
 
-    .tool-deck .tool-cluster { flex: 0 0 auto; flex-direction: column; gap: 2px; padding: 2px; }
+    .tool-deck .tool-cluster {
+        flex: 0 0 auto;
+        flex-direction: column;
+        gap: 2px;
+        padding: 2px;
+    }
+
     .tool-deck .tool-icon-button,
     .tool-deck .tool-family,
-    .tool-deck .canvas-options-trigger { width: 34px; min-width: 34px; height: 36px; min-height: 36px; }
-    .tool-deck .tool-icon-button kbd { display: none; }
-    .tool-deck .tool-family .tool-icon-button { width: 34px; min-width: 34px; height: 36px; min-height: 36px; }
+    .tool-deck .canvas-options-trigger {
+        width: 34px;
+        min-width: 34px;
+        height: 36px;
+        min-height: 36px;
+    }
+
+    .tool-deck .tool-icon-button kbd {
+        display: none;
+    }
+
+    .tool-deck .tool-family .tool-icon-button {
+        width: 34px;
+        min-width: 34px;
+        height: 36px;
+        min-height: 36px;
+    }
+
     .tool-deck-reopen {
         top: 50%;
         right: auto;
@@ -216,11 +541,20 @@
         overflow-y: auto;
         transform: translateY(-50%);
     }
+
     .style-pane.quick-style-mode,
-    .style-pane.full-style-mode { right: 8px; left: 56px; }
-    .style-pane.full-style-mode > .full-inspector,
-    .style-pane .quick-style-popover { left: 56px; }
-    .floating-layer-panel { left: 56px; }
+    .style-pane.full-style-mode {
+        right: 8px;
+        left: 56px;
+    }
+
+    .style-pane .quick-style-popover {
+        left: 56px;
+    }
+
+    .floating-layer-panel {
+        left: 56px;
+    }
 
     .selection-delete-action {
         position: absolute;
@@ -241,18 +575,58 @@
         font-weight: 650;
         touch-action: manipulation;
     }
-    .selection-delete-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-    .selection-delete-action:disabled { opacity: .45; }
-    .multi-selection-actions { display: flex; gap: 6px; }
-    .multi-selection-actions > button { min-width: 0; flex: 1 1 0; }
-    .pane-delete-button { min-height: 36px; padding: 7px 10px; border: 1px solid var(--theme-error-border); border-radius: 8px; color: var(--theme-error); background: var(--theme-error-muted); font-size: 11px; font-weight: 650; }
-    .pane-delete-button:disabled { opacity: .45; }
+
+    .selection-delete-action svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .selection-delete-action:disabled {
+        opacity: .45;
+    }
+
+    .multi-selection-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .multi-selection-actions>button {
+        min-width: 0;
+        flex: 1 1 0;
+    }
+
+    .pane-delete-button {
+        min-height: 36px;
+        padding: 7px 10px;
+        border: 1px solid var(--theme-error-border);
+        border-radius: 8px;
+        color: var(--theme-error);
+        background: var(--theme-error-muted);
+        font-size: 11px;
+        font-weight: 650;
+    }
+
+    .pane-delete-button:disabled {
+        opacity: .45;
+    }
+
     .theme-dark .selection-delete-action,
-    .theme-dark .pane-delete-button { border-color: var(--theme-error-border); }
+    .theme-dark .pane-delete-button {
+        border-color: var(--theme-error-border);
+    }
 }
 
 /* The home screen menu sheet always opens fully inside the phone viewport. */
-.app-shell.home-screen-active .topbar .brand > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell.home-screen-active .topbar .brand>span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 .selection-delete-action {
     position: absolute;
@@ -273,12 +647,47 @@
     font-weight: 650;
     touch-action: manipulation;
 }
-.selection-delete-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.selection-delete-action:disabled { opacity: .45; }
-.multi-selection-actions { display: flex; gap: 6px; }
-.multi-selection-actions > button { min-width: 0; flex: 1 1 0; }
-.pane-delete-button { min-height: 36px; padding: 7px 10px; border: 1px solid var(--theme-error-border); border-radius: 8px; color: var(--theme-error); background: var(--theme-error-muted); font-size: 11px; font-weight: 650; }
-.pane-delete-button:disabled { opacity: .45; }
-.theme-dark .selection-delete-action,
-.theme-dark .pane-delete-button { border-color: var(--theme-error-border); }
 
+.selection-delete-action svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.selection-delete-action:disabled {
+    opacity: .45;
+}
+
+.multi-selection-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.multi-selection-actions>button {
+    min-width: 0;
+    flex: 1 1 0;
+}
+
+.pane-delete-button {
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid var(--theme-error-border);
+    border-radius: 8px;
+    color: var(--theme-error);
+    background: var(--theme-error-muted);
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.pane-delete-button:disabled {
+    opacity: .45;
+}
+
+.theme-dark .selection-delete-action,
+.theme-dark .pane-delete-button {
+    border-color: var(--theme-error-border);
+}

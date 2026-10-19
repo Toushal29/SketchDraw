@@ -1,0 +1,175 @@
+.view-menu-dropdown .view-settings-popover {
+    width: min(560px, calc(100vw - 20px));
+    max-width: calc(100vw - 20px);
+    max-height: min(680px, calc(100dvh - 20px));
+    gap: 4px;
+    padding: 8px;
+    border-radius: 9px;
+    overflow: auto;
+    background: var(--theme-surface-elevated);
+}
+
+.view-settings-popover>.view-utility-action {
+    width: 100%;
+    min-height: 30px;
+    margin: 0;
+    padding: 5px 8px;
+    border: 1px solid var(--theme-border);
+    border-radius: 5px;
+    color: var(--theme-text-primary);
+    background: transparent;
+    text-align: left;
+    font: 11px/1.25 var(--font-ui);
+}
+
+.view-settings-popover>.view-utility-action:hover:not(:disabled) {
+    background: var(--theme-surface-hover);
+}
+
+.view-settings-popover>.view-utility-action:disabled {
+    opacity: .5;
+}
+
+.view-panel-page.active.canvas-page {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    padding: 0;
+    max-height: none;
+    flex: initial;
+    overflow: visible;
+}
+
+.view-menu-section {
+    min-width: 0;
+    padding: 7px 0;
+    border: 0;
+    border-bottom: 1px solid var(--theme-border);
+    border-radius: 0;
+    background: transparent;
+}
+
+.app-appearance-section {
+    grid-column: 1 / -1;
+}
+
+.app-appearance-section .view-section-heading {
+    padding: 0 0 5px;
+}
+
+.app-appearance-section .view-section-heading>span:last-child {
+    display: none;
+}
+
+.app-appearance-section .menu-section-title {
+    padding: 0;
+    color: var(--theme-text-primary);
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.app-appearance-controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+}
+
+.app-appearance-section .view-appearance-control {
+    grid-template-columns: 82px minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+}
+
+.app-appearance-section .view-appearance-control>span {
+    color: var(--theme-text-secondary);
+    font-size: 10px;
+    font-weight: 550;
+}
+
+.app-appearance-section .view-theme-options,
+.app-appearance-section .view-appearance-color-options {
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+.app-appearance-section .view-theme-options button,
+.app-appearance-section .view-appearance-color-options button,
+.app-appearance-section .view-custom-color-choice {
+    min-width: 0;
+    min-height: 27px;
+    gap: 4px;
+    padding: 3px 6px;
+    border: 1px solid var(--theme-border);
+    border-radius: 4px;
+    color: var(--theme-text-primary);
+    background: transparent;
+    font: 10px/1.15 var(--font-ui);
+}
+
+.app-appearance-section .view-theme-options button {
+    justify-content: center;
+}
+
+.app-appearance-section .view-appearance-color-options button.active,
+.app-appearance-section .view-theme-options button.active,
+.app-appearance-section .view-custom-color-choice.active {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+}
+
+.app-appearance-section .view-appearance-color-options button>i,
+.app-appearance-section .view-custom-color-choice>i {
+    width: 13px;
+    height: 13px;
+    flex-basis: 13px;
+    border-radius: 3px;
+}
+
+.app-appearance-section .view-custom-color-choice {
+    position: relative;
+}
+
+.app-appearance-section .view-custom-color-choice input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.app-appearance-section .view-custom-color-choice:focus-within,
+.app-appearance-section button:focus-visible {
+    outline: 2px solid var(--ui-accent);
+    outline-offset: 1px;
+}
+
+@media (max-width: 900px) {
+    .view-menu-dropdown .view-settings-popover {
+        right: 8px;
+        width: min(560px, calc(100vw - 16px));
+        max-width: calc(100vw - 16px);
+        max-height: calc(100dvh - 16px);
+        padding: 8px;
+    }
+}
+
+@media (max-width: 560px) {
+    .view-panel-page.active.canvas-page {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-appearance-section .view-appearance-control {
+        grid-template-columns: 72px minmax(0, 1fr);
+    }
+}
+
+@media (pointer: coarse) {
+
+    .app-appearance-section .view-theme-options button,
+    .app-appearance-section .view-appearance-color-options button,
+    .app-appearance-section .view-custom-color-choice {
+        min-height: 34px;
+    }
+}

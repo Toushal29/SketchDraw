@@ -4,7 +4,7 @@
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) {
         --touch-line: color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 13%, transparent);
-        --touch-muted: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 62%, transparent);
+        --touch-muted: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 88%, transparent);
         --touch-glass: color-mix(in srgb, var(--toolbar-surface, var(--theme-surface)) 96%, transparent);
         background: var(--theme-background);
         color: var(--theme-text-primary);
@@ -153,39 +153,6 @@
         transform: translateY(-50%);
     }
 
-    .app-shell:not(.platform-windows) .style-pane.full-style-mode > .full-inspector {
-        position: fixed;
-        z-index: 190;
-        top: auto;
-        right: max(10px, env(safe-area-inset-right));
-        bottom: max(10px, env(safe-area-inset-bottom));
-        left: max(10px, env(safe-area-inset-left));
-        box-sizing: border-box;
-        width: auto;
-        max-width: none;
-        max-height: min(68dvh, 620px);
-        padding: 12px 14px max(14px, env(safe-area-inset-bottom));
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        -webkit-overflow-scrolling: touch;
-        border: 1px solid var(--touch-line);
-        border-radius: 20px;
-        color: var(--toolbar-ink, var(--theme-text-primary));
-        background: var(--toolbar-surface, var(--theme-background));
-    }
-
-    .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-style-heading {
-        top: -12px;
-        margin: -12px -14px 9px;
-        padding: 9px 14px 10px;
-        border-color: var(--touch-line);
-        background: var(--toolbar-surface, var(--theme-background));
-    }
-
-    .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-style-heading button,
-    .app-shell:not(.platform-windows) .style-pane .full-inspector button { min-height: 40px; }
-
     .app-shell:not(.platform-windows) .floating-layer-panel {
         position: fixed;
         z-index: 170;
@@ -226,15 +193,6 @@
 
     /* Respect safe areas and leave a full-height canvas in narrow landscape. */
     @media (min-width: 700px) and (orientation: landscape) {
-        .app-shell:not(.platform-windows) .style-pane.full-style-mode > .full-inspector {
-            top: calc(var(--touch-header-height) + 10px + env(safe-area-inset-top));
-            right: max(12px, env(safe-area-inset-right));
-            bottom: max(12px, env(safe-area-inset-bottom));
-            left: auto;
-            width: min(400px, calc(100vw - 90px));
-            max-height: none;
-            border-radius: 18px;
-        }
     }
 
     @media (max-width: 560px) {
@@ -265,7 +223,7 @@
         border-radius: 11px;
         color: var(--toolbar-ink, var(--theme-text-primary));
         background: transparent;
-        font: 600 10px system-ui, sans-serif;
+        font: 600 10px var(--font-ui);
     }
     .app-shell:not(.platform-windows) .quick-brush-picker button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .app-shell:not(.platform-windows) .quick-brush-picker svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
@@ -319,8 +277,7 @@
     .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode,
     .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode { border-color: var(--theme-border); color: var(--theme-text-primary); }
     .app-shell.theme-dark:not(.platform-windows) .style-pane .quick-style-popover,
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode > .full-inspector,
-    .app-shell.theme-dark:not(.platform-windows) .floating-layer-panel { border-color: var(--theme-border); color: var(--theme-text-primary); }
+.app-shell.theme-dark:not(.platform-windows) .floating-layer-panel { border-color: var(--theme-border); color: var(--theme-text-primary); }
     .app-shell.theme-dark:not(.platform-windows) .gesture-action-card { border-color: var(--theme-border); background: var(--theme-background); }
     .app-shell.theme-dark:not(.platform-windows) .gesture-action-card select { border-color: var(--theme-border); color: var(--theme-text-primary); background: var(--theme-background); }
 }

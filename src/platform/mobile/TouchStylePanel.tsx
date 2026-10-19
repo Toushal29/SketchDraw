@@ -114,8 +114,9 @@ export function TouchStylePanel(props: Props) {
     <div class="touch-style-content">
       {(props.supportsStroke || props.supportsWidth) && <section class="touch-style-section">
         {props.supportsStroke && <ColorPalette color={props.color} label="Stroke color" disabled={props.locked} onChange={props.onColorChange} />}
-        {props.supportsWidth && <><div class="touch-style-section-title"><strong>Stroke width</strong><span>{props.width} px</span></div>
-          {(props.tool === "pen" || props.styleName === "freehand") ? props.thicknessPickerMode === "presets" ?
+        {props.supportsWidth && <><div class="touch-style-section-title"><strong>{props.tool === "eraser" ? "Eraser size" : "Stroke width"}</strong><span>{props.width} px</span></div>
+          {props.tool === "eraser" ? <div class="touch-style-widths touch-style-eraser-sizes" role="group" aria-label="Eraser size">{[2, 10, 24].map(width => <button type="button" class={props.width === width ? "active" : ""} aria-label={`${width} pixels`} aria-pressed={props.width === width} disabled={props.locked} onClick={() => props.onWidthChange(width)}><span>{width}px</span></button>)}</div> :
+          (props.tool === "pen" || props.styleName === "freehand") ? props.thicknessPickerMode === "presets" ?
             <div class="touch-style-widths" role="group" aria-label="Stroke width presets">{WIDTHS.map(width => <button class={props.width === width ? "active" : ""} aria-label={`${width} pixels`} aria-pressed={props.width === width} disabled={props.locked} onClick={() => props.onWidthChange(width)}><i style={{ height: `${Math.min(12, Math.max(2, width))}px` }} /></button>)}</div> :
             <ThicknessTuner value={props.width} color={props.color} disabled={props.locked} onChange={props.onWidthChange} /> :
             <><div class="touch-style-widths" role="group" aria-label="Stroke width presets">{WIDTHS.map(width => <button class={props.width === width ? "active" : ""} aria-label={`${width} pixels`} aria-pressed={props.width === width} disabled={props.locked} onClick={() => props.onWidthChange(width)}><i style={{ height: `${Math.min(12, Math.max(2, width))}px` }} /></button>)}</div>

@@ -30,6 +30,7 @@ export function createPlanningSession(ports: PlanningSessionPorts) {
   const [baselineRaw, setBaselineRaw] = createSignal<string>();
   const [legacyPending, setLegacyPending] = createSignal<ProjectWorkspaceData>();
   const [needsExtraction, setNeedsExtraction] = createSignal(false);
+  let legacySourcePath: string | undefined;
 
   function remember(filePath: string) {
     filePath = normalizeFileUri(filePath);
@@ -105,6 +106,7 @@ export function createPlanningSession(ports: PlanningSessionPorts) {
       setDirty(false);
       setNeedsExtraction(false);
       setLegacyPending(undefined);
+      legacySourcePath = undefined;
       setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
       remember(authorizedPath);
       ports.setError("");
@@ -142,6 +144,7 @@ export function createPlanningSession(ports: PlanningSessionPorts) {
       setDirty(false);
       setNeedsExtraction(false);
       setLegacyPending(undefined);
+      legacySourcePath = undefined;
       setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
       remember(destination);
       ports.setError("");
@@ -204,8 +207,21 @@ export function createPlanningSession(ports: PlanningSessionPorts) {
       knownNoteIds.add(note.id);
     }
     const migratedNotes = mergedNotes.length !== (project?.notes.length ?? 0);
+    if (existingProject && hasPlanningContent(existingProject, [sketchName, "Untitled project"])) legacySourcePath = normalizeFileUri(sketchPath);
     importLegacy(existingProject && migratedNotes ? { ...existingProject, notes: mergedNotes } : existingProject, [sketchName, "Untitled project"]);
     return migratedNotes;
+  }
+
+  function discardLegacyFromSketch(sketchPath: string) {
+    if (legacySourcePath !== normalizeFileUri(sketchPath)) return;
+    setLegacyPending(undefined);
+    setNeedsExtraction(false);
+    if (!path() && dirty()) {
+      setData(createProjectWorkspace());
+      setDirty(false);
+      setSavedAt("");
+    }
+    legacySourcePath = undefined;
   }
 
   function removeLegacySyncMetadata(metadata: WindowsSyncMetadata | undefined): WindowsSyncMetadata | undefined {
@@ -226,6 +242,6 @@ export function createPlanningSession(ports: PlanningSessionPorts) {
 
   return {
     recentPlans, data, path, dirty, saving, savedAt, legacyPending, needsExtraction,
-    update, remember, save, saveAs, beforeReplace, load, openPicker, create, saveLegacyCopy, importLegacy, importLegacyFromSketch, removeLegacySyncMetadata,
+    update, remember, save, saveAs, beforeReplace, load, openPicker, create, saveLegacyCopy, importLegacy, importLegacyFromSketch, discardLegacyFromSketch, removeLegacySyncMetadata,
   };
 }

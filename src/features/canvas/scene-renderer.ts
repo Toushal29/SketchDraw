@@ -32,6 +32,7 @@ export type CanvasSceneRendererPorts = {
   laserTrail: () => { points: Point[]; opacity: number } | undefined;
   laserThickness: () => number;
   preview: () => Preview | undefined;
+  simulationTokenId?: () => string | undefined;
   currentPoints: () => StrokePoint[];
   lineStyle: () => StrokeStyle;
   edgeStyle: () => EdgeStyle;
@@ -54,10 +55,18 @@ export type CanvasSceneRendererPorts = {
   intersectsBounds: (left: number, top: number, right: number, bottom: number, bounds: Bounds) => boolean;
 };
 
-export function transformHandlePoints(bounds: Bounds, zoom: number, includeRotate = true) {
+function rotatePoint(point: Point, center: Point, degrees: number): Point {
+  if (!degrees) return point;
+  const angle = degrees * Math.PI / 180; const dx = point.x - center.x; const dy = point.y - center.y;
+  return { x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle), y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle) };
+}
+
+export function transformHandlePoints(bounds: Bounds, zoom: number, includeRotate = true, rotation = 0) {
   const midX = bounds.x + bounds.w / 2; const midY = bounds.y + bounds.h / 2; const offset = 24 / zoom;
   const handles = [{ id: "nw", x: bounds.x, y: bounds.y }, { id: "n", x: midX, y: bounds.y }, { id: "ne", x: bounds.x + bounds.w, y: bounds.y }, { id: "e", x: bounds.x + bounds.w, y: midY }, { id: "se", x: bounds.x + bounds.w, y: bounds.y + bounds.h }, { id: "s", x: midX, y: bounds.y + bounds.h }, { id: "sw", x: bounds.x, y: bounds.y + bounds.h }, { id: "w", x: bounds.x, y: midY }];
-  return includeRotate ? [...handles, { id: "rotate", x: midX, y: bounds.y - offset }] : handles;
+  const allHandles = includeRotate ? [...handles, { id: "rotate", x: midX, y: bounds.y - offset }] : handles;
+  const center = { x: midX, y: midY };
+  return rotation ? allHandles.map(handle => ({ ...handle, ...rotatePoint(handle, center, rotation) })) : allHandles;
 }
 
 export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
@@ -66,10 +75,10 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     ports.drawLaserStroke(ctx, points, opacity, thickness);
   }
 
-  function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, state: CanvasState) {
+  function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, state: CanvasState, pixelRatio: number) {
     const style = ports.whiteboardStyle();
     if (!ports.showGrid() || style === "plain") return;
-    const step = gridStepForStyle(style as CanvasGridStyle, ports.gridSize, state.zoom); const left = -state.panX / state.zoom; const top = -state.panY / state.zoom;
+    const step = gridStepForStyle(style as CanvasGridStyle, ports.gridSize, state.zoom, pixelRatio); const left = -state.panX / state.zoom; const top = -state.panY / state.zoom;
     const right = (width - state.panX) / state.zoom; const bottom = (height - state.panY) / state.zoom;
     const hex = ports.renderedBoardColor().replace("#", ""); const rgb = Number.parseInt(hex.length === 3 ? hex.split("").map(part => part + part).join("") : hex, 16); const luminance = (0.2126 * ((rgb >> 16) & 255)) + (0.7152 * ((rgb >> 8) & 255)) + (0.0722 * (rgb & 255));
     ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
@@ -106,8 +115,8 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     ctx.restore();
   }
 
-  function drawTransformHandles(ctx: CanvasRenderingContext2D, bounds: Bounds, zoom: number, includeRotate = true) {
-    const handles = transformHandlePoints(bounds, zoom, includeRotate); const rotate = includeRotate ? handles.pop() : undefined; const top = { x: bounds.x + bounds.w / 2, y: bounds.y };
+  function drawTransformHandles(ctx: CanvasRenderingContext2D, bounds: Bounds, zoom: number, includeRotate = true, rotation = 0) {
+    const handles = transformHandlePoints(bounds, zoom, includeRotate, rotation); const rotate = includeRotate ? handles.pop() : undefined; const top = rotatePoint({ x: bounds.x + bounds.w / 2, y: bounds.y }, { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }, rotation);
     ctx.save(); ctx.setLineDash([]); ctx.strokeStyle = "#547bb1"; ctx.fillStyle = "#ffffff"; ctx.lineWidth = 1 / zoom;
     if (rotate) { ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(rotate.x, rotate.y); ctx.stroke(); }
     for (const handle of handles) { ctx.beginPath(); ctx.rect(handle.x - 4 / zoom, handle.y - 4 / zoom, 8 / zoom, 8 / zoom); ctx.fill(); ctx.stroke(); }
@@ -117,7 +126,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
   function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, dpr: number, includeSelection: boolean, transparent = false, viewOverride?: CanvasState, sourceItems = ports.elements(), includeGrid = true, includeStrokePreview = true) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
     if (!transparent) { ctx.fillStyle = ports.renderedBoardColor(); ctx.fillRect(0, 0, width, height); }
-    const state = viewOverride ?? ports.canvasState(); if (!transparent && includeGrid) drawGrid(ctx, width, height, state);
+    const state = viewOverride ?? ports.canvasState(); if (!transparent && includeGrid) drawGrid(ctx, width, height, state, dpr);
     ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
     const padding = 16 / state.zoom;
     const viewport = { x: -state.panX / state.zoom - padding, y: -state.panY / state.zoom - padding, w: width / state.zoom + padding * 2, h: height / state.zoom + padding * 2 };
@@ -126,6 +135,12 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     const drag = includeSelection && sourceItems === ports.elements() && currentMove?.moved ? currentMove : undefined;
     const spatialItems = drag?.before ?? sourceItems;
     const paintIndices = new Set((spatialItems === ports.elements() ? ports.spatialIndex() : elementSpatialIndex(spatialItems)).query(viewport));
+    // The spatial index tracks a connector's endpoints and stored route points.
+    // Auto routes are calculated only for display, so their bends can leave the
+    // indexed bounds. Include them directly and bypass tiles whose bounds and
+    // invalidation data cannot account for those calculated bends.
+    const hasUnindexedAutoRoutes = sourceItems.some(item => isConnector(item) && item.autoRoute && !item.hidden && !item.routePoints);
+    if (hasUnindexedAutoRoutes) sourceItems.forEach((item, index) => { if (isConnector(item) && item.autoRoute && !item.hidden) paintIndices.add(index); });
     if (drag) {
       const movedIds = new Set(drag.targets.keys());
       for (const index of drag.indices) paintIndices.add(index);
@@ -135,7 +150,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         if (bindings.some(binding => binding && movedIds.has(binding.elementId)) || element.autoRoute) paintIndices.add(index);
       });
     }
-    const tileDrawing = includeSelection && !transparent && !viewOverride && !drag && sourceItems === ports.elements() && ports.tileCacheAllowed()
+    const tileDrawing = !hasUnindexedAutoRoutes && includeSelection && !transparent && !viewOverride && !drag && sourceItems === ports.elements() && ports.tileCacheAllowed()
       && tileCache.draw(ctx, viewport, state.zoom, dpr, sourceItems, ports.spatialIndex(), ports.tileCacheKey(), (tileContext, element, tileViewport, items) => {
         const drawn = isConnector(element) ? ports.connectorForView(element as ShapeElement, items) : element;
         ports.drawElement(tileContext, drawn, tileViewport, items);
@@ -161,10 +176,25 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       } else if (includeSelection && (isSelected || ports.hoveredIndex() === index)) {
         const bounds = elementBounds(element); const handlePadding = 5 / state.zoom;
         ctx.save(); ctx.strokeStyle = isSelected ? "#547bb1" : "#8298b8"; ctx.globalAlpha = isSelected ? 1 : 0.62; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([4 / state.zoom, 3 / state.zoom]);
-        ctx.strokeRect(bounds.x - handlePadding, bounds.y - handlePadding, Math.max(bounds.w + handlePadding * 2, 2 / state.zoom), Math.max(bounds.h + handlePadding * 2, 2 / state.zoom)); ctx.restore();
-        if (isSelected && !element.locked && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent) && element.type !== "freehand") drawTransformHandles(ctx, bounds, state.zoom, element.type !== "group" || !!element.libraryComponent);
+        const rotation = element.rotation ?? 0; const frame = rotation ? elementBounds({ ...element, rotation: 0 } as Element) : bounds;
+        if (rotation) {
+          ctx.translate(frame.x + frame.w / 2, frame.y + frame.h / 2); ctx.rotate(rotation * Math.PI / 180);
+          ctx.strokeRect(-frame.w / 2 - handlePadding, -frame.h / 2 - handlePadding, Math.max(frame.w + handlePadding * 2, 2 / state.zoom), Math.max(frame.h + handlePadding * 2, 2 / state.zoom));
+        } else ctx.strokeRect(bounds.x - handlePadding, bounds.y - handlePadding, Math.max(bounds.w + handlePadding * 2, 2 / state.zoom), Math.max(bounds.h + handlePadding * 2, 2 / state.zoom));
+        ctx.restore();
+        if (isSelected && !element.locked && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent) && element.type !== "freehand") {
+          drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent, rotation);
+        }
       }
       ctx.restore();
+    }
+    const tokenId = ports.simulationTokenId?.();
+    const token = tokenId ? sourceItems.find(item => item.id === tokenId && !item.hidden) : undefined;
+    if (token) {
+      const tokenBounds = elementBounds(token); const tokenX = tokenBounds.x + tokenBounds.w / 2; const tokenY = tokenBounds.y + tokenBounds.h / 2;
+      ctx.save(); ctx.fillStyle = "#f59e0b"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2 / state.zoom;
+      ctx.beginPath(); ctx.arc(tokenX, tokenY, 8 / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.fillStyle = "#b45309"; ctx.arc(tokenX, tokenY, 3 / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     }
     const currentResize = ports.resizeOrigin();
     if (includeSelection && (ports.tool() === "arrow" || ports.tool() === "line" || currentResize && isConnector(currentResize.original))) {

@@ -1,10 +1,12 @@
 import { For, Show } from "solid-js";
+import { displayPathLocation } from "../../features/files/paths";
 
 type Props = {
   recentFiles: string[];
   recentPlans: string[];
   displayPathName: (path: string) => string;
   onCreate: () => void | Promise<void>;
+  onGuides: () => void;
   onNewPlan: () => void | Promise<void>;
   onOpenPlan: () => void | Promise<void>;
   onOpen: () => void | Promise<void>;
@@ -28,6 +30,7 @@ export function MobileHomeScreen(props: Props) {
         </div>
         <div class="home-actions home-actions-mobile" aria-label="Start or open a whiteboard">
           <button class="home-action home-action-primary" type="button" onClick={() => void props.onCreate()}><span>New sketch</span><span aria-hidden="true">&rarr;</span></button>
+          <button class="home-action home-action-secondary" type="button" onClick={props.onGuides}>Diagram guides</button>
           <button class="home-action home-action-secondary" type="button" onClick={() => void props.onOpen()}><span>Open sketch</span><span aria-hidden="true">&rarr;</span></button>
         </div>
       </section>
@@ -40,7 +43,7 @@ export function MobileHomeScreen(props: Props) {
         <Show when={props.recentFiles.length > 0} fallback={<div class="home-empty home-empty-mobile"><strong>Your sketches will appear here</strong><p>Open a .sketch file to see it in this list.</p></div>}>
           <div class="home-recent-list" aria-label="Recent sketches"><For each={props.recentFiles}>{path =>
             <button type="button" class="home-file home-file-mobile" onClick={() => void props.onOpenRecent(path)}>
-              <span class="home-file-copy"><strong>{props.displayPathName(path)}</strong><small>{/^content:\/\//i.test(path) ? "Cloud drive or device folder" : "On this device"}</small></span>
+              <span class="home-file-copy"><strong>{props.displayPathName(path)}</strong><small>{displayPathLocation(path)}</small></span>
               <span class="home-file-open" aria-hidden="true">&rarr;</span>
             </button>
           }</For></div>

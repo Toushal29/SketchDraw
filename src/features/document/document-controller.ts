@@ -33,6 +33,7 @@ type DocumentControllerPorts = {
   commitTextDraft: () => void;
   rememberFile: (path: string) => void;
   onOpened: (path: string, viewOnly: boolean) => void;
+  onMigrationRequired?: (path: string) => void;
   restoreOpenedView: (path: string, pageId: string) => void;
   canCheckForUpdates: () => boolean;
   shouldKeepDocumentDirtyAfterUpdate?: (remote: SketchFile) => boolean;
@@ -134,7 +135,6 @@ export function createDocumentController(ports: DocumentControllerPorts) {
       ports.onOpened(authorizedPath, viewOnly);
       ports.rememberFile(authorizedPath);
       ports.restoreOpenedView(authorizedPath, snapshot.activePageId);
-      if (needsMigration && !viewOnly) ports.setDirty(true);
       if (!viewOnly) {
         try {
           const entry = sketchRecoveryStore.read(authorizedPath);
@@ -149,7 +149,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
         } catch { /* Ignore malformed recovery data and leave the source file untouched. */ }
       }
       baselineRaw = rawText;
-      if (needsMigration && !viewOnly && !ports.recoveryPrompt()) await save(authorizedPath);
+      if (needsMigration && !viewOnly) ports.onMigrationRequired?.(authorizedPath);
       report("idle");
       return true;
     } catch (cause) {
@@ -166,6 +166,20 @@ export function createDocumentController(ports: DocumentControllerPorts) {
     ports.setDocumentBusy(true);
     try {
       if (!await ports.beforeReplace()) return false;
+      ports.resetDocument();
+      baselineRaw = undefined;
+      ports.setError("");
+      report("idle");
+      return true;
+    } finally { ports.setDocumentBusy(false); }
+  }
+
+  async function closeWithoutSaving(): Promise<boolean> {
+    const path = ports.activePath();
+    if (!path || ports.documentBusy()) return false;
+    ports.setDocumentBusy(true);
+    try {
+      sketchRecoveryStore.remove(path);
       ports.resetDocument();
       baselineRaw = undefined;
       ports.setError("");
@@ -245,5 +259,5 @@ export function createDocumentController(ports: DocumentControllerPorts) {
 
   function setBaselineRaw(raw: string | undefined) { baselineRaw = raw; }
 
-  return { open, save, close, checkForUpdates, persistRecovery, restoreRecovery, discardRecovery, reloadConflict, setBaselineRaw, baselineRaw: () => baselineRaw, isSaveInFlight: () => pendingSaves > 0 };
+  return { open, save, close, closeWithoutSaving, checkForUpdates, persistRecovery, restoreRecovery, discardRecovery, reloadConflict, setBaselineRaw, baselineRaw: () => baselineRaw, isSaveInFlight: () => pendingSaves > 0 };
 }

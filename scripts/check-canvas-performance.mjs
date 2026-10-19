@@ -3,6 +3,7 @@ import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "vite";
+import solid from "vite-plugin-solid";
 import ts from "typescript";
 
 // Runs real Canvas2D pixel checks and repeatable workloads in a local browser.
@@ -27,7 +28,7 @@ function send(method, params = {}, sessionId) {
   });
 }
 try {
-  const bundle = await build({ configFile: false, root, logLevel: "error", build: { write: false, minify: false, lib: { entry: path.join(root, "scripts/canvas-performance.browser.ts"), name: "CanvasAudit", formats: ["iife"] } } });
+  const bundle = await build({ configFile: false, root, plugins: [solid()], logLevel: "error", build: { write: false, minify: false, lib: { entry: path.join(root, "scripts/canvas-performance.browser.ts"), name: "CanvasAudit", formats: ["iife"] } } });
   const code = (Array.isArray(bundle) ? bundle[0] : bundle).output.find(item => item.type === "chunk").code;
   let baseline = "";
   if (process.env.BASELINE_STROKE_RENDERER) {
@@ -56,7 +57,7 @@ try {
   const result = await send("Runtime.evaluate", { expression: `${baseline}\n${code}\n;globalThis.__canvasAudit`, awaitPromise: true, returnByValue: true }, sessionId);
   if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
   process.stdout.write(`${JSON.stringify(result.result.value, null, 2)}\n`);
-  if (result.result.value.failures.length) process.exitCode = 1;
+  if (result.result.value.failures.length || result.result.value.importFailures?.length) process.exitCode = 1;
 } finally {
   if (socket?.readyState === WebSocket.OPEN) { await send("Browser.close").catch(() => {}); socket.close(); }
   browser?.kill();

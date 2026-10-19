@@ -1,7 +1,19 @@
 import { createFreehandRenderer } from "../src/features/canvas/freehand-rendering";
 import { createCanvasRenderScheduler } from "../src/features/canvas/rendering";
 import { createStrokeSampleGate } from "../src/features/canvas/stroke-input";
-import type { FreehandElement, StrokePoint } from "../src/model";
+import { gridStepForStyle, gridSvgPattern, snapCanvasPoint } from "../src/features/canvas/input";
+import { alignedTextStartX } from "../src/operations";
+import mobileToolbarCss from "../src/platform/mobile/touch-toolbar.css?inline";
+import { createComponent } from "solid-js";
+import { render } from "solid-js/web";
+import { CanvasOptionsMenu } from "../src/components/CanvasOptionsMenu";
+import { parseSchema } from "../src/schema";
+import { layoutMermaidFlowchart, parseMermaidFlowchart } from "../src/mermaid";
+import { exportDiagramCode, plantUmlToDiagram } from "../src/features/diagrams/code-formats";
+import { importDrawio, exportDrawio, importExcalidraw, exportExcalidraw } from "../src/features/diagrams/interchange";
+import { structuredYamlToDiagram, bicepToDiagram, kubernetesToDiagram } from "../src/features/diagrams/structured-data";
+import { svgPrimitivesToElements } from "../src/features/diagrams/svg-vectors";
+import type { FreehandElement, ShapeElement, StrokePoint } from "../src/model";
 
 type Renderer = ReturnType<typeof createFreehandRenderer>;
 declare global {
@@ -172,6 +184,171 @@ async function run() {
     painter.dispose?.();
     return { samples: count, medianMs: +percentile(times, .5).toFixed(2), p95Ms: +percentile(times, .95).toFixed(2) };
   }
+  const importFailures: string[] = [];
+  const importCheck = async (label: string, action: () => boolean | Promise<boolean>) => { try { const passed = await action(); check(passed, label); if (!passed) importFailures.push(label); } catch (cause) { check(false, `${label}: ${cause instanceof Error ? cause.message : String(cause)}`); importFailures.push(label); } };
+  await importCheck("SQL table and index import", () => { const tables = parseSchema("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL); CREATE INDEX users_name ON users(name);"); return tables.length === 1 && tables[0].columns.length === 2 && tables[0].indexes?.length === 1; });
+  await importCheck("Mermaid flowchart round trip", () => {
+    const source = "flowchart LR\n  API[API] --> DB[(Database)]"; const items = layoutMermaidFlowchart(parseMermaidFlowchart(source), { x: 0, y: 0 });
+    return parseMermaidFlowchart(exportDiagramCode("mmd", items)).links.length === 1;
+  });
+  await importCheck("PlantUML class round trip", () => {
+    const items = plantUmlToDiagram("@startuml\nclass User {\n id: UUID\n}\n@enduml"); const code = exportDiagramCode("puml", items);
+    return plantUmlToDiagram(code).length > 0;
+  });
+  await importCheck("CloudFormation and Kubernetes policy, ingress, and storage import", () => {
+    const cloud = structuredYamlToDiagram(JSON.stringify({ Resources: { Role: { Type: "AWS::IAM::Role" }, Worker: { Type: "AWS::Lambda::Function", Properties: { Role: { Ref: "Role" } } } } }));
+    const kubernetes = kubernetesToDiagram(`apiVersion: v1
+kind: Namespace
+metadata:
+  name: default
+  labels:
+    zone: app
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: example/api
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: default
+spec:
+  selector:
+    app: api
+  ports:
+    - port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: public
+spec:
+  controller: example/controller
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  namespace: default
+spec:
+  ingressClassName: public
+  rules:
+    - host: api.example.test
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 80
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard
+provisioner: example.csi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+  namespace: default
+spec:
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: api
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              zone: app
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: api
+`);
+    const cloudLinks = cloud.flatMap(item => item.type === "arrow" ? [item.label?.text ?? ""] : []);
+    const kubernetesLinks = kubernetes.flatMap(item => item.type === "arrow" ? [item.label?.text ?? ""] : []);
+    return cloudLinks.includes("references") && ["routes to", "uses ingress class", "uses storage class", "applies to"].every(label => kubernetesLinks.includes(label));
+  });
+  await importCheck("Bicep resource import", () => bicepToDiagram("resource store 'Microsoft.Storage/storageAccounts@2023-01-01' = {\n name: 'store'\n}").length > 0);
+  await importCheck("Editable SVG paths with group transforms and gradient fills", () => {
+    const doc = new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="paint"><stop stop-color="#224466"/><stop offset="1" stop-color="#88aacc"/></linearGradient></defs><g transform="translate(10 20) scale(2)"><path d="M0 0 C0 20 10 20 10 0 Z" fill="url(#paint)" stroke="#112233"/></g></svg>', "image/svg+xml");
+    const converted = svgPrimitivesToElements(doc.documentElement as unknown as SVGSVGElement, { x: 100, y: 200 }, 2);
+    return converted?.some(item => item.type === "svgPath" && item.pathData?.includes("L") && !!item.fillColor && item.x > 100 && item.y > 200) ?? false;
+  });
+  await importCheck("draw.io import/export round trip", async () => {
+    const xml = '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="api" value="API" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#26313b" vertex="1" parent="1"><mxGeometry x="20" y="30" width="120" height="60" as="geometry"/></mxCell></root></mxGraphModel>';
+    const imported = await importDrawio(xml); const restored = await importDrawio(exportDrawio(imported)); return imported.length === 1 && restored.length === 1;
+  });
+  await importCheck("Excalidraw import/export round trip", () => {
+    const source = JSON.stringify({ type: "excalidraw", version: 2, source: "SketchDraw", elements: [{ id: "api", type: "rectangle", x: 20, y: 30, width: 120, height: 60, strokeColor: "#26313b", backgroundColor: "#ffffff", strokeWidth: 2, opacity: 100, roughness: 0, seed: 1, version: 1, isDeleted: false, groupIds: [], link: null, locked: false }] });
+    const imported = importExcalidraw(source); const vector: ShapeElement = { type: "svgPath", id: "vector", x: 180, y: 30, w: 80, h: 60, color: "#26313b", thickness: 2, pathData: "M0 0 L40 30 L0 60 Z", pathWidth: 40, pathHeight: 60, fillRule: "evenodd", svgStroke: true, fillColor: "#99bbdd", fillOpacity: .7 };
+    const restored = importExcalidraw(exportExcalidraw([...imported, vector])); const restoredVector = restored.find(item => item.type === "svgPath");
+    return imported.length === 1 && restored.length === 2 && restoredVector?.type === "svgPath" && restoredVector.pathData === vector.pathData && restoredVector.fillRule === "evenodd";
+  });
+  for (const zoom of [.2, .55, 1, 1.37, 2.2]) for (const ratio of [1, 1.25, 1.5, 2]) {
+    const step = gridStepForStyle("small-grid", 50, zoom, ratio); const pitch = step * zoom * ratio;
+    const snapped = snapCanvasPoint({ x: 137.4, y: -92.7 }, true, "small-grid", 50, zoom, ratio);
+    const pattern = gridSvgPattern("small-grid", step * zoom);
+    check(Math.abs(pitch - Math.round(pitch)) < 1e-8, `Grid pitch is evenly spaced at zoom ${zoom} and pixel ratio ${ratio}`);
+    check(Math.abs(snapped.x / step - Math.round(snapped.x / step)) < 1e-8 && Math.abs(snapped.y / step - Math.round(snapped.y / step)) < 1e-8, `Grid snapping uses the displayed lattice at zoom ${zoom} and pixel ratio ${ratio}`);
+    check(Math.abs(pattern.width - step * zoom) < 1e-8 && Math.abs(pattern.height - step * zoom) < 1e-8, `Paper pattern repeats at the snapped grid pitch at zoom ${zoom} and pixel ratio ${ratio}`);
+  }
+  check(alignedTextStartX(100, 40, "left") === 100 && alignedTextStartX(100, 40, "center") === 80 && alignedTextStartX(100, 40, "right") === 60, "Text alignment shares its anchor calculation across canvas and exports");
+  const style = document.createElement("style"); style.textContent = mobileToolbarCss; document.head.append(style);
+  const menuHost = document.createElement("div"); menuHost.className = "app-shell"; document.body.append(menuHost);
+  const disposeMenu = render(() => createComponent(CanvasOptionsMenu, {
+    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false, mobileSimple: true,
+    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onGroupSelection() {},
+    canvasTools: { showAlignmentGuides: true, showMinimap: true, onToggleAlignmentGuides() {}, onToggleMinimap() {}, onAutoLayout() {} },
+  }), menuHost);
+  const controls = [...menuHost.querySelectorAll<HTMLElement>("button,input,select,textarea,[role=button]")];
+  const moreTools = menuHost.querySelector<HTMLButtonElement>(".mobile-more-canvas-tools");
+  const advancedTools = [...menuHost.querySelectorAll<HTMLElement>(".mobile-advanced-canvas-tools")];
+  check(!!moreTools && moreTools.getAttribute("aria-expanded") === "false" && advancedTools.length > 0 && advancedTools.every(section => getComputedStyle(section).display === "none"), "Mobile advanced canvas tools start collapsed and hidden");
+  moreTools?.click();
+  check(moreTools?.getAttribute("aria-expanded") === "true" && advancedTools.every(section => getComputedStyle(section).display !== "none"), "Mobile More canvas tools opens advanced controls");
+  moreTools?.click();
+  check(moreTools?.getAttribute("aria-expanded") === "false" && advancedTools.every(section => getComputedStyle(section).display === "none"), "Mobile advanced canvas tools collapse again after use");
+  const unlabeledControls = controls.filter(control => !(control.getAttribute("aria-label") || control.getAttribute("title") || control.textContent?.trim() || control.closest("label")?.textContent?.trim()));
+  check(unlabeledControls.length === 0, `Canvas view controls expose accessible names (${unlabeledControls.length} missing)`);
+  const firstEnabled = controls.find(control => control instanceof HTMLButtonElement && !control.disabled);
+  firstEnabled?.focus(); check(!firstEnabled || document.activeElement === firstEnabled, "Canvas view controls can receive keyboard focus");
+  disposeMenu(); menuHost.remove(); style.remove();
   const performanceResults = {
     workload: "160 pressure strokes, 240 samples each, 1200x800 canvas, software-rendered panning",
     baseline: globalThis.__baselineRenderer ? crowded(globalThis.__baselineRenderer) : undefined, updated: crowded(createFreehandRenderer),
@@ -180,6 +357,6 @@ async function run() {
     penUpFinalize: [180, 800, 3200].map(count => penUpFinalize(createFreehandRenderer, count)),
   };
   renderer.dispose(); reference.dispose?.();
-  return { checks: checks.length, failures, visualDifferences, performance: performanceResults };
+  return { checks: checks.length, failures, importFailures, visualDifferences, performance: performanceResults };
 }
 globalThis.__canvasAudit = run();

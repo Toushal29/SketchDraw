@@ -1,69 +1,113 @@
-/* Keep the inspector as compact and plain as the component editor dock. */
-.app-shell .style-pane.full-style-mode > .full-inspector {
+/* Small, plain panels; Quick style stays on the left. */
+.style-pane.full-style-mode {
     box-sizing: border-box;
+    width: 46px;
+    padding: 4px;
+    overflow: visible;
+}
+
+.full-style-mode > .quick-style-panel { display: block; width: 100%; }
+
+.component-editor-dock {
+    position: absolute;
+    z-index: 6;
+    top: 60px;
+    right: 8px;
+    bottom: 52px;
     display: flex;
-    width: min(270px, calc(100vw - 72px));
-    max-height: min(680px, calc(100vh - 92px));
+    box-sizing: border-box;
+    width: min(260px, calc(100vw - 72px));
+    min-width: 190px;
     flex-direction: column;
-    gap: 0;
-    overflow: auto;
-    padding: 0 10px 10px;
-    border: 1px solid var(--workspace-line, var(--theme-border));
-    border-radius: 8px;
-    color: var(--workspace-ink, var(--theme-text-primary));
-    background: var(--workspace-surface, var(--theme-background));
+    overflow: hidden;
+    border: 1px solid var(--theme-border);
+    border-radius: 4px;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-elevated);
     box-shadow: none;
 }
-
-.app-shell .full-inspector .full-style-heading {
-    position: sticky;
-    z-index: 2;
-    top: 0;
-    box-sizing: border-box;
-    min-height: 42px;
-    flex: 0 0 auto;
-    margin: 0 -10px 2px;
-    padding: 6px 8px 6px 10px;
-    border-bottom: 1px solid var(--workspace-line, var(--theme-border));
-    background: var(--workspace-raised, var(--theme-background));
+.component-editor-dock.collapsed { top: 50%; right: 0; bottom: auto; width: 30px; min-width: 30px; height: 34px; }
+.component-editor-heading { min-height: 36px; padding: 4px 6px 4px 8px; border-bottom: 1px solid var(--theme-border); background: var(--theme-surface-elevated); }
+.component-editor-heading strong { font-size: 12px; font-weight: 600; }
+.component-editor-heading > button,
+.component-editor-expand { border: 1px solid var(--theme-border); border-radius: 3px; color: var(--theme-text-secondary); background: var(--theme-surface-input); }
+.component-editor-scroll { min-height: 0; flex: 1; overflow: auto; padding: 8px; }
+.component-editor-content { gap: 7px; }
+.component-editor-content .property-label { margin: 0; font-size: 10px; }
+.component-editor-content .property-label input,
+.component-editor-content .property-label select,
+.component-editor-content .property-label textarea { border-radius: 3px; font-size: 11px; }
+.component-editor-content,
+.component-editor-content>* { min-width: 0; }
+.component-editor-content .component-size-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
 }
+.component-editor-content .component-size-grid label {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+    color: var(--theme-text-secondary);
+    font-size: 10px;
+}
+.component-editor-content .component-size-grid input { width: 100%; min-width: 0; padding: 5px; }
+.component-editor-content .component-port-editor {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 64px;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-block: 1px solid var(--theme-border);
+}
+.component-port-editor>div { display: grid; min-width: 0; gap: 3px; }
+.component-port-editor strong { color: var(--theme-text-primary); font-size: 11px; }
+.component-port-editor small { color: var(--theme-text-secondary); font-size: 9px; line-height: 1.35; }
+.component-port-editor label { display: grid; min-width: 0; gap: 3px; color: var(--theme-text-secondary); font-size: 10px; }
+.component-port-editor input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 30px;
+    padding: 4px 5px;
+    border: 1px solid var(--theme-border);
+    border-radius: 3px;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
+    font: 11px var(--font-ui);
+}
+.relationship-type-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.relationship-type-choices button { min-width: 0; padding: 5px 6px; border: 1px solid var(--theme-border); border-radius: 3px; color: var(--theme-text-secondary); background: var(--theme-surface); font-size: 10px; text-align: left; }
+.relationship-type-choices button.active { color: var(--theme-text-primary); border-color: var(--theme-text-secondary); background: var(--theme-surface-hover); }
+.pane-hint { display: block; margin: 5px 0 0; color: var(--theme-text-secondary); font-size: 10px; line-height: 1.4; }
+.relationship-properties .property-label { margin-block: 6px; }
+.relationship-properties .choice-deck { flex-wrap: wrap; }
+.component-editor-content .component-options-editor,
+.component-editor-content .component-chart-data { min-width: 0; }
+.component-editor-content .component-option-actions { flex-wrap: wrap; }
+.component-editor-content .component-option-row { min-width: 0; }
+.component-editor-content .component-chart-row { grid-template-columns: minmax(0, 1fr) 62px 24px; gap: 4px; }
+.component-editor-content .component-chart-row>input { min-width: 0; padding-inline: 4px; }
+.component-editor-content .component-chart-axis-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.component-editor-content .component-trend-control>div { gap: 3px; }
+.component-editor-content .component-trend-control button { min-width: 0; padding-inline: 3px; font-size: 9px; }
 
-.app-shell .full-inspector .full-style-heading strong { color: var(--workspace-ink, var(--theme-text-primary)); font-size: 12px; font-weight: 700; letter-spacing: 0; }
-.app-shell .full-inspector .full-style-heading button { min-height: 28px; padding: 4px 8px; border: 1px solid var(--workspace-line, var(--theme-border)); border-radius: 6px; color: var(--workspace-ink, var(--theme-text-primary)); background: var(--workspace-surface, var(--theme-background)); font-size: 10px; }
-.app-shell .full-inspector .pane-section { flex: 0 0 auto; margin: 0; padding: 10px 0; border: 0; border-bottom: 1px solid var(--workspace-line, var(--theme-border)); border-radius: 0; background: transparent; }
-.app-shell .full-inspector .pane-section:last-child { border-bottom: 0; }
-.app-shell .full-inspector .pane-section:hover { border-color: var(--workspace-line, var(--theme-border)); background: transparent; }
-.app-shell .full-inspector .pane-heading { margin: 0 0 8px; color: var(--workspace-ink, var(--theme-text-primary)); font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; }
-.app-shell .full-inspector .property-label { gap: 5px; margin: 7px 0; color: var(--workspace-muted, var(--theme-text-secondary)); font-size: 10px; font-weight: 600; }
-.app-shell .full-inspector input:not([type="checkbox"]):not([type="radio"]),
-.app-shell .full-inspector select,
-.app-shell .full-inspector textarea { box-sizing: border-box; min-height: 31px; padding: 5px 7px; border-color: var(--workspace-line, var(--theme-border)); border-radius: 5px; color: var(--workspace-ink, var(--theme-text-primary)); background: var(--workspace-surface, var(--theme-background)); font-size: 11px; }
-.app-shell .full-inspector input:focus,
-.app-shell .full-inspector select:focus,
-.app-shell .full-inspector textarea:focus { border-color: var(--workspace-accent, var(--theme-primary-border)); outline: 2px solid color-mix(in srgb, var(--workspace-accent, var(--theme-primary-border)) 20%, transparent); outline-offset: 1px; }
+.style-pane .quick-style-popover.quick-color-popover { min-width: 142px; padding: 6px; border-radius: 10px; }
+.quick-color-popover .quick-style-swatches { gap: 4px; }
+.quick-color-popover .quick-style-swatches .color-swatch { width: 17px; height: 17px; min-width: 27px; min-height: 27px; flex-basis: 17px; padding: 0; }
+.quick-color-popover .custom-color-swatch { width: 27px; height: 27px; flex-basis: 27px; }
+.quick-color-popover .quick-fill-toggle { min-height: 27px; margin-top: 4px; padding: 3px 6px; font-size: 10px; }
 
-.app-shell .geometry-property-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
-.app-shell .geometry-property-grid > label,
-.app-shell .component-port-editor > label { display: grid; min-width: 0; gap: 4px; color: var(--workspace-muted, var(--theme-text-secondary)); font-size: 10px; font-weight: 650; }
-.app-shell .geometry-property-grid input { width: 100%; min-width: 0; }
-.app-shell .full-inspector:not(.connector-properties) .pane-section:has(> .pane-heading + .precision-grid) { display: none; }
-.app-shell .full-inspector.connector-properties .pane-section > .pane-heading + .precision-grid { display: none; }
-
-.app-shell .component-editor-dock { width: min(35px, calc(100vw - 72px)); }
-.app-shell .component-port-editor { display: grid; grid-template-columns: minmax(0, 1fr) 72px; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--workspace-line, var(--theme-border)); border-radius: 8px; background: var(--workspace-raised, var(--theme-background)); }
-.app-shell .component-port-editor > div { display: grid; gap: 4px; }
-.app-shell .component-port-editor strong { color: var(--workspace-ink, var(--theme-text-primary)); font-size: 10px; }
-.app-shell .component-port-editor small { color: var(--workspace-muted, var(--theme-text-secondary)); font-size: 9px; line-height: 1.4; }
-.app-shell .component-port-editor input { box-sizing: border-box; width: 100%; min-height: 34px; padding: 5px 7px; border: 1px solid var(--workspace-line, var(--theme-border)); border-radius: 5px; color: var(--workspace-ink, var(--theme-text-primary)); background: var(--workspace-surface, var(--theme-background)); font: inherit; font-size: 11px; }
-.app-shell.theme-dark .full-inspector .full-style-heading { border-color: var(--workspace-line, var(--theme-border)); }
-.app-shell.theme-dark .full-inspector .full-style-heading button,
-.app-shell.theme-dark .full-inspector input:not([type="checkbox"]):not([type="radio"]),
-.app-shell.theme-dark .full-inspector select,
-.app-shell.theme-dark .full-inspector textarea,
-.app-shell.theme-dark .component-port-editor input { border-color: var(--workspace-line, var(--theme-border)); }
-.app-shell.theme-dark .component-port-editor { border-color: var(--workspace-line, var(--theme-border)); }
-
-@media (max-width: 760px) {
-    .app-shell .style-pane.full-style-mode > .full-inspector { width: min(290px, calc(100vw - 76px)); max-height: calc(100dvh - 92px); }
-    .app-shell .component-editor-dock { width: min(35px, calc(100vw - 16px)); }
+@media (max-width: 900px) {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-collapsed {
+        top: 8px; right: auto; bottom: auto; left: max(66px, calc(env(safe-area-inset-left) + 60px));
+        width: 40px; height: 40px; min-height: 40px; max-height: 40px; padding: 2px; overflow: visible;
+    }
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed > .quick-style-panel { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; }
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded,
+    .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded {
+        top: 8px; right: 8px; bottom: auto; left: max(66px, calc(env(safe-area-inset-left) + 60px));
+        width: auto; height: auto; min-height: 42px; max-height: min(46dvh, 300px); padding: 4px; overflow: visible;
+    }
+    .app-shell:not(.platform-windows) .component-editor-dock { top: 58px; right: 8px; bottom: calc(env(safe-area-inset-bottom) + 58px); width: min(260px, calc(100vw - 76px)); min-width: min(190px, calc(100vw - 76px)); }
+    .app-shell:not(.platform-windows) .component-editor-dock.collapsed { top: 50%; right: 0; bottom: auto; width: 30px; min-width: 30px; }
 }

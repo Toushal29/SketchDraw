@@ -1,14 +1,88 @@
-.canvas-minimap { position: absolute; z-index: 11; right: 16px; bottom: 18px; width: 224px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent); border-radius: 10px; color: var(--toolbar-ink); background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent); }
-.canvas-minimap header { display: flex; height: 30px; align-items: center; justify-content: space-between; padding: 0 8px 0 10px; color: var(--toolbar-ink); font-size: 11px; }
-.canvas-minimap header button { display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 5px; color: inherit; background: transparent; cursor: pointer; font-size: 17px; }
-.canvas-minimap header button:hover { background: color-mix(in srgb, var(--toolbar-ink) 9%, transparent); }
-.canvas-minimap svg { display: block; width: 100%; height: 144px; cursor: crosshair; touch-action: none; }
-.minimap-board { fill: color-mix(in srgb, var(--toolbar-surface) 99%, var(--theme-text-tertiary)); stroke: color-mix(in srgb, var(--toolbar-ink) 15%, transparent); }
-.minimap-object { fill: color-mix(in srgb, var(--ui-accent) 26%, transparent); stroke: color-mix(in srgb, var(--ui-accent) 78%, transparent); stroke-width: .7; }
-.minimap-image { fill: color-mix(in srgb, var(--theme-info) 28%, transparent); stroke: var(--theme-info); }
-.minimap-freehand { fill: color-mix(in srgb, var(--theme-success) 30%, transparent); stroke: var(--theme-success); }
-.minimap-viewport { fill: color-mix(in srgb, var(--ui-accent) 10%, transparent); stroke: var(--ui-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.app-shell.presentation-mode > .canvas-wrap { position: fixed; z-index: 60; inset: 0; width: 100vw; height: 100dvh; min-height: 100dvh; }
+.canvas-minimap {
+    position: absolute;
+    z-index: 11;
+    right: 16px;
+    bottom: 18px;
+    width: 224px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
+    border-radius: 10px;
+    color: var(--toolbar-ink);
+    background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent);
+}
+
+.canvas-minimap header {
+    display: flex;
+    height: 30px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 0 10px;
+    color: var(--toolbar-ink);
+    font-size: 11px;
+}
+
+.canvas-minimap header button {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border: 0;
+    border-radius: 5px;
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
+    font-size: 17px;
+}
+
+.canvas-minimap header button:hover {
+    background: color-mix(in srgb, var(--toolbar-ink) 9%, transparent);
+}
+
+.canvas-minimap svg {
+    display: block;
+    width: 100%;
+    height: 144px;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.minimap-board {
+    fill: color-mix(in srgb, var(--toolbar-surface) 99%, var(--theme-text-tertiary));
+    stroke: color-mix(in srgb, var(--toolbar-ink) 15%, transparent);
+}
+
+.minimap-object {
+    fill: color-mix(in srgb, var(--ui-accent) 26%, transparent);
+    stroke: color-mix(in srgb, var(--ui-accent) 78%, transparent);
+    stroke-width: .7;
+}
+
+.minimap-image {
+    fill: color-mix(in srgb, var(--theme-info) 28%, transparent);
+    stroke: var(--theme-info);
+}
+
+.minimap-freehand {
+    fill: color-mix(in srgb, var(--theme-success) 30%, transparent);
+    stroke: var(--theme-success);
+}
+
+.minimap-viewport {
+    fill: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+    stroke: var(--ui-accent);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+}
+
+.app-shell.presentation-mode>.canvas-wrap {
+    position: fixed;
+    z-index: 60;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    min-height: 100dvh;
+}
+
 .app-shell.presentation-mode .topbar,
 .app-shell.presentation-mode .tool-deck,
 .app-shell.presentation-mode .style-pane,
@@ -16,17 +90,87 @@
 .app-shell.presentation-mode .touch-page-control,
 .app-shell.presentation-mode .canvas-zoom-reset,
 .app-shell.presentation-mode .selection-delete-action,
-.app-shell.presentation-mode .floating-layer-panel { display: none; }
-.app-shell.presentation-mode .canvas-minimap { display: none; }
-.canvas-presentation-controls { position: absolute; z-index: 30; top: max(16px, env(safe-area-inset-top)); left: 50%; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 24px); padding: 7px 10px; border: 1px solid color-mix(in srgb, var(--theme-border) 18.82%, transparent); border-radius: 10px; color: var(--theme-text-tertiary); background: color-mix(in srgb, var(--theme-surface-elevated) 90.98%, transparent); transform: translateX(-50%); }
-.canvas-presentation-controls button { min-width: 36px; height: 34px; border: 0; border-radius: 6px; color: inherit; background: color-mix(in srgb, var(--theme-surface-input) 8.63%, transparent); cursor: pointer; touch-action: manipulation; }
-.canvas-presentation-controls button:hover:not(:disabled) { background: color-mix(in srgb, var(--theme-surface) 16.86%, transparent); }
-.canvas-presentation-controls button:disabled { opacity: .35; cursor: default; }
-.canvas-presentation-controls span { max-width: min(42vw, 240px); overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-.live-sync-indicator { display: inline-flex; align-items: center; gap: 6px; color: var(--toolbar-ink); opacity: .8; font-size: 10px; white-space: nowrap; }
-.live-sync-indicator i { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--theme-success-muted); }
+.app-shell.presentation-mode .floating-layer-panel {
+    display: none;
+}
 
-@media (max-width: 720px), (pointer: coarse) and (max-width: 1100px) {
-    .canvas-minimap { right: max(8px, env(safe-area-inset-right)); bottom: max(58px, calc(env(safe-area-inset-bottom) + 52px)); width: min(188px, 48vw); }
-    .canvas-minimap svg { height: 112px; }
+.app-shell.presentation-mode .canvas-minimap {
+    display: none;
+}
+
+.canvas-presentation-controls {
+    position: absolute;
+    z-index: 30;
+    top: max(16px, env(safe-area-inset-top));
+    left: 50%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 24px);
+    padding: 7px 10px;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 18.82%, transparent);
+    border-radius: 10px;
+    color: var(--theme-text-tertiary);
+    background: color-mix(in srgb, var(--theme-surface-elevated) 90.98%, transparent);
+    transform: translateX(-50%);
+}
+
+.canvas-presentation-controls button {
+    min-width: 36px;
+    height: 34px;
+    border: 0;
+    border-radius: 6px;
+    color: inherit;
+    background: color-mix(in srgb, var(--theme-surface-input) 8.63%, transparent);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.canvas-presentation-controls button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--theme-surface) 16.86%, transparent);
+}
+
+.canvas-presentation-controls button:disabled {
+    opacity: .35;
+    cursor: default;
+}
+
+.canvas-presentation-controls span {
+    max-width: min(42vw, 240px);
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.live-sync-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--toolbar-ink);
+    opacity: .8;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.live-sync-indicator i {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 50%;
+    background: var(--theme-success-muted);
+}
+
+@media (max-width: 720px),
+(pointer: coarse) and (max-width: 1100px) {
+    .canvas-minimap {
+        right: max(8px, env(safe-area-inset-right));
+        bottom: max(58px, calc(env(safe-area-inset-bottom) + 52px));
+        width: min(188px, 48vw);
+    }
+
+    .canvas-minimap svg {
+        height: 112px;
+    }
 }

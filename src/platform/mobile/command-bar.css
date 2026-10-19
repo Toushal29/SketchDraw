@@ -15,7 +15,7 @@
         border-radius: 9px;
         color: var(--toolbar-ink, var(--theme-text-primary));
         background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 88%, transparent);
-        font: 600 10px/1 system-ui, sans-serif;
+        font: 600 10px/1 var(--font-ui);
         white-space: nowrap;
         touch-action: manipulation;
     }
@@ -65,8 +65,8 @@
         border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent);
     }
     .app-shell:not(.platform-windows) .mobile-command-panel > header > div { display: grid; min-width: 0; gap: 3px; }
-    .app-shell:not(.platform-windows) .mobile-command-panel > header small { color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 56%, transparent); font: 700 8px/1 system-ui, sans-serif; letter-spacing: .12em; }
-    .app-shell:not(.platform-windows) .mobile-command-panel > header strong { overflow: hidden; font: 700 14px/1.2 system-ui, sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+    .app-shell:not(.platform-windows) .mobile-command-panel > header small { color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 88%, transparent); font: 700 var(--font-size-micro)/1 var(--font-ui); letter-spacing: .12em; }
+    .app-shell:not(.platform-windows) .mobile-command-panel > header strong { overflow: hidden; font: 700 14px/1.2 var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
     .app-shell:not(.platform-windows) .mobile-command-close { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 0; border-radius: 8px; color: inherit; background: transparent; font-size: 22px; line-height: 1; }
     .app-shell:not(.platform-windows) .mobile-command-close:hover { background: var(--ui-accent-soft); }
 
@@ -83,7 +83,7 @@
         border-radius: 6px;
         color: inherit;
         background: transparent;
-        font: 550 11px/1.2 system-ui, sans-serif;
+        font: 550 11px/1.2 var(--font-ui);
         text-align: left;
         touch-action: manipulation;
     }
@@ -102,7 +102,7 @@
         border-radius: 9px;
         color: inherit;
         background: transparent;
-        font: 500 11px/1.3 system-ui, sans-serif;
+        font: 500 11px/1.3 var(--font-ui);
         text-align: left;
         touch-action: manipulation;
     }
@@ -110,22 +110,32 @@
     .app-shell:not(.platform-windows) .mobile-help-action:hover { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .app-shell:not(.platform-windows) .mobile-file-actions > button:disabled { opacity: .4; }
     .app-shell:not(.platform-windows) .mobile-file-actions kbd,
-    .app-shell:not(.platform-windows) .mobile-help-action kbd { padding: 2px 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 16%, transparent); border-radius: 5px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 58%, transparent); background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 86%, var(--theme-background) 4%); font: 9px/1.2 ui-monospace, monospace; white-space: nowrap; }
-    .app-shell:not(.platform-windows) .mobile-settings-tabs { display: grid; grid-template-columns: .8fr .8fr 1.5fr; gap: 4px; padding: 7px 9px; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 12%, transparent); }
+    .app-shell:not(.platform-windows) .mobile-help-action kbd { padding: 2px 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 16%, transparent); border-radius: 5px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 88%, transparent); background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 86%, var(--theme-background) 4%); font: 9px/1.2 var(--font-mono); white-space: nowrap; }
+    .app-shell:not(.platform-windows) .mobile-settings-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 7px 9px; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 18%, transparent); }
     .app-shell:not(.platform-windows) .mobile-settings-tabs button,
-    .app-shell:not(.platform-windows) .mobile-touch-tabs button { min-width: 0; min-height: 34px; padding: 5px 7px; border: 1px solid transparent; border-radius: 8px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 72%, transparent); background: transparent; font: 650 10px/1.2 system-ui, sans-serif; }
+    .app-shell:not(.platform-windows) .mobile-touch-tabs button { min-width: 0; min-height: 34px; padding: 5px 7px; border: 1px solid transparent; border-radius: 8px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 90%, transparent); background: transparent; font: 650 10px/1.2 var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-settings-tabs button.active,
     .app-shell:not(.platform-windows) .mobile-touch-tabs button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .app-shell:not(.platform-windows) .mobile-settings-content { max-height: calc(100dvh - var(--touch-header-height) - 126px); overflow: auto; padding: 2px 10px 8px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
     .app-shell:not(.platform-windows) .mobile-settings-section { padding: 7px 0 5px; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 11%, transparent); }
     .app-shell:not(.platform-windows) .mobile-settings-section:last-child { border-bottom: 0; }
-    .app-shell:not(.platform-windows) .mobile-settings-section h3 { margin: 0 0 6px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 56%, transparent); font: 750 9px/1.2 system-ui, sans-serif; letter-spacing: .09em; text-transform: uppercase; }
-    .app-shell:not(.platform-windows) .mobile-settings-field { display: grid; grid-template-columns: minmax(100px, .75fr) minmax(0, 1.25fr); align-items: center; gap: 5px; padding: 3px 0; color: inherit; font: 500 10px/1.25 system-ui, sans-serif; }
+    .app-shell:not(.platform-windows) .mobile-settings-section h3 { margin: 0 0 6px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 88%, transparent); font: 750 9px/1.2 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; }
+    .app-shell:not(.platform-windows) .mobile-settings-field { display: grid; grid-template-columns: minmax(100px, .75fr) minmax(0, 1.25fr); align-items: center; gap: 5px; padding: 3px 0; color: inherit; font: 500 10px/1.25 var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-settings-field > span { min-width: 0; }
-    .app-shell:not(.platform-windows) .mobile-settings-field > small { grid-column: 1 / -1; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 58%, transparent); font: 9px/1.4 system-ui, sans-serif; }
-    .app-shell:not(.platform-windows) .mobile-settings-field select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 34px; padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 17%, transparent); border-radius: 8px; color: inherit; background: var(--toolbar-surface, var(--theme-background)); font: 10px system-ui, sans-serif; }
+    .app-shell:not(.platform-windows) .mobile-settings-field>.mobile-appearance-options { grid-column: 1 / -1; }
+    .app-shell:not(.platform-windows) .mobile-appearance-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .app-shell:not(.platform-windows) .mobile-appearance-options button,
+    .app-shell:not(.platform-windows) .mobile-appearance-custom { position: relative; display: inline-flex; min-width: 30px; min-height: 30px; align-items: center; justify-content: center; gap: 5px; padding: 4px 7px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 27%, transparent); border-radius: 7px; color: var(--toolbar-ink, var(--theme-text-primary)); background: transparent; font: 9px var(--font-ui); }
+    .app-shell:not(.platform-windows) .mobile-appearance-options button.active { border-color: var(--ui-accent-border); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .mobile-appearance-options i { width: 17px; height: 17px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 35%, transparent); border-radius: 50%; }
+    .app-shell:not(.platform-windows) .mobile-appearance-auto { background: linear-gradient(135deg, var(--theme-surface) 0 48%, var(--theme-text-secondary) 50% 52%, var(--theme-surface) 54%); }
+    .app-shell:not(.platform-windows) .mobile-appearance-custom { overflow: hidden; padding: 6px; }
+    .app-shell:not(.platform-windows) .mobile-appearance-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+    .app-shell:not(.platform-windows) .mobile-appearance-custom i { pointer-events: none; }
+    .app-shell:not(.platform-windows) .mobile-settings-field > small { grid-column: 1 / -1; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 88%, transparent); font: 9px/1.4 var(--font-ui); }
+    .app-shell:not(.platform-windows) .mobile-settings-field>.mobile-command-choice { grid-column: 1 / -1; }
     .app-shell:not(.platform-windows) .mobile-command-choice { display: grid; min-width: 0; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 3px; }
-    .app-shell:not(.platform-windows) .mobile-command-choice button { min-width: 0; min-height: 31px; padding: 4px 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 14%, transparent); border-radius: 7px; color: inherit; background: transparent; font: 500 9px/1.15 system-ui, sans-serif; }
+    .app-shell:not(.platform-windows) .mobile-command-choice button { min-width: 0; min-height: 31px; padding: 4px 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 14%, transparent); border-radius: 7px; color: inherit; background: transparent; font: 500 9px/1.15 var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-command-choice button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .app-shell:not(.platform-windows) .mobile-color-options { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
     .app-shell:not(.platform-windows) .mobile-color-options > button,
@@ -136,20 +146,27 @@
     .app-shell:not(.platform-windows) .mobile-custom-color { overflow: hidden; }
     .app-shell:not(.platform-windows) .mobile-custom-color input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
     .app-shell:not(.platform-windows) .mobile-custom-color i { pointer-events: none; }
-    .app-shell:not(.platform-windows) .mobile-display-info { display: grid; gap: 3px; margin: 6px 0; padding: 9px; border-radius: 8px; background: color-mix(in srgb, var(--toolbar-ink, var(--theme-info-muted)) 5%, transparent); font: 10px system-ui, sans-serif; }
-    .app-shell:not(.platform-windows) .mobile-display-info small { color: color-mix(in srgb, var(--toolbar-ink, var(--theme-info)) 58%, transparent); font-size: 9px; }
-    .app-shell:not(.platform-windows) .mobile-app-version { display: flex; justify-content: space-between; gap: 8px; padding: 7px 2px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 62%, transparent); font: 10px system-ui, sans-serif; }
+    .app-shell:not(.platform-windows) .mobile-display-info { display: grid; gap: 3px; margin: 6px 0; padding: 9px; border-radius: 8px; background: color-mix(in srgb, var(--toolbar-ink, var(--theme-info-muted)) 5%, transparent); font: 10px var(--font-ui); }
+    .app-shell:not(.platform-windows) .mobile-display-info small { color: color-mix(in srgb, var(--toolbar-ink, var(--theme-info)) 88%, transparent); font-size: 9px; }
+    .app-shell:not(.platform-windows) .mobile-app-version { display: flex; justify-content: space-between; gap: 8px; padding: 7px 2px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 88%, transparent); font: 10px var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-settings-reset,
     .app-shell:not(.platform-windows) .mobile-update-check,
-    .app-shell:not(.platform-windows) .mobile-update-install { min-height: 34px; margin-top: 5px; padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 16%, transparent); border-radius: 8px; color: inherit; background: transparent; font: 600 10px system-ui, sans-serif; }
+    .app-shell:not(.platform-windows) .mobile-update-install { min-height: 34px; margin-top: 5px; padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 16%, transparent); border-radius: 8px; color: inherit; background: transparent; font: 600 10px var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-update-check:disabled { opacity: .55; }
     .app-shell:not(.platform-windows) .mobile-update-install { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-    .app-shell:not(.platform-windows) .mobile-settings-help { margin: 0 0 9px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 58%, transparent); font: 9px/1.45 system-ui, sans-serif; }
+    .app-shell:not(.platform-windows) .mobile-settings-help { margin: 0 0 9px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 88%, transparent); font: 9px/1.45 var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-touch-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin: 7px 0; padding: 3px; border-radius: 9px; background: color-mix(in srgb, var(--toolbar-ink, var(--theme-background)) 6%, transparent); }
     .app-shell:not(.platform-windows) .mobile-touch-tabs button { min-height: 31px; }
     .app-shell:not(.platform-windows) .mobile-settings-section > .mobile-settings-field { margin-bottom: 3px; }
+    .app-shell:not(.platform-windows) .mobile-settings-panel .toolbar-order-editor { margin-top: 7px; }
+    .app-shell:not(.platform-windows) .mobile-settings-panel .toolbar-order-editor>header strong,
+    .app-shell:not(.platform-windows) .mobile-settings-panel .toolbar-order-editor>header small { color: var(--toolbar-ink, var(--theme-text-primary)); }
+    .app-shell:not(.platform-windows) .mobile-settings-panel .toolbar-order-editor ol { max-height: 190px; border-color: color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 24%, transparent); }
+    .app-shell:not(.platform-windows) .mobile-settings-panel .toolbar-order-editor li { border-color: color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 18%, transparent); color: var(--toolbar-ink, var(--theme-text-primary)); }
+    .app-shell:not(.platform-windows) .mobile-settings-panel .toolbar-order-editor button { border-color: color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 26%, transparent); color: var(--toolbar-ink, var(--theme-text-primary)); background: transparent; }
+    .app-shell:not(.platform-windows) .mobile-settings-panel .toolbar-order-editor button:disabled { opacity: .55; }
     .app-shell:not(.platform-windows) .mobile-help-action { min-height: 42px; }
-    .app-shell:not(.platform-windows) .mobile-update-status { margin: 8px 0 3px; font: 10px/1.4 system-ui, sans-serif; }
+    .app-shell:not(.platform-windows) .mobile-update-status { margin: 8px 0 3px; font: 10px/1.4 var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-update-status.current { color: var(--theme-success); }
     .app-shell:not(.platform-windows) .mobile-update-status.available { color: var(--theme-warning); }
     .app-shell:not(.platform-windows) .mobile-update-status.error { color: var(--theme-error); }

@@ -1,10 +1,12 @@
 import { Show } from "solid-js";
+import { displayPathLocation } from "../features/files/paths";
 
 type Props = {
   recentFiles: () => string[];
   recentPlans: () => string[];
   displayNameForPath: (path: string) => string;
   onCreateFile: () => void;
+  onGuides: () => void;
   onOpenFile: () => void;
   onCreatePlan: () => unknown;
   onOpenPlan: () => unknown;
@@ -28,7 +30,8 @@ export function WelcomeScreen(props: Props) {
             <h1 class="home-title" id="home-title">Think freely.<br /><em>Draw clearly.</em></h1>
             <p class="home-copy">Make diagrams, sketch ideas, and work things out on a fast, flexible whiteboard.</p>
             <div class="home-actions" aria-label="Start or open a whiteboard">
-              <button type="button" class="home-action home-action-primary" onClick={props.onCreateFile}>Create a sketch <span aria-hidden="true">&rarr;</span></button>
+              <button type="button" class="home-action home-action-primary" onClick={() => void props.onCreateFile()}>Create a sketch <span aria-hidden="true">&rarr;</span></button>
+              <button type="button" class="home-action home-action-secondary" onClick={props.onGuides}>Diagram guides</button>
               <button type="button" class="home-action home-action-secondary" onClick={props.onOpenFile}>Open a sketch</button>
             </div>
             <div class="home-file-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg><span>Your portable <strong>.sketch</strong> files stay in folders you choose.</span></div>
@@ -78,7 +81,7 @@ export function WelcomeScreen(props: Props) {
         }>
           <div class="home-recent-list" aria-label="Recent sketches">{props.recentFiles().map(path => <button type="button" class="home-file" onClick={() => void props.onOpenRecentFile(path)}>
             <span class="home-file-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span>
-            <span class="home-file-copy"><strong>{props.displayNameForPath(path)}</strong><small>{/^content:\/\//i.test(path) ? "Cloud drive or device folder" : path}</small></span>
+            <span class="home-file-copy"><strong>{props.displayNameForPath(path)}</strong><small>{displayPathLocation(path)}</small></span>
             <span class="home-file-open">Open <span aria-hidden="true">&rarr;</span></span>
           </button>)}</div>
         </Show>

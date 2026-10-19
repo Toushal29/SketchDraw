@@ -1,16 +1,21 @@
 import type { Binding, Element, GroupElement, ShapeElement, SchemaTableElement, TextElement, Point, FlowchartShape, Bounds } from "./model";
 
 export const isConnector = (element: Element): element is ShapeElement => element.type === "line" || element.type === "arrow";
-export const isLabelShape = (element: Element): element is ShapeElement => element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart";
+export const isLabelShape = (element: Element): element is ShapeElement => element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "svgPath";
 export const isConnectable = (element: Element): element is ShapeElement | SchemaTableElement | TextElement | GroupElement => isLabelShape(element) || element.type === "schemaTable" || element.type === "text" || element.type === "group" && !!element.componentBounds && !!element.libraryComponent;
 export const BOX_ANCHORS: readonly Point[] = [
-  { x: 0, y: 0 }, { x: .5, y: 0 }, { x: 1, y: 0 },
-  { x: 1, y: .5 }, { x: 1, y: 1 }, { x: .5, y: 1 },
-  { x: 0, y: 1 }, { x: 0, y: .5 },
+  { x: .25, y: 0 }, { x: .5, y: 0 }, { x: .75, y: 0 },
+  { x: 1, y: .25 }, { x: 1, y: .5 }, { x: 1, y: .75 },
+  { x: .75, y: 1 }, { x: .5, y: 1 }, { x: .25, y: 1 },
+  { x: 0, y: .75 }, { x: 0, y: .5 }, { x: 0, y: .25 },
+  { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 },
 ];
 
 let textBoundsContext: CanvasRenderingContext2D | null | undefined;
 const textBoxCache = new WeakMap<TextElement, Bounds>();
+export function alignedTextStartX(anchorX: number, width: number, alignment: TextElement["textAlign"] = "left"): number {
+  return alignment === "center" ? anchorX - width / 2 : alignment === "right" ? anchorX - width : anchorX;
+}
 /** Text has no stored width, so ports use the same measured box as selection. */
 export function textElementBox(element: TextElement): Bounds {
   const cached = textBoxCache.get(element); if (cached) return cached;
@@ -19,7 +24,7 @@ export function textElementBox(element: TextElement): Bounds {
   if (textBoundsContext) textBoundsContext.font = textFont(element);
   let width = element.fontSize * .5;
   for (const line of lines) width = Math.max(width, textBoundsContext?.measureText(line).width ?? line.length * element.fontSize * .6);
-  const bounds = { x: element.textAlign === "center" ? element.x - width / 2 : element.textAlign === "right" ? element.x - width : element.x, y: element.y, w: width, h: lines.length * element.fontSize * 1.25 };
+  const bounds = { x: alignedTextStartX(element.x, width, element.textAlign), y: element.y, w: width, h: lines.length * element.fontSize * 1.25 };
   textBoxCache.set(element, bounds);
   return bounds;
 }
@@ -54,13 +59,19 @@ export function validReferences(items: Element[]): boolean {
 export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement, anchor: Point, rowId?: string): Point {
   const box = shape.type === "group" ? shape.componentBounds! : shape.type === "text" ? textElementBox(shape) : { x: shape.x, y: shape.y, w: shape.w, h: shape.h };
   const cx = box.x + box.w / 2; const cy = box.y + box.h / 2;
-  const x = Math.min(box.x, box.x + box.w) + Math.abs(box.w) * anchor.x;
+  const normalized = anchor;
+  let x = Math.min(box.x, box.x + box.w) + Math.abs(box.w) * normalized.x;
   const rowIndex = shape.type === "schemaTable" && rowId ? shape.columns.findIndex(column => column.id === rowId) : -1;
   const rowFontSize = shape.type === "schemaTable" ? shape.fontSize ?? 12 : 14;
   const rowHeaderHeight = Math.max(42, rowFontSize * 2.8); const rowHeight = Math.max(30, rowFontSize * 1.8);
-  const y = shape.type === "schemaTable" && rowIndex >= 0
+  let y = shape.type === "schemaTable" && rowIndex >= 0
     ? shape.y + rowHeaderHeight + rowIndex * rowHeight + rowHeight / 2
-    : Math.min(box.y, box.y + box.h) + Math.abs(box.h) * anchor.y;
+    : Math.min(box.y, box.y + box.h) + Math.abs(box.h) * normalized.y;
+  if (shape.type === "circle" && shape.w !== 0 && shape.h !== 0) {
+    const dx = (x - cx) / (Math.abs(box.w) / 2); const dy = (y - cy) / (Math.abs(box.h) / 2);
+    const scale = Math.hypot(dx, dy) || 1;
+    x = cx + (x - cx) / scale; y = cy + (y - cy) / scale;
+  }
   const angle = (shape.rotation ?? 0) * Math.PI / 180;
   return { x: cx + (x - cx) * Math.cos(angle) - (y - cy) * Math.sin(angle), y: cy + (x - cx) * Math.sin(angle) + (y - cy) * Math.cos(angle) };
 }
@@ -155,7 +166,7 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
   return resolveBindings(items.map(visit));
 }
 
-export const textFont = (text: Pick<TextElement, "italic" | "bold" | "fontSize" | "fontFamily">) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : text.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : text.fontFamily === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : text.fontFamily === "display" ? "'Arial Black', Impact, sans-serif" : "'DM Sans', 'Segoe UI', sans-serif"}`;
+export const textFont = (text: Pick<TextElement, "italic" | "bold" | "fontSize" | "fontFamily">) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : text.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : text.fontFamily === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : text.fontFamily === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif"}`;
 export function labelBox(shape: ShapeElement) {
   // Keep padding proportional only while a shape is small. A fixed inset can
   // consume the entire label area on compact components such as UML lifelines.
@@ -229,9 +240,15 @@ export function extraFlowchartPath(shape: FlowchartShape, x: number, y: number, 
   if (shape === "chevron") return `M ${x} ${y} H ${x + w * .62} L ${r} ${y + h / 2} L ${x + w * .62} ${b} H ${x} L ${x + w * .38} ${y + h / 2} Z`;
   if (shape === "cross") { const arm = Math.min(w, h) * .32; return `M ${m - arm / 2} ${y} H ${m + arm / 2} V ${y + h / 2 - arm / 2} H ${r} V ${y + h / 2 + arm / 2} H ${m + arm / 2} V ${b} H ${m - arm / 2} V ${y + h / 2 + arm / 2} H ${x} V ${y + h / 2 - arm / 2} H ${m - arm / 2} Z`; }
   if (shape === "folder") return `M ${x} ${y + h * .16} H ${x + w * .38} L ${x + w * .5} ${y + h * .32} H ${r} V ${b} H ${x} Z`;
-  if (shape === "note") return `M ${x} ${y} H ${r - w * .22} L ${r} ${y + h * .22} V ${b} H ${x} Z M ${r - w * .22} ${y} V ${y + h * .22} H ${r}`;
+  if (shape === "note") return `M ${x} ${y} H ${r - w * .22} L ${r} ${y + h * .22} V ${b} H ${x} Z`;
   if (shape === "display") return `M ${x} ${y} H ${r} V ${y + h * .68} H ${x} Z M ${x + w * .4} ${y + h * .68} L ${x + w * .34} ${b - h * .08} H ${x + w * .66} L ${x + w * .6} ${y + h * .68} Z M ${x + w * .28} ${b - h * .08} H ${x + w * .72} V ${b} H ${x + w * .28} Z`;
-  if (shape === "cube") return `M ${m} ${y} L ${r} ${y + h * .22} V ${y + h * .76} L ${m} ${b} L ${x} ${y + h * .76} V ${y + h * .22} Z M ${x} ${y + h * .22} L ${m} ${y + h * .48} L ${r} ${y + h * .22} M ${m} ${y + h * .48} V ${b}`;
+  if (shape === "cube") return `M ${m} ${y} L ${r} ${y + h * .22} V ${y + h * .76} L ${m} ${b} L ${x} ${y + h * .76} V ${y + h * .22} Z`;
   if (shape === "rounded-rectangle") { const radius = Math.min(w * .16, h * .3); return `M ${x + radius} ${y} H ${r - radius} Q ${r} ${y} ${r} ${y + radius} V ${b - radius} Q ${r} ${b} ${r - radius} ${b} H ${x + radius} Q ${x} ${b} ${x} ${b - radius} V ${y + radius} Q ${x} ${y} ${x + radius} ${y} Z`; }
   if (shape === "shield") return `M ${x + w * .5} ${y} L ${r} ${y + h * .16} V ${y + h * .48} Q ${r} ${y + h * .82} ${m} ${b} Q ${x} ${y + h * .82} ${x} ${y + h * .48} V ${y + h * .16} Z`;
+}
+
+export function extraFlowchartDetailPath(shape: FlowchartShape, x: number, y: number, w: number, h: number): string | undefined {
+  const right = x + w; const bottom = y + h; const middle = x + w / 2;
+  if (shape === "note") return `M ${right - w * .22} ${y} V ${y + h * .22} H ${right}`;
+  if (shape === "cube") return `M ${x} ${y + h * .22} L ${middle} ${y + h * .48} L ${right} ${y + h * .22} M ${middle} ${y + h * .48} V ${bottom}`;
 }

@@ -2,6 +2,7 @@ import type { Point, Element, Bounds, ShapeElement } from "../../model";
 import { labelBox, textElementBox } from "../../operations";
 import { connectorPolylines, arrowHeadEntries, arrowHeadPoints } from "./geometry";
 import { stylusStrokeWidth } from "./freehand-rendering";
+import { relationshipDisplayElement } from "../diagrams/relationships";
 
 const boundsCache = new WeakMap<Element, Bounds>();
 const cacheBounds = (element: Element, bounds: Bounds): Bounds => { boundsCache.set(element, bounds); return bounds; };
@@ -55,7 +56,8 @@ export function elementBounds(element: Element): Bounds {
     }
     const doubleOffset = element.lineStyle === "double" ? Math.max(2.5, element.thickness * 1.2) : 0;
     const routeBounds = rotatedBounds(boundsOfPoints(points, element.thickness / 2 + doubleOffset), element.rotation ?? 0);
-    const labelBounds = element.label?.text ? rotatedBounds(labelBox(element), element.rotation ?? 0) : undefined;
+    const displayElement = relationshipDisplayElement(element);
+    const labelBounds = displayElement.label?.text ? rotatedBounds(labelBox(displayElement), element.rotation ?? 0) : undefined;
     return cacheBounds(element, labelBounds ? unionBounds([routeBounds, labelBounds])! : routeBounds);
   }
   return cacheBounds(element, rotatedBounds({ x, y, w, h }, element.rotation ?? 0));

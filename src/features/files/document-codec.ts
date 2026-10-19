@@ -1,14 +1,9 @@
-import type { CanvasState, Element, PersonalLibraryData, SketchFile, SketchFileDocumentV9, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
+import type { CanvasState, Element, PersonalLibraryData, SketchFile, SketchFileDocumentV10, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import { createLegacyLibraryData } from "./legacy-library-data";
 import { normalizeElement } from "./parse-sketch";
 
-// The retired collections are immutable document data. Reuse their encoded block
-// across saves while the library object stays unchanged.
-const retiredArchiveJson = new WeakMap<PersonalLibraryData, string>();
-const retiredArchiveMarker = "__SKETCHDRAW_RETIRED_LIBRARY_ARCHIVE_V9__";
-const pageListMarker = "__SKETCHDRAW_PAGE_CHUNKS_V9__";
-const elementListMarker = "__SKETCHDRAW_ELEMENT_CHUNK_V9__";
+const pageListMarker = "__SKETCHDRAW_PAGE_CHUNKS_V10__";
+const elementListMarker = "__SKETCHDRAW_ELEMENT_CHUNK_V10__";
 const NORMALIZED_PAGE_CACHE_BYTES = 4 * 1024 * 1024;
 const SERIALIZED_PAGE_CACHE_BYTES = 4 * 1024 * 1024;
 const normalizedElementCache = new WeakMap<Element, Element | null>();
@@ -86,7 +81,7 @@ function serializedPage(page: SketchPage): string {
     return cached.block;
   }
   // Reuse the element array encoding when only page metadata (such as pan or
-  // zoom) changed. The V9 document still stores ordinary JSON page objects.
+  // zoom) changed. The v10 document still stores ordinary JSON page objects.
   const elementsJson = cached?.elementsJson ?? JSON.stringify(page.elements);
   const pageShell = JSON.stringify({ id: page.id, name: page.name, canvasState: page.canvasState, elements: elementListMarker });
   const block = `        ${pageShell.replace(`"elements":"${elementListMarker}"`, `"elements":${elementsJson}`)}`;
@@ -153,34 +148,16 @@ export function createSketchSnapshot(options: CreateSnapshotOptions): SketchFile
 }
 
 export function serializeSketchSnapshot(snapshot: SketchFile): string {
-  const library = snapshot.library ?? createLegacyLibraryData();
-  let archiveJson = retiredArchiveJson.get(library);
-  if (!archiveJson) {
-    archiveJson = JSON.stringify({
-      studyNotes: library.studyNotes,
-      studyCards: library.studyCards,
-      wikiArticles: library.wikiArticles,
-      journalEntries: library.journalEntries,
-      writingDrafts: library.writingDrafts,
-      researchSources: library.researchSources,
-      mediaEntries: library.mediaEntries,
-    }, null, 2);
-    retiredArchiveJson.set(library, archiveJson);
-  }
-  const document: SketchFileDocumentV9 = {
+  const document: SketchFileDocumentV10 = {
     format: "SketchDraw",
     version: SKETCH_FORMAT_VERSION,
     sections: {
-      canvas: { activePageId: snapshot.activePageId, pages: pageListMarker as unknown as SketchFileDocumentV9["sections"]["canvas"]["pages"] },
-      notebook: { notes: library.quickNotes },
-      retiredLibraryArchive: retiredArchiveMarker as unknown as SketchFileDocumentV9["sections"]["retiredLibraryArchive"],
+      canvas: { activePageId: snapshot.activePageId, pages: pageListMarker as unknown as SketchFileDocumentV10["sections"]["canvas"]["pages"] },
     },
     ...(snapshot.windowsSync ? { windowsSync: snapshot.windowsSync } : {}),
   };
   const documentJson = JSON.stringify(document, null, 2);
-  const marker = `"retiredLibraryArchive": "${retiredArchiveMarker}"`;
   const pageBlocks = snapshot.pages.map(serializedPage).join(",\n");
   const pageArray = `"pages": [\n${pageBlocks}\n      ]`;
-  const archive = archiveJson.replace(/\n/g, "\n      ");
-  return documentJson.replace(/"retiredLibraryArchive": "__SKETCHDRAW_RETIRED_LIBRARY_ARCHIVE_V9__"|"pages": "__SKETCHDRAW_PAGE_CHUNKS_V9__"/g, token => token === marker ? `"retiredLibraryArchive": ${archive}` : pageArray);
+  return documentJson.replace(`"pages": "${pageListMarker}"`, pageArray);
 }

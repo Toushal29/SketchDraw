@@ -69,12 +69,13 @@ export function libraryComponentMinimum(_group: GroupElement, _axis: "w" | "h"):
 export function assignLibraryComponentIds(group: GroupElement, kind: LibraryComponentKind, previous?: GroupElement): GroupElement {
   if (group.componentBounds) {
     const metadata: LibraryComponentData = { kind, label: LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? String(kind), ...(defaultLibraryFormTitle(kind) ? { formTitle: defaultLibraryFormTitle(kind) } : {}), ...(defaultLibraryFormOptions(kind) ? { formOptions: defaultLibraryFormOptions(kind) } : {}), ...(defaultLibraryChartData(kind) ? { chartData: defaultLibraryChartData(kind) } : {}), ...(kind === "network-hub" ? { portCount: 8 } : kind === "network-switch" ? { portCount: 6 } : {}) };
-    return { ...group, id: previous?.id ?? group.id ?? crypto.randomUUID(), elements: [], libraryComponent: { ...metadata, ...(previous?.libraryComponent ?? {}), kind } };
+    return { ...group, id: previous?.id ?? group.id ?? crypto.randomUUID(), elements: [], libraryComponent: { ...metadata, ...(group.libraryComponent ?? {}), ...(previous?.libraryComponent ?? {}), kind } };
   }
   const hasEditableText = (items: Element[]): boolean => items.some(element => element.type === "text" || "label" in element && !!element.label || element.type === "group" && hasEditableText(element.elements));
   if (!hasEditableText(group.elements) && kind !== "uml-activation") {
     const bounds = elementBounds(group); const label = LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? (String(kind) === "custom" ? "Group" : String(kind));
-    group = { ...group, elements: [...group.elements, { type: "text", x: bounds.x, y: bounds.y + bounds.h + 5, text: label, color: "#344252", fontSize: 12, fontFamily: "sans", bold: false, textAlign: "left", listType: "none" }] };
+    const fontSize = Math.max(8, Math.min(12, (bounds.w - 8) / Math.max(1, label.length * .58)));
+    group = { ...group, elements: [...group.elements, { type: "text", x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h + 5, text: label, color: "#344252", fontSize, fontFamily: "sans", bold: false, textAlign: "center", listType: "none" }] };
   }
   const oldIds: string[] = [];
   const collect = (items: Element[]) => items.forEach(element => { if (element.id) oldIds.push(element.id); if (element.type === "group") collect(element.elements); });

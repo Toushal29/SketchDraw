@@ -18,7 +18,7 @@ export function HelpDialog(props: Props) {
         <div class="help-content">
           <Show when={props.section === "guide"} fallback={<section class="help-shortcuts-section"><h3>Keyboard shortcuts</h3><p>Use these shortcuts while the canvas is active. Text fields keep their standard editing shortcuts.</p><table class="shortcut-table"><thead><tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr></thead><tbody>{props.shortcuts.map(([key, action]) => <tr><th scope="row"><kbd>{key}</kbd></th><td>{action}</td></tr>)}</tbody></table></section>}>
             <div class="help-guide">
-              <section><h3>Start a sketch</h3><p>Create a new file or open a version 9 <code>.sketch</code> document. Older supported files are upgraded when saved. SketchDraw saves edits to the active file automatically; the save status shows whether changes are still being written.</p></section>
+              <section><h3>Start a sketch</h3><p>Create a new file or open a <code>.sketch</code> document. When an older format is opened, SketchDraw explains what will be removed and asks before replacing the file. Declining closes it without saving. SketchDraw saves edits to the active file automatically; the save status shows whether changes are still being written.</p></section>
               <section><h3>Draw and style</h3><p>Choose a tool from the toolbar, then click or drag on the canvas. Common style controls sit beside the canvas; open Properties for the full settings panel. Line options include one-, two-, and three-control-point curves plus a four-point editable line; lines and arrows both support arrowheads. Hold Space or choose Hand to pan, or use the mouse wheel to zoom around the pointer.</p></section>
               <section><h3>Select and edit</h3><p>Use Select to click an object or drag a marquee around objects. Drag selected items to move them. Use handles to resize or rotate, and double-click a shape to edit its label. Select Text and click once to place text. The bucket fills a closed shape without selecting it. Right-click the canvas for object commands.</p></section>
               <section><h3>Files, pages, and export</h3><p>Use File to create, open, save, import images, export PNG/SVG/PDF, or clear the canvas. Add and manage pages from the page strip. Use View to change the theme and whiteboard color. Autosave saves local edits. On Windows, file watching and a 30-second polling fallback detect outside changes and surface conflicts.</p></section>
@@ -29,7 +29,7 @@ export function HelpDialog(props: Props) {
             </div>
           </Show>
         </div>
-        <footer><span>&copy; 2026 Toushal Sampat. See the README and version 9 file format guide for details.</span><button type="button" class="save-button" onClick={props.onClose}>Close</button></footer>
+        <footer><span>&copy; 2026 Toushal Sampat. See the README and version 10 file format guide for details.</span><button type="button" class="save-button" onClick={props.onClose}>Close</button></footer>
       </section>
     </div>
   </Show>;

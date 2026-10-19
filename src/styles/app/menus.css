@@ -79,7 +79,7 @@
     display: block;
     padding: 7px 9px 4px;
     color: var(--theme-text-secondary);
-    font: 10px 'DM Mono', monospace;
+    font: 10px var(--font-mono);
     letter-spacing: .7px;
     text-transform: uppercase;
 }
@@ -178,7 +178,7 @@
 }
 
 .tool-icon-button kbd {
-    font: 8px 'DM Mono', monospace;
+    font: var(--font-size-micro) var(--font-mono);
     line-height: 10px;
 }
 
@@ -205,7 +205,9 @@
     stroke-linejoin: round;
 }
 
-.tool-collapse-label { display: none; }
+.tool-collapse-label {
+    display: none;
+}
 
 .tool-deck-reopen {
     position: absolute;
@@ -271,7 +273,7 @@
     min-width: 31px;
     color: var(--theme-text-secondary);
     text-align: right;
-    font: 10px 'DM Mono', monospace;
+    font: 10px var(--font-mono);
 }
 
 .arrow-head-config,
@@ -346,7 +348,7 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    font: 10px 'DM Mono', monospace;
+    font: 10px var(--font-mono);
     color: var(--theme-text-secondary);
 }
 
@@ -707,13 +709,61 @@
     width: 380px;
 }
 
+.palette-spawn-all {
+    position: sticky;
+    z-index: 2;
+    bottom: 0;
+    display: flex;
+    min-height: 36px;
+    grid-column: 1 / -1;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 3px;
+    padding: 7px 10px;
+    border: 1px solid var(--theme-primary-border);
+    border-radius: 6px;
+    color: var(--theme-primary);
+    background: var(--theme-primary-muted);
+    font: 650 11px/1.2 var(--font-ui);
+    text-align: left;
+}
+
+.palette-spawn-all:hover:not(:disabled) {
+    border-color: var(--theme-primary);
+}
+
+.palette-spawn-all:disabled {
+    opacity: .55;
+}
+
+.palette-spawn-all small {
+    color: var(--theme-text-secondary);
+    font: 400 9px/1.35 var(--font-ui);
+}
+
+.palette-spawn-footer {
+    position: sticky;
+    z-index: 2;
+    bottom: -10px;
+    grid-column: 1 / -1;
+    margin: 5px -10px -10px;
+    padding: 8px 10px 10px;
+    border-top: 1px solid var(--theme-border);
+    background: var(--theme-surface-elevated);
+}
+
+.palette-spawn-footer .palette-spawn-all {
+    width: 100%;
+}
+
 
 .tool-options {
     max-height: min(450px, calc(100vh - 180px));
     overflow-y: auto;
 }
 
-.tool-options:not(.stencil-options) button > span {
+.tool-options:not(.stencil-options) button>span {
     font-size: 11px;
     white-space: normal;
 }
@@ -932,4 +982,3 @@ summary:focus-visible {
 .theme-dark .rotation-controls button {
     border-color: var(--theme-border);
 }
-

@@ -1,4 +1,3 @@
-/* Application scale controls the app independently of device display resolution. */
 .app-shell {
     width: calc(100vw / var(--app-ui-scale, 1));
     height: calc(100dvh / var(--app-ui-scale, 1));
@@ -6,56 +5,248 @@
 }
 
 @supports not (zoom: 1) {
-    .app-shell { transform: scale(var(--app-ui-scale, 1)); transform-origin: top left; }
+    .app-shell {
+        transform: scale(var(--app-ui-scale, 1));
+        transform-origin: top left;
+    }
+}
+
+.settings-menu-dropdown>summary {
+    gap: 5px;
+}
+
+.settings-menu-dropdown>summary svg {
+    width: 12px;
+    height: 12px;
+}
+
+.settings-menu-label {
+    white-space: nowrap;
 }
 
 .app-settings-popover {
     display: grid;
-    width: min(380px, calc(100vw - 20px));
-    max-height: min(78dvh, 600px);
+    width: min(330px, calc(100vw - 20px));
+    max-height: min(78dvh, 680px);
+    gap: 10px;
+    padding: 12px;
+    overflow: auto;
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-elevated);
+}
+
+.app-settings-heading {
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.app-settings-heading strong {
+    font-size: 14px;
+}
+
+.app-settings-section {
+    display: grid;
+    gap: 8px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.app-settings-section>strong {
+    font-size: 11px;
+}
+
+.app-settings-choice {
+    display: grid;
+    gap: 4px;
+    color: var(--theme-text-secondary);
+    font-size: 11px;
+}
+
+.app-settings-choice>div {
+    display: flex;
+    gap: 3px;
+}
+
+.app-settings-choice button,
+.toolbar-order-editor button,
+.app-settings-reset {
+    min-height: 30px;
+    padding: 5px 8px;
+    border: 1px solid var(--theme-border);
+    border-radius: 6px;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
+    font: inherit;
+    cursor: pointer;
+}
+
+.app-settings-choice button:hover,
+.toolbar-order-editor button:hover:not(:disabled),
+.app-settings-reset:hover {
+    background: var(--theme-surface-hover);
+}
+
+.app-settings-choice button.active {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+}
+
+.app-settings-choice button:focus-visible,
+.toolbar-order-editor button:focus-visible,
+.toolbar-order-editor li:focus-visible,
+.app-settings-reset:focus-visible {
+    outline: 2px solid var(--ui-accent);
+    outline-offset: 2px;
+}
+
+.app-settings-popover small {
+    color: var(--theme-text-secondary);
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.toolbar-order-editor {
+    display: grid;
+    min-width: 0;
     gap: 6px;
-    padding: 10px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
 }
 
-.settings-menu-dropdown > summary { gap: 5px; }
-.settings-menu-dropdown > summary > svg:first-child { width: 15px; height: 15px; }
-.settings-menu-dropdown > summary > svg:last-child { width: 11px; height: 11px; }
-.settings-menu-label { white-space: nowrap; }
-.app-settings-heading { display: grid; gap: 3px; padding: 1px 3px 9px; border-bottom: 1px solid var(--theme-border); }
-.app-settings-heading strong { color: var(--theme-text-primary); font-size: 13px; }
-.app-settings-heading small,
-.app-setting-field > small,
-.app-display-info small { color: var(--theme-info); font-size: 10px; line-height: 1.4; }
-.app-setting-field { display: grid; gap: 5px; font-size: 11px; }
-.app-mobile-layout-settings { display: grid; gap: 9px; padding: 10px; border: 1px solid var(--theme-border); border-radius: 10px; background: var(--theme-surface-elevated); }
-.app-mobile-layout-settings > strong { color: var(--theme-text-primary); font-size: 10px; }
-.app-setting-choices-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.app-setting-choices-four button { padding-inline: 3px; }
-.app-setting-field > span { display: flex; justify-content: space-between; gap: 8px; }
-.app-setting-field > span > strong { font-variant-numeric: tabular-nums; }
-.app-setting-field select { box-sizing: border-box; width: 100%; min-height: 36px; padding: 6px 9px; border: 1px solid var(--theme-border); border-radius: 8px; color: var(--theme-text-primary); background: var(--theme-surface-input); font: 11px system-ui, sans-serif; }
-.app-display-info { display: grid; gap: 3px; padding: 9px; border-radius: 9px; }
-.app-display-info > strong { font-size: 10px; }
-.app-display-info > span { font: 11px 'DM Mono', monospace; }
-.app-settings-reset { min-height: 38px; padding: 7px 10px; border-radius: 9px; font-size: 10px; font-weight: 700; }
-.app-settings-reset:hover { border-color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent-soft) 72%, var(--ui-accent) 12%); }
-.app-setting-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
-.app-setting-choices-scale { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-.app-setting-choices button { box-sizing: border-box; min-width: 0; min-height: 36px; padding: 5px 6px; border-radius: 8px; font: 600 10px system-ui, sans-serif; }
-.theme-dark .app-settings-heading { border-color: var(--theme-border); }
-.theme-dark .app-setting-field select { border-color: var(--theme-border); }
-.theme-dark .app-display-info { border-color: var(--theme-info-border); }
-.theme-dark .app-mobile-layout-settings { border-color: var(--theme-border); }
-.theme-dark .app-settings-reset { border-color: var(--ui-accent-border); }
-.theme-dark .app-setting-choices button { border-color: var(--theme-border); }
-
-@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-setting-field select { min-height: 40px; }
+.toolbar-order-editor>header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
 
-@media (max-width: 400px) {
-    .app-settings-popover { gap: 8px; }
+.toolbar-order-editor>header>div {
+    display: grid;
+    gap: 2px;
+}
+
+.toolbar-order-editor>header strong {
+    color: var(--theme-text-primary);
+    font-size: 11px;
+}
+
+.toolbar-order-editor>header small {
+    color: var(--theme-text-secondary);
+    font-size: 9px;
+}
+
+.toolbar-order-editor>header button {
+    min-height: 27px;
+}
+
+.toolbar-order-editor ol {
+    display: grid;
+    max-height: 230px;
+    gap: 2px;
+    margin: 0;
+    padding: 2px;
+    overflow: auto;
+    border: 1px solid var(--theme-border);
+    border-radius: 7px;
+    list-style: none;
+}
+
+.toolbar-order-editor li {
+    display: grid;
+    min-height: 34px;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 5px;
+    border-bottom: 1px solid var(--theme-border);
+    border-radius: 4px;
+    color: var(--theme-text-primary);
+    font-size: 11px;
+    touch-action: auto;
+}
+
+.toolbar-order-editor li:last-child {
+    border-bottom: 0;
+}
+
+.toolbar-order-editor li.toolbar-order-dragging {
+    opacity: .55;
+    background: var(--ui-accent-soft);
+}
+
+.toolbar-order-editor li.toolbar-order-drop-target {
+    background: var(--ui-accent-soft);
+    box-shadow: inset 0 -2px var(--ui-accent);
+}
+
+.toolbar-order-grip {
+    display: grid;
+    width: 32px;
+    min-width: 32px;
+    height: 30px;
+    min-height: 30px !important;
+    align-content: center;
+    justify-items: center;
+    gap: 2px;
+    padding: 0 !important;
+    touch-action: none;
+    cursor: grab !important;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.toolbar-order-grip:active,
+.toolbar-order-editor li.toolbar-order-dragging .toolbar-order-grip {
+    cursor: grabbing !important;
+}
+
+.toolbar-order-grip i {
+    width: 10px;
+    height: 1px;
+    background: var(--theme-text-secondary);
+}
+
+.toolbar-order-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.toolbar-order-editor li>div {
+    display: flex;
+    gap: 3px;
+}
+
+.toolbar-order-editor li button {
+    min-width: 38px;
+    min-height: 26px;
+    padding: 3px 5px;
+    font-size: 9px;
+}
+
+.toolbar-order-editor button:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+.app-settings-reset {
+    min-height: 32px;
+    font-size: 11px;
+}
+
+@media (max-width: 480px) {
+    .app-settings-popover {
+        width: min(350px, calc(100vw - 14px));
+    }
+
+    .toolbar-order-editor ol {
+        max-height: 190px;
+    }
+
+    .toolbar-order-editor li button {
+        min-width: 42px;
+        min-height: 30px;
+    }
 }

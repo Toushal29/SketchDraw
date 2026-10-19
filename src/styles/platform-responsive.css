@@ -176,19 +176,6 @@ body,
         max-height: min(60vh, 500px);
     }
 
-    .style-pane.full-style-mode > .full-inspector {
-        position: fixed;
-        top: auto;
-        right: 8px;
-        bottom: calc(env(safe-area-inset-bottom) + 70px);
-        left: 68px;
-        width: auto;
-        max-width: none;
-        max-height: min(56vh, 450px);
-        overflow: auto;
-        padding: 13px 14px 18px;
-    }
-
     .style-pane .quick-style-popover {
         position: fixed;
         top: auto;
@@ -275,12 +262,6 @@ body,
         max-width: min(48vw, 250px);
     }
 
-    .style-pane.full-style-mode > .full-inspector {
-        left: 60px;
-        right: 7px;
-        max-height: min(53vh, 420px);
-    }
-
     .style-pane .quick-style-popover {
         left: 60px;
         right: 7px;
@@ -300,7 +281,6 @@ body,
         bottom: calc(env(safe-area-inset-bottom) + 62px);
     }
 
-    .style-pane.full-style-mode > .full-inspector,
     .style-pane .quick-style-popover {
         bottom: calc(env(safe-area-inset-bottom) + 62px);
         max-height: 45dvh;
@@ -358,15 +338,6 @@ body,
         width: 38px;
         height: 38px;
         flex: 0 0 38px;
-    }
-
-    .style-pane.full-style-mode > .full-inspector {
-        top: auto;
-        right: 8px;
-        bottom: calc(env(safe-area-inset-bottom) + 122px);
-        left: 8px;
-        width: auto;
-        max-height: min(42dvh, 210px);
     }
 
     .style-pane .quick-style-popover {

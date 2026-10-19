@@ -1,5 +1,5 @@
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import type { ArrowHead, ArrowRoute, Binding, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, LayerFlags, LineRoute, NoteKind, Point, SchemaField, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint } from "../../model";
+import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, LayerFlags, LineRoute, MermaidMetadata, NoteKind, Point, RelationshipDirection, RelationshipType, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
 import { validReferences } from "../../operations";
 import { curveControlPoints } from "../canvas/geometry";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
@@ -22,6 +22,25 @@ export function isEmbeddedRasterImage(value: unknown): value is string {
 export function finite(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
+function normalizeArchitectureMetadata(value: unknown): ArchitectureMetadata | undefined {
+  if (!isRecord(value)) return undefined;
+  const text = (key: string, max: number) => typeof value[key] === "string" && value[key].trim() ? value[key].trim().slice(0, max) : undefined;
+  const criticality = ["low", "medium", "high", "critical"].includes(String(value.criticality)) ? value.criticality as ArchitectureMetadata["criticality"] : undefined;
+  const normalized: ArchitectureMetadata = {
+    ...(text("serviceKey", 120) ? { serviceKey: text("serviceKey", 120) } : {}),
+    ...(text("owner", 120) ? { owner: text("owner", 120) } : {}),
+    ...(criticality ? { criticality } : {}),
+    ...(text("slo", 120) ? { slo: text("slo", 120) } : {}),
+    ...(text("runbook", 500) ? { runbook: text("runbook", 500) } : {}),
+    ...(text("environment", 80) ? { environment: text("environment", 80) } : {}),
+    ...(text("region", 100) ? { region: text("region", 100) } : {}),
+    ...(text("availabilityZone", 100) ? { availabilityZone: text("availabilityZone", 100) } : {}),
+    ...(text("subnet", 120) ? { subnet: text("subnet", 120) } : {}),
+    ...(text("cidr", 64) ? { cidr: text("cidr", 64) } : {}),
+    ...(text("ipAddress", 64) ? { ipAddress: text("ipAddress", 64) } : {}),
+  };
+  return Object.keys(normalized).length ? normalized : undefined;
+}
 const MAX_ELEMENT_DEPTH = 64;
 const MAX_ELEMENTS_PER_PAGE = 20_000;
 const MAX_DOCUMENT_ELEMENT_NODES = 100_000;
@@ -42,8 +61,13 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     hidden: typeof value.hidden === "boolean" ? value.hidden : false,
     locked: typeof value.locked === "boolean" ? value.locked : false,
     rotation: finite(value.rotation) ? value.rotation : 0,
+    ...(typeof value.layerName === "string" && value.layerName.trim().length <= 80 ? { layerName: value.layerName.trim() } : {}),
     ...(typeof value.componentId === "string" ? { componentId: value.componentId } : {}),
     ...(typeof value.componentRole === "string" ? { componentRole: value.componentRole } : {}),
+    ...(typeof value.catalogId === "string" && value.catalogId.length <= 100 ? { catalogId: value.catalogId } : {}),
+    ...(typeof value.pageLinkId === "string" && value.pageLinkId.length <= 100 ? { pageLinkId: value.pageLinkId } : {}),
+    ...(Array.isArray(value.strideThreats) ? { strideThreats: [...new Set(value.strideThreats.filter((threat): threat is StrideThreatCategory => ["spoofing", "tampering", "repudiation", "information-disclosure", "denial-of-service", "elevation-of-privilege"].includes(String(threat))))].slice(0, 6) } : {}),
+    ...(normalizeArchitectureMetadata(value.architecture) ? { architecture: normalizeArchitectureMetadata(value.architecture) } : {}),
   };
   if (value.type === "group") {
     if (!Array.isArray(value.elements) || value.elements.length > MAX_ELEMENTS_PER_PAGE) return undefined;
@@ -56,9 +80,12 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && (value.note.fontSize === undefined || finite(value.note.fontSize) && value.note.fontSize >= 8 && value.note.fontSize <= 32)
       && (value.note.collapsed === undefined || typeof value.note.collapsed === "boolean")
       ? { kind: value.note.kind as NoteKind, content: value.note.content, ...(typeof value.note.title === "string" ? { title: value.note.title } : {}), ...(finite(value.note.width) ? { width: value.note.width } : {}), ...(finite(value.note.height) ? { height: value.note.height } : {}), ...(finite(value.note.fontSize) ? { fontSize: Math.round(value.note.fontSize) } : {}), ...(typeof value.note.collapsed === "boolean" ? { collapsed: value.note.collapsed } : {}) } : undefined;
-    const mermaid = isRecord(value.mermaid) && typeof value.mermaid.source === "string" && value.mermaid.source.length <= 100_000
-      ? { source: value.mermaid.source } : undefined;
+    const mermaid: MermaidMetadata | undefined = isRecord(value.mermaid) && typeof value.mermaid.source === "string" && value.mermaid.source.length <= 100_000
+      && (value.mermaid.format === undefined || value.mermaid.format === "mermaid" || value.mermaid.format === "plantuml")
+      ? { source: value.mermaid.source, ...(value.mermaid.format ? { format: value.mermaid.format } : {}) } : undefined;
     const rawComponent = isRecord(value.libraryComponent) ? value.libraryComponent : undefined;
+    const iconSvg = rawComponent && typeof rawComponent.iconSvg === "string" && rawComponent.iconSvg.length <= 100_000 && !/<script\b|\son[a-z]+\s*=|javascript:/i.test(rawComponent.iconSvg) ? rawComponent.iconSvg : undefined;
+    const iconViewBox = rawComponent && typeof rawComponent.iconViewBox === "string" && /^-?[\d.]+\s+-?[\d.]+\s+[\d.]+\s+[\d.]+$/.test(rawComponent.iconViewBox) ? rawComponent.iconViewBox : undefined;
     const rawChartData = rawComponent && isRecord(rawComponent.chartData) ? rawComponent.chartData : undefined;
     const chartData = rawChartData && Array.isArray(rawChartData.labels) && Array.isArray(rawChartData.values)
       && rawChartData.labels.length > 0 && rawChartData.labels.length <= 20 && rawChartData.values.length === rawChartData.labels.length
@@ -67,6 +94,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && ["title", "xAxisLabel", "yAxisLabel"].every(key => rawChartData[key] === undefined || typeof rawChartData[key] === "string" && (rawChartData[key] as string).length <= 80)
       ? { labels: rawChartData.labels as string[], values: rawChartData.values as number[], ...(typeof rawChartData.title === "string" ? { title: rawChartData.title } : {}), ...(typeof rawChartData.xAxisLabel === "string" ? { xAxisLabel: rawChartData.xAxisLabel } : {}), ...(typeof rawChartData.yAxisLabel === "string" ? { yAxisLabel: rawChartData.yAxisLabel } : {}) } : undefined;
     const componentAppearance = rawComponent && (rawComponent.appearance === "simple" || rawComponent.appearance === "modern") ? rawComponent.appearance as "simple" | "modern" : undefined;
+    const renderStyle = rawComponent?.renderStyle === "clean" ? "clean" as const : undefined;
     const trendDirection = rawComponent && (rawComponent.trendDirection === "up" || rawComponent.trendDirection === "down" || rawComponent.trendDirection === "steady") ? rawComponent.trendDirection as "up" | "down" | "steady" : undefined;
     const formOptions = rawComponent && ["form-radio", "form-select", "form-button", "form-checkbox"].includes(String(rawComponent.kind)) && Array.isArray(rawComponent.formOptions)
       && rawComponent.formOptions.length > 0 && rawComponent.formOptions.length <= 12
@@ -89,7 +117,11 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       ? { x: value.componentBounds.x, y: value.componentBounds.y, w: value.componentBounds.w, h: value.componentBounds.h } : undefined;
     const libraryComponent = rawComponent && typeof rawComponent.kind === "string" && rawComponent.kind.length <= 100
       && (rawComponent.label === undefined || typeof rawComponent.label === "string" && rawComponent.label.length <= 120)
+      && (rawComponent.iconSvg === undefined || iconSvg !== undefined)
+      && (rawComponent.iconViewBox === undefined || iconViewBox !== undefined)
+      && (iconSvg === undefined || iconViewBox !== undefined)
       && (rawComponent.portCount === undefined || finite(rawComponent.portCount) && rawComponent.portCount >= 1 && rawComponent.portCount <= 32)
+      && (rawComponent.laneCount === undefined || finite(rawComponent.laneCount) && rawComponent.laneCount >= 2 && rawComponent.laneCount <= 8)
       && (rawComponent.formState === undefined || typeof rawComponent.formState === "boolean")
       && (rawComponent.formStates === undefined || formStates !== undefined)
       && (rawComponent.styleOverrides === undefined || styleOverrides !== undefined)
@@ -100,7 +132,8 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && (rawComponent.formOptions === undefined || formOptions !== undefined)
       && (rawComponent.formTitle === undefined || formTitle !== undefined)
       && (rawComponent.trendDirection === undefined || trendDirection !== undefined)
-      ? { kind: rawComponent.kind, ...(typeof rawComponent.label === "string" ? { label: rawComponent.label } : {}), ...(finite(rawComponent.portCount) ? { portCount: Math.round(rawComponent.portCount) } : {}), ...(formTitle !== undefined ? { formTitle } : {}), ...(typeof rawComponent.formState === "boolean" ? { formState: rawComponent.formState } : {}), ...(formStates ? { formStates } : {}), ...(finite(rawComponent.selectedOption) ? { selectedOption: Math.floor(rawComponent.selectedOption) } : {}), ...(formOptions ? { formOptions } : {}), ...(chartData ? { chartData } : {}), ...(trendDirection ? { trendDirection } : {}), ...(componentAppearance ? { appearance: componentAppearance } : {}), ...(styleOverrides ? { styleOverrides } : {}), ...(textStyle ? { textStyle } : {}) } : undefined;
+      && (rawComponent.renderStyle === undefined || renderStyle !== undefined)
+      ? { kind: rawComponent.kind, ...(typeof rawComponent.label === "string" ? { label: rawComponent.label } : {}), ...(renderStyle ? { renderStyle } : {}), ...(iconSvg !== undefined ? { iconSvg, iconViewBox } : {}), ...(finite(rawComponent.portCount) ? { portCount: Math.round(rawComponent.portCount) } : {}), ...(finite(rawComponent.laneCount) ? { laneCount: Math.round(rawComponent.laneCount) } : {}), ...(finite(rawComponent.durationMinutes) && rawComponent.durationMinutes >= 0 && rawComponent.durationMinutes <= 100000 ? { durationMinutes: rawComponent.durationMinutes } : {}), ...(formTitle !== undefined ? { formTitle } : {}), ...(typeof rawComponent.formState === "boolean" ? { formState: rawComponent.formState } : {}), ...(formStates ? { formStates } : {}), ...(finite(rawComponent.selectedOption) ? { selectedOption: Math.floor(rawComponent.selectedOption) } : {}), ...(formOptions ? { formOptions } : {}), ...(chartData ? { chartData } : {}), ...(trendDirection ? { trendDirection } : {}), ...(componentAppearance ? { appearance: componentAppearance } : {}), ...(styleOverrides ? { styleOverrides } : {}), ...(textStyle ? { textStyle } : {}) } : undefined;
     if ((value.note !== undefined && !note) || (value.mermaid !== undefined && !mermaid) || (value.libraryComponent !== undefined && !libraryComponent) || (value.componentBounds !== undefined && !componentBoundsValue) || (componentBoundsValue && !libraryComponent) || (note && mermaid) || (libraryComponent && (note || mermaid))) return undefined;
     return { type: "group", ...flags, elements: children as Element[], ...(componentBoundsValue ? { componentBounds: componentBoundsValue } : {}), note, mermaid, libraryComponent };
   }
@@ -140,9 +173,23 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       const id = typeof raw.id === "string" && raw.id.length <= 100 ? raw.id : `${value.id}:column:${index}`;
       columns.push({ id, name: raw.name, dataType: raw.dataType, primaryKey: raw.primaryKey === true, foreignTable: typeof raw.foreignTable === "string" ? raw.foreignTable.slice(0, 200) : undefined, foreignColumn: typeof raw.foreignColumn === "string" ? raw.foreignColumn.slice(0, 200) : undefined, nullable: raw.nullable !== false });
     }
+    const indexes: SchemaIndex[] = Array.isArray(value.indexes) ? value.indexes.slice(0, 200).flatMap(raw => {
+      if (!isRecord(raw) || typeof raw.name !== "string" || raw.name.length > 200 || !Array.isArray(raw.columns) || raw.columns.length > 100 || !raw.columns.every(column => typeof column === "string" && column.length <= 200)) return [];
+      return [{ name: raw.name, columns: raw.columns as string[], unique: raw.unique === true, ...(typeof raw.expression === "string" && raw.expression.length <= 2000 ? { expression: raw.expression } : {}) }];
+    }) : [];
+    const constraints: SchemaConstraint[] = Array.isArray(value.constraints) ? value.constraints.slice(0, 200).flatMap(raw => {
+      if (!isRecord(raw) || !["unique", "check", "foreign-key", "primary-key"].includes(String(raw.kind))) return [];
+      const columns = Array.isArray(raw.columns) && raw.columns.length <= 100 && raw.columns.every(column => typeof column === "string" && column.length <= 200) ? raw.columns as string[] : undefined;
+      return [{ kind: raw.kind as SchemaConstraint["kind"], ...(typeof raw.name === "string" ? { name: raw.name.slice(0, 200) } : {}), ...(columns ? { columns } : {}), ...(typeof raw.expression === "string" && raw.expression.length <= 2000 ? { expression: raw.expression } : {}), ...(typeof raw.referencedTable === "string" ? { referencedTable: raw.referencedTable.slice(0, 200) } : {}), ...(Array.isArray(raw.referencedColumns) && raw.referencedColumns.length <= 100 && raw.referencedColumns.every(column => typeof column === "string" && column.length <= 200) ? { referencedColumns: raw.referencedColumns as string[] } : {}) }];
+    }) : [];
     const fontSize = finite(value.fontSize) ? Math.max(8, Math.min(48, Math.round(value.fontSize))) : 14; const neededHeight = Math.max(42, fontSize * 2.8) + columns.length * Math.max(30, fontSize * 1.8);
     const neededWidth = Math.max(180, ...columns.map(column => (column.name.length + (column.dataType ?? "type").length) * fontSize * .36 + 80));
-    return { type: "schemaTable", ...flags, x: value.x, y: value.y, w: Math.max(value.w, neededWidth), h: Math.max(value.h, neededHeight), name: value.name, columns, schemaDiagramId: value.schemaDiagramId, schemaSource: value.schemaSource, fontSize, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
+    return { type: "schemaTable", ...flags, x: value.x, y: value.y, w: Math.max(value.w, neededWidth), h: Math.max(value.h, neededHeight), name: value.name, columns, ...(indexes.length ? { indexes } : {}), ...(constraints.length ? { constraints } : {}), schemaDiagramId: value.schemaDiagramId, schemaSource: value.schemaSource, fontSize, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
+  }
+  if (value.type === "svgPath") {
+    if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w <= 0 || !finite(value.h) || value.h <= 0 || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0 || typeof value.pathData !== "string" || !value.pathData.trim() || value.pathData.length > 500_000 || !finite(value.pathWidth) || value.pathWidth <= 0 || value.pathWidth > 100_000 || !finite(value.pathHeight) || value.pathHeight <= 0 || value.pathHeight > 100_000 || (value.fillRule !== undefined && value.fillRule !== "nonzero" && value.fillRule !== "evenodd")) return undefined;
+    if (!/^[\d\s.,+\-eEmlhvcsqtazMLHVCSQTAZ]+$/.test(value.pathData)) return undefined;
+    return { type: "svgPath", ...flags, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness: Math.max(1, Math.round(value.thickness)), pathData: value.pathData, pathWidth: value.pathWidth, pathHeight: value.pathHeight, fillRule: value.fillRule === "evenodd" ? "evenodd" : "nonzero", svgStroke: value.svgStroke !== false, ...(isColor(value.fillColor) ? { fillColor: value.fillColor, fillOpacity: finite(value.fillOpacity) ? Math.max(0, Math.min(1, value.fillOpacity)) : 1 } : {}), opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
   }
   if (["rectangle", "circle", "diamond", "triangle", "flowchart", "line", "arrow"].includes(value.type)) {
     if (!finite(value.x) || !finite(value.y) || !finite(value.w) || !finite(value.h) || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0) return undefined;
@@ -185,7 +232,10 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       : lineRoute === "multi" ? [0.2, 0.4, 0.6, 0.8].map((ratio, index) => storedRoutePoints?.[index] ?? { x: x + w * ratio, y: y + h * ratio })
       : ["curve", "curve2", "curve3"].includes(lineRoute) ? curveControlPoints(controlBase, lineRoute).map((point, index) => storedRoutePoints?.[index] ?? point)
       : storedRoutePoints;
-    return { type: value.type as ShapeElement["type"], ...flags, startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, ...(autoRoute ? { autoRoute: true, routeWaypoints: value.routeWaypoints as Point[] | undefined } : {}), ...(straightOnly ? { straightOnly: true } : {}), forkUpper: straightOnly ? undefined : forkUpper ?? undefined, forkLower: straightOnly ? undefined : forkLower ?? undefined, label, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, lineRoute: value.type === "line" ? straightOnly ? "straight" : lineRoute : undefined, arrowRoute: value.type === "arrow" ? straightOnly ? "straight" : arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(typeof value.schemaDiagramId === "string" ? { schemaDiagramId: value.schemaDiagramId } : {}) };
+    const relationshipType: RelationshipType | undefined = ["association", "dependency", "data-flow", "inheritance", "aggregation", "composition", "sequence", "network", "other"].includes(String(value.relationshipType)) ? value.relationshipType as RelationshipType : undefined;
+    const relationshipDirection: RelationshipDirection | undefined = ["forward", "both", "none"].includes(String(value.relationshipDirection)) ? value.relationshipDirection as RelationshipDirection : undefined;
+    const transportSecurity: TransportSecurity | undefined = ["encrypted", "unencrypted", "unknown"].includes(String(value.transportSecurity)) ? value.transportSecurity as TransportSecurity : undefined;
+    return { type: value.type as ShapeElement["type"], ...flags, startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, ...(autoRoute ? { autoRoute: true, routeWaypoints: value.routeWaypoints as Point[] | undefined } : {}), ...(straightOnly ? { straightOnly: true } : {}), forkUpper: straightOnly ? undefined : forkUpper ?? undefined, forkLower: straightOnly ? undefined : forkLower ?? undefined, label, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, lineRoute: value.type === "line" ? straightOnly ? "straight" : lineRoute : undefined, arrowRoute: value.type === "arrow" ? straightOnly ? "straight" : arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(typeof value.cardinality === "string" && value.cardinality.length <= 40 ? { cardinality: value.cardinality } : {}), ...(typeof value.protocol === "string" && value.protocol.length <= 40 ? { protocol: value.protocol } : {}), ...(finite(value.portNumber) && value.portNumber >= 1 && value.portNumber <= 65535 ? { portNumber: Math.round(value.portNumber) } : {}), ...(typeof value.apiContract === "string" && value.apiContract.length <= 2000 ? { apiContract: value.apiContract } : {}), ...(typeof value.dataContract === "string" && value.dataContract.length <= 2000 ? { dataContract: value.dataContract } : {}), ...(typeof value.sequenceCondition === "string" && value.sequenceCondition.length <= 500 ? { sequenceCondition: value.sequenceCondition } : {}), ...(value.sequenceDefault === true ? { sequenceDefault: true } : {}), ...(relationshipType ? { relationshipType } : {}), ...(relationshipDirection ? { relationshipDirection } : {}), ...(transportSecurity ? { transportSecurity } : {}), ...(typeof value.schemaDiagramId === "string" ? { schemaDiagramId: value.schemaDiagramId } : {}) };
   }
   return undefined;
 }
@@ -197,13 +247,13 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
   const sections = isRecord(value.sections) ? value.sections : undefined;
   if (sections && !isRecord(sections.canvas)) return undefined;
   if (sections && version === 8 && (!isRecord(sections.planning) || !isRecord(sections.library))) return undefined;
-  if (sections && version >= 9 && (!isRecord(sections.notebook) || !Array.isArray(sections.notebook.notes) || !isRecord(sections.retiredLibraryArchive))) return undefined;
+  if (sections && version === 9 && (!isRecord(sections.notebook) || !Array.isArray(sections.notebook.notes) || !isRecord(sections.retiredLibraryArchive))) return undefined;
   if (sections && version < 8) return undefined;
   const canvasSection = sections ? sections.canvas as Record<string, unknown> : value;
   const planningValue = sections ? sections.planning : value.project;
-  const libraryValue = sections && version >= 9
+  const libraryValue = sections && version === 9
     ? { ...(sections.retiredLibraryArchive as Record<string, unknown>), quickNotes: (sections.notebook as Record<string, unknown>).notes }
-    : sections ? sections.library : value.library;
+    : sections && version === 8 ? sections.library : sections ? undefined : value.library;
   const addLegacyElementIds = (item: unknown, depth = 0, budget: ElementNodeBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES }): unknown => {
     if (!isRecord(item)) return item;
     if (depth > MAX_ELEMENT_DEPTH || budget.remaining <= 0) return {};

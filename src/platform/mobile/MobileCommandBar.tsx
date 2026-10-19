@@ -1,9 +1,10 @@
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
-import type { DisplayMetrics } from "../../components/AppSettingsMenu";
+import type { Tool } from "../../model";
+import { ToolbarOrderEditor } from "../../components/ToolbarOrderEditor";
 import { TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./GestureSettings";
 
 type MenuPanel = "file" | "settings" | undefined;
-type SettingsTab = "appearance" | "touch" | "help";
+type SettingsTab = "appearance" | "view" | "touch" | "help";
 
 type Props = {
   fileName: string;
@@ -37,11 +38,6 @@ type Props = {
   onExportRetiredArchive: () => void;
   onClearCanvas: () => void;
   onCloseFile: () => void;
-  themeMode: "system" | "light" | "dark";
-  accentColor: string;
-  toolbarColorChoice: string;
-  accentOptions: { label: string; value: string }[];
-  toolbarColorOptions: { label: string; value: string }[];
   interfaceScale: number;
   mobileOrientation: "landscape" | "portrait";
   toolbarPosition: "top" | "bottom" | "left" | "right";
@@ -49,15 +45,25 @@ type Props = {
   showMobileLayoutSettings: boolean;
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
-  displayMetrics: DisplayMetrics;
+  toolbarOrder: { value: Tool; label: string }[];
   onInterfaceScaleChange: (scale: number) => void;
   onMobileOrientationChange: (orientation: "landscape" | "portrait") => void;
   onToolbarPositionChange: (position: "top" | "bottom" | "left" | "right") => void;
-  onThemeChange: (mode: "system" | "light" | "dark") => void;
-  onAccentChange: (value: string) => void;
-  onToolbarColorChange: (value: string) => void;
+  onMoveToolbarTool: (tool: Tool, direction: -1 | 1) => void;
+  onReorderToolbarTool: (from: Tool, to: Tool) => void;
+  onResetToolbarOrder: () => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: "presets" | "stepper") => void;
+  appAppearance: {
+    themeMode: "system" | "light" | "dark";
+    accentColor: string;
+    toolbarColorChoice: string;
+    accentOptions: { label: string; value: string }[];
+    toolbarColorOptions: { label: string; value: string }[];
+    onThemeChange: (mode: "system" | "light" | "dark") => void;
+    onAccentChange: (value: string) => void;
+    onToolbarColorChange: (value: string) => void;
+  };
   onRestoreDefaults: () => void;
   gestureSection: "taps" | "gestures";
   onGestureSectionChange: (section: "taps" | "gestures") => void;
@@ -79,8 +85,6 @@ type Props = {
   canInstallUpdate: boolean;
   appVersion: string;
 };
-
-const scales = [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4];
 
 function ChoiceRow<T extends string | number>(props: {
   label: string;
@@ -228,26 +232,30 @@ export function MobileCommandBar(props: Props) {
         <header><div><small>PREFERENCES</small><strong>Settings</strong></div><button type="button" class="mobile-command-close" aria-label="Close settings" onClick={close}>×</button></header>
         <nav class="mobile-settings-tabs" aria-label="Settings sections">
           <button class={settingsTab() === "appearance" ? "active" : ""} aria-pressed={settingsTab() === "appearance"} onClick={() => setSettingsTab("appearance")}>App</button>
+          <button class={settingsTab() === "view" ? "active" : ""} aria-pressed={settingsTab() === "view"} onClick={() => setSettingsTab("view")}>View</button>
           <button class={settingsTab() === "touch" ? "active" : ""} aria-pressed={settingsTab() === "touch"} onClick={() => setSettingsTab("touch")}>Touch</button>
-          <button class={settingsTab() === "help" ? "active" : ""} aria-pressed={settingsTab() === "help"} onClick={() => setSettingsTab("help")}>Help &amp; updates</button>
+          <button class={settingsTab() === "help" ? "active" : ""} aria-pressed={settingsTab() === "help"} onClick={() => setSettingsTab("help")}>Help</button>
         </nav>
         <div class="mobile-settings-content">
           <Show when={settingsTab() === "appearance"}>
-            <section class="mobile-settings-section"><h3>Appearance</h3>
-              <div class="mobile-settings-field"><span>Theme</span><ChoiceRow label="Application theme" value={props.themeMode} options={[{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]} onChange={props.onThemeChange} /></div>
-              <div class="mobile-settings-field"><span>Accent color</span><div class="mobile-color-options">{props.accentOptions.map(option => <button type="button" class={props.accentColor === option.value ? "active" : ""} aria-label={option.label} aria-pressed={props.accentColor === option.value} onClick={() => props.onAccentChange(option.value)}><i style={{ "background-color": option.value }} /></button>)}<label class="mobile-custom-color" title="Custom accent color"><input type="color" aria-label="Custom accent color" value={props.accentColor} onInput={event => props.onAccentChange(event.currentTarget.value)} /><i style={{ "background-color": props.accentColor }} /></label></div></div>
-              <div class="mobile-settings-field"><span>Toolbar surface</span><div class="mobile-color-options"><button type="button" class={props.toolbarColorChoice === "auto" ? "active" : ""} aria-label="Automatic toolbar surface" aria-pressed={props.toolbarColorChoice === "auto"} onClick={() => props.onToolbarColorChange("auto")}><i class="mobile-color-auto" /></button>{props.toolbarColorOptions.map(option => <button type="button" class={props.toolbarColorChoice === option.value ? "active" : ""} aria-label={option.label} aria-pressed={props.toolbarColorChoice === option.value} onClick={() => props.onToolbarColorChange(option.value)}><i style={{ "background-color": option.value }} /></button>)}<label class="mobile-custom-color" title="Custom toolbar surface"><input type="color" aria-label="Custom toolbar surface" value={props.toolbarColorChoice === "auto" ? "#f8faf7" : props.toolbarColorChoice} onInput={event => props.onToolbarColorChange(event.currentTarget.value)} /><i style={{ "background-color": props.toolbarColorChoice === "auto" ? "#f8faf7" : props.toolbarColorChoice }} /></label></div></div>
-            </section>
             <Show when={props.showMobileLayoutSettings}><section class="mobile-settings-section"><h3>Layout</h3>
               <div class="mobile-settings-field"><span>Screen orientation</span><ChoiceRow label="Screen orientation" value={props.mobileOrientation} options={[{ value: "landscape", label: "Landscape" }, { value: "portrait", label: "Portrait" }]} onChange={props.onMobileOrientationChange} />{props.orientationMessage && <small role="status">{props.orientationMessage}</small>}</div>
               <div class="mobile-settings-field"><span>Toolbar position</span><ChoiceRow label="Toolbar position" value={props.toolbarPosition} options={[{ value: "top", label: "Top" }, { value: "bottom", label: "Bottom" }, { value: "left", label: "Left" }, { value: "right", label: "Right" }]} onChange={props.onToolbarPositionChange} /></div>
             </section></Show>
             <section class="mobile-settings-section"><h3>Application</h3>
-              <label class="mobile-settings-field"><span>Interface scale <strong>{Math.round(props.interfaceScale * 100)}%</strong></span><select aria-label="Interface scale" value={props.interfaceScale} onChange={event => props.onInterfaceScaleChange(Number(event.currentTarget.value))}>{scales.map(scale => <option value={scale}>{Math.round(scale * 100)}%</option>)}</select></label>
-              <label class="mobile-settings-field"><span>Autosave interval</span><select aria-label="Autosave interval" value={props.autosaveSeconds} onChange={event => props.onAutosaveChange(Number(event.currentTarget.value) as 5 | 10)}><option value={5}>Every 5 seconds</option><option value={10}>Every 10 seconds</option></select></label>
-              <label class="mobile-settings-field"><span>Pen and brush thickness controls</span><select aria-label="Pen and brush thickness controls" value={props.thicknessPickerMode} onChange={event => props.onThicknessPickerModeChange(event.currentTarget.value as "presets" | "stepper")}><option value="presets">Preset thicknesses</option><option value="stepper">Fine tune with slider</option></select></label>
-              <div class="mobile-display-info"><strong>Display</strong><span>{props.displayMetrics.physicalWidth} × {props.displayMetrics.physicalHeight} px</span><small>Viewport: {props.displayMetrics.viewportWidth} × {props.displayMetrics.viewportHeight} CSS px</small></div>
-              <button class="mobile-settings-reset" onClick={props.onRestoreDefaults}>Restore app defaults</button>
+              <div class="mobile-settings-field"><span>Interface scale <strong>{Math.round(props.interfaceScale * 100)}%</strong></span><ChoiceRow label="Interface scale" value={props.interfaceScale} options={[0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4].map(scale => ({ value: scale, label: `${Math.round(scale * 100)}%` }))} onChange={props.onInterfaceScaleChange} /></div>
+              <div class="mobile-settings-field"><span>Autosave interval</span><ChoiceRow label="Autosave interval" value={props.autosaveSeconds} options={[{ value: 5, label: "5 sec" }, { value: 10, label: "10 sec" }]} onChange={props.onAutosaveChange} /></div>
+              <div class="mobile-settings-field"><span>Pen thickness control</span><ChoiceRow label="Pen thickness control" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} /></div>
+              <ToolbarOrderEditor items={props.toolbarOrder} onMove={props.onMoveToolbarTool} onReorder={props.onReorderToolbarTool} onReset={props.onResetToolbarOrder} />
+              <button class="mobile-settings-reset" onClick={props.onRestoreDefaults}>Restore defaults</button>
+            </section>
+          </Show>
+
+          <Show when={settingsTab() === "view"}>
+            <section class="mobile-settings-section"><h3>Application appearance</h3>
+              <div class="mobile-settings-field"><span>Theme</span><ChoiceRow label="Theme" value={props.appAppearance.themeMode} options={[{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]} onChange={props.appAppearance.onThemeChange} /></div>
+              <div class="mobile-settings-field"><span>Accent color</span><div class="mobile-appearance-options" role="group" aria-label="Accent color">{props.appAppearance.accentOptions.map(option => <button type="button" class={props.appAppearance.accentColor === option.value ? "active" : ""} aria-label={option.label} aria-pressed={props.appAppearance.accentColor === option.value} title={option.label} onClick={() => props.appAppearance.onAccentChange(option.value)}><i style={{ "background-color": option.value }} /></button>)}<label class="mobile-appearance-custom" title="Custom accent color"><input type="color" aria-label="Custom accent color" value={props.appAppearance.accentColor} onInput={event => props.appAppearance.onAccentChange(event.currentTarget.value)} /><i style={{ "background-color": props.appAppearance.accentColor }} /></label></div></div>
+              <div class="mobile-settings-field"><span>Toolbar surface</span><div class="mobile-appearance-options" role="group" aria-label="Toolbar surface"><button type="button" class={props.appAppearance.toolbarColorChoice === "auto" ? "active" : ""} aria-pressed={props.appAppearance.toolbarColorChoice === "auto"} onClick={() => props.appAppearance.onToolbarColorChange("auto")}><i class="mobile-appearance-auto" /><span>Auto</span></button>{props.appAppearance.toolbarColorOptions.map(option => <button type="button" class={props.appAppearance.toolbarColorChoice === option.value ? "active" : ""} aria-label={option.label} aria-pressed={props.appAppearance.toolbarColorChoice === option.value} title={option.label} onClick={() => props.appAppearance.onToolbarColorChange(option.value)}><i style={{ "background-color": option.value }} /></button>)}<label class="mobile-appearance-custom" title="Custom toolbar surface"><input type="color" aria-label="Custom toolbar surface" value={props.appAppearance.toolbarColorChoice === "auto" ? "#ffffff" : props.appAppearance.toolbarColorChoice} onInput={event => props.appAppearance.onToolbarColorChange(event.currentTarget.value)} /><i style={{ "background-color": props.appAppearance.toolbarColorChoice === "auto" ? "#ffffff" : props.appAppearance.toolbarColorChoice }} /></label></div></div>
             </section>
           </Show>
 
@@ -255,15 +263,15 @@ export function MobileCommandBar(props: Props) {
             <section class="mobile-settings-section"><h3>Touch gestures</h3><p class="mobile-settings-help">Choose what taps and finger movements do on the canvas.</p>
               <div class="mobile-touch-tabs"><button class={props.gestureSection === "taps" ? "active" : ""} aria-pressed={props.gestureSection === "taps"} onClick={() => props.onGestureSectionChange("taps")}>Tap actions</button><button class={props.gestureSection === "gestures" ? "active" : ""} aria-pressed={props.gestureSection === "gestures"} onClick={() => props.onGestureSectionChange("gestures")}>Finger movement</button></div>
               <Show when={props.gestureSection === "taps"}>
-                <label class="mobile-settings-field"><span>One finger tap</span><select value={props.oneFingerTapAction} onChange={event => props.onTapChange("one", event.currentTarget.value as TouchTapAction)}>{TOUCH_TAP_ACTIONS.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
-                <label class="mobile-settings-field"><span>Two finger tap</span><select value={props.twoFingerTapAction} onChange={event => props.onTapChange("two", event.currentTarget.value as TouchTapAction)}>{TOUCH_TAP_ACTIONS.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
-                <label class="mobile-settings-field"><span>Three finger tap</span><select value={props.threeFingerTapAction} onChange={event => props.onTapChange("three", event.currentTarget.value as TouchTapAction)}>{TOUCH_TAP_ACTIONS.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
+                <div class="mobile-settings-field"><span>One finger tap</span><ChoiceRow label="One finger tap" value={props.oneFingerTapAction} options={TOUCH_TAP_ACTIONS} onChange={action => props.onTapChange("one", action)} /></div>
+                <div class="mobile-settings-field"><span>Two finger tap</span><ChoiceRow label="Two finger tap" value={props.twoFingerTapAction} options={TOUCH_TAP_ACTIONS} onChange={action => props.onTapChange("two", action)} /></div>
+                <div class="mobile-settings-field"><span>Three finger tap</span><ChoiceRow label="Three finger tap" value={props.threeFingerTapAction} options={TOUCH_TAP_ACTIONS} onChange={action => props.onTapChange("three", action)} /></div>
                 <p class="mobile-settings-help">Tap actions run only when the fingers tap without moving.</p>
               </Show>
               <Show when={props.gestureSection === "gestures"}>
-                <label class="mobile-settings-field"><span>One finger drag</span><select value={props.oneFingerDragAction} onChange={event => props.onGestureChange(1, event.currentTarget.value)}><option value="activeTool">Use active tool</option><option value="pan">Pan canvas</option></select></label>
-                <label class="mobile-settings-field"><span>Two finger movement</span><select value={props.twoFingerGestureAction} onChange={event => props.onGestureChange(2, event.currentTarget.value)}>{TOUCH_GESTURE_ACTIONS.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
-                <label class="mobile-settings-field"><span>Three finger movement</span><select value={props.threeFingerGestureAction} onChange={event => props.onGestureChange(3, event.currentTarget.value)}>{TOUCH_GESTURE_ACTIONS.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
+                <div class="mobile-settings-field"><span>One finger drag</span><ChoiceRow label="One finger drag" value={props.oneFingerDragAction} options={[{ value: "activeTool", label: "Use active tool" }, { value: "pan", label: "Pan canvas" }]} onChange={action => props.onGestureChange(1, action)} /></div>
+                <div class="mobile-settings-field"><span>Two finger movement</span><ChoiceRow label="Two finger movement" value={props.twoFingerGestureAction} options={TOUCH_GESTURE_ACTIONS} onChange={action => props.onGestureChange(2, action)} /></div>
+                <div class="mobile-settings-field"><span>Three finger movement</span><ChoiceRow label="Three finger movement" value={props.threeFingerGestureAction} options={TOUCH_GESTURE_ACTIONS} onChange={action => props.onGestureChange(3, action)} /></div>
                 <p class="mobile-settings-help">Stylus input continues to use the active tool.</p>
               </Show>
             </section>

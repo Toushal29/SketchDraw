@@ -1,5 +1,5 @@
 import type { Point, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, ShapeElement } from "../../model";
-import { extraFlowchartPath } from "../../operations";
+import { extraFlowchartDetailPath, extraFlowchartPath } from "../../operations";
 
 const connectorCache = new WeakMap<ShapeElement, Map<string, Point[][]>>();
 
@@ -55,7 +55,7 @@ export function traceFlowchart(ctx: CanvasRenderingContext2D, shape: FlowchartSh
     ctx.bezierCurveTo(mid - k * rx, bottom, left, bottom - ry + k * ry, left, bottom - ry);
     ctx.closePath();
   }
-  else if (shape === "predefined-process") { const inset = Math.min(width * .18, 12); ctx.rect(left, top, width, height); ctx.moveTo(left + inset, top); ctx.lineTo(left + inset, bottom); ctx.moveTo(right - inset, top); ctx.lineTo(right - inset, bottom); }
+  else if (shape === "predefined-process") ctx.rect(left, top, width, height);
   else if (shape === "preparation") { const inset = Math.min(width * .2, 18); ctx.moveTo(left + inset, top); ctx.lineTo(right - inset, top); ctx.lineTo(right, top + height / 2); ctx.lineTo(right - inset, bottom); ctx.lineTo(left + inset, bottom); ctx.lineTo(left, top + height / 2); ctx.closePath(); }
   else { const inset = Math.min(width * .22, height * .45); ctx.moveTo(left + inset, top); ctx.lineTo(right, top); ctx.lineTo(right, bottom); ctx.lineTo(left, bottom); ctx.closePath(); }
 }
@@ -64,15 +64,17 @@ export function flowchartPathObject(shape: FlowchartShape, x: number, y: number,
   const source = extraFlowchartPath(shape, left, top, Math.abs(w), Math.abs(h));
   return source ? new Path2D(source) : undefined;
 }
-export function traceFlowchartDetails(ctx: CanvasRenderingContext2D, shape: FlowchartShape, x: number, y: number, w: number, h: number) {
-  if (shape !== "database") return;
+export function flowchartDetailPathObject(shape: FlowchartShape, x: number, y: number, w: number, h: number): Path2D | undefined {
   const left = Math.min(x, x + w); const top = Math.min(y, y + h); const width = Math.abs(w); const height = Math.abs(h);
-  if (width < 1 || height < 1) return;
-  const rim = flowchartDatabaseRimPath(left, top, width, height);
-  // Rendering uses a Path2D so the rim never replaces the current canvas path.
-  ctx.save();
-  ctx.stroke(rim);
-  ctx.restore();
+  if (shape === "database") return width >= 1 && height >= 1 ? flowchartDatabaseRimPath(left, top, width, height) : undefined;
+  const detail = shape === "predefined-process"
+    ? `M ${left + Math.min(width * .18, 12)} ${top} V ${top + height} M ${left + width - Math.min(width * .18, 12)} ${top} V ${top + height}`
+    : extraFlowchartDetailPath(shape, left, top, width, height);
+  return detail ? new Path2D(detail) : undefined;
+}
+export function traceFlowchartDetails(ctx: CanvasRenderingContext2D, shape: FlowchartShape, x: number, y: number, w: number, h: number) {
+  const detail = flowchartDetailPathObject(shape, x, y, w, h);
+  if (detail) ctx.stroke(detail);
 }
 export function flowchartDatabaseRimPath(left: number, top: number, width: number, height: number): Path2D {
   const ry = Math.min(height * .18, width * .25); const mid = left + width / 2; const right = left + width; const rx = width / 2; const k = .55228475;
@@ -245,7 +247,7 @@ export function flowchartSvgPath(element: ShapeElement): string {
     const ry = Math.min(height * .18, width * .25); const rx = width / 2; const k = .55228475;
     return `M ${left} ${top + ry} C ${left} ${top + ry - k * ry}, ${middle - k * rx} ${top}, ${middle} ${top} C ${middle + k * rx} ${top}, ${right} ${top + ry - k * ry}, ${right} ${top + ry} V ${bottom - ry} C ${right} ${bottom - ry + k * ry}, ${middle + k * rx} ${bottom}, ${middle} ${bottom} C ${middle - k * rx} ${bottom}, ${left} ${bottom - ry + k * ry}, ${left} ${bottom - ry} Z`;
   }
-  if (shape === "predefined-process") { const inset = Math.min(width * .18, 12); return `M ${left} ${top} H ${right} V ${bottom} H ${left} Z M ${left + inset} ${top} V ${bottom} M ${right - inset} ${top} V ${bottom}`; }
+  if (shape === "predefined-process") return `M ${left} ${top} H ${right} V ${bottom} H ${left} Z`;
   if (shape === "preparation") { const inset = Math.min(width * .2, 18); return `M ${left + inset} ${top} H ${right - inset} L ${right} ${top + height / 2} L ${right - inset} ${bottom} H ${left + inset} L ${left} ${top + height / 2} Z`; }
   if (shape === "manual-input") return `M ${left + Math.min(width * .22, height * .45)} ${top} H ${right} V ${bottom} H ${left} V ${top + Math.min(width * .22, height * .45)} Z`;
   return `M ${left} ${top} H ${right} V ${bottom} H ${left} Z`;
@@ -257,9 +259,13 @@ export function vectorFlowchartPath(element: ShapeElement): string {
   return flowchartSvgPath(element);
 }
 export function flowchartSvgDetailPath(element: ShapeElement): string {
-  if ((element.flowchartShape ?? "process") !== "database") return "";
+  const shape = element.flowchartShape ?? "process";
   const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const width = Math.abs(element.w); const height = Math.abs(element.h); const ry = Math.min(height * .18, width * .25);
   if (width < 1 || height < 1) return "";
+  if (shape === "predefined-process") { const inset = Math.min(width * .18, 12); return `M ${left + inset} ${top} V ${top + height} M ${left + width - inset} ${top} V ${top + height}`; }
+  const extraDetail = extraFlowchartDetailPath(shape, left, top, width, height);
+  if (extraDetail) return extraDetail;
+  if (shape !== "database") return "";
   const middle = left + width / 2; const right = left + width; const rx = width / 2; const k = .55228475;
   return `M ${left} ${top + ry} C ${left} ${top + ry + k * ry}, ${middle - k * rx} ${top + 2 * ry}, ${middle} ${top + 2 * ry} C ${middle + k * rx} ${top + 2 * ry}, ${right} ${top + ry + k * ry}, ${right} ${top + ry}`;
 }

@@ -12,7 +12,7 @@ mod android_updater;
 mod orientation;
 
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
-const CURRENT_SKETCH_FORMAT_VERSION: u64 = 9;
+const CURRENT_SKETCH_FORMAT_VERSION: u64 = 10;
 
 fn validate_document(contents: &str, extension: &str) -> Result<(), String> {
     let document: serde_json::Value = serde_json::from_str(contents).map_err(|e| e.to_string())?;
@@ -283,6 +283,23 @@ fn is_recent_sketch_path(path: &str) -> bool {
             .is_some_and(|extension| extension.eq_ignore_ascii_case("sketch"))
 }
 
+fn recent_sketch_identity(path: &str) -> String {
+    if path.to_lowercase().starts_with("content://") {
+        return path.trim().to_string();
+    }
+    let mut normalized = path.trim().replace('/', "\\");
+    if normalized.to_lowercase().starts_with("\\\\?\\unc\\") {
+        normalized = format!("\\\\{}", &normalized[8..]);
+    } else if normalized.starts_with("\\\\?\\") {
+        normalized = normalized[4..].to_string();
+    }
+    if cfg!(windows) {
+        normalized.to_lowercase()
+    } else {
+        normalized
+    }
+}
+
 #[tauri::command]
 fn load_recent_sketches(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     let path = app
@@ -297,11 +314,12 @@ fn load_recent_sketches(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     };
     let paths: Vec<String> = serde_json::from_str(&contents).unwrap_or_default();
     let mut recent = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     for path in paths.into_iter().filter(|path| is_recent_sketch_path(path)) {
         if path.to_lowercase().starts_with("content://") {
             let _ = app.fs_scope().allow_file(std::path::PathBuf::from(&path));
         }
-        if !recent.contains(&path) {
+        if seen.insert(recent_sketch_identity(&path)) {
             recent.push(path);
         }
         if recent.len() == 8 {
@@ -320,8 +338,9 @@ fn save_recent_sketches(app: tauri::AppHandle, paths: Vec<String>) -> Result<(),
     std::fs::create_dir_all(&directory)
         .map_err(|error| format!("Could not create app storage: {error}"))?;
     let mut recent = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     for path in paths.into_iter().filter(|path| is_recent_sketch_path(path)) {
-        if !recent.contains(&path) {
+        if seen.insert(recent_sketch_identity(&path)) {
             recent.push(path);
         }
         if recent.len() == 8 {
@@ -423,7 +442,7 @@ mod tests {
 
     #[test]
     fn accepts_current_sketch_format() {
-        assert!(validate_document(r#"{"format":"SketchDraw","version":9}"#, "sketch").is_ok());
+        assert!(validate_document(r#"{"format":"SketchDraw","version":10}"#, "sketch").is_ok());
     }
 
     #[test]

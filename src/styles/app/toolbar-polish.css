@@ -1,14 +1,14 @@
 /* Route every click on an option's artwork to its full button hit area. */
-.tool-icon-button > svg:not(.tool-family-caret),
-.tool-options button > *,
-.quick-style-icon > *,
-.quick-arrow-heads button > *,
-.connector-route-buttons button > *,
-.arrow-head-choices button > * {
+.tool-icon-button>svg:not(.tool-family-caret),
+.tool-options button>*,
+.quick-style-icon>*,
+.quick-arrow-heads button>*,
+.connector-route-buttons button>*,
+.arrow-head-choices button>* {
     pointer-events: none;
 }
 
-.tool-icon-button > .tool-family-caret {
+.tool-icon-button>.tool-family-caret {
     pointer-events: auto;
 }
 
@@ -119,7 +119,7 @@
 
 .tool-icon-button kbd {
     color: var(--theme-text-secondary);
-    font: 8px 'DM Mono', monospace;
+    font: var(--font-size-micro) var(--font-mono);
     line-height: 10px;
 }
 
@@ -147,8 +147,8 @@
     height: 50px;
 }
 
-.tool-family.options-open > .tool-icon-button,
-.tool-family:focus-within > .tool-icon-button {
+.tool-family.options-open>.tool-icon-button,
+.tool-family:focus-within>.tool-icon-button {
     border-color: var(--theme-primary-border);
     color: var(--theme-primary);
     background: var(--theme-primary-muted);
@@ -174,13 +174,13 @@
     background: transparent;
 }
 
-.tool-options:not(.stencil-options) button > svg {
+.tool-options:not(.stencil-options) button>svg {
     width: 27px;
     height: 27px;
     color: inherit;
 }
 
-.tool-options:not(.stencil-options) button > span {
+.tool-options:not(.stencil-options) button>span {
     color: inherit;
     font-size: 10px;
     line-height: 1.25;
@@ -222,7 +222,7 @@
 
 .canvas-utility-button kbd {
     color: var(--theme-text-secondary);
-    font: 8px 'DM Mono', monospace;
+    font: var(--font-size-micro) var(--font-mono);
     line-height: 10px;
     white-space: nowrap;
 }
@@ -243,4 +243,3 @@
         min-width: 37px;
     }
 }
-

@@ -48,7 +48,7 @@
         color: var(--theme-text-tertiary);
         background: var(--quick-color);
         cursor: pointer;
-        font: 700 14px/1 system-ui, sans-serif;
+        font: 700 14px/1 var(--font-ui);
         text-shadow: 0 1px 3px var(--theme-shadow);
     }
 
@@ -78,7 +78,7 @@
         border-radius: 8px;
         color: var(--toolbar-ink, var(--theme-text-primary));
         background: var(--touch-glass);
-        font: 700 8px 'DM Mono', monospace;
+        font: 700 var(--font-size-micro) var(--font-mono);
         touch-action: manipulation;
     }
 
@@ -294,7 +294,7 @@
         border-radius: 9px;
         color: var(--touch-muted);
         background: var(--touch-glass);
-        font: 700 9px 'DM Mono', monospace;
+        font: 700 9px var(--font-mono);
     }
 
     .app-shell:not(.platform-windows) .touch-quick-width-preview i {
@@ -327,7 +327,7 @@
         border-radius: 9px;
         color: inherit;
         background: var(--touch-glass);
-        font: 9px 'DM Mono', monospace;
+        font: 9px var(--font-mono);
     }
 
     .app-shell:not(.platform-windows) .touch-quick-width-presets button.active {

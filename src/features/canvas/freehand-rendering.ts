@@ -8,10 +8,17 @@ type StrokeCache = {
   length: number;
   pressureAware: boolean;
   preview: Path2D;
-  previewWidthTotal: number;
   pressureOutline?: Path2D;
+  pressurePrefix?: Path2D;
+  pressureTail?: StrokePoint[];
+  pressureCommittedLength: number;
   pressureThickness?: number;
+  pressureLastPoint?: StrokePoint;
+  pressureFinal?: boolean;
   pressureLength: number;
+  committedPairs: number;
+  started: boolean;
+  lastPoint?: StrokePoint;
   complete?: Path2D;
   left: number;
   top: number;
@@ -21,33 +28,37 @@ type StrokeCache = {
 };
 
 const midpoint = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-const newCache = (pressureAware = false): StrokeCache => ({ length: 0, pressureAware, preview: new Path2D(), previewWidthTotal: 0, pressureLength: 0, left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, maxWidth: 1 });
+const newCache = (pressureAware = false): StrokeCache => ({ length: 0, pressureAware, preview: new Path2D(), pressureLength: 0, pressureCommittedLength: 0, committedPairs: 0, started: false, left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, maxWidth: 1 });
 
-function appendPressureSample(path: Path2D, points: StrokePoint[], index: number, thickness: number) {
-  const point = points[index]; const radius = Math.max(.25, stylusStrokeWidth(point, thickness) / 2);
-  if (index === 0) {
-    const width = radius * 2; const tilt = Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90);
-    path.ellipse(point.x, point.y, Math.max(.25, width * (.5 + tilt * .35)), Math.max(.25, width * .5), Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0), 0, Math.PI * 2);
-    return;
+function pressureOutlinePath(points: StrokePoint[], thickness: number, last: boolean) {
+  const outline = getStroke(points.map(point => [point.x, point.y, Math.max(.01, Math.min(1, stylusStrokeWidth(point, 1) / 2))] as [number, number, number]), {
+    size: Math.max(.5, thickness * 2), thinning: 1, smoothing: .55, streamline: 0, simulatePressure: false, last,
+  });
+  const path = new Path2D();
+  if (!outline.length) return path;
+  const first = outline[0]; const end = outline[outline.length - 1];
+  path.moveTo((end[0] + first[0]) / 2, (end[1] + first[1]) / 2);
+  for (let index = 0; index < outline.length; index++) {
+    const point = outline[index]; const next = outline[(index + 1) % outline.length];
+    path.quadraticCurveTo(point[0], point[1], (point[0] + next[0]) / 2, (point[1] + next[1]) / 2);
   }
-  if (index > 0) {
-    const previous = points[index - 1]; const previousRadius = Math.max(.25, stylusStrokeWidth(previous, thickness) / 2);
-    const dx = point.x - previous.x; const dy = point.y - previous.y; const length = Math.hypot(dx, dy);
-    if (length > 0) {
-      const nx = -dy / length; const ny = dx / length;
-      path.moveTo(previous.x + nx * previousRadius, previous.y + ny * previousRadius);
-      path.lineTo(point.x + nx * radius, point.y + ny * radius);
-      path.lineTo(point.x - nx * radius, point.y - ny * radius);
-      path.lineTo(previous.x - nx * previousRadius, previous.y - ny * previousRadius);
-      path.closePath();
-    }
-  }
-  path.moveTo(point.x + radius, point.y);
-  path.arc(point.x, point.y, radius, 0, Math.PI * 2);
   path.closePath();
+  return path;
 }
 
-type StrokePath = Pick<Path2D, "moveTo" | "lineTo" | "quadraticCurveTo">;
+/** Keep the unfinished end separate so a replaced last sample never leaves stale geometry behind. */
+function strokeTail(points: StrokePoint[]) {
+  if (points.length < 2) return undefined;
+  const length = points.length; const previous = points[length - 2]; const last = points[length - 1];
+  const start = length === 2 ? points[0] : midpoint(points[length - 3], previous);
+  const middle = midpoint(previous, last); const path = new Path2D();
+  path.moveTo(start.x, start.y);
+  path.quadraticCurveTo(previous.x, previous.y, middle.x, middle.y);
+  path.quadraticCurveTo(last.x, last.y, last.x, last.y);
+  return path;
+}
+
+type StrokePath = Pick<Path2D, "moveTo" | "quadraticCurveTo">;
 
 /** Retains incremental paths and a bounded raster cache for long strokes. */
 export function createFreehandRenderer() {
@@ -56,8 +67,6 @@ export function createFreehandRenderer() {
   const rasters = new Map<StrokePoint[], Raster>();
   const rasterBudget = 24 * 1024 * 1024;
   let rasterBytes = 0;
-  type PreviewLayer = { points: StrokePoint[]; canvas: HTMLCanvasElement; context: CanvasRenderingContext2D; length: number; ink: string; thickness: number; transform: [number, number, number, number, number, number] };
-  let previewLayer: PreviewLayer | undefined;
 
   function releaseRaster(points: StrokePoint[]) {
     const raster = rasters.get(points); if (!raster) return;
@@ -103,91 +112,76 @@ export function createFreehandRenderer() {
     return true;
   }
 
-  function pathsFor(points: StrokePoint[], thickness: number) {
+  function includePoint(cache: StrokeCache, point: StrokePoint) {
+    cache.left = Math.min(cache.left, point.x); cache.top = Math.min(cache.top, point.y);
+    cache.right = Math.max(cache.right, point.x); cache.bottom = Math.max(cache.bottom, point.y);
+    cache.maxWidth = Math.max(cache.maxWidth, stylusStrokeWidth(point, 1));
+  }
+
+  function pathsFor(points: StrokePoint[], thickness: number, preview: boolean) {
     let cache = caches.get(points);
     if (!cache || points.length < cache.length) { cache = newCache(); caches.set(points, cache); }
-    if (cache.pressureAware && cache.pressureThickness !== thickness) {
-      cache.pressureOutline = new Path2D(); cache.pressureThickness = thickness; cache.pressureLength = 0;
-      while (cache.pressureLength < points.length) {
-        appendPressureSample(cache.pressureOutline, points, cache.pressureLength, thickness);
-        cache.pressureLength++;
-      }
-    }
-    if (cache.length === points.length) return cache;
-    for (let index = cache.length; index < points.length; index++) {
+    const previousLength = cache.length; const previousLastPoint = cache.lastPoint;
+    const lastPoint = points[points.length - 1]; const tailChanged = previousLastPoint !== lastPoint;
+    for (let index = Math.max(0, previousLength - 1); index < points.length; index++) {
       const point = points[index];
       const hasPressure = point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined;
-      if (hasPressure && !cache.pressureAware && index > 0) {
-        cache = newCache(true); caches.set(points, cache); index = -1; continue;
-      }
       cache.pressureAware ||= hasPressure;
-      cache.left = Math.min(cache.left, point.x); cache.top = Math.min(cache.top, point.y);
-      cache.right = Math.max(cache.right, point.x); cache.bottom = Math.max(cache.bottom, point.y);
-      cache.maxWidth = Math.max(cache.maxWidth, stylusStrokeWidth(point, 1));
-      cache.previewWidthTotal += stylusStrokeWidth(point, 1);
-      if (index === 0) cache.preview.moveTo(point.x, point.y);
-      else {
-        cache.preview.lineTo(point.x, point.y);
+      includePoint(cache, point);
+    }
+    // Simplification may replace the latest sample without increasing length.
+    // Keep the curve tail live while leaving already completed segments cached.
+    if (tailChanged) cache.complete = undefined;
+    if (!cache.started && points.length) { cache.preview.moveTo(points[0].x, points[0].y); cache.started = true; }
+    if (cache.pressureAware) {
+      const pressureFinal = !preview;
+      if (cache.pressureThickness !== thickness || points.length < cache.pressureLength) {
+        cache.pressurePrefix = new Path2D(); cache.pressureTail = undefined; cache.pressureCommittedLength = 0; cache.pressureOutline = undefined;
       }
-      cache.length = index + 1;
-      if (cache.pressureAware) {
-        if (cache.pressureThickness !== thickness) {
-          cache.pressureOutline = new Path2D(); cache.pressureThickness = thickness; cache.pressureLength = 0;
+      if (preview) {
+        // Keep the expensive pressure outline calculation bounded during a live
+        // stroke. Completed chunks have overlap for smooth joins; only the small
+        // moving tail is rebuilt as pointer samples arrive.
+        while (points.length - cache.pressureCommittedLength >= 36) {
+          const end = cache.pressureCommittedLength + 24;
+          const start = Math.max(0, cache.pressureCommittedLength - 8);
+          cache.pressurePrefix ??= new Path2D();
+          cache.pressurePrefix.addPath(pressureOutlinePath(points.slice(start, end), thickness, false));
+          cache.pressureCommittedLength = end;
         }
-        while (cache.pressureLength < points.length) {
-          appendPressureSample(cache.pressureOutline!, points, cache.pressureLength, thickness);
-          cache.pressureLength++;
+        const tailStart = Math.max(0, cache.pressureCommittedLength - 8);
+        const tail = points.slice(tailStart);
+        const tailChanged = !cache.pressureTail || cache.pressureTail.length !== tail.length || tail.some((point, index) => point !== cache.pressureTail![index]);
+        if (!cache.pressureOutline || tailChanged || cache.pressureFinal !== pressureFinal || cache.pressureThickness !== thickness) {
+          cache.pressureOutline = pressureOutlinePath(tail, thickness, false);
         }
+        cache.pressureTail = tail;
+      } else if (!cache.pressureOutline || cache.pressureLength !== points.length || cache.pressureLastPoint !== lastPoint || cache.pressureFinal !== pressureFinal || cache.pressureThickness !== thickness) {
+        cache.pressurePrefix = undefined; cache.pressureTail = undefined; cache.pressureCommittedLength = 0;
+        cache.pressureOutline = pressureOutlinePath(points, thickness, true);
+      }
+      if (cache.pressureOutline) {
+        cache.pressureLength = points.length; cache.pressureThickness = thickness; cache.pressureLastPoint = lastPoint; cache.pressureFinal = pressureFinal;
+      }
+    } else {
+      // Commit only curves that no longer touch the replaceable final two samples.
+      while (cache.committedPairs < points.length - 2) {
+        const index = cache.committedPairs; const from = points[index]; const to = points[index + 1]; const middle = midpoint(from, to);
+        cache.preview.quadraticCurveTo(from.x, from.y, middle.x, middle.y);
+        cache.committedPairs++;
       }
     }
+    cache.length = points.length; cache.lastPoint = lastPoint;
     return cache;
   }
 
-  function finalizePaths(cache: StrokeCache) {
+  function finalizePaths(cache: StrokeCache, points: StrokePoint[]) {
     if (!cache.pressureAware && !cache.complete) {
       // Use the same path before and after pen-up so the stroke does not jump.
-      cache.complete = new Path2D(cache.preview);
+      const complete = new Path2D(cache.preview); const tail = strokeTail(points);
+      if (tail) complete.addPath(tail);
+      cache.complete = complete;
     }
-  }
-
-  function drawPressurePreview(ctx: CanvasRenderingContext2D, element: FreehandElement, ink: string) {
-    const targetWidth = ctx.canvas.width; const targetHeight = ctx.canvas.height;
-    const transform = ctx.getTransform();
-    const scale = Math.min(1, Math.sqrt((4 * 1024 * 1024) / Math.max(1, targetWidth * targetHeight * 4)));
-    const signature: [number, number, number, number, number, number] = [transform.a * scale, transform.b * scale, transform.c * scale, transform.d * scale, transform.e * scale, transform.f * scale];
-    let surface = previewLayer;
-    const matches = surface && surface.points === element.points && surface.canvas.width === Math.max(1, Math.round(targetWidth * scale)) && surface.canvas.height === Math.max(1, Math.round(targetHeight * scale)) && surface.ink === ink && surface.thickness === element.thickness && surface.transform.every((value, index) => value === signature[index]) && surface.length <= element.points.length;
-    if (!matches) {
-      const canvas = surface?.canvas ?? document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(targetWidth * scale)); canvas.height = Math.max(1, Math.round(targetHeight * scale));
-      const context = canvas.getContext("2d");
-      if (!context) return;
-      context.setTransform(1, 0, 0, 1, 0, 0); context.clearRect(0, 0, canvas.width, canvas.height);
-      surface = previewLayer = { points: element.points, canvas, context, length: 0, ink, thickness: element.thickness, transform: signature };
-    }
-    if (!surface) return;
-    if (surface.length < element.points.length) {
-      const additions = new Path2D();
-      for (let index = surface.length; index < element.points.length; index++) appendPressureSample(additions, element.points, index, element.thickness);
-      surface.context.setTransform(...signature); surface.context.fillStyle = ink; surface.context.globalAlpha = 1; surface.context.fill(additions);
-      surface.length = element.points.length;
-    }
-    ctx.save(); const opacity = ctx.globalAlpha; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = opacity;
-    ctx.drawImage(surface.canvas, 0, 0, targetWidth, targetHeight); ctx.restore();
-  }
-
-  function drawRetainedPreview(ctx: CanvasRenderingContext2D, element: FreehandElement, ink: string) {
-    const surface = previewLayer;
-    if (!surface || surface.points !== element.points || surface.ink !== ink || surface.thickness !== element.thickness || surface.length !== element.points.length) return false;
-    const targetWidth = ctx.canvas.width; const targetHeight = ctx.canvas.height;
-    const scale = Math.min(1, Math.sqrt((4 * 1024 * 1024) / Math.max(1, targetWidth * targetHeight * 4)));
-    if (surface.canvas.width !== Math.max(1, Math.round(targetWidth * scale)) || surface.canvas.height !== Math.max(1, Math.round(targetHeight * scale))) return false;
-    const transform = ctx.getTransform();
-    const signature = [transform.a * scale, transform.b * scale, transform.c * scale, transform.d * scale, transform.e * scale, transform.f * scale];
-    if (!surface.transform.every((value, index) => value === signature[index])) return false;
-    ctx.save(); const opacity = ctx.globalAlpha; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = opacity;
-    ctx.drawImage(surface.canvas, 0, 0, targetWidth, targetHeight); ctx.restore();
-    return true;
   }
 
   function paint(ctx: CanvasRenderingContext2D, element: FreehandElement, cache: StrokeCache, ink: string) {
@@ -199,15 +193,18 @@ export function createFreehandRenderer() {
       ctx.ellipse(point.x, point.y, Math.max(.25, width * (.5 + tilt * .35)), Math.max(.25, width * .5), Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0), 0, Math.PI * 2);
       ctx.fill();
     } else if (cache.pressureAware) {
-      if (cache.pressureOutline) ctx.fill(cache.pressureOutline);
+      if (cache.pressureOutline) {
+        const path = cache.pressurePrefix ? new Path2D(cache.pressurePrefix) : new Path2D();
+        path.addPath(cache.pressureOutline); ctx.fill(path);
+      }
     } else {
-      ctx.lineWidth = element.thickness; ctx.stroke(cache.complete!);
+      ctx.lineWidth = element.thickness; ctx.stroke(cache.complete ?? cache.preview);
     }
   }
 
   function draw(ctx: CanvasRenderingContext2D, element: FreehandElement, ink: string, cacheRaster = true, preview = false) {
     if (!element.points.length || ctx.globalAlpha === 0) return;
-    const cache = pathsFor(element.points, element.thickness);
+    const cache = pathsFor(element.points, element.thickness, preview);
     if (preview) {
       ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.setLineDash([]);
       if (element.points.length === 1) {
@@ -215,21 +212,23 @@ export function createFreehandRenderer() {
         const tilt = Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90);
         ctx.beginPath(); ctx.ellipse(point.x, point.y, Math.max(.25, width * (.5 + tilt * .35)), Math.max(.25, width * .5), Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0), 0, Math.PI * 2); ctx.fill();
       } else if (cache.pressureAware && cache.pressureOutline) {
-        drawPressurePreview(ctx, element, ink);
+        const path = cache.pressurePrefix ? new Path2D(cache.pressurePrefix) : new Path2D();
+        path.addPath(cache.pressureOutline); ctx.fill(path);
       } else {
-        const averageWidth = cache.previewWidthTotal / Math.max(1, cache.length);
-        ctx.lineWidth = Math.max(.5, element.thickness * averageWidth); ctx.stroke(cache.preview);
+        const tail = strokeTail(element.points);
+        const path = new Path2D(cache.preview);
+        if (tail) path.addPath(tail);
+        ctx.lineWidth = Math.max(.5, element.thickness); ctx.stroke(path);
       }
       return;
     }
-    if (cache.pressureAware && drawRetainedPreview(ctx, element, ink)) return;
-    finalizePaths(cache);
+    finalizePaths(cache, element.points);
     if (cacheRaster && drawRaster(ctx, element, cache, ink)) return;
     paint(ctx, element, cache, ink);
   }
 
   function clearRasterCache() { for (const points of rasters.keys()) releaseRaster(points); }
-  function dispose() { clearRasterCache(); if (previewLayer) { previewLayer.canvas.width = 0; previewLayer.canvas.height = 0; previewLayer = undefined; } }
+  function dispose() { clearRasterCache(); }
 
   return { draw, clearRasterCache, dispose };
 }
@@ -237,7 +236,6 @@ export function createFreehandRenderer() {
 class SvgStrokePath implements StrokePath {
   private commands: string[] = [];
   moveTo(x: number, y: number) { this.commands.push(`M ${x} ${y}`); }
-  lineTo(x: number, y: number) { this.commands.push(`L ${x} ${y}`); }
   quadraticCurveTo(cx: number, cy: number, x: number, y: number) { this.commands.push(`Q ${cx} ${cy} ${x} ${y}`); }
   toString() { return this.commands.join(" "); }
 }
@@ -256,9 +254,18 @@ export function freehandSvg(element: FreehandElement, color: string): string {
   const pressureAware = points.some(point => point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined);
   if (pressureAware) {
     const outline = getStroke(points.map(point => [point.x, point.y, Math.max(.01, Math.min(1, stylusStrokeWidth(point, 1) / 2))] as [number, number, number]), {
-      size: Math.max(.5, element.thickness * 2), thinning: 1, smoothing: .55, streamline: .4, simulatePressure: false, last: true,
+      size: Math.max(.5, element.thickness * 2), thinning: 1, smoothing: .55, streamline: 0, simulatePressure: false, last: true,
     });
-    const path = outline.length ? `M ${outline.map(point => `${point[0]} ${point[1]}`).join(" L ")} Z` : "";
+    let path = "";
+    if (outline.length) {
+      const first = outline[0]; const last = outline[outline.length - 1];
+      const commands = [`M ${(last[0] + first[0]) / 2} ${(last[1] + first[1]) / 2}`];
+      for (let index = 0; index < outline.length; index++) {
+        const point = outline[index]; const next = outline[(index + 1) % outline.length];
+        commands.push(`Q ${point[0]} ${point[1]} ${(point[0] + next[0]) / 2} ${(point[1] + next[1]) / 2}`);
+      }
+      commands.push("Z"); path = commands.join(" ");
+    }
     return `<path d="${path}" fill="${ink}" opacity="${element.opacity ?? 1}"/>`;
   }
   const paths = new Map<number, SvgStrokePath>(); const body = new SvgStrokePath();
@@ -268,6 +275,6 @@ export function freehandSvg(element: FreehandElement, color: string): string {
     body.quadraticCurveTo(previous.x, previous.y, to.x, to.y);
   }
   const last = points[points.length - 1];
-  body.lineTo(last.x, last.y); paths.set(1, body);
+  body.quadraticCurveTo(last.x, last.y, last.x, last.y); paths.set(1, body);
   return `<g fill="none" stroke="${ink}" opacity="${element.opacity ?? 1}" stroke-linecap="round" stroke-linejoin="round">${[...paths].map(([width, path]) => `<path d="${path}" stroke-width="${Math.max(.35, width * element.thickness)}"/>`).join("")}</g>`;
 }

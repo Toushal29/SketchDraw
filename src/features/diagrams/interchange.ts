@@ -4,6 +4,7 @@ const MAX_IMPORT_BYTES = 25_000_000;
 const MAX_IMPORTED_POINTS = 250_000;
 const MAX_IMPORT_LABEL = 50_000;
 const FLOWCHART_SHAPES = new Set(["process", "terminator", "decision", "data", "document", "database", "predefined-process", "preparation", "manual-input", "connector", "off-page", "delay", "manual-operation", "stored-data", "cloud", "star", "lightning", "heart", "callout", "gear", "hexagon", "parallelogram", "trapezoid", "pentagon", "octagon", "chevron", "cross", "folder", "note", "display", "cube", "rounded-rectangle", "shield"]);
+const DRAWIO_FLOWCHART_SHAPES: Record<string, NonNullable<ShapeElement["flowchartShape"]>> = { parallelogram: "data", cylinder: "database", cloud: "cloud", document: "document", hexagon: "hexagon", callout: "callout", "mxgraph.flowchart.decision": "decision", "mxgraph.flowchart.terminator": "terminator", "mxgraph.flowchart.process": "process", "mxgraph.flowchart.database": "database", "mxgraph.flowchart.document": "document", "mxgraph.flowchart.data": "data" };
 const id = (prefix: string) => `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
 const finite = (value: unknown, fallback = 0) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -37,6 +38,33 @@ function plainLabel(value: string): string {
 
 function validText(value: unknown, max = 50_000): value is string {
   return typeof value === "string" && value.length <= max;
+}
+
+function drawioLineStyle(style: Record<string, string>): "solid" | "dashed" | "dotted" {
+  if (style.dashed !== "1") return "solid";
+  return /^(?:1\s+1|1\s+2|2\s+2|3\s+1)$/.test(style.dashPattern?.trim() ?? "") ? "dotted" : "dashed";
+}
+
+function drawioHead(value: string | undefined): ShapeElement["startHead"] {
+  if (!value || value === "none") return "none";
+  if (value === "open") return "open";
+  if (value === "diamond") return "diamond";
+  if (value === "oval") return "dot";
+  if (value === "ERone") return "bar";
+  if (value === "ERmany") return "crow";
+  if (value === "block") return "thick";
+  return "solid";
+}
+
+function mxHead(value: ShapeElement["startHead"]): string {
+  if (!value || value === "none") return "none";
+  if (value === "open") return "open";
+  if (value === "diamond" || value === "open-diamond") return "diamond";
+  if (value === "dot") return "oval";
+  if (value === "bar") return "ERone";
+  if (value === "crow") return "ERmany";
+  if (value === "thick") return "block";
+  return "classic";
 }
 
 function shapeFromExternal(record: Record<string, unknown>, kind: string, files?: Record<string, unknown>): CanvasElement | undefined {
@@ -81,6 +109,12 @@ function shapeFromExternal(record: Record<string, unknown>, kind: string, files?
     if (points.length < 2) return undefined;
     return { type: "freehand", id: elementId, points, color, thickness, opacity };
   }
+  if (type === "svgpath") {
+    const custom = record.customData && typeof record.customData === "object" ? record.customData as Record<string, unknown> : {};
+    const pathData = custom.svgPathData; const pathWidth = finite(custom.svgPathWidth); const pathHeight = finite(custom.svgPathHeight);
+    if (typeof pathData !== "string" || pathData.length > 500_000 || !/^[\d\s.,+\-eEmlhvcsqtazMLHVCSQTAZ]+$/.test(pathData) || pathWidth <= 0 || pathHeight <= 0 || pathWidth > 100_000 || pathHeight > 100_000) return undefined;
+    return { type: "svgPath", id: elementId, x, y, w, h, color, thickness, pathData, pathWidth, pathHeight, fillRule: custom.svgFillRule === "evenodd" ? "evenodd" : "nonzero", svgStroke: custom.svgStroke !== false, ...(fill !== "transparent" ? { fillColor: fill, fillOpacity: clamp(finite(custom.svgFillOpacity, 1), 0, 1) } : {}), opacity, ...(rotation ? { rotation } : {}) };
+  }
   if (["rectangle", "ellipse", "diamond", "triangle", "flowchart", "line", "arrow"].includes(type)) {
     const pointsRaw = Array.isArray(record.points) ? record.points : undefined;
     let routePoints: Point[] | undefined;
@@ -90,7 +124,7 @@ function shapeFromExternal(record: Record<string, unknown>, kind: string, files?
     if (elementType === "line" || elementType === "arrow") {
       if (routePoints && routePoints.length >= 2) {
         const start = routePoints[0]; const end = routePoints[routePoints.length - 1];
-        return { type: elementType, id: elementId, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color, thickness, lineStyle: strokeStyle, startHead: record.startArrowhead === "arrow" ? "solid" : "none", endHead: record.endArrowhead === "arrow" || elementType === "arrow" ? "solid" : "none", ...(routePoints.length > 2 ? { routePoints: routePoints.slice(1, -1) } : {}), opacity, ...(rotation ? { rotation } : {}) };
+        return { type: elementType, id: elementId, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color, thickness, lineStyle: strokeStyle, startHead: headFromExcalidraw(record.startArrowhead), endHead: headFromExcalidraw(record.endArrowhead) ?? (elementType === "arrow" ? "solid" : "none"), ...(routePoints.length > 2 ? { routePoints: routePoints.slice(1, -1) } : {}), opacity, ...(rotation ? { rotation } : {}) };
       }
     }
     const backgroundColor = fill === "transparent" || fill === "#ffffff00" || fill === "#FFFFFF00" ? undefined : fill;
@@ -99,6 +133,25 @@ function shapeFromExternal(record: Record<string, unknown>, kind: string, files?
     return { type: elementType, id: elementId, x, y, w, h, color, thickness, ...(backgroundColor && backgroundColor !== "transparent" ? { fillColor: backgroundColor } : {}), lineStyle: strokeStyle, ...(elementType === "flowchart" ? { flowchartShape: FLOWCHART_SHAPES.has(String(flowchartShape)) ? flowchartShape as ShapeElement["flowchartShape"] : "process" } : {}), opacity, ...(rotation ? { rotation } : {}), ...(label ? { label: { text: label, color: safeColor(record.textColor, "#111827"), fontSize: clamp(finite(record.fontSize, 16), 8, 100), fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } } : {}) } as ShapeElement;
   }
   return undefined;
+}
+
+function headFromExcalidraw(value: unknown): ShapeElement["startHead"] {
+  if (value === "triangle") return "solid";
+  if (value === "dot" || value === "bar") return value;
+  if (value === "arrow") return "open";
+  return undefined;
+}
+
+function excalidrawBounds(element: CanvasElement): { x: number; y: number; w: number; h: number } | undefined {
+  if (element.type === "text") return { x: element.x, y: element.y, w: Math.max(80, element.text.length * element.fontSize * 0.56), h: Math.max(24, element.fontSize * 1.4) };
+  if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "svgPath") return { x: element.x, y: element.y, w: element.w, h: element.h };
+  return undefined;
+}
+
+function excalidrawAnchorToward(element: CanvasElement, x: number, y: number): Point | undefined {
+  const bounds = excalidrawBounds(element); if (!bounds) return undefined;
+  const dx = x - (bounds.x + bounds.w / 2); const dy = y - (bounds.y + bounds.h / 2);
+  return Math.abs(dx) > Math.abs(dy) ? { x: dx > 0 ? 1 : 0, y: 0.5 } : { x: 0.5, y: dy > 0 ? 1 : 0 };
 }
 
 /** Import the editable Excalidraw JSON subset represented by SketchDraw primitives. */
@@ -122,11 +175,25 @@ export function importExcalidraw(source: string): CanvasElement[] {
     }
     const customData = record.customData && typeof record.customData === "object" ? record.customData as Record<string, unknown> : undefined;
     const customType = customData?.sketchDrawType;
-    const kind = customType === "triangle" || customType === "flowchart" ? customType : String(record.type ?? "");
+    const kind = customType === "triangle" || customType === "flowchart" || customType === "svgPath" ? customType : String(record.type ?? "");
     const element = shapeFromExternal(record, kind, files);
     return element ? [element] : [];
   });
   const byId = new Map(imported.flatMap(element => element.id ? [[element.id, element] as const] : []));
+  for (const record of records) {
+    if (record.type !== "line" && record.type !== "arrow") continue;
+    const connector = typeof record.id === "string" ? byId.get(record.id) : undefined;
+    if (!connector || connector.type !== "line" && connector.type !== "arrow") continue;
+    const startBinding = record.startBinding && typeof record.startBinding === "object" ? record.startBinding as Record<string, unknown> : undefined;
+    const endBinding = record.endBinding && typeof record.endBinding === "object" ? record.endBinding as Record<string, unknown> : undefined;
+    const startId = typeof startBinding?.elementId === "string" ? startBinding.elementId : undefined;
+    const endId = typeof endBinding?.elementId === "string" ? endBinding.elementId : undefined;
+    const startTarget = startId ? byId.get(startId) : undefined; const endTarget = endId ? byId.get(endId) : undefined;
+    const startAnchor = startTarget ? excalidrawAnchorToward(startTarget, connector.x + connector.w, connector.y + connector.h) : undefined;
+    const endAnchor = endTarget ? excalidrawAnchorToward(endTarget, connector.x, connector.y) : undefined;
+    connector.startBinding = startId && startAnchor ? { elementId: startId, anchor: startAnchor } : undefined;
+    connector.endBinding = endId && endAnchor ? { elementId: endId, anchor: endAnchor } : undefined;
+  }
   for (const record of records) {
     if (typeof record.containerId !== "string" || record.type !== "text" || !validText(record.text)) continue;
     const container = byId.get(record.containerId);
@@ -154,7 +221,16 @@ export function exportExcalidraw(elements: CanvasElement[]): string {
   const labelIds = new Map<string, string>();
   const visible = flatten(elements);
   for (const element of visible) if (element.id) elementIds.set(element.id, id("excalidraw"));
-  for (const element of visible) if (element.id && (element.type === "schemaTable" || element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart") && (element.type === "schemaTable" || !!element.label?.text)) labelIds.set(element.id, id("excalidraw-text"));
+  for (const element of visible) if (element.id && (element.type === "schemaTable" || element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "svgPath") && (element.type === "schemaTable" || !!element.label?.text)) labelIds.set(element.id, id("excalidraw-text"));
+  const connectorBounds = new Map<string, { id: string; type: "arrow" }[]>();
+  for (const element of visible) if ((element.type === "line" || element.type === "arrow") && element.id) {
+    const externalId = elementIds.get(element.id); if (!externalId) continue;
+    for (const binding of [element.startBinding, element.endBinding]) {
+      const targetId = binding ? elementIds.get(binding.elementId) : undefined;
+      if (targetId) connectorBounds.set(binding!.elementId, [...(connectorBounds.get(binding!.elementId) ?? []), { id: externalId, type: "arrow" }]);
+    }
+  }
+  const arrowhead = (head: ShapeElement["startHead"]): string | null => !head || head === "none" ? null : head === "dot" ? "dot" : head === "bar" ? "bar" : ["solid", "hollow", "thick", "diamond", "open-diamond"].includes(head) ? "triangle" : "arrow";
   for (const element of visible) {
     const strokeBounds = element.type === "freehand" ? pointBounds(element.points) : undefined;
     const base = element.type === "freehand" ? { x: strokeBounds!.x, y: strokeBounds!.y, width: strokeBounds!.w, height: strokeBounds!.h }
@@ -164,22 +240,25 @@ export function exportExcalidraw(elements: CanvasElement[]): string {
           : element.type === "image" ? { x: element.x, y: element.y, width: element.w, height: element.h }
             : { x: element.x, y: element.y, width: element.w, height: element.h };
     const style = externalStyle(element);
-    const type = element.type === "freehand" ? "freedraw" : element.type === "schemaTable" || element.type === "flowchart" || element.type === "triangle" ? "rectangle" : element.type === "image" ? "image" : element.type === "circle" ? "ellipse" : element.type;
+    const type = element.type === "freehand" ? "freedraw" : element.type === "schemaTable" || element.type === "flowchart" || element.type === "triangle" || element.type === "svgPath" ? "rectangle" : element.type === "image" ? "image" : element.type === "circle" ? "ellipse" : element.type;
     const labelId = element.id ? labelIds.get(element.id) : undefined;
+    const boundElements = [...(element.id ? connectorBounds.get(element.id) ?? [] : []), ...(labelId ? [{ id: labelId, type: "text" as const }] : [])];
     const common: Record<string, unknown> = {
       id: element.id ? elementIds.get(element.id) : id("excalidraw"), type, ...base,
       angle: (element.rotation ?? 0) * Math.PI / 180, strokeColor: style.stroke, backgroundColor: style.fill,
        fillStyle: "solid", strokeWidth: style.strokeWidth, strokeStyle: "lineStyle" in element && (element.lineStyle === "dashed" || element.lineStyle === "dotted") ? element.lineStyle : "solid", roughness: 0,
       opacity: Math.round(style.opacity * 100), groupIds: [], frameId: null, roundness: null,
       seed: Math.floor(Math.random() * 2_147_483_647), version: 1, versionNonce: Math.floor(Math.random() * 2_147_483_647),
-      isDeleted: false, boundElements: labelId ? [{ id: labelId, type: "text" }] : null, updated: Date.now(), link: element.type === "image" ? element.previewUrl ?? null : null, locked: element.locked ?? false,
+      isDeleted: false, boundElements: boundElements.length ? boundElements : null, updated: Date.now(), link: element.type === "image" ? element.previewUrl ?? null : null, locked: element.locked ?? false,
     };
     if (element.type === "freehand") { common.points = element.points.map(point => [point.x - base.x, point.y - base.y]); common.pressures = element.points.map(point => point.pressure ?? 0); }
     if (element.type === "line" || element.type === "arrow") {
       const points = [{ x: element.x, y: element.y }, ...(element.routePoints ?? []), { x: element.x + element.w, y: element.y + element.h }];
       common.points = points.map(point => [point.x - base.x, point.y - base.y]);
-      common.startArrowhead = element.startHead && element.startHead !== "none" ? "arrow" : null;
-      common.endArrowhead = element.endHead && element.endHead !== "none" ? "arrow" : element.type === "arrow" ? "arrow" : null;
+      common.startArrowhead = arrowhead(element.startHead);
+      common.endArrowhead = arrowhead(element.endHead ?? (element.type === "arrow" ? "solid" : "none"));
+      common.startBinding = element.startBinding && elementIds.has(element.startBinding.elementId) ? { elementId: elementIds.get(element.startBinding.elementId), focus: 0, gap: 1 } : null;
+      common.endBinding = element.endBinding && elementIds.has(element.endBinding.elementId) ? { elementId: elementIds.get(element.endBinding.elementId), focus: 0, gap: 1 } : null;
     }
     if (element.type === "text") {
       common.text = element.text; common.originalText = element.text; common.fontSize = element.fontSize; common.fontFamily = element.fontFamily === "hand" ? 1 : element.fontFamily === "mono" ? 3 : 2;
@@ -189,15 +268,16 @@ export function exportExcalidraw(elements: CanvasElement[]): string {
     }
     if (element.type === "flowchart") common.customData = { sketchDrawType: element.type, flowchartShape: element.flowchartShape };
     else if (element.type === "triangle") common.customData = { sketchDrawType: element.type };
+    else if (element.type === "svgPath") common.customData = { sketchDrawType: element.type, svgPathData: element.pathData, svgPathWidth: element.pathWidth, svgPathHeight: element.pathHeight, svgFillRule: element.fillRule, svgFillOpacity: element.fillOpacity, svgStroke: element.svgStroke };
     if (element.type === "image") {
       const fileId = id("file"); common.fileId = fileId;
       common.status = "saved"; common.scale = [1, 1]; common.crop = null;
       (common as Record<string, unknown>).__fileData = element.dataUrl;
-    } else if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart") {
+    } else if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "svgPath") {
       if (element.type === "diamond") common.type = "diamond";
     }
     external.push(common);
-    const shapeElement = element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" ? element : undefined;
+    const shapeElement = element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "svgPath" ? element : undefined;
     const label = element.type === "schemaTable" ? [element.name, ...element.columns.map(column => `${column.primaryKey ? "◆ " : ""}${column.name}: ${column.dataType}`)].join("\n") : shapeElement ? textForShape(shapeElement) : undefined;
     if (label && labelId) external.push({
       id: labelId, type: "text", x: base.x, y: base.y, width: base.width, height: base.height,
@@ -207,7 +287,7 @@ export function exportExcalidraw(elements: CanvasElement[]): string {
       versionNonce: Math.floor(Math.random() * 2_147_483_647), isDeleted: false, boundElements: null, updated: Date.now(),
       link: null, locked: element.locked ?? false, text: label, originalText: label,
       fontSize: element.type === "schemaTable" ? element.fontSize ?? 14 : shapeElement?.label?.fontSize ?? 16,
-       fontFamily: 2, fontWeight: shapeElement?.label?.bold ? "bold" : "normal", fontStyle: shapeElement?.label?.italic ? "italic" : "normal", textAlign: "center", verticalAlign: "middle", baseline: element.type === "schemaTable" ? element.fontSize ?? 14 : shapeElement?.label?.fontSize ?? 16,
+      fontFamily: shapeElement?.label?.fontFamily === "hand" ? 1 : shapeElement?.label?.fontFamily === "mono" ? 3 : 2, fontWeight: shapeElement?.label?.bold ? "bold" : "normal", fontStyle: shapeElement?.label?.italic ? "italic" : "normal", textAlign: shapeElement?.label?.textAlign ?? "center", verticalAlign: shapeElement?.label?.verticalAlign === "top" ? "top" : shapeElement?.label?.verticalAlign === "bottom" ? "bottom" : "middle", baseline: element.type === "schemaTable" ? element.fontSize ?? 14 : shapeElement?.label?.fontSize ?? 16,
       containerId: common.id, autoResize: false, lineHeight: 1.25,
     });
   }
@@ -300,10 +380,16 @@ export async function importDrawio(source: string): Promise<CanvasElement[]> {
       }
       continue;
     }
-    const type: ShapeElement["type"] = shape === "ellipse" || shape === "doubleEllipse" ? "circle" : shape === "rhombus" ? "diamond" : shape === "triangle" ? "triangle" : "rectangle";
+    if (shape === "text" || shape === "none") {
+      const fontStyle = Number(style.fontStyle) || 0; const textRotation = Number(style.rotation ?? geo?.getAttribute("rotation")); const textOpacity = Number(style.opacity);
+      const text: TextElement = { type: "text", id: cell.getAttribute("id") || id("drawio-text"), x, y, text: label, color: safeColor(style.fontColor, "#111827"), fontSize: clamp(Number(style.fontSize) || 16, 8, 100), fontFamily: /courier|mono/i.test(style.fontFamily ?? "") ? "mono" : /serif|georgia|times/i.test(style.fontFamily ?? "") ? "serif" : "sans", bold: (fontStyle & 1) !== 0, italic: (fontStyle & 2) !== 0, underline: (fontStyle & 4) !== 0, textAlign: style.align === "center" || style.align === "right" || style.align === "justify" ? style.align : "left", opacity: clamp(Number.isFinite(textOpacity) ? textOpacity / 100 : 1, 0, 1), ...(Number.isFinite(textRotation) && textRotation ? { rotation: textRotation } : {}) };
+      vertices.set(cell.getAttribute("id") || text.id!, text); imported.push(text); continue;
+    }
+    const flowchartShape = DRAWIO_FLOWCHART_SHAPES[shape];
+    const type: ShapeElement["type"] = shape === "ellipse" || shape === "doubleEllipse" ? "circle" : shape === "rhombus" ? "diamond" : shape === "triangle" ? "triangle" : flowchartShape ? "flowchart" : "rectangle";
     const stroke = safeColor(style.strokeColor, "#374151"); const fill = /^none$/i.test(style.fillColor ?? "") || /^#[\da-f]{6}00$/i.test(style.fillColor ?? "") ? "transparent" : safeColor(style.fillColor, "transparent");
-    const opacityValue = Number(style.opacity); const fontStyle = Number(style.fontStyle) || 0;
-    const element: ShapeElement = { type, id: cell.getAttribute("id") || id("drawio"), x, y, w, h, color: stroke, thickness: clamp(Number(style.strokeWidth) || 2, 0.5, 24), ...(fill === "transparent" ? {} : { fillColor: fill }), opacity: clamp(Number.isFinite(opacityValue) ? opacityValue / 100 : 1, 0, 1), lineStyle: style.dashed === "1" ? "dashed" : "solid", ...(label ? { label: { text: label, color: safeColor(style.fontColor, "#111827"), fontSize: clamp(Number(style.fontSize) || 16, 8, 100), fontFamily: "sans", bold: (fontStyle & 1) !== 0, italic: (fontStyle & 2) !== 0, underline: (fontStyle & 4) !== 0, textAlign: style.align === "left" ? "left" : style.align === "right" ? "right" : "center", listType: "none", verticalAlign: "middle" } } : {}) };
+    const opacityValue = Number(style.opacity); const fillOpacityValue = Number(style.fillOpacity); const fontStyle = Number(style.fontStyle) || 0; const rotation = Number(style.rotation ?? geo?.getAttribute("rotation"));
+    const element: ShapeElement = { type, id: cell.getAttribute("id") || id("drawio"), x, y, w, h, color: stroke, thickness: clamp(Number(style.strokeWidth) || 2, 0.5, 24), ...(fill === "transparent" ? {} : { fillColor: fill }), ...(Number.isFinite(fillOpacityValue) ? { fillOpacity: clamp(fillOpacityValue / 100, 0, 1) } : {}), opacity: clamp(Number.isFinite(opacityValue) ? opacityValue / 100 : 1, 0, 1), lineStyle: drawioLineStyle(style), ...(type === "flowchart" ? { flowchartShape } : {}), ...(Number.isFinite(rotation) && rotation ? { rotation } : {}), ...(label ? { label: { text: label, color: safeColor(style.fontColor, "#111827"), fontSize: clamp(Number(style.fontSize) || 16, 8, 100), fontFamily: "sans", bold: (fontStyle & 1) !== 0, italic: (fontStyle & 2) !== 0, underline: (fontStyle & 4) !== 0, textAlign: style.align === "left" ? "left" : style.align === "right" ? "right" : "center", listType: "none", verticalAlign: style.verticalAlign === "top" || style.verticalAlign === "bottom" ? style.verticalAlign : "middle" } } : {}) };
     vertices.set(cell.getAttribute("id") || element.id!, element); imported.push(element);
   }
   for (const { cell, style, geo } of pendingEdges) {
@@ -321,7 +407,7 @@ export async function importDrawio(source: string): Promise<CanvasElement[]> {
     const endX = numberAttr(targetPoint, "x", targetBounds ? targetBounds.x + targetBounds.w / 2 : lastPoint?.x ?? x + 120); const endY = numberAttr(targetPoint, "y", targetBounds ? targetBounds.y + targetBounds.h / 2 : lastPoint?.y ?? y + 60);
     const type: ShapeElement["type"] = style.endArrow && style.endArrow !== "none" ? "arrow" : "line";
     const anchorToward = (from: ShapeElement, toX: number, toY: number) => { const dx = toX - (from.x + from.w / 2); const dy = toY - (from.y + from.h / 2); return Math.abs(dx) > Math.abs(dy) ? { x: dx > 0 ? 1 : 0, y: 0.5 } : { x: 0.5, y: dy > 0 ? 1 : 0 }; };
-    const element: ShapeElement = { type, id: cell.getAttribute("id") || id("drawio-edge"), x, y, w: endX - x, h: endY - y, color: safeColor(style.strokeColor, "#374151"), thickness: clamp(Number(style.strokeWidth) || 2, 0.5, 24), lineStyle: style.dashed === "1" ? "dashed" : "solid", startHead: style.startArrow && style.startArrow !== "none" ? "solid" : "none", endHead: style.endArrow && style.endArrow !== "none" ? "solid" : "none", ...(points.length ? { routePoints: points } : {}), ...(sourceBounds ? { startBinding: { elementId: sourceBounds.id!, anchor: anchorToward(sourceBounds, endX, endY) } } : {}), ...(targetBounds ? { endBinding: { elementId: targetBounds.id!, anchor: anchorToward(targetBounds, x, y) } } : {}), ...(label ? { label: { text: label, color: safeColor(style.fontColor, "#374151"), fontSize: clamp(Number(style.fontSize) || 14, 8, 80), fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" } } : {}) };
+    const element: ShapeElement = { type, id: cell.getAttribute("id") || id("drawio-edge"), x, y, w: endX - x, h: endY - y, color: safeColor(style.strokeColor, "#374151"), thickness: clamp(Number(style.strokeWidth) || 2, 0.5, 24), lineStyle: drawioLineStyle(style), startHead: drawioHead(style.startArrow), endHead: drawioHead(style.endArrow), ...(points.length ? { routePoints: points } : {}), ...(sourceBounds ? { startBinding: { elementId: sourceBounds.id!, anchor: anchorToward(sourceBounds, endX, endY) } } : {}), ...(targetBounds ? { endBinding: { elementId: targetBounds.id!, anchor: anchorToward(targetBounds, x, y) } } : {}), ...(label ? { label: { text: label, color: safeColor(style.fontColor, "#374151"), fontSize: clamp(Number(style.fontSize) || 14, 8, 80), fontFamily: "sans", bold: (Number(style.fontStyle) & 1) !== 0, italic: (Number(style.fontStyle) & 2) !== 0, underline: (Number(style.fontStyle) & 4) !== 0, textAlign: style.align === "left" ? "left" : style.align === "right" ? "right" : "center", listType: "none", verticalAlign: "top" } } : {}) };
     imported.push(element);
   }
   if (!imported.length) throw new Error("No supported editable shapes or connectors were found in this draw.io page.");
@@ -332,6 +418,10 @@ function drawioShape(element: CanvasElement): string {
   if (element.type === "circle") return "ellipse";
   if (element.type === "diamond") return "rhombus";
   if (element.type === "triangle") return "triangle";
+  if (element.type === "flowchart") {
+    const shapes: Partial<Record<NonNullable<ShapeElement["flowchartShape"]>, string>> = { decision: "rhombus", data: "parallelogram", database: "cylinder", cloud: "cloud", document: "document", hexagon: "hexagon", callout: "callout", terminator: "ellipse" };
+    return shapes[element.flowchartShape ?? "process"] ?? "rectangle";
+  }
   return "rectangle";
 }
 
@@ -352,7 +442,10 @@ export function exportDrawio(elements: CanvasElement[]): string {
       const points = element.routePoints?.length ? element.routePoints : undefined;
       const pointsXml = points ? `<Array as="points">${points.map(point => `<mxPoint x="${point.x}" y="${point.y}"/>`).join("")}</Array>` : "";
       const value = element.label ? escapeXml(element.label.text).replace(/\n/g, "&#xa;") : "";
-      const edgeStyle = `edgeStyle=none;rounded=0;strokeColor=${escapeXml(style.stroke)};strokeWidth=${style.strokeWidth};opacity=${safeOpacity};dashed=${element.lineStyle === "dashed" || element.lineStyle === "dotted" ? 1 : 0};startArrow=${element.startHead && element.startHead !== "none" ? "classic" : "none"};endArrow=${element.endHead && element.endHead !== "none" || element.type === "arrow" ? "classic" : "none"};`;
+      const dashPattern = element.lineStyle === "dotted" ? "1 2" : "8 4";
+      const edgeLabel = element.label;
+      const edgeFontStyle = (edgeLabel?.bold ? 1 : 0) + (edgeLabel?.italic ? 2 : 0) + (edgeLabel?.underline ? 4 : 0);
+      const edgeStyle = `edgeStyle=none;rounded=0;strokeColor=${escapeXml(style.stroke)};strokeWidth=${style.strokeWidth};opacity=${safeOpacity};dashed=${element.lineStyle === "dashed" || element.lineStyle === "dotted" ? 1 : 0};${element.lineStyle === "solid" ? "" : `dashPattern=${dashPattern};`}startArrow=${mxHead(element.startHead)};endArrow=${mxHead(element.endHead ?? (element.type === "arrow" ? "solid" : "none"))};${edgeLabel ? `fontColor=${escapeXml(edgeLabel.color)};fontSize=${edgeLabel.fontSize};fontStyle=${edgeFontStyle};align=${edgeLabel.textAlign};verticalAlign=${edgeLabel.verticalAlign};` : ""}`;
       const sourcePoint = source ? "" : `<mxPoint x="${element.x}" y="${element.y}" as="sourcePoint"/>`;
       const targetPoint = target ? "" : `<mxPoint x="${element.x + element.w}" y="${element.y + element.h}" as="targetPoint"/>`;
       cells.push(`<mxCell id="${mxId}" value="${value}" style="${edgeStyle}" edge="1" parent="1"${source ? ` source="${source}"` : ""}${target ? ` target="${target}"` : ""}><mxGeometry relative="1" as="geometry">${sourcePoint}${targetPoint}${pointsXml}</mxGeometry></mxCell>`);
@@ -370,11 +463,13 @@ export function exportDrawio(elements: CanvasElement[]): string {
       cells.push(`<mxCell id="${mxId}" value="" style="shape=polyline;strokeColor=${escapeXml(style.stroke)};strokeWidth=${style.strokeWidth};fillColor=none;" vertex="1" parent="1"><mxGeometry x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" as="geometry">${pointsXml}</mxGeometry></mxCell>`);
       continue;
     }
-    let bounds: { x: number; y: number; w: number; h: number }; let label = ""; let shape = "rectangle"; let color = style.stroke; let fill = style.fill; let fontSize = 16; let bold = false; let italic = false;
+    let bounds: { x: number; y: number; w: number; h: number }; let label = ""; let shape = "rectangle"; let color = style.stroke; let fill = style.fill; let fontColor = "#111827"; let fontSize = 16; let bold = false; let italic = false; let underline = false; let align = "center"; let verticalAlign = "middle"; let rotation = 0;
     if (element.type === "schemaTable") { bounds = { x: element.x, y: element.y, w: element.w, h: element.h }; label = [element.name, ...element.columns.map(column => `${column.primaryKey ? "◆ " : ""}${column.name}: ${column.dataType}`)].join("\n"); }
-    else if (element.type === "text") { bounds = { x: element.x, y: element.y, w: Math.max(80, element.text.length * element.fontSize * 0.56), h: Math.max(24, element.fontSize * 1.4) }; label = element.text; color = element.color; fontSize = element.fontSize; bold = !!element.bold; italic = !!element.italic; }
-    else { bounds = { x: element.x, y: element.y, w: element.w, h: element.h }; label = element.label?.text ?? ""; shape = drawioShape(element); fontSize = element.label?.fontSize ?? 16; color = element.color; fill = element.fillColor ?? "none"; bold = element.label?.bold ?? false; italic = element.label?.italic ?? false; }
-    const styleString = `shape=${shape};whiteSpace=wrap;html=0;rounded=0;strokeColor=${escapeXml(color)};strokeWidth=${style.strokeWidth};fillColor=${escapeXml(fill === "transparent" ? "none" : fill)};opacity=${safeOpacity};fontColor=${escapeXml(color)};fontSize=${fontSize};fontStyle=${(bold ? 1 : 0) + (italic ? 2 : 0)};`;
+    else if (element.type === "text") { bounds = { x: element.x, y: element.y, w: Math.max(80, element.text.length * element.fontSize * 0.56), h: Math.max(24, element.fontSize * 1.4) }; label = element.text; shape = "text"; color = element.color; fontColor = element.color; fontSize = element.fontSize; bold = !!element.bold; italic = !!element.italic; underline = !!element.underline; align = element.textAlign ?? "left"; rotation = element.rotation ?? 0; }
+    else { bounds = { x: element.x, y: element.y, w: element.w, h: element.h }; label = element.label?.text ?? ""; shape = drawioShape(element); fontSize = element.label?.fontSize ?? 16; color = element.color; fontColor = element.label?.color ?? "#111827"; fill = element.fillColor ?? "none"; bold = element.label?.bold ?? false; italic = element.label?.italic ?? false; underline = element.label?.underline ?? false; align = element.label?.textAlign ?? "center"; verticalAlign = element.label?.verticalAlign ?? "middle"; rotation = element.rotation ?? 0; }
+    const fillOpacityValue = element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" ? element.fillOpacity : undefined;
+    const fillOpacity = fillOpacityValue === undefined ? "" : `fillOpacity=${Math.round(fillOpacityValue * 100)};`;
+    const styleString = `shape=${shape};whiteSpace=wrap;html=0;rounded=0;rotation=${rotation};strokeColor=${escapeXml(color)};strokeWidth=${style.strokeWidth};fillColor=${escapeXml(fill === "transparent" ? "none" : fill)};${fillOpacity}opacity=${safeOpacity};fontColor=${escapeXml(fontColor)};fontSize=${fontSize};fontStyle=${(bold ? 1 : 0) + (italic ? 2 : 0) + (underline ? 4 : 0)};align=${align};verticalAlign=${verticalAlign};`;
     cells.push(`<mxCell id="${mxId}" value="${escapeXml(label).replace(/\n/g, "&#xa;")}" style="${styleString}" vertex="1" parent="1"><mxGeometry x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" as="geometry"/></mxCell>`);
   }
   return `<?xml version="1.0" encoding="UTF-8"?><mxfile host="app.diagrams.net" modified="${new Date().toISOString()}" agent="SketchDraw" version="24.7.17" type="device"><diagram id="sketchdraw-page" name="Page-1"><mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0"><root>${cells.join("")}</root></mxGraphModel></diagram></mxfile>`;

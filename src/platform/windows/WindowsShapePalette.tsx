@@ -10,6 +10,9 @@ type ShapeOption = WindowsShapeChoice & { label: string; path: string };
 type Props = {
   activeTool: Tool;
   activeFlowchartShape: FlowchartShape;
+  spawnAllDisabled: boolean;
+  spawnAllLabel: string;
+  onSpawnAll: () => void;
   onSelect: (choice: WindowsShapeChoice) => void;
 };
 
@@ -48,5 +51,6 @@ export function WindowsShapePalette(props: Props) {
         <span>{shape.label}</span>
       </button>)}
     </section>)}
+    <button type="button" class="palette-spawn-all windows-shape-spawn-all" role="menuitem" disabled={props.spawnAllDisabled} onClick={props.onSpawnAll}>{props.spawnAllLabel}</button>
   </div>;
 }

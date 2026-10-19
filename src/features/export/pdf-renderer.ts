@@ -1,5 +1,5 @@
 import type { Bounds, CanvasState, Element, FontFamily, ImageElement, Point, ShapeElement, TextElement, Theme } from "../../model";
-import { isConnector, isLabelShape, textLayout } from "../../operations";
+import { alignedTextStartX, isConnector, isLabelShape, textLayout } from "../../operations";
 import { arrowHeadEntries, arrowHeadSvgPath, connectorSvgPath, flowchartSvgDetailPath, vectorFlowchartPath } from "../canvas/geometry";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { themeInk } from "../canvas/rendering";
@@ -16,7 +16,6 @@ type PdfRenderPorts = {
   pdfCropMarks: () => boolean;
   imageCache: Map<string, HTMLImageElement>;
   theme: () => Theme;
-  componentAppearance: () => "simple" | "modern";
   simpleComponentElement: (element: Element) => Element;
   drawElement: (context: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems?: Element[]) => void;
   drawNoteCard: typeof drawNoteCard;
@@ -53,7 +52,7 @@ export function imagePdfPages(pages: PdfRasterPage[], options: Pick<PdfRenderPor
   }
 
 export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasState }[], output: { widthPt: number; heightPt: number }, marginMm: number, ports: PdfRenderPorts) {
-  const { pdfColorMode, pdfBleedMm, pdfHeader, pdfFooter, pdfCropMarks, imageCache, theme, componentAppearance, simpleComponentElement, drawElement, drawNoteCard } = ports;
+  const { pdfColorMode, pdfBleedMm, pdfHeader, pdfFooter, pdfCropMarks, imageCache, theme, simpleComponentElement, drawElement, drawNoteCard } = ports;
   let textMeasureContext: CanvasRenderingContext2D | null | undefined;
     const { PDFDocument, StandardFonts, LineCapStyle, degrees, rgb, cmyk, pushGraphicsState, popGraphicsState, translate, rotateDegrees } = await import("pdf-lib");
     const pdfColor = (color: string, mode: "rgb" | "cmyk" | "grayscale") => { const match=/^#([\da-f]{6})$/i.exec(color);if(!match)return rgb(.12,.12,.12);const channels=[0,2,4].map(i=>parseInt(match[1].slice(i,i+2),16)/255);if(mode==="grayscale"){const gray=channels[0]*.2126+channels[1]*.7152+channels[2]*.0722;return rgb(gray,gray,gray);}if(mode==="cmyk"){const black=1-Math.max(...channels);const divisor=1-black||1;return cmyk((1-channels[0]-black)/divisor,(1-channels[1]-black)/divisor,(1-channels[2]-black)/divisor,black);}return rgb(channels[0],channels[1],channels[2]);};
@@ -102,7 +101,7 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
               const ratio = Math.max(.01, Math.min(2, 8192 / width, 8192 / height, Math.sqrt(16_000_000 / (width * height))));
               const surface = document.createElement("canvas"); surface.width = Math.max(1, Math.ceil(width * ratio)); surface.height = Math.max(1, Math.ceil(height * ratio));
               const context = surface.getContext("2d"); if (!context) throw new Error("Canvas renderer unavailable");
-              context.setTransform(ratio, 0, 0, ratio, -box.x * ratio, -box.y * ratio); drawNoteCard(context, element, theme(), componentAppearance());
+              context.setTransform(ratio, 0, 0, ratio, -box.x * ratio, -box.y * ratio); drawNoteCard(context, element, theme(), "simple");
               const encoded = surface.toDataURL("image/png").split(",")[1]; const bytes = Uint8Array.from(atob(encoded), character => character.charCodeAt(0)); const image = await doc.embedPng(bytes);
               const left = x0 + box.x * scale; const top = paperH - (bleed + margin + (box.y - bounds.y) * scale); const centerX = left + box.w * scale / 2; const centerY = top - box.h * scale / 2; const rotated = !!element.rotation;
               if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
@@ -114,14 +113,27 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
           for (const child of element.elements) await drawItem(child); return;
         }
         if (element.type === "image") { try { const embedded = await readImage(element); const centerX=x0+(element.x+element.w/2)*scale,centerY=paperH-(bleed+margin+(element.y+element.h/2-bounds.y)*scale),rotated=!!element.rotation;if(rotated)page.pushOperators(pushGraphicsState(),translate(centerX,centerY),rotateDegrees(-(element.rotation??0)),translate(-centerX,-centerY));page.drawImage(embedded, { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y - bounds.y + element.h) * scale), width: element.w * scale, height: element.h * scale, opacity: element.opacity ?? 1 });if(rotated)page.pushOperators(popGraphicsState()); } catch { /* Keep other vector content even if an embedded image cannot be decoded. */ } return; }
-        if (element.type === "text") { const lines = element.text.split(/\r?\n/).map((line,index)=>element.listType==="bullet"?`• ${line}`:element.listType==="number"?`${index+1}. ${line}`:line); const textBox=elementBounds(element); const center={x:textBox.x+textBox.w/2,y:textBox.y+textBox.h/2}; lines.forEach((line, index) => drawText(line, element.x, element.y + index * element.fontSize * 1.25, element.color, element.fontSize, element.fontFamily, !!element.bold, !!element.italic, element.opacity ?? 1, element.rotation ?? 0, center, element.textAlign)); if (element.underline) { const font = element.fontFamily === "mono" ? fontMono : element.fontFamily === "serif" ? fontSerif : element.fontFamily === "hand" || element.italic ? fontItalic : element.bold ? fontBold : fontRegular; const width = font.widthOfTextAtSize(pdfText(lines[0] ?? ""), element.fontSize) * scale; page.drawLine({ start: { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, end: { x: x0 + element.x * scale + width, y: paperH - (bleed + margin + (element.y + element.fontSize) * scale) }, thickness: Math.max(.5, scale), color: pdfColor(themeInk(element.color, theme()), pdfColorMode()) }); } return; }
+        if (element.type === "text") { const lines = element.text.split(/\r?\n/).map((line,index)=>element.listType==="bullet"?`• ${line}`:element.listType==="number"?`${index+1}. ${line}`:line); const textBox=elementBounds(element); const center={x:textBox.x+textBox.w/2,y:textBox.y+textBox.h/2}; lines.forEach((line, index) => drawText(line, element.x, element.y + index * element.fontSize * 1.25, element.color, element.fontSize, element.fontFamily, !!element.bold, !!element.italic, element.opacity ?? 1, element.rotation ?? 0, center, element.textAlign)); if (element.underline) {
+          const font = element.fontFamily === "mono" ? fontMono : element.fontFamily === "serif" ? element.bold && element.italic ? fontSerifBoldItalic : element.bold ? fontSerifBold : element.italic ? fontSerifItalic : fontSerif : element.fontFamily === "hand" ? element.bold ? fontBoldItalic : fontItalic : element.bold && element.italic ? fontBoldItalic : element.bold ? fontBold : element.italic ? fontItalic : fontRegular;
+          const rotation = element.rotation ?? 0; const angle = rotation * Math.PI / 180;
+          const rotate = (point: Point): Point => rotation ? { x: center.x + (point.x - center.x) * Math.cos(angle) - (point.y - center.y) * Math.sin(angle), y: center.y + (point.x - center.x) * Math.sin(angle) + (point.y - center.y) * Math.cos(angle) } : point;
+          lines.forEach((line, index) => {
+            const width = font.widthOfTextAtSize(pdfText(line), element.fontSize) * scale;
+            const x = alignedTextStartX(element.x, width / scale, element.textAlign);
+            const y = element.y + index * element.fontSize * 1.25 + element.fontSize * 1.06;
+            const start = rotate({ x, y }); const end = rotate({ x: x + width / scale, y });
+            const toPdf = (point: Point) => ({ x: x0 + point.x * scale, y: paperH - (bleed + margin + (point.y - bounds.y) * scale) });
+            page.drawLine({ start: toPdf(start), end: toPdf(end), thickness: Math.max(.5, scale), color: pdfColor(themeInk(element.color, theme()), pdfColorMode()) });
+          });
+        } return; }
         if (element.type === "schemaTable") {
-          const dark = theme() === "dark"; const simple = componentAppearance() === "simple"; const fontSize = element.fontSize ?? 12; const headerHeight = Math.max(42, fontSize * 2.8); const rowHeight = Math.max(30, fontSize * 1.8); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const border = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const heading = simple ? surface : dark ? "#30465b" : "#e8f0f7"; const ink = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e"); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
+          const dark = theme() === "dark"; const simple = true; const fontSize = element.fontSize ?? 12; const headerHeight = Math.max(42, fontSize * 2.8); const rowHeight = Math.max(30, fontSize * 1.8); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const border = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const heading = simple ? surface : dark ? "#30465b" : "#e8f0f7"; const ink = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e"); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
           const centerX = left + width / 2; const centerY = top - height / 2; const rotated = !!element.rotation;
           if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
           page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(surface, pdfColorMode()), opacity, borderColor: pdfColor(border, pdfColorMode()), borderWidth: 1.2 * scale, borderOpacity: opacity });
           page.drawRectangle({ x: left, y: top - headerHeight * scale, width, height: headerHeight * scale, color: pdfColor(heading, pdfColorMode()), opacity });
-          drawText(element.name, element.x + 14, element.y + 13, ink, fontSize, "sans", true, false, opacity);
+          const schemaDetails = [element.indexes?.length ? `${element.indexes.length} idx` : "", element.constraints?.length ? `${element.constraints.length} constraints` : ""].filter(Boolean).join(" · ");
+          drawText(schemaDetails ? `${element.name} · ${schemaDetails}` : element.name, element.x + 14, element.y + 13, ink, fontSize, "sans", true, false, opacity);
           element.columns.forEach((column, index) => {
             const rowY = element.y + headerHeight + index * rowHeight;
             if (index) page.drawLine({ start: { x: left + 10 * scale, y: top - rowY * scale }, end: { x: left + width - 10 * scale, y: top - rowY * scale }, thickness: .7 * scale, color: pdfColor(simple ? border : dark ? "#394856" : "#e6ebf0", pdfColorMode()), opacity });

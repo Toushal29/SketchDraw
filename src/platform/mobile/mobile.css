@@ -32,7 +32,7 @@
     .app-shell:not(.platform-windows) .touch-page-more > summary::-webkit-details-marker { display: none; }
     .app-shell:not(.platform-windows) .touch-page-control > summary > svg { width: 16px; height: 16px; flex: 0 0 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
     .app-shell:not(.platform-windows) .touch-page-current { min-width: 0; flex: 1 1 auto; overflow: hidden; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-    .app-shell:not(.platform-windows) .touch-page-control > summary > small { flex: 0 0 auto; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 65%, transparent); font: 9px system-ui,sans-serif; }
+    .app-shell:not(.platform-windows) .touch-page-control > summary > small { flex: 0 0 auto; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 88%, transparent); font: 9px var(--font-ui); }
     .app-shell:not(.platform-windows) .touch-page-control[open] > summary { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .app-shell:not(.platform-windows) .touch-pages-popover {
         box-sizing: border-box;
@@ -55,7 +55,7 @@
     .app-shell:not(.platform-windows) .touch-page-add span { font-size: 15px; line-height: 1; }
     .app-shell:not(.platform-windows) .touch-page-list { display: grid; min-height: 0; gap: 3px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
     .app-shell:not(.platform-windows) .touch-page-option { display: flex; align-items: center; gap: 8px; padding: 4px 7px; border: 1px solid transparent; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; text-align: left; }
-    .app-shell:not(.platform-windows) .touch-page-option > small { display: grid; width: 21px; height: 21px; flex: 0 0 21px; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 65%, transparent); background: color-mix(in srgb, var(--toolbar-ink, var(--theme-surface)) 7%, transparent); font-size: 9px; }
+    .app-shell:not(.platform-windows) .touch-page-option > small { display: grid; width: 21px; height: 21px; flex: 0 0 21px; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 88%, transparent); background: color-mix(in srgb, var(--toolbar-ink, var(--theme-surface)) 7%, transparent); font-size: 9px; }
     .app-shell:not(.platform-windows) .touch-page-option > span { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .app-shell:not(.platform-windows) .touch-page-option > svg { width: 15px; height: 15px; flex: 0 0 15px; fill: none; stroke: currentColor; stroke-width: 2; }
     .app-shell:not(.platform-windows) .touch-page-option.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }

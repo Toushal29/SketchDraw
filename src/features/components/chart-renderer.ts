@@ -3,27 +3,26 @@ import type { LibraryChartData } from "../../notes";
 import { unionBounds, elementBounds } from "../canvas/bounds";
 
 const COLORS = ["#477fbd", "#3c9a7d", "#d5963c", "#8b6db4", "#cf6c65", "#4b9ca8", "#a28352", "#64759c"];
-const SIMPLE_COLORS = ["#48515b", "#6b7783", "#87919a", "#3b706d", "#777064", "#65728a"];
 const numberText = (value: number) => Number.isInteger(value) ? `${value}` : `${Number(value.toPrecision(3))}`;
 const niceStep = (range: number) => {
   const rough = Math.max(Number.EPSILON, range / 4); const power = 10 ** Math.floor(Math.log10(rough)); const fraction = rough / power;
   return (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10) * power;
 };
 
-export function drawLibraryChart(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, appearance: "simple" | "modern") {
+export function drawLibraryChart(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, _appearance: "simple" | "modern" = "modern") {
   const kind = group.libraryComponent?.kind;
   if (!kind?.startsWith("viz-")) return;
   const bounds = group.componentBounds ?? unionBounds(group.elements.filter(item => !item.hidden).map(elementBounds)); if (!bounds || bounds.w <= 0 || bounds.h <= 0) return;
   const x = bounds.x; const y = bounds.y; const width = bounds.w; const height = bounds.h;
   const chart: LibraryChartData = group.libraryComponent?.chartData ?? { labels: [], values: [] };
   const labels = chart.labels.slice(0, 12); const values = labels.map((_, index) => Number.isFinite(chart.values[index]) ? chart.values[index] : 0);
-  const simple = (group.libraryComponent?.appearance ?? appearance) === "simple"; const dark = theme === "dark"; const textStyle = group.libraryComponent?.textStyle; const scale = (textStyle?.fontSize ?? 12) / 12;
+  const simple = false; const dark = theme === "dark"; const textStyle = group.libraryComponent?.textStyle; const scale = (textStyle?.fontSize ?? 12) / 12;
   const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#242b33" : "#ffffff");
   const ink = group.libraryComponent?.styleOverrides?.color ?? (simple ? (dark ? "#f1f1f1" : "#242424") : (dark ? "#e2eaf2" : "#293a4e"));
   const muted = simple ? (dark ? "#bdbdbd" : "#686868") : (dark ? "#a6b4c2" : "#738195");
   const rule = simple ? (dark ? "#666666" : "#c7c7c7") : (dark ? "#3b4651" : "#e6ebf0");
   const stroke = simple ? (dark ? "#a4a4a4" : "#646464") : (dark ? "#45515d" : "#d9e1e8");
-  const palette = simple ? SIMPLE_COLORS : COLORS;
+  const palette = COLORS;
   const title = (chart.title ?? labels[0] ?? "Chart").trim() || "Chart";
   const family = textStyle?.fontFamily === "serif" ? "Georgia,serif" : textStyle?.fontFamily === "mono" ? "monospace" : textStyle?.fontFamily === "hand" ? "cursive" : textStyle?.fontFamily === "display" ? "Impact,sans-serif" : textStyle?.fontFamily === "rounded" ? "'Trebuchet MS',sans-serif" : "sans-serif";
   const font = (size: number, weight = 400) => `${textStyle?.italic ? "italic " : ""}${textStyle?.bold ? Math.max(weight, 700) : weight} ${Math.round(size * scale)}px ${family}`;

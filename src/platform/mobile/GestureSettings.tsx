@@ -32,6 +32,12 @@ export function readTouchGestureAction(key: string, fallback: TouchGestureAction
   } catch { return fallback; }
 }
 
+function ActionButtons<T extends string>(props: { label: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void }) {
+  return <div class="gesture-action-choices" role="group" aria-label={props.label}>
+    {props.options.map(option => <button type="button" class={props.value === option.value ? "active" : ""} aria-pressed={props.value === option.value} onClick={() => props.onChange(option.value)}>{option.label}</button>)}
+  </div>;
+}
+
 type Props = {
   section: "taps" | "gestures";
   onSectionChange: (section: "taps" | "gestures") => void;
@@ -58,17 +64,17 @@ export function GestureSettings(props: Props) {
       </nav>
       <Show when={props.section === "taps"}>
         <div class="gesture-action-grid">
-          <label class="gesture-action-card"><span class="gesture-finger-badge">1</span><span class="gesture-card-copy"><strong>One finger</strong><small>Tap</small></span><select aria-label="One finger tap action" value={props.oneFingerTapAction} onChange={event => props.onTapChange("one", event.currentTarget.value as TouchTapAction)}>{TOUCH_TAP_ACTIONS.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
-          <label class="gesture-action-card"><span class="gesture-finger-badge">2</span><span class="gesture-card-copy"><strong>Two fingers</strong><small>Tap together</small></span><select aria-label="Two finger tap action" value={props.twoFingerTapAction} onChange={event => props.onTapChange("two", event.currentTarget.value as TouchTapAction)}>{TOUCH_TAP_ACTIONS.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
-          <label class="gesture-action-card"><span class="gesture-finger-badge">3</span><span class="gesture-card-copy"><strong>Three fingers</strong><small>Tap together</small></span><select aria-label="Three finger tap action" value={props.threeFingerTapAction} onChange={event => props.onTapChange("three", event.currentTarget.value as TouchTapAction)}>{TOUCH_TAP_ACTIONS.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
+          <div class="gesture-action-card"><span class="gesture-finger-badge">1</span><span class="gesture-card-copy"><strong>One finger</strong><small>Tap</small></span><ActionButtons label="One finger tap action" value={props.oneFingerTapAction} options={TOUCH_TAP_ACTIONS} onChange={action => props.onTapChange("one", action)} /></div>
+          <div class="gesture-action-card"><span class="gesture-finger-badge">2</span><span class="gesture-card-copy"><strong>Two fingers</strong><small>Tap together</small></span><ActionButtons label="Two finger tap action" value={props.twoFingerTapAction} options={TOUCH_TAP_ACTIONS} onChange={action => props.onTapChange("two", action)} /></div>
+          <div class="gesture-action-card"><span class="gesture-finger-badge">3</span><span class="gesture-card-copy"><strong>Three fingers</strong><small>Tap together</small></span><ActionButtons label="Three finger tap action" value={props.threeFingerTapAction} options={TOUCH_TAP_ACTIONS} onChange={action => props.onTapChange("three", action)} /></div>
         </div>
         <p class="gesture-menu-note">These actions run only when the fingers tap without moving.</p>
       </Show>
       <Show when={props.section === "gestures"}>
         <div class="gesture-action-grid">
-          <label class="gesture-action-card"><span class="gesture-finger-badge">1</span><span class="gesture-card-copy"><strong>One-finger drag</strong><small>Move one finger</small></span><select aria-label="One finger drag action" value={props.oneFingerDragAction} onChange={event => props.onGestureChange(1, event.currentTarget.value)}><option value="activeTool">Use active tool</option><option value="pan">Pan canvas</option></select></label>
-          <label class="gesture-action-card"><span class="gesture-finger-badge">2</span><span class="gesture-card-copy"><strong>Two-finger move</strong><small>Move or pinch</small></span><select aria-label="Two finger gesture action" value={props.twoFingerGestureAction} onChange={event => props.onGestureChange(2, event.currentTarget.value)}>{TOUCH_GESTURE_ACTIONS.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
-          <label class="gesture-action-card"><span class="gesture-finger-badge">3</span><span class="gesture-card-copy"><strong>Three-finger move</strong><small>Move or pinch</small></span><select aria-label="Three finger gesture action" value={props.threeFingerGestureAction} onChange={event => props.onGestureChange(3, event.currentTarget.value)}>{TOUCH_GESTURE_ACTIONS.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
+          <div class="gesture-action-card"><span class="gesture-finger-badge">1</span><span class="gesture-card-copy"><strong>One-finger drag</strong><small>Move one finger</small></span><ActionButtons label="One finger drag action" value={props.oneFingerDragAction} options={[{ value: "activeTool", label: "Use active tool" }, { value: "pan", label: "Pan canvas" }]} onChange={action => props.onGestureChange(1, action)} /></div>
+          <div class="gesture-action-card"><span class="gesture-finger-badge">2</span><span class="gesture-card-copy"><strong>Two-finger move</strong><small>Move or pinch</small></span><ActionButtons label="Two finger movement action" value={props.twoFingerGestureAction} options={TOUCH_GESTURE_ACTIONS} onChange={action => props.onGestureChange(2, action)} /></div>
+          <div class="gesture-action-card"><span class="gesture-finger-badge">3</span><span class="gesture-card-copy"><strong>Three-finger move</strong><small>Move or pinch</small></span><ActionButtons label="Three finger movement action" value={props.threeFingerGestureAction} options={TOUCH_GESTURE_ACTIONS} onChange={action => props.onGestureChange(3, action)} /></div>
         </div>
         <p class="gesture-menu-note">Finger movement settings do not change tap actions. Stylus input continues to use the active tool.</p>
       </Show>

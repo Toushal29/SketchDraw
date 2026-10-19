@@ -1,6 +1,11 @@
-/* Single source of truth for application and component colors. */
+/* Shared application color and typography tokens. */
 :root {
     color-scheme: light;
+
+    --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "Cascadia Code", Consolas, "Liberation Mono", monospace;
+    --font-serif: Georgia, "Times New Roman", serif;
+    --font-size-micro: 9px;
 
     --theme-background: #F8F9FA;
     --theme-surface: #FFFFFF;
@@ -59,8 +64,8 @@
     --theme-surface-input: #1F232D;
     --theme-border: #2A2F3A;
     --theme-text-primary: #F3F4F6;
-    --theme-text-secondary: #9CA3AF;
-    --theme-text-tertiary: #6B7280;
+    --theme-text-secondary: #C1C7D0;
+    --theme-text-tertiary: #9299A5;
     --theme-primary: #818CF8;
     --theme-primary-hover: #A5B4FC;
     --theme-primary-muted: #1E1B4B;

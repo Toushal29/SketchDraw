@@ -1367,7 +1367,7 @@
 .project-timeline-label .project-conflict-badge,
 .project-timeline-label .project-critical-badge {
   padding: 1px 4px;
-  font-size: 8px;
+  font-size: var(--font-size-micro);
 }
 
 .project-critical-badge {
@@ -1862,7 +1862,7 @@
   border-radius: 6px;
   color: var(--project-accent);
   background: var(--project-raised);
-  font-size: 8px;
+  font-size: var(--font-size-micro);
   font-weight: 750;
 }
 

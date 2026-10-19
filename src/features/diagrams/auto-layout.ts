@@ -3,7 +3,7 @@ import elkWorkerUrl from "elkjs/lib/elk-worker.min.js?url";
 import type { Element, ShapeElement } from "../../model";
 import { elementBounds, unionBounds } from "../../features/canvas/bounds";
 
-const elk = new ELK({ workerUrl: elkWorkerUrl, algorithms: ["layered"] });
+const elk = new ELK({ workerUrl: elkWorkerUrl, algorithms: ["layered", "force", "stress", "mrtree", "radial"] });
 
 function hasLockedChild(element: Element): boolean {
   return element.type === "group" && element.elements.some(child => child.locked || hasLockedChild(child));
@@ -13,8 +13,11 @@ function isConnector(element: Element): element is ShapeElement & { type: "line"
   return element.type === "line" || element.type === "arrow";
 }
 
+export type DiagramLayoutPreset = "default" | "c4" | "sequence" | "erd" | "network";
+export type DiagramLayoutAlgorithm = "layered" | "force" | "stress" | "mrtree" | "radial";
+
 /** Repositions top-level objects with ELK, using existing connector bindings as graph edges. */
-export async function autoLayoutElements(elements: Element[], selectedIndices: number[]): Promise<Element[]> {
+export async function autoLayoutElements(elements: Element[], selectedIndices: number[], direction: "RIGHT" | "DOWN" = "RIGHT", preset: DiagramLayoutPreset = "default", algorithm: DiagramLayoutAlgorithm = "layered"): Promise<Element[]> {
   const selected = new Set(selectedIndices);
   const useSelection = selectedIndices.length > 1;
   const nodes = elements.flatMap((element, index) => {
@@ -45,17 +48,28 @@ export async function autoLayoutElements(elements: Element[], selectedIndices: n
     return [{ id: `edge-${index}`, sources: [source], targets: [target] }];
   });
 
+  const settings = {
+    default: { direction, nodeSpacing: "48", layerSpacing: "88" },
+    c4: { direction: "RIGHT" as const, nodeSpacing: "64", layerSpacing: "104" },
+    sequence: { direction: "DOWN" as const, nodeSpacing: "34", layerSpacing: "72" },
+    erd: { direction: "RIGHT" as const, nodeSpacing: "38", layerSpacing: "66" },
+    network: { direction: "RIGHT" as const, nodeSpacing: "52", layerSpacing: "92" },
+  }[preset];
+  const layoutOptions: Record<string, string> = {
+    "elk.algorithm": algorithm,
+    "elk.spacing.nodeNode": settings.nodeSpacing,
+    "elk.padding": "[top=28,left=28,bottom=28,right=28]",
+  };
+  if (algorithm === "layered" || algorithm === "mrtree") layoutOptions["elk.direction"] = settings.direction;
+  if (algorithm === "layered") {
+    layoutOptions["elk.layered.spacing.nodeNodeBetweenLayers"] = settings.layerSpacing;
+    layoutOptions["elk.layered.crossingMinimization.strategy"] = "LAYER_SWEEP";
+    layoutOptions["elk.layered.nodePlacement.strategy"] = "NETWORK_SIMPLEX";
+  }
+  if (algorithm === "stress") layoutOptions["elk.stress.desiredEdgeLength"] = settings.layerSpacing;
   const graph: ElkNode = {
     id: "sketchdraw",
-    layoutOptions: {
-      "elk.algorithm": "layered",
-      "elk.direction": "RIGHT",
-      "elk.spacing.nodeNode": "48",
-      "elk.layered.spacing.nodeNodeBetweenLayers": "88",
-      "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
-      "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
-      "elk.padding": "[top=28,left=28,bottom=28,right=28]",
-    },
+    layoutOptions,
     children: nodes.map(({ id, bounds }) => ({ id, width: Math.max(64, bounds.w), height: Math.max(40, bounds.h) })),
     edges,
   };

@@ -30,7 +30,6 @@ type Props = {
   group: () => GroupElement;
   isDraft: boolean;
   boardLocked: () => boolean;
-  componentAppearance: "modern" | "simple";
   onChangeGroup: (operation: (current: GroupElement) => GroupElement) => void;
   onRememberFontSize: (size: number) => void;
   onCancelDraft: () => void;
@@ -40,6 +39,7 @@ type Props = {
 export function LibraryComponentEditor(props: Props) {
   const group = props.group;
   const kind = () => group().libraryComponent?.kind ?? "custom";
+  const hasEditableText = () => kind().startsWith("viz-") || kind().startsWith("form-") || libraryComponentFields(group()).some(field => field.value.trim().length > 0);
   const optionsFor = (component: GroupElement) => {
     const stored = component.libraryComponent?.formOptions;
     return stored?.length ? stored : defaultLibraryFormOptions(component.libraryComponent?.kind as LibraryComponentKind) ?? [];
@@ -66,6 +66,12 @@ export function LibraryComponentEditor(props: Props) {
     return rebuildLibraryFormOptions(current, next);
   });
   const changePortCount = (requested: number) => changeGroup(current => setLibraryPortCount(current, Math.max(1, Math.min(32, Math.round(requested)))));
+  const changeLaneCount = (requested: number) => changeGroup(current => ({ ...current, libraryComponent: { ...current.libraryComponent!, laneCount: Math.max(2, Math.min(8, Math.round(requested))) } }));
+  const changeDiagramTitle = (value: string) => changeGroup(current => ({ ...current, libraryComponent: { ...current.libraryComponent!, label: value.slice(0, 120) } }));
+  const changeTaskDuration = (requested: number) => changeGroup(current => {
+    const durationMinutes = Number.isFinite(requested) ? Math.max(0, Math.min(100000, requested)) : 0;
+    return { ...current, libraryComponent: { ...current.libraryComponent!, durationMinutes } };
+  });
   const changeSelectedOption = (index: number) => changeGroup(current => current.libraryComponent?.kind === "form-radio"
     ? setLibraryRadioOption(current, index)
     : rebuildLibraryFormOptions(current, optionsFor(current), index));
@@ -95,15 +101,19 @@ export function LibraryComponentEditor(props: Props) {
   const locked = () => !props.isDraft && (props.boardLocked() || !!group().locked);
 
   return <div class="component-editor-content">
-    <div class="precision-grid component-size-grid"><label>Width<input aria-label="Component width" type="number" min={libraryComponentMinimum(group(), "w")} max="4000" step="1" value={Math.round(componentDimensions().w)} disabled={locked()} onChange={event => changeSize("w", Number(event.currentTarget.value))} /></label><label>Height<input aria-label="Component height" type="number" min={libraryComponentMinimum(group(), "h")} max="4000" step="1" value={Math.round(componentDimensions().h)} disabled={locked()} onChange={event => changeSize("h", Number(event.currentTarget.value))} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="160" value={libraryComponentFontSize(group())} disabled={locked()} onChange={event => changeComponentFontSize(Number(event.currentTarget.value))} /></label></div>
+    <div class="precision-grid component-size-grid"><label>Width<input aria-label="Component width" type="number" min={libraryComponentMinimum(group(), "w")} max="4000" step="1" value={Math.round(componentDimensions().w)} disabled={locked()} onChange={event => changeSize("w", Number(event.currentTarget.value))} /></label><label>Height<input aria-label="Component height" type="number" min={libraryComponentMinimum(group(), "h")} max="4000" step="1" value={Math.round(componentDimensions().h)} disabled={locked()} onChange={event => changeSize("h", Number(event.currentTarget.value))} /></label><Show when={hasEditableText()}><label>Font<input aria-label="Component font size" type="number" min="8" max="160" value={libraryComponentFontSize(group())} disabled={locked()} onChange={event => changeComponentFontSize(Number(event.currentTarget.value))} /></label></Show></div>
     <Show when={kind() === "uml-lifeline"}><label class="property-label">Lifeline length<input aria-label="Lifeline length" type="number" min="24" max="4000" step="1" value={libraryLifelineLength(group())} disabled={locked()} onChange={event => changeGroup(current => setLibraryLifelineLength(current, Number(event.currentTarget.value)))} /></label></Show>
-    <div class="component-appearance-choice" role="group" aria-label="Component style"><span>Style</span>{(["simple", "modern"] as const).map(appearance => <button type="button" class={(group().libraryComponent?.appearance ?? props.componentAppearance) === appearance ? "active" : ""} aria-pressed={(group().libraryComponent?.appearance ?? props.componentAppearance) === appearance} disabled={locked()} onClick={() => changeGroup(current => ({ ...current, libraryComponent: { ...current.libraryComponent!, appearance } }))}>{appearance === "simple" ? "Simple" : "Modern"}</button>)}</div>
+    <Show when={kind() === "bpmn-task"}><label class="property-label">Task duration (minutes)<input aria-label="BPMN task duration in minutes" type="number" min="0" max="100000" step="1" value={group().libraryComponent?.durationMinutes ?? 0} disabled={locked()} onChange={event => changeTaskDuration(Number(event.currentTarget.value))} /></label></Show>
     <Show when={kind() === "form-toggle"}>
       <label class="property-label component-form-title">Title<input aria-label="Toggle title" maxlength="80" value={group().libraryComponent?.formTitle ?? defaultLibraryFormTitle(kind() as LibraryComponentKind) ?? ""} disabled={locked()} onInput={event => changeGroup(current => setLibraryFormTitle(current, event.currentTarget.value))} /></label>
       <label class="component-state-control"><input type="checkbox" checked={group().libraryComponent?.formState ?? true} disabled={locked()} onChange={event => changeGroup(current => setLibraryFormState(current, event.currentTarget.checked))} /><span class="component-switch" aria-hidden="true" /><strong>{group().libraryComponent?.formState === false ? "Off" : "On"}</strong></label>
     </Show>
     <Show when={kind() === "network-switch" || kind() === "network-hub"}>
-      <section class="component-port-editor"><div><strong>Connection ports</strong><small>Draws {group().libraryComponent?.portCount ?? (kind() === "network-hub" ? 8 : 6)} visible ports</small></div><label>Count<input aria-label="Number of network ports" type="number" min="1" max="32" step="1" value={group().libraryComponent?.portCount ?? (kind() === "network-hub" ? 8 : 6)} disabled={locked()} onChange={event => changePortCount(Number(event.currentTarget.value))} /></label></section>
+      <section class="component-port-editor"><div><strong>Visible ports</strong><small>Sets how many the symbol shows</small></div><label>Count<input aria-label="Number of visible hardware ports" type="number" min="1" max="32" step="1" value={group().libraryComponent?.portCount ?? (kind() === "network-hub" ? 8 : 6)} disabled={locked()} onChange={event => changePortCount(Number(event.currentTarget.value))} /></label></section>
+    </Show>
+    <Show when={kind() === "diagram-frame" || kind() === "diagram-swimlane"}>
+      <label class="property-label">Title<input aria-label="Frame or swimlane title" maxlength="120" value={group().libraryComponent?.label ?? ""} disabled={locked()} onInput={event => changeDiagramTitle(event.currentTarget.value)} /></label>
+      <Show when={kind() === "diagram-swimlane"}><label class="property-label">Lane count<input aria-label="Number of swimlanes" type="number" min="2" max="8" step="1" value={group().libraryComponent?.laneCount ?? 3} disabled={locked()} onChange={event => changeLaneCount(Number(event.currentTarget.value))} /></label></Show>
     </Show>
     <Show when={kind() === "form-radio" || kind() === "form-select" || kind() === "form-button" || kind() === "form-checkbox"}>
       <section class="component-options-editor">

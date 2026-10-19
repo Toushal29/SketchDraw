@@ -6,7 +6,7 @@ export function fontCss(family?: FontFamily): string {
     : family === "serif" ? "Georgia, 'Times New Roman', serif"
       : family === "mono" ? "'Cascadia Mono', Consolas, monospace"
         : family === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif"
-          : family === "display" ? "'Arial Black', Impact, sans-serif" : "'DM Sans', 'Segoe UI', sans-serif";
+          : family === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif";
 }
 
 export function themeInk(color: string, activeTheme: Theme): string {
@@ -50,6 +50,11 @@ export type CanvasRendererPorts = {
   drawStrokePreview?: (ctx: CanvasRenderingContext2D, dpr: number) => void;
 };
 
+export function canvasPixelRatio(width: number, height: number, devicePixelRatio = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1): number {
+  if (width <= 0 || height <= 0) return 1;
+  return Math.min(devicePixelRatio, 8192 / width, 8192 / height, Math.sqrt(16_000_000 / (width * height)));
+}
+
 /** Owns the canvas paint frame sizing and animation-frame scheduling. */
 export function createCanvasRenderScheduler(ports: CanvasRendererPorts) {
   let frame: number | undefined;
@@ -67,7 +72,7 @@ export function createCanvasRenderScheduler(ports: CanvasRendererPorts) {
     if (!ports.hasDocument() || !canvas?.isConnected) { releaseBackground(); return; }
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) { releaseBackground(); return; }
-    const dpr = Math.min(window.devicePixelRatio || 1, 8192 / rect.width, 8192 / rect.height, Math.sqrt(16_000_000 / (rect.width * rect.height)));
+    const dpr = canvasPixelRatio(rect.width, rect.height);
     if (canvas.width !== Math.round(rect.width * dpr) || canvas.height !== Math.round(rect.height * dpr)) { canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr); sceneDirty = true; }
     const ctx = canvas.getContext("2d");
     if (!ctx) return;

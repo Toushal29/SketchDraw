@@ -1,4 +1,5 @@
 import type { Element, FlowchartShape, GroupElement, NoteKind, ShapeElement, TextElement, Theme } from "./model";
+import { CLOUD_PROVIDER_COMPONENTS, cloudProviderComponent, type CloudProviderComponentKind } from "./features/diagrams/cloud-providers";
 
 const text = (x: number, y: number, value: string, color = "#303638", size = 14, family: TextElement["fontFamily"] = "sans", bold = false): TextElement => ({
   type: "text", x, y, text: value, color, fontSize: size, fontFamily: family, bold, textAlign: "left", listType: "none",
@@ -49,7 +50,7 @@ function isMarkdownTableDivider(line: string): boolean {
 }
 
 export function checklistRows(content: string, width: number, fontSize: number) {
-  let top = 86;
+  let top = 76;
   return content.split(/\r?\n/).filter(line => line.trim()).map((line, index) => {
     const match = /^\s*(?:[-*]|\d+\.)\s+\[([ xX])\]\s*(.*)$/.exec(line);
     const indent = Math.min(6, Math.floor((line.match(/^\s*/)?.[0].replace(/\t/g, "  ").length ?? 0) / 2)) * 14;
@@ -164,8 +165,6 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
   if (meta.kind === "checklist") {
     const rows = checklistRows(meta.content, width, fontSize); const completed = rows.filter(row => row.done).length;
     drawText(`${completed} of ${rows.length} complete`, x + 16, y + 53, 10, palette.muted, 600);
-    const progressWidth = width - 32; ctx.beginPath(); ctx.roundRect(x + 16, y + 71, progressWidth, 3, appearance === "simple" ? 0 : 2); ctx.fillStyle = palette.rule; ctx.fill();
-    if (completed && rows.length) { ctx.beginPath(); ctx.roundRect(x + 16, y + 71, progressWidth * completed / rows.length, 3, appearance === "simple" ? 0 : 2); ctx.fillStyle = palette.check; ctx.fill(); }
     for (const row of rows) {
       const boxX = x + row.boxX; const textX = x + row.textX; const textTop = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2;
       const checkboxY = y + row.top + Math.max(0, (row.height - 16) / 2);
@@ -281,8 +280,10 @@ export function toggleChecklistContent(content: string, target: number): string 
   }).join("\n");
 }
 
-export type LibraryComponentKind = "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-one-many" | "er-many-many" | "c4-system" | "c4-container" | "c4-component" | "tech-service" | "data-flow" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-task" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-access-point" | "viz-bar" | "viz-line" | "viz-area" | "viz-scatter" | "viz-pie" | "viz-donut" | "viz-kpi" | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle" | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue";
+export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-one-many" | "er-many-many" | "c4-system" | "c4-container" | "c4-component" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-task" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-access-point" | "viz-bar" | "viz-line" | "viz-area" | "viz-scatter" | "viz-pie" | "viz-donut" | "viz-kpi" | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle" | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | CloudProviderComponentKind;
 export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
+  { kind: "diagram-frame", section: "General | Layout", label: "Frame", description: "Resizable titled boundary for any diagram", width: 420, height: 280 },
+  { kind: "diagram-swimlane", section: "General | Layout", label: "Swimlane", description: "Resizable lanes for organizing responsibilities or stages", width: 520, height: 320 },
   { kind: "uml-class", section: "UML | Classes & sequence", label: "Class card", description: "Name, attributes, and methods compartments", width: 230, height: 154 },
   { kind: "uml-lifeline", section: "UML | Classes & sequence", label: "Lifeline", description: "Participant header and dashed lifeline", width: 154, height: 250 },
   { kind: "uml-activation", section: "UML | Classes & sequence", label: "Activation bar", description: "Sequence activation marker", width: 28, height: 82 },
@@ -311,11 +312,13 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "software-cache", section: "Software | Messaging & cache", label: "Cache", description: "Fast key-value cache component", width: 156, height: 88 },
   { kind: "tech-service", section: "Software | Application components", label: "Technology service", description: "Service with technology tag and data flow", width: 174, height: 92 },
   { kind: "data-flow", section: "Software | Connectors & boundaries", label: "Data flow", description: "Directional data pipeline arrow", width: 202, height: 46 },
+  { kind: "diagram-legend", section: "Annotations & aids", label: "Legend", description: "Editable key for diagram colors and object types", width: 210, height: 120 },
   { kind: "cloud-boundary", section: "Cloud | Deployment", label: "Cloud boundary", description: "Provider-neutral deployment or region enclosure", width: 300, height: 190 },
   { kind: "cloud-function", section: "Cloud | Services", label: "Cloud function", description: "Serverless function service node", width: 152, height: 96 },
   { kind: "cloud-storage", section: "Cloud | Services", label: "Object storage", description: "Provider-neutral object storage component", width: 156, height: 104 },
   { kind: "cloud-database", section: "Cloud | Services", label: "Managed database", description: "Managed relational database component", width: 156, height: 108 },
   { kind: "cloud-queue", section: "Cloud | Services", label: "Cloud queue", description: "Managed asynchronous message queue", width: 156, height: 94 },
+  ...CLOUD_PROVIDER_COMPONENTS.map(component => ({ kind: component.kind, section: `Cloud | ${component.provider}`, label: component.label, description: component.description, width: 176, height: 108 })),
   { kind: "network-zone", section: "Network | Devices & zones", label: "Network zone", description: "Infrastructure enclosure with connection points", width: 280, height: 168 },
   { kind: "network-router", section: "Network | Devices", label: "Router", description: "Network router with directional ports", width: 104, height: 86 },
   { kind: "network-switch", section: "Network | Devices", label: "Switch", description: "Ethernet switch with visible ports", width: 132, height: 78 },
@@ -361,7 +364,7 @@ export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, 
     "er-many-many": { color: "#31877e", lineStyle: "solid", startHead: "crow", endHead: "crow" },
     "sequence-sync": { color: "#7563ad", lineStyle: "solid", startHead: "none", endHead: "solid" },
     "sequence-async": { color: "#7563ad", lineStyle: "solid", startHead: "none", endHead: "open" },
-    "data-flow": { color: "#476c88", lineStyle: "solid", startHead: "none", endHead: "solid" },
+    "data-flow": { color: "#333333", lineStyle: "solid", startHead: "none", endHead: "solid" },
   };
   const style = relationships[kind]; if (!style) return undefined;
   const line: ShapeElement = {
@@ -369,7 +372,7 @@ export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, 
     color: style.color, lineStyle: style.lineStyle, startHead: style.startHead, endHead: style.endHead,
   };
   if (kind === "sequence-sync" || kind === "sequence-async") line.label = { text: kind === "sequence-sync" ? "Sync message" : "Async message", color: style.color, fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" };
-  if (kind === "data-flow") line.label = { text: "DATA FLOW", color: "#315a7a", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" };
+  if (kind === "data-flow") line.label = { text: "DATA FLOW", color: "#333333", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" };
   return line;
 }
 
@@ -401,6 +404,18 @@ export function defaultLibraryChartData(kind: LibraryComponentKind): LibraryChar
 function buildSupplementalLibraryComponent(kind: LibraryComponentKind, x: number, y: number, chartData?: LibraryChartData, formOptions?: string[], selectedOption = 0, formStates?: boolean[], formTitle?: string, formState = true, portCount = kind === "network-hub" ? 8 : 6): Element[] | undefined {
   const stroke = (x1: number, y1: number, x2: number, y2: number, color: string, thickness = 1.4) => ({ ...lineElement(x1, y1, x2 - x1, y2 - y1, color), thickness });
   const dot = (cx: number, cy: number, radius: number, color: string) => ({ type: "circle" as const, x: cx - radius, y: cy - radius, w: radius * 2, h: radius * 2, color, thickness: 1, fillColor: color });
+  if (kind === "diagram-legend") return [
+    rect(x, y, 210, 120, "#ffffff", "#9ba8b4", 6),
+    text(x + 14, y + 10, "Legend", "#263542", 13, "sans", true),
+    rect(x + 14, y + 38, 12, 12, "#dce9f7", "#5e7fa5", 1), text(x + 35, y + 36, "Service / system", "#384858", 11),
+    rect(x + 14, y + 64, 12, 12, "#e1f1eb", "#5c907a", 1), text(x + 35, y + 62, "Data store", "#384858", 11),
+    { ...lineElement(x + 14, y + 95, 14, 0, "#687889"), endHead: "solid" }, text(x + 35, y + 87, "Direction / flow", "#384858", 11),
+  ];
+  const provider = cloudProviderComponent(kind);
+  if (provider) {
+    const badge = provider.provider === "Google Cloud" ? "GCP" : provider.provider === "Azure" ? "AZ" : "AWS";
+    return [rect(x, y, 176, 108, "#ffffff", provider.accent, 5), rect(x + 12, y + 12, 35, 25, provider.accent, provider.accent, 3), text(x + 29.5, y + 16, badge, "#ffffff", 9, "sans", true), rect(x + 12, y + 47, 44, 44, "#f3f5f6", "#d5d9dc", 4), text(x + 34, y + 58, provider.glyph, "#30363b", provider.glyph.length > 2 ? 9 : 13, "sans", true), text(x + 65, y + 48, provider.label, "#252a2e", 12, "sans", true), text(x + 65, y + 69, provider.provider.toUpperCase(), "#747c83", 8, "sans", true), stroke(x + 65, y + 84, x + 162, y + 84, "#d8dcdf", 1)];
+  }
   if (kind.startsWith("viz-")) {
     const data = chartData ?? defaultLibraryChartData(kind)!;
     const palette = ["#4b78c2", "#40a48f", "#e5a24a", "#9b79cc"];
@@ -521,7 +536,17 @@ function buildSupplementalLibraryComponent(kind: LibraryComponentKind, x: number
   return undefined;
 }
 
+const usesCleanModelRenderer = (kind: LibraryComponentKind) => kind.startsWith("diagram-") || kind.startsWith("software-") || kind.startsWith("c4-") || kind.startsWith("bpmn-") || kind.startsWith("network-") && kind !== "network-access-point" || kind.startsWith("cloud-") || kind === "tech-service" || kind === "data-flow";
+
 export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number, options?: { chartData?: LibraryChartData; formOptions?: string[]; selectedOption?: number; formStates?: boolean[]; formTitle?: string; formState?: boolean; portCount?: number }): GroupElement {
+  if (usesCleanModelRenderer(kind)) {
+    const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
+    return {
+      type: "group", id: crypto.randomUUID(), elements: [],
+      componentBounds: { x, y, w: definition.width, h: definition.height },
+      libraryComponent: { kind, label: definition.label, renderStyle: "clean", ...(kind === "diagram-swimlane" ? { laneCount: 3 } : {}), ...(kind === "network-hub" ? { portCount: options?.portCount ?? 8 } : kind === "network-switch" ? { portCount: options?.portCount ?? 6 } : {}) },
+    };
+  }
   const elements: Element[] = [];
   const titled = (color: string, fontSize = 12) => ({ text: "", color, fontSize, fontFamily: "sans" as const, bold: true, italic: false, underline: false, textAlign: "center" as const, listType: "none" as const, verticalAlign: "middle" as const });
   const supplemental = buildSupplementalLibraryComponent(kind, x, y, options?.chartData, options?.formOptions, options?.selectedOption, options?.formStates, options?.formTitle, options?.formState, options?.portCount);
@@ -619,7 +644,7 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
             : kind.startsWith("form-")
               ? { fill: "#f5f8fc", header: "#e5edf6", edge: "#6c86a7", ink: "#40546a" }
               : { fill: "#eef5fa", header: "#dfeaf2", edge: "#527d9b", ink: "#3d6384" };
-  if (!kind.startsWith("viz-") && !kind.startsWith("form-") && !kind.startsWith("software-") && !kind.startsWith("cloud-") && kind !== "network-switch" && kind !== "network-load-balancer" && kind !== "network-access-point") elements.forEach((element, index) => {
+  if (!kind.startsWith("viz-") && !kind.startsWith("form-") && !kind.startsWith("software-") && !kind.startsWith("cloud-") && kind !== "diagram-legend" && kind !== "network-switch" && kind !== "network-load-balancer" && kind !== "network-access-point") elements.forEach((element, index) => {
     if (element.type === "text") element.color = palette.ink;
     else if (element.type === "freehand") element.color = palette.edge;
     else if (element.type !== "image" && element.type !== "schemaTable" && element.type !== "group") {
@@ -628,5 +653,5 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
       if (element.label) element.label = { ...element.label, color: palette.ink };
     }
   });
-  return { type: "group", elements };
+  return { type: "group", elements, ...(cloudProviderComponent(kind) ? { componentBounds: { x, y, w: 176, h: 108 } } : {}) };
 }
