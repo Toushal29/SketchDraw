@@ -1,5 +1,5 @@
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, LayerFlags, LineRoute, MermaidMetadata, NoteKind, Point, RelationshipDirection, RelationshipType, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
+import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, LayerFlags, LibraryChartData, LineRoute, MermaidMetadata, NoteKind, Point, RelationshipDirection, RelationshipType, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
 import { validReferences } from "../../operations";
 import { curveControlPoints } from "../canvas/geometry";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
@@ -87,12 +87,23 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const iconSvg = rawComponent && typeof rawComponent.iconSvg === "string" && rawComponent.iconSvg.length <= 100_000 && !/<script\b|\son[a-z]+\s*=|javascript:/i.test(rawComponent.iconSvg) ? rawComponent.iconSvg : undefined;
     const iconViewBox = rawComponent && typeof rawComponent.iconViewBox === "string" && /^-?[\d.]+\s+-?[\d.]+\s+[\d.]+\s+[\d.]+$/.test(rawComponent.iconViewBox) ? rawComponent.iconViewBox : undefined;
     const rawChartData = rawComponent && isRecord(rawComponent.chartData) ? rawComponent.chartData : undefined;
-    const chartData = rawChartData && Array.isArray(rawChartData.labels) && Array.isArray(rawChartData.values)
-      && rawChartData.labels.length > 0 && rawChartData.labels.length <= 20 && rawChartData.values.length === rawChartData.labels.length
-      && rawChartData.labels.every(label => typeof label === "string" && label.length <= 60)
+    const chartLabelsValid = rawChartData && Array.isArray(rawChartData.labels) && rawChartData.labels.length > 0 && rawChartData.labels.length <= 20 && rawChartData.labels.every(label => typeof label === "string" && label.length <= 60);
+    const chartSeries = rawChartData && Array.isArray(rawChartData.series) && rawChartData.series.length <= 8 && rawChartData.series.every(series => isRecord(series) && typeof series.name === "string" && series.name.length <= 60 && Array.isArray(series.values) && series.values.length === (Array.isArray(rawChartData.labels) ? rawChartData.labels.length : -1) && series.values.every(number => finite(number) && Math.abs(number) <= 1_000_000_000))
+      ? rawChartData.series as LibraryChartData["series"] : undefined;
+    const rawChartOptions = rawChartData && isRecord(rawChartData.options) ? rawChartData.options : undefined;
+    const chartOptions: LibraryChartData["options"] | undefined = rawChartOptions
+      && (rawChartOptions.palette === undefined || ["blue", "ocean", "warm", "violet", "mono"].includes(String(rawChartOptions.palette)))
+      && (rawChartOptions.legend === undefined || ["right", "bottom", "hidden"].includes(String(rawChartOptions.legend)))
+      && ["showGrid", "showValues", "smooth"].every(key => rawChartOptions[key] === undefined || typeof rawChartOptions[key] === "boolean")
+      && ["maxValue", "pointSize", "lineWidth"].every(key => rawChartOptions[key] === undefined || finite(rawChartOptions[key]) && (key === "maxValue" ? rawChartOptions[key] > 0 && rawChartOptions[key] <= 1_000_000_000 : rawChartOptions[key] >= 1 && rawChartOptions[key] <= 32))
+      ? { ...(rawChartOptions.palette ? { palette: rawChartOptions.palette as NonNullable<LibraryChartData["options"]>["palette"] } : {}), ...(rawChartOptions.legend ? { legend: rawChartOptions.legend as NonNullable<LibraryChartData["options"]>["legend"] } : {}), ...(typeof rawChartOptions.showGrid === "boolean" ? { showGrid: rawChartOptions.showGrid } : {}), ...(typeof rawChartOptions.showValues === "boolean" ? { showValues: rawChartOptions.showValues } : {}), ...(typeof rawChartOptions.smooth === "boolean" ? { smooth: rawChartOptions.smooth } : {}), ...(finite(rawChartOptions.maxValue) ? { maxValue: rawChartOptions.maxValue } : {}), ...(finite(rawChartOptions.pointSize) ? { pointSize: rawChartOptions.pointSize } : {}), ...(finite(rawChartOptions.lineWidth) ? { lineWidth: rawChartOptions.lineWidth } : {}) } : undefined;
+    const chartData: LibraryChartData | undefined = rawChartData && chartLabelsValid && Array.isArray(rawChartData.values)
+      && (rawChartData.labels as string[]).length > 0 && (rawChartData.labels as string[]).length <= 20 && rawChartData.values.length === (rawChartData.labels as string[]).length
       && rawChartData.values.every(number => finite(number) && Math.abs(number) <= 1_000_000_000)
       && ["title", "xAxisLabel", "yAxisLabel"].every(key => rawChartData[key] === undefined || typeof rawChartData[key] === "string" && (rawChartData[key] as string).length <= 80)
-      ? { labels: rawChartData.labels as string[], values: rawChartData.values as number[], ...(typeof rawChartData.title === "string" ? { title: rawChartData.title } : {}), ...(typeof rawChartData.xAxisLabel === "string" ? { xAxisLabel: rawChartData.xAxisLabel } : {}), ...(typeof rawChartData.yAxisLabel === "string" ? { yAxisLabel: rawChartData.yAxisLabel } : {}) } : undefined;
+      && (rawChartData.series === undefined || chartSeries !== undefined)
+      && (rawChartData.options === undefined || chartOptions !== undefined)
+      ? { labels: rawChartData.labels as string[], values: rawChartData.values as number[], ...(typeof rawChartData.title === "string" ? { title: rawChartData.title } : {}), ...(typeof rawChartData.xAxisLabel === "string" ? { xAxisLabel: rawChartData.xAxisLabel } : {}), ...(typeof rawChartData.yAxisLabel === "string" ? { yAxisLabel: rawChartData.yAxisLabel } : {}), ...(chartSeries ? { series: chartSeries } : {}), ...(chartOptions ? { options: chartOptions } : {}) } : undefined;
     const componentAppearance = rawComponent && (rawComponent.appearance === "simple" || rawComponent.appearance === "modern") ? rawComponent.appearance as "simple" | "modern" : undefined;
     const renderStyle = rawComponent?.renderStyle === "clean" ? "clean" as const : undefined;
     const trendDirection = rawComponent && (rawComponent.trendDirection === "up" || rawComponent.trendDirection === "down" || rawComponent.trendDirection === "steady") ? rawComponent.trendDirection as "up" | "down" | "steady" : undefined;
@@ -279,7 +290,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
       if (!componentId || !parts?.includes(item) || !parts.some(part => part.componentRole === "class-shell")) return [item];
       if (emitted.has(componentId)) return [];
       emitted.add(componentId);
-      const group: GroupElement = { type: "group", id: crypto.randomUUID(), componentId, elements: parts, libraryComponent: { kind: "uml-class", appearance: "simple" } };
+      const group: GroupElement = { type: "group", id: crypto.randomUUID(), componentId, elements: parts, libraryComponent: { kind: "uml-class" } };
       return [group];
     });
   };

@@ -1,4 +1,4 @@
-import type { ShapeElement, ShapeLabel } from "../../model";
+import type { RelationshipDirection, ShapeElement, ShapeLabel } from "../../model";
 
 const relationshipNames: Record<NonNullable<ShapeElement["relationshipType"]>, string> = {
   association: "Association",
@@ -11,6 +11,13 @@ const relationshipNames: Record<NonNullable<ShapeElement["relationshipType"]>, s
   network: "Network",
   other: "Relationship",
 };
+
+export function relationshipDirectionHeads(direction: RelationshipDirection) {
+  return {
+    startHead: direction === "both" ? "solid" as const : "none" as const,
+    endHead: direction === "none" ? "none" as const : "solid" as const,
+  };
+}
 
 /** Adds semantic relationship details to the visible connector caption. */
 export function relationshipDisplayElement(element: ShapeElement): ShapeElement {

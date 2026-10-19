@@ -63,7 +63,16 @@ export function libraryComponentFontSize(group: GroupElement): number {
 }
 
 export function libraryComponentMinimum(_group: GroupElement, _axis: "w" | "h"): number {
-  return 10;
+  const kind = _group.libraryComponent?.kind;
+  if (!kind?.startsWith("form-")) return 10;
+  const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind);
+  const optionCount = Math.max(1, Math.min(12, _group.libraryComponent?.formOptions?.length ?? defaultLibraryFormOptions(kind as LibraryComponentKind)?.length ?? 1));
+  if (_axis === "w") return Math.max(90, (definition?.width ?? 180) * .68);
+  if (kind === "form-checkbox") return 33 + optionCount * 18;
+  if (kind === "form-radio") return 42 + optionCount * 18;
+  if (kind === "form-button") return 36;
+  if (kind === "form-toggle") return 45;
+  return 58;
 }
 
 export function assignLibraryComponentIds(group: GroupElement, kind: LibraryComponentKind, previous?: GroupElement): GroupElement {
@@ -195,12 +204,13 @@ export function setLibraryPortCount(group: GroupElement, requestedCount: number)
 export function resizeLibraryGroup(group: GroupElement, bounds: { x: number; y: number; w: number; h: number }): GroupElement {
   if (group.componentBounds) return { ...group, componentBounds: { x: bounds.x, y: bounds.y, w: Math.max(.1, bounds.w), h: Math.max(.1, bounds.h) } };
   const source = elementBounds(group.libraryComponent ? { ...group, rotation: 0 } : group); const sx = Math.max(.1, bounds.w) / Math.max(1, source.w); const sy = Math.max(.1, bounds.h) / Math.max(1, source.h);
+  const formFontScale = group.libraryComponent?.kind.startsWith("form-") ? Math.min(sx, sy) : 1;
   const tx = (x: number) => bounds.x + (x - source.x) * sx; const ty = (y: number) => bounds.y + (y - source.y) * sy;
   const scalePoint = (point: Point) => ({ x: tx(point.x), y: ty(point.y) });
   const scale = (element: Element): Element => {
     if (element.type === "group") return { ...element, elements: element.elements.map(scale) };
     if (element.type === "freehand") return { ...element, points: element.points.map(scalePoint), thickness: Math.max(.5, element.thickness * (sx + sy) / 2) };
-    if (element.type === "text") return { ...element, x: tx(element.x), y: ty(element.y) };
+    if (element.type === "text") return { ...element, x: tx(element.x), y: ty(element.y), ...(formFontScale === 1 ? {} : { fontSize: Math.max(6, element.fontSize * formFontScale) }) };
     if (element.type === "image" || element.type === "schemaTable") return { ...element, x: tx(element.x), y: ty(element.y), w: element.w * sx, h: element.h * sy };
     const x2 = tx(element.x + element.w); const y2 = ty(element.y + element.h);
     const label = element.label;

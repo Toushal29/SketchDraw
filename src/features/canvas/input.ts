@@ -56,6 +56,48 @@ export function pointerToWorld(clientX: number, clientY: number, rect: DOMRect, 
   return { x: (clientX - rect.left - state.panX) / state.zoom, y: (clientY - rect.top - state.panY) / state.zoom };
 }
 
+/** Keep the world point beneath a viewport point fixed while changing zoom. */
+export function zoomCanvasStateAt(state: CanvasState, viewportPoint: Point, requestedZoom: number): CanvasState {
+  const zoom = Math.max(0.02, Math.min(8, Number.isFinite(requestedZoom) ? requestedZoom : state.zoom));
+  const worldX = (viewportPoint.x - state.panX) / state.zoom;
+  const worldY = (viewportPoint.y - state.panY) / state.zoom;
+  return { ...state, zoom, panX: viewportPoint.x - worldX * zoom, panY: viewportPoint.y - worldY * zoom };
+}
+
+export type CanvasTouchGestureSnapshot = {
+  action: "pan" | "zoom" | "panZoom" | "none";
+  initialDistance: number;
+  initialZoom: number;
+  initialPanX: number;
+  initialPanY: number;
+  initialMidpoint: Point;
+  worldAnchor: Point;
+};
+
+/** Apply a two- or three-finger gesture while preserving its chosen canvas anchor. */
+export function canvasStateForTouchGesture(
+  state: CanvasState,
+  gesture: CanvasTouchGestureSnapshot,
+  midpoint: Point,
+  distance: number,
+  viewportOffset: Point = { x: 0, y: 0 },
+): CanvasState {
+  if (gesture.action === "none") return state;
+  const zoom = gesture.action === "pan"
+    ? gesture.initialZoom
+    : Math.max(0.02, Math.min(8, gesture.initialZoom * Math.max(0.01, distance) / Math.max(0.01, gesture.initialDistance)));
+  if (gesture.action === "pan") {
+    return { ...state, zoom, panX: gesture.initialPanX + midpoint.x - gesture.initialMidpoint.x, panY: gesture.initialPanY + midpoint.y - gesture.initialMidpoint.y };
+  }
+  const anchor = gesture.action === "zoom" ? gesture.initialMidpoint : midpoint;
+  return {
+    ...state,
+    zoom,
+    panX: anchor.x - viewportOffset.x - gesture.worldAnchor.x * zoom,
+    panY: anchor.y - viewportOffset.y - gesture.worldAnchor.y * zoom,
+  };
+}
+
 export function strokePointFromPointer(event: PointerEvent, point: Point, pressureEnabled: boolean, tiltEnabled: boolean): StrokePoint {
   if (event.pointerType !== "pen") return point;
   return {

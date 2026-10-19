@@ -1,10 +1,10 @@
 # SketchDraw feature inventory and code audit
 
 Reviewed: 19 October 2026
-App versions in source: Windows 12.4.0; Android 7.4.0
-Base source revision: a662f08; this audit update is uncommitted.
+App versions in source: Windows 13.0.0; Android 8.0.0
+Base source revision: e68c8e5 plus the current release changes.
 
-This document records features implemented in the current source and a static review of the application, platform adapters, document handling, styles, build configuration, README, and canvas-performance code. It distinguishes current behavior from suggested work. See [the v12.4.0 / 7.4.0 release notes](docs/release-notes-v12.4.0.md) for this release's summary.
+This document records features implemented in the source and a static review of the application, platform adapters, document handling, styles, build configuration, README, and canvas-performance code. It distinguishes current behavior from suggested work. The detailed audit and browser benchmark recorded below were run against the v12.4.0 source; see the [13.0.0 / 8.0.0 release notes](docs/release-notes-v13.0.0.md) for the current release checks.
 
 ## Features available in the app
 
@@ -178,4 +178,4 @@ The following gaps are grounded in the current implementation and reviewed again
 
 ## Review scope
 
-This audit covers the source prepared for Windows 12.4.0 and Android 7.4.0. The production build and `cargo check --manifest-path src-tauri/Cargo.toml` pass. The 41-check canvas renderer benchmark passed. `npx tsc --noEmit` passes after the fixes noted above. No physical Android device was connected (`adb devices -l` returned no devices), so stylus latency and pan behavior on low-end hardware could not be measured.
+This historical audit covers the source prepared for Windows 12.4.0 and Android 7.4.0. The production build and `cargo check --manifest-path src-tauri/Cargo.toml` passed at that revision. The 41-check canvas renderer benchmark passed, and `npx tsc --noEmit` passed after the fixes noted above. No physical Android device was connected at that time (`adb devices -l` returned no devices), so stylus latency and pan behavior on low-end hardware were not measured.

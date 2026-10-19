@@ -4,7 +4,7 @@
 
 SketchDraw is an offline-first drawing and planning app for Windows and Android. Canvas drawings and pages are stored in `.sketch` files; Planning notes, tasks, milestones, and project records are stored separately in `.sdplan` files. Switch between Canvas and Planning without closing the open sketch. Save either file locally or in a folder managed by OneDrive, Dropbox, Google Drive, or another sync service.
 
-**App versions: Windows 12.4.0 | Android 7.4.0 | Document format: v10 | Copyright (c) 2026 Toushal Sampat**
+**App versions: Windows 13.0.0 | Android 8.0.0 | Document format: v10 | Copyright (c) 2026 Toushal Sampat**
 
 > SketchDraw saves version 10 `.sketch` documents for Canvas and version 1 `.sdplan` documents for Planning. New and opened sketches start on Canvas; Planning opens or creates its own file and leaves the sketch open. Sketch versions 1-9 remain readable. Opening an older editable sketch shows a confirmation before replacing it with a canvas-only file; declining closes it without saving.
 
@@ -34,17 +34,9 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 
 *Planning Home for the standalone `Northstar launch.sdplan` file. Its Canvas tab returns to the still-open whiteboard; saving Planning updates the `.sdplan` file.*
 
-![Markdown text editor, insert-table action, and rendered editable table card](docs/screenshots/markdown-tables-preview.svg)
-
-*Markdown text preview: edit headings, lists, code, and tables in a collapsible card; start a table from the Text menu or insert one into an existing Markdown card.*
-
 ![View-only sketch with laser pointer and expandable note cards](docs/screenshots/view-only-preview.svg)
 
 *View-only preview: inspect a `.sketch` file with the laser pointer while expanding or collapsing note, sticky-note, and checklist cards.*
-
-![Contextual Properties panel for a selected Markdown card with collapse, title, and conversion controls](docs/screenshots/advanced-inspector-preview.svg)
-
-*Properties preview: focused controls for the selected item; Layers opens in a separate panel from the canvas toolbar.*
 
 ![Compact Layers panel with tool groups and named layers](docs/screenshots/layers-panel-preview.svg)
 
@@ -78,10 +70,6 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 
 *The flowchart palette includes cloud, star, lightning, heart, and callout symbols.*
 
-![In-place note, sticky note, and checklist editing on the canvas](docs/screenshots/canvas-notes-preview.svg)
-
-*Notes, sticky notes, and checklists open as writing surfaces directly on the whiteboard.*
-
 ![Database schema visualizer generating linked tables](docs/screenshots/database-schema-preview.svg)
 
 *Paste SQL `CREATE TABLE` statements or JSON Schema and generate editable table cards with key links attached to field rows.*
@@ -99,7 +87,7 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 *Fine pen is a standalone toolbar tool. The Paint brushes menu includes pencil, soft brush, marker, highlighter, and chalk; laser settings control line thickness, fade duration, color, and rainbow trails.*
 
 
-*Switch class cards, schema tables, notes, sticky notes, and checklists between the current treatment and a compact monochrome style.*
+*Modeling cards use the selected component treatment; graphs keep their modern visual style. Text cards use the same compact boundary style across themes.*
 
 ![Complex local-first document workflow diagram](docs/screenshots/complex-workflow-preview.svg)
 
@@ -112,14 +100,14 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 - **File updates:** On Windows, file-watch events detect outside changes to an open `.sketch` file, with a 30-second polling fallback for cloud folders and removable drives. Independent Canvas page and object edits can merge after a provider syncs the changed file; conflicting edits use edit clocks. `.sdplan` files are saved with a baseline check to detect external changes, but they do not use the Canvas background watcher or merge. Android document-provider files do not use background polling. SketchDraw does not host files or live collaboration.
 - **Drawing tools:** Draw with pen, fine pen, pencil, soft brush, marker, highlighter, chalk, or a temporary laser pointer. Create and fill geometric shapes, crop imported images, and adjust stroke, fill, opacity, corners, and text styling.
 - **Flowchart symbols:** Build diagrams with process, terminator, decision, input/output, document, database, preparation, manual input, connector, delay, stored-data, and cloud shapes. Symbols remain editable after placement.
-- **Connectors:** Draw straight or curved lines, multi-point lines, and straight, elbow, forked, loop, or jagged arrows. Attach endpoints to shapes, choose line and arrowhead styles, and drag route handles. Windows also offers automatic obstacle routing with editable waypoints.
+- **Connectors:** Draw straight or curved lines, multi-point lines, and straight, elbow, forked, loop, or jagged arrows. Attach endpoints to shapes, choose line and arrowhead styles, and drag route handles. Automatic obstacle routing and route optimization are available from connector properties; routing uses the shared diagram geometry on desktop and mobile.
 - **Selection and layers:** Move, resize, rotate, group, duplicate, align, and distribute objects. Copy and paste objects or their styles, and edit precise values. Objects are grouped by drawing tool by default; create named layers from a selection, then reorder, hide, or lock layers. Undo and redo history is kept per page for the current session.
 - **Canvas navigation:** Pan, zoom, fit the full drawing, or zoom to a selection. Set the board color and paper pattern, use grid and object snapping together, and open Canvas options for alignment guides and an optional minimap. Square grid marks, paper patterns, and grid snapping share an evenly spaced, pixel-aligned lattice. Automatic layout is available on desktop and mobile; touch layouts keep it under the collapsed More canvas tools section.
 - **Pages and project files:** Keep up to 100 named Canvas pages in a version 10 `.sketch` file. Planning records live in a version 1 `.sdplan` file; up to 100 recent plan paths are remembered separately from up to eight recent sketch paths. Recent sketch entries are deduplicated across Windows extended-path forms and shown with readable names and locations. Older sketches can be opened and refactored after confirmation; the replacement keeps canvas pages and removes planning, notebook, and retired Library records. Rename a sketch from the File menu; the open document, tabs, recent list, and autosave follow its new name. Autosave runs at the chosen 5- or 10-second interval, and Canvas recovery can restore interrupted edits.
-- **Text and note cards:** Add plain text, Markdown, tables, code notes, notes, sticky notes, and checklists to the canvas. Markdown supports headings, lists, tables, and syntax-colored code blocks. Resize, title, format, collapse, expand, and edit cards in place; collapsed cards retain a short content or progress summary.
+- **Text and note cards:** Add plain text, Markdown, tables, code notes, sticky notes, and checklists to the canvas. Markdown supports headings, lists, tables, and syntax-colored code blocks. Select a card or place a new one to edit its content in the compact right-side dock. Resize cards on the canvas, and collapse or expand them with the small card control; collapsed cards retain a short content or task summary.
 - **Diagram as code:** Paste Mermaid flowchart code, preview it, and generate native shapes and attached connectors. Mermaid and PlantUML groups keep their source for later editing and regeneration. Import supported Mermaid, DOT, CSV, and PlantUML subsets from files. Export editable diagram labels and relationships as Mermaid, DOT, CSV, or PlantUML. Format-specific constructs and visual styling beyond the supported subset are simplified.
 - **Database schema visualizer:** Paste SQL `CREATE TABLE` statements, JSON table definitions, or JSON Schema object definitions to create editable table cards. Primary- and foreign-key fields, common constraints, and indexes are retained in schema cards and supported exports. Each card can reopen its saved source for editing. Export table cards as SQL or Draft 2020-12 JSON Schema. SketchDraw `x-` extensions preserve SQL types and key metadata for re-import. This imports schema text; it does not connect to a live database.
-- **Modeling components:** Insert editable UML, sequence, ER, C4, cloud, software, BPMN, and network shapes, plus general-purpose frames and swimlanes. Page links and nested diagrams remain available in a collapsed inspector section; links inside grouped objects can be opened directly from the selection. BPMN flows support conditions and default paths; the token simulator follows parallel paths through gateways and waits at modeled joins. Diagram checks include general, BPMN, and ERD profiles. Visualization graphs always use the modern style.
+- **Modeling components and graphs:** Insert editable UML, sequence, ER, C4, cloud, software, BPMN, and network shapes, plus general-purpose frames and swimlanes. AWS, Azure, and Google Cloud libraries include common compute, storage, database, messaging, security, and network services. Provider symbols show labels and readable icon fallbacks while their provider glyphs load, and retain provider artwork in SVG export. Network symbols include gateways, DNS, VPN, internet, modem, and wireless access points; BPMN includes boundary and event gateways and subprocesses. Use **Spawn all components** to place a neatly spaced, labeled specimen sheet on the canvas. Component labels wrap within their symbols with consistent padding. Page links and nested diagrams remain available in a collapsed inspector section; links inside grouped objects can be opened directly from the selection. BPMN flows support conditions and default paths; the token simulator follows parallel paths through gateways and waits at modeled joins. Diagram checks include general, BPMN, and ERD profiles. Editable charts include bar, horizontal and stacked bar, line, area, scatter, pie, doughnut, radar, gauge, funnel, heatmap, treemap, and metric cards. Change chart data, series, palette, legend, grid, value labels, line smoothness, line width, and point size from the component editor. Graphs render directly as shared vectors on the canvas and in SVG export, staying sharp while zooming and updating immediately when values change.
 - **Import formats:** Import common raster images and SVG artwork. Images are embedded in the `.sketch` file. SVG paths, common shapes, transforms, nested groups, and gradients import as editable vectors; gradients become representative solid colors, and artwork using clipping, masks, filters, or other unsupported SVG features falls back to an embedded raster image. Import draw.io XML, Excalidraw JSON, CSV, JSON records or graph data, Kubernetes YAML manifests, Terraform resources and module blocks (`.tf` or `.tf.json`), Terraform plan/state JSON, Docker Compose, Ansible, OpenAPI, DOT, Mermaid, supported PlantUML diagrams, CloudFormation/CDK templates, and Azure ARM/Bicep templates as editable canvas objects. Kubernetes policies, ingress resources, and storage references are included where recognized. Infrastructure imports create editable cards and supported dependency links; they do not run the source configuration or deploy resources.
 - **Canvas tools:** Search canvas objects with Ctrl+F, link an object to another page, validate dangling connector bindings and schema references, save tagged stencil libraries for reuse or export, insert an editable legend or callout, and number selected connectors from top to bottom.
 - **Named versions:** Save up to ten snapshots per sketch in local app storage, export or import them as portable files, compare visual page previews and object counts, or restore one as an unsaved change. Snapshots do not sync automatically with the `.sketch` file.
@@ -128,6 +116,7 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 - **Windows workspace:** Windows adds multiple open sketch tabs, customizable shortcuts, the `Ctrl+K` command palette, and a full-screen focus mode. The palette searches tools, actions, settings, and symbols; the desktop toolbar groups common tools and keeps object properties close to the canvas.
 - **Phone and tablet workspace:** Touch layouts adapt to portrait and landscape and to the chosen toolbar position. Basic tools stay on screen; advanced canvas actions stay collapsed until opened. Tool controls, quick styles, canvas options, page controls, and menus remain reachable by touch.
 - **Touch and stylus input:** Draw and edit with a finger or compatible stylus. Use two fingers to pan and zoom, configure gesture actions, and use stylus pressure, tilt, and eraser-end input when the device reports them.
+- **Canvas interaction audit:** Run `npm run test:canvas` to exercise drawing and stroke rendering, stylus and touch event handling, anchored zoom and pinch gestures, label bounds, component creation/resizing/serialization/export, vector chart output and chart customization, connector routing, and layout behavior in a local headless Chromium browser. Set `CANVAS_TEST_BROWSER` if Chromium or Edge is installed outside the script's default locations. Stylus and touch checks use synthetic browser pointer input and do not replace testing with physical hardware.
 - **Appearance:** Follow the system theme or choose light or dark mode, set accent and toolbar colors from the app-wide View menu, and use the plain style for modeling components. Visualization graphs always use the modern style.
 - **Presentation mode:** Hide the editing interface to present the canvas. Use the mouse, keyboard, or touch to move between sketch pages.
 - **View-only mode and help:** Open a sketch without editing or saving it; the laser pointer and note-card expand/collapse controls remain available. New sketches always start blank. Diagram guides are read-only references and cannot be changed or spawned onto a canvas. The in-app guide and shortcut reference explain drawing, selection, files, pages, export, and diagram ideas.

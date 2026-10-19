@@ -109,11 +109,6 @@
     background: var(--ui-accent-soft);
 }
 
-.note-collapse-action {
-    border-color: var(--ui-accent-border);
-    color: var(--ui-accent);
-}
-
 .accent-colors {
     gap: 8px;
 }
@@ -496,31 +491,6 @@
 
 .laser-rainbow input {
     accent-color: var(--ui-accent);
-}
-
-.canvas-note-editor.simple {
-    gap: 6px;
-    padding: 8px;
-    border-radius: 3px;
-}
-
-.canvas-note-editor.simple>header {
-    min-height: 24px;
-    letter-spacing: .04em;
-}
-
-.canvas-note-editor.simple .note-card-details input,
-.canvas-note-editor.simple .canvas-note-input {
-    border-radius: 2px;
-}
-
-.canvas-note-editor.simple>header button {
-    border-radius: 3px;
-}
-
-.canvas-note-editor.simple.sticky,
-.canvas-note-editor.simple.checklist {
-    border-radius: 3px;
 }
 
 .autosave-choices {

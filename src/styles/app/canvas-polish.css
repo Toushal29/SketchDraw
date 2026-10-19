@@ -73,41 +73,14 @@
 }
 
 .style-pane .quick-style-icon {
-    border-radius: 10px;
+    border-radius: 100%;
     background: linear-gradient(180deg, var(--theme-surface-input), var(--theme-surface-input));
 }
-
-.canvas-note-editor>header {
-    position: relative;
-    z-index: 1;
-}
-
-.canvas-note-editor>header button {
-    min-height: 25px;
-}
-
-.canvas-note-editor>header button:hover {
-    background: var(--theme-surface);
-}
-
-.canvas-note-input {
-    min-width: 0;
-    border-radius: 6px;
-    caret-color: var(--theme-text-primary);
-    scrollbar-color: var(--theme-text-secondary) transparent;
-}
-
-.canvas-note-input::selection {
-    color: var(--theme-text-primary);
-    background: var(--theme-surface-input);
-}
-
 
 /* Keep the canvas toolbar compact after all base and theme styles. */
 .tool-deck {
     gap: 0px;
     padding: 0px;
-    border-radius: 10px;
 }
 
 .tool-cluster {

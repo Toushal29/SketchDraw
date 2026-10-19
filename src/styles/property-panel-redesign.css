@@ -111,3 +111,60 @@
     .app-shell:not(.platform-windows) .component-editor-dock { top: 58px; right: 8px; bottom: calc(env(safe-area-inset-bottom) + 58px); width: min(260px, calc(100vw - 76px)); min-width: min(190px, calc(100vw - 76px)); }
     .app-shell:not(.platform-windows) .component-editor-dock.collapsed { top: 50%; right: 0; bottom: auto; width: 30px; min-width: 30px; }
 }
+
+/* Note and text cards use the same right dock as modelling components. */
+.component-editor-dock.note-editor-dock { width: min(258px, calc(100vw - 72px)); min-width: 190px; }
+.note-editor-heading { min-height: 30px; gap: 3px; padding: 3px 4px 3px 7px; }
+.note-editor-heading strong { min-width: 0; flex: 1; font-size: 11px; font-weight: 600; }
+.note-editor-heading > button.note-editor-action {
+    display: grid;
+    width: 23px;
+    height: 23px;
+    min-width: 23px;
+    min-height: 23px;
+    flex: 0 0 23px;
+    place-items: center;
+    padding: 0 4px;
+    border: 1px solid var(--theme-border);
+    border-radius: 3px;
+    color: var(--theme-text-secondary);
+    background: var(--theme-surface);
+    font: 10px/1 var(--font-ui);
+}
+.note-editor-heading > button.note-editor-action:hover { color: var(--theme-text-primary); background: var(--theme-surface-hover); }
+.note-editor-heading > button.note-editor-action svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.note-editor-heading > button.dock-collapse-action { margin-left: 2px; }
+.component-editor-dock.note-editor-dock .component-editor-scroll { padding: 5px 7px 8px; }
+.note-editor-fields { display: grid; min-width: 0; gap: 6px; }
+.note-editor-label { display: grid; min-width: 0; gap: 3px; color: var(--theme-text-secondary); font: 10px/1.25 var(--font-ui); }
+.note-editor-label > span { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+.note-editor-label input,
+.note-editor-label textarea,
+.note-editor-size input,
+.note-editor-table textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--theme-border);
+    border-radius: 3px;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
+    font: 11px/1.4 var(--font-ui);
+}
+.note-editor-label input { min-height: 27px; padding: 4px 6px; }
+.note-editor-label textarea,
+.note-editor-table textarea { min-height: 132px; max-height: 42vh; padding: 6px; resize: vertical; font: 11px/1.45 var(--font-mono); tab-size: 2; }
+.note-editor-size { display: flex; min-height: 25px; align-items: center; justify-content: space-between; gap: 8px; color: var(--theme-text-secondary); font: 10px var(--font-ui); }
+.note-editor-size input { width: 58px; min-height: 25px; padding: 3px 5px; }
+.note-editor-inline-action { min-height: 22px; padding: 2px 5px; border: 1px solid var(--theme-border); border-radius: 3px; color: var(--theme-text-secondary); background: var(--theme-surface); font: 10px var(--font-ui); cursor: pointer; }
+.note-editor-inline-action:hover { color: var(--theme-text-primary); background: var(--theme-surface-hover); }
+.note-editor-convert { justify-self: start; border-color: transparent; background: transparent; }
+.note-editor-table { min-width: 0; border: 1px solid var(--theme-border); border-radius: 3px; }
+.note-editor-table summary { padding: 5px 7px; color: var(--theme-text-secondary); font: 10px var(--font-ui); cursor: pointer; }
+.note-editor-table-boundary { padding: 4px; border-top: 1px solid var(--theme-border); }
+.note-editor-table textarea { display: block; min-height: 118px; }
+
+@media (max-width: 900px) {
+    .component-editor-dock.note-editor-dock { width: min(258px, calc(100vw - 76px)); min-width: min(190px, calc(100vw - 76px)); }
+    .note-editor-heading > button.note-editor-action { width: 28px; height: 28px; min-width: 28px; min-height: 28px; flex-basis: 28px; }
+}

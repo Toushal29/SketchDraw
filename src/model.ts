@@ -25,7 +25,14 @@ export type SchemaTableElement = LayerFlags & { type: "schemaTable"; x: number; 
 export type NoteKind = "note" | "sticky" | "checklist";
 export type NoteMetadata = { kind: NoteKind; content: string; title?: string; width?: number; height?: number; fontSize?: number; collapsed?: boolean };
 export type MermaidMetadata = { source: string; format?: "mermaid" | "plantuml" };
-export type LibraryComponentData = { kind: string; label?: string; portCount?: number; laneCount?: number; durationMinutes?: number; renderStyle?: "clean"; iconSvg?: string; iconViewBox?: string; formTitle?: string; formState?: boolean; formStates?: boolean[]; selectedOption?: number; formOptions?: string[]; chartData?: { labels: string[]; values: number[]; title?: string; xAxisLabel?: string; yAxisLabel?: string }; trendDirection?: "up" | "down" | "steady"; appearance?: "modern" | "simple"; styleOverrides?: { color?: string; fillColor?: string | null; fillOpacity?: number }; textStyle?: { fontSize?: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify" } };
+export type LibraryChartKind = "viz-bar" | "viz-horizontal-bar" | "viz-stacked-bar" | "viz-line" | "viz-area" | "viz-scatter" | "viz-pie" | "viz-donut" | "viz-radar" | "viz-gauge" | "viz-funnel" | "viz-heatmap" | "viz-treemap" | "viz-kpi";
+export type LibraryChartSeries = { name: string; values: number[] };
+export type LibraryChartData = {
+  labels: string[]; values: number[]; title?: string; xAxisLabel?: string; yAxisLabel?: string;
+  series?: LibraryChartSeries[];
+  options?: { palette?: "blue" | "ocean" | "warm" | "violet" | "mono"; legend?: "right" | "bottom" | "hidden"; showGrid?: boolean; showValues?: boolean; smooth?: boolean; maxValue?: number; pointSize?: number; lineWidth?: number };
+};
+export type LibraryComponentData = { kind: string; label?: string; portCount?: number; laneCount?: number; durationMinutes?: number; renderStyle?: "clean"; iconSvg?: string; iconViewBox?: string; formTitle?: string; formState?: boolean; formStates?: boolean[]; selectedOption?: number; formOptions?: string[]; chartData?: LibraryChartData; trendDirection?: "up" | "down" | "steady"; appearance?: "modern" | "simple"; styleOverrides?: { color?: string; fillColor?: string | null; fillOpacity?: number }; textStyle?: { fontSize?: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify" } };
 export type GroupElement = LayerFlags & { type: "group"; elements: Element[]; componentBounds?: Bounds; note?: NoteMetadata; mermaid?: MermaidMetadata; libraryComponent?: LibraryComponentData };
 export type Element = FreehandElement | ShapeElement | TextElement | ImageElement | SchemaTableElement | GroupElement;
 export type Tool = "select" | "pan" | "pen" | "laser" | "rectangle" | "circle" | "diamond" | "triangle" | "flowchart" | "line" | "arrow" | "text" | "bucket" | "eraser" | "crop";

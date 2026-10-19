@@ -81,8 +81,22 @@ export function LibraryComponentEditor(props: Props) {
     const previous = current.libraryComponent?.chartData ?? defaultLibraryChartData(current.libraryComponent?.kind as LibraryComponentKind)!;
     const next = operation(previous);
     const values = next.values.map(value => Number.isFinite(value) ? Math.max(-1_000_000_000, Math.min(1_000_000_000, value)) : 0);
-    return { ...current, libraryComponent: { ...current.libraryComponent!, chartData: { ...next, values } } };
+    const series = next.series?.slice(0, 8).map((item, index) => ({ name: item.name.slice(0, 60) || `Series ${index + 1}`, values: next.labels.map((_, valueIndex) => { const value = item.values[valueIndex] ?? 0; return Number.isFinite(value) ? Math.max(-1_000_000_000, Math.min(1_000_000_000, value)) : 0; }) }));
+    return { ...current, libraryComponent: { ...current.libraryComponent!, chartData: { ...next, values, ...(series ? { series } : {}) } } };
   });
+  const chartOptions = () => chartData().options ?? {};
+  const chartSeriesRows = () => {
+    const data = chartData();
+    return data.series?.length ? data.series : [{ name: "Series 1", values: data.values }];
+  };
+  const setChartOptions = (values: NonNullable<LibraryChartData["options"]>) => updateChart(data => ({ ...data, options: { ...data.options, ...values } }));
+  const setChartSeriesName = (index: number, name: string) => updateChart(data => ({ ...data, series: (data.series ?? []).map((item, current) => current === index ? { ...item, name: name.slice(0, 60) } : item) }));
+  const setChartSeriesValues = (index: number, text: string) => {
+    const values = text.split(/[\s,;]+/).filter(Boolean).slice(0, 20).map(value => Number(value));
+    updateChart(data => ({ ...data, series: (data.series ?? []).map((item, current) => current === index ? { ...item, values: data.labels.map((_, valueIndex) => Number.isFinite(values[valueIndex]) ? values[valueIndex] : 0) } : item) }));
+  };
+  const addChartSeries = () => updateChart(data => ({ ...data, series: [...(data.series?.length ? data.series : [{ name: "Series 1", values: [...data.values] }]), { name: `Series ${(data.series?.length ?? 1) + 1}`, values: data.labels.map(() => 0) }].slice(0, 8) }));
+  const removeChartSeries = (index: number) => updateChart(data => ({ ...data, series: (data.series ?? []).filter((_, current) => current !== index) }));
   const setMetricTrend = (trendDirection: "up" | "down" | "steady") => changeGroup(current => setLibraryChartTrend(current, trendDirection));
   const updateMetricDatum = (index: number, value: number) => updateChart(data => {
     const labels = [...data.labels];
@@ -134,6 +148,19 @@ export function LibraryComponentEditor(props: Props) {
     <Show when={kind().startsWith("viz-")}>
       <div class="component-chart-editor">
         <label class="property-label">{kind() === "viz-kpi" ? "Metric title" : "Chart title"}<input maxlength="80" value={chartData().title ?? "Chart"} disabled={locked()} onInput={event => updateChart(data => ({ ...data, title: event.currentTarget.value }))} /></label>
+        <Show when={kind() !== "viz-kpi"}>
+          <div class="component-chart-customize">
+            <div class="component-chart-palette" role="group" aria-label="Chart color palette"><span>Colors</span>{([{ value: "blue", label: "Blue" }, { value: "ocean", label: "Ocean" }, { value: "warm", label: "Warm" }, { value: "violet", label: "Violet" }, { value: "mono", label: "Mono" }] as const).map(palette => <button type="button" class={chartOptions().palette === palette.value ? "active" : ""} aria-pressed={chartOptions().palette === palette.value} disabled={locked()} onClick={() => setChartOptions({ palette: palette.value })}>{palette.label}</button>)}</div>
+            <div class="component-chart-setting" role="group" aria-label="Chart legend"><span>Legend</span>{([{ value: "right", label: "Right" }, { value: "bottom", label: "Bottom" }, { value: "hidden", label: "Off" }] as const).map(option => <button type="button" class={chartOptions().legend === option.value ? "active" : ""} aria-pressed={chartOptions().legend === option.value} disabled={locked()} onClick={() => setChartOptions({ legend: option.value })}>{option.label}</button>)}</div>
+            <div class="component-chart-setting" role="group" aria-label="Chart display options"><span>Display</span><button type="button" class={chartOptions().showGrid !== false ? "active" : ""} aria-pressed={chartOptions().showGrid !== false} disabled={locked()} onClick={() => setChartOptions({ showGrid: chartOptions().showGrid === false })}>Grid</button><button type="button" class={chartOptions().showValues ? "active" : ""} aria-pressed={chartOptions().showValues === true} disabled={locked()} onClick={() => setChartOptions({ showValues: !chartOptions().showValues })}>Values</button><Show when={kind() === "viz-line" || kind() === "viz-area"}><button type="button" class={chartOptions().smooth !== false ? "active" : ""} aria-pressed={chartOptions().smooth !== false} disabled={locked()} onClick={() => setChartOptions({ smooth: chartOptions().smooth === false })}>Smooth</button></Show></div>
+          </div>
+        </Show>
+        <Show when={kind() === "viz-line" || kind() === "viz-area" || kind() === "viz-radar" || kind() === "viz-scatter"}>
+          <div class="component-chart-sliders">
+            <Show when={kind() !== "viz-scatter"}><label class="component-chart-slider">Line width <input aria-label="Chart line width" type="range" min="1" max="6" step="1" value={chartOptions().lineWidth ?? 2} disabled={locked()} onInput={event => setChartOptions({ lineWidth: Number(event.currentTarget.value) })} /></label></Show>
+            <label class="component-chart-slider">Point size <input aria-label="Chart point size" type="range" min="3" max="12" step="1" value={chartOptions().pointSize ?? (kind() === "viz-scatter" ? 8 : 6)} disabled={locked()} onInput={event => setChartOptions({ pointSize: Number(event.currentTarget.value) })} /></label>
+          </div>
+        </Show>
         <Show when={kind() === "viz-kpi"}>
           <div class="component-kpi-editor">
             <label class="property-label">Value<input aria-label="Metric value" type="number" step="any" value={chartData().values[0] ?? 0} disabled={locked()} onInput={event => { const value = event.currentTarget.valueAsNumber; if (Number.isFinite(value)) updateMetricDatum(0, value); }} /></label>
@@ -141,6 +168,14 @@ export function LibraryComponentEditor(props: Props) {
             <label class="property-label">Change (%)<input aria-label="Metric change percent" type="number" step="any" value={chartData().values[1] ?? 0} disabled={locked()} onInput={event => { const value = event.currentTarget.valueAsNumber; if (Number.isFinite(value)) updateMetricDatum(1, value); }} /></label>
           </div>
           <div class="component-trend-control" role="group" aria-label="Metric trend direction"><span>Trend direction</span><div>{([{ value: "up", label: "Rising" }, { value: "down", label: "Falling" }, { value: "steady", label: "Steady" }] as const).map(option => <button type="button" class={(group().libraryComponent?.trendDirection ?? ((chartData().values[1] ?? 0) > 0 ? "up" : (chartData().values[1] ?? 0) < 0 ? "down" : "steady")) === option.value ? "active" : ""} aria-pressed={(group().libraryComponent?.trendDirection ?? ((chartData().values[1] ?? 0) > 0 ? "up" : (chartData().values[1] ?? 0) < 0 ? "down" : "steady")) === option.value} disabled={locked()} onClick={() => setMetricTrend(option.value)}>{option.label}</button>)}</div></div>
+        </Show>
+        <Show when={kind() === "viz-gauge"}><label class="property-label">Maximum value<input aria-label="Gauge maximum value" type="number" min="1" step="any" value={chartOptions().maxValue ?? 100} disabled={locked()} onChange={event => setChartOptions({ maxValue: Math.max(1, Math.min(1_000_000_000, Number(event.currentTarget.value) || 100)) })} /></label></Show>
+        <Show when={kind() === "viz-stacked-bar" || kind() === "viz-radar" || kind() === "viz-heatmap"}>
+          <div class="component-chart-series-list">
+            <div class="component-chart-data-heading"><strong>{kind() === "viz-heatmap" ? "Rows" : "Series"}</strong><span>{chartData().series?.length ?? 1}/8</span></div>
+            <For each={chartSeriesRows()}>{(series, index) => <div class="component-chart-series-row"><input aria-label={`Series ${index() + 1} name`} maxlength="60" value={series.name} disabled={locked()} onChange={event => setChartSeriesName(index(), event.currentTarget.value)} /><input aria-label={`Series ${index() + 1} values`} value={series.values.join(", ")} disabled={locked()} onChange={event => setChartSeriesValues(index(), event.currentTarget.value)} /><button type="button" aria-label={`Remove series ${index() + 1}`} disabled={locked() || chartSeriesRows().length <= 1} onClick={() => removeChartSeries(index())}>×</button></div>}</For>
+            <div class="component-option-actions"><button type="button" disabled={locked() || (chartData().series?.length ?? 1) >= 8} onClick={addChartSeries}>Add series</button></div>
+          </div>
         </Show>
         <Show when={kind() !== "viz-pie" && kind() !== "viz-donut" && kind() !== "viz-kpi"}><div class="component-chart-axis-row"><label class="property-label">X axis<input maxlength="80" value={chartData().xAxisLabel ?? ""} disabled={locked()} onInput={event => updateChart(data => ({ ...data, xAxisLabel: event.currentTarget.value }))} /></label><label class="property-label">Y axis<input maxlength="80" value={chartData().yAxisLabel ?? ""} disabled={locked()} onInput={event => updateChart(data => ({ ...data, yAxisLabel: event.currentTarget.value }))} /></label></div></Show>
         <Show when={kind() !== "viz-kpi"}>

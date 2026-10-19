@@ -1,4 +1,5 @@
-import type { Element, FlowchartShape, GroupElement, NoteKind, ShapeElement, TextElement, Theme } from "./model";
+import type { Element, FlowchartShape, GroupElement, LibraryChartData, LibraryChartKind, NoteKind, ShapeElement, TextElement, Theme } from "./model";
+export type { LibraryChartData } from "./model";
 import { CLOUD_PROVIDER_COMPONENTS, cloudProviderComponent, type CloudProviderComponentKind } from "./features/diagrams/cloud-providers";
 
 const text = (x: number, y: number, value: string, color = "#303638", size = 14, family: TextElement["fontFamily"] = "sans", bold = false): TextElement => ({
@@ -50,19 +51,19 @@ function isMarkdownTableDivider(line: string): boolean {
 }
 
 export function checklistRows(content: string, width: number, fontSize: number) {
-  let top = 76;
+  let top = 58;
   return content.split(/\r?\n/).filter(line => line.trim()).map((line, index) => {
     const match = /^\s*(?:[-*]|\d+\.)\s+\[([ xX])\]\s*(.*)$/.exec(line);
     const indent = Math.min(6, Math.floor((line.match(/^\s*/)?.[0].replace(/\t/g, "  ").length ?? 0) / 2)) * 14;
-    const lineHeight = Math.max(16, fontSize * 1.38);
-    const boxX = 16 + indent; const textX = boxX + 27;
+    const lineHeight = Math.max(15, fontSize * 1.32);
+    const boxX = 16 + indent; const textX = boxX + 23;
     const max = Math.max(6, Math.floor((width - textX - 16) / (fontSize * .54)));
     let rest = match?.[2] || "Untitled task"; const labelLines: string[] = [];
     while (rest.length > max) { const breakAt = rest.lastIndexOf(" ", max); const count = breakAt > 0 ? breakAt : max; labelLines.push(rest.slice(0, count)); rest = rest.slice(count).trimStart(); }
     labelLines.push(rest);
-    const height = Math.max(28, labelLines.length * lineHeight + 7);
+    const height = Math.max(24, labelLines.length * lineHeight + 4);
     const row = { index, top, height, lineHeight, boxX, textX, done: match?.[1].toLowerCase() === "x", labelLines };
-    top += height + 3; return row;
+    top += height + 2; return row;
   });
 }
 
@@ -116,22 +117,30 @@ export function buildNoteGroup(x: number, y: number, kind: NoteKind, source: str
   const title = (dimensions.title ?? defaultNoteTitle(kind)).trim().slice(0, 120) || defaultNoteTitle(kind);
   const palette = noteCardPalette(kind, "light");
   const lines = content.split(/\r?\n/);
-  let estimated = 82;
+  let estimated = 58;
   if (kind === "checklist") {
-    const rows = checklistRows(content, width, fontSize); const last = rows[rows.length - 1]; estimated = last ? last.top + last.height + 16 : 116;
+    const rows = checklistRows(content, width, fontSize); const last = rows[rows.length - 1]; estimated = last ? last.top + last.height + 12 : 84;
   } else {
     const maxChars = Math.max(8, Math.floor((width - 38) / (fontSize * .56)));
     let inCode = false; let codeCount = 0;
-    for (const line of lines) {
-      if (/^\s*```/.test(line)) { if (inCode) { estimated += Math.max(48, codeCount * fontSize * 1.55 + 28) + 10; codeCount = 0; } inCode = !inCode; continue; }
-      if (inCode) codeCount++; else estimated += line.trim() ? Math.ceil(line.length / maxChars) * fontSize * 1.5 : 9;
+    for (let lineIndex = 0; lineIndex < lines.length;) {
+      const line = lines[lineIndex];
+      if (/^\s*```/.test(line)) { if (inCode) { estimated += Math.max(48, codeCount * fontSize * 1.55 + 28) + 10; codeCount = 0; } inCode = !inCode; lineIndex++; continue; }
+      if (inCode) { codeCount++; lineIndex++; continue; }
+      if (lineIndex + 1 < lines.length && isMarkdownTableDivider(lines[lineIndex + 1])) {
+        let rowIndex = lineIndex + 2; let rowCount = 1;
+        while (rowIndex < lines.length && lines[rowIndex].includes("|")) { rowCount++; rowIndex++; }
+        estimated += rowCount * Math.max(24, fontSize * 1.7) + 12; lineIndex = rowIndex; continue;
+      }
+      estimated += line.trim() ? Math.ceil(line.length / maxChars) * fontSize * 1.5 : 9;
+      lineIndex++;
     }
     if (inCode) estimated += Math.max(48, codeCount * fontSize * 1.55 + 28);
-    estimated += 18;
+    estimated += 12;
   }
-  const fullHeight = dimensions.height === undefined ? Math.max(estimated, 120) : Math.max(100, Math.min(1_000_000, dimensions.height));
-  const visibleHeight = collapsed ? 52 : fullHeight;
-  const background: ShapeElement = { type: "rectangle", x, y, w: width, h: visibleHeight, color: palette.border, thickness: 1, fillColor: palette.surface, fillOpacity: 1, edgeStyle: "rounded", cornerRadius: 12 };
+  const fullHeight = dimensions.height === undefined ? Math.max(estimated, 84) : Math.max(84, Math.min(1_000_000, dimensions.height));
+  const visibleHeight = collapsed ? 42 : fullHeight;
+  const background: ShapeElement = { type: "rectangle", x, y, w: width, h: visibleHeight, color: palette.border, thickness: 1, fillColor: palette.surface, fillOpacity: 1, edgeStyle: "rounded", cornerRadius: 3 };
   return { type: "group", note: { kind, content, title, width, height: fullHeight, fontSize, collapsed }, elements: [background] };
 }
 
@@ -141,42 +150,44 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
   if (!meta || !background) return;
   const { x, y } = background; const width = Math.abs(background.w); const height = Math.abs(background.h);
   const palette = noteCardPalette(meta.kind, theme, appearance); const fontSize = Math.round(Math.max(8, Math.min(48, meta.fontSize ?? 12)));
-  ctx.save(); ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(x, y, width, height, appearance === "simple" ? 0 : 9); ctx.fillStyle = palette.surface; ctx.fill(); ctx.strokeStyle = palette.border; ctx.stroke();
+  ctx.save(); ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(x, y, width, height, 3); ctx.fillStyle = palette.surface; ctx.fill(); ctx.strokeStyle = palette.border; ctx.stroke();
   if (appearance !== "simple") { ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, width, height, 9); ctx.clip(); ctx.fillStyle = palette.accent; ctx.fillRect(x, y + 1, 3, Math.max(0, height - 2)); ctx.restore(); }
   const collapsed = meta.collapsed === true; const title = (meta.title || defaultNoteTitle(meta.kind)).slice(0, 120);
-  ctx.textBaseline = "top"; ctx.textAlign = "left"; ctx.font = "600 12px system-ui, sans-serif"; ctx.fillStyle = palette.ink; ctx.fillText(title, x + 14, y + (collapsed ? 8 : 13), Math.max(40, width - 88));
-  const toggleX = x + width - 36; const toggleY = collapsed ? y + 6 : y + 11;
-  ctx.beginPath(); ctx.roundRect(toggleX, toggleY, 24, 24, appearance === "simple" ? 0 : 7); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.rule; ctx.stroke();
-  ctx.strokeStyle = palette.muted; ctx.lineWidth = 1.5; ctx.beginPath();
-  if (collapsed) { ctx.moveTo(toggleX + 8, toggleY + 9); ctx.lineTo(toggleX + 12, toggleY + 13); ctx.lineTo(toggleX + 16, toggleY + 9); }
-  else { ctx.moveTo(toggleX + 8, toggleY + 15); ctx.lineTo(toggleX + 12, toggleY + 11); ctx.lineTo(toggleX + 16, toggleY + 15); }
+  ctx.textBaseline = "top"; ctx.textAlign = "left"; ctx.font = "600 11px system-ui, sans-serif"; ctx.fillStyle = palette.ink; ctx.fillText(title, x + 10, y + 9, Math.max(40, width - 52));
+  const toggleX = x + width - 26; const toggleY = y + 7;
+  ctx.beginPath(); ctx.roundRect(toggleX, toggleY, 18, 18, 2); ctx.fillStyle = palette.surface; ctx.fill(); ctx.strokeStyle = palette.border; ctx.stroke();
+  ctx.strokeStyle = palette.muted; ctx.lineWidth = 1.3; ctx.beginPath();
+  if (collapsed) { ctx.moveTo(toggleX + 5, toggleY + 7); ctx.lineTo(toggleX + 9, toggleY + 11); ctx.lineTo(toggleX + 13, toggleY + 7); }
+  else { ctx.moveTo(toggleX + 5, toggleY + 11); ctx.lineTo(toggleX + 9, toggleY + 7); ctx.lineTo(toggleX + 13, toggleY + 11); }
   ctx.stroke();
   if (collapsed) {
     const rows = meta.kind === "checklist" ? checklistRows(meta.content, width, fontSize) : undefined;
     const completed = rows?.filter(row => row.done).length ?? 0;
     const summary = rows ? completed + " of " + rows.length + " tasks" : (meta.content.split(/\r?\n/).find(line => line.trim() && !/^\s*```/.test(line)) ?? "Empty card").trim();
-    ctx.font = "500 9px system-ui, sans-serif"; ctx.fillStyle = palette.muted; ctx.fillText(summary, x + 14, y + 31, Math.max(40, width - 62));
+    ctx.font = "400 9px system-ui, sans-serif"; ctx.fillStyle = palette.muted; ctx.fillText(summary, x + 10, y + 25, Math.max(40, width - 48));
   }
-  if (!collapsed) { ctx.strokeStyle = palette.rule; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + 14, y + 47); ctx.lineTo(x + width - 14, y + 47); ctx.stroke(); }
-  if (collapsed || height <= 54) { ctx.restore(); return; }
-  ctx.save(); ctx.beginPath(); ctx.rect(x + 8, y + 49, width - 16, height - 57); ctx.clip();
+  if (!collapsed) { ctx.strokeStyle = palette.rule; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + 10, y + 33); ctx.lineTo(x + width - 10, y + 33); ctx.stroke(); }
+  if (collapsed || height <= 38) { ctx.restore(); return; }
+  ctx.save(); ctx.beginPath(); ctx.rect(x + 8, y + 37, width - 16, height - 45); ctx.clip();
   const drawText = (value: string, px: number, py: number, size = fontSize, color = palette.ink, weight = 400, family = "system-ui, sans-serif") => { ctx.font = `${weight} ${size}px ${family}`; ctx.fillStyle = color; ctx.textAlign = "left"; ctx.fillText(value, px, py, Math.max(1, x + width - 14 - px)); };
   const wrap = (value: string, max: number) => { const chunks: string[] = []; let remaining = value; while (remaining.length > max) { let cut = remaining.lastIndexOf(" ", max); if (cut < 1) cut = max; chunks.push(remaining.slice(0, cut)); remaining = remaining.slice(cut).trimStart(); } chunks.push(remaining); return chunks; };
   if (meta.kind === "checklist") {
     const rows = checklistRows(meta.content, width, fontSize); const completed = rows.filter(row => row.done).length;
-    drawText(`${completed} of ${rows.length} complete`, x + 16, y + 53, 10, palette.muted, 600);
+    drawText(`${completed} of ${rows.length} complete`, x + 16, y + 40, 9, palette.muted, 500);
+    ctx.fillStyle = palette.rule; ctx.fillRect(x + 16, y + 53, width - 32, 2);
+    ctx.fillStyle = palette.check; ctx.fillRect(x + 16, y + 53, rows.length ? (width - 32) * completed / rows.length : 0, 2);
     for (const row of rows) {
       const boxX = x + row.boxX; const textX = x + row.textX; const textTop = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2;
-      const checkboxY = y + row.top + Math.max(0, (row.height - 16) / 2);
-      ctx.beginPath(); ctx.roundRect(boxX, checkboxY, 16, 16, appearance === "simple" ? 0 : 4); ctx.fillStyle = row.done ? palette.check : palette.surface; ctx.fill(); ctx.strokeStyle = row.done ? palette.check : palette.border; ctx.stroke();
-      if (row.done) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(boxX + 4, checkboxY + 8); ctx.lineTo(boxX + 7, checkboxY + 11); ctx.lineTo(boxX + 12, checkboxY + 5); ctx.stroke(); }
+      const checkboxY = y + row.top + Math.max(0, (row.height - 14) / 2);
+      ctx.beginPath(); ctx.roundRect(boxX, checkboxY, 14, 14, 1); ctx.fillStyle = row.done ? palette.check : palette.surface; ctx.fill(); ctx.strokeStyle = row.done ? palette.check : palette.border; ctx.stroke();
+      if (row.done) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(boxX + 3, checkboxY + 7); ctx.lineTo(boxX + 6, checkboxY + 10); ctx.lineTo(boxX + 11, checkboxY + 4); ctx.stroke(); }
       row.labelLines.forEach((line, lineIndex) => {
         const baseline = textTop + lineIndex * row.lineHeight; drawText(line, textX, baseline, fontSize, row.done ? palette.muted : palette.ink);
         if (row.done) { const measured = ctx.measureText(line).width; ctx.strokeStyle = palette.muted; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(textX, baseline + fontSize * .7); ctx.lineTo(textX + measured, baseline + fontSize * .7); ctx.stroke(); }
       });
     }
   } else {
-    let cursor = y + 58; let inCode = false; let language = "text"; let codeLines: string[] = [];
+    let cursor = y + 41; let inCode = false; let language = "text"; let codeLines: string[] = [];
     const flushCode = () => {
       const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => wrap(line, max)); const blockHeight = Math.max(45, lines.length * fontSize * 1.5 + 26);
       ctx.beginPath(); ctx.roundRect(x + 10, cursor, width - 20, blockHeight, appearance === "simple" ? 0 : 7); ctx.fillStyle = appearance === "simple" ? palette.surface : "#202936"; ctx.fill(); ctx.strokeStyle = appearance === "simple" ? palette.rule : "#344154"; ctx.stroke();
@@ -249,8 +260,8 @@ export function noteCollapseHit(group: GroupElement, point: { x: number; y: numb
   if (!group.note) return false;
   const background = group.elements.find((item): item is ShapeElement => item.type === "rectangle");
   if (!background) return false;
-  const x = background.x + background.w - 39; const y = background.y + (group.note.collapsed ? 3 : 8);
-  return point.x >= x && point.x <= x + 30 && point.y >= y && point.y <= y + 30;
+  const x = background.x + background.w - 29; const y = background.y + 4;
+  return point.x >= x && point.x <= x + 24 && point.y >= y && point.y <= y + 24;
 }
 
 export const EXTRA_FLOWCHART_SHAPES: { value: FlowchartShape; label: string }[] = [
@@ -264,8 +275,8 @@ export function checklistIndexAt(group: GroupElement, point: { x: number; y: num
   const background = group.elements.find((item): item is ShapeElement => item.type === "rectangle");
   if (!background) return undefined;
   for (const row of checklistRows(group.note.content, Math.abs(background.w), group.note.fontSize ?? 12)) {
-    const x = background.x + row.boxX; const y = background.y + row.top + Math.max(0, (row.height - 16) / 2);
-    if (point.x >= x - 4 && point.x <= x + 24 && point.y >= y - 4 && point.y <= y + 20) return row.index;
+    const x = background.x + row.boxX; const y = background.y + row.top + Math.max(0, (row.height - 14) / 2);
+    if (point.x >= x - 4 && point.x <= x + 22 && point.y >= y - 4 && point.y <= y + 18) return row.index;
   }
   return undefined;
 }
@@ -280,7 +291,7 @@ export function toggleChecklistContent(content: string, target: number): string 
   }).join("\n");
 }
 
-export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-one-many" | "er-many-many" | "c4-system" | "c4-container" | "c4-component" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-task" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-access-point" | "viz-bar" | "viz-line" | "viz-area" | "viz-scatter" | "viz-pie" | "viz-donut" | "viz-kpi" | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle" | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | CloudProviderComponentKind;
+export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-one-many" | "er-many-many" | "c4-system" | "c4-container" | "c4-component" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-subprocess" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle" | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | CloudProviderComponentKind;
 export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
   { kind: "diagram-frame", section: "General | Layout", label: "Frame", description: "Resizable titled boundary for any diagram", width: 420, height: 280 },
   { kind: "diagram-swimlane", section: "General | Layout", label: "Swimlane", description: "Resizable lanes for organizing responsibilities or stages", width: 520, height: 320 },
@@ -329,10 +340,18 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "network-client", section: "Network | Devices", label: "Client device", description: "Desktop client device", width: 118, height: 94 },
   { kind: "network-access-point", section: "Network | Devices", label: "Wireless access point", description: "Ceiling mounted access point puck with radio and status lights", width: 132, height: 98 },
   { kind: "viz-bar", section: "Data visualization | Charts", label: "Bar chart", description: "Compact comparison chart with sample series", width: 260, height: 176 },
+  { kind: "viz-horizontal-bar", section: "Data visualization | Charts", label: "Horizontal bar chart", description: "Rank categories with long labels", width: 260, height: 176 },
+  { kind: "viz-stacked-bar", section: "Data visualization | Charts", label: "Stacked bar chart", description: "Compare totals and their component series", width: 280, height: 190 },
   { kind: "viz-line", section: "Data visualization | Charts", label: "Line chart", description: "Trend chart with editable points and axis labels", width: 260, height: 176 },
   { kind: "viz-area", section: "Data visualization | Charts", label: "Area chart", description: "Filled trend bands for comparing totals", width: 260, height: 176 },
   { kind: "viz-scatter", section: "Data visualization | Charts", label: "Scatter plot", description: "Point cloud for comparing two measures", width: 260, height: 176 },
   { kind: "viz-pie", section: "Data visualization | Charts", label: "Pie chart", description: "Category proportions with an editable legend", width: 260, height: 176 },
+  { kind: "viz-donut", section: "Data visualization | Charts", label: "Doughnut chart", description: "Category proportions with a central total", width: 260, height: 176 },
+  { kind: "viz-radar", section: "Data visualization | Charts", label: "Radar chart", description: "Compare several profiles across shared measures", width: 280, height: 210 },
+  { kind: "viz-gauge", section: "Data visualization | Charts", label: "Gauge chart", description: "Show progress against a chosen maximum", width: 220, height: 170 },
+  { kind: "viz-funnel", section: "Data visualization | Charts", label: "Funnel chart", description: "Show stage values through a process", width: 260, height: 190 },
+  { kind: "viz-heatmap", section: "Data visualization | Charts", label: "Heatmap", description: "Compare values across rows and categories", width: 300, height: 210 },
+  { kind: "viz-treemap", section: "Data visualization | Charts", label: "Treemap", description: "Compare hierarchical category sizes", width: 280, height: 190 },
   { kind: "viz-kpi", section: "Data visualization | Metrics", label: "Metric card", description: "Headline value, trend, and supporting caption", width: 220, height: 126 },
   { kind: "form-button", section: "Forms & UI | Controls", label: "Button", description: "Primary action button", width: 164, height: 54 },
   { kind: "form-input", section: "Forms & UI | Fields", label: "Text field", description: "Labeled text input with placeholder", width: 228, height: 78 },
@@ -343,11 +362,20 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "bpmn-start", section: "BPMN | Events & flow", label: "Start event", description: "BPMN start event", width: 52, height: 52 },
   { kind: "bpmn-event", section: "BPMN | Events & flow", label: "Intermediate event", description: "BPMN intermediate event", width: 52, height: 52 },
   { kind: "bpmn-end", section: "BPMN | Events & flow", label: "End event", description: "BPMN end event", width: 52, height: 52 },
+  { kind: "bpmn-boundary-event", section: "BPMN | Events & flow", label: "Boundary event", description: "Event marker to place on a task boundary", width: 62, height: 66 },
   { kind: "bpmn-gateway", section: "BPMN | Events & flow", label: "Exclusive gateway", description: "BPMN exclusive decision gateway", width: 58, height: 58 },
   { kind: "bpmn-parallel-gateway", section: "BPMN | Events & flow", label: "Parallel gateway", description: "BPMN parallel split or join gateway", width: 58, height: 58 },
+  { kind: "bpmn-inclusive-gateway", section: "BPMN | Events & flow", label: "Inclusive gateway", description: "BPMN gateway for one or more selected paths", width: 58, height: 58 },
+  { kind: "bpmn-event-gateway", section: "BPMN | Events & flow", label: "Event gateway", description: "BPMN event-based routing gateway", width: 58, height: 58 },
   { kind: "bpmn-task", section: "BPMN | Tasks & data", label: "Task", description: "BPMN activity task", width: 168, height: 82 },
+  { kind: "bpmn-subprocess", section: "BPMN | Tasks & data", label: "Subprocess", description: "Collapsed BPMN subprocess with expand marker", width: 168, height: 90 },
   { kind: "bpmn-data", section: "BPMN | Tasks & data", label: "Data object", description: "BPMN document data object", width: 86, height: 112 },
   { kind: "bpmn-pool", section: "BPMN | Tasks & data", label: "Pool / lane", description: "BPMN participant pool with a lane divider", width: 300, height: 156 },
+  { kind: "network-internet", section: "Network | Devices", label: "Internet", description: "External internet or public network cloud", width: 128, height: 92 },
+  { kind: "network-vpn", section: "Network | Devices", label: "VPN tunnel", description: "Encrypted site-to-site or client VPN path", width: 164, height: 88 },
+  { kind: "network-dns", section: "Network | Devices", label: "DNS server", description: "Name resolution service node", width: 120, height: 100 },
+  { kind: "network-nat-gateway", section: "Network | Devices", label: "NAT gateway", description: "Address translation between private and public networks", width: 156, height: 100 },
+  { kind: "network-modem", section: "Network | Devices", label: "Modem", description: "Network access modem with status and radio marks", width: 120, height: 88 },
 ];
 const lineElement = (x: number, y: number, w: number, h: number, color = "#74889a", dashed = false): ShapeElement => ({ type: "line", x, y, w, h, color, thickness: 1.4, lineStyle: dashed ? "dashed" : "solid", startHead: "none", endHead: "none" });
 
@@ -376,7 +404,6 @@ export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, 
   return line;
 }
 
-export type LibraryChartData = { labels: string[]; values: number[]; title?: string; xAxisLabel?: string; yAxisLabel?: string };
 export function defaultLibraryFormOptions(kind: LibraryComponentKind): string[] | undefined {
   if (kind === "form-radio") return ["Monthly", "Annual"];
   if (kind === "form-select") return ["Canada", "France", "Japan"];
@@ -393,152 +420,100 @@ export function defaultLibraryFormTitle(kind: LibraryComponentKind): string | un
 }
 
 export function defaultLibraryChartData(kind: LibraryComponentKind): LibraryChartData | undefined {
-  if (kind === "viz-bar") return { title: "Quarterly sales", xAxisLabel: "Month", yAxisLabel: "Units", labels: ["Jan", "Mar", "May", "Jul", "Sep"], values: [55, 80, 44, 70, 62] };
+  if (kind === "viz-bar" || kind === "viz-horizontal-bar") return { title: kind === "viz-horizontal-bar" ? "Top services" : "Quarterly sales", xAxisLabel: kind === "viz-horizontal-bar" ? "Requests" : "Month", yAxisLabel: kind === "viz-horizontal-bar" ? "Service" : "Units", labels: kind === "viz-horizontal-bar" ? ["API gateway", "Database", "Worker", "Cache"] : ["Jan", "Mar", "May", "Jul", "Sep"], values: kind === "viz-horizontal-bar" ? [92, 78, 54, 38] : [55, 80, 44, 70, 62] };
+  if (kind === "viz-stacked-bar") return { title: "Usage by region", xAxisLabel: "Month", yAxisLabel: "Units", labels: ["Jan", "Feb", "Mar", "Apr"], values: [42, 56, 48, 65], series: [{ name: "North", values: [42, 56, 48, 65] }, { name: "Central", values: [30, 36, 42, 39] }, { name: "South", values: [18, 24, 31, 35] }], options: { legend: "bottom", showGrid: true, showValues: false } };
   if (kind === "viz-line" || kind === "viz-area") return { title: kind === "viz-area" ? "Monthly signups" : "Monthly trend", xAxisLabel: "Month", yAxisLabel: "Users", labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"], values: [28, 48, 38, 77, 67, 88] };
   if (kind === "viz-scatter") return { title: "Response time", xAxisLabel: "Request", yAxisLabel: "Milliseconds", labels: ["1", "2", "3", "4", "5", "6", "7", "8", "9"], values: [72, 42, 81, 53, 68, 30, 57, 40, 66] };
   if (kind === "viz-pie" || kind === "viz-donut") return { title: "Device mix", labels: ["Desktop", "Tablet", "Phone"], values: [46, 35, 19] };
+  if (kind === "viz-radar") return { title: "Service profile", labels: ["Latency", "Reliability", "Cost", "Security", "Scale"], values: [72, 84, 65, 91, 76], series: [{ name: "Current", values: [72, 84, 65, 91, 76] }, { name: "Target", values: [82, 90, 74, 95, 88] }], options: { legend: "bottom", showGrid: true } };
+  if (kind === "viz-gauge") return { title: "Capacity used", labels: ["Used"], values: [72], options: { maxValue: 100, showValues: true } };
+  if (kind === "viz-funnel") return { title: "Request conversion", labels: ["Visits", "Qualified", "Trial", "Active"], values: [960, 620, 310, 184], options: { legend: "hidden", showValues: true } };
+  if (kind === "viz-heatmap") return { title: "Weekly activity", xAxisLabel: "Day", yAxisLabel: "Team", labels: ["Mon", "Tue", "Wed", "Thu", "Fri"], values: [2, 5, 3, 6, 4], series: [{ name: "Platform", values: [2, 5, 3, 6, 4] }, { name: "Product", values: [4, 3, 7, 5, 6] }, { name: "Data", values: [1, 2, 4, 3, 5] }], options: { legend: "hidden", showValues: false, palette: "ocean" } };
+  if (kind === "viz-treemap") return { title: "Resource share", labels: ["Compute", "Storage", "Database", "Network", "Other"], values: [34, 22, 19, 14, 11], options: { legend: "hidden", showValues: true } };
   if (kind === "viz-kpi") return { title: "Active users", labels: ["Active users", "Monthly change"], values: [24800, 12.6] };
   return undefined;
 }
 
-function buildSupplementalLibraryComponent(kind: LibraryComponentKind, x: number, y: number, chartData?: LibraryChartData, formOptions?: string[], selectedOption = 0, formStates?: boolean[], formTitle?: string, formState = true, portCount = kind === "network-hub" ? 8 : 6): Element[] | undefined {
+function buildSupplementalLibraryComponent(kind: LibraryComponentKind, x: number, y: number, formOptions?: string[], selectedOption = 0, formStates?: boolean[], formTitle?: string, formState = true): Element[] | undefined {
   const stroke = (x1: number, y1: number, x2: number, y2: number, color: string, thickness = 1.4) => ({ ...lineElement(x1, y1, x2 - x1, y2 - y1, color), thickness });
   const dot = (cx: number, cy: number, radius: number, color: string) => ({ type: "circle" as const, x: cx - radius, y: cy - radius, w: radius * 2, h: radius * 2, color, thickness: 1, fillColor: color });
-  if (kind === "diagram-legend") return [
-    rect(x, y, 210, 120, "#ffffff", "#9ba8b4", 6),
-    text(x + 14, y + 10, "Legend", "#263542", 13, "sans", true),
-    rect(x + 14, y + 38, 12, 12, "#dce9f7", "#5e7fa5", 1), text(x + 35, y + 36, "Service / system", "#384858", 11),
-    rect(x + 14, y + 64, 12, 12, "#e1f1eb", "#5c907a", 1), text(x + 35, y + 62, "Data store", "#384858", 11),
-    { ...lineElement(x + 14, y + 95, 14, 0, "#687889"), endHead: "solid" }, text(x + 35, y + 87, "Direction / flow", "#384858", 11),
-  ];
-  const provider = cloudProviderComponent(kind);
-  if (provider) {
-    const badge = provider.provider === "Google Cloud" ? "GCP" : provider.provider === "Azure" ? "AZ" : "AWS";
-    return [rect(x, y, 176, 108, "#ffffff", provider.accent, 5), rect(x + 12, y + 12, 35, 25, provider.accent, provider.accent, 3), text(x + 29.5, y + 16, badge, "#ffffff", 9, "sans", true), rect(x + 12, y + 47, 44, 44, "#f3f5f6", "#d5d9dc", 4), text(x + 34, y + 58, provider.glyph, "#30363b", provider.glyph.length > 2 ? 9 : 13, "sans", true), text(x + 65, y + 48, provider.label, "#252a2e", 12, "sans", true), text(x + 65, y + 69, provider.provider.toUpperCase(), "#747c83", 8, "sans", true), stroke(x + 65, y + 84, x + 162, y + 84, "#d8dcdf", 1)];
-  }
-  if (kind.startsWith("viz-")) {
-    const data = chartData ?? defaultLibraryChartData(kind)!;
-    const palette = ["#4b78c2", "#40a48f", "#e5a24a", "#9b79cc"];
-    if (kind === "viz-donut" || kind === "viz-pie") {
-      return [rect(x, y, 260, 176, "#ffffff", "#dde4eb", 8), text(x + 16, y + 13, data.title ?? "CATEGORY MIX", "#34465a", 10, "sans", true)];
+  const wrapFormText = (value: string, width: number, fontSize: number, maxLines = 1) => {
+    const maxCharacters = Math.max(1, Math.floor(width / (fontSize * .58)));
+    const lines: string[] = []; let line = "";
+    for (const word of value.trim().replace(/\s+/g, " ").split(" ").filter(Boolean)) {
+      if (line && `${line} ${word}`.length <= maxCharacters) { line += ` ${word}`; continue; }
+      if (line) { lines.push(line); line = ""; }
+      let remaining = word;
+      while (remaining.length > maxCharacters) { lines.push(remaining.slice(0, maxCharacters)); remaining = remaining.slice(maxCharacters); }
+      line = remaining;
     }
-    if (kind === "viz-kpi") {
-      const amount = Math.abs(data.values[0] ?? 0); const formatted = amount >= 1000 ? `${(amount / 1000).toFixed(amount >= 10000 ? 1 : 0)}k` : `${amount}`; const change = data.values[1] ?? 0;
-      return [rect(x, y, 220, 126, "#ffffff", "#dfe6eb", 14), text(x + 16, y + 13, (data.labels[0] ?? "Metric").toUpperCase(), "#6b7b8d", 10, "sans", true), text(x + 16, y + 37, formatted, "#263b55", 30, "sans", true), stroke(x + 17, y + 87, x + 77, y + 74, "#40a48f", 2.5), stroke(x + 77, y + 74, x + 117, y + 79, "#40a48f", 2.5), stroke(x + 117, y + 79, x + 166, y + 56, "#40a48f", 2.5), text(x + 16, y + 101, `${change >= 0 ? "+" : ""}${change}% ${data.labels[1] ?? "change"}`, "#2d8a70", 10, "sans", true)];
+    if (line || !lines.length) lines.push(line);
+    if (lines.length > maxLines) {
+      lines.length = maxLines;
+      const last = lines.length - 1;
+      lines[last] = `${lines[last].slice(0, Math.max(0, maxCharacters - 1)).trimEnd()}…`;
     }
-    const elements: Element[] = [rect(x, y, 260, 176, "#ffffff", "#dfe6eb", 14), text(x + 16, y + 12, kind === "viz-bar" ? "QUARTERLY SALES" : kind === "viz-scatter" ? "RESPONSE TIME" : "MONTHLY TREND", "#34465a", 10, "sans", true)];
-    const left = x + 40; const right = x + 244; const top = y + 43; const bottom = y + 142;
-    for (let row = 0; row < 4; row++) elements.push(stroke(left, top + row * 30, right, top + row * 30, "#e9eef2", .8));
-    elements.push(stroke(left, bottom, right, bottom, "#9daab6", 1.2), stroke(left, top, left, bottom, "#9daab6", 1.2));
-    if (kind === "viz-bar") {
-      const values = data.values.slice(0, 8); const min = Math.min(0, ...values); const max = Math.max(1, ...values); const baseline = bottom - (0 - min) / (max - min) * 92; const slot = (right - left) / Math.max(1, values.length);
-      values.forEach((value, index) => { const height = Math.max(2, Math.abs(value / (max - min) * 92)); const leftX = left + slot * index + slot * .22; elements.push(rect(leftX, value >= 0 ? baseline - height : baseline, slot * .56, height, palette[index % palette.length], palette[index % palette.length], 3)); elements.push(text(leftX - 2, bottom + 7, (data.labels[index] ?? `${index + 1}`).slice(0, 5), "#778697", 8)); });
-    } else if (kind === "viz-scatter") {
-      const values = data.values.slice(0, 12); const min = Math.min(...values); const span = Math.max(1, Math.max(...values) - min);
-      values.forEach((value, index) => { const dx = 10 + index * (184 / Math.max(1, values.length - 1)); const dy = 16 + (value - min) / span * 72; elements.push(dot(left + dx, bottom - dy, index % 3 === 0 ? 4.2 : 3.2, palette[index % palette.length])); });
-    } else {
-      const values = data.values.slice(0, 12); const min = Math.min(0, ...values); const max = Math.max(1, ...values); const span = Math.max(1, max - min);
-      const samples = values.map((value, index) => [left + 6 + index * ((right - left - 12) / Math.max(1, values.length - 1)), bottom - 8 - ((value - min) / span) * 78]);
-      for (let index = 1; index < samples.length; index++) elements.push(stroke(samples[index - 1][0], samples[index - 1][1], samples[index][0], samples[index][1], kind === "viz-area" ? "#40a48f" : "#4b78c2", 2.6));
-      samples.forEach(([sx, sy], index) => { elements.push(dot(sx, sy, 3.7, index % 2 ? "#40a48f" : "#4b78c2")); if (values.length <= 8) elements.push(text(sx - 7, bottom + 7, (data.labels[index] ?? `${index + 1}`).slice(0, 5), "#778697", 8)); });
-      if (kind === "viz-area") samples.slice(0, -1).forEach(([sx], index) => elements.push(rect(sx, bottom - 4, Math.max(2, (samples[index + 1][0] - sx) - 2), 4, index % 2 ? "#d7eee7" : "#e4f1ed", "#d7eee7", 1)));
-    }
-    return elements;
-  }
+    return lines.join("\n");
+  };
   if (kind.startsWith("form-")) {
     const ink = "#40546a"; const muted = "#7b8998"; const edge = "#ced8e2"; const blue = "#4d78b8";
-    if (kind === "form-button") return [rect(x, y, 164, 54, "#4d78b8", "#426ba7", 11), { ...text(x + 82, y + 17, formOptions?.[selectedOption] ?? "Continue", "#ffffff", 14, "sans", true), componentRole: "form-button-caption" }];
+    if (kind === "form-button") {
+      const fontSize = 14; const caption = wrapFormText(formOptions?.[selectedOption] ?? "Continue", 140, fontSize, 2); const lineCount = caption.split("\n").length;
+      return [rect(x, y, 164, 54, "#4d78b8", "#426ba7", 11), { ...text(x + 82, y + (54 - lineCount * fontSize * 1.25) / 2, caption, "#ffffff", fontSize, "sans", true), textAlign: "center", componentRole: "form-button-caption" }];
+    }
     if (kind === "form-input" || kind === "form-select") return [
-      { ...text(x + 2, y + 2, kind === "form-input" ? "Email address" : formTitle ?? defaultLibraryFormTitle(kind) ?? "Country", ink, 11, "sans", true), ...(kind === "form-select" ? { componentRole: "form-select-title" } : {}) },
+      { ...text(x + 2, y + 2, wrapFormText(kind === "form-input" ? "Email address" : formTitle ?? defaultLibraryFormTitle(kind) ?? "Country", 224, 11), ink, 11, "sans", true), ...(kind === "form-select" ? { componentRole: "form-select-title" } : {}) },
       rect(x, y + 22, 228, 45, "#ffffff", edge, 9),
-      { ...text(x + 13, y + 37, kind === "form-input" ? "name@example.com" : (formOptions?.[selectedOption] ?? "Choose a country"), muted, 12), ...(kind === "form-select" ? { componentRole: "form-select-value" } : {}) },
+      { ...text(x + 13, y + 37, wrapFormText(kind === "form-input" ? "name@example.com" : (formOptions?.[selectedOption] ?? "Choose a country"), 174, 12), muted, 12), ...(kind === "form-select" ? { componentRole: "form-select-value" } : {}) },
       ...(kind === "form-select" ? [stroke(x + 202, y + 40, x + 207, y + 45, muted, 1.6), stroke(x + 207, y + 45, x + 212, y + 40, muted, 1.6)] : []),
     ];
     if (kind === "form-checkbox") {
-      const options = (formOptions?.length ? formOptions : defaultLibraryFormOptions(kind)!).slice(0, 12); const rowHeight = 27;
-      const items: Element[] = [rect(x, y, 218, 33 + options.length * rowHeight, "#ffffff", "#e1e7ed", 7), { ...text(x + 13, y + 9, formTitle ?? defaultLibraryFormTitle(kind) ?? "Preferences", ink, 11, "sans", true), componentRole: "form-checkbox-title" }];
-      options.forEach((label, index) => {
-        const yy = y + 27 + index * rowHeight; const checked = formStates?.[index] ?? index === 0;
-        items.push({ ...rect(x + 13, yy + 3, 18, 18, checked ? "#edf4ff" : "#ffffff", blue, 4), componentRole: `form-checkbox-box-${index}` });
-        items.push({ ...stroke(x + 17, yy + 12, x + 21, yy + 16, blue, 1.8), opacity: checked ? 1 : 0, componentRole: `form-checkbox-check-a-${index}` });
-        items.push({ ...stroke(x + 21, yy + 16, x + 28, yy + 7, blue, 1.8), opacity: checked ? 1 : 0, componentRole: `form-checkbox-check-b-${index}` });
-        items.push({ ...text(x + 41, yy + 4, label, ink, 11), componentRole: `form-checkbox-label-${index}` });
+      const options = (formOptions?.length ? formOptions : defaultLibraryFormOptions(kind)!).slice(0, 12);
+      const rows = options.map(label => { const wrapped = wrapFormText(label, 165, 11, 3); const lineCount = wrapped.split("\n").length; return { wrapped, lineCount, height: Math.max(27, lineCount * 11 * 1.25 + 8) }; });
+      const items: Element[] = [rect(x, y, 218, 33 + rows.reduce((sum, row) => sum + row.height, 0), "#ffffff", "#e1e7ed", 7), { ...text(x + 13, y + 9, wrapFormText(formTitle ?? defaultLibraryFormTitle(kind) ?? "Preferences", 192, 11), ink, 11, "sans", true), componentRole: "form-checkbox-title" }];
+      let rowY = y + 27;
+      rows.forEach(({ wrapped, lineCount, height }, index) => {
+        const centerY = rowY + height / 2; const checked = formStates?.[index] ?? index === 0;
+        items.push({ ...rect(x + 13, centerY - 9, 18, 18, checked ? "#edf4ff" : "#ffffff", blue, 4), componentRole: `form-checkbox-box-${index}` });
+        items.push({ ...stroke(x + 17, centerY, x + 21, centerY + 4, blue, 1.8), opacity: checked ? 1 : 0, componentRole: `form-checkbox-check-a-${index}` });
+        items.push({ ...stroke(x + 21, centerY + 4, x + 28, centerY - 5, blue, 1.8), opacity: checked ? 1 : 0, componentRole: `form-checkbox-check-b-${index}` });
+        items.push({ ...text(x + 41, rowY + (height - lineCount * 11 * 1.25) / 2, wrapped, ink, 11), componentRole: `form-checkbox-label-${index}` });
+        rowY += height;
       });
       return items;
     }
     if (kind === "form-radio") {
       const options = (formOptions?.length ? formOptions : defaultLibraryFormOptions(kind)!).slice(0, 12);
-      const items: Element[] = [rect(x, y, 228, 42 + options.length * 26, "#ffffff", "#e1e7ed", 10), { ...text(x + 14, y + 12, formTitle ?? defaultLibraryFormTitle(kind) ?? "Choose a plan", ink, 11, "sans", true), componentRole: "form-radio-title" }];
-      options.forEach((label, index) => { const yy = y + 37 + index * 26; items.push({ type: "circle", x: x + 15, y: yy, w: 16, h: 16, color: index === selectedOption ? blue : edge, thickness: 1.5, fillColor: "#ffffff", componentRole: `form-radio-option-${index}` }); if (index === selectedOption) items.push({ ...dot(x + 23, yy + 8, 4, blue), componentRole: `form-radio-dot-${index}` }); items.push({ ...text(x + 41, yy + 2, label, ink, 10), componentRole: `form-radio-label-${index}` }); });
+      const rows = options.map(label => { const wrapped = wrapFormText(label, 175, 10, 3); const lineCount = wrapped.split("\n").length; return { wrapped, lineCount, height: Math.max(26, lineCount * 10 * 1.25 + 8) }; });
+      const items: Element[] = [rect(x, y, 228, 42 + rows.reduce((sum, row) => sum + row.height, 0), "#ffffff", "#e1e7ed", 10), { ...text(x + 14, y + 12, wrapFormText(formTitle ?? defaultLibraryFormTitle(kind) ?? "Choose a plan", 200, 11), ink, 11, "sans", true), componentRole: "form-radio-title" }];
+      let rowY = y + 37;
+      rows.forEach(({ wrapped, lineCount, height }, index) => {
+        const centerY = rowY + height / 2;
+        items.push({ type: "circle", x: x + 15, y: centerY - 8, w: 16, h: 16, color: index === selectedOption ? blue : edge, thickness: 1.5, fillColor: "#ffffff", componentRole: `form-radio-option-${index}` });
+        if (index === selectedOption) items.push({ ...dot(x + 23, centerY, 4, blue), componentRole: `form-radio-dot-${index}` });
+        items.push({ ...text(x + 41, rowY + (height - lineCount * 10 * 1.25) / 2, wrapped, ink, 10), componentRole: `form-radio-label-${index}` });
+        rowY += height;
+      });
       return items;
     }
-    if (kind === "form-toggle") return [rect(x, y, 206, 60, "#ffffff", "#e1e7ed", 10), { ...text(x + 14, y + 20, formTitle ?? defaultLibraryFormTitle(kind) ?? "Notifications", ink, 11, "sans", true), componentRole: "form-toggle-title" }, rect(x + 148, y + 16, 43, 26, formState ? "#dcece5" : "#e6e9ed", formState ? "#c7dfd4" : "#cbd1d8", 13), { ...dot(x + (formState ? 178 : 160), y + 29, 9, formState ? "#44a17f" : "#8b949e"), componentRole: "form-toggle-knob" }, { ...text(x + 14, y + 39, formState ? "Enabled" : "Disabled", formState ? "#628071" : "#7b838d", 9), componentRole: "form-toggle-state" }];
-  }
-  if (kind === "data-flow") return [
-    { type: "arrow", x, y: y + 28, w: 202, h: 0, color: "#476c88", thickness: 2, lineRoute: "straight", startHead: "none", endHead: "solid" },
-    text(x + 3, y + 3, "DATA FLOW", "#315a7a", 9, "sans", true),
-    text(x + 82, y + 7, "source → transform → target", "#71859a", 8, "mono"),
-  ];
-  if (kind.startsWith("software-")) {
-    const ink = "#315a7a"; const muted = "#71859a"; const edge = "#7297b4"; const pale = "#edf5fb"; const dark = "#284b68";
-    if (kind === "software-client") return [rect(x, y, 176, 112, "#ffffff", edge, 12), rect(x, y, 176, 22, pale, edge, 12), dot(x + 13, y + 11, 2, "#e88970"), dot(x + 21, y + 11, 2, "#e6bd55"), dot(x + 29, y + 11, 2, "#65ad8b"), rect(x + 11, y + 33, 58, 66, "#eff5fb", "#d9e4ed", 7), rect(x + 78, y + 33, 86, 17, "#eff5fb", "#e3eaf0", 5), rect(x + 78, y + 57, 86, 42, "#f7f9fb", "#e3eaf0", 5), text(x + 11, y + 24, "BROWSER CLIENT", ink, 8, "sans", true)];
-    if (kind === "software-api") return [rect(x, y, 176, 88, pale, edge, 13), rect(x + 14, y + 13, 39, 24, "#d8e8f5", "#bfd5e6", 7), text(x + 33, y + 18, "API", dark, 11, "mono", true), text(x + 64, y + 16, "HTTP / RPC", ink, 10, "sans", true), text(x + 15, y + 51, "GET  /v1/items", "#71859a", 9, "mono"), stroke(x + 144, y + 44, x + 160, y + 44, edge, 1.5), stroke(x + 152, y + 37, x + 160, y + 44, edge, 1.5), stroke(x + 152, y + 51, x + 160, y + 44, edge, 1.5)];
-    if (kind === "software-service") return [rect(x, y, 176, 92, pale, edge, 13), rect(x + 14, y + 14, 34, 34, "#d9e9f5", "#bfd5e6", 10), text(x + 31, y + 20, "S", dark, 18, "sans", true), text(x + 59, y + 15, "SERVICE", ink, 9, "sans", true), text(x + 59, y + 31, "module / worker", muted, 9), stroke(x + 15, y + 65, x + 161, y + 65, "#d2e0e9", 1), text(x + 15, y + 73, "health  ·  ready", "#4c8b71", 9)];
-    if (kind === "software-database") return [{ type: "flowchart", x: x + 16, y: y + 8, w: 120, h: 94, color: edge, thickness: 1.7, fillColor: pale, flowchartShape: "database" }, text(x + 42, y + 47, "SQL", dark, 12, "mono", true), text(x + 28, y + 106, "DATABASE", ink, 9, "sans", true)];
-    if (kind === "software-queue") return [rect(x, y, 172, 88, pale, edge, 13), text(x + 14, y + 11, "QUEUE", ink, 9, "sans", true), ...[0,1,2].map(index => rect(x + 15 + index * 36, y + 35, 27, 27, "#ffffff", "#b9cfdf", 6)), stroke(x + 15, y + 72, x + 153, y + 72, edge, 1.5), stroke(x + 145, y + 66, x + 153, y + 72, edge, 1.5), stroke(x + 145, y + 78, x + 153, y + 72, edge, 1.5)];
-    if (kind === "software-event-bus") return [rect(x, y + 31, 196, 38, "#e9f2f8", edge, 11), text(x + 98, y + 43, "EVENT BUS", dark, 11, "sans", true), stroke(x + 28, y + 16, x + 28, y + 31, edge), stroke(x + 98, y + 16, x + 98, y + 31, edge), stroke(x + 168, y + 16, x + 168, y + 31, edge), stroke(x + 28, y + 69, x + 28, y + 84, edge), stroke(x + 98, y + 69, x + 98, y + 84, edge), stroke(x + 168, y + 69, x + 168, y + 84, edge), dot(x + 28, y + 14, 4, "#4d91a9"), dot(x + 98, y + 14, 4, "#4d91a9"), dot(x + 168, y + 14, 4, "#4d91a9"), dot(x + 28, y + 86, 4, "#72a58a"), dot(x + 98, y + 86, 4, "#72a58a"), dot(x + 168, y + 86, 4, "#72a58a")];
-    if (kind === "software-cache") return [rect(x, y, 156, 88, "#edf8f2", "#79a38a", 13), rect(x + 12, y + 14, 37, 37, "#d8eee2", "#a7c8b3", 10), text(x + 30, y + 18, "K", "#3b7858", 18, "mono", true), text(x + 60, y + 17, "CACHE", "#3b7858", 9, "sans", true), text(x + 60, y + 34, "key / value", "#668675", 9), stroke(x + 14, y + 67, x + 142, y + 67, "#bad5c4", 1)];
-  }
-  if (kind.startsWith("cloud-")) {
-    const ink = "#93643d"; const edge = "#bd9262"; const pale = "#fbf4e9";
-    if (kind === "cloud-boundary") return [{ type: "flowchart", x, y, w: 300, h: 190, color: edge, thickness: 1.6, fillColor: pale, fillOpacity: .28, lineStyle: "dashed", flowchartShape: "cloud", label: { text: "CLOUD REGION", color: ink, fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } }];
-    if (kind === "cloud-database") return [rect(x, y, 156, 108, pale, edge, 9), text(x + 12, y + 9, "MANAGED DATABASE", ink, 9, "sans", true), { type: "flowchart", x: x + 47, y: y + 28, w: 62, h: 52, color: edge, thickness: 1.6, fillColor: "#ffffff", flowchartShape: "database" }, text(x + 12, y + 88, "SQL · BACKUP · REPLICAS", ink, 8, "mono")];
-    if (kind === "cloud-queue") return [rect(x, y, 156, 94, pale, edge, 9), text(x + 13, y + 9, "CLOUD QUEUE", ink, 9, "sans", true), ...[0, 1, 2].map(index => rect(x + 14 + index * 34, y + 31, 26, 25, "#ffffff", "#c7a57f", 4)), stroke(x + 14, y + 72, x + 142, y + 72, edge, 1.3), stroke(x + 134, y + 66, x + 142, y + 72, edge, 1.3), stroke(x + 134, y + 78, x + 142, y + 72, edge, 1.3), text(x + 13, y + 81, "MESSAGES · RETRIES", ink, 8, "mono")];
-    if (kind === "cloud-function") return [rect(x, y, 152, 96, pale, edge, 13), rect(x + 14, y + 14, 39, 39, "#f5e4ca", "#dec49c", 10), text(x + 33, y + 19, "ƒ", ink, 21, "serif", true), text(x + 61, y + 20, "FUNCTION", ink, 9, "sans", true), text(x + 61, y + 37, "on demand", "#a58360", 9), text(x + 15, y + 69, "event  →  compute", "#8c7155", 9, "mono")];
-    if (kind === "cloud-storage") return [rect(x, y, 156, 104, pale, edge, 13), rect(x + 14, y + 18, 54, 52, "#f5e4ca", "#dec49c", 9), stroke(x + 20, y + 34, x + 61, y + 34, "#c49762", 2), stroke(x + 20, y + 45, x + 61, y + 45, "#c49762", 2), stroke(x + 20, y + 56, x + 61, y + 56, "#c49762", 2), text(x + 77, y + 27, "OBJECT", ink, 9, "sans", true), text(x + 77, y + 43, "STORAGE", ink, 9, "sans", true), text(x + 14, y + 82, "bucket  ·  blobs  ·  files", "#8c7155", 8, "mono")];
-  }
-  if (kind.startsWith("network-")) {
-    const ink = "#287a84"; const edge = "#5da3a9"; const pale = "#eaf7f7"; const muted = "#6d9295";
-    if (kind === "network-switch") {
-      const count = Math.max(1, Math.min(32, Math.round(portCount))); const columns = Math.min(8, count); const rows = Math.ceil(count / columns); const height = Math.max(62, 35 + rows * 18);
-      const ports = Array.from({ length: count }, (_, index) => { const col = index % columns; const row = Math.floor(index / columns); const cell = 108 / columns; const cx = x + 12 + cell * (col + .5); const cy = y + 34 + row * 18; return [rect(cx - 5, cy - 5, 10, 10, "#ffffff", "#7fb4b8", 2), dot(cx, cy + 7, 1.5, "#56a585")]; }).flat();
-      return [rect(x, y, 132, height, pale, edge, 10), text(x + 12, y + 9, "SWITCH", ink, 9, "sans", true), ...ports];
-    }
-    if (kind === "network-hub") {
-      const count = Math.max(1, Math.min(32, Math.round(portCount))); const columns = Math.min(8, count); const rows = Math.ceil(count / columns); const height = Math.max(94, 52 + rows * 18); const cell = 120 / columns;
-      const ports = Array.from({ length: count }, (_, index) => {
-        const col = index % columns; const row = Math.floor(index / columns); const px = x + 12 + cell * (col + .5); const py = y + 38 + row * 18; const socketWidth = Math.min(12, cell - 2);
-        return { ...rect(px - socketWidth / 2, py, socketWidth, 9, "#ffffff", "#70a8ac", 2), componentRole: `hub-port-${index + 1}` };
-      });
-      return [
-        rect(x, y, 144, height, pale, edge, 7),
-        rect(x + 1, y + 1, 142, 27, "#d9eff0", edge, 6),
-        text(x + 12, y + 7, "ETHERNET HUB", ink, 10, "sans", true),
-        dot(x + 124, y + 14, 3, "#56a585"),
-        stroke(x + 10, y + 32, x + 134, y + 32, "#b3d8da", 1),
-        ...ports,
-        text(x + 12, y + height - 16, `${count} PORT${count === 1 ? "" : "S"}  ·  REPEATER`, muted, 8, "mono"),
-      ];
-    }
-    if (kind === "network-load-balancer") return [rect(x, y, 156, 54, pale, edge, 12), text(x + 78, y + 10, "LOAD BALANCER", ink, 9, "sans", true), stroke(x + 78, y + 22, x + 78, y + 35, edge), stroke(x + 31, y + 35, x + 125, y + 35, edge), stroke(x + 31, y + 35, x + 31, y + 49, edge), stroke(x + 78, y + 35, x + 78, y + 49, edge), stroke(x + 125, y + 35, x + 125, y + 49, edge), dot(x + 78, y + 20, 5, "#4c95a0"), dot(x + 31, y + 53, 3, "#56a585"), dot(x + 78, y + 53, 3, "#56a585"), dot(x + 125, y + 53, 3, "#56a585")];
-    if (kind === "network-access-point") {
-      const cx = x + 66;
-      return [
-        { type: "circle", x: cx - 32, y: y + 3, w: 64, h: 64, color: edge, thickness: 1.7, fillColor: pale },
-        { type: "circle", x: cx - 25, y: y + 10, w: 50, h: 50, color: "#c9e3e5", thickness: 1, fillColor: "#ffffff" },
-        stroke(cx - 10, y + 31, cx, y + 23, edge, 1.7), stroke(cx, y + 23, cx + 10, y + 31, edge, 1.7),
-        stroke(cx - 6, y + 35, cx, y + 30, edge, 1.7), stroke(cx, y + 30, cx + 6, y + 35, edge, 1.7),
-        dot(cx, y + 39, 2.3, edge), dot(cx - 7, y + 52, 1.7, "#59a786"), dot(cx, y + 52, 1.7, "#59a786"), dot(cx + 7, y + 52, 1.7, "#59a786"),
-        text(x + 22, y + 74, "ACCESS POINT", ink, 12, "sans", true),
-      ];
-    }
+    if (kind === "form-toggle") return [rect(x, y, 206, 60, "#ffffff", "#e1e7ed", 10), { ...text(x + 14, y + 20, wrapFormText(formTitle ?? defaultLibraryFormTitle(kind) ?? "Notifications", 120, 11), ink, 11, "sans", true), componentRole: "form-toggle-title" }, rect(x + 148, y + 16, 43, 26, formState ? "#dcece5" : "#e6e9ed", formState ? "#c7dfd4" : "#cbd1d8", 13), { ...dot(x + (formState ? 178 : 160), y + 29, 9, formState ? "#44a17f" : "#8b949e"), componentRole: "form-toggle-knob" }, { ...text(x + 14, y + 39, formState ? "Enabled" : "Disabled", formState ? "#628071" : "#7b838d", 9), componentRole: "form-toggle-state" }];
   }
   return undefined;
 }
 
-const usesCleanModelRenderer = (kind: LibraryComponentKind) => kind.startsWith("diagram-") || kind.startsWith("software-") || kind.startsWith("c4-") || kind.startsWith("bpmn-") || kind.startsWith("network-") && kind !== "network-access-point" || kind.startsWith("cloud-") || kind === "tech-service" || kind === "data-flow";
+const usesCleanModelRenderer = (kind: LibraryComponentKind) => kind.startsWith("diagram-") || kind.startsWith("software-") || kind.startsWith("c4-") || kind.startsWith("bpmn-") || kind.startsWith("network-") && kind !== "network-access-point" || kind.startsWith("cloud-") || !!cloudProviderComponent(kind) || kind === "tech-service" || kind === "data-flow";
 
 export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number, options?: { chartData?: LibraryChartData; formOptions?: string[]; selectedOption?: number; formStates?: boolean[]; formTitle?: string; formState?: boolean; portCount?: number }): GroupElement {
+  if (kind.startsWith("viz-")) {
+    const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
+    return { type: "group", id: crypto.randomUUID(), elements: [], componentBounds: { x, y, w: definition.width, h: definition.height }, libraryComponent: { kind, label: definition.label, chartData: options?.chartData ?? defaultLibraryChartData(kind) } };
+  }
+  // The legacy wireless access point renderer already supports component bounds;
+  // keep its familiar symbol while making the whole device a connection target.
+  if (kind === "network-access-point") {
+    const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
+    return { type: "group", id: crypto.randomUUID(), elements: [], componentBounds: { x, y, w: definition.width, h: definition.height }, libraryComponent: { kind, label: definition.label } };
+  }
   if (usesCleanModelRenderer(kind)) {
     const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
     return {
@@ -549,7 +524,7 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
   }
   const elements: Element[] = [];
   const titled = (color: string, fontSize = 12) => ({ text: "", color, fontSize, fontFamily: "sans" as const, bold: true, italic: false, underline: false, textAlign: "center" as const, listType: "none" as const, verticalAlign: "middle" as const });
-  const supplemental = buildSupplementalLibraryComponent(kind, x, y, options?.chartData, options?.formOptions, options?.selectedOption, options?.formStates, options?.formTitle, options?.formState, options?.portCount);
+  const supplemental = buildSupplementalLibraryComponent(kind, x, y, options?.formOptions, options?.selectedOption, options?.formStates, options?.formTitle, options?.formState);
   if (supplemental) elements.push(...supplemental);
   else if (kind === "uml-actor") {
     const color = "#7563ad";
@@ -563,37 +538,6 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     elements.push(rect(x, y, 190, 124, "#f6f2ff", "#7563ad", 8));
     elements.push(text(x + 12, y + 8, "<<interface>>", "#7563ad", 10, "sans", true), text(x + 12, y + 29, "", "#59488c", 13, "sans", true));
     elements.push(lineElement(x, y + 52, 190, 0, "#9c8bc9"), text(x + 12, y + 65, "", "#59488c", 12, "mono"));
-  } else if (kind === "bpmn-start" || kind === "bpmn-event" || kind === "bpmn-end") {
-    const end = kind === "bpmn-end"; const event = kind === "bpmn-event"; const color = "#b58436";
-    elements.push({ type: "circle", x, y, w: 52, h: 52, color, thickness: end ? 3 : 1.5, fillColor: "#fff8e9" });
-    if (event) elements.push({ type: "circle", x: x + 5, y: y + 5, w: 42, h: 42, color, thickness: 1.2, fillColor: "#fff8e9" });
-  } else if (kind === "bpmn-gateway" || kind === "bpmn-parallel-gateway") {
-    const color = "#b58436";
-    elements.push({ type: "diamond", x, y, w: 58, h: 58, color, thickness: 1.6, fillColor: "#fff8e9" });
-    if (kind === "bpmn-parallel-gateway") elements.push(lineElement(x + 29, y + 16, 0, 26, color), lineElement(x + 16, y + 29, 26, 0, color));
-    else { elements.push(lineElement(x + 20, y + 20, 18, 18, color), lineElement(x + 38, y + 20, -18, 18, color)); }
-  } else if (kind === "bpmn-task") {
-    elements.push({ ...rect(x, y, 168, 82, "#fff8e9", "#b58436", 12), label: titled("#78551d") });
-  } else if (kind === "bpmn-data") {
-    elements.push({ type: "flowchart", x, y, w: 86, h: 112, color: "#b58436", thickness: 1.5, fillColor: "#fff8e9", flowchartShape: "document", label: titled("#78551d") });
-  } else if (kind === "bpmn-pool") {
-    elements.push(rect(x, y, 300, 156, "#fff8e9", "#b58436", 4), rect(x, y, 34, 156, "#f5e7c8", "#b58436", 4));
-    elements.push(lineElement(x + 34, y, 0, 156, "#b58436"), text(x + 7, y + 73, "", "#78551d", 11, "sans", true));
-  } else if (kind === "network-router") {
-    const color = "#318391";
-    elements.push({ type: "flowchart", x, y, w: 104, h: 70, color, thickness: 1.6, fillColor: "#eaf7f8", flowchartShape: "hexagon", label: titled("#246570") });
-    elements.push(lineElement(x + 24, y + 74, 0, 10, color), lineElement(x + 52, y + 74, 0, 10, color), lineElement(x + 80, y + 74, 0, 10, color));
-  } else if (kind === "network-server") {
-    const color = "#318391";
-    for (let row = 0; row < 3; row++) { const top = y + row * 37; elements.push(rect(x + 5, top + 3, 94, 31, "#eaf7f8", color, 5), { type: "circle", x: x + 13, y: top + 13, w: 7, h: 7, color, thickness: 1, fillColor: "#69b5a8" }, lineElement(x + 28, top + 18, 54, 0, color)); }
-  } else if (kind === "network-firewall") {
-    const color = "#318391";
-    elements.push(rect(x, y, 116, 92, "#eaf7f8", color, 6));
-    elements.push(lineElement(x + 3, y + 31, 110, 0, color), lineElement(x + 3, y + 61, 110, 0, color), lineElement(x + 29, y + 3, 0, 28, color), lineElement(x + 87, y + 3, 0, 28, color), lineElement(x + 58, y + 32, 0, 28, color), lineElement(x + 29, y + 62, 0, 27, color), lineElement(x + 87, y + 62, 0, 27, color));
-  } else if (kind === "network-client") {
-    const color = "#318391";
-    elements.push({ type: "flowchart", x: x + 5, y, w: 108, h: 72, color, thickness: 1.6, fillColor: "#eaf7f8", flowchartShape: "display", label: titled("#246570") });
-    elements.push(lineElement(x + 35, y + 78, 48, 0, color));
   } else if (kind === "uml-class") {
     elements.push(rect(x, y, 230, 154, "#f8fbff", "#7e94ad", 9), rect(x, y, 230, 36, "#e8f0fb", "#7e94ad", 9));
     elements.push(lineElement(x, y + 36, 230, 0), lineElement(x, y + 92, 230, 0));
@@ -620,14 +564,6 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     const foot = (fx: number, fy: number, direction: number) => [lineElement(fx, fy, direction * 12, -10, "#60788e"), lineElement(fx, fy, direction * 12, 0, "#60788e"), lineElement(fx, fy, direction * 12, 10, "#60788e")];
     if (kind === "er-many-many") elements.push(...foot(x + 9, y + 21, 1), ...foot(x + 181, y + 21, -1));
     else { elements.push(lineElement(x + 174, y + 12, 0, 18, "#60788e"), ...foot(x + 182, y + 21, -1)); }
-  } else if (kind === "c4-system" || kind === "c4-container" || kind === "c4-component") {
-    const meta = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
-    elements.push({ ...rect(x, y, meta.width, meta.height, "#eef4ff", "#6884a0", 13), lineStyle: "dashed", label: { text: "", color: "#496681", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" } });
-  } else if (kind === "tech-service") {
-    elements.push({ ...rect(x, y, 174, 92, "#edf5f0", "#759785", 11), label: { text: "", color: "#4c6a59", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } });
-    const pipe: ShapeElement = { type: "arrow", x: x + 5, y: y + 24, w: 192, h: 0, color: "#2d83a4", thickness: 4, lineStyle: "dashed", startHead: "none", endHead: "solid", label: { text: "", color: "#367991", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" } }; elements.push(pipe);
-  } else if (kind === "network-zone") {
-    elements.push({ ...rect(x, y, 280, 168, "#daf0f1", "#68a2a3", 13), fillOpacity: .42, lineStyle: "dashed", label: { text: "", color: "#3d7477", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" } });
   }
   const defaultLabel = LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? kind;
   elements.forEach(element => { if ((element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "line" || element.type === "arrow") && element.label && !element.label.text.trim()) element.label = { ...element.label, text: defaultLabel }; });
@@ -635,23 +571,15 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     ? { fill: "#f6f2ff", header: "#e9e3f7", edge: "#7563ad", ink: "#59488c" }
     : kind.startsWith("er-")
       ? { fill: "#eff9f6", header: "#dcefe9", edge: "#31877e", ink: "#28675f" }
-      : kind.startsWith("bpmn-")
-        ? { fill: "#fff8e9", header: "#f5e7c8", edge: "#b58436", ink: "#78551d" }
-        : kind.startsWith("network-")
-          ? { fill: "#eaf7f8", header: "#d9eff0", edge: "#318391", ink: "#246570" }
-          : kind.startsWith("cloud-")
-            ? { fill: "#fbf4e9", header: "#f3e4cf", edge: "#bd9262", ink: "#93643d" }
-            : kind.startsWith("form-")
-              ? { fill: "#f5f8fc", header: "#e5edf6", edge: "#6c86a7", ink: "#40546a" }
-              : { fill: "#eef5fa", header: "#dfeaf2", edge: "#527d9b", ink: "#3d6384" };
-  if (!kind.startsWith("viz-") && !kind.startsWith("form-") && !kind.startsWith("software-") && !kind.startsWith("cloud-") && kind !== "diagram-legend" && kind !== "network-switch" && kind !== "network-load-balancer" && kind !== "network-access-point") elements.forEach((element, index) => {
+      : { fill: "#eef5fa", header: "#dfeaf2", edge: "#527d9b", ink: "#3d6384" };
+  if (!kind.startsWith("form-")) elements.forEach((element, index) => {
     if (element.type === "text") element.color = palette.ink;
     else if (element.type === "freehand") element.color = palette.edge;
     else if (element.type !== "image" && element.type !== "schemaTable" && element.type !== "group") {
       element.color = palette.edge;
-      if ("fillColor" in element && element.fillColor) element.fillColor = kind === "uml-aggregation" && element.type === "diamond" ? "#ffffff" : kind === "network-server" && element.type === "circle" ? "#69b5a8" : index === 1 && ["uml-class", "er-table", "bpmn-pool"].includes(kind) ? palette.header : palette.fill;
+      if ("fillColor" in element && element.fillColor) element.fillColor = kind === "uml-aggregation" && element.type === "diamond" ? "#ffffff" : index === 1 && ["uml-class", "er-table"].includes(kind) ? palette.header : palette.fill;
       if (element.label) element.label = { ...element.label, color: palette.ink };
     }
   });
-  return { type: "group", elements, ...(cloudProviderComponent(kind) ? { componentBounds: { x, y, w: 176, h: 108 } } : {}) };
+  return { type: "group", elements };
 }

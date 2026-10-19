@@ -30,11 +30,11 @@
 
 .platform-windows .tool-deck .tool-icon-button,
 .platform-windows .tool-deck .canvas-options-trigger {
-    width: 36px;
-    min-width: 36px;
-    height: 36px;
-    min-height: 36px;
-    border-radius: 8px;
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+    border-radius: 100%;
 }
 
 .platform-windows .tool-deck .tool-icon-button {
@@ -257,7 +257,7 @@
     top: 65px;
     right: auto;
     bottom: auto;
-    left: 25px;
+    left: 15px;
     max-height: calc(100% - 36px);
 }
 

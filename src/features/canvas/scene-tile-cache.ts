@@ -53,13 +53,15 @@ export class SceneTileCache {
     const visibleTileBytes = visibleCount * tilePixels * tilePixels * 4;
     if (!Number.isFinite(visibleCount) || visibleCount < 1 || visibleCount > MAX_VISIBLE_TILES || visibleTileBytes > MAX_TILE_BYTES) return false;
 
+    const visibleTiles: SceneTile[] = [];
     for (let tileY = top; tileY <= bottom; tileY++) {
       for (let tileX = left; tileX <= right; tileX++) {
         const tile = this.getOrRender(tileX, tileY, scale, elements, spatialIndex, drawElement);
         if (!tile) return false;
-        context.drawImage(tile.canvas, tile.x - TILE_BLEED, tile.y - TILE_BLEED, TILE_SIZE + TILE_BLEED * 2, TILE_SIZE + TILE_BLEED * 2);
+        visibleTiles.push(tile);
       }
     }
+    for (const tile of visibleTiles) context.drawImage(tile.canvas, tile.x - TILE_BLEED, tile.y - TILE_BLEED, TILE_SIZE + TILE_BLEED * 2, TILE_SIZE + TILE_BLEED * 2);
     return true;
   }
 

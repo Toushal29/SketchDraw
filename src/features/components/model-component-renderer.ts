@@ -2,20 +2,9 @@ import type { GroupElement, Theme } from "../../model";
 import { cloudProviderComponent } from "../diagrams/cloud-providers";
 
 type Palette = { ink: string; edge: string; fill: string; soft: string; muted: string; accent: string };
-const paletteFor = (kind: string, dark: boolean, simple = false): Palette => {
-  if (simple) return dark
-    ? { ink: "#f0f1f2", edge: "#aab1b8", fill: "#25282b", soft: "#3a3f44", muted: "#c0c5c9", accent: "#d6dadd" }
-    : { ink: "#252a2e", edge: "#6f777e", fill: "#ffffff", soft: "#edf0f2", muted: "#737b82", accent: "#46525b" };
-  const provider = cloudProviderComponent(kind);
-  if (provider) return dark
-    ? { ink: "#f0f1f2", edge: provider.accent, fill: "#25282b", soft: "#3a3f44", muted: "#c0c5c9", accent: provider.accent }
-    : { ink: "#252a2e", edge: provider.accent, fill: "#ffffff", soft: "#f3f5f6", muted: "#737b82", accent: provider.accent };
-  if (kind.startsWith("network-")) return dark ? { ink: "#d5f1ef", edge: "#58a6a4", fill: "#1d3437", soft: "#29494b", muted: "#9dbab9", accent: "#66c7ac" } : { ink: "#245c61", edge: "#72aeb0", fill: "#f1fbfa", soft: "#dff2f0", muted: "#678b8d", accent: "#399c84" };
-  if (kind.startsWith("cloud-") || kind.startsWith("software-") || kind.startsWith("c4-") || kind === "network-zone") return dark ? { ink: "#d9e8fa", edge: "#8299b1", fill: "#222e3a", soft: "#304155", muted: "#a5b1bf", accent: "#78a7dc" } : { ink: "#334b63", edge: "#a0b2c3", fill: "#f9fbfd", soft: "#eaf1f8", muted: "#728195", accent: "#4e83b4" };
-  if (kind.startsWith("bpmn-")) return dark ? { ink: "#f2deba", edge: "#bb9859", fill: "#352d1f", soft: "#49391f", muted: "#c7b18a", accent: "#d7a650" } : { ink: "#76551e", edge: "#c9a35f", fill: "#fffaf0", soft: "#f7edd7", muted: "#9a8155", accent: "#bb8735" };
-  if (kind.startsWith("uml-") || kind.startsWith("sequence-") || kind.startsWith("er-")) return dark ? { ink: "#e4dcff", edge: "#a99aca", fill: "#2d293a", soft: "#3c3550", muted: "#b5aacd", accent: "#ae95e8" } : { ink: "#56477f", edge: "#a99bc8", fill: "#fbf9ff", soft: "#efebf8", muted: "#81789b", accent: "#7968a8" };
-  return dark ? { ink: "#e0e6ec", edge: "#657687", fill: "#252e36", soft: "#34414d", muted: "#a5b1bf", accent: "#6ea3c2" } : { ink: "#344252", edge: "#a9b6c3", fill: "#ffffff", soft: "#eef3f7", muted: "#7f8d9a", accent: "#4e83b4" };
-};
+const paletteFor = (dark: boolean): Palette => dark
+  ? { ink: "#f0f1f2", edge: "#aab1b8", fill: "#25282b", soft: "#3a3f44", muted: "#c0c5c9", accent: "#d6dadd" }
+  : { ink: "#252a2e", edge: "#6f777e", fill: "#ffffff", soft: "#edf0f2", muted: "#737b82", accent: "#46525b" };
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number) {
   ctx.beginPath();
@@ -25,7 +14,45 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 function text(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, maxWidth: number, size: number, color: string, weight = 500, align: CanvasTextAlign = "left") {
   ctx.fillStyle = color; ctx.font = `${weight} ${size}px system-ui, sans-serif`; ctx.textAlign = align; ctx.textBaseline = "middle";
-  ctx.fillText(value, x, y, Math.max(4, maxWidth));
+  ctx.fillText(value, x, y, Math.max(1, maxWidth));
+}
+
+function fittedComponentSingleLine(ctx: CanvasRenderingContext2D, value: string, bounds: { x: number; y: number; w: number; h: number }, tx: number, ty: number, requestedWidth: number, requestedSize: number, color: string, weight = 500, align: CanvasTextAlign = "left") {
+  const inset = Math.min(4, Math.max(1, Math.min(bounds.w, bounds.h) * .04)); const left = bounds.x + inset; const right = bounds.x + bounds.w - inset;
+  const width = Math.max(0, Math.min(requestedWidth, right - left)); let x = tx; let maxWidth = width;
+  if (align === "center") { x = Math.max(left + width / 2, Math.min(right - width / 2, tx)); maxWidth = Math.min(width, 2 * Math.min(x - left, right - x)); }
+  else if (align === "right") { x = Math.max(left, Math.min(right, tx)); maxWidth = Math.min(width, x - left); }
+  else { x = Math.max(left, Math.min(right, tx)); maxWidth = Math.min(width, right - x); }
+  if (maxWidth < 2) return;
+  let size = Math.max(5, Math.min(48, requestedSize, bounds.h - inset * 2)); let label = value.trim();
+  while (size > 5) { ctx.font = `${weight} ${size}px system-ui, sans-serif`; if (ctx.measureText(label).width <= maxWidth) break; size = Math.max(5, size - 1); }
+  ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+  if (ctx.measureText(label).width > maxWidth) {
+    while (label && ctx.measureText(`${label}…`).width > maxWidth) label = label.slice(0, -1);
+    label = label ? `${label}…` : "…";
+  }
+  text(ctx, label, x, ty, maxWidth, size, color, weight, align);
+}
+
+function wrapComponentLabel(ctx: CanvasRenderingContext2D, value: string, width: number): string[] {
+  const output: string[] = [];
+  for (const paragraph of value.split(/\r?\n/)) {
+    if (!paragraph.trim()) { output.push(""); continue; }
+    let line = "";
+    for (const word of paragraph.trim().split(/\s+/)) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (ctx.measureText(candidate).width <= width) { line = candidate; continue; }
+      if (line) { output.push(line); line = ""; }
+      let fragment = "";
+      for (const character of word) {
+        if (fragment && ctx.measureText(fragment + character).width > width) { output.push(fragment); fragment = ""; }
+        fragment += character;
+      }
+      line = fragment;
+    }
+    if (line) output.push(line);
+  }
+  return output.length ? output : [""];
 }
 
 function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bounds: { x: number; y: number; w: number; h: number }, tx: number, ty: number, requestedWidth: number, requestedSize: number, color: string, weight = 500, align: CanvasTextAlign = "left") {
@@ -46,12 +73,29 @@ function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bound
     maxWidth = Math.min(width, right - x);
   }
   if (maxWidth < 2) return;
-  let size = Math.min(48, Math.max(5, requestedSize), bottom - top);
-  ctx.font = `${weight} ${size}px system-ui, sans-serif`;
-  const measuredWidth = ctx.measureText(value).width;
-  if (measuredWidth > maxWidth && measuredWidth > 0) size = Math.max(5, size * maxWidth / measuredWidth);
-  const fittedY = Math.max(top + size / 2, Math.min(bottom - size / 2, ty));
-  text(ctx, value, x, fittedY, maxWidth, size, color, weight, align);
+  let size = Math.max(5, Math.min(48, requestedSize, bottom - top));
+  let lines: string[] = [];
+  let lineHeight = size * 1.18;
+  let maxLines = Math.max(1, Math.floor((bottom - top) / lineHeight));
+  for (;;) {
+    ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+    lines = wrapComponentLabel(ctx, value, maxWidth);
+    lineHeight = size * 1.18;
+    maxLines = Math.max(1, Math.floor((bottom - top) / lineHeight));
+    if (lines.length <= maxLines || size <= 5) break;
+    size = Math.max(5, size - 1);
+  }
+  if (lines.length > maxLines) {
+    lines = lines.slice(0, maxLines);
+    const last = lines.length - 1;
+    let shortened = lines[last].replace(/\s+$/, "");
+    while (shortened && ctx.measureText(`${shortened}…`).width > maxWidth) shortened = shortened.slice(0, -1);
+    lines[last] = shortened ? `${shortened}…` : "…";
+  }
+  const stackHeight = lines.length * lineHeight;
+  const centerY = Math.max(top + stackHeight / 2, Math.min(bottom - stackHeight / 2, ty));
+  const firstY = centerY - stackHeight / 2 + lineHeight / 2;
+  for (const [index, line] of lines.entries()) text(ctx, line, x, firstY + index * lineHeight, maxWidth, size, color, weight, align);
 }
 
 function cloudPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
@@ -97,6 +141,31 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
   const name = meta.label ?? kind.replace(/^(network|cloud|software|bpmn|c4)-/, "").replace(/-/g, " ");
+  const provider = cloudProviderComponent(kind);
+  if (provider) {
+    ctx.save();
+    ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill;
+    if (fill !== "transparent") ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = provider.accent; ctx.lineWidth = 1.4; ctx.strokeRect(x, y, w, h);
+    const iconSide = Math.max(28, Math.min(54, h - 34, w * .34));
+    const iconX = x + 10; const iconY = y + (h - iconSide) / 2 - 3;
+    const iconUrl = componentIconDataUrl(group); const icon = iconUrl ? componentIconImages.get(iconUrl) : undefined;
+    if (icon?.complete && icon.naturalWidth) {
+      const [, , sourceW, sourceH] = (meta.iconViewBox ?? "0 0 1 1").split(/\s+/).map(Number);
+      const ratio = sourceW > 0 && sourceH > 0 ? sourceW / sourceH : 1;
+      const drawW = iconSide * Math.min(1, ratio); const drawH = iconSide * Math.min(1, 1 / ratio);
+      ctx.drawImage(icon, iconX + (iconSide - drawW) / 2, iconY + (iconSide - drawH) / 2, drawW, drawH);
+    } else {
+      ctx.fillStyle = theme === "dark" ? "#292929" : "#f4f6f8"; ctx.fillRect(iconX, iconY, iconSide, iconSide);
+      ctx.strokeStyle = provider.accent; ctx.strokeRect(iconX, iconY, iconSide, iconSide);
+      fittedComponentText(ctx, provider.glyph, bounds, iconX + iconSide / 2, iconY + iconSide / 2, iconSide - 5, provider.glyph.length > 2 ? 10 : 13, provider.accent, 700, "center");
+    }
+    const copyX = iconX + iconSide + 9; const copyWidth = w - (copyX - x) - 9;
+    fittedComponentText(ctx, name, bounds, copyX, y + h * .37, copyWidth, size, ink, 700);
+    fittedComponentText(ctx, provider.provider.toUpperCase(), bounds, copyX, y + h * .59, copyWidth, 8, provider.accent, 650);
+    fittedComponentText(ctx, provider.description, bounds, x + 10, y + h - 9, w - 20, 8, theme === "dark" ? "#c3cbd3" : "#606a73", 400);
+    ctx.restore(); return;
+  }
   const box = (bx = x, by = y, bw = w, bh = h, color = fill) => { ctx.fillStyle = color === "transparent" ? "rgba(0,0,0,0)" : color; if (color !== "transparent") ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.strokeRect(bx, by, bw, bh); };
   const label = (value = name, bx = x + 10, by = y + 15, max = w - 20, font = size, bold = true, align: CanvasTextAlign = "left") => {
     fittedComponentText(ctx, value, bounds, bx, by, max, Math.min(maxLabelSize, font), ink, bold ? 650 : 400, align);
@@ -202,17 +271,45 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     const r = Math.min(w * .28, h * .34); const cx = x + w / 2; const cy = y + h * .4;
     for (const scale of [1, .68, .32]) { ctx.beginPath(); ctx.arc(cx, cy, r * scale, Math.PI, 0); ctx.strokeStyle = edge; ctx.stroke(); }
     ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); label(name.toUpperCase(), x + 4, y + h - 10, w - 8, Math.max(7, size * .72), true, "center");
-  } else if (kind === "bpmn-start" || kind === "bpmn-event" || kind === "bpmn-end") {
+  } else if (kind === "network-internet") {
+    cloudPath(ctx, x + 5, y + 5, w - 10, h - 14); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    label(name.toUpperCase(), x + 14, y + h * .57, w - 28, Math.min(size, 12), true, "center");
+  } else if (kind === "network-vpn") {
+    box(); label(name.toUpperCase(), x + 8, y + 14, w - 16, Math.min(size, 12), true, "center");
+    ctx.setLineDash([5, 4]); rule(x + 16, y + h * .63, x + w - 16, y + h * .63); ctx.setLineDash([]);
+    for (const px of [x + 17, x + w - 17]) { ctx.beginPath(); ctx.arc(px, y + h * .63, 4, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? "#ffffff" : fill; ctx.fill(); ctx.strokeStyle = edge; ctx.stroke(); }
+    label("ENCRYPTED TUNNEL", x + 8, y + h - 9, w - 16, Math.max(7, size * .58), false, "center");
+  } else if (kind === "network-dns") {
+    box(); const radius = Math.min(w * .24, h * .25); const cx = x + w / 2; const cy = y + h * .4;
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.strokeStyle = edge; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx, cy, radius * .48, radius, 0, 0, Math.PI * 2); ctx.stroke();
+    rule(cx - radius, cy, cx + radius, cy);
+    label(name.toUpperCase(), x + 8, y + h - 15, w - 16, Math.max(8, size * .72), true, "center");
+  } else if (kind === "network-nat-gateway") {
+    box(); label(name.toUpperCase(), x + 8, y + 14, w - 16, Math.min(size, 12), true, "center");
+    const centerX = x + w / 2; const centerY = y + h * .55;
+    for (const startX of [x + 24, x + w - 24]) { rule(startX, y + h - 13, centerX, centerY); ctx.beginPath(); ctx.arc(startX, y + h - 13, 3, 0, Math.PI * 2); ctx.stroke(); }
+    rule(centerX, centerY, centerX, y + h * .31); ctx.beginPath(); ctx.moveTo(centerX - 4, y + h * .37); ctx.lineTo(centerX, y + h * .3); ctx.lineTo(centerX + 4, y + h * .37); ctx.stroke();
+  } else if (kind === "network-modem") {
+    box(); label(name.toUpperCase(), x + 6, y + 13, w - 12, Math.min(size, 11), true, "center"); rule(x + 10, y + h * .42, x + w - 10, y + h * .42);
+    for (let index = 0; index < 4; index++) { ctx.beginPath(); ctx.arc(x + 15 + index * 11, y + h * .67, 2, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill(); }
+    for (const scale of [1, .65]) { ctx.beginPath(); ctx.arc(x + w - 23, y + h * .74, 8 * scale, Math.PI, 0); ctx.stroke(); }
+  } else if (kind === "bpmn-start" || kind === "bpmn-event" || kind === "bpmn-end" || kind === "bpmn-boundary-event") {
     const diameter = Math.min(w, h - 14); const cx = x + w / 2; const cy = y + diameter / 2 + 1; ctx.beginPath(); ctx.arc(cx, cy, diameter * .43, 0, Math.PI * 2); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "bpmn-end" ? 2.5 : 1.3; ctx.stroke();
-    if (kind === "bpmn-event") { ctx.beginPath(); ctx.arc(cx, cy, diameter * .34, 0, Math.PI * 2); ctx.stroke(); }
+    if (kind === "bpmn-event" || kind === "bpmn-boundary-event") { ctx.beginPath(); ctx.arc(cx, cy, diameter * .34, 0, Math.PI * 2); if (kind === "bpmn-boundary-event") ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]); }
     label(name, x, y + h - 8, w, Math.max(7, size * .64), false, "center");
-  } else if (kind === "bpmn-gateway" || kind === "bpmn-parallel-gateway") {
+  } else if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) {
     const side = Math.min(w, h - 12); const cx = x + w / 2; const cy = side / 2; ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(x + w, y + cy); ctx.lineTo(cx, y + side); ctx.lineTo(x, y + cy); ctx.closePath(); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
     if (kind === "bpmn-parallel-gateway") { rule(cx, y + side * .28, cx, y + side * .72); rule(x + w * .28, y + cy, x + w * .72, y + cy); }
+    else if (kind === "bpmn-inclusive-gateway") { ctx.beginPath(); ctx.arc(cx, cy, side * .18, 0, Math.PI * 2); ctx.stroke(); }
+    else if (kind === "bpmn-event-gateway") { ctx.beginPath(); ctx.arc(cx, cy, side * .2, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, side * .14, 0, Math.PI * 2); ctx.stroke(); }
     else { rule(x + w * .34, y + side * .34, x + w * .66, y + side * .66); rule(x + w * .66, y + side * .34, x + w * .34, y + side * .66); }
     label(name, x, y + h - 8, w, Math.max(7, size * .58), false, "center");
   } else if (kind === "bpmn-task") {
     box(); label(name.toUpperCase(), x + 8, y + h / 2, w - 16, size, true, "center");
+  } else if (kind === "bpmn-subprocess") {
+    box(); label(name.toUpperCase(), x + 10, y + h * .42, w - 20, size, true, "center");
+    ctx.strokeRect(x + w / 2 - 6, y + h - 18, 12, 12); rule(x + w / 2 - 3, y + h - 12, x + w / 2 + 3, y + h - 12); rule(x + w / 2, y + h - 15, x + w / 2, y + h - 9);
   } else if (kind === "bpmn-data") {
     box(); ctx.beginPath(); ctx.moveTo(x + w - 18, y); ctx.lineTo(x + w, y + 18); ctx.lineTo(x + w - 18, y + 18); ctx.closePath(); ctx.strokeStyle = edge; ctx.stroke(); rule(x + 12, y + h - 23, x + w - 12, y + h - 23); label(name.toUpperCase(), x + 5, y + h / 2, w - 10, Math.max(8, size * .8), true, "center");
   } else if (kind === "bpmn-pool") {
@@ -223,17 +320,16 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   ctx.restore();
 }
 
-export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, _preferredAppearance: "modern" | "simple" = "modern") {
+export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme) {
   const bounds = group.componentBounds;
   const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return;
   const { x, y, w, h } = bounds;
   const meta = group.libraryComponent!;
   if (meta.renderStyle === "clean") { drawCleanModelComponent(ctx, group, theme); return; }
-  // Modeling components share one plain visual language. Per-item appearance
-  // metadata remains readable for old files, but applies only to graphs.
+  // Modeling components share one plain visual language.
   const simple = true;
-  const palette = paletteFor(kind, theme === "dark", simple);
+  const palette = paletteFor(theme === "dark");
   const ink = meta.styleOverrides?.color ?? palette.ink;
   const fill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? palette.fill;
   const fillOpacity = meta.styleOverrides?.fillOpacity ?? 1;
@@ -248,6 +344,9 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   };
   const componentText = (value: string, tx: number, ty: number, maxWidth: number, fontSize: number, color: string, weight = 500, align: CanvasTextAlign = "left") => {
     fittedComponentText(ctx, value, bounds, tx, ty, maxWidth, Math.min(maxLabelSize, fontSize), color, weight, align);
+  };
+  const componentSingleLine = (value: string, tx: number, ty: number, maxWidth: number, fontSize: number, color: string, weight = 500, align: CanvasTextAlign = "left") => {
+    fittedComponentSingleLine(ctx, value, bounds, tx, ty, maxWidth, Math.min(maxLabelSize, fontSize), color, weight, align);
   };
   const heading = (value = name, yy = y + Math.min(18, h * .18), left = x + 14, max = w - 28) => componentText(value.toUpperCase(), left, yy, max, size, ink, 700);
   const centerHeading = (value = name, yy = y + h * .55) => componentText(value, x + w / 2, yy, w - 18, size, ink, 650, "center");
@@ -383,7 +482,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
         const cy = y + 30 + rowHeight * (index + .5); const active = kind === "form-checkbox" ? meta.formStates?.[index] ?? index === 0 : (meta.selectedOption ?? 0) === index;
         if (kind === "form-checkbox") { roundRect(ctx, x + 13, cy - 6, 12, 12, 3); ctx.fillStyle = palette.fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); if (active) { ctx.beginPath(); ctx.moveTo(x + 16, cy); ctx.lineTo(x + 18, cy + 3); ctx.lineTo(x + 22, cy - 3); ctx.strokeStyle = palette.accent; ctx.lineWidth = 2; ctx.stroke(); } }
         else { ctx.beginPath(); ctx.arc(x + 19, cy, 6, 0, Math.PI * 2); ctx.fillStyle = palette.fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); if (active) { ctx.beginPath(); ctx.arc(x + 19, cy, 3, 0, Math.PI * 2); ctx.fillStyle = palette.accent; ctx.fill(); } }
-        componentText( option || `Option ${index + 1}`, x + 34, cy, w - 47, size, palette.ink, 500);
+        componentSingleLine( option || `Option ${index + 1}`, x + 34, cy, w - 47, Math.min(maxLabelSize, Math.max(6, size * .76)), palette.ink, 500);
       });
     }
     else if (kind === "form-input" || kind === "form-select") {
@@ -392,7 +491,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
       roundRect(ctx, x + inset, fieldY, Math.max(1, w - inset * 2), fieldHeight, simple ? 0 : 6); ctx.fillStyle = palette.fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke();
       if (kind === "form-input") { ctx.beginPath(); ctx.moveTo(x + inset + 9, fieldY + fieldHeight / 2); ctx.lineTo(x + w - inset - 9, fieldY + fieldHeight / 2); ctx.strokeStyle = palette.muted; ctx.lineWidth = 1; ctx.stroke(); }
       else {
-        const arrowSpace = Math.min(27, Math.max(12, w * .15)); componentText( meta.formOptions?.[meta.selectedOption ?? 0] ?? "Select an option", x + inset + 9, fieldY + fieldHeight / 2, Math.max(4, w - inset * 2 - arrowSpace - 12), size, palette.ink, 500);
+        const arrowSpace = Math.min(27, Math.max(12, w * .15)); componentSingleLine( meta.formOptions?.[meta.selectedOption ?? 0] ?? "Select an option", x + inset + 9, fieldY + fieldHeight / 2, Math.max(4, w - inset * 2 - arrowSpace - 12), size, palette.ink, 500);
         const ax = x + w - inset - Math.min(12, arrowSpace / 2); ctx.beginPath(); ctx.moveTo(ax - 4, fieldY + fieldHeight / 2 - 2); ctx.lineTo(ax, fieldY + fieldHeight / 2 + 2); ctx.lineTo(ax + 4, fieldY + fieldHeight / 2 - 2); ctx.strokeStyle = palette.edge; ctx.stroke();
       }
     }
@@ -426,28 +525,25 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     if (h > headerH + 24) { ctx.beginPath(); ctx.moveTo(x, y + headerH + (h - headerH) * .48); ctx.lineTo(x + w, y + headerH + (h - headerH) * .48); ctx.stroke(); }
     ctx.restore(); return;
   }
-  if (kind === "viz-kpi" || kind.startsWith("viz-")) {
-    shell(12); heading(meta.chartData?.title ?? name); ctx.strokeStyle = palette.edge; ctx.beginPath(); ctx.moveTo(x + 14, y + h * .75); ctx.lineTo(x + w - 14, y + h * .75); ctx.moveTo(x + 14, y + h * .35); ctx.lineTo(x + 14, y + h * .75); ctx.stroke();
-    const values = meta.chartData?.values ?? [3, 6, 4, 8]; const max = Math.max(1, ...values); const gap = (w - 36) / Math.max(1, values.length);
-    if (kind === "viz-bar") values.forEach((value, index) => { ctx.fillStyle = palette.accent; ctx.fillRect(x + 20 + index * gap, y + h * .73 - (value / max) * h * .32, gap * .55, (value / max) * h * .32); });
-    else { ctx.beginPath(); values.forEach((value, index) => { const px = x + 20 + (values.length <= 1 ? 0 : index * (w - 40) / (values.length - 1)); const py = y + h * .73 - (value / max) * h * .32; if (!index) ctx.moveTo(px, py); else ctx.lineTo(px, py); }); ctx.strokeStyle = palette.accent; ctx.lineWidth = 2; ctx.stroke(); }
-    ctx.restore(); return;
-  }
   shell(12); centerHeading(name); ctx.restore();
 }
 
-export function modelComponentSvg(group: GroupElement, _preferredAppearance: "modern" | "simple" = "modern") {
+export function modelComponentSvg(group: GroupElement) {
   const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return "";
   const { x, y, w, h } = bounds; const meta = group.libraryComponent!;
   const simple = true;
-  const palette = paletteFor(kind, false, simple); const edge = meta.styleOverrides?.color ?? palette.edge;
+  const palette = paletteFor(false); const edge = meta.styleOverrides?.color ?? palette.edge;
   const fill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? palette.fill;
   const rawTitle = meta.formTitle ?? meta.label ?? kind.replace(/-/g, " ");
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
   const strokeWidth = Math.max(1.25, Math.min(2.5, Math.min(w, h) * .018));
   const xmlText = (value: string) => value.replace(/[&<>]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[char]!);
+  const fitXmlText = (value: string, availableWidth: number, fontSize = size) => {
+    const maxCharacters = Math.max(1, Math.floor(availableWidth / Math.max(1, fontSize * .58)));
+    return xmlText(value.length > maxCharacters ? `${value.slice(0, Math.max(0, maxCharacters - 1)).trimEnd()}…` : value);
+  };
   const title = xmlText(rawTitle);
   const fitTextAttribute = (value: string, availableWidth: number, fontSize = size) => value.length * fontSize * .58 > availableWidth
     ? ` textLength="${Math.max(1, availableWidth)}" lengthAdjust="spacingAndGlyphs"`
@@ -456,13 +552,43 @@ export function modelComponentSvg(group: GroupElement, _preferredAppearance: "mo
     const ink = meta.styleOverrides?.color ?? "#292929"; const cleanFill = fill; const soft = "#eeeeee";
     const t = (value: string, tx: number, ty: number, tw = w - 20, font = size, anchor = "start", weight = 600) => {
       const fittedFont = Math.min(maxLabelSize, Math.max(5, font));
-      const fittedY = Math.max(y + fittedFont / 2 + 2, Math.min(y + h - fittedFont / 2 - 2, ty));
-      const estimatedWidth = value.length * fittedFont * .58;
-      const fit = estimatedWidth > tw ? ` textLength="${Math.max(1, tw)}" lengthAdjust="spacingAndGlyphs"` : "";
-      return `<text x="${tx}" y="${fittedY}" text-anchor="${anchor}" dominant-baseline="middle"${fit} fill="${ink}" font-family="sans-serif" font-size="${fittedFont}" font-weight="${weight}">${xmlText(value)}</text>`;
+      const maxChars = Math.max(1, Math.floor(Math.max(1, tw) / (fittedFont * .58)));
+      const lines = value.split(/\r?\n/).flatMap(paragraph => {
+        const result: string[] = []; let line = "";
+        for (const word of paragraph.trim().split(/\s+/).filter(Boolean)) {
+          if (line && `${line} ${word}`.length <= maxChars) { line += ` ${word}`; continue; }
+          if (line) { result.push(line); line = ""; }
+          for (let offset = 0; offset < word.length; offset += maxChars) {
+            const fragment = word.slice(offset, offset + maxChars);
+            if (offset + maxChars < word.length) result.push(fragment); else line = fragment;
+          }
+        }
+        if (line) result.push(line);
+        return result.length ? result : [""];
+      });
+      const lineHeight = fittedFont * 1.18; const maxLines = Math.max(1, Math.floor(Math.max(1, h - 4) / lineHeight));
+      if (lines.length > maxLines) {
+        lines.length = maxLines;
+        let last = lines[maxLines - 1].slice(0, Math.max(0, maxChars - 1));
+        lines[maxLines - 1] = `${last.trimEnd()}…`;
+      }
+      const stackHeight = lines.length * lineHeight;
+      const centerY = Math.max(y + stackHeight / 2 + 2, Math.min(y + h - stackHeight / 2 - 2, ty));
+      const firstY = centerY - stackHeight / 2 + lineHeight / 2;
+      const tspans = lines.map((line, index) => `<tspan x="${tx}" y="${firstY + index * lineHeight}">${xmlText(line)}</tspan>`).join("");
+      return `<text text-anchor="${anchor}" dominant-baseline="middle" fill="${ink}" font-family="sans-serif" font-size="${fittedFont}" font-weight="${weight}">${tspans}</text>`;
     };
     const r = (rx = x, ry = y, rw = w, rh = h, color = cleanFill) => `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${color}" stroke="${ink}" stroke-width="1.3"/>`;
     const p = (d: string, dash = "") => `<path d="${d}" fill="none" stroke="${ink}" stroke-width="1.3"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
+    const provider = cloudProviderComponent(kind);
+    if (provider) {
+      const iconSide = Math.max(28, Math.min(54, h - 34, w * .34)); const iconX = x + 10; const iconY = y + (h - iconSide) / 2 - 3; const copyX = iconX + iconSide + 9;
+      const outer = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${cleanFill}" stroke="${provider.accent}" stroke-width="1.4"/>`;
+      const icon = meta.iconSvg && meta.iconViewBox
+        ? `<svg x="${iconX}" y="${iconY}" width="${iconSide}" height="${iconSide}" viewBox="${meta.iconViewBox}" preserveAspectRatio="xMidYMid meet">${meta.iconSvg}</svg>`
+        : `<rect x="${iconX}" y="${iconY}" width="${iconSide}" height="${iconSide}" fill="${soft}" stroke="${provider.accent}" stroke-width="1.2"/><text x="${iconX + iconSide / 2}" y="${iconY + iconSide / 2}" text-anchor="middle" dominant-baseline="middle" fill="${provider.accent}" font-family="sans-serif" font-size="${provider.glyph.length > 2 ? 10 : 13}" font-weight="700">${xmlText(provider.glyph)}</text>`;
+      return `${outer}${icon}${t(rawTitle, copyX, y + h * .37, w - (copyX - x) - 9, size)}${t(provider.provider.toUpperCase(), copyX, y + h * .59, w - (copyX - x) - 9, 8, "start", 650)}${t(provider.description, x + 10, y + h - 9, w - 20, 8, "start", 400)}`;
+    }
     if (kind.startsWith("c4-") || kind === "network-zone") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t(rawTitle.toUpperCase(), x + 12, y + 15, w - 24, Math.min(size, 14))}${t(kind.startsWith("c4-") ? "C4 boundary" : "Network boundary", x + 12, y + 34, w - 24, Math.max(8, size * .75), "start", 400)}`;
     if (kind === "cloud-boundary") {
       const d = `M ${x + w * .15} ${y + h * .8} C ${x + w * .04} ${y + h * .8}, ${x + w * .015} ${y + h * .66}, ${x + w * .05} ${y + h * .56} C ${x + w * .08} ${y + h * .45}, ${x + w * .17} ${y + h * .42}, ${x + w * .25} ${y + h * .44} C ${x + w * .25} ${y + h * .22}, ${x + w * .4} ${y + h * .12}, ${x + w * .53} ${y + h * .23} C ${x + w * .66} ${y + h * .05}, ${x + w * .85} ${y + h * .12}, ${x + w * .87} ${y + h * .36} C ${x + w * .97} ${y + h * .38}, ${x + w * .99} ${y + h * .49}, ${x + w * .96} ${y + h * .59} C ${x + w * .99} ${y + h * .72}, ${x + w * .9} ${y + h * .81}, ${x + w * .81} ${y + h * .8} Z`;
@@ -501,9 +627,18 @@ export function modelComponentSvg(group: GroupElement, _preferredAppearance: "mo
     if (kind === "network-client") return `${r(x + 8, y + 4, w - 16, h * .68)}${p(`M ${x + w * .25} ${y + h * .82} H ${x + w * .75} M ${x + w * .5} ${y + h * .68} V ${y + h * .82}`)}${t(rawTitle.toUpperCase(), x + w / 2, y + h - 10, w - 8, Math.max(7, size * .72), "middle")}`;
     if (kind === "network-router" || kind === "network-load-balancer") return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${p(`M ${x + w / 2} ${y + h * .61} L ${x + 8} ${y + h * .8} M ${x + w / 2} ${y + h * .61} L ${x + w - 8} ${y + h * .8} M ${x + w / 2} ${y + h * .61} V ${y + h - 8}`)}<circle cx="${x + w / 2}" cy="${y + h * .61}" r="${Math.min(w, h) * .1}" fill="${cleanFill}" stroke="${ink}"/>`;
     if (kind === "network-access-point") { const cx = x + w / 2; const cy = y + h * .4; const radius = Math.min(w * .28, h * .34); return `${[1, .68, .32].map(scale => p(`M ${cx - radius * scale} ${cy} A ${radius * scale} ${radius * scale} 0 0 1 ${cx + radius * scale} ${cy}`)).join("")}<circle cx="${cx}" cy="${cy}" r="2" fill="${ink}"/>${t(rawTitle.toUpperCase(), cx, y + h - 10, w - 8, Math.max(7, size * .72), "middle")}`; }
-    if (kind === "bpmn-start" || kind === "bpmn-event" || kind === "bpmn-end") { const diameter = Math.min(w, h - 14); const cx = x + w / 2; const cy = diameter / 2 + y + 1; return `<circle cx="${cx}" cy="${cy}" r="${diameter * .43}" fill="${cleanFill}" stroke="${ink}" stroke-width="${kind === "bpmn-end" ? 2.5 : 1.3}"/>${kind === "bpmn-event" ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .34}" fill="none" stroke="${ink}"/>` : ""}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .64), "middle", 400)}`; }
-    if (kind === "bpmn-gateway" || kind === "bpmn-parallel-gateway") { const side = Math.min(w, h - 12); const cx = x + w / 2; const cy = side / 2; const marks = kind === "bpmn-parallel-gateway" ? `M ${cx} ${y + side * .28} V ${y + side * .72} M ${x + w * .28} ${y + cy} H ${x + w * .72}` : `M ${x + w * .34} ${y + side * .34} L ${x + w * .66} ${y + side * .66} M ${x + w * .66} ${y + side * .34} L ${x + w * .34} ${y + side * .66}`; return `<path d="M ${cx} ${y} L ${x + w} ${y + cy} L ${cx} ${y + side} L ${x} ${y + cy} Z" fill="${cleanFill}" stroke="${ink}"/>${p(marks)}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .58), "middle", 400)}`; }
+    if (kind === "network-internet") {
+      const d = `M ${x + w * .18} ${y + h * .76} C ${x + w * .04} ${y + h * .76} ${x + w * .04} ${y + h * .55} ${x + w * .19} ${y + h * .5} C ${x + w * .18} ${y + h * .24} ${x + w * .42} ${y + h * .18} ${x + w * .54} ${y + h * .34} C ${x + w * .72} ${y + h * .12} ${x + w * .94} ${y + h * .33} ${x + w * .85} ${y + h * .51} C ${x + w} ${y + h * .61} ${x + w * .9} ${y + h * .78} ${x + w * .76} ${y + h * .76} Z`;
+      return `<path d="${d}" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3"/>${t(rawTitle.toUpperCase(), x + w / 2, y + h * .59, w * .62, Math.min(size, 12), "middle")}`;
+    }
+    if (kind === "network-vpn") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 14, w - 16, Math.min(size, 12), "middle")}${p(`M ${x + 17} ${y + h * .63} H ${x + w - 17}`, "5 4")}<circle cx="${x + 17}" cy="${y + h * .63}" r="4" fill="${cleanFill}" stroke="${ink}"/><circle cx="${x + w - 17}" cy="${y + h * .63}" r="4" fill="${cleanFill}" stroke="${ink}"/>${t("ENCRYPTED TUNNEL", x + w / 2, y + h - 9, w - 16, Math.max(7, size * .58), "middle", 400)}`;
+    if (kind === "network-dns") { const cx = x + w / 2; const cy = y + h * .4; const radius = Math.min(w * .24, h * .24); return `${r()}<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${ink}"/><ellipse cx="${cx}" cy="${cy}" rx="${radius * .48}" ry="${radius}" fill="none" stroke="${ink}"/>${p(`M ${cx - radius} ${cy} H ${cx + radius}`)}${t(rawTitle.toUpperCase(), cx, y + h - 15, w - 16, Math.max(8, size * .72), "middle")}`; }
+    if (kind === "network-nat-gateway") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 14, w - 16, Math.min(size, 12), "middle")}${p(`M ${x + 24} ${y + h - 13} L ${x + w / 2} ${y + h * .55} L ${x + w - 24} ${y + h - 13} M ${x + w / 2} ${y + h * .55} V ${y + h * .31} l -4 6 m 4 -6 l 4 6`)}<circle cx="${x + 24}" cy="${y + h - 13}" r="3" fill="${cleanFill}" stroke="${ink}"/><circle cx="${x + w - 24}" cy="${y + h - 13}" r="3" fill="${cleanFill}" stroke="${ink}"/>`;
+    if (kind === "network-modem") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 13, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 10} ${y + h * .42} H ${x + w - 10}`)}${[0, 1, 2, 3].map(index => `<circle cx="${x + 15 + index * 11}" cy="${y + h * .67}" r="2" fill="${ink}"/>`).join("")}${p(`M ${x + w - 31} ${y + h * .74} A 8 8 0 0 1 ${x + w - 15} ${y + h * .74} M ${x + w - 28} ${y + h * .74} A 5 5 0 0 1 ${x + w - 18} ${y + h * .74}`)}${t("WAN", x + w - 23, y + h - 9, 30, 7, "middle", 400)}`;
+    if (["bpmn-start", "bpmn-event", "bpmn-end", "bpmn-boundary-event"].includes(kind)) { const diameter = Math.min(w, h - 14); const cx = x + w / 2; const cy = diameter / 2 + y + 1; const inner = kind === "bpmn-event" || kind === "bpmn-boundary-event" ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .34}" fill="none" stroke="${ink}"${kind === "bpmn-boundary-event" ? " stroke-dasharray=\"3 2\"" : ""}/>` : ""; return `<circle cx="${cx}" cy="${cy}" r="${diameter * .43}" fill="${cleanFill}" stroke="${ink}" stroke-width="${kind === "bpmn-end" ? 2.5 : 1.3}"/>${inner}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .64), "middle", 400)}`; }
+    if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) { const side = Math.min(w, h - 12); const cx = x + w / 2; const cy = side / 2; const marks = kind === "bpmn-parallel-gateway" ? `M ${cx} ${y + side * .28} V ${y + side * .72} M ${x + w * .28} ${y + cy} H ${x + w * .72}` : kind === "bpmn-inclusive-gateway" ? `M ${cx} ${cy - side * .18} A ${side * .18} ${side * .18} 0 1 0 ${cx} ${cy + side * .18} A ${side * .18} ${side * .18} 0 1 0 ${cx} ${cy - side * .18}` : kind === "bpmn-event-gateway" ? `M ${cx} ${cy - side * .2} A ${side * .2} ${side * .2} 0 1 0 ${cx} ${cy + side * .2} A ${side * .2} ${side * .2} 0 1 0 ${cx} ${cy - side * .2} M ${cx} ${cy - side * .14} A ${side * .14} ${side * .14} 0 1 0 ${cx} ${cy + side * .14} A ${side * .14} ${side * .14} 0 1 0 ${cx} ${cy - side * .14}` : `M ${x + w * .34} ${y + side * .34} L ${x + w * .66} ${y + side * .66} M ${x + w * .66} ${y + side * .34} L ${x + w * .34} ${y + side * .66}`; return `<path d="M ${cx} ${y} L ${x + w} ${y + cy} L ${cx} ${y + side} L ${x} ${y + cy} Z" fill="${cleanFill}" stroke="${ink}"/>${p(marks)}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .58), "middle", 400)}`; }
     if (kind === "bpmn-task") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + h / 2, w - 16, size, "middle")}`;
+    if (kind === "bpmn-subprocess") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + h * .42, w - 20, size, "middle")}${r(x + w / 2 - 6, y + h - 18, 12, 12, cleanFill)}${p(`M ${x + w / 2 - 3} ${y + h - 12} H ${x + w / 2 + 3} M ${x + w / 2} ${y + h - 15} V ${y + h - 9}`)}`;
     if (kind === "bpmn-data") return `${r()}${p(`M ${x + w - 18} ${y} L ${x + w - 18} ${y + 18} H ${x + w}`)}${t(rawTitle.toUpperCase(), x + w / 2, y + h / 2, w - 10, Math.max(8, size * .8), "middle")}`;
     if (kind === "bpmn-pool") return `${r()}${r(x, y, Math.min(34, w / 3), h, soft)}${p(`M ${x + 34} ${y + h / 2} H ${x + w}`)}${t("POOL", x + 17, y + h / 2, 30, Math.max(8, size * .55), "middle")}`;
     if (kind === "data-flow") return `${t(rawTitle.toUpperCase(), x + w / 2, y + 9, w, Math.max(8, size * .72), "middle")}${p(`M ${x + 4} ${y + h * .72} H ${x + w - 10} l -8 -5 m 8 5 l -8 5`)}`;
@@ -539,32 +674,6 @@ export function modelComponentSvg(group: GroupElement, _preferredAppearance: "mo
   }
   const box = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${simple ? 0 : 12}" fill="${fill}" fill-opacity="${meta.styleOverrides?.fillOpacity ?? 1}" stroke="${edge}" stroke-width="1.5"/>`;
   const label = `<text x="${x + w / 2}" y="${y + Math.min(20, h * .2)}" text-anchor="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700"${fitTextAttribute(rawTitle, w - 24)}>${title}</text>`;
-  if (kind.startsWith("viz-")) {
-    const chartTitle = xmlText(meta.chartData?.title ?? rawTitle);
-    const chartLabel = `<text x="${x + w / 2}" y="${y + Math.min(20, h * .2)}" text-anchor="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700"${fitTextAttribute(meta.chartData?.title ?? rawTitle, w - 24)}>${chartTitle}</text>`;
-    const values = (meta.chartData?.values?.length ? meta.chartData.values : [3, 6, 4, 8]).slice(0, 24);
-    const plot = { x: x + 18, y: y + 38, w: Math.max(10, w - 36), h: Math.max(10, h - 54) };
-    const maximum = Math.max(1, ...values.map(value => Math.abs(value)));
-    const points = values.map((value, index) => ({ x: plot.x + (values.length < 2 ? plot.w / 2 : index * plot.w / (values.length - 1)), y: plot.y + plot.h - Math.max(0, value) / maximum * plot.h * .86 }));
-    const axes = `<path d="M ${plot.x} ${plot.y} V ${plot.y + plot.h} H ${plot.x + plot.w}" fill="none" stroke="${palette.edge}" stroke-width="1"/>`;
-    let chart = "";
-    if (kind === "viz-bar") {
-      const slot = plot.w / Math.max(1, values.length); chart = values.map((value, index) => { const height = Math.max(1, Math.max(0, value) / maximum * plot.h * .86); return `<rect x="${plot.x + index * slot + slot * .18}" y="${plot.y + plot.h - height}" width="${slot * .64}" height="${height}" rx="2" fill="${palette.accent}"/>`; }).join("");
-    } else if (kind === "viz-scatter") chart = points.map(point => `<circle cx="${point.x}" cy="${point.y}" r="3" fill="${palette.accent}"/>`).join("");
-    else if (kind === "viz-pie" || kind === "viz-donut") {
-      const cx = x + w / 2; const cy = y + h * .58; const radius = Math.max(5, Math.min(w, h) * .29); const parts = values.map(value => Math.max(0, value)); const total = Math.max(1, parts.reduce((sum, value) => sum + value, 0)); let angle = -Math.PI / 2;
-      chart = parts.map((value, index) => { const next = angle + value / total * Math.PI * 2; const startX = cx + Math.cos(angle) * radius; const startY = cy + Math.sin(angle) * radius; const endX = cx + Math.cos(next) * radius; const endY = cy + Math.sin(next) * radius; const large = next - angle > Math.PI ? 1 : 0; const color = [palette.accent, palette.edge, palette.soft, palette.muted][index % 4]; const path = kind === "viz-donut" ? `M ${cx + Math.cos(angle) * radius * .52} ${cy + Math.sin(angle) * radius * .52} L ${startX} ${startY} A ${radius} ${radius} 0 ${large} 1 ${endX} ${endY} L ${cx + Math.cos(next) * radius * .52} ${cy + Math.sin(next) * radius * .52} A ${radius * .52} ${radius * .52} 0 ${large} 0 ${cx + Math.cos(angle) * radius * .52} ${cy + Math.sin(angle) * radius * .52} Z` : `M ${cx} ${cy} L ${startX} ${startY} A ${radius} ${radius} 0 ${large} 1 ${endX} ${endY} Z`; angle = next; return `<path d="${path}" fill="${color}" stroke="${fill === "none" ? "#fff" : fill}" stroke-width="1"/>`; }).join("");
-    } else {
-      const line = points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
-      const area = kind === "viz-area" && points.length ? `<path d="${line} L ${points[points.length - 1].x} ${plot.y + plot.h} L ${points[0].x} ${plot.y + plot.h} Z" fill="${palette.accent}" fill-opacity=".16" stroke="none"/>` : "";
-      chart = `${area}<path d="${line}" fill="none" stroke="${palette.accent}" stroke-width="2"/>`;
-    }
-    if (kind === "viz-kpi") {
-      const value = values[0] ?? 0; const change = values[1] ?? 0; const trend = meta.trendDirection ?? (change > 0 ? "up" : change < 0 ? "down" : "steady");
-      return `${box}${chartLabel}<text x="${x + 18}" y="${y + h * .58}" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${Math.min(30, size * 2.5)}" font-weight="700">${value}</text><text x="${x + 20}" y="${y + h * .79}" fill="${trend === "down" ? "#c15d60" : palette.accent}" font-family="sans-serif" font-size="${size * .9}">${trend === "up" ? "▲" : trend === "down" ? "▼" : "●"} ${xmlText(meta.chartData?.labels?.[1] ?? "Change")} ${change}</text>`;
-    }
-    return `${box}${chartLabel}${kind === "viz-pie" || kind === "viz-donut" ? "" : axes}${chart}`;
-  }
   if (kind === "network-server") {
     const rows = Math.max(2, Math.min(4, Math.floor((h - 22) / 23))); const rowHeight = (h - 26) / rows;
     return `${box}${label}${Array.from({ length: rows }, (_, index) => { const yy = y + 25 + index * rowHeight; return `<rect x="${x + 10}" y="${yy}" width="${w - 20}" height="${rowHeight - 5}" rx="4" fill="${palette.soft}" stroke="${edge}"/><circle cx="${x + 20}" cy="${yy + (rowHeight - 5) / 2}" r="2.4" fill="${palette.accent}"/>`; }).join("")}`;
@@ -585,12 +694,13 @@ export function modelComponentSvg(group: GroupElement, _preferredAppearance: "mo
   if (kind === "network-zone" || kind === "c4-system" || kind === "c4-container") return `<rect x="${x + 4}" y="${y + 4}" width="${w - 8}" height="${h - 8}" rx="12" fill="${fill}" fill-opacity="${meta.styleOverrides?.fillOpacity ?? 1}" stroke="${edge}" stroke-dasharray="6 4"/>${label}<rect x="${x + 16}" y="${y + 35}" width="${w * .34}" height="${h * .42}" rx="7" fill="${palette.soft}" stroke="${edge}"/><rect x="${x + w * .58}" y="${y + 35}" width="${w * .28}" height="${h * .2}" rx="6" fill="${palette.soft}" stroke="${edge}"/><rect x="${x + w * .58}" y="${y + h * .61}" width="${w * .28}" height="${h * .2}" rx="6" fill="${palette.soft}" stroke="${edge}"/>`;
   if (kind === "software-database" || kind === "cloud-database") { const left = x + w * .08; const right = x + w * .92; const ry = 10; const body = `<path d="M ${left} ${y + ry} V ${y + h - ry} A ${w * .42} ${ry} 0 0 1 ${right} ${y + h - ry} V ${y + ry} Z" fill="${fill}" stroke="${edge}"/>`; const top = `<ellipse cx="${x + w / 2}" cy="${y + 12}" rx="${w * .42}" ry="10" fill="${fill}" stroke="${edge}"/>`; const rim = `<path d="M ${left} ${y + h * .48} C ${left} ${y + h * .61}, ${right} ${y + h * .61}, ${right} ${y + h * .48}" fill="none" stroke="${edge}"/>`; return `${body}${top}${rim}${label}`; }
   if (kind === "software-queue" || kind === "cloud-queue") return `${box}${label}${[0, 1, 2].map(index => `<rect x="${x + 12 + index * ((w - 34) / 3 + 5)}" y="${y + h * .48}" width="${(w - 34) / 3}" height="${h * .27}" rx="5" fill="${palette.soft}" stroke="${edge}"/>`).join("")}`;
-  if (kind === "form-button") { const caption = xmlText(meta.formOptions?.[meta.selectedOption ?? 0] ?? meta.formTitle ?? "Continue"); const buttonFill = meta.styleOverrides?.fillColor ?? (simple ? fill : palette.accent); const buttonInk = meta.styleOverrides?.color ?? (simple ? palette.ink : "#ffffff"); return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${simple ? 0 : Math.min(13, h / 2)}" fill="${buttonFill}" fill-opacity="${meta.styleOverrides?.fillOpacity ?? 1}" stroke="${edge}" stroke-width="1.5"/>${simple ? "" : `<path d="M ${x + 2} ${y + h - 3} H ${x + w - 2}" stroke="rgba(0,0,0,.12)" stroke-width="2"/>`}<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" fill="${buttonInk}" font-family="sans-serif" font-size="${size}" font-weight="650">${caption}</text>`; }
-  if (kind === "form-input" || kind === "form-select") { const selectValue = xmlText(meta.formOptions?.[meta.selectedOption ?? 0] ?? "Select an option"); const inset = Math.min(12, Math.max(2, w * .06)); const fieldY = y + Math.min(31, h * .42); const fieldHeight = Math.max(1, h - (fieldY - y) - Math.min(10, h * .12)); const titleText = xmlText(rawTitle); const field = `<rect x="${x + inset}" y="${fieldY}" width="${Math.max(1, w - inset * 2)}" height="${fieldHeight}" rx="${simple ? 0 : 6}" fill="${palette.fill}" stroke="${edge}"/>`; return `${box}<text x="${x + inset}" y="${y + Math.min(15, h * .2) + size * .35}" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="600">${titleText}</text>${field}${kind === "form-select" ? `<text x="${x + inset + 9}" y="${fieldY + fieldHeight / 2}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}">${selectValue}</text><path d="m${x + w - inset - 12} ${fieldY + fieldHeight / 2 - 2} 4 4 4-4" fill="none" stroke="${edge}"/>` : `<path d="M ${x + inset + 9} ${fieldY + fieldHeight / 2} H ${x + w - inset - 9}" stroke="${palette.muted}"/>`}`; }
-  if (kind === "form-toggle") { const sw = Math.min(48, Math.max(20, w * .25), Math.max(1, w - 16)); const sh = Math.min(26, Math.max(12, h * .44), Math.max(1, h - 8)); const sx = x + w - sw - Math.min(14, Math.max(4, w * .06)); const sy = y + (h - sh) / 2; const enabled = meta.formState !== false; return `${box}<text x="${x + 14}" y="${y + h / 2}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700">${title}</text><rect x="${sx}" y="${sy}" width="${sw}" height="${sh}" rx="${simple ? 0 : sh / 2}" fill="${enabled ? palette.accent : palette.soft}" stroke="${edge}"/><circle cx="${sx + (enabled ? sw - sh / 2 : sh / 2)}" cy="${sy + sh / 2}" r="${Math.min(sh * .36, sw / 3)}" fill="${simple ? palette.fill : "#fff"}"/>`; }
+  if (kind === "form-button") { const caption = fitXmlText(meta.formOptions?.[meta.selectedOption ?? 0] ?? meta.formTitle ?? "Continue", w - 24); const buttonFill = meta.styleOverrides?.fillColor ?? (simple ? fill : palette.accent); const buttonInk = meta.styleOverrides?.color ?? (simple ? palette.ink : "#ffffff"); return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${simple ? 0 : Math.min(13, h / 2)}" fill="${buttonFill}" fill-opacity="${meta.styleOverrides?.fillOpacity ?? 1}" stroke="${edge}" stroke-width="1.5"/>${simple ? "" : `<path d="M ${x + 2} ${y + h - 3} H ${x + w - 2}" stroke="rgba(0,0,0,.12)" stroke-width="2"/>`}<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" fill="${buttonInk}" font-family="sans-serif" font-size="${size}" font-weight="650">${caption}</text>`; }
+  if (kind === "form-input" || kind === "form-select") { const inset = Math.min(12, Math.max(2, w * .06)); const fieldY = y + Math.min(31, h * .42); const fieldHeight = Math.max(1, h - (fieldY - y) - Math.min(10, h * .12)); const field = `<rect x="${x + inset}" y="${fieldY}" width="${Math.max(1, w - inset * 2)}" height="${fieldHeight}" rx="${simple ? 0 : 6}" fill="${palette.fill}" stroke="${edge}"/>`; const titleText = fitXmlText(rawTitle, w - inset * 2); return `${box}<text x="${x + inset}" y="${y + Math.min(15, h * .2) + size * .35}" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="600">${titleText}</text>${field}${kind === "form-select" ? `<text x="${x + inset + 9}" y="${fieldY + fieldHeight / 2}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}">${fitXmlText(meta.formOptions?.[meta.selectedOption ?? 0] ?? "Select an option", w - inset * 2 - Math.min(27, Math.max(12, w * .15)) - 12)}</text><path d="m${x + w - inset - 12} ${fieldY + fieldHeight / 2 - 2} 4 4 4-4" fill="none" stroke="${edge}"/>` : `<path d="M ${x + inset + 9} ${fieldY + fieldHeight / 2} H ${x + w - inset - 9}" stroke="${palette.muted}"/>`}`; }
+  if (kind === "form-toggle") { const sw = Math.min(48, Math.max(20, w * .25), Math.max(1, w - 16)); const sh = Math.min(26, Math.max(12, h * .44), Math.max(1, h - 8)); const sx = x + w - sw - Math.min(14, Math.max(4, w * .06)); const sy = y + (h - sh) / 2; const enabled = meta.formState !== false; return `${box}<text x="${x + 14}" y="${y + h / 2}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700">${fitXmlText(rawTitle, sx - x - 22)}</text><rect x="${sx}" y="${sy}" width="${sw}" height="${sh}" rx="${simple ? 0 : sh / 2}" fill="${enabled ? palette.accent : palette.soft}" stroke="${edge}"/><circle cx="${sx + (enabled ? sw - sh / 2 : sh / 2)}" cy="${sy + sh / 2}" r="${Math.min(sh * .36, sw / 3)}" fill="${simple ? palette.fill : "#fff"}"/>`; }
   if (kind === "form-checkbox" || kind === "form-radio") {
     const options = (meta.formOptions?.length ? meta.formOptions : ["Option 1"]).slice(0, 12); const rowHeight = Math.min(23, (h - 30) / options.length);
-    const rows = options.map((option, index) => { const cy = y + 30 + rowHeight * (index + .5); const active = kind === "form-checkbox" ? meta.formStates?.[index] ?? index === 0 : (meta.selectedOption ?? 0) === index; const marker = kind === "form-checkbox" ? `<rect x="${x + 13}" y="${cy - 6}" width="12" height="12" rx="3" fill="${palette.fill}" stroke="${edge}"/>${active ? `<path d="m${x + 16} ${cy} 2 3 4-6" fill="none" stroke="${palette.accent}" stroke-width="2"/>` : ""}` : `<circle cx="${x + 19}" cy="${cy}" r="6" fill="${palette.fill}" stroke="${edge}"/>${active ? `<circle cx="${x + 19}" cy="${cy}" r="3" fill="${palette.accent}"/>` : ""}`; return `${marker}<text x="${x + 34}" y="${cy}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${Math.min(maxLabelSize, Math.max(6, size * .76))}">${xmlText(option)}</text>`; }).join("");
+    const labelSize = Math.min(maxLabelSize, Math.max(6, size * .76)); const labelWidth = w - 47;
+    const rows = options.map((option, index) => { const cy = y + 30 + rowHeight * (index + .5); const active = kind === "form-checkbox" ? meta.formStates?.[index] ?? index === 0 : (meta.selectedOption ?? 0) === index; const marker = kind === "form-checkbox" ? `<rect x="${x + 13}" y="${cy - 6}" width="12" height="12" rx="3" fill="${palette.fill}" stroke="${edge}"/>${active ? `<path d="m${x + 16} ${cy} 2 3 4-6" fill="none" stroke="${palette.accent}" stroke-width="2"/>` : ""}` : `<circle cx="${x + 19}" cy="${cy}" r="6" fill="${palette.fill}" stroke="${edge}"/>${active ? `<circle cx="${x + 19}" cy="${cy}" r="3" fill="${palette.accent}"/>` : ""}`; return `${marker}<text x="${x + 34}" y="${cy}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${labelSize}">${fitXmlText(option, labelWidth, labelSize)}</text>`; }).join("");
     return `${box}${label}${rows}`;
   }
   if (kind === "uml-actor") { const cx = x + w / 2; const head = Math.min(w * .22, h * .11); return `<circle cx="${cx}" cy="${y + head + 3}" r="${head}" fill="${fill}" stroke="${edge}"/><path d="M ${cx} ${y + head * 2 + 3} V ${y + h * .62} M ${x + w * .2} ${y + h * .4} H ${x + w * .8} M ${cx} ${y + h * .62} L ${x + w * .25} ${y + h * .74} M ${cx} ${y + h * .62} L ${x + w * .75} ${y + h * .74}" fill="none" stroke="${edge}"/><text x="${cx}" y="${y + h * .9}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 8)}>${title}</text>`; }
@@ -613,7 +723,7 @@ export function modelComponentSvg(group: GroupElement, _preferredAppearance: "mo
 
 const componentIconImages = new Map<string, HTMLImageElement>();
 
-export function componentIconDataUrl(group: GroupElement): string | undefined {
+function componentIconDataUrl(group: GroupElement): string | undefined {
   const data = group.libraryComponent;
   if (!data?.iconSvg || !data.iconViewBox) return undefined;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${data.iconViewBox}">${data.iconSvg}</svg>`;

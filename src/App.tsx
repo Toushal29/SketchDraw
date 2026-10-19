@@ -15,7 +15,7 @@ import { SKETCH_FORMAT_VERSION } from "./model";
 import type { Point, StrokePoint, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipType, RelationshipDirection } from "./model";
 import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox, alignedTextStartX } from "./operations";
 import type { NoteKind } from "./model";
-import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, noteCardPalette, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryComponentKind } from "./notes";
+import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryComponentKind } from "./notes";
 import { parseSchema } from "./schema";
 import { importDrawio, importExcalidraw, exportDrawio, exportExcalidraw } from "./features/diagrams/interchange";
 import { cloudProviderComponent, loadCloudProviderGlyph } from "./features/diagrams/cloud-providers";
@@ -25,7 +25,7 @@ import { azureArmToDiagram, bicepToDiagram, cloudFormationToDiagram, jsonToDiagr
 import { readCustomStencils, writeCustomStencils, exportPortableStencilLibrary, parsePortableStencilLibrary, stencilPreviewText, type CustomStencil } from "./features/components/custom-stencils";
 import { DIAGRAM_LINT_PROFILES, issuesForProfile, validateDiagram, type DiagramIssue, type DiagramLintProfile } from "./features/diagrams/validation";
 import { parseBpmnContext, simulateBpmn, type BpmnSimulationStep } from "./features/diagrams/bpmn-analysis";
-import { relationshipDisplayElement } from "./features/diagrams/relationships";
+import { relationshipDirectionHeads, relationshipDisplayElement } from "./features/diagrams/relationships";
 import { dotToDiagram } from "./features/diagrams/dot";
 import { svgPrimitivesToElements } from "./features/diagrams/svg-vectors";
 import { exportDiagramCode, plantUmlToDiagram, type DiagramCodeFormat } from "./features/diagrams/code-formats";
@@ -54,11 +54,12 @@ import { unionBounds, elementBounds, elementGridBounds, distanceToSegment } from
 import { ElementSpatialIndex } from "./features/canvas/spatial-index";
 import { getToolLayers, reorderToolLayer, toggleToolLayer, type ToolLayerKind } from "./features/canvas/tool-layers";
 import { createCanvasHistory } from "./features/canvas/history";
-import { gridStepForStyle, gridSvgPattern, pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePoint } from "./features/canvas/input";
+import { canvasStateForTouchGesture, gridStepForStyle, gridSvgPattern, pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePoint, zoomCanvasStateAt } from "./features/canvas/input";
 import { canGroupSelection, deletableSelectionCount as countDeletableSelection, focusedSelectionElement, isGroupSelection, primarySelectionIndex, selectedElements as getSelectedElements } from "./features/canvas/selection";
 import { canvasPixelRatio, createCanvasRenderScheduler, drawShapeLabel, fontCss, shapeLabelSvg, themeInk } from "./features/canvas/rendering";
 import { createCanvasSceneRenderer, transformHandlePoints } from "./features/canvas/scene-renderer";
-import { drawLibraryChart } from "./features/components/chart-renderer";
+import { drawLibraryChart } from "./features/components/chart-engine";
+import { fitComponentSpecimen } from "./features/components/component-specimen-sheet";
 import { cacheComponentIconImage, drawModelComponent } from "./features/components/model-component-renderer";
 import { createFreehandRenderer } from "./features/canvas/freehand-rendering";
 import { createStrokeSampleGate } from "./features/canvas/stroke-input";
@@ -433,7 +434,6 @@ function App() {
     return mobileOrientation() === "portrait" ? "top" : "left";
   })());
   const [displayMetrics, setDisplayMetrics] = createSignal<DisplayMetrics>(readDisplayMetrics());
-  const chartAppearance = () => "modern" as const;
   const [toolbarColorChoice, setToolbarColorChoice] = createSignal((() => { const value = readPreference("sketchdraw-toolbar-color", "auto"); if (value.toLowerCase() === "#252c31") return "#171717"; return value === "auto" || /^#[\da-f]{6}$/i.test(value) ? value : "auto"; })());
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [appVersion, setAppVersion] = createSignal("...");
@@ -486,11 +486,11 @@ function App() {
   const [noteEditor, setNoteEditor] = createSignal<{ x: number; y: number; width: number; height: number; fontSize: number; kind: NoteKind; content: string; title: string; resized?: boolean; editingIndex?: number }>();
   const [noteEditorSession, setNoteEditorSession] = createSignal(0);
   let noteEditorTextarea: HTMLTextAreaElement | undefined;
+  let noteEditorTitleInput: HTMLInputElement | undefined;
   let textEditorElement: HTMLDivElement | undefined;
   let textEditorPendingPointerId: number | undefined;
   let textEditorFocusTimer: number | undefined;
   let textEditorFocusOnCanvasClick = false;
-  let resizingNoteEditor = false;
   const [schemaDialog, setSchemaDialog] = createSignal(false);
   const [schemaInput, setSchemaInput] = createSignal("");
   const [schemaError, setSchemaError] = createSignal("");
@@ -1141,8 +1141,7 @@ function App() {
       if (!isConnector(item)) return item;
       if (property === "relationshipDirection" && value) {
         const direction = value as RelationshipDirection;
-        const startHead: ArrowHead = direction === "both" ? "solid" : "none";
-        const endHead: ArrowHead = direction === "none" ? "none" : "solid";
+        const { startHead, endHead } = relationshipDirectionHeads(direction);
         return { ...item, relationshipDirection: direction, startHead, endHead, ...(item.forkUpper ? { forkUpper: { ...item.forkUpper, endHead } } : {}), ...(item.forkLower ? { forkLower: { ...item.forkLower, endHead } } : {}) };
       }
       return { ...item, [property]: value || undefined } as ShapeElement;
@@ -1269,7 +1268,7 @@ function App() {
   };
   const sidebarVisible = () => !!activePath();
   const showStrokeControls = () => { const focused = focusedElement(); return tool() !== "bucket" && (
-    tool() === "pen" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || tool() === "line" || tool() === "arrow" || tool() === "text" ||
+    tool() === "pen" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || tool() === "line" || tool() === "arrow" || (tool() === "text" && textMode() === "text") ||
     (tool() === "select" && !!focused && "color" in focused)
   ); };
   const showThicknessControls = () => { const focused = focusedElement(); return tool() !== "bucket" && tool() !== "text" && (
@@ -1282,7 +1281,7 @@ function App() {
   const quickHasShapeFill = () => !!selectedLibraryComponent() || ["rectangle", "circle", "diamond", "triangle", "flowchart", "svgPath"].includes(quickElementType());
   const quickHasText = () => {
     const target = styleTargetElement();
-    if (tool() === "text" || !!selectedTextValue().trim()) return true;
+    if (tool() === "text" && textMode() === "text" || !!selectedTextValue().trim()) return true;
     if (target?.type === "schemaTable") return !!target.name.trim() || target.columns.length > 0;
     if (target?.type === "group" && target.libraryComponent) return libraryComponentFields(target).some(field => field.value.trim()) || target.libraryComponent.kind.startsWith("viz-") || target.libraryComponent.kind.startsWith("form-");
     if (target && isLabelShape(target)) return !!target.label?.text.trim() || !!textDraft()?.shapeLabel;
@@ -1296,7 +1295,14 @@ function App() {
     const kind = (libraryComponentDraft() ?? selectedLibraryComponent())?.libraryComponent?.kind;
     return kind ? LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? "Component" : selectedClassComponentId() || classCardDraft()?.componentId ? "UML class" : "New UML class";
   };
-  const quickHasNoteCard = () => !!selectedNoteCard() && tool() === "select";
+  const notePanelTitle = () => {
+    const draft = noteEditor(); const note = draft ?? selectedNoteCard()?.note;
+    if (!note) return "Note";
+    if (note.kind === "sticky") return "Sticky note";
+    if (note.kind === "checklist") return "Checklist";
+    if (findMarkdownTableBlock(note.content)) return "Markdown table";
+    return note.title?.toLowerCase().includes("markdown") ? "Markdown text" : "Note + code";
+  };
   const quickCardFontSize = () => {
     const focused = focusedElement();
     const componentText = focused?.componentId ? elements().find(item => item.componentId === focused.componentId && item.type === "text") : undefined;
@@ -1377,7 +1383,10 @@ function App() {
     if (simplifyInk) {
       // Keep the maximum geometric error below a quarter screen pixel at the
       // capture zoom, while retaining bends and pressure/tilt transitions.
-      appendSimplifiedStrokePoint(currentPoints, point, .25 / Math.max(.01, canvasState().zoom));
+      const pixelTolerance = .25 / Math.max(.01, canvasState().zoom);
+      const strokeThickness = Math.max(1, preview()?.thickness ?? thickness());
+      const pressureTolerance = Math.min(.035, pixelTolerance / (strokeThickness * 1.15));
+      appendSimplifiedStrokePoint(currentPoints, point, pixelTolerance, pressureTolerance, 1.25 / Math.max(.01, canvasState().zoom));
     } else currentPoints.push(point);
     if (currentPoints.length > MAX_STROKE_POINTS) {
       currentPoints.pop();
@@ -1667,21 +1676,26 @@ function App() {
     const group = existing?.type === "group" ? existing : undefined;
     const bounds = group ? elementBounds(group) : undefined;
     setNoteEditor({ x: bounds?.x ?? point.x, y: bounds?.y ?? point.y, width: group?.note?.width ?? bounds?.w ?? (kind === "sticky" ? 296 : 340), height: group?.note?.height ?? bounds?.h ?? 190, fontSize: group?.note?.fontSize ?? Math.min(32, defaultFontSize()), kind, content: group?.note?.content ?? initial?.content ?? (kind === "checklist" ? "- [ ] New task" : ""), title: group?.note?.title ?? initial?.title ?? defaultNoteTitle(kind), editingIndex });
+    if (editingIndex !== undefined) setSelectedIndices([editingIndex]);
+    setComponentEditorCollapsed(false); setSidebarTab("properties");
     setNoteEditorSession(session => session + 1);
   }
 
   function saveNoteEditor() {
     const draft = noteEditor();
     if (!draft || boardLocked()) return;
-    if (draft.content.length > 50000) { setError("Notes and checklists are limited to 50,000 characters."); return; }
-    const content = draft.kind === "checklist" && !draft.content.trim() ? "- [ ] New task" : draft.content;
-    if (!content.trim() && !draft.title.trim()) { setNoteEditor(undefined); return; }
+    const tableBlock = draft.kind === "note" ? findMarkdownTableBlock(draft.content) : undefined;
+    const editedContent = noteEditorTextarea?.isConnected ? tableBlock ? replaceMarkdownTableBlock(draft.content, tableBlock, noteEditorTextarea.value) : noteEditorTextarea.value : draft.content;
+    const title = noteEditorTitleInput?.isConnected ? noteEditorTitleInput.value : draft.title;
+    if (editedContent.length > 50000) { setError("Notes and checklists are limited to 50,000 characters."); return; }
+    const content = draft.kind === "checklist" && !editedContent.trim() ? "- [ ] New task" : editedContent;
+    if (!content.trim() && !title.trim()) { setNoteEditor(undefined); return; }
     if (normalizeNoteContent(content, draft.kind).length > 50000) {
       setError("Checklist task markers count toward the 50,000-character save limit. Shorten the checklist before saving it.");
       return;
     }
     const previous = draft.editingIndex === undefined ? undefined : elements()[draft.editingIndex];
-    let group = buildNoteGroup(draft.x, draft.y, draft.kind, content, { width: draft.width, ...(draft.editingIndex !== undefined || draft.resized ? { height: draft.height } : {}), fontSize: draft.fontSize, title: draft.title });
+    let group = buildNoteGroup(draft.x, draft.y, draft.kind, content, { width: draft.width, ...(draft.editingIndex !== undefined || draft.resized ? { height: draft.height } : {}), fontSize: draft.fontSize, title });
     if (previous?.type === "group") {
       group = { ...group, ...previous, note: { ...group.note, kind: draft.kind, content: group.note?.content ?? content }, elements: group.elements.map((child, index) => previous.elements[index]?.id ? { ...child, id: previous.elements[index].id } as Element : child) };
     }
@@ -1694,9 +1708,9 @@ function App() {
 
   function insertMarkdownTable() {
     const draft = noteEditor(); if (!draft || draft.kind === "checklist" || !noteEditorTextarea) return;
-    const textarea = noteEditorTextarea; const start = textarea.selectionStart; const end = textarea.selectionEnd;
+    const textarea = noteEditorTextarea; const source = textarea.value; const start = textarea.selectionStart; const end = textarea.selectionEnd;
     const table = "| Column 1 | Column 2 |\n| --- | --- |\n| Cell | Cell |\n| Cell | Cell |";
-    const content = draft.content.slice(0, start) + table + draft.content.slice(end);
+    const content = source.slice(0, start) + table + source.slice(end);
     setNoteEditor(current => current ? { ...current, content } : current);
     requestAnimationFrame(() => { if (textarea.isConnected) { const caret = start + table.length; textarea.focus(); textarea.setSelectionRange(caret, caret); } });
   }
@@ -1810,7 +1824,7 @@ function App() {
     const oldIds = new Map(existing.map(item => [item.componentRole, item.id]));
     const componentId = draft.componentId ?? `uml-class:${crypto.randomUUID()}`;
     const children = positions.map(({ role, item }) => ({ ...item, id: oldIds.get(role) ?? crypto.randomUUID(), componentId, componentRole: role } as Element));
-    return { type: "group", id: existingGroup?.id ?? componentId, componentId, elements: children, libraryComponent: { ...(existingGroup?.libraryComponent ?? {}), kind: "uml-class", appearance: existingGroup?.libraryComponent?.appearance ?? "simple" } };
+    return { type: "group", id: existingGroup?.id ?? componentId, componentId, elements: children, libraryComponent: { ...(existingGroup?.libraryComponent ?? {}), kind: "uml-class" } };
   }
 
   function resizeClassCardFont(componentId: string, requestedSize: number) {
@@ -1966,7 +1980,7 @@ function App() {
       const catalog: Element[] = [];
       const addText = (text: string, x: number, y: number, fontSize: number, bold = false): TextElement => ({ type: "text", id: crypto.randomUUID(), x, y, text, color: "#353535", fontSize, fontFamily: "sans", bold, italic: false, underline: false, textAlign: "left", listType: "none" });
       catalog.push(addText(`Modeling component catalog · ${LIBRARY_COMPONENTS.length} components`, 0, 0, 26, true));
-      const columns = 4; const cellWidth = 340; const rowHeight = 310; let sectionTop = 58;
+      const columns = 4; const cellWidth = 250; const rowHeight = 180; let sectionTop = 58;
       for (const section of catalogSections) {
         const items = LIBRARY_COMPONENTS.filter(component => catalogGroup(component.section) === section.id);
         if (!items.length) continue;
@@ -1991,9 +2005,9 @@ function App() {
             if (glyph && group.libraryComponent) group = { ...group, libraryComponent: { ...group.libraryComponent, iconSvg: glyph.svg, iconViewBox: glyph.viewBox } };
             visual = group;
           }
-          catalog.push(visual, addText(item.label, x, y + item.height + 7, 13, true));
+          catalog.push(fitComponentSpecimen(visual, { x, y: y + 1, w: cellWidth, h: 136 }, 12), addText(item.label, x + 12, y + 144, 12, true));
         }
-        sectionTop += 34 + Math.ceil(items.length / columns) * rowHeight + 42;
+        sectionTop += 34 + Math.ceil(items.length / columns) * rowHeight + 34;
       }
       const bounds = unionBounds(catalog.map(elementBounds));
       if (!bounds) return;
@@ -2364,12 +2378,12 @@ function App() {
       if (element.note) { drawNoteCard(ctx, element, theme(), "simple"); return; }
       if (element.componentBounds && element.libraryComponent) {
         if (element.rotation) { const bounds = element.componentBounds; const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
-        if (element.libraryComponent.kind.startsWith("viz-")) drawLibraryChart(ctx, element, theme(), chartAppearance());
-        else drawModelComponent(ctx, element, theme(), "simple");
+        if (element.libraryComponent.kind.startsWith("viz-")) drawLibraryChart(ctx, element, theme());
+        else drawModelComponent(ctx, element, theme());
         if (element.rotation) ctx.restore(); return;
       }
       if (element.rotation && element.libraryComponent) { const bounds = elementBounds(element); const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
-      if (element.libraryComponent?.kind.startsWith("viz-")) { drawLibraryChart(ctx, element, theme(), chartAppearance()); if (element.rotation) ctx.restore(); return; }
+      if (element.libraryComponent?.kind.startsWith("viz-")) { drawLibraryChart(ctx, element, theme()); if (element.rotation) ctx.restore(); return; }
       for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems);
       if (element.rotation && element.libraryComponent) ctx.restore(); return;
     }
@@ -2618,7 +2632,7 @@ function App() {
     elements, spatialIndex: () => activeElementSpatialIndex, canvasState, renderedBoardColor, whiteboardStyle, showGrid, gridSize: GRID_SIZE, selectedSet,
     moveOrigin: () => moveOrigin, resizeOrigin: () => resizeOrigin,
     hoveredIndex, boardLocked, tool, attachmentHint, alignmentGuides, showAlignmentGuides, marquee,
-    tileCacheKey: () => `${theme()}|${chartAppearance()}|${canvasAssetRevision()}`, tileCacheAllowed: () => !textDraft() && !noteEditor() && !resizeOrigin && !labelMoveOrigin,
+    tileCacheKey: () => `${theme()}|${canvasAssetRevision()}`, tileCacheAllowed: () => !textDraft() && !noteEditor() && !resizeOrigin && !labelMoveOrigin,
     laserTrail, laserThickness, preview, simulationTokenId: () => bpmnSimulationIndex() >= 0 ? bpmnSimulationSteps()[bpmnSimulationIndex()]?.elementId : undefined, currentPoints: () => currentPoints,
     lineStyle, edgeStyle, cornerRadius, fillEnabled, fillColor, fillOpacity,
     defaultLineStartHead, defaultLineEndHead, defaultStartHead, defaultEndHead, defaultForkUpperHead, defaultForkLowerHead,
@@ -2637,7 +2651,7 @@ function App() {
   const scheduleCanvasRender = canvasRenderScheduler.schedule;
   onCleanup(canvasRenderScheduler.dispose);
   onCleanup(stopBpmnSimulation);
-  createEffect(() => { workspaceArea(); activePath(); elements(); canvasState(); preview(); bpmnSimulationIndex(); bpmnSimulationSteps(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); chartAppearance(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
+  createEffect(() => { workspaceArea(); activePath(); elements(); canvasState(); preview(); bpmnSimulationIndex(); bpmnSimulationSteps(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); alignmentGuides(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
   let lastAndroidStylusConfig = "";
   createEffect(() => {
     if (!isAndroidPlatform()) return;
@@ -2687,17 +2701,16 @@ function App() {
     onCleanup(() => window.clearTimeout(timer));
   });
   createEffect(() => { const session = noteEditorSession(); if (!session) return; requestAnimationFrame(() => { if (noteEditorTextarea?.isConnected) noteEditorTextarea.focus(); }); });
-  createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); chartAppearance(); boardColor(); whiteboardStyle(); renderExportPreview(); });
+  createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); boardColor(); whiteboardStyle(); renderExportPreview(); });
   function handleCanvasWheel(event: WheelEvent) {
     event.preventDefault();
     const target = event.currentTarget as HTMLCanvasElement;
     const bounds = target.getBoundingClientRect(); const px = event.clientX - bounds.left; const py = event.clientY - bounds.top;
     const delta = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? event.deltaY * 16 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? event.deltaY * target.clientHeight : event.deltaY;
     const old = canvasState(); const nextZoom = Math.max(0.02, Math.min(8, old.zoom * Math.exp(-delta * 0.001)));
-    const worldX = (px - old.panX) / old.zoom; const worldY = (py - old.panY) / old.zoom;
-    const panX = px - worldX * nextZoom; const panY = py - worldY * nextZoom;
-    setCanvasState({ ...old, zoom: nextZoom, panX, panY });
-    if (panOrigin) panOrigin = { x: event.clientX, y: event.clientY, panX, panY };
+    const next = zoomCanvasStateAt(old, { x: px, y: py }, nextZoom);
+    setCanvasState(next);
+    if (panOrigin) panOrigin = { x: event.clientX, y: event.clientY, panX: next.panX, panY: next.panY };
     setDirty(!readOnlyView());
   }
   createEffect(() => {
@@ -4029,7 +4042,7 @@ function App() {
       } else {
         const state = exportViewFor(exportWidth(), exportHeight());
         const { createSvgElementSerializer } = await import("./features/export/svg-renderer");
-        const elementToSvg = createSvgElementSerializer({ theme, componentAppearance: chartAppearance, simpleComponentElement, connectorForView, labelSvg });
+    const elementToSvg = createSvgElementSerializer({ theme, simpleComponentElement, connectorForView, labelSvg });
         const shapes = exportItems.map(elementToSvg).join("\n");
         const pattern = whiteboardStyle(); const svgGridColor = theme() === "dark" ? "#414653" : "#deddd6"; const gridStep = gridStepForStyle(pattern as "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric", GRID_SIZE, state.zoom) * state.zoom;
         const gridPattern = gridSvgPattern(pattern as "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric", gridStep);
@@ -4087,17 +4100,7 @@ function App() {
     const points = [...touchPointers.values()].slice(0, touchGesture.fingerCount);
     const { midpoint, distance } = touchGestureGeometry(points);
     const rect = canvas.getBoundingClientRect(); const current = canvasState();
-    const zoom = touchGesture.action === "pan" ? touchGesture.initialZoom : Math.max(.02, Math.min(8, touchGesture.initialZoom * distance / touchGesture.initialDistance));
-    let panX: number; let panY: number;
-    if (touchGesture.action === "pan") {
-      panX = touchGesture.initialPanX + midpoint.x - touchGesture.initialMidpoint.x;
-      panY = touchGesture.initialPanY + midpoint.y - touchGesture.initialMidpoint.y;
-    } else {
-      const anchor = touchGesture.action === "zoom" ? touchGesture.initialMidpoint : midpoint;
-      panX = anchor.x - rect.left - touchGesture.worldAnchor.x * zoom;
-      panY = anchor.y - rect.top - touchGesture.worldAnchor.y * zoom;
-    }
-    setCanvasState({ ...current, zoom, panX, panY });
+    setCanvasState(canvasStateForTouchGesture(current, touchGesture, midpoint, distance, { x: rect.left, y: rect.top }));
     setDirty(!readOnlyView());
   }
 
@@ -4137,6 +4140,7 @@ function App() {
       if (hit !== undefined) {
         const target = elements()[hit];
         if (target?.type === "group" && target.libraryComponent) libraryControlOrigin = { index: hit };
+        if (target?.type === "group" && target.note) setComponentEditorCollapsed(false);
         if (target?.type === "group" && target.note && noteCollapseHit(target, point)) { toggleNoteCollapsed(hit); canvas.setPointerCapture(event.pointerId); return; }
         if (target?.type === "group" && target.note?.kind === "checklist") {
           const row = checklistIndexAt(target, point);
@@ -4720,7 +4724,7 @@ function App() {
     setElements(items => items.map((item, current) => current === index ? plain : item)); pushUndo(before); setSelectedIndices([index]); setTool("select"); setDirty(true);
   }
   const adjustQuickFont = (delta: number) => {
-    if (noteEditor() || quickHasNoteCard()) { setSelectedNoteFontSize(quickCardFontSize() + delta); return; }
+    if (noteEditor() || selectedNoteCard()) { setSelectedNoteFontSize(quickCardFontSize() + delta); return; }
     const focused = focusedElement();
     if (focused?.type === "schemaTable") { updateProperty("fontSize", Math.max(8, Math.min(48, (focused.fontSize ?? 12) + delta))); return; }
     if (focused?.componentId?.startsWith("uml-class:") && resizeClassCardFont(focused.componentId, quickCardFontSize() + delta)) return;
@@ -4730,7 +4734,7 @@ function App() {
     if (boardLocked() || focusedElement()?.locked) return;
     if (property === "fontSize" && (!Number.isFinite(Number(value)) || Number(value) < 8 || Number(value) > 160)) return;
     if (property === "fontSize") value = Math.round(Number(value));
-    if (property === "fontSize" && (noteEditor() || quickHasNoteCard())) { setSelectedNoteFontSize(Number(value)); return; }
+    if (property === "fontSize" && (noteEditor() || selectedNoteCard())) { setSelectedNoteFontSize(Number(value)); return; }
     if (property === "fontSize" && focusedElement()?.componentId?.startsWith("uml-class:")) { resizeClassCardFont(focusedElement()!.componentId!, Number(value)); return; }
     if (property === "fontSize" && focusedElement()?.type === "schemaTable") { const size = Math.max(8, Math.min(48, Number(value))); value = rememberFontSize(size); updateProperty("fontSize", size); return; }
     if (property === "fontSize") value = rememberFontSize(Number(value));
@@ -5395,11 +5399,6 @@ function App() {
               onLaserChange={(key, value) => setLaserPreference(key, value)}
               onBucketColorChange={setFillColor}
             /></Show>
-            <Show when={noteEditor()}>{draft => <div class={`canvas-note-editor ${draft().kind} simple`} role="group" aria-label={`${draft().kind} canvas editor`} style={{ left: `${canvasState().panX + draft().x * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${Math.max(220, draft().width * canvasState().zoom)}px`, height: `${Math.max(130, draft().height * canvasState().zoom)}px`, background: noteCardPalette(draft().kind, theme(), "simple").surface, "border-color": noteCardPalette(draft().kind, theme(), "simple").border, color: noteCardPalette(draft().kind, theme(), "simple").ink }} onPointerDown={event => { const rect = event.currentTarget.getBoundingClientRect(); resizingNoteEditor = event.clientX >= rect.right - 22 && event.clientY >= rect.bottom - 22; event.stopPropagation(); }} onPointerUp={event => { if (resizingNoteEditor) { const rect = event.currentTarget.getBoundingClientRect(); const zoom = canvasState().zoom; setNoteEditor(current => current ? { ...current, width: Math.max(180, Math.min(4000, rect.width / zoom)), height: Math.max(100, Math.min(1_000_000, rect.height / zoom)), resized: true } : current); } resizingNoteEditor = false; }}>
-              <header><span>{draft().kind === "sticky" ? "STICKY NOTE" : draft().kind === "checklist" ? "CHECKLIST" : draft().title.toLowerCase().includes("markdown") ? "MARKDOWN" : "NOTE + CODE"}</span><small class="editor-key-hint">Tab indents</small><Show when={draft().kind === "note"}><button type="button" class="editor-insert-table" onClick={insertMarkdownTable} title="Insert an editable Markdown table">Insert table</button></Show><button type="button" onClick={saveNoteEditor} title="Save to canvas" aria-label="Save note to canvas">Done &#10003;</button></header>
-              <div class="note-card-details"><label>Title<input aria-label="Card title" maxlength="120" value={draft().title} onInput={event => setNoteEditor(current => current ? { ...current, title: event.currentTarget.value } : undefined)} /></label></div>
-              <textarea ref={element => { noteEditorTextarea = element; }} class="canvas-note-input" aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown and note content"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] Plan the next step" : "Write Markdown…\n\nUse # headings, **bold**, lists, tables, and fenced code blocks such as ```ts"} onInput={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : undefined)} onBlur={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".canvas-note-editor"))) saveNoteEditor(); }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); if (event.key === "Escape" && isWindowsPlatform()) { setTool("select"); setStyleMenuMode("quick"); } } }} />
-            </div>}</Show>
             <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onWheel={handleCanvasWheel} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} />
             <Show when={activeWebPreview()}>{preview => <Show when={elements().find((item): item is ImageElement => item.type === "image" && item.id === preview().id)}>{item => {
               const zoom = canvasState().zoom; const width = Math.min(Math.max(320, item().w * zoom), Math.max(280, canvasWrap.clientWidth - 16)); const height = Math.min(Math.max(260, item().h * zoom), Math.max(220, canvasWrap.clientHeight - 16));
@@ -5558,7 +5557,7 @@ function App() {
                     <Show when={quickIsConnector()}>
                       <button class="quick-style-icon" onClick={() => setQuickStylePopover(quickStylePopover() === "heads" ? undefined : "heads")} aria-label="Connector arrowheads" title="Connector arrowheads" aria-expanded={quickStylePopover() === "heads"}><ArrowHeadIcon kind={quickArrowHead("end")} /></button>
                     </Show>
-                    <Show when={quickHasText() || quickHasNoteCard()}>
+                    <Show when={quickHasText()}>
                       <div class="quick-text-size"><button aria-label="Decrease font size" title="Decrease font size" onClick={() => adjustQuickFont(-1)}>-</button><span>{quickCardFontSize()}</span><button aria-label="Increase font size" title="Increase font size" onClick={() => adjustQuickFont(1)}>+</button></div>
                       <Show when={quickHasText()}>
                       <div class="quick-text-format"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button><button class={`quick-font-toggle ${(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""}`} aria-label="Toggle text font family" title="Toggle text font family" onClick={() => setTextFormat("fontFamily", (selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "sans" : "hand")}>Aa</button></div>
@@ -5608,19 +5607,6 @@ function App() {
               <div class="full-inspector" classList={{ "connector-properties": selectedIndices().length === 1 && !!focusedElement() && isConnector(focusedElement()!) }}>
 
               <Show when={sidebarTab() === "properties"}>
-                <Show when={selectedNoteCard()}>{card => {
-                  const note = () => card().note!;
-                  const tableBlock = () => note().kind === "note" ? findMarkdownTableBlock(note().content) : undefined;
-                  return <section class="pane-section note-card-properties">
-                    <div class="pane-heading">{tableBlock() ? "Markdown table" : note().kind === "sticky" ? "Sticky note" : note().kind === "checklist" ? "Checklist" : note().title?.toLowerCase().includes("markdown") ? "Markdown" : "Note + code"}<button class="note-collapse-action" disabled={boardLocked() || card().locked} onClick={() => { const index = primarySelection(); if (index !== undefined) toggleNoteCollapsed(index); }}>{note().collapsed ? "Expand" : "Collapse"}</button></div>
-                    <label class="property-label">Title<input aria-label="Card title" maxlength="120" value={note().title ?? defaultNoteTitle(note().kind)} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label>
-                    <Show when={tableBlock()}>{table => <details class="note-table-quick-edit" open><summary>Table</summary><div class="note-table-boundary"><textarea aria-label="Markdown table" value={table().text} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ content: replaceMarkdownTableBlock(note().content, table(), event.currentTarget.value) })} /></div></details>}</Show>
-                    <Show when={!tableBlock()}><label class="property-label note-content-label">{note().kind === "checklist" ? "Tasks" : note().kind === "sticky" ? "Text" : "Markdown & code"}<textarea aria-label={note().kind === "checklist" ? "Checklist items" : note().kind === "sticky" ? "Sticky note text" : "Markdown and code"} value={note().content} placeholder={note().kind === "checklist" ? "- [ ] First task" : note().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ content: event.currentTarget.value })} /></label></Show>
-                    <Show when={tableBlock()}><details class="note-source-quick-edit"><summary>Full Markdown source</summary><label class="property-label note-content-label"><textarea aria-label="Full Markdown source" value={note().content} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ content: event.currentTarget.value })} /></label></details></Show>
-                    <Show when={note().kind === "note"}><button class="quiet-button" disabled={boardLocked() || card().locked} onClick={convertSelectedMarkdownToText}>Convert to plain text</button></Show>
-                  </section>;
-                }}</Show>
-
                 <Show when={focusedElement()?.type === "text"}><section class="pane-section"><div class="pane-heading">Text</div><button class="quiet-button" disabled={boardLocked() || focusedElement()?.locked} onClick={convertSelectedTextToMarkdown}>Convert to Markdown card</button></section></Show>
       <Show when={focusedElement()?.type === "schemaTable"}><section class="pane-section"><div class="pane-heading">Table schema</div><label class="property-label">Font size<input type="number" min="8" max="48" step="1" value={(focusedElement() as SchemaTableElement | undefined)?.fontSize ?? 12} onChange={event => updateProperty("fontSize", Math.round(Number(event.currentTarget.value)))} /></label></section></Show>
                 <Show when={showStrokeControls()}><section class="pane-section"><div class="pane-heading">{tool() === "text" || focusedElement()?.type === "text" ? "Text color" : "Stroke color"}</div><div class="swatch-list stroke-swatches">{swatches.map((swatch) => <button class={`color-swatch ${selectedColor() === swatch ? "active" : ""}`} style={{ background: swatch }} aria-label={`Set color ${swatch}`} title={swatch} onClick={() => updateStrokeColor(swatch)} />)}<label class="custom-color-swatch stroke-custom-swatch" title="Custom stroke color"><input aria-label="Custom stroke color" type="color" value={selectedColor()} onInput={(event) => updateStrokeColor(event.currentTarget.value)} /></label></div></section></Show>
@@ -5720,18 +5706,48 @@ function App() {
 
               </div>
             </aside></Show>
-            <Show when={libraryComponentDraft() || selectedLibraryComponent() || selectedClassComponentId() || classCardDraft()}>
-              <aside class="component-editor-dock" classList={{ collapsed: componentEditorCollapsed() }} aria-label="Component editor">
+            <Show when={noteEditor() || selectedNoteCard() || libraryComponentDraft() || selectedLibraryComponent() || selectedClassComponentId() || classCardDraft()}>
+              <aside class="component-editor-dock" classList={{ collapsed: componentEditorCollapsed(), "note-editor-dock": !!(noteEditor() || selectedNoteCard()) }} aria-label={noteEditor() || selectedNoteCard() ? "Note editor" : "Component editor"}>
                 <Show when={componentEditorCollapsed()} fallback={<>
-                  <header class="component-editor-heading"><div><strong>{componentEditorTitle()}</strong></div><button type="button" aria-label="Collapse component editor" title="Collapse" aria-expanded="true" onClick={() => setComponentEditorCollapsed(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg></button></header>
+                  <header class="component-editor-heading" classList={{ "note-editor-heading": !!(noteEditor() || selectedNoteCard()) }}>
+                    <strong>{noteEditor() || selectedNoteCard() ? notePanelTitle() : componentEditorTitle()}</strong>
+                    <Show when={noteEditor()}><button type="button" class="note-editor-action" title="Discard note" aria-label="Discard note" onClick={() => setNoteEditor(undefined)}>&times;</button></Show>
+                    <Show when={noteEditor()}><button type="button" class="note-editor-action" title="Add to canvas" aria-label="Add to canvas" onClick={saveNoteEditor}>Add</button></Show>
+                    <Show when={!noteEditor() && selectedNoteCard()}>{card => <button type="button" class="note-editor-action" title={card().note?.collapsed ? "Expand card" : "Collapse card"} aria-label={card().note?.collapsed ? "Expand card" : "Collapse card"} disabled={boardLocked() || card().locked} onClick={() => { const index = primarySelection(); if (index !== undefined) toggleNoteCollapsed(index); }}><svg viewBox="0 0 16 16" aria-hidden="true"><path d={card().note?.collapsed ? "m3 6 5 5 5-5" : "m3 10 5-5 5 5"} /></svg></button>}</Show>
+                    <button type="button" class="note-editor-action dock-collapse-action" aria-label="Collapse editor panel" title="Collapse panel" aria-expanded="true" onClick={() => setComponentEditorCollapsed(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg></button>
+                  </header>
                   <div class="component-editor-scroll">
+                    <Show when={noteEditor()}>{draft => {
+                      const tableBlock = () => draft().kind === "note" ? findMarkdownTableBlock(draft().content) : undefined;
+                      return <section class="note-editor-fields" aria-label={notePanelTitle()} onPointerDown={event => event.stopPropagation()}>
+                        <Show when={tableBlock()}>{table => <details class="note-editor-table" open><summary>Markdown table</summary><div class="note-editor-table-boundary"><textarea ref={element => { noteEditorTextarea = element; }} aria-label="Markdown table" maxlength="50000" value={table().text} onBlur={event => setNoteEditor(current => current ? { ...current, content: replaceMarkdownTableBlock(current.content, table(), event.currentTarget.value) } : current)} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: replaceMarkdownTableBlock(current.content, table(), value) } : current)); if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); } }} /></div></details>}</Show>
+                        <Show when={!tableBlock()}>
+                          <label class="note-editor-label">Title<input ref={element => { noteEditorTitleInput = element; }} aria-label="Card title" maxlength="120" value={draft().title} onChange={event => setNoteEditor(current => current ? { ...current, title: event.currentTarget.value } : current)} /></label>
+                          <label class="note-editor-label"><span>Content<Show when={draft().kind === "note"}><button type="button" class="note-editor-inline-action" onMouseDown={event => event.preventDefault()} onClick={insertMarkdownTable}>Insert table</button></Show></span><textarea ref={element => { noteEditorTextarea = element; }} aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown text and code"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] First task" : draft().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} onBlur={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : current)} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); } }} /></label>
+                        </Show>
+                        <Show when={!tableBlock()}><label class="note-editor-size">Text size<input aria-label="Note text size" type="number" min="8" max="32" step="1" value={draft().fontSize} onChange={event => { const size = Math.max(8, Math.min(32, Math.round(Number(event.currentTarget.value) || 12))); rememberFontSize(size); setNoteEditor(current => current ? { ...current, fontSize: size } : current); }} /></label></Show>
+                      </section>;
+                    }}</Show>
+                    <Show when={!noteEditor() && selectedNoteCard()}>{card => {
+                      const note = () => card().note!;
+                      const tableBlock = () => note().kind === "note" ? findMarkdownTableBlock(note().content) : undefined;
+                      return <section class="note-editor-fields" aria-label={notePanelTitle()} onPointerDown={event => event.stopPropagation()}>
+                        <Show when={tableBlock()}>{table => <details class="note-editor-table" open><summary>Markdown table</summary><div class="note-editor-table-boundary"><textarea aria-label="Markdown table" value={table().text} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ content: replaceMarkdownTableBlock(note().content, table(), event.currentTarget.value) })} /></div></details>}</Show>
+                        <Show when={!tableBlock()}>
+                          <label class="note-editor-label">Title<input aria-label="Card title" maxlength="120" value={note().title ?? defaultNoteTitle(note().kind)} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label>
+                          <label class="note-editor-label">{note().kind === "checklist" ? "Tasks" : note().kind === "sticky" ? "Text" : "Content"}<textarea aria-label={note().kind === "checklist" ? "Checklist items" : note().kind === "sticky" ? "Sticky note text" : "Markdown text and code"} value={note().content} placeholder={note().kind === "checklist" ? "- [ ] First task" : note().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ content: event.currentTarget.value })} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => updateSelectedNoteCard({ content: value })); }} /></label>
+                        </Show>
+                        <Show when={!tableBlock()}><label class="note-editor-size">Text size<input aria-label="Note text size" type="number" min="8" max="32" step="1" value={note().fontSize ?? 12} disabled={boardLocked() || card().locked} onChange={event => setSelectedNoteFontSize(Number(event.currentTarget.value))} /></label></Show>
+                        <Show when={note().kind === "note" && !tableBlock()}><button type="button" class="note-editor-inline-action note-editor-convert" disabled={boardLocked() || card().locked} onClick={convertSelectedMarkdownToText}>Convert to plain text</button></Show>
+                      </section>;
+                    }}</Show>
                     <Show when={libraryComponentDraft()}>{draft => <Suspense fallback={null}><LibraryComponentEditor group={() => libraryComponentDraft() ?? draft()} isDraft boardLocked={boardLocked} onChangeGroup={operation => setLibraryComponentDraft(current => current ? operation(current) : current)} onRememberFontSize={rememberFontSize} onCancelDraft={() => setLibraryComponentDraft(undefined)} onCommitDraft={commitLibraryComponentDraft} /></Suspense>}</Show>
                     <Show when={!libraryComponentDraft() && selectedLibraryComponent()}>{component => <Suspense fallback={null}><LibraryComponentEditor group={() => selectedLibraryComponent() ?? component()} isDraft={false} boardLocked={boardLocked} onChangeGroup={updateSelectedLibraryComponent} onRememberFontSize={rememberFontSize} onCancelDraft={() => setLibraryComponentDraft(undefined)} onCommitDraft={commitLibraryComponentDraft} /></Suspense>}</Show>
                     <Show when={selectedClassComponentId() && !selectedLibraryComponent() && !classCardDraft() ? selectedClassComponentId() : undefined}>{componentId => <section class="component-editor-content"><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(selectedClassCardSize(componentId()).width)} disabled={boardLocked()} onChange={event => resizeClassCardSize(componentId(), "width", Number(event.currentTarget.value))} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(selectedClassCardSize(componentId()).height)} disabled={boardLocked()} onChange={event => resizeClassCardSize(componentId(), "height", Number(event.currentTarget.value))} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={quickCardFontSize()} disabled={boardLocked()} onChange={event => resizeClassCardFont(componentId(), Number(event.currentTarget.value))} /></label></div></section>}</Show>
                     <Show when={classCardDraft()}>{draft => <div class="component-editor-content class-card-editor"><label class="property-label">Class name<input value={draft().name} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label class="property-label">Attributes<textarea rows="5" value={draft().attributes} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label class="property-label">Methods<textarea rows="5" value={draft().methods} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(classCardSize(draft()).width)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, width: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(classCardSize(draft()).height)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, height: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={draft().fontSize} disabled={boardLocked()} onChange={event => updateClassCardDraftFont(Number(event.currentTarget.value))} /></label></div><div class="component-draft-actions"><button type="button" class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button type="button" class="save-button" disabled={boardLocked()} onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></div>}</Show>
                   </div>
                 </>}>
-                  <button type="button" class="component-editor-expand" aria-label="Expand component editor" title="Expand component editor" aria-expanded="false" onClick={() => setComponentEditorCollapsed(false)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" /></svg></button>
+                  <button type="button" class="component-editor-expand" aria-label="Expand editor panel" title="Expand editor panel" aria-expanded="false" onClick={() => setComponentEditorCollapsed(false)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" /></svg></button>
                 </Show>
               </aside>
             </Show>

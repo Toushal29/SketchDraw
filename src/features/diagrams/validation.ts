@@ -91,14 +91,14 @@ export function validateDiagram(elements: Element[], pages: SketchPage[] = []): 
     } else if (kind === "bpmn-end") {
       if (outgoing.length) issues.push({ code: "bpmn-end-outgoing", severity: "error", message: "A BPMN end event cannot have an outgoing sequence flow.", elementId: item.id });
       if (!incoming.length) issues.push({ code: "bpmn-end-unconnected", severity: "warning", message: "This BPMN end event has no incoming sequence flow.", elementId: item.id });
-    } else if (kind === "bpmn-gateway" || kind === "bpmn-parallel-gateway") {
+    } else if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) {
       if (incoming.length + outgoing.length < 3) issues.push({ code: "bpmn-gateway-flow-count", severity: "warning", message: "A BPMN gateway normally splits or joins at least two sequence flows.", elementId: item.id });
       if (kind === "bpmn-gateway" && outgoing.length > 1) {
         const defaults = outgoing.filter(flow => flow.connector.sequenceDefault);
         if (defaults.length !== 1) issues.push({ code: "bpmn-gateway-default", severity: "warning", message: "Give an exclusive gateway exactly one default outgoing sequence flow.", elementId: item.id });
         for (const flow of outgoing) if (!flow.connector.sequenceDefault && !flow.connector.sequenceCondition?.trim()) issues.push({ code: "bpmn-gateway-condition", severity: "warning", message: "Add a condition or mark this as the default path from its exclusive gateway.", elementId: flow.connector.id });
       }
-    } else if (kind === "bpmn-task" && (!incoming.length || !outgoing.length)) {
+    } else if ((kind === "bpmn-task" || kind === "bpmn-subprocess") && (!incoming.length || !outgoing.length)) {
       issues.push({ code: "bpmn-task-flow", severity: "warning", message: "This BPMN task needs an incoming and outgoing sequence flow.", elementId: item.id });
     }
   }

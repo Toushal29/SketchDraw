@@ -6,9 +6,11 @@ export const stylusStrokeWidthAt = (points: StrokePoint[], index: number, thickn
 
 type StrokeCache = {
   length: number;
+  geometryRevision: number;
   pressureAware: boolean;
   preview: Path2D;
   pressureOutline?: Path2D;
+  pressureCombined?: Path2D;
   pressurePrefix?: Path2D;
   pressureTail?: StrokePoint[];
   pressureCommittedLength: number;
@@ -19,6 +21,7 @@ type StrokeCache = {
   committedPairs: number;
   started: boolean;
   lastPoint?: StrokePoint;
+  lastPointSnapshot?: StrokePoint;
   complete?: Path2D;
   left: number;
   top: number;
@@ -28,7 +31,11 @@ type StrokeCache = {
 };
 
 const midpoint = (a: Point, b: Point): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-const newCache = (pressureAware = false): StrokeCache => ({ length: 0, pressureAware, preview: new Path2D(), pressureLength: 0, pressureCommittedLength: 0, committedPairs: 0, started: false, left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, maxWidth: 1 });
+const newCache = (pressureAware = false): StrokeCache => ({ length: 0, geometryRevision: 0, pressureAware, preview: new Path2D(), pressureLength: 0, pressureCommittedLength: 0, committedPairs: 0, started: false, left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, maxWidth: 1 });
+
+function sameStrokePoint(a?: StrokePoint, b?: StrokePoint) {
+  return a === b || !!a && !!b && a.x === b.x && a.y === b.y && a.pressure === b.pressure && a.tiltX === b.tiltX && a.tiltY === b.tiltY && a.orientation === b.orientation;
+}
 
 function pressureOutlinePath(points: StrokePoint[], thickness: number, last: boolean) {
   const outline = getStroke(points.map(point => [point.x, point.y, Math.max(.01, Math.min(1, stylusStrokeWidth(point, 1) / 2))] as [number, number, number]), {
@@ -63,7 +70,7 @@ type StrokePath = Pick<Path2D, "moveTo" | "quadraticCurveTo">;
 /** Retains incremental paths and a bounded raster cache for long strokes. */
 export function createFreehandRenderer() {
   const caches = new WeakMap<StrokePoint[], StrokeCache>();
-  type Raster = { canvas: HTMLCanvasElement; length: number; scale: number; ink: string; thickness: number; x: number; y: number; bytes: number; lastUsed: number };
+  type Raster = { canvas: HTMLCanvasElement; length: number; geometryRevision: number; scale: number; ink: string; thickness: number; x: number; y: number; bytes: number; lastUsed: number };
   const rasters = new Map<StrokePoint[], Raster>();
   const rasterBudget = 24 * 1024 * 1024;
   let rasterBytes = 0;
@@ -82,7 +89,7 @@ export function createFreehandRenderer() {
     if (!Number.isFinite(scale) || scale <= 0) return false;
     let raster = rasters.get(element.points);
     const now = performance.now();
-    if (raster && (raster.length !== element.points.length || raster.scale !== scale || raster.ink !== ink || raster.thickness !== element.thickness)) {
+    if (raster && (raster.length !== element.points.length || raster.geometryRevision !== cache.geometryRevision || raster.scale !== scale || raster.ink !== ink || raster.thickness !== element.thickness)) {
       releaseRaster(element.points); raster = undefined;
     }
     if (!raster) {
@@ -102,7 +109,7 @@ export function createFreehandRenderer() {
       const layer = canvas.getContext("2d"); if (!layer) return false;
       layer.setTransform(scale, 0, 0, scale, -left, -top);
       paint(layer, element, cache, ink);
-      raster = { canvas, length: element.points.length, scale, ink, thickness: element.thickness, x: left / scale, y: top / scale, bytes, lastUsed: now };
+      raster = { canvas, length: element.points.length, geometryRevision: cache.geometryRevision, scale, ink, thickness: element.thickness, x: left / scale, y: top / scale, bytes, lastUsed: now };
       rasterBytes += bytes;
     }
     // Refresh the least-recently-used order without retaining whole documents.
@@ -120,9 +127,14 @@ export function createFreehandRenderer() {
 
   function pathsFor(points: StrokePoint[], thickness: number, preview: boolean) {
     let cache = caches.get(points);
-    if (!cache || points.length < cache.length) { cache = newCache(); caches.set(points, cache); }
+    if (!cache || points.length < cache.length) {
+      const previousRevision = cache?.geometryRevision ?? 0;
+      cache = newCache(); cache.geometryRevision = previousRevision + 1; caches.set(points, cache);
+    }
     const previousLength = cache.length; const previousLastPoint = cache.lastPoint;
-    const lastPoint = points[points.length - 1]; const tailChanged = previousLastPoint !== lastPoint;
+    const lastPoint = points[points.length - 1]; const lastPointChanged = !sameStrokePoint(cache.lastPointSnapshot, lastPoint);
+    const tailChanged = previousLastPoint !== lastPoint || lastPointChanged;
+    if (previousLength !== points.length || tailChanged) cache.geometryRevision++;
     for (let index = Math.max(0, previousLength - 1); index < points.length; index++) {
       const point = points[index];
       const hasPressure = point.pressure !== undefined || point.tiltX !== undefined || point.tiltY !== undefined;
@@ -136,29 +148,25 @@ export function createFreehandRenderer() {
     if (cache.pressureAware) {
       const pressureFinal = !preview;
       if (cache.pressureThickness !== thickness || points.length < cache.pressureLength) {
-        cache.pressurePrefix = new Path2D(); cache.pressureTail = undefined; cache.pressureCommittedLength = 0; cache.pressureOutline = undefined;
+        cache.pressurePrefix = new Path2D(); cache.pressureTail = undefined; cache.pressureCommittedLength = 0; cache.pressureOutline = undefined; cache.pressureCombined = undefined;
       }
-      if (preview) {
-        // Keep the expensive pressure outline calculation bounded during a live
-        // stroke. Completed chunks have overlap for smooth joins; only the small
-        // moving tail is rebuilt as pointer samples arrive.
-        while (points.length - cache.pressureCommittedLength >= 36) {
-          const end = cache.pressureCommittedLength + 24;
-          const start = Math.max(0, cache.pressureCommittedLength - 8);
-          cache.pressurePrefix ??= new Path2D();
-          cache.pressurePrefix.addPath(pressureOutlinePath(points.slice(start, end), thickness, false));
-          cache.pressureCommittedLength = end;
-        }
-        const tailStart = Math.max(0, cache.pressureCommittedLength - 8);
-        const tail = points.slice(tailStart);
-        const tailChanged = !cache.pressureTail || cache.pressureTail.length !== tail.length || tail.some((point, index) => point !== cache.pressureTail![index]);
-        if (!cache.pressureOutline || tailChanged || cache.pressureFinal !== pressureFinal || cache.pressureThickness !== thickness) {
-          cache.pressureOutline = pressureOutlinePath(tail, thickness, false);
-        }
-        cache.pressureTail = tail;
-      } else if (!cache.pressureOutline || cache.pressureLength !== points.length || cache.pressureLastPoint !== lastPoint || cache.pressureFinal !== pressureFinal || cache.pressureThickness !== thickness) {
-        cache.pressurePrefix = undefined; cache.pressureTail = undefined; cache.pressureCommittedLength = 0;
-        cache.pressureOutline = pressureOutlinePath(points, thickness, true);
+      // Keep pressure-outline work incremental for both the live preview and
+      // committed stroke. Overlapped chunks keep joins smooth; only the small
+      // moving tail is rebuilt as samples arrive or the pen is lifted.
+      while (points.length - cache.pressureCommittedLength >= 36) {
+        const end = cache.pressureCommittedLength + 24;
+        const start = Math.max(0, cache.pressureCommittedLength - 8);
+        cache.pressurePrefix ??= new Path2D();
+        cache.pressurePrefix.addPath(pressureOutlinePath(points.slice(start, end), thickness, false));
+        cache.pressureCombined = undefined;
+        cache.pressureCommittedLength = end;
+      }
+      const tailStart = Math.max(0, cache.pressureCommittedLength - 8);
+      const tail = points.slice(tailStart);
+      const changedTail = !cache.pressureTail || cache.pressureTail.length !== tail.length || tail.some((point, index) => !sameStrokePoint(point, cache.pressureTail![index]));
+      if (!cache.pressureOutline || changedTail || lastPointChanged || cache.pressureFinal !== pressureFinal || cache.pressureThickness !== thickness) {
+        cache.pressureOutline = pressureOutlinePath(tail, thickness, pressureFinal);
+        cache.pressureCombined = undefined;
       }
       if (cache.pressureOutline) {
         cache.pressureLength = points.length; cache.pressureThickness = thickness; cache.pressureLastPoint = lastPoint; cache.pressureFinal = pressureFinal;
@@ -171,7 +179,7 @@ export function createFreehandRenderer() {
         cache.committedPairs++;
       }
     }
-    cache.length = points.length; cache.lastPoint = lastPoint;
+    cache.length = points.length; cache.lastPoint = lastPoint; cache.lastPointSnapshot = lastPoint ? { ...lastPoint } : undefined;
     return cache;
   }
 
@@ -194,8 +202,11 @@ export function createFreehandRenderer() {
       ctx.fill();
     } else if (cache.pressureAware) {
       if (cache.pressureOutline) {
-        const path = cache.pressurePrefix ? new Path2D(cache.pressurePrefix) : new Path2D();
-        path.addPath(cache.pressureOutline); ctx.fill(path);
+        if (!cache.pressureCombined) {
+          cache.pressureCombined = cache.pressurePrefix ? new Path2D(cache.pressurePrefix) : new Path2D();
+          cache.pressureCombined.addPath(cache.pressureOutline);
+        }
+        ctx.fill(cache.pressureCombined);
       }
     } else {
       ctx.lineWidth = element.thickness; ctx.stroke(cache.complete ?? cache.preview);
@@ -212,8 +223,11 @@ export function createFreehandRenderer() {
         const tilt = Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90);
         ctx.beginPath(); ctx.ellipse(point.x, point.y, Math.max(.25, width * (.5 + tilt * .35)), Math.max(.25, width * .5), Math.atan2(point.tiltY ?? 0, point.tiltX ?? 0), 0, Math.PI * 2); ctx.fill();
       } else if (cache.pressureAware && cache.pressureOutline) {
-        const path = cache.pressurePrefix ? new Path2D(cache.pressurePrefix) : new Path2D();
-        path.addPath(cache.pressureOutline); ctx.fill(path);
+        if (!cache.pressureCombined) {
+          cache.pressureCombined = cache.pressurePrefix ? new Path2D(cache.pressurePrefix) : new Path2D();
+          cache.pressureCombined.addPath(cache.pressureOutline);
+        }
+        ctx.fill(cache.pressureCombined);
       } else {
         const tail = strokeTail(element.points);
         const path = new Path2D(cache.preview);

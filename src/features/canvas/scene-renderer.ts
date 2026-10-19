@@ -71,6 +71,20 @@ export function transformHandlePoints(bounds: Bounds, zoom: number, includeRotat
 
 export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
   const tileCache = new SceneTileCache();
+  const autoRouteIndicesByElements = new WeakMap<Element[], number[]>();
+
+  function getAutoRouteIndices(items: Element[]) {
+    let indices = autoRouteIndicesByElements.get(items);
+    if (!indices) {
+      indices = [];
+      items.forEach((item, index) => {
+        if (isConnector(item) && item.autoRoute && !item.hidden && !item.routePoints) indices!.push(index);
+      });
+      autoRouteIndicesByElements.set(items, indices);
+    }
+    return indices;
+  }
+
   function drawLaserStroke(ctx: CanvasRenderingContext2D, points: Point[], opacity: number, thickness: number) {
     ports.drawLaserStroke(ctx, points, opacity, thickness);
   }
@@ -139,8 +153,9 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     // Auto routes are calculated only for display, so their bends can leave the
     // indexed bounds. Include them directly and bypass tiles whose bounds and
     // invalidation data cannot account for those calculated bends.
-    const hasUnindexedAutoRoutes = sourceItems.some(item => isConnector(item) && item.autoRoute && !item.hidden && !item.routePoints);
-    if (hasUnindexedAutoRoutes) sourceItems.forEach((item, index) => { if (isConnector(item) && item.autoRoute && !item.hidden) paintIndices.add(index); });
+    const autoRouteIndices = getAutoRouteIndices(sourceItems);
+    const hasUnindexedAutoRoutes = autoRouteIndices.length > 0;
+    if (hasUnindexedAutoRoutes) autoRouteIndices.forEach(index => paintIndices.add(index));
     if (drag) {
       const movedIds = new Set(drag.targets.keys());
       for (const index of drag.indices) paintIndices.add(index);
