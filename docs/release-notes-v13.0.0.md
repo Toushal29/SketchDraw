@@ -23,5 +23,5 @@
 
 ## Downloads
 
-- Windows: signed installer and updater manifest will be attached by the release workflow.
-- Android: signed arm64 APK will be attached by the release workflow.
+- Windows: signed installer, MSI, updater signatures, and updater manifest are attached.
+- Android: signed arm64 APK is attached.
