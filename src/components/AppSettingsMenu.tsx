@@ -1,6 +1,3 @@
-import type { Tool } from "../model";
-import { ToolbarOrderEditor, type ToolbarOrderItem } from "./ToolbarOrderEditor";
-
 type Props = {
   interfaceScale: number;
   mobileOrientation: "landscape" | "portrait";
@@ -9,15 +6,11 @@ type Props = {
   showMobileLayoutSettings: boolean;
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
-  toolbarOrder: ToolbarOrderItem[];
   onInterfaceScaleChange: (scale: number) => void;
   onMobileOrientationChange: (orientation: Props["mobileOrientation"]) => void;
   onToolbarPositionChange: (position: Props["toolbarPosition"]) => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: Props["thicknessPickerMode"]) => void;
-  onMoveToolbarTool: (tool: Tool, direction: -1 | 1) => void;
-  onReorderToolbarTool: (from: Tool, to: Tool) => void;
-  onResetToolbarOrder: () => void;
   onRestoreDefaults: () => void;
   detailsRef?: (element: HTMLDetailsElement) => void;
   onToggle?: () => void;
@@ -50,7 +43,6 @@ export function AppSettingsMenu(props: Props) {
       <ButtonChoices label="Interface scale" value={props.interfaceScale} options={scales.map(scale => ({ value: scale, label: `${Math.round(scale * 100)}%` }))} onChange={props.onInterfaceScaleChange} />
       <ButtonChoices label="Autosave interval" value={props.autosaveSeconds} options={[{ value: 5, label: "5 sec" }, { value: 10, label: "10 sec" }]} onChange={props.onAutosaveChange} />
       <ButtonChoices label="Pen thickness control" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} />
-      <ToolbarOrderEditor items={props.toolbarOrder} onMove={props.onMoveToolbarTool} onReorder={props.onReorderToolbarTool} onReset={props.onResetToolbarOrder} />
       <button class="app-settings-reset" onClick={props.onRestoreDefaults}>Restore defaults</button>
     </div>
   </details>;

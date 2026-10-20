@@ -1,0 +1,7 @@
+sequenceDiagram
+  actor User as End user
+  participant API as Public API
+  participant DB as Database
+  User->>API: Submit order
+  API-->>DB: Save order
+  DB-->>API: Order id

@@ -239,7 +239,6 @@
     .app-shell:not(.platform-windows).touch-focus-mode .desktop-page-tabs,
     .app-shell:not(.platform-windows).touch-focus-mode .style-pane,
     .app-shell:not(.platform-windows).touch-focus-mode .floating-layer-panel,
-    .app-shell:not(.platform-windows).touch-focus-mode .selection-delete-action,
     .app-shell:not(.platform-windows).touch-focus-mode .canvas-help { display: none; }
     .app-shell:not(.platform-windows).touch-focus-mode > .canvas-wrap { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; background: var(--toolbar-surface, var(--theme-background)); }
     .app-shell:not(.platform-windows).touch-focus-mode .drawing-canvas { width: 100%; height: 100%; touch-action: none; }

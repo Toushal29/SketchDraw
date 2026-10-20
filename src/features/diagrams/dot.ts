@@ -1,7 +1,7 @@
 import type { Element, ShapeElement } from "../../model";
 
-type DotNode = { id: string; label: string; shape: string; index: number };
-type DotEdge = { from: string; to: string; label: string };
+type DotNode = { id: string; label: string; shape: string; index: number; color?: string; fillColor?: string; fontColor?: string; style?: string; penWidth?: number };
+type DotEdge = { from: string; to: string; label: string; color?: string; style?: string; penWidth?: number; arrowHead?: string; arrowTail?: string; direction?: string };
 type DotRankDirection = "LR" | "RL" | "TB" | "BT";
 const MAX_DOT_NODES = 500;
 const MAX_DOT_EDGES = 5_000;
@@ -60,21 +60,32 @@ export function dotToDiagram(source: string): Element[] {
   if (bodyStart < 0 || bodyEnd <= bodyStart) throw new Error("DOT graph needs a matching pair of braces.");
   const statements = splitStatements(source.slice(bodyStart + 1, bodyEnd));
   if (statements.length > 5000) throw new Error("DOT diagrams are limited to 5,000 statements.");
-  const nodes = new Map<string, DotNode>(); const edges: DotEdge[] = []; let rankdir: DotRankDirection = "TB";
+  const nodes = new Map<string, DotNode>(); const edges: DotEdge[] = []; let rankdir: DotRankDirection = "TB"; let nodeDefaults: Record<string, string> = {}; let edgeDefaults: Record<string, string> = {};
   const ensureNode = (key: string, attrs: Record<string, string> = {}) => {
+    attrs = { ...nodeDefaults, ...attrs };
     if (!key || key.length > 200) throw new Error("DOT node names must contain between 1 and 200 characters.");
     const current = nodes.get(key); const label = attrs.label ?? current?.label ?? key; const shape = attrs.shape ?? current?.shape ?? "box";
     if (label.length > MAX_DOT_LABEL) throw new Error("DOT labels are limited to 50,000 characters.");
-    if (current) { current.label = label; current.shape = shape; }
+    const style = attrs.style ?? current?.style; const penWidth = Number(attrs.penwidth ?? current?.penWidth);
+    if (current) {
+      current.label = label; current.shape = shape;
+      if (attrs.color) current.color = attrs.color;
+      if (attrs.fillcolor) current.fillColor = attrs.fillcolor;
+      if (attrs.fontcolor) current.fontColor = attrs.fontcolor;
+      if (style) current.style = style;
+      if (Number.isFinite(penWidth) && penWidth > 0) current.penWidth = penWidth;
+    }
     else {
       if (nodes.size >= MAX_DOT_NODES) throw new Error("DOT diagrams are limited to 500 nodes.");
-      nodes.set(key, { id: key, label, shape, index: nodes.size });
+      nodes.set(key, { id: key, label, shape, index: nodes.size, ...(attrs.color ? { color: attrs.color } : {}), ...(attrs.fillcolor ? { fillColor: attrs.fillcolor } : {}), ...(attrs.fontcolor ? { fontColor: attrs.fontcolor } : {}), ...(style ? { style } : {}), ...(Number.isFinite(penWidth) && penWidth > 0 ? { penWidth } : {}) });
     }
   };
   for (const statement of statements) {
     if (/^(?:graph|node|edge)\s*\[/i.test(statement)) {
       const config = attributes(statement.slice(statement.indexOf("[")));
       if (/^graph\s*\[/i.test(statement) && /^(LR|RL|TB|BT)$/i.test(config.rankdir ?? "")) rankdir = config.rankdir.toUpperCase() as DotRankDirection;
+      if (/^node\s*\[/i.test(statement)) nodeDefaults = { ...nodeDefaults, ...config };
+      if (/^edge\s*\[/i.test(statement)) edgeDefaults = { ...edgeDefaults, ...config };
       continue;
     }
     const rankSetting = /^rankdir\s*=\s*(LR|RL|TB|BT)$/i.exec(statement);
@@ -91,11 +102,12 @@ export function dotToDiagram(source: string): Element[] {
         chain.push(parseId(nextMatch[1]));
       }
       const lastMatch = matches[matches.length - 1];
-      const attrs = attributes(statement.slice(statement.lastIndexOf("[") >= (lastMatch?.index ?? 0) ? statement.lastIndexOf("[") : statement.length));
+      const attrs = { ...edgeDefaults, ...attributes(statement.slice(statement.lastIndexOf("[") >= (lastMatch?.index ?? 0) ? statement.lastIndexOf("[") : statement.length)) };
       if ((attrs.label ?? "").length > MAX_DOT_LABEL) throw new Error("DOT labels are limited to 50,000 characters.");
+      const edgeStyle = (attrs.style ?? "").toLowerCase(); const penWidth = Number(attrs.penwidth);
       for (let i = 0; i < chain.length - 1; i++) {
         if (edges.length >= MAX_DOT_EDGES) throw new Error("DOT diagrams are limited to 5,000 connectors.");
-        ensureNode(chain[i]); ensureNode(chain[i + 1]); edges.push({ from: chain[i], to: chain[i + 1], label: attrs.label ?? "" });
+        ensureNode(chain[i]); ensureNode(chain[i + 1]); edges.push({ from: chain[i], to: chain[i + 1], label: attrs.label ?? "", ...(attrs.color ? { color: attrs.color } : {}), ...(edgeStyle ? { style: edgeStyle } : {}), ...(Number.isFinite(penWidth) && penWidth > 0 ? { penWidth } : {}), ...(attrs.arrowhead ? { arrowHead: attrs.arrowhead } : {}), ...(attrs.arrowtail ? { arrowTail: attrs.arrowtail } : {}), ...(attrs.dir ? { direction: attrs.dir } : {}) });
       }
       continue;
     }
@@ -123,11 +135,14 @@ export function dotToDiagram(source: string): Element[] {
     const x = (rankdir === "LR" || rankdir === "RL" ? (rankdir === "RL" ? maxRank - rank : rank) * 300 : position * 280);
     const y = (rankdir === "LR" || rankdir === "RL" ? position * 180 : (rankdir === "BT" ? maxRank - rank : rank) * 180);
     const size = sizeFor(node.label); const shape = /^(ellipse|oval|circle)$/i.test(node.shape) ? "circle" : /^(diamond|rhombus)$/i.test(node.shape) ? "diamond" : "rectangle";
-    cardById.set(node.id, { type: shape, id: makeId(), x, y, ...size, color: "#4b5563", thickness: 2, fillColor: "#ffffff", label: { text: node.label, color: "#111827", fontSize: 16, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } });
+    const nodeStyle = (node.style ?? "").toLowerCase();
+    cardById.set(node.id, { type: shape, id: makeId(), x, y, ...size, color: node.color ?? "#4b5563", thickness: node.penWidth ?? 2, fillColor: node.fillColor ?? "#ffffff", ...(nodeStyle.includes("dashed") ? { lineStyle: "dashed" as const } : nodeStyle.includes("dotted") ? { lineStyle: "dotted" as const } : {}), ...(nodeStyle.includes("rounded") ? { edgeStyle: "rounded" as const } : {}), fillOpacity: nodeStyle.includes("filled") || node.fillColor ? 1 : 0, label: { text: node.label, color: node.fontColor ?? "#111827", fontSize: 16, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } });
   }
   const connectorElements: ShapeElement[] = edges.map(edge => {
     const from = cardById.get(edge.from)!; const to = cardById.get(edge.to)!;
-    return { type: "arrow", id: makeId(), x: from.x + from.w / 2, y: from.y + from.h / 2, w: to.x + to.w / 2 - (from.x + from.w / 2), h: to.y + to.h / 2 - (from.y + from.h / 2), color: "#6b7280", thickness: 2, endHead: directed ? "solid" : "none", startHead: "none", startBinding: { elementId: from.id!, anchor: anchorToward(from, to) }, endBinding: { elementId: to.id!, anchor: anchorToward(to, from) }, ...(edge.label ? { label: { text: edge.label, color: "#4b5563", fontSize: 13, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" } } : {}) };
+    const head = (value: string | undefined, fallback: ShapeElement["endHead"]) => value === "none" ? "none" : value === "vee" || value === "open" ? "open" : value === "dot" || value === "odot" ? "dot" : value === "tee" ? "bar" : value === "normal" ? "solid" : fallback;
+    const direction = edge.direction?.toLowerCase(); const lineStyle = (edge.style ?? "").toLowerCase();
+    return { type: "arrow", id: makeId(), x: from.x + from.w / 2, y: from.y + from.h / 2, w: to.x + to.w / 2 - (from.x + from.w / 2), h: to.y + to.h / 2 - (from.y + from.h / 2), color: edge.color ?? "#6b7280", thickness: edge.penWidth ?? 2, lineStyle: lineStyle.includes("dashed") ? "dashed" : lineStyle.includes("dotted") ? "dotted" : "solid", endHead: direction === "none" ? "none" : head(edge.arrowHead, directed ? "solid" : "none"), startHead: direction === "both" || direction === "back" ? head(edge.arrowTail, "solid") : "none", startBinding: { elementId: from.id!, anchor: anchorToward(from, to) }, endBinding: { elementId: to.id!, anchor: anchorToward(to, from) }, ...(edge.label ? { label: { text: edge.label, color: edge.color ?? "#4b5563", fontSize: 13, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" } } : {}) };
   });
   return [...connectorElements, ...cardById.values()];
 }

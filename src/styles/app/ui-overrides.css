@@ -1031,7 +1031,6 @@
 .read-only-view .touch-tool-actions,
 .read-only-view .style-pane,
 .read-only-view .floating-layer-panel,
-.read-only-view .selection-delete-action,
 .read-only-view .board-view-section {
     display: none !important;
 }

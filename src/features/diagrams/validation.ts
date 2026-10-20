@@ -1,6 +1,6 @@
 import type { Binding, Element, SchemaTableElement, ShapeElement, SketchPage } from "../../model";
 import { elementBounds } from "../canvas/bounds";
-import { flatten, isConnectable, isConnector } from "../../operations";
+import { connectionPointsFor, flatten, isConnectable, isConnector } from "../../operations";
 
 export type DiagramIssue = { code: string; severity: "error" | "warning"; message: string; elementId?: string; pageId?: string };
 
@@ -15,7 +15,7 @@ const libraryKind = (item: Element) => item.type === "group" ? item.libraryCompo
 const boundNode = (binding: Binding | undefined, byId: Map<string, Element>) => binding ? byId.get(binding.elementId) : undefined;
 
 /** Find broken references and common diagram inconsistencies. */
-export function validateDiagram(elements: Element[], pages: SketchPage[] = []): DiagramIssue[] {
+export function validateDiagram(elements: Element[], pages: SketchPage[] = [], options: { includeOverlaps?: boolean; warnEmptyLabels?: boolean } = {}): DiagramIssue[] {
   const all = flatten(elements);
   const issues: DiagramIssue[] = [];
   const ids = new Map<string, Element[]>();
@@ -23,6 +23,7 @@ export function validateDiagram(elements: Element[], pages: SketchPage[] = []): 
     if (!item.id) { issues.push({ code: "missing-id", severity: "error", message: "An object is missing its identifier." }); continue; }
     const entries = ids.get(item.id) ?? []; entries.push(item); ids.set(item.id, entries);
     if (item.pageLinkId && !pages.some(page => page.id === item.pageLinkId)) issues.push({ code: "missing-page", severity: "warning", message: "This object links to a page that no longer exists.", elementId: item.id });
+    if (options.warnEmptyLabels && item.type !== "group" && item.type !== "line" && item.type !== "arrow" && !textOf(item).trim()) issues.push({ code: "empty-label", severity: "warning", message: `This ${item.type === "schemaTable" ? "table" : item.type} has no label.`, elementId: item.id });
   }
   for (const [id, entries] of ids) if (entries.length > 1) for (const item of entries) issues.push({ code: "duplicate-id", severity: "error", message: `Object identifier "${id}" is used more than once.`, elementId: item.id });
   const byId = new Map(all.flatMap(item => item.id ? [[item.id, item] as const] : []));
@@ -43,18 +44,24 @@ export function validateDiagram(elements: Element[], pages: SketchPage[] = []): 
   }
   for (const [name, matches] of tableByName) if (matches.length > 1) for (const table of matches) issues.push({ code: "duplicate-table", severity: "warning", message: `Schema table "${name}" appears more than once.`, elementId: table.id });
 
-  const checkBinding = (binding: Binding, connectorId?: string, endpoint?: string) => {
+  const checkBinding = (binding: Binding, connectorId?: string, endpoint?: string, connector?: ShapeElement) => {
     const target = byId.get(binding.elementId);
     if (!target) { issues.push({ code: "dangling-link", severity: "error", message: `A connector ${endpoint ?? "endpoint"} points to an object that no longer exists.`, elementId: connectorId }); return; }
     if (!isConnectable(target)) { issues.push({ code: "invalid-link-target", severity: "error", message: `A connector is attached to unsupported object type "${target.type}".`, elementId: connectorId }); return; }
     if (target.type === "schemaTable" && binding.rowId && !target.columns.some(column => column.id === binding.rowId)) issues.push({ code: "missing-row", severity: "error", message: `A connector points to a field that no longer exists in "${target.name}".`, elementId: connectorId });
+    const ports = connectionPointsFor(target);
+    const port = binding.portId
+      ? ports.find(candidate => candidate.id === binding.portId)
+      : ports.find(candidate => candidate.accepts?.length && Math.abs(candidate.anchor.x - binding.anchor.x) < .0001 && Math.abs(candidate.anchor.y - binding.anchor.y) < .0001);
+    if (binding.portId && !port) issues.push({ code: "invalid-port", severity: "error", message: `A connector ${endpoint ?? "endpoint"} refers to a port that no longer exists.`, elementId: connectorId });
+    else if (port?.accepts?.length && connector?.relationshipType && !port.accepts.includes(connector.relationshipType)) issues.push({ code: "connection-rule", severity: "error", message: `This ${connector.relationshipType} relationship is not accepted by port "${port.name}".`, elementId: connectorId });
   };
   const connectors = all.filter(isConnector);
   const links = new Map<string, ShapeElement[]>();
   const connectorPairs: Array<{ connector: ShapeElement; start?: Element; end?: Element }> = [];
   for (const item of connectors) {
     const bindings = [item.startBinding, item.endBinding, item.forkUpper?.endBinding, item.forkLower?.endBinding];
-    bindings.forEach((binding, index) => { if (binding) checkBinding(binding, item.id, index === 0 ? "start" : index === 1 ? "end" : "branch"); });
+    bindings.forEach((binding, index) => { if (binding) checkBinding(binding, item.id, index === 0 ? "start" : index === 1 ? "end" : "branch", item); });
     const activeEnds = Number(!!item.startBinding) + Number(!!item.endBinding);
     if (activeEnds === 1) issues.push({ code: "loose-end", severity: "warning", message: "This connector is attached at one end and has a free endpoint.", elementId: item.id });
     const start = boundNode(item.startBinding, byId); const end = boundNode(item.endBinding, byId);
@@ -105,7 +112,7 @@ export function validateDiagram(elements: Element[], pages: SketchPage[] = []): 
   for (const flow of bpmnFlows) if (flow.connector.sequenceDefault && flow.connector.sequenceCondition?.trim()) {
     issues.push({ code: "bpmn-default-condition", severity: "warning", message: "A default sequence flow should not also have a condition.", elementId: flow.connector.id });
   }
-  for (let first = 0; first < nodes.length; first++) for (let second = first + 1; second < nodes.length; second++) {
+  if (options.includeOverlaps !== false) for (let first = 0; first < nodes.length; first++) for (let second = first + 1; second < nodes.length; second++) {
     const a = elementBounds(nodes[first]); const b = elementBounds(nodes[second]);
     const width = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x); const height = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
     if (width <= 8 || height <= 8 || width * height < Math.min(a.w * a.h, b.w * b.h) * .16) continue;
@@ -116,15 +123,15 @@ export function validateDiagram(elements: Element[], pages: SketchPage[] = []): 
   return issues;
 }
 
-export type DiagramLintProfile = "all" | "bpmn" | "erd";
+export type DiagramLintProfile = "general" | "all" | "bpmn" | "erd";
 export const DIAGRAM_LINT_PROFILES: readonly { id: DiagramLintProfile; label: string }[] = [
-  { id: "all", label: "All checks" }, { id: "bpmn", label: "BPMN" }, { id: "erd", label: "ERD" },
+  { id: "general", label: "General" }, { id: "bpmn", label: "BPMN" }, { id: "erd", label: "ERD" },
 ];
 export function issuesForProfile(issues: DiagramIssue[], profile: DiagramLintProfile): DiagramIssue[] {
   if (profile === "all") return issues;
-  const byProfile: Record<Exclude<DiagramLintProfile, "all">, (code: string) => boolean> = {
-    bpmn: code => code.startsWith("bpmn-"),
-    erd: code => ["duplicate-column", "missing-table", "missing-column", "duplicate-table", "cross-schema-link", "dangling-link", "invalid-link-target"].includes(code),
-  };
-  return issues.filter(issue => byProfile[profile](issue.code));
+  const erdCodes = new Set(["duplicate-column", "missing-table", "missing-column", "duplicate-table", "cross-schema-link", "missing-row"]);
+  const isGeneral = (code: string) => !code.startsWith("bpmn-") && !erdCodes.has(code);
+  if (profile === "general") return issues.filter(issue => isGeneral(issue.code));
+  if (profile === "bpmn") return issues.filter(issue => isGeneral(issue.code) || issue.code.startsWith("bpmn-"));
+  return issues.filter(issue => isGeneral(issue.code) || erdCodes.has(issue.code));
 }

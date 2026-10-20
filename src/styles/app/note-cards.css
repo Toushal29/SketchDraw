@@ -461,6 +461,12 @@
     list-style: none;
 }
 
+.object-search-results li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 5px;
+}
+
 .object-search-results button {
     display: flex;
     width: 100%;
@@ -476,6 +482,10 @@
     text-align: left;
     font-size: 12px;
 }
+
+.object-search-results .object-search-select { min-width: 0; }
+.object-search-results .object-search-replace { width: auto; padding-inline: 10px; }
+.object-search-count { margin: -4px 0 0; color: var(--theme-text-secondary); font-size: 10px; }
 
 .object-search-results button:hover,
 .object-search-results button:focus-visible {

@@ -11,7 +11,7 @@ type ChartNode =
   | { type: "circle"; x: number; y: number; r: number; fill?: string; stroke?: string; lineWidth?: number; opacity?: number }
   | { type: "sector"; x: number; y: number; r: number; inner: number; start: number; end: number; fill: string; stroke?: string; lineWidth?: number }
   | { type: "text"; x: number; y: number; value: string; size: number; fill: string; weight?: number; align?: CanvasTextAlign; baseline?: CanvasTextBaseline; maxWidth?: number; rotate?: number; family?: string };
-type Series = { name: string; values: number[] };
+type Series = { name: string; values: number[]; chartType?: "bar" | "line" | "area" | "scatter"; axis?: "primary" | "secondary" };
 type ChartScene = { width: number; height: number; nodes: ChartNode[] };
 type ChartPalette = { series: string[]; ink: string; muted: string; grid: string; edge: string; surface: string };
 
@@ -60,6 +60,8 @@ function normalizeSeries(data: LibraryChartData, labels: string[]): Series[] {
   return supplied.slice(0, 8).map((item, index) => ({
     name: (item.name || "Series " + (index + 1)).slice(0, 60),
     values: labels.map((_, valueIndex) => finite(item.values[valueIndex] ?? 0)),
+    ...(item.chartType ? { chartType: item.chartType } : {}),
+    ...(item.axis ? { axis: item.axis } : {}),
   }));
 }
 
@@ -139,7 +141,7 @@ function buildScene(group: GroupElement, theme: Theme, width: number, height: nu
   const defaults = defaultLibraryChartData(kind);
   const data = meta.chartData ?? defaults ?? { labels: ["Item 1", "Item 2", "Item 3"], values: [3, 5, 4] };
   const settings = data.options ?? {};
-  const labels = (data.labels.length ? data.labels : ["Item 1"]).slice(0, 12).map(label => String(label).slice(0, 60));
+  const labels = (data.labels.length ? data.labels : ["Item 1"]).slice(0, 20).map(label => String(label).slice(0, 60));
   const values = labels.map((_, index) => finite(data.values[index] ?? 0));
   const series = normalizeSeries(data, labels);
   const colors = paletteFor(group, theme);
@@ -466,15 +468,18 @@ function buildScene(group: GroupElement, theme: Theme, width: number, height: nu
   const horizontal = kind === "viz-horizontal-bar";
   const rightLegend = legendPosition === "right" && series.length > 1;
   const bottomLegend = legendPosition === "bottom" && series.length > 1;
+  const supportsMixed = kind === "viz-line" || kind === "viz-area";
+  const hasSecondaryAxis = supportsMixed && series.some(item => item.axis === "secondary");
   const left = pad + (horizontal ? Math.min(width * .32, 74) : Math.max(28, width * .14)) + (data.yAxisLabel ? 12 : 0);
-  const right = width - pad - (rightLegend ? Math.min(width * .29, 96) : 0);
+  const right = width - pad - (rightLegend ? Math.min(width * .29, 96) : 0) - (hasSecondaryAxis ? 28 + (data.secondaryYAxisLabel ? 12 : 0) : 0);
   const top = titleBottom + 7;
   const bottom = height - pad - (bottomLegend ? 24 : 0) - 17 - (data.xAxisLabel ? 12 : 0);
   const plot = { x: left, y: top, w: Math.max(12, right - left), h: Math.max(12, bottom - top) };
-  const allValues = series.flatMap(item => item.values);
+  const primarySeries = supportsMixed ? series.filter(item => item.axis !== "secondary") : series;
+  const primaryValues = primarySeries.length ? primarySeries.flatMap(item => item.values) : [0, 1];
   const stacked = kind === "viz-stacked-bar";
-  let dataMin = Math.min(0, ...allValues);
-  let dataMax = Math.max(0, ...allValues);
+  let dataMin = Math.min(0, ...primaryValues);
+  let dataMax = Math.max(0, ...primaryValues);
   if (stacked) {
     dataMin = Math.min(0, ...labels.map((_, index) => series.reduce((sum, item) => sum + Math.min(0, item.values[index] ?? 0), 0)));
     dataMax = Math.max(0, ...labels.map((_, index) => series.reduce((sum, item) => sum + Math.max(0, item.values[index] ?? 0), 0)));
@@ -483,13 +488,29 @@ function buildScene(group: GroupElement, theme: Theme, width: number, height: nu
   const step = niceStep(dataMax - dataMin);
   const min = Math.floor(dataMin / step) * step;
   const max = Math.ceil(dataMax / step) * step || step;
-  const yAt = (value: number) => plot.y + plot.h - (value - min) / Math.max(Number.EPSILON, max - min) * plot.h;
+  const secondaryValues = series.filter(item => item.axis === "secondary").flatMap(item => item.values);
+  const secondaryMinRaw = secondaryValues.length ? Math.min(0, ...secondaryValues) : 0;
+  const secondaryMaxRaw = secondaryValues.length ? Math.max(0, ...secondaryValues) : 1;
+  const secondaryStep = niceStep(Math.max(Number.EPSILON, secondaryMaxRaw - secondaryMinRaw));
+  const secondaryMin = Math.floor(secondaryMinRaw / secondaryStep) * secondaryStep;
+  const secondaryMax = Math.ceil(secondaryMaxRaw / secondaryStep) * secondaryStep || secondaryStep;
+  const yAt = (value: number, axis: "primary" | "secondary" = "primary") => {
+    const low = axis === "secondary" ? secondaryMin : min;
+    const high = axis === "secondary" ? secondaryMax : max;
+    return plot.y + plot.h - (value - low) / Math.max(Number.EPSILON, high - low) * plot.h;
+  };
   const xAt = (index: number) => plot.x + (labels.length <= 1 ? plot.w / 2 : index * plot.w / (labels.length - 1));
   for (let tick = min, count = 0; tick <= max + step * .001 && count < 7; tick += step, count++) {
     const point = plot.y + plot.h - (tick - min) / (max - min) * plot.h;
     if (settings.showGrid !== false) addLine(plot.x, point, plot.x + plot.w, point, colors.grid, 1);
     if (!horizontal) addText(compactNumber(tick), plot.x - 5, point, 8, colors.muted, "right", "middle", Math.max(20, plot.x - pad - 4));
     else addText(compactNumber(tick), plot.x + (tick - min) / (max - min) * plot.w, plot.y + plot.h + 8, 8, colors.muted, "center", "top", 36);
+  }
+  if (hasSecondaryAxis) {
+    for (let tick = secondaryMin, count = 0; tick <= secondaryMax + secondaryStep * .001 && count < 7; tick += secondaryStep, count++) {
+      const point = yAt(tick, "secondary");
+      addText(compactNumber(tick), plot.x + plot.w + 5, point, 8, colors.muted, "left", "middle", 28);
+    }
   }
   if (horizontal) {
     const rowHeight = plot.h / Math.max(1, labels.length);
@@ -510,7 +531,7 @@ function buildScene(group: GroupElement, theme: Theme, width: number, height: nu
       if (settings.showValues) addText(compactNumber(item.values[index] ?? 0), x2 + 4, y + seriesHeight / 2, 8, colors.ink, "left", "middle", 42);
     }));
   } else {
-    const xAxisY = yAt(0);
+      const xAxisY = yAt(0);
     addLine(plot.x, plot.y, plot.x, plot.y + plot.h, colors.edge, 1);
     addLine(plot.x, xAxisY, plot.x + plot.w, xAxisY, colors.edge, 1);
     const slot = plot.w / Math.max(1, labels.length);
@@ -534,13 +555,30 @@ function buildScene(group: GroupElement, theme: Theme, width: number, height: nu
         });
       });
     } else {
+      const chartTypes = series.map(item => item.chartType ?? (kind === "viz-area" ? "area" : "line"));
+      const barSeries = series.map((item, index) => ({ item, index })).filter(entry => chartTypes[entry.index] === "bar");
+      labels.forEach((_, index) => {
+        const slotWidth = plot.w / Math.max(1, labels.length);
+        const barWidth = Math.min(slotWidth * .68 / Math.max(1, barSeries.length), 30);
+        barSeries.forEach(({ item, index: seriesIndex }, barIndex) => {
+          const axis = item.axis === "secondary" ? "secondary" : "primary";
+          const value = item.values[index] ?? 0;
+          const zero = yAt(0, axis); const end = yAt(value, axis);
+          const x = plot.x + slotWidth * (index + .5) - barWidth * barSeries.length / 2 + barIndex * barWidth;
+          addRect(x, Math.min(zero, end), Math.max(2, barWidth - 2), Math.max(1, Math.abs(end - zero)), colors.series[seriesIndex % colors.series.length], undefined, 0, 3);
+          if (settings.showValues) addText(compactNumber(value), x + barWidth / 2, end - 6, 8, colors.ink, "center", "bottom", barWidth + 10);
+        });
+      });
       series.forEach((item, seriesIndex) => {
-        const points = item.values.map((value, index) => ({ x: xAt(index), y: yAt(value) }));
-        if (kind === "viz-area") {
-          const base = yAt(0);
+        const chartType = chartTypes[seriesIndex];
+        if (chartType === "bar") return;
+        const axis = item.axis === "secondary" ? "secondary" : "primary";
+        const points = item.values.map((value, index) => ({ x: xAt(index), y: yAt(value, axis) }));
+        if (chartType === "area") {
+          const base = yAt(0, axis);
           addPolygon([{ x: points[0]?.x ?? plot.x, y: base }, ...points, { x: points[points.length - 1]?.x ?? plot.x + plot.w, y: base }], colors.series[seriesIndex % colors.series.length], undefined, 0, .16);
         }
-        add({ type: "polyline", points, stroke: colors.series[seriesIndex % colors.series.length], lineWidth: settings.lineWidth ?? 2, smooth: settings.smooth !== false });
+        if (chartType !== "scatter") add({ type: "polyline", points, stroke: colors.series[seriesIndex % colors.series.length], lineWidth: settings.lineWidth ?? 2, smooth: settings.smooth !== false });
         points.forEach((point, index) => {
           addCircle(point.x, point.y, clamp(settings.pointSize ?? 6, 3, 12) / 2, colors.series[seriesIndex % colors.series.length], colors.surface, 1);
           if (settings.showValues) addText(compactNumber(item.values[index] ?? 0), point.x, point.y - 9, 8, colors.ink, "center", "bottom", 42);
@@ -556,6 +594,16 @@ function buildScene(group: GroupElement, theme: Theme, width: number, height: nu
   }
   if (data.xAxisLabel) addText(fitLabel(data.xAxisLabel, plot.w, 8), plot.x + plot.w / 2, height - pad - 1, 8, colors.muted, "center", "middle", plot.w);
   if (data.yAxisLabel) addText(fitLabel(data.yAxisLabel, plot.h, 8), pad, plot.y + plot.h / 2, 8, colors.muted, "center", "middle", plot.h, 400, -Math.PI / 2);
+  if (hasSecondaryAxis && data.secondaryYAxisLabel) addText(fitLabel(data.secondaryYAxisLabel, plot.h, 8), width - pad, plot.y + plot.h / 2, 8, colors.muted, "center", "middle", plot.h, 400, Math.PI / 2);
+  for (const annotation of (data.annotations ?? []).slice(0, 32)) {
+    if (!Number.isInteger(annotation.index) || annotation.index < 0 || annotation.index >= labels.length) continue;
+    const x = xAt(annotation.index);
+    addLine(x, plot.y, x, plot.y + plot.h, colors.edge, 1, [3, 3]);
+    const associated = series.find(item => (item.axis ?? "primary") === (annotation.axis ?? "primary"));
+    const value = annotation.value ?? associated?.values[annotation.index];
+    const y = value === undefined ? plot.y + 9 : yAt(value, annotation.axis ?? "primary");
+    addText(fitLabel(annotation.label, Math.min(120, plot.w / 2), 8), x + 4, clamp(y - 5, plot.y + 7, plot.y + plot.h - 7), 8, colors.ink, "left", "bottom", Math.min(120, plot.w / 2), 600);
+  }
   if (series.length > 1 && legendPosition !== "hidden") legendEntries(
     series.map((item, index) => ({ name: fitLabel(item.name, 90, 9), color: colors.series[index % colors.series.length] })),
     rightLegend ? width - Math.min(width * .29, 96) + 7 : pad,

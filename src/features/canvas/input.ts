@@ -6,17 +6,15 @@ export function gridSpacingForStyle(style: CanvasGridStyle, gridSize: number): n
   return style === "small-dots" || style === "small-grid" ? gridSize / 2 : gridSize;
 }
 
-export function gridStepForStyle(style: CanvasGridStyle, gridSize: number, zoom: number, pixelRatio = 1): number {
+export function gridStepForStyle(style: CanvasGridStyle, gridSize: number, zoom: number): number {
   const baseStep = gridSpacingForStyle(style, gridSize);
   // Fine paper uses exact half-grid subdivisions. At low zoom, skip by powers
   // of two from the same origin so its visible lines still land on that lattice.
   const downsample = Math.max(1, 2 ** Math.max(0, Math.ceil(Math.log2(12 / (baseStep * Math.max(0.02, zoom))))));
   const rawStep = baseStep * downsample;
-  // Quantize the visible pitch to a whole backing-canvas pixel. This keeps
-  // every repeated interval equal instead of alternating between rounded
-  // device-pixel widths at fractional zoom/DPI combinations.
-  const physicalScale = Math.max(0.02, zoom) * Math.max(0.25, pixelRatio);
-  return Math.round(rawStep * physicalScale) / physicalScale;
+  // Keep spacing in world units. Pixel-quantizing this value makes snapping
+  // drift off the document grid at fractional zoom and display scaling.
+  return rawStep;
 }
 
 export function isometricRowHeight(step: number): number {
@@ -107,11 +105,11 @@ export function strokePointFromPointer(event: PointerEvent, point: Point, pressu
   };
 }
 
-export function snapCanvasPoint(point: Point, enabled: boolean, style: CanvasGridStyle, gridSize: number, zoom = 1, pixelRatio = 1): Point {
+export function snapCanvasPoint(point: Point, enabled: boolean, style: CanvasGridStyle, gridSize: number): Point {
   if (!enabled) return point;
-  // Match the grid's zoom-dependent spacing so snapped points always land on
-  // a grid mark that is currently visible on the canvas.
-  const step = gridStepForStyle(style, gridSize, zoom, pixelRatio);
+  // Snapping always uses the canonical document grid, independent of zoom,
+  // display scale, or fine-paper subdivisions.
+  const step = gridSize;
   if (style === "isometric") {
     const rowStep = isometricRowHeight(step);
     const nearestRow = Math.floor(point.y / rowStep);

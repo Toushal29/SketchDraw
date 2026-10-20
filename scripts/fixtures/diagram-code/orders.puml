@@ -1,0 +1,10 @@
+@startuml
+class Customer {
+  id: UUID
+  email: string
+}
+entity Order {
+  total: decimal
+}
+Customer "1" --> "many" Order : places
+@enduml

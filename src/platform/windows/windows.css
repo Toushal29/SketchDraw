@@ -51,6 +51,39 @@
     display: none;
 }
 
+.platform-windows .tool-deck .touch-selection-delete {
+    position: relative;
+    color: var(--theme-error);
+    border-color: color-mix(in srgb, var(--theme-error) 22%, transparent);
+    background: color-mix(in srgb, var(--theme-error) 7%, transparent);
+}
+
+.platform-windows .tool-deck .touch-selection-delete:hover:not(:disabled) {
+    color: var(--theme-error);
+    border-color: color-mix(in srgb, var(--theme-error) 42%, transparent);
+    background: color-mix(in srgb, var(--theme-error) 13%, transparent);
+}
+
+.platform-windows .tool-deck .touch-selection-delete:disabled { opacity: .45; }
+
+.platform-windows .tool-deck .touch-selection-count {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    display: grid;
+    min-width: 14px;
+    height: 14px;
+    box-sizing: border-box;
+    place-items: center;
+    padding: 0 3px;
+    border: 1px solid var(--toolbar-surface, var(--theme-surface-elevated));
+    border-radius: 999px;
+    color: #fff;
+    background: var(--theme-error);
+    font: 700 9px/1 var(--font-sans, sans-serif);
+    pointer-events: none;
+}
+
 .platform-windows .tool-deck .tool-family {
     height: 36px;
 }
@@ -258,7 +291,7 @@
     right: auto;
     bottom: auto;
     left: 15px;
-    max-height: calc(100% - 36px);
+    max-height: 42;
 }
 
 .platform-windows .style-pane.quick-style-mode.mobile-properties-collapsed {
@@ -276,7 +309,7 @@
         min-height: 800px;
     }
 
-    .app-shell.platform-windows .canvas-options-menu {
+    .app-shell.platform-windows .workspace-view-panel {
         left: 0;
         right: auto;
     }
@@ -443,10 +476,6 @@
     font-size: 9px;
 }
 
-.app-shell.platform-windows .canvas-tools-options .canvas-options-grid button {
-    min-height: 38px;
-}
-
 /* Windows shape library: grouped stencils, consistent cards, and full labels. */
 .app-shell.platform-windows .tool-family.options-open .windows-shape-palette {
     display: grid;
@@ -536,7 +565,6 @@
 .platform-windows.windows-presentation-mode .style-pane,
 .platform-windows.windows-presentation-mode .desktop-page-tabs,
 .platform-windows.windows-presentation-mode .canvas-zoom-reset,
-.platform-windows.windows-presentation-mode .selection-delete-action,
 .platform-windows.windows-presentation-mode .floating-layer-panel {
     display: none !important;
 }
@@ -547,7 +575,6 @@
 .app-shell.platform-windows.windows-fullscreen-mode .style-pane,
 .app-shell.platform-windows.windows-fullscreen-mode .desktop-page-tabs,
 .app-shell.platform-windows.windows-fullscreen-mode .canvas-zoom-reset,
-.app-shell.platform-windows.windows-fullscreen-mode .selection-delete-action,
 .app-shell.platform-windows.windows-fullscreen-mode .floating-layer-panel {
     display: none !important;
 }

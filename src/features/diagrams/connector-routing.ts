@@ -1,15 +1,25 @@
-import type { Element, Point, ShapeElement } from "../../model";
+import type { Bounds, Element, Point, ShapeElement } from "../../model";
 import { elementBounds } from "../../features/canvas/bounds";
+import { ElementSpatialIndex } from "../canvas/spatial-index";
 
 type Rect = { left: number; top: number; right: number; bottom: number };
 type CachedRoute = { key: string; points: Point[] };
 const routeCache = new WeakMap<ShapeElement, CachedRoute>();
+export type AutoRouteContext = { flatItems: Element[]; candidates: Map<Element, Bounds>; index: ElementSpatialIndex };
 
-function flat(items: Element[], parentHidden = false): Element[] {
+const isRouteObstacle = (item: Element) => item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" || item.type === "svgPath" || item.type === "text" || item.type === "image" || item.type === "schemaTable" || item.type === "group" && (!!item.componentBounds || !!item.libraryComponent || !!item.note || !!item.mermaid);
+
+export function createAutoRouteContext(items: Element[], isHidden: (item: Element) => boolean = item => !!item.hidden): AutoRouteContext {
+  const flatItems = flat(items, isHidden);
+  const candidates = new Map(flatItems.filter(isRouteObstacle).map(item => [item, elementBounds(item)] as const));
+  return { flatItems, candidates, index: new ElementSpatialIndex(flatItems) };
+}
+
+function flat(items: Element[], isHidden: (item: Element) => boolean, parentHidden = false): Element[] {
   return items.flatMap(item => {
-    if (parentHidden || item.hidden) return [];
+    if (parentHidden || isHidden(item)) return [];
     return item.type === "group" && !item.componentBounds && !item.libraryComponent && !item.note && !item.mermaid
-      ? flat(item.elements, parentHidden || !!item.hidden)
+      ? flat(item.elements, isHidden, parentHidden || isHidden(item))
       : [item];
   });
 }
@@ -47,11 +57,12 @@ function routeLeg(start: Point, end: Point, rects: Rect[]): Point[] | undefined 
   // around every other shape on the way to it.
   const contains = (rect: Rect, point: Point) => point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
   rects = rects.filter(rect => !contains(rect, start) && !contains(rect, end));
-  const margin = Math.max(32, ...rects.map(rect => Math.min(120, Math.max(rect.right - rect.left, rect.bottom - rect.top) * .2)));
-  const minX = Math.min(start.x, end.x, ...rects.map(rect => rect.left)) - margin;
-  const maxX = Math.max(start.x, end.x, ...rects.map(rect => rect.right)) + margin;
-  const minY = Math.min(start.y, end.y, ...rects.map(rect => rect.top)) - margin;
-  const maxY = Math.max(start.y, end.y, ...rects.map(rect => rect.bottom)) + margin;
+  let margin = 32; let minX = Math.min(start.x, end.x); let maxX = Math.max(start.x, end.x); let minY = Math.min(start.y, end.y); let maxY = Math.max(start.y, end.y);
+  for (const rect of rects) {
+    margin = Math.max(margin, Math.min(120, Math.max(rect.right - rect.left, rect.bottom - rect.top) * .2));
+    minX = Math.min(minX, rect.left); maxX = Math.max(maxX, rect.right); minY = Math.min(minY, rect.top); maxY = Math.max(maxY, rect.bottom);
+  }
+  minX -= margin; maxX += margin; minY -= margin; maxY += margin;
   // The outer rails give A* a guaranteed way around a wall of overlapping
   // obstacle rectangles instead of forcing it to take a path through a node.
   const xs = [...new Set([start.x, end.x, minX, maxX, ...rects.flatMap(rect => [rect.left, rect.right])])].sort((a, b) => a - b);
@@ -108,22 +119,26 @@ function routeLeg(start: Point, end: Point, rects: Rect[]): Point[] | undefined 
 }
 
 /** Finds an orthogonal route and caches it until an obstacle or waypoint changes. */
-export function autoRoutePoints(connector: ShapeElement, items: Element[]): Point[] {
+export function autoRoutePoints(connector: ShapeElement, items: Element[] | AutoRouteContext, isHidden: (item: Element) => boolean = item => !!item.hidden): Point[] {
   const start = { x: connector.x, y: connector.y };
   const end = { x: connector.x + connector.w, y: connector.y + connector.h };
   const pins = connector.routeWaypoints ?? [];
-  const flatItems = flat(items);
+  const context = Array.isArray(items) ? createAutoRouteContext(items, isHidden) : items;
+  const flatItems = context.flatItems;
   const excluded = new Set([connector.id, connector.startBinding?.elementId, connector.endBinding?.elementId].filter(Boolean));
-  const candidates = flatItems.filter(item => !excluded.has(item.id) && (["rectangle", "circle", "diamond", "triangle", "flowchart", "svgPath", "text", "image", "schemaTable"].includes(item.type) || item.type === "group" && (!!item.componentBounds || !!item.libraryComponent || !!item.note || !!item.mermaid)));
-  const nearby = candidates.map(item => {
-    const bounds = elementBounds(item); const radius = Math.hypot(bounds.w, bounds.h) / 2;
+  const queryBounds = { x: Math.min(start.x, end.x) - 240, y: Math.min(start.y, end.y) - 240, w: Math.abs(end.x - start.x) + 480, h: Math.abs(end.y - start.y) + 480 };
+  const nearbyItems = context.index.query(queryBounds).map(index => flatItems[index]);
+  const nearby = nearbyItems.flatMap(item => {
+    const bounds = context.candidates.get(item);
+    if (!bounds || excluded.has(item.id)) return [];
+    const radius = Math.hypot(bounds.w, bounds.h) / 2;
     return { item, bounds, distance: Math.max(0, distanceToSegment({ x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }, start, end) - radius) };
   }).sort((a, b) => a.distance - b.distance).slice(0, 28);
   const padding = Math.max(10, Math.min(24, connector.thickness * 2));
   const sharedTargets = new Set([connector.startBinding?.elementId, connector.endBinding?.elementId].filter(Boolean));
   const nodeRects = nearby.filter(({ item }) => !sharedTargets.has(item.id)).map(({ bounds }) => ({ left: bounds.x - padding, top: bounds.y - padding, right: bounds.x + bounds.w + padding, bottom: bounds.y + bounds.h + padding }));
   const routeClearance = Math.max(6, padding * .65);
-  const routeObstacles = flatItems.filter((item): item is ShapeElement => isConnector(item) && item.id !== connector.id && item.autoRoute === true && !item.hidden && ![item.startBinding?.elementId, item.endBinding?.elementId].some(id => id && sharedTargets.has(id)) && item.routePoints !== undefined)
+  const routeObstacles = nearbyItems.filter((item): item is ShapeElement => isConnector(item) && item.id !== connector.id && item.autoRoute === true && !item.hidden && ![item.startBinding?.elementId, item.endBinding?.elementId].some(id => id && sharedTargets.has(id)) && item.routePoints !== undefined)
     .flatMap(item => {
       const points = [{ x: item.x, y: item.y }, ...(item.routePoints ?? []), { x: item.x + item.w, y: item.y + item.h }];
       return points.slice(1).map((point, index) => {
@@ -136,9 +151,9 @@ export function autoRoutePoints(connector: ShapeElement, items: Element[]): Poin
         };
       });
     });
-  const minX = Math.min(start.x, end.x) - 240, maxX = Math.max(start.x, end.x) + 240;
-  const minY = Math.min(start.y, end.y) - 240, maxY = Math.max(start.y, end.y) + 240;
-  const nearbyRouteObstacles = routeObstacles.filter(rect => rect.right >= minX && rect.left <= maxX && rect.bottom >= minY && rect.top <= maxY);
+  const nearbyRouteObstacles = routeObstacles
+    .sort((left, right) => distanceToSegment({ x: (left.left + left.right) / 2, y: (left.top + left.bottom) / 2 }, start, end) - distanceToSegment({ x: (right.left + right.right) / 2, y: (right.top + right.bottom) / 2 }, start, end))
+    .slice(0, 32);
   const rects = [...nodeRects, ...nearbyRouteObstacles];
   const key = JSON.stringify([start, end, connector.thickness, pins, nearby.map(({ item, bounds }) => [item.id, bounds.x, bounds.y, bounds.w, bounds.h]), nearbyRouteObstacles]);
   const cached = routeCache.get(connector);
@@ -157,21 +172,53 @@ export function autoRoutePoints(connector: ShapeElement, items: Element[]): Poin
 }
 
 /** Greedily routes longer links first so later connections can avoid their paths. */
-export function autoRouteConnectorSet(items: Element[]): Element[] {
-  const result = [...items];
-  const entries = items.flatMap((item, index) => isRouteableConnector(item) && !item.hidden
-    ? [{ index, length: Math.hypot(item.w, item.h) }]
-    : []).sort((a, b) => b.length - a.length);
-  if (!entries.length) return result;
+export function autoRouteConnectorSet(
+  items: Element[],
+  isHidden: (item: Element) => boolean = item => !!item.hidden,
+  isLocked: (item: Element) => boolean = item => !!item.locked,
+): Element[] {
+  const entries: { path: number[]; length: number }[] = [];
+  const collect = (children: Element[], parentPath: number[] = [], parentUnavailable = false) => {
+    children.forEach((item, index) => {
+      const path = [...parentPath, index];
+      const unavailable = parentUnavailable || isHidden(item) || isLocked(item);
+      if (!unavailable && isRouteableConnector(item)) entries.push({ path, length: Math.hypot(item.w, item.h) });
+      if (item.type === "group" && !unavailable) collect(item.elements, path, unavailable);
+    });
+  };
+  collect(items);
+  if (!entries.length) return items;
+  entries.sort((a, b) => b.length - a.length);
 
-  for (const { index } of entries) {
-    const item = result[index] as ShapeElement;
-    result[index] = { ...item, autoRoute: true, routePoints: undefined, routeWaypoints: [] };
+  const replaceAtPath = (children: Element[], path: number[], replacement: Element): Element[] => {
+    const [index, ...rest] = path;
+    const next = [...children];
+    if (!rest.length) { next[index] = replacement; return next; }
+    const parent = next[index];
+    if (parent?.type !== "group") return children;
+    next[index] = { ...parent, elements: replaceAtPath(parent.elements, rest, replacement) };
+    return next;
+  };
+  const getAtPath = (source: Element[], path: number[]): Element | undefined => {
+    let current: Element | undefined;
+    for (const [depth, index] of path.entries()) {
+      current = depth === 0 ? source[index] : current?.type === "group" ? current.elements[index] : undefined;
+      if (!current) return undefined;
+    }
+    return current;
+  };
+
+  let result = items;
+  for (const { path } of entries) {
+    const item = getAtPath(result, path);
+    if (!item || !isRouteableConnector(item)) continue;
+    result = replaceAtPath(result, path, { ...item, autoRoute: true, routePoints: undefined, routeWaypoints: [] });
   }
-  for (const { index } of entries) {
-    const connector = result[index] as ShapeElement;
-    const routePoints = autoRoutePoints(connector, result);
-    result[index] = { ...connector, routePoints, routeWaypoints: [], ...(connector.type === "line" ? { lineRoute: "straight" as const } : { arrowRoute: "straight" as const }) };
+  for (const { path } of entries) {
+    const connector = getAtPath(result, path);
+    if (!connector || !isRouteableConnector(connector)) continue;
+    const routePoints = autoRoutePoints(connector, result, isHidden);
+    result = replaceAtPath(result, path, { ...connector, routePoints, routeWaypoints: [], ...(connector.type === "line" ? { lineRoute: "straight" as const } : { arrowRoute: "straight" as const }) });
   }
   return result;
 }

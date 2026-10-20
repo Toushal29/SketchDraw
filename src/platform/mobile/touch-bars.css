@@ -93,7 +93,7 @@
     }
 
     .app-shell:not(.platform-windows) .tool-family.options-open .tool-options,
-    .app-shell:not(.platform-windows) .canvas-options-family.options-open .canvas-options-menu {
+    .app-shell:not(.platform-windows) .canvas-options-family.options-open .workspace-view-panel {
         position: fixed;
         z-index: 1600;
         right: auto;
@@ -130,9 +130,9 @@
     }
     .app-shell:not(.platform-windows) .tool-family.options-open .tool-options:not(.stencil-options) > button:hover,
     .app-shell:not(.platform-windows) .tool-family.options-open .tool-options:not(.stencil-options) > button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-    .app-shell:not(.platform-windows) .paint-brush-options { --touch-popup-width: 190px; display: grid; grid-template-columns: 1fr; gap: 2px; }
-    .app-shell:not(.platform-windows) .paint-brush-options > button { justify-content: flex-start; gap: 8px; text-align: left; }
-    .app-shell:not(.platform-windows) .paint-brush-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }
+    .app-shell:not(.platform-windows) .pen-options { --touch-popup-width: 190px; display: grid; grid-template-columns: 1fr; gap: 2px; }
+    .app-shell:not(.platform-windows) .pen-options > button { justify-content: flex-start; gap: 8px; text-align: left; }
+    .app-shell:not(.platform-windows) .pen-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }
     .app-shell:not(.platform-windows) .tool-family.options-open .text-options { --touch-popup-width: 260px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .app-shell:not(.platform-windows) .text-options > button { justify-content: flex-start; gap: 6px; padding: 6px; text-align: left; }
     .app-shell:not(.platform-windows) .text-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }
@@ -141,18 +141,17 @@
     .app-shell:not(.platform-windows) .route-options > button { justify-content: flex-start; gap: 6px; padding: 5px; text-align: left; }
     .app-shell:not(.platform-windows) .route-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }
     .app-shell:not(.platform-windows) .route-options > button span { min-width: 0; overflow-wrap: anywhere; font-size: 9px; }
-    .app-shell:not(.platform-windows) .tool-family.options-open .flowchart-options { --touch-popup-width: 330px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .app-shell:not(.platform-windows) .flowchart-options > button { min-height: 48px; flex-direction: column; gap: 3px; padding: 4px; }
-    .app-shell:not(.platform-windows) .flowchart-options > button svg { width: 21px; height: 21px; }
-    .app-shell:not(.platform-windows) .flowchart-options > button span { font-size: 9px; text-align: center; }
-    .app-shell:not(.platform-windows) .canvas-options-family.options-open .canvas-options-menu {
+    .app-shell:not(.platform-windows) .tool-family.options-open .flowchart-options { --touch-popup-width: 360px; display: grid; grid-template-columns: minmax(0, 1fr); }
+    .app-shell:not(.platform-windows) .flowchart-options .flowchart-shape-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .app-shell:not(.platform-windows) .flowchart-options .flowchart-shape-grid > button { min-height: 58px; flex-direction: column; gap: 3px; padding: 5px 3px; }
+    .app-shell:not(.platform-windows) .flowchart-options .flowchart-shape-grid > button svg { width: 21px; height: 21px; }
+    .app-shell:not(.platform-windows) .flowchart-options .flowchart-shape-grid > button span { font-size: 9px; text-align: center; }
+    .app-shell:not(.platform-windows) .canvas-options-family.options-open .workspace-view-panel {
         box-sizing: border-box;
         width: min(360px, calc(100vw - 16px));
         max-width: calc(100vw - 16px);
         max-height: calc(100dvh - 16px);
     }
-    .app-shell:not(.platform-windows) .canvas-options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
-    .app-shell:not(.platform-windows) .canvas-options-grid > button { min-height: 44px; border-radius: 9px; }
 
     .app-shell:not(.platform-windows) .touch-tool-reopen {
         position: fixed;
@@ -166,22 +165,6 @@
     }
     .app-shell:not(.platform-windows) .touch-tool-reopen svg { width: 18px; height: 18px; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .app-shell:not(.platform-windows) .style-pane { display: none; }
-    .app-shell:not(.platform-windows) .selection-delete-action {
-        position: fixed;
-        z-index: 1450;
-        top: auto;
-        right: max(8px, env(safe-area-inset-right));
-        bottom: calc(var(--mobile-horizontal-toolbar-height) + max(12px, env(safe-area-inset-bottom)) + 8px);
-        left: auto;
-        display: inline-flex;
-        box-sizing: border-box;
-        width: max-content;
-        max-width: calc(100vw - 16px);
-        min-height: 42px;
-        border-radius: 13px;
-    }
-    .app-shell.mobile-toolbar-left:not(.platform-windows) .selection-delete-action { right: auto; left: calc(42px + max(6px, env(safe-area-inset-left)) + 8px); }
-    .app-shell.mobile-toolbar-right:not(.platform-windows) .selection-delete-action { right: calc(42px + max(6px, env(safe-area-inset-right)) + 8px); left: auto; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .canvas-zoom-reset { top: auto; right: max(10px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); left: auto; transform: none; }
     .app-shell.mobile-toolbar-top:not(.mobile-orientation-portrait):not(.platform-windows) .canvas-zoom-reset { top: calc(var(--touch-header-height) + var(--touch-toolbar-top-offset) + var(--mobile-horizontal-toolbar-height) + 8px); right: max(10px, env(safe-area-inset-right)); bottom: auto; left: auto; transform: none; }
     .app-shell.mobile-toolbar-bottom:not(.platform-windows) .canvas-zoom-reset { top: auto; right: max(10px, env(safe-area-inset-right)); bottom: calc(var(--mobile-horizontal-toolbar-height) + max(12px, env(safe-area-inset-bottom))); left: auto; transform: none; }
@@ -209,5 +192,4 @@
 }
 
 @media (max-width: 480px) {
-    .app-shell:not(.platform-windows) .canvas-options-grid { grid-template-columns: minmax(0, 1fr); }
 }

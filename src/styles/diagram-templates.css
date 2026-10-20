@@ -9,5 +9,6 @@
 .template-gallery-preview:after { content: ""; position: absolute; left: 20px; top: 17px; width: 42px; height: 23px; border-top: 1px solid #8b959e; border-right: 1px solid #8b959e; transform: skewY(-18deg); }
 .template-preview-uml i, .template-preview-uml b { border-radius: 0; }.template-preview-erd i, .template-preview-erd b { height: 20px; }.template-preview-bpmn i:first-child { border-radius: 50%; width: 12px; height: 12px; top: 25px; }.template-preview-network i { background: #eef1f3; }
 .template-gallery-copy { display: grid; gap: 3px; }.template-gallery-copy small { color: var(--panel-muted, #68727b); font-size: 10px; }.template-gallery-copy strong { font-size: 13px; }.template-gallery-copy span { color: var(--panel-muted, #68727b); font-size: 11px; line-height: 1.35; }
+.template-gallery-copy button { justify-self: start; min-height: 28px; margin-top: 5px; }
 .template-gallery footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; color: var(--panel-muted, #68727b); font-size: 11px; }
 @media (max-width: 620px) { .template-gallery-grid { grid-template-columns: 1fr; }.template-gallery footer { align-items: flex-start; flex-direction: column; }.template-gallery footer button { align-self: flex-end; } }

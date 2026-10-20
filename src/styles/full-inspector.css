@@ -74,9 +74,16 @@
 .full-inspector .geometry-property-grid { gap: 4px; }
 .full-inspector .geometry-property-grid label { min-width: 0; gap: 2px; font-size: 9px; }
 .full-inspector .geometry-property-grid input { min-height: 25px; padding-inline: 4px; }
-.full-inspector .component-navigation-details { margin-top: 2px; }
-.full-inspector .component-navigation-details > summary { padding: 5px 0; color: var(--theme-text-secondary); font-size: 10px; cursor: pointer; }
-
+.diagram-source-editor > small { color: var(--theme-text-secondary); font-size: 10px; }
+.diagram-source-editor textarea,
+.csv-chart-dialog textarea { width: 100%; min-height: 130px; resize: vertical; padding: 8px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface); color: var(--theme-text); font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.diagram-source-editor .mermaid-preview-panel { max-height: 250px; overflow: hidden; }
+.diagram-source-preview { max-height: 220px; overflow: auto; margin: 4px 0; padding: 8px; border: 1px solid var(--theme-border); border-radius: 4px; background: var(--theme-surface); color: var(--theme-text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.diagram-code-limitations { color: var(--theme-text-secondary); font-size: 11px; line-height: 1.45; }
+.csv-chart-dialog { width: min(620px, calc(100vw - 32px)); max-height: min(88vh, 820px); overflow: auto; }
+.csv-chart-mapping { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(190px, 1.2fr); gap: 12px; align-items: start; }
+.csv-chart-mapping fieldset { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 5px; min-width: 0; margin: 0; padding: 8px; border: 1px solid var(--theme-border); border-radius: 5px; }
+.csv-chart-series { display: flex; align-items: center; gap: 5px; font-size: 11px; }
 @media (max-width: 900px) {
     .style-pane.full-style-mode > .full-inspector { position: fixed; top: auto; right: 8px; bottom: calc(env(safe-area-inset-bottom) + 70px); left: 68px; width: auto; max-width: none; max-height: min(56vh, 450px); }
     .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded > .full-inspector { z-index: 190; top: 58px; right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: max(66px, calc(env(safe-area-inset-left) + 60px)); max-height: none; }

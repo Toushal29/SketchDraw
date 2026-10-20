@@ -1,0 +1,8 @@
+flowchart LR
+  Client([Client]) -->|request| API{Authorized?}
+  subgraph Backend["Order backend"]
+  API -->|yes| Store((Store))
+  API -.->|no| Reject[Reject]
+  end
+  style Client fill:#e8f3ff,stroke:#2468a0,color:#123456,stroke-width:2px
+  linkStyle 0 stroke:#227755,stroke-width:3px

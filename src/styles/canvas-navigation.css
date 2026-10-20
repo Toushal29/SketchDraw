@@ -89,13 +89,41 @@
 .app-shell.presentation-mode .desktop-page-tabs,
 .app-shell.presentation-mode .touch-page-control,
 .app-shell.presentation-mode .canvas-zoom-reset,
-.app-shell.presentation-mode .selection-delete-action,
 .app-shell.presentation-mode .floating-layer-panel {
     display: none;
 }
 
 .app-shell.presentation-mode .canvas-minimap {
     display: none;
+}
+
+.app-shell.presentation-mode .canvas-presentation-transition {
+    position: absolute;
+    z-index: 29;
+    inset: 0;
+    pointer-events: none;
+    background: var(--theme-surface);
+    animation-duration: 340ms;
+    animation-timing-function: cubic-bezier(.2, .7, .2, 1);
+    animation-fill-mode: both;
+}
+
+.app-shell.presentation-mode .canvas-presentation-transition-fade { animation-name: canvas-prototype-fade; }
+.app-shell.presentation-mode .canvas-presentation-transition-slide { animation-name: canvas-prototype-slide; }
+
+@keyframes canvas-prototype-fade {
+    0%, 100% { opacity: 0; }
+    45%, 55% { opacity: 1; }
+}
+
+@keyframes canvas-prototype-slide {
+    0% { transform: translateX(100%); }
+    45%, 55% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-shell.presentation-mode .canvas-presentation-transition { animation-duration: 1ms; }
 }
 
 .canvas-presentation-controls {
@@ -105,9 +133,10 @@
     left: 50%;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     max-width: calc(100% - 24px);
-    padding: 7px 10px;
+    padding: 5px 7px;
+    overflow-x: auto;
     border: 1px solid color-mix(in srgb, var(--theme-border) 18.82%, transparent);
     border-radius: 10px;
     color: var(--theme-text-tertiary);
@@ -135,8 +164,11 @@
     cursor: default;
 }
 
+.canvas-presentation-controls button.active { color: var(--theme-primary); background: var(--theme-primary-muted); }
+.canvas-presentation-controls button:nth-last-child(2) { min-width: 50px; padding-inline: 7px; }
+
 .canvas-presentation-controls span {
-    max-width: min(42vw, 240px);
+    max-width: min(32vw, 190px);
     overflow: hidden;
     text-align: center;
     text-overflow: ellipsis;

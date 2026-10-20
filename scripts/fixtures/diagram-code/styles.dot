@@ -1,0 +1,6 @@
+digraph Orders {
+  rankdir=LR;
+  client [label="Client", shape=ellipse, color="#2468a0", fillcolor="#e8f3ff", fontcolor="#123456", style="filled,rounded", penwidth=2.5];
+  service [label="Order service", shape=box, color="#7654a1", fillcolor="#f3edff", style=filled];
+  client -> service [label="creates", color="#227755", style=dashed, penwidth=1.7, dir=both, arrowhead=vee, arrowtail=odot];
+}

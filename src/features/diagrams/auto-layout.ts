@@ -5,8 +5,8 @@ import { elementBounds, unionBounds } from "../../features/canvas/bounds";
 
 const elk = new ELK({ workerUrl: elkWorkerUrl, algorithms: ["layered", "force", "stress", "mrtree", "radial"] });
 
-function hasLockedChild(element: Element): boolean {
-  return element.type === "group" && element.elements.some(child => child.locked || hasLockedChild(child));
+function hasLockedChild(element: Element, isLocked: (element: Element) => boolean): boolean {
+  return element.type === "group" && element.elements.some(child => isLocked(child) || hasLockedChild(child, isLocked));
 }
 
 function isConnector(element: Element): element is ShapeElement & { type: "line" | "arrow" } {
@@ -17,11 +17,12 @@ export type DiagramLayoutPreset = "default" | "c4" | "sequence" | "erd" | "netwo
 export type DiagramLayoutAlgorithm = "layered" | "force" | "stress" | "mrtree" | "radial";
 
 /** Repositions top-level objects with ELK, using existing connector bindings as graph edges. */
-export async function autoLayoutElements(elements: Element[], selectedIndices: number[], direction: "RIGHT" | "DOWN" = "RIGHT", preset: DiagramLayoutPreset = "default", algorithm: DiagramLayoutAlgorithm = "layered"): Promise<Element[]> {
+export async function autoLayoutElements(elements: Element[], selectedIndices: number[], direction: "RIGHT" | "DOWN" = "RIGHT", preset: DiagramLayoutPreset = "default", algorithm: DiagramLayoutAlgorithm = "layered", scope: "page" | "selection" = selectedIndices.length > 1 ? "selection" : "page", spacing = 48, isHidden: (element: Element) => boolean = element => !!element.hidden, isLocked: (element: Element) => boolean = element => !!element.locked): Promise<Element[]> {
   const selected = new Set(selectedIndices);
-  const useSelection = selectedIndices.length > 1;
+  const useSelection = scope === "selection";
+  const nodeSpacing = String(Math.max(12, Math.min(240, Number.isFinite(spacing) ? spacing : 48)));
   const nodes = elements.flatMap((element, index) => {
-    if (element.hidden || element.locked || isConnector(element) || hasLockedChild(element) || (useSelection && !selected.has(index))) return [];
+    if (isHidden(element) || isLocked(element) || isConnector(element) || hasLockedChild(element, isLocked) || (useSelection && !selected.has(index))) return [];
     const bounds = elementBounds(element);
     if (![bounds.x, bounds.y, bounds.w, bounds.h].every(Number.isFinite)) return [];
     return [{ id: `node-${index}`, index, element, bounds }];
@@ -49,11 +50,11 @@ export async function autoLayoutElements(elements: Element[], selectedIndices: n
   });
 
   const settings = {
-    default: { direction, nodeSpacing: "48", layerSpacing: "88" },
-    c4: { direction: "RIGHT" as const, nodeSpacing: "64", layerSpacing: "104" },
-    sequence: { direction: "DOWN" as const, nodeSpacing: "34", layerSpacing: "72" },
-    erd: { direction: "RIGHT" as const, nodeSpacing: "38", layerSpacing: "66" },
-    network: { direction: "RIGHT" as const, nodeSpacing: "52", layerSpacing: "92" },
+    default: { direction, nodeSpacing, layerSpacing: String(Math.round(Number(nodeSpacing) * 1.8)) },
+    c4: { direction: "RIGHT" as const, nodeSpacing: String(Math.round(Number(nodeSpacing) * 1.35)), layerSpacing: String(Math.round(Number(nodeSpacing) * 2.2)) },
+    sequence: { direction: "DOWN" as const, nodeSpacing: String(Math.round(Number(nodeSpacing) * .72)), layerSpacing: String(Math.round(Number(nodeSpacing) * 1.5)) },
+    erd: { direction: "RIGHT" as const, nodeSpacing: String(Math.round(Number(nodeSpacing) * .8)), layerSpacing: String(Math.round(Number(nodeSpacing) * 1.4)) },
+    network: { direction: "RIGHT" as const, nodeSpacing: String(Math.round(Number(nodeSpacing) * 1.1)), layerSpacing: String(Math.round(Number(nodeSpacing) * 1.9)) },
   }[preset];
   const layoutOptions: Record<string, string> = {
     "elk.algorithm": algorithm,

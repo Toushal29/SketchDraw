@@ -1,4 +1,5 @@
 import type { Element as CanvasElement, FreehandElement, ImageElement, Point, ShapeElement, TextElement } from "../../model";
+import { elementBounds } from "../canvas/bounds";
 
 const MAX_IMPORT_BYTES = 25_000_000;
 const MAX_IMPORTED_POINTS = 250_000;
@@ -20,7 +21,18 @@ const safeColor = (value: unknown, fallback: string) => {
 };
 const escapeXml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 type CanvasPrimitive = Exclude<CanvasElement, { type: "group" }>;
-const flatten = (elements: CanvasElement[]): CanvasPrimitive[] => elements.flatMap(element => element.hidden ? [] : element.type === "group" ? flatten(element.elements) : [element]);
+type GroupedPrimitive = { element: CanvasPrimitive; groups: string[] };
+function flattenWithGroups(elements: CanvasElement[], groupIds = new Map<CanvasElement & { type: "group" }, string>(), parentGroups: string[] = []): GroupedPrimitive[] {
+  return elements.flatMap(element => {
+    if (element.hidden) return [];
+    if (element.type === "group") {
+      let groupId = groupIds.get(element);
+      if (!groupId) { groupId = id("group"); groupIds.set(element, groupId); }
+      return flattenWithGroups(element.elements, groupIds, [...parentGroups, groupId]);
+    }
+    return [{ element, groups: parentGroups }];
+  });
+}
 function pointBounds(points: Point[]): { x: number; y: number; w: number; h: number } {
   if (!points.length) return { x: 0, y: 0, w: 1, h: 1 };
   let minX = points[0].x; let minY = points[0].y; let maxX = minX; let maxY = minY;
@@ -201,7 +213,24 @@ export function importExcalidraw(source: string): CanvasElement[] {
       container.label = { text: record.text, color: safeColor(record.strokeColor, "#111827"), fontSize: clamp(finite(record.fontSize, 16), 8, 100), fontFamily: "sans", bold: record.fontWeight === "bold", italic: record.fontStyle === "italic", underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" };
     }
   }
-  return imported;
+  const importedById = new Map(imported.flatMap(item => item.id ? [[item.id, item] as const] : []));
+  const groupNodes = new Map<string, Extract<CanvasElement, { type: "group" }>>();
+  const output: CanvasElement[] = []; const placed = new Set<CanvasElement>();
+  for (const record of records) {
+    const item = typeof record.id === "string" ? importedById.get(record.id) : undefined;
+    if (!item || placed.has(item)) continue;
+    const groupPath = Array.isArray(record.groupIds) ? record.groupIds.filter((value): value is string => typeof value === "string" && value.length <= 160).slice(0, 16) : [];
+    if (!groupPath.length) { output.push(item); placed.add(item); continue; }
+    let children = output;
+    for (const groupId of groupPath) {
+      let group = groupNodes.get(groupId);
+      if (!group) { group = { type: "group", id: id("excalidraw-group"), elements: [] }; groupNodes.set(groupId, group); children.push(group); }
+      children = group.elements;
+    }
+    children.push(item); placed.add(item);
+  }
+  for (const item of imported) if (!placed.has(item)) output.push(item);
+  return output;
 }
 
 function externalStyle(element: CanvasPrimitive): { stroke: string; fill: string; strokeWidth: number; opacity: number } {
@@ -219,7 +248,9 @@ export function exportExcalidraw(elements: CanvasElement[]): string {
   const external: Record<string, unknown>[] = [];
   const elementIds = new Map<string, string>();
   const labelIds = new Map<string, string>();
-  const visible = flatten(elements);
+  const grouped = flattenWithGroups(elements);
+  const visible = grouped.map(entry => entry.element);
+  const groupIdsByElement = new Map(grouped.flatMap(entry => entry.element.id ? [[entry.element.id, entry.groups] as const] : []));
   for (const element of visible) if (element.id) elementIds.set(element.id, id("excalidraw"));
   for (const element of visible) if (element.id && (element.type === "schemaTable" || element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "svgPath") && (element.type === "schemaTable" || !!element.label?.text)) labelIds.set(element.id, id("excalidraw-text"));
   const connectorBounds = new Map<string, { id: string; type: "arrow" }[]>();
@@ -247,7 +278,7 @@ export function exportExcalidraw(elements: CanvasElement[]): string {
       id: element.id ? elementIds.get(element.id) : id("excalidraw"), type, ...base,
       angle: (element.rotation ?? 0) * Math.PI / 180, strokeColor: style.stroke, backgroundColor: style.fill,
        fillStyle: "solid", strokeWidth: style.strokeWidth, strokeStyle: "lineStyle" in element && (element.lineStyle === "dashed" || element.lineStyle === "dotted") ? element.lineStyle : "solid", roughness: 0,
-      opacity: Math.round(style.opacity * 100), groupIds: [], frameId: null, roundness: null,
+      opacity: Math.round(style.opacity * 100), groupIds: element.id ? groupIdsByElement.get(element.id) ?? [] : [], frameId: null, roundness: null,
       seed: Math.floor(Math.random() * 2_147_483_647), version: 1, versionNonce: Math.floor(Math.random() * 2_147_483_647),
       isDeleted: false, boundElements: boundElements.length ? boundElements : null, updated: Date.now(), link: element.type === "image" ? element.previewUrl ?? null : null, locked: element.locked ?? false,
     };
@@ -283,7 +314,7 @@ export function exportExcalidraw(elements: CanvasElement[]): string {
       id: labelId, type: "text", x: base.x, y: base.y, width: base.width, height: base.height,
       angle: common.angle, strokeColor: element.type === "schemaTable" ? "#111827" : shapeElement?.label?.color ?? "#111827", backgroundColor: "transparent",
       fillStyle: "solid", strokeWidth: 1, strokeStyle: "solid", roughness: 0, opacity: Math.round(style.opacity * 100),
-      groupIds: [], frameId: null, roundness: null, seed: Math.floor(Math.random() * 2_147_483_647), version: 1,
+      groupIds: common.groupIds, frameId: null, roundness: null, seed: Math.floor(Math.random() * 2_147_483_647), version: 1,
       versionNonce: Math.floor(Math.random() * 2_147_483_647), isDeleted: false, boundElements: null, updated: Date.now(),
       link: null, locked: element.locked ?? false, text: label, originalText: label,
       fontSize: element.type === "schemaTable" ? element.fontSize ?? 14 : shapeElement?.label?.fontSize ?? 16,
@@ -350,6 +381,20 @@ export async function importDrawio(source: string): Promise<CanvasElement[]> {
   const cells = [...root.querySelectorAll(":scope > mxCell")];
   if (cells.length > 20_000) throw new Error("A diagram import can include up to 20,000 objects.");
   let importedPointCount = 0;
+  const groupCells = new Map(cells.flatMap(cell => {
+    if (cell.getAttribute("vertex") !== "1" || drawioStyle(cell.getAttribute("style") ?? "").shape !== "group" || !cell.getAttribute("id")) return [];
+    return [[cell.getAttribute("id")!, cell] as const];
+  }));
+  const globalGroupOffset = (groupId: string, visiting = new Set<string>()): Point => {
+    const group = groupCells.get(groupId);
+    if (!group || visiting.has(groupId) || visiting.size > 32) return { x: 0, y: 0 };
+    const nextVisiting = new Set(visiting); nextVisiting.add(groupId);
+    const geometry = group.querySelector(":scope > mxGeometry");
+    const parent = group.getAttribute("parent") ?? "1";
+    const parentOffset = globalGroupOffset(parent, nextVisiting);
+    return { x: parentOffset.x + numberAttr(geometry, "x", 0), y: parentOffset.y + numberAttr(geometry, "y", 0) };
+  };
+  const cellOffset = (cell: Element) => globalGroupOffset(cell.getAttribute("parent") ?? "1");
   const vertices = new Map<string, CanvasPrimitive>(); const pendingEdges: { cell: Element; style: Record<string, string>; geo: Element | null }[] = [];
   const imported: CanvasElement[] = [];
   for (const cell of cells) {
@@ -358,12 +403,14 @@ export async function importDrawio(source: string): Promise<CanvasElement[]> {
     const geo = cell.querySelector(":scope > mxGeometry");
     const label = plainLabel(cell.getAttribute("value") ?? "");
     if (cell.getAttribute("edge") === "1") { pendingEdges.push({ cell, style, geo: cell.querySelector(":scope > mxGeometry") }); continue; }
-    const x = numberAttr(geo, "x", 0); const y = numberAttr(geo, "y", 0); const w = clamp(numberAttr(geo, "width", 120), 1, 20_000); const h = clamp(numberAttr(geo, "height", 72), 1, 20_000);
+    if (style.shape === "group") continue;
+    const offset = cellOffset(cell);
+    const x = numberAttr(geo, "x", 0) + offset.x; const y = numberAttr(geo, "y", 0) + offset.y; const w = clamp(numberAttr(geo, "width", 120), 1, 20_000); const h = clamp(numberAttr(geo, "height", 72), 1, 20_000);
     const shape = style.shape ?? "rectangle";
     if (shape === "polyline") {
       const pointNodes = [...(geo?.querySelectorAll("Array > mxPoint") ?? [])]; importedPointCount += pointNodes.length;
       if (importedPointCount > MAX_IMPORTED_POINTS) throw new Error("The draw.io page exceeds the 250,000 point import limit.");
-      const points = pointNodes.map(point => ({ x: numberAttr(point, "x", 0), y: numberAttr(point, "y", 0) }));
+      const points = pointNodes.map(point => ({ x: numberAttr(point, "x", 0) + offset.x, y: numberAttr(point, "y", 0) + offset.y }));
       if (points.length >= 2) {
         const stroke: FreehandElement = { type: "freehand", id: cell.getAttribute("id") || id("drawio-stroke"), points, color: safeColor(style.strokeColor, "#374151"), thickness: clamp(Number(style.strokeWidth) || 2, 0.5, 24), opacity: clamp((Number(style.opacity) || 100) / 100, 0, 1) };
         vertices.set(cell.getAttribute("id") || stroke.id!, stroke); imported.push(stroke);
@@ -399,19 +446,104 @@ export async function importDrawio(source: string): Promise<CanvasElement[]> {
     const targetBounds = targetElement && (targetElement.type === "rectangle" || targetElement.type === "circle" || targetElement.type === "diamond" || targetElement.type === "triangle" || targetElement.type === "flowchart") ? targetElement : undefined;
     const pointNodes = [...(geo?.querySelectorAll("Array > mxPoint") ?? [])]; importedPointCount += pointNodes.length;
     if (importedPointCount > MAX_IMPORTED_POINTS) throw new Error("The draw.io page exceeds the 250,000 point import limit.");
-    const points = pointNodes.map(point => ({ x: numberAttr(point, "x", 0), y: numberAttr(point, "y", 0) }));
+    const offset = cellOffset(cell);
+    const points = pointNodes.map(point => ({ x: numberAttr(point, "x", 0) + offset.x, y: numberAttr(point, "y", 0) + offset.y }));
     const label = plainLabel(cell.getAttribute("value") ?? "");
     const sourcePoint = geo?.querySelector(':scope > mxPoint[as="sourcePoint"]'); const targetPoint = geo?.querySelector(':scope > mxPoint[as="targetPoint"]');
-    const x = numberAttr(sourcePoint, "x", sourceBounds ? sourceBounds.x + sourceBounds.w / 2 : points[0]?.x ?? 0); const y = numberAttr(sourcePoint, "y", sourceBounds ? sourceBounds.y + sourceBounds.h / 2 : points[0]?.y ?? 0);
+    const x = numberAttr(sourcePoint, "x", sourceBounds ? sourceBounds.x + sourceBounds.w / 2 : points[0]?.x ?? 0) + (sourcePoint ? offset.x : 0); const y = numberAttr(sourcePoint, "y", sourceBounds ? sourceBounds.y + sourceBounds.h / 2 : points[0]?.y ?? 0) + (sourcePoint ? offset.y : 0);
     const lastPoint = points[points.length - 1];
-    const endX = numberAttr(targetPoint, "x", targetBounds ? targetBounds.x + targetBounds.w / 2 : lastPoint?.x ?? x + 120); const endY = numberAttr(targetPoint, "y", targetBounds ? targetBounds.y + targetBounds.h / 2 : lastPoint?.y ?? y + 60);
+    const endX = numberAttr(targetPoint, "x", targetBounds ? targetBounds.x + targetBounds.w / 2 : lastPoint?.x ?? x + 120) + (targetPoint ? offset.x : 0); const endY = numberAttr(targetPoint, "y", targetBounds ? targetBounds.y + targetBounds.h / 2 : lastPoint?.y ?? y + 60) + (targetPoint ? offset.y : 0);
     const type: ShapeElement["type"] = style.endArrow && style.endArrow !== "none" ? "arrow" : "line";
     const anchorToward = (from: ShapeElement, toX: number, toY: number) => { const dx = toX - (from.x + from.w / 2); const dy = toY - (from.y + from.h / 2); return Math.abs(dx) > Math.abs(dy) ? { x: dx > 0 ? 1 : 0, y: 0.5 } : { x: 0.5, y: dy > 0 ? 1 : 0 }; };
     const element: ShapeElement = { type, id: cell.getAttribute("id") || id("drawio-edge"), x, y, w: endX - x, h: endY - y, color: safeColor(style.strokeColor, "#374151"), thickness: clamp(Number(style.strokeWidth) || 2, 0.5, 24), lineStyle: drawioLineStyle(style), startHead: drawioHead(style.startArrow), endHead: drawioHead(style.endArrow), ...(points.length ? { routePoints: points } : {}), ...(sourceBounds ? { startBinding: { elementId: sourceBounds.id!, anchor: anchorToward(sourceBounds, endX, endY) } } : {}), ...(targetBounds ? { endBinding: { elementId: targetBounds.id!, anchor: anchorToward(targetBounds, x, y) } } : {}), ...(label ? { label: { text: label, color: safeColor(style.fontColor, "#374151"), fontSize: clamp(Number(style.fontSize) || 14, 8, 80), fontFamily: "sans", bold: (Number(style.fontStyle) & 1) !== 0, italic: (Number(style.fontStyle) & 2) !== 0, underline: (Number(style.fontStyle) & 4) !== 0, textAlign: style.align === "left" ? "left" : style.align === "right" ? "right" : "center", listType: "none", verticalAlign: "top" } } : {}) };
     imported.push(element);
   }
   if (!imported.length) throw new Error("No supported editable shapes or connectors were found in this draw.io page.");
-  return imported;
+  const sourceIdToElement = new Map(imported.flatMap(item => item.id ? [[item.id, item] as const] : []));
+  const directChildren = new Map<string, Element[]>();
+  for (const cell of cells) {
+    const parentId = cell.getAttribute("parent"); const sourceId = cell.getAttribute("id");
+    if (!parentId || !groupCells.has(parentId) || !sourceId) continue;
+    const children = directChildren.get(parentId) ?? []; children.push(cell); directChildren.set(parentId, children);
+  }
+  const groupChildren = (groupId: string, visiting = new Set<string>()): CanvasElement[] => {
+    if (visiting.has(groupId) || visiting.size > 32) return [];
+    const nextVisiting = new Set(visiting); nextVisiting.add(groupId);
+    return (directChildren.get(groupId) ?? []).flatMap(cell => {
+      const childId = cell.getAttribute("id");
+      if (!childId) return [];
+      if (groupCells.has(childId)) {
+        const children = groupChildren(childId, nextVisiting);
+        return children.length ? [{ type: "group" as const, id: childId, elements: children }] : [];
+      }
+      const item = sourceIdToElement.get(childId);
+      return item ? [item] : [];
+    });
+  };
+  const consumed = new Set<string>();
+  const consumeGroup = (groupId: string, visiting = new Set<string>()) => {
+    if (visiting.has(groupId) || visiting.size > 32) return;
+    const nextVisiting = new Set(visiting); nextVisiting.add(groupId);
+    for (const child of directChildren.get(groupId) ?? []) {
+      const childId = child.getAttribute("id");
+      if (!childId) continue;
+      consumed.add(childId);
+      if (groupCells.has(childId)) consumeGroup(childId, nextVisiting);
+    }
+  };
+  for (const groupId of groupCells.keys()) consumeGroup(groupId);
+  const grouped = new Map<string, CanvasElement>();
+  for (const [groupId] of groupCells) {
+    const children = groupChildren(groupId);
+    if (children.length) grouped.set(groupId, { type: "group", id: groupId, elements: children });
+  }
+  const output: CanvasElement[] = [];
+  for (const cell of cells) {
+    const sourceId = cell.getAttribute("id"); const parentId = cell.getAttribute("parent");
+    if (!sourceId || parentId && groupCells.has(parentId) || consumed.has(sourceId)) continue;
+    const container = grouped.get(sourceId);
+    if (container) output.push(container);
+    else {
+      const item = sourceIdToElement.get(sourceId);
+      if (item) output.push(item);
+    }
+  }
+  return output.length ? output : imported;
+}
+
+export type ImportFidelityReport = { kept: number; simplified: number; skipped: number };
+
+/** Import draw.io and report the number of cells preserved closely, simplified, or skipped. */
+export async function importDrawioWithReport(source: string): Promise<{ elements: CanvasElement[]; report: ImportFidelityReport }> {
+  const elements = await importDrawio(source);
+  let parsed = new DOMParser().parseFromString(source, "application/xml");
+  let model = parsed.querySelector("mxGraphModel");
+  if (!model) {
+    const diagram = parsed.querySelector("mxfile > diagram, mxfile diagram");
+    const content = diagram?.textContent?.trim() ?? "";
+    if (!content.startsWith("<") && content) parsed = new DOMParser().parseFromString(await decodeCompressedDiagram(content), "application/xml");
+    else if (diagram) parsed = new DOMParser().parseFromString(diagram.innerHTML, "application/xml");
+    model = parsed.querySelector("mxGraphModel");
+  }
+  const cells = [...(model?.querySelector("root")?.querySelectorAll(":scope > mxCell") ?? [])]
+    .filter(cell => cell.getAttribute("vertex") === "1" || cell.getAttribute("edge") === "1");
+  const importedIds = new Set<string>();
+  const collectImportedIds = (items: CanvasElement[]) => items.forEach(item => { if (item.id) importedIds.add(item.id); if (item.type === "group") collectImportedIds(item.elements); });
+  collectImportedIds(elements);
+  const groupIds = new Set<string>([...(model?.querySelector("root")?.querySelectorAll(":scope > mxCell[vertex='1']") ?? [])].flatMap(cell => drawioStyle(cell.getAttribute("style") ?? "").shape === "group" && cell.getAttribute("id") ? [cell.getAttribute("id")!] : []));
+  const simpleShapes = new Set(["rectangle", "ellipse", "doubleEllipse", "rhombus", "triangle", "hexagon", "cloud", "document", "parallelogram", "cylinder", "callout", "text", "none", "polyline", "image", "group"]);
+  let simplified = 0; let recognized = 0;
+  for (const cell of cells) {
+    if (cell.getAttribute("id") && !importedIds.has(cell.getAttribute("id")!)) continue;
+    recognized++;
+    const style = drawioStyle(cell.getAttribute("style") ?? "");
+    const parentId = cell.getAttribute("parent") ?? "1";
+    const nested = parentId !== "1" && !groupIds.has(parentId);
+    if (nested || cell.getAttribute("vertex") === "1" && !simpleShapes.has(style.shape ?? "rectangle") && !DRAWIO_FLOWCHART_SHAPES[style.shape ?? ""]) simplified++;
+  }
+  simplified = Math.min(recognized, simplified);
+  const skipped = Math.max(0, cells.length - recognized);
+  return { elements, report: { kept: Math.max(0, recognized - simplified), simplified, skipped } };
 }
 
 function drawioShape(element: CanvasElement): string {
@@ -427,40 +559,60 @@ function drawioShape(element: CanvasElement): string {
 
 /** Export SketchDraw shapes and connectors as editable mxGraph cells in draw.io XML. */
 export function exportDrawio(elements: CanvasElement[]): string {
-  const visible = flatten(elements);
+  const groups: Array<{ key: string; element: Extract<CanvasElement, { type: "group" }>; parent?: string }> = [];
+  const leaves: Array<{ element: CanvasPrimitive; parent?: string }> = [];
+  const collect = (items: CanvasElement[], parent?: string) => items.forEach(element => {
+    if (element.hidden) return;
+    if (element.type === "group") {
+      const key = element.id ?? id("sketchdraw-group");
+      groups.push({ key, element, parent }); collect(element.elements, key);
+    } else leaves.push({ element, parent });
+  });
+  collect(elements);
+  const visible = leaves.map(item => item.element);
   const cells: string[] = ['<mxCell id="0"/>', '<mxCell id="1" parent="0"/>'];
   let next = 2;
   const cellIds = new Map<string, string>();
+  for (const group of groups) cellIds.set(group.key, String(next++));
   for (const element of visible) if (element.id) cellIds.set(element.id, String(next++));
-  for (const element of visible) {
+  const groupBounds = new Map(groups.map(group => [group.key, elementBounds(group.element)] as const));
+  const groupCell = (key: string | undefined) => key ? cellIds.get(key) ?? "1" : "1";
+  const groupOrigin = (key: string | undefined) => key ? groupBounds.get(key) ?? { x: 0, y: 0, w: 0, h: 0 } : { x: 0, y: 0, w: 0, h: 0 };
+  for (const group of groups) {
+    const bounds = groupBounds.get(group.key)!; const parentBounds = groupOrigin(group.parent);
+    const value = group.element.container?.name ?? "";
+    cells.push(`<mxCell id="${cellIds.get(group.key)}" value="${escapeXml(value)}" style="shape=group;" vertex="1" parent="${groupCell(group.parent)}"><mxGeometry x="${bounds.x - parentBounds.x}" y="${bounds.y - parentBounds.y}" width="${Math.max(1, bounds.w)}" height="${Math.max(1, bounds.h)}" as="geometry"/></mxCell>`);
+  }
+  for (const { element, parent } of leaves) {
     const mxId = element.id ? cellIds.get(element.id)! : String(next++);
+    const parentId = groupCell(parent); const offset = groupOrigin(parent);
     const style = externalStyle(element);
     const safeOpacity = Math.round(style.opacity * 100);
     if (element.type === "line" || element.type === "arrow") {
       const source = element.startBinding ? cellIds.get(element.startBinding.elementId) : undefined;
       const target = element.endBinding ? cellIds.get(element.endBinding.elementId) : undefined;
       const points = element.routePoints?.length ? element.routePoints : undefined;
-      const pointsXml = points ? `<Array as="points">${points.map(point => `<mxPoint x="${point.x}" y="${point.y}"/>`).join("")}</Array>` : "";
+      const pointsXml = points ? `<Array as="points">${points.map(point => `<mxPoint x="${point.x - offset.x}" y="${point.y - offset.y}"/>`).join("")}</Array>` : "";
       const value = element.label ? escapeXml(element.label.text).replace(/\n/g, "&#xa;") : "";
       const dashPattern = element.lineStyle === "dotted" ? "1 2" : "8 4";
       const edgeLabel = element.label;
       const edgeFontStyle = (edgeLabel?.bold ? 1 : 0) + (edgeLabel?.italic ? 2 : 0) + (edgeLabel?.underline ? 4 : 0);
       const edgeStyle = `edgeStyle=none;rounded=0;strokeColor=${escapeXml(style.stroke)};strokeWidth=${style.strokeWidth};opacity=${safeOpacity};dashed=${element.lineStyle === "dashed" || element.lineStyle === "dotted" ? 1 : 0};${element.lineStyle === "solid" ? "" : `dashPattern=${dashPattern};`}startArrow=${mxHead(element.startHead)};endArrow=${mxHead(element.endHead ?? (element.type === "arrow" ? "solid" : "none"))};${edgeLabel ? `fontColor=${escapeXml(edgeLabel.color)};fontSize=${edgeLabel.fontSize};fontStyle=${edgeFontStyle};align=${edgeLabel.textAlign};verticalAlign=${edgeLabel.verticalAlign};` : ""}`;
-      const sourcePoint = source ? "" : `<mxPoint x="${element.x}" y="${element.y}" as="sourcePoint"/>`;
-      const targetPoint = target ? "" : `<mxPoint x="${element.x + element.w}" y="${element.y + element.h}" as="targetPoint"/>`;
-      cells.push(`<mxCell id="${mxId}" value="${value}" style="${edgeStyle}" edge="1" parent="1"${source ? ` source="${source}"` : ""}${target ? ` target="${target}"` : ""}><mxGeometry relative="1" as="geometry">${sourcePoint}${targetPoint}${pointsXml}</mxGeometry></mxCell>`);
+      const sourcePoint = source ? "" : `<mxPoint x="${element.x - offset.x}" y="${element.y - offset.y}" as="sourcePoint"/>`;
+      const targetPoint = target ? "" : `<mxPoint x="${element.x + element.w - offset.x}" y="${element.y + element.h - offset.y}" as="targetPoint"/>`;
+      cells.push(`<mxCell id="${mxId}" value="${value}" style="${edgeStyle}" edge="1" parent="${parentId}"${source ? ` source="${source}"` : ""}${target ? ` target="${target}"` : ""}><mxGeometry relative="1" as="geometry">${sourcePoint}${targetPoint}${pointsXml}</mxGeometry></mxCell>`);
       continue;
     }
     if (element.type === "image") {
       const drawioImage = element.dataUrl.replace(/^(data:image\/(?:png|jpeg|webp|gif));base64,/i, "$1,");
       const imageStyle = `shape=image;image=${drawioImage};aspect=fixed;strokeColor=${escapeXml(style.stroke)};strokeWidth=${style.strokeWidth};opacity=${safeOpacity};`;
-      cells.push(`<mxCell id="${mxId}" value="" style="${escapeXml(imageStyle)}" vertex="1" parent="1"><mxGeometry x="${element.x}" y="${element.y}" width="${element.w}" height="${element.h}" as="geometry"/></mxCell>`);
+      cells.push(`<mxCell id="${mxId}" value="" style="${escapeXml(imageStyle)}" vertex="1" parent="${parentId}"><mxGeometry x="${element.x - offset.x}" y="${element.y - offset.y}" width="${element.w}" height="${element.h}" as="geometry"/></mxCell>`);
       continue;
     }
     if (element.type === "freehand") {
       const bounds = pointBounds(element.points);
-      const pointsXml = `<Array as="points">${element.points.map(point => `<mxPoint x="${point.x}" y="${point.y}"/>`).join("")}</Array>`;
-      cells.push(`<mxCell id="${mxId}" value="" style="shape=polyline;strokeColor=${escapeXml(style.stroke)};strokeWidth=${style.strokeWidth};fillColor=none;" vertex="1" parent="1"><mxGeometry x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" as="geometry">${pointsXml}</mxGeometry></mxCell>`);
+      const pointsXml = `<Array as="points">${element.points.map(point => `<mxPoint x="${point.x - offset.x}" y="${point.y - offset.y}"/>`).join("")}</Array>`;
+      cells.push(`<mxCell id="${mxId}" value="" style="shape=polyline;strokeColor=${escapeXml(style.stroke)};strokeWidth=${style.strokeWidth};fillColor=none;" vertex="1" parent="${parentId}"><mxGeometry x="${bounds.x - offset.x}" y="${bounds.y - offset.y}" width="${bounds.w}" height="${bounds.h}" as="geometry">${pointsXml}</mxGeometry></mxCell>`);
       continue;
     }
     let bounds: { x: number; y: number; w: number; h: number }; let label = ""; let shape = "rectangle"; let color = style.stroke; let fill = style.fill; let fontColor = "#111827"; let fontSize = 16; let bold = false; let italic = false; let underline = false; let align = "center"; let verticalAlign = "middle"; let rotation = 0;
@@ -470,7 +622,7 @@ export function exportDrawio(elements: CanvasElement[]): string {
     const fillOpacityValue = element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" ? element.fillOpacity : undefined;
     const fillOpacity = fillOpacityValue === undefined ? "" : `fillOpacity=${Math.round(fillOpacityValue * 100)};`;
     const styleString = `shape=${shape};whiteSpace=wrap;html=0;rounded=0;rotation=${rotation};strokeColor=${escapeXml(color)};strokeWidth=${style.strokeWidth};fillColor=${escapeXml(fill === "transparent" ? "none" : fill)};${fillOpacity}opacity=${safeOpacity};fontColor=${escapeXml(fontColor)};fontSize=${fontSize};fontStyle=${(bold ? 1 : 0) + (italic ? 2 : 0) + (underline ? 4 : 0)};align=${align};verticalAlign=${verticalAlign};`;
-    cells.push(`<mxCell id="${mxId}" value="${escapeXml(label).replace(/\n/g, "&#xa;")}" style="${styleString}" vertex="1" parent="1"><mxGeometry x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" as="geometry"/></mxCell>`);
+    cells.push(`<mxCell id="${mxId}" value="${escapeXml(label).replace(/\n/g, "&#xa;")}" style="${styleString}" vertex="1" parent="${parentId}"><mxGeometry x="${bounds.x - offset.x}" y="${bounds.y - offset.y}" width="${bounds.w}" height="${bounds.h}" as="geometry"/></mxCell>`);
   }
   return `<?xml version="1.0" encoding="UTF-8"?><mxfile host="app.diagrams.net" modified="${new Date().toISOString()}" agent="SketchDraw" version="24.7.17" type="device"><diagram id="sketchdraw-page" name="Page-1"><mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0"><root>${cells.join("")}</root></mxGraphModel></diagram></mxfile>`;
 }

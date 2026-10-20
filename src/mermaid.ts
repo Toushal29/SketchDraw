@@ -1,10 +1,11 @@
 import type { Element, Point, ShapeElement, StrokeStyle } from "./model";
 
 export type MermaidDirection = "TD" | "BT" | "LR" | "RL";
-type MermaidNode = { key: string; label: string; shape: "rectangle" | "rounded" | "diamond" | "circle"; defined: boolean; subgraphId?: string };
+type MermaidNode = { key: string; label: string; shape: "rectangle" | "rounded" | "diamond" | "circle"; defined: boolean; subgraphId?: string; color?: string; fillColor?: string; labelColor?: string; thickness?: number; lineStyle?: StrokeStyle };
 type MermaidSubgraph = { id: string; title: string; parentId?: string };
-type MermaidLink = { from: string; to: string; label: string; lineStyle: StrokeStyle; thickness: number; startHead: ShapeElement["startHead"]; endHead: ShapeElement["endHead"] };
+type MermaidLink = { from: string; to: string; label: string; lineStyle: StrokeStyle; thickness: number; startHead: ShapeElement["startHead"]; endHead: ShapeElement["endHead"]; color?: string };
 export type MermaidFlowchart = { direction: MermaidDirection; nodes: MermaidNode[]; links: MermaidLink[]; subgraphs: MermaidSubgraph[] };
+export type MermaidSequence = { participants: { id: string; label: string; kind: "participant" | "actor" }[]; messages: { from: string; to: string; label: string; operator: string }[] };
 
 function nodeAt(line: string, offset: number): { node: MermaidNode; next: number } | undefined {
   const leading = /^\s*/.exec(line.slice(offset))?.[0].length ?? 0;
@@ -72,7 +73,7 @@ function linkAt(line: string, offset: number): { link: Omit<MermaidLink, "from" 
 export function parseMermaidFlowchart(source: string): MermaidFlowchart {
   if (source.length > 100_000) throw new Error("Mermaid input is limited to 100,000 characters.");
   let direction: MermaidDirection = "TD";
-  const nodes = new Map<string, MermaidNode>(); const links: MermaidLink[] = []; const subgraphs: MermaidSubgraph[] = []; const stack: MermaidSubgraph[] = [];
+  const nodes = new Map<string, MermaidNode>(); const links: MermaidLink[] = []; const subgraphs: MermaidSubgraph[] = []; const stack: MermaidSubgraph[] = []; const nodeStyles = new Map<string, Record<string, string>>(); const linkStyles = new Map<number, Record<string, string>>();
   const lines = source.replace(/\r/g, "").split("\n");
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
     const raw = lines[lineIndex].split("%%", 1)[0].trim(); if (!raw) continue;
@@ -84,7 +85,15 @@ export function parseMermaidFlowchart(source: string): MermaidFlowchart {
       subgraphs.push(subgraph); if (subgraphs.length > 50) throw new Error("A Mermaid import can contain up to 50 subgraphs."); stack.push(subgraph); continue;
     }
     if (/^end\s*$/i.test(raw)) { if (!stack.length) throw new Error("Unexpected subgraph end on line " + (lineIndex + 1) + "."); stack.pop(); continue; }
-    if (/^(?:classDef\b|class\s|style\s|linkStyle\b|click\s|direction\s)/i.test(raw)) continue;
+    const style = /^style\s+([A-Za-z_]\w*)\s+(.+)$/i.exec(raw);
+    if (style) { nodeStyles.set(style[1], Object.fromEntries(style[2].split(",").map(part => { const [key, ...value] = part.split(":"); return [key.trim().toLowerCase(), value.join(":").trim()]; }).filter(([key, value]) => !!key && !!value))); continue; }
+    const linkStyle = /^linkStyle\s+(\d+|default)\s+(.+)$/i.exec(raw);
+    if (linkStyle) {
+      const values = Object.fromEntries(linkStyle[2].split(",").map(part => { const [key, ...value] = part.split(":"); return [key.trim().toLowerCase(), value.join(":").trim()]; }).filter(([key, value]) => !!key && !!value));
+      if (linkStyle[1].toLowerCase() === "default") links.forEach((_, index) => linkStyles.set(index, { ...linkStyles.get(index), ...values })); else linkStyles.set(Number(linkStyle[1]), values);
+      continue;
+    }
+    if (/^(?:classDef\b|class\s|click\s|direction\s)/i.test(raw)) continue;
     let cursor = 0; const first = nodeAt(raw, cursor);
     if (!first) throw new Error("Unsupported Mermaid flowchart syntax on line " + (lineIndex + 1) + ".");
     const remember = (node: MermaidNode) => {
@@ -110,6 +119,13 @@ export function parseMermaidFlowchart(source: string): MermaidFlowchart {
   if (stack.length) throw new Error("Close the Mermaid subgraph with end.");
   if (!nodes.size) throw new Error("Add at least one node to the Mermaid flowchart.");
   if (nodes.size > 200) throw new Error("A Mermaid import can contain up to 200 nodes.");
+  for (const [key, attrs] of nodeStyles) {
+    const node = nodes.get(key); if (!node) continue;
+    const width = Number.parseFloat(attrs["stroke-width"] ?? "");
+    const dashValues = (attrs["stroke-dasharray"] ?? "").split(/[\s,]+/).map(Number).filter(Number.isFinite);
+    Object.assign(node, { ...(attrs.stroke ? { color: attrs.stroke } : {}), ...(attrs.fill ? { fillColor: attrs.fill } : {}), ...(attrs.color ? { labelColor: attrs.color } : {}), ...(Number.isFinite(width) && width > 0 ? { thickness: width } : {}), ...(attrs["stroke-dasharray"] ? { lineStyle: dashValues[0] <= 1 ? "dotted" : "dashed" } : {}) });
+  }
+  links.forEach((link, index) => { const attrs = linkStyles.get(index); if (!attrs) return; const width = Number.parseFloat(attrs["stroke-width"] ?? ""); Object.assign(link, { ...(attrs.stroke ? { color: attrs.stroke } : {}), ...(Number.isFinite(width) && width > 0 ? { thickness: width } : {}), ...(attrs["stroke-dasharray"] ? { lineStyle: "dashed" } : {}) }); });
   return { direction, nodes: [...nodes.values()], links, subgraphs };
 }
 
@@ -137,7 +153,7 @@ export function layoutMermaidFlowchart(diagram: MermaidFlowchart, center: Point)
     const minor = (slot - (members.length - 1) / 2) * (isHorizontal ? 142 : 244);
     const width = node.shape === "circle" ? 112 : 184; const height = node.shape === "circle" ? 92 : 78;
     const x = center.x + (isHorizontal ? major : minor) - width / 2; const y = center.y + (isHorizontal ? minor : major) - height / 2;
-    const shape: ShapeElement = { type: node.shape === "diamond" ? "diamond" : node.shape === "circle" ? "circle" : "rectangle", id: "mermaid-node:" + node.key, x, y, w: width, h: height, color: "#657f98", thickness: 1.6, fillColor: "#f3f7fb", fillOpacity: 1, edgeStyle: node.shape === "rounded" ? "pill" : "rounded", cornerRadius: node.shape === "rounded" ? 28 : 12, label: { text: node.label, color: "#33495d", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } };
+    const shape: ShapeElement = { type: node.shape === "diamond" ? "diamond" : node.shape === "circle" ? "circle" : "rectangle", id: "mermaid-node:" + node.key, x, y, w: width, h: height, color: node.color ?? "#657f98", thickness: node.thickness ?? 1.6, fillColor: node.fillColor ?? "#f3f7fb", fillOpacity: 1, ...(node.lineStyle ? { lineStyle: node.lineStyle } : {}), edgeStyle: node.shape === "rounded" ? "pill" : "rounded", cornerRadius: node.shape === "rounded" ? 28 : 12, label: { text: node.label, color: node.labelColor ?? "#33495d", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } };
     positions.set(node.key, shape);
   });
   const framesById = new Map<string, ShapeElement>();
@@ -163,7 +179,72 @@ export function layoutMermaidFlowchart(diagram: MermaidFlowchart, center: Point)
     const endAnchor = horizontal ? { x: forward ? 0 : 1, y: .5 } : { x: .5, y: forward ? 0 : 1 };
     const start = { x: from.x + from.w * startAnchor.x, y: from.y + from.h * startAnchor.y };
     const end = { x: to.x + to.w * endAnchor.x, y: to.y + to.h * endAnchor.y };
-    return { type: "line", id: "mermaid-link:" + index, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: "#71869b", thickness: link.thickness, lineStyle: link.lineStyle, startHead: link.startHead, endHead: link.endHead, startBinding: { elementId: from.id!, anchor: startAnchor }, endBinding: { elementId: to.id!, anchor: endAnchor }, ...(link.label ? { label: { text: link.label, color: "#566b7e", fontSize: 11, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" as const } } : {}) } as ShapeElement;
+    return { type: "line", id: "mermaid-link:" + index, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: link.color ?? "#71869b", thickness: link.thickness, lineStyle: link.lineStyle, startHead: link.startHead, endHead: link.endHead, startBinding: { elementId: from.id!, anchor: startAnchor }, endBinding: { elementId: to.id!, anchor: endAnchor }, ...(link.label ? { label: { text: link.label, color: "#566b7e", fontSize: 11, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" as const } } : {}) } as ShapeElement;
   });
   return [...frames, ...nodes, ...links];
+}
+
+/** Parse the common participant/message subset of Mermaid sequence diagrams. */
+export function parseMermaidSequence(source: string): MermaidSequence {
+  if (source.length > 100_000) throw new Error("Mermaid input is limited to 100,000 characters.");
+  if (!/^\s*sequenceDiagram\b/im.test(source)) throw new Error("Start a sequence diagram with sequenceDiagram.");
+  const participants = new Map<string, MermaidSequence["participants"][number]>();
+  const messages: MermaidSequence["messages"] = [];
+  const lines = source.replace(/\r/g, "").split("\n");
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index].replace(/%%.*$/, "").trim();
+    if (!line || /^sequenceDiagram\b/i.test(line)) continue;
+    const declaration = /^(participant|actor)\s+([A-Za-z_]\w*)(?:\s+as\s+(.+))?$/i.exec(line);
+    if (declaration) {
+      const id = declaration[2];
+      if (participants.has(id)) throw new Error(`Duplicate Mermaid participant "${id}" on line ${index + 1}.`);
+      participants.set(id, { id, label: (declaration[3] ?? id).replace(/^(["'])(.*)\1$/, "$2"), kind: declaration[1].toLowerCase() as "participant" | "actor" });
+      continue;
+    }
+    const message = /^([A-Za-z_]\w*)\s*(-{1,2}(?:>>|>|x|\)|\|))\s*([A-Za-z_]\w*)\s*:\s*(.+)$/.exec(line);
+    if (message) {
+      const [, from, operator, to, label] = message;
+      for (const id of [from, to]) if (!participants.has(id)) participants.set(id, { id, label: id, kind: "participant" });
+      messages.push({ from, to, label: label.trim(), operator });
+      if (messages.length > 500) throw new Error("A Mermaid sequence diagram can contain up to 500 messages.");
+      continue;
+    }
+    if (/^(?:activate|deactivate|autonumber|title|note\b|loop\b|alt\b|else\b|opt\b|par\b|and\b|end\b|critical\b|break\b|rect\b|links\b)/i.test(line)) {
+      throw new Error(`Mermaid sequence construct on line ${index + 1} is not supported yet: ${line.split(/\s/, 1)[0]}.`);
+    }
+    throw new Error(`Unsupported Mermaid sequence syntax on line ${index + 1}.`);
+  }
+  if (!participants.size) throw new Error("Add at least one participant or message to the Mermaid sequence diagram.");
+  if (participants.size > 100) throw new Error("A Mermaid sequence diagram can contain up to 100 participants.");
+  return { participants: [...participants.values()], messages };
+}
+
+/** Lay out sequence participants and messages as ordinary editable canvas elements. */
+export function layoutMermaidSequence(diagram: MermaidSequence, center: Point): Element[] {
+  const spacing = 220; const width = 154; const height = Math.max(280, 110 + diagram.messages.length * 58);
+  const firstX = center.x - (diagram.participants.length - 1) * spacing / 2 - width / 2;
+  const participantGroups = diagram.participants.map((participant, index) => ({
+    type: "group" as const,
+    id: `mermaid-sequence-participant:${participant.id}`,
+    elements: [],
+    componentBounds: { x: firstX + index * spacing, y: center.y - height / 2, w: width, h: height },
+    libraryComponent: { kind: "uml-lifeline", label: participant.label },
+    ...(participant.kind === "actor" ? { componentRole: "actor" } : {}),
+  }));
+  const byId = new Map(diagram.participants.map((item, index) => [item.id, participantGroups[index]]));
+  const messages: ShapeElement[] = diagram.messages.map((message, index) => {
+    const from = byId.get(message.from)!; const to = byId.get(message.to)!;
+    const startX = from.componentBounds!.x + width / 2; const endX = to.componentBounds!.x + width / 2;
+    const y = center.y - height / 2 + 74 + index * 58;
+    const async = message.operator.startsWith("--") || message.operator.includes("x") || message.operator.includes(")");
+    return {
+      type: "arrow", id: `mermaid-sequence-message:${index + 1}`, x: startX, y, w: endX - startX, h: 0,
+      color: "#617a92", thickness: 1.6, lineStyle: async ? "dashed" : "solid",
+      startHead: "none", endHead: message.operator.includes("x") ? "bar" : message.operator.includes(")") ? "open" : "solid",
+      startBinding: { elementId: from.id!, anchor: { x: .5, y: (y - from.componentBounds!.y) / height } },
+      endBinding: { elementId: to.id!, anchor: { x: .5, y: (y - to.componentBounds!.y) / height } },
+      label: { text: message.label, color: "#40556a", fontSize: 11, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" },
+    };
+  });
+  return [...participantGroups, ...messages];
 }

@@ -94,6 +94,31 @@
         background: var(--ui-accent-soft);
     }
 
+    .app-shell:not(.platform-windows) .touch-quick-appearance { display: flex; align-items: center; gap: 3px; }
+    .app-shell:not(.platform-windows) .touch-quick-appearance-toggle,
+    .app-shell:not(.platform-windows) .touch-quick-line-style {
+        display: grid;
+        box-sizing: border-box;
+        width: 26px;
+        min-width: 26px;
+        height: 26px;
+        place-items: center;
+        padding: 3px;
+        border: 1px solid var(--touch-line);
+        border-radius: 7px;
+        color: var(--toolbar-ink, var(--theme-text-primary));
+        background: var(--touch-glass);
+        touch-action: manipulation;
+    }
+    .app-shell:not(.platform-windows) .touch-quick-appearance-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .app-shell:not(.platform-windows) .touch-quick-line-style svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+    .app-shell:not(.platform-windows) .touch-quick-line-style svg path.dashed { stroke-dasharray: 4 3; }
+    .app-shell:not(.platform-windows) .touch-quick-line-style svg path.dotted { stroke-dasharray: 1 3; }
+    .app-shell:not(.platform-windows) .touch-quick-appearance-toggle.active,
+    .app-shell:not(.platform-windows) .touch-quick-line-style.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .touch-quick-appearance-toggle:disabled,
+    .app-shell:not(.platform-windows) .touch-quick-line-style:disabled { opacity: .45; }
+
     /* The transparent scrim dismisses the panel on the next touch outside it. */
     .app-shell:not(.platform-windows) .touch-quick-width-scrim {
         position: fixed;
@@ -125,6 +150,43 @@
         background: var(--toolbar-surface, var(--theme-background));
         box-shadow: 0 8px 26px var(--theme-shadow);
     }
+
+    .app-shell:not(.platform-windows) .touch-quick-line-style-scrim {
+        position: fixed;
+        z-index: 1750;
+        inset: 0;
+        background: transparent;
+        touch-action: manipulation;
+    }
+    .app-shell:not(.platform-windows) .touch-quick-line-style-panel {
+        position: absolute;
+        display: flex;
+        width: max-content;
+        align-items: center;
+        gap: 5px;
+        padding: 7px;
+        border: 1px solid var(--touch-line);
+        border-radius: 12px;
+        color: var(--toolbar-ink, var(--theme-text-primary));
+        background: var(--toolbar-surface, var(--theme-background));
+        box-shadow: 0 8px 26px var(--theme-shadow);
+    }
+    .app-shell:not(.platform-windows) .touch-quick-line-style-panel button {
+        display: grid;
+        width: 38px;
+        height: 36px;
+        place-items: center;
+        padding: 5px;
+        border: 1px solid var(--touch-line);
+        border-radius: 8px;
+        color: inherit;
+        background: var(--touch-glass);
+        touch-action: manipulation;
+    }
+    .app-shell:not(.platform-windows) .touch-quick-line-style-panel button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .touch-quick-line-style-panel svg { width: 24px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+    .app-shell:not(.platform-windows) .touch-quick-line-style-panel path.dashed { stroke-dasharray: 4 3; }
+    .app-shell:not(.platform-windows) .touch-quick-line-style-panel path.dotted { stroke-dasharray: 1 3; }
 
     .app-shell:not(.platform-windows) .touch-quick-width-panel {
         position: absolute;

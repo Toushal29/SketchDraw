@@ -1,10 +1,10 @@
 # SketchDraw feature inventory and code audit
 
-Reviewed: 19 October 2026
-App versions in source: Windows 13.0.0; Android 8.0.0
+Reviewed: 20 October 2026
+App versions in source: Windows 14.0.0; Android 9.0.0
 Base source revision: e68c8e5 plus the current release changes.
 
-This document records features implemented in the source and a static review of the application, platform adapters, document handling, styles, build configuration, README, and canvas-performance code. It distinguishes current behavior from suggested work. The detailed audit and browser benchmark recorded below were run against the v12.4.0 source; see the [13.0.0 / 8.0.0 release notes](docs/release-notes-v13.0.0.md) for the current release checks.
+This document records features implemented in the source and a static review of the application, platform adapters, document handling, styles, build configuration, README, and canvas-performance code. It distinguishes current behavior from suggested work. Historical browser benchmark details below are from v12.4.0; current release checks and local artifact status are recorded in the [14.0.0 / 9.0.0 release notes](docs/release-notes-v14.0.0.md).
 
 ## Features available in the app
 
@@ -31,7 +31,7 @@ This document records features implemented in the source and a static review of 
 - **Selection and editing:** Move, resize, rotate, group, duplicate, copy, cut, paste, delete, and clear canvas objects. Align and distribute selections, copy object styles, and edit object properties.
 - **Tool and named layers:** Objects are grouped by drawing tool by default. Create a named layer from a selection; layers can be reordered, hidden, or locked.
 - **Undo and redo:** Undo and redo changes on the active page during the current editing session.
-- **Canvas navigation:** Pan, zoom, fit the drawing, zoom to a selection, use an optional minimap, and enable grid snapping alongside object alignment snapping or alignment guides.
+- **Canvas navigation:** Pan, zoom, fit the drawing, zoom to a selection, use an optional minimap, and enable grid snapping alongside object snapping.
 - **Board appearance:** Choose a board color and paper pattern. Board color can follow the selected app theme.
 
 ### Text, notes, and diagrams
@@ -44,7 +44,7 @@ This document records features implemented in the source and a static review of 
 - **Schema editing:** Edit generated table fields and relationship endpoints; generated connectors can attach to matching field rows.
 - **BPMN review:** Set conditions and a default path on sequence flows, add duration estimates to tasks, simulate parallel paths through gateways and modeled joins, and validate BPMN flow structure.
 - **Diagram validation:** Check dangling references, schema relationships, object overlap, and BPMN flow rules with general, BPMN, or ERD profiles.
-- **Simple inspector:** Everyday drawing and shape controls remain visible. Page links and nested diagrams are available in a collapsed section at the bottom. The inspector uses a single compact layout; quick styles remain on the left.
+- **Simple inspector:** Everyday drawing and shape controls remain visible. Quick styles stay on the left; connection point editing and collapsed page-link navigation live in the scrollable object details panel on the right.
 
 ### Project planning
 
@@ -139,20 +139,32 @@ Switching from Planning back to Canvas could leave the renderer idle until the u
 
 ## Missing features and recommended updates
 
-The following gaps are grounded in the current implementation and reviewed against the product’s planning and diagramming goals.
+### Implemented from the whiteboard and diagramming gap list
 
-### Diagramming and whiteboarding
+- Charts support pasted CSV, mixed line/area/bar/scatter series, secondary axes for line and area charts, and point annotations. Editing and removal keep the series data aligned with labels.
+- Grid snapping uses a fixed 25-unit document lattice independent of zoom and display scale. Basic shapes have a 25 × 25 unit minimum; connector width and height show the actual distance between endpoints, so one, two, and three grid segments read 25, 50, and 75. Rulers appear at the left and bottom edges; guides and measurement overlays are page-local, while toolbar and quick-style positions remain static.
+- Connector tools can enforce elbow-only routing and reattach nearby dangling endpoints in bulk. Shapes and modeling components expose editable named connection points.
+- Frames and containers are first-class grouped objects with names, bounds, optional clipping/background, child ownership, fit-to-content, and auto-resize settings. New frame and layer metadata persists in the existing v10 per-page model.
+- Pages can own nested layer trees with inherited hide/lock behavior, reordering, rename, nesting, multi-select hide/lock/delete, and object reassignment. Graph commands select connected/similar objects and orthogonalize selected connectors.
+- Custom stencils can define optional text fields using `{{Field}}` placeholders, and insertions prompt for field values.
+- Legacy layer names using `Parent / Child` paths migrate to the per-page layer tree when opened.
+- D2 has a bounded editable import/export subset for common nodes, groups, styles, and connectors, with a complex nested-architecture round-trip fixture in the canvas audit.
+- Imported SVG artwork that uses unsupported features is retained as sanitized embedded SVG. Imported path data, fill rule, and non-scaling stroke can be edited.
+- PNG, SVG, and PDF export already support selected objects or a chosen region; this is no longer a tracked gap.
 
-- **Interchange fidelity:** Expand draw.io and Excalidraw coverage for advanced routing, styles, custom shapes, groups, schema metadata, and diagram-specific behaviors. Add round-trip examples for supported objects and make simplified conversions visible during import/export.
-- **SVG fidelity:** Extend path editing and import fidelity for clipping paths, masks, filters, text layout, gradient transforms, and non-scaling strokes. These features currently fall back to raster or use simplified solid-color/transform handling.
-- **Custom shape library:** Expand the existing reusable stencil library with richer component authoring and user-authored fields. Named component ports and connection-rule editing have been removed from the current scope; ordinary shape and schema-row connector anchors remain.
-- **Layer hierarchy:** Named layers can hold selected objects and be reordered, hidden, or locked. Add nested layers, multi-select layer moves, and layer organization across pages.
-- **Canvas search and replace:** Search currently finds objects on the active page. Add cross-page result navigation and safe replace across labels, notes, and component metadata.
-- **Diagram structure tools:** General-purpose frames and swimlanes are available. Add object-to-object links, more diagram-specific editing for UML/ER/BPMN, and deeper C4 model editing while keeping architecture analysis and metadata tools out of the core workflow.
-- **More layout choices:** Automatic arrangement currently uses a layered layout. Add a simple way to choose force, stress, tree, or radial layouts, preserve locked regions, and arrange around existing placements.
-- **Diagram-code round-trip fidelity:** Reverse exports now cover Mermaid, DOT, CSV, PlantUML, SQL, and JSON Schema. Expand import/export fidelity for connector types, groups, schema metadata, styling, and external CSV conventions. Add D2 or broader PlantUML constructs and verify round trips with representative fixtures.
-- **Database access and SQL objects:** Schema text import currently creates table cards and preserves common constraints and indexes. Add read-only PostgreSQL/MySQL/SQLite introspection, richer SQL view/trigger/procedure objects, and dialect-aware schema export.
-- **Selection and region export:** Export selected objects or a chosen board region directly, instead of exporting only a page or page range.
+### Remaining diagramming and whiteboarding gaps
+
+- **Interchange fidelity:** Expand draw.io and Excalidraw coverage for advanced routing, styles, custom shapes, groups, schema metadata, and diagram-specific behavior. Add more representative round trips and show import simplifications clearly.
+- **Chart data workflows:** Selected schema tables and Markdown note tables now open the CSV chart wizard with their rows prefilled, so users can choose label and series columns and chart type. Structured table formats beyond schema metadata and Markdown tables still need a richer import and mapping flow.
+- **SVG vector editing:** Add node-level path editing and boolean union, subtract, intersect, and exclude. Imported SVG clips, masks, filters, text layout, gradient transforms, and unsupported features do not become editable native vector structure.
+- **Component systems:** Master/instance relationships, overrides, simple variants, portable libraries, and parameterized stencil text are present. Remaining work includes richer parametric shape authoring, reusable library categories and discovery, and typed ports across all connector creation and import paths.
+- **Layer organization:** Add reusable layer sets shared across pages. Nested page-local trees and structural child ownership are available.
+- **Canvas search and replace:** Ctrl+F searches all pages and can navigate to a result or replace matching text within one object at a time. A document-wide replace-all operation would need a transaction spanning page-scoped undo histories.
+- **Diagram structure tools:** Frames and swimlanes own nested objects and support common container behavior. Add richer UML/ER/BPMN editing and deeper C4 model editing.
+- **Responsive layout:** Frame resizing scales children together, but constraints such as pinning edges, keeping selected spacing, and responsive auto-layout rules are still limited.
+- **Prototyping:** Linked objects can now navigate between pages in presentation mode with instant, fade, or slide transitions. Add configurable triggers, overlays, scrolling, and richer flow maps.
+- **Diagram-code round-trip fidelity:** D2, Mermaid, DOT, CSV, SQL, JSON Schema, and a PlantUML subset are supported. Expand complex D2 and PlantUML constructs, styling and metadata preservation, and broaden fixture coverage for draw.io, Excalidraw, and Mermaid.
+- **Database access and SQL objects:** Schema text import creates table cards and preserves common constraints and indexes. Add read-only PostgreSQL/MySQL/SQLite introspection, richer SQL view/trigger/procedure objects, and dialect-aware schema export.
 
 ### Documents and interoperability
 

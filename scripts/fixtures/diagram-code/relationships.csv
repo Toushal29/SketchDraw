@@ -1,0 +1,6 @@
+id,label,from,to,edgeLabel,kind
+client,Client,,,,rectangle
+api,Order API,,,,rectangle
+store,Order store,,,,cylinder
+,,client,api,submits,arrow
+,,api,store,persists,arrow

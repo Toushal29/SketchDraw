@@ -1,102 +1,3 @@
-/* Component editing lives in its own right dock, independent of quick style. */
-.component-editor-dock {
-    position: absolute;
-    z-index: 6;
-    top: 68px;
-    right: 10px;
-    bottom: 60px;
-    display: flex;
-    width: min(270px, calc(100vw - 72px));
-    min-width: 210px;
-    flex-direction: column;
-    overflow: hidden;
-    border: 1px solid var(--workspace-line, var(--theme-border));
-    border-radius: 8px;
-    color: var(--workspace-ink, var(--theme-text-primary));
-    background: var(--workspace-surface, var(--theme-surface));
-}
-
-.component-editor-dock.collapsed {
-    top: calc(50% - 18px);
-    right: 0;
-    bottom: auto;
-    width: 34px;
-    min-width: 34px;
-    height: 36px;
-    border-radius: 7px 0 0 7px;
-}
-
-.component-editor-heading {
-    display: flex;
-    min-height: 42px;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 6px 8px 6px 10px;
-    border-bottom: 1px solid var(--workspace-line, var(--theme-border));
-    background: var(--workspace-raised, var(--theme-surface));
-}
-
-.component-editor-heading>div {
-    display: grid;
-    min-width: 0;
-    gap: 3px;
-}
-
-.component-editor-heading strong {
-    overflow: hidden;
-    font-size: 14px;
-    font-weight: 750;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.component-editor-heading>button,
-.component-editor-expand {
-    display: grid;
-    width: 28px;
-    height: 28px;
-    flex: 0 0 28px;
-    place-items: center;
-    border: 1px solid var(--workspace-line, var(--theme-border));
-    border-radius: 6px;
-    color: var(--workspace-muted, var(--theme-text-secondary));
-    background: var(--workspace-surface, var(--theme-surface));
-}
-
-.component-editor-heading>button:hover,
-.component-editor-expand:hover {
-    color: var(--workspace-accent, var(--theme-info));
-    background: color-mix(in srgb, var(--workspace-accent, var(--theme-info-muted)) 8%, var(--workspace-surface, var(--theme-surface)));
-}
-
-.component-editor-heading svg,
-.component-editor-expand svg {
-    width: 17px;
-    height: 17px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.component-editor-expand {
-    width: 100%;
-    height: 100%;
-    flex: 1;
-    border: 0;
-    border-radius: inherit;
-    background: transparent;
-}
-
-.component-editor-scroll {
-    min-height: 0;
-    flex: 1;
-    overflow-y: auto;
-    padding: 9px 10px 12px;
-}
-
 .component-editor-content {
     display: grid;
     gap: 9px;
@@ -341,6 +242,36 @@
     font-size: 17px;
 }
 
+.component-chart-series-options {
+    display: grid;
+    grid-column: 1 / -1;
+    gap: 6px;
+    min-width: 0;
+}
+
+.component-chart-choice-setting {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    color: var(--workspace-muted, var(--theme-text-secondary));
+    font-size: 10px;
+    font-weight: 650;
+}
+
+.component-chart-choice-setting .component-editor-choice-group button {
+    min-height: 25px;
+    padding-inline: 5px;
+    font-size: 9px;
+}
+
+.component-chart-series-row.chart-annotation-row {
+    grid-template-columns: minmax(0, 1fr) 24px;
+}
+
+.component-chart-series-row.chart-annotation-row>.component-chart-choice-setting {
+    grid-column: 1 / -1;
+}
+
 .component-chart-axis-row,
 .component-kpi-editor {
     display: grid;
@@ -481,6 +412,100 @@
 .component-option-actions button:disabled {
     opacity: .45;
     cursor: not-allowed;
+}
+
+.component-property-choice {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    color: var(--workspace-muted, var(--theme-text-secondary));
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.component-editor-choice-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+}
+
+.component-editor-choice-group.component-editor-choice-wrap {
+    flex-wrap: wrap;
+}
+
+.component-editor-choice-group button,
+.component-option-gap-control button {
+    min-width: 0;
+    min-height: 28px;
+    padding: 4px 8px;
+    border: 1px solid var(--workspace-line, var(--theme-border));
+    border-radius: 6px;
+    color: var(--workspace-ink, var(--theme-text-primary));
+    background: var(--workspace-surface, var(--theme-surface-input));
+    font: 600 10px/1.2 var(--font-ui);
+    cursor: pointer;
+}
+
+.component-editor-choice-group button {
+    flex: 1 1 auto;
+}
+
+.component-editor-choice-group button.active {
+    border-color: color-mix(in srgb, var(--workspace-accent, var(--theme-primary-border)) 58%, var(--workspace-line, var(--theme-border)));
+    color: var(--workspace-accent, var(--theme-primary));
+    background: color-mix(in srgb, var(--workspace-accent, var(--theme-primary-muted)) 9%, var(--workspace-surface, var(--theme-surface-input)));
+}
+
+.component-editor-choice-group button:disabled,
+.component-option-gap-control button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.component-editor-choice-group button:focus-visible,
+.component-option-gap-control button:focus-visible {
+    outline: 2px solid var(--workspace-accent, var(--theme-primary));
+    outline-offset: 1px;
+}
+
+.component-option-spacing {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.component-option-spacing.single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.component-option-gap-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    min-width: 0;
+    color: var(--workspace-muted, var(--theme-text-secondary));
+    font-size: 10px;
+    font-weight: 650;
+}
+
+.component-option-gap-control > span {
+    margin-right: auto;
+}
+
+.component-option-gap-control button {
+    width: 26px;
+    min-width: 26px;
+    padding: 3px;
+    font-size: 13px;
+}
+
+.component-option-gap-control output {
+    min-width: 18px;
+    color: var(--workspace-ink, var(--theme-text-primary));
+    font-variant-numeric: tabular-nums;
+    text-align: center;
 }
 
 .class-card-editor {

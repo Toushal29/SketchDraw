@@ -1,8 +1,8 @@
 import type { Element, SchemaTableElement, ShapeElement } from "../../model";
 
-export type DiagramCodeFormat = "mmd" | "dot" | "csv" | "sql" | "json" | "puml";
+export type DiagramCodeFormat = "mmd" | "dot" | "d2" | "csv" | "sql" | "json" | "puml";
 
-const flatten = (elements: Element[]): Element[] => elements.flatMap(element => element.hidden ? [] : element.type === "group" ? flatten(element.elements) : [element]);
+const flatten = (elements: Element[]): Element[] => elements.flatMap(element => element.hidden ? [] : element.type === "group" ? [...(element.libraryComponent?.kind === "uml-lifeline" ? [element] : []), ...flatten(element.elements)] : [element]);
 const safeId = (value: string, fallback: string) => {
   const id = value.replace(/[^A-Za-z0-9_]/g, "_").replace(/^[^A-Za-z_]+/, "");
   return id || fallback;
@@ -15,17 +15,18 @@ const csvCell = (value: unknown) => {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 };
 const isConnector = (item: Element): item is ShapeElement => item.type === "line" || item.type === "arrow";
-type DiagramNodeElement = SchemaTableElement | Extract<Element, { type: "text" }> | ShapeElement;
-const isNode = (item: Element): item is DiagramNodeElement => item.type === "schemaTable" || item.type === "text" || item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart";
-const nodeLabel = (item: Element) => item.type === "schemaTable" ? `${item.name}\n${item.columns.map(field => `${field.name}: ${field.dataType}${field.primaryKey ? " (PK)" : ""}`).join("\n")}` : item.type === "text" ? item.text : item.type === "group" ? "" : item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" ? item.label?.text ?? item.flowchartShape ?? item.type : "";
+type DiagramNodeElement = SchemaTableElement | Extract<Element, { type: "text" }> | ShapeElement | Extract<Element, { type: "group" }>;
+const isNode = (item: Element): item is DiagramNodeElement => item.type === "schemaTable" || item.type === "text" || item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" || item.type === "group" && item.libraryComponent?.kind === "uml-lifeline";
+const nodeLabel = (item: Element) => item.type === "schemaTable" ? `${item.name}\n${item.columns.map(field => `${field.name}: ${field.dataType}${field.primaryKey ? " (PK)" : ""}`).join("\n")}` : item.type === "text" ? item.text : item.type === "group" ? item.libraryComponent?.label ?? "Participant" : item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" ? item.label?.text ?? item.flowchartShape ?? item.type : "";
 type CodeNode = { item: DiagramNodeElement; id: string; label: string };
 type CodeEdge = { item: ShapeElement; from: CodeNode; to: CodeNode; label: string };
 
 function diagramParts(elements: Element[]) {
   const visible = flatten(elements);
   const used = new Set<string>();
-  const nodes: CodeNode[] = visible.filter(isNode).map((item, index) => {
-    const base = safeId(item.id ?? "", `node_${index + 1}`);
+  const nodes: CodeNode[] = visible.filter((item): item is DiagramNodeElement => isNode(item) && item.id?.startsWith("mermaid-subgraph:") !== true).map((item, index) => {
+    const sourceId = item.id?.startsWith("mermaid-node:") ? item.id.slice("mermaid-node:".length) : item.id;
+    const base = safeId(sourceId ?? "", `node_${index + 1}`);
     let id = base; let suffix = 2;
     while (used.has(id)) id = `${base}_${suffix++}`;
     used.add(id);
@@ -43,20 +44,45 @@ function diagramParts(elements: Element[]) {
     const y = end === "start" ? connector.y : connector.y + connector.h;
     return nodes.reduce((best, node) => {
       const item = node.item;
-      const cx = item.type === "text" ? item.x : item.x + item.w / 2;
-      const cy = item.type === "text" ? item.y : item.y + item.h / 2;
+      const cx = item.type === "text" ? item.x : item.type === "group" ? item.componentBounds!.x + item.componentBounds!.w / 2 : item.x + item.w / 2;
+      const cy = item.type === "text" ? item.y : item.type === "group" ? item.componentBounds!.y + item.componentBounds!.h / 2 : item.y + item.h / 2;
       const distance = (cx - x) ** 2 + (cy - y) ** 2;
       return distance < best.distance ? { node, distance } : best;
     }, { node: nodes[0], distance: Infinity }).node;
   };
   const edges: CodeEdge[] = visible.filter(isConnector).flatMap(item => {
-    const from = findEndpoint(item, "start"); const to = findEndpoint(item, "end");
-    return from && to ? [{ item, from, to, label: item.label?.text ?? "" }] : [];
+    const from = findEndpoint(item, "start");
+    if (!from) return [];
+    if (item.type === "arrow" && item.arrowRoute === "forked") {
+      return [item.forkUpper, item.forkLower].flatMap(branch => {
+        if (!branch) return [];
+        const endpoint = { ...item, x: branch.end?.x ?? item.x + item.w, y: branch.end?.y ?? item.y + item.h, w: 0, h: 0, endBinding: branch.endBinding };
+        const to = findEndpoint(endpoint, "end");
+        return to ? [{ item, from, to, label: "" }] : [];
+      });
+    }
+    const to = findEndpoint(item, "end");
+    return to ? [{ item, from, to, label: item.label?.text ?? "" }] : [];
   });
   return { nodes, edges, tables: visible.filter((item): item is SchemaTableElement => item.type === "schemaTable") };
 }
 
 function exportMermaid(elements: Element[]) {
+  if (elements.length === 1 && elements[0].type === "group" && elements[0].mermaid && /^\s*sequenceDiagram\b/im.test(elements[0].mermaid.source)) {
+    const group = elements[0];
+    const participants = group.elements.filter((item): item is Extract<Element, { type: "group" }> => item.type === "group" && item.libraryComponent?.kind === "uml-lifeline");
+    const aliases = new Map(participants.map((item, index) => [item.id!, safeId(item.id ?? "", `participant_${index + 1}`)]));
+    if (!participants.length) throw new Error("This sequence group has no editable lifelines to export.");
+    const lines = ["sequenceDiagram", ...participants.map((item, index) => `  participant ${aliases.get(item.id!) || `participant_${index + 1}`} as "${escapeMermaid(item.libraryComponent?.label ?? "Participant")}"`)];
+    for (const edge of group.elements.filter((item): item is ShapeElement => isConnector(item))) {
+      const from = edge.startBinding?.elementId ? aliases.get(edge.startBinding.elementId) : undefined;
+      const to = edge.endBinding?.elementId ? aliases.get(edge.endBinding.elementId) : undefined;
+      if (!from || !to) continue;
+      const operator = edge.lineStyle === "dashed" ? "-->>" : edge.endHead === "bar" ? "-x" : edge.endHead === "open" ? "-)" : "->>";
+      lines.push(`  ${from}${operator}${to}: ${escapeMermaid(edge.label?.text ?? "Message")}`);
+    }
+    return lines.join("\n") + "\n";
+  }
   const { nodes, edges } = diagramParts(elements);
   if (!nodes.length) throw new Error("Add at least one labeled shape or text item before exporting diagram code.");
   const definition = (node: CodeNode) => {
@@ -66,12 +92,33 @@ function exportMermaid(elements: Element[]) {
     if (node.item.type === "rectangle" && node.item.edgeStyle === "pill") return `${node.id}([${label}])`;
     return `${node.id}[${label}]`;
   };
-  const lines = ["flowchart TD", ...nodes.map(node => `  ${definition(node)}`)];
+  const allVisible = flatten(elements);
+  const frames = allVisible.filter((item): item is ShapeElement => item.type === "rectangle" && item.id?.startsWith("mermaid-subgraph:") === true);
+  const memberFrame = (node: CodeNode) => {
+    const center = node.item.type === "text" ? { x: node.item.x, y: node.item.y } : node.item.type === "group" ? { x: node.item.componentBounds!.x + node.item.componentBounds!.w / 2, y: node.item.componentBounds!.y + node.item.componentBounds!.h / 2 } : { x: node.item.x + node.item.w / 2, y: node.item.y + node.item.h / 2 };
+    return frames.filter(frame => center.x >= frame.x && center.x <= frame.x + frame.w && center.y >= frame.y && center.y <= frame.y + frame.h).sort((a, b) => a.w * a.h - b.w * b.h)[0];
+  };
+  const lines = ["flowchart TD"];
+  const definitions = (items: CodeNode[], indent: string) => items.map(node => `${indent}${definition(node)}`);
+  lines.push(...definitions(nodes.filter(node => !memberFrame(node)), "  "));
+  for (const frame of frames) {
+    const members = nodes.filter(node => memberFrame(node) === frame);
+    if (!members.length) continue;
+    const id = safeId(frame.id ?? "subgraph", "subgraph");
+    lines.push(`  subgraph ${id}["${escapeMermaid(frame.label?.text ?? "Group")}"]`, ...definitions(members, "    "), "  end");
+  }
   for (const edge of edges) {
     const item = edge.item;
     const operator = item.lineStyle === "dotted" ? "-.->" : item.thickness >= 3 ? "==>" : item.startHead && item.startHead !== "none" ? "<-->" : item.type === "arrow" || (item.endHead && item.endHead !== "none") ? "-->" : "---";
     lines.push(`  ${edge.from.id} ${operator}${edge.label ? `|${escapeMermaid(edge.label)}|` : ""} ${edge.to.id}`);
   }
+  for (const node of nodes) if (node.item.type !== "text" && node.item.type !== "schemaTable" && node.item.type !== "group") {
+    const style = [`fill:${node.item.fillColor ?? "#ffffff"}`, `stroke:${node.item.color}`, `color:${node.item.label?.color ?? "#33495d"}`, `stroke-width:${node.item.thickness}px`];
+    if (node.item.lineStyle === "dashed") style.push("stroke-dasharray:5 4");
+    if (node.item.lineStyle === "dotted") style.push("stroke-dasharray:1 4");
+    lines.push(`  style ${node.id} ${style.join(",")}`);
+  }
+  edges.forEach((edge, index) => { const item = edge.item; lines.push(`  linkStyle ${index} stroke:${item.color},stroke-width:${item.thickness}px${item.lineStyle === "dotted" ? ",stroke-dasharray:1 4" : item.lineStyle === "dashed" ? ",stroke-dasharray:5 4" : ""}`); });
   return lines.join("\n") + "\n";
 }
 
@@ -82,17 +129,63 @@ function exportDot(elements: Element[]) {
   for (const node of nodes) {
     const item = node.item;
     const shape = item.type === "circle" ? "ellipse" : item.type === "diamond" ? "diamond" : item.type === "schemaTable" ? "record" : "box";
-    const color = item.type === "schemaTable" ? "#9ca3af" : item.color;
-    const fill = item.type === "schemaTable" ? "#ffffff" : item.type === "text" ? "none" : item.fillColor ?? "#ffffff";
-    lines.push(`  ${node.id} [label="${escapeQuoted(node.label)}", shape=${shape}, color="${escapeQuoted(color)}", fillcolor="${escapeQuoted(fill)}", style=filled];`);
+    const color = item.type === "schemaTable" || item.type === "group" ? "#9ca3af" : item.type === "text" ? "#333333" : item.color;
+    const fill = item.type === "schemaTable" || item.type === "group" ? "#ffffff" : item.type === "text" ? "none" : item.fillColor ?? "#ffffff";
+    const rounded = item.type === "group" || item.type === "rectangle" && item.edgeStyle === "rounded";
+    lines.push(`  ${node.id} [label="${escapeQuoted(node.label)}", shape=${shape}, color="${escapeQuoted(color)}", fillcolor="${escapeQuoted(fill)}", style="${item.type === "text" ? "" : `filled${rounded ? ",rounded" : ""}`}"];`);
   }
   for (const edge of edges) {
     const item = edge.item;
     const style = item.lineStyle === "dotted" ? "dotted" : item.lineStyle === "dashed" ? "dashed" : "solid";
     const dir = item.startHead && item.startHead !== "none" ? "both" : item.type === "arrow" || (item.endHead && item.endHead !== "none") ? "forward" : "none";
-    lines.push(`  ${edge.from.id} -> ${edge.to.id} [${edge.label ? `label="${escapeQuoted(edge.label)}", ` : ""}style=${style}, dir=${dir}];`);
+    const arrowhead = item.endHead === "none" ? "none" : item.endHead === "open" ? "vee" : item.endHead === "dot" ? "odot" : item.endHead === "bar" ? "tee" : "normal";
+    const arrowtail = item.startHead === "none" ? "none" : item.startHead === "open" ? "vee" : item.startHead === "dot" ? "odot" : item.startHead === "bar" ? "tee" : "normal";
+    lines.push(`  ${edge.from.id} -> ${edge.to.id} [${edge.label ? `label="${escapeQuoted(edge.label)}", ` : ""}color="${escapeQuoted(item.color)}", penwidth=${Math.max(.5, item.thickness)}, style=${style}, dir=${dir}, arrowhead=${arrowhead}, arrowtail=${arrowtail}];`);
   }
   return lines.join("\n") + "\n}\n";
+}
+
+function exportD2(elements: Element[]) {
+  const { nodes, edges } = diagramParts(elements);
+  if (!nodes.length) throw new Error("Add at least one labeled shape or text item before exporting diagram code.");
+  const lines: string[] = [];
+  const nodeByElement = new Map(nodes.map(node => [node.item, node]));
+  const used = new Set(nodes.map(node => node.id));
+  let groupSequence = 0;
+  const writeNodes = (items: Element[], depth: number) => {
+    const indent = "  ".repeat(depth);
+    for (const item of items) {
+      if (item.hidden) continue;
+      if (item.type === "group" && item.libraryComponent?.kind !== "uml-lifeline") {
+        const base = safeId(item.libraryComponent?.label ?? item.note?.title ?? `group_${++groupSequence}`, `group_${groupSequence}`);
+        let id = base; let suffix = 2;
+        while (used.has(id)) id = `${base}_${suffix++}`;
+        used.add(id);
+        lines.push(`${indent}${id}: {`);
+        writeNodes(item.elements, depth + 1);
+        lines.push(`${indent}}`);
+        continue;
+      }
+      if (!isNode(item)) continue;
+      const node = nodeByElement.get(item);
+      if (!node) continue;
+      lines.push(`${indent}${node.id}: ${JSON.stringify(node.label)}`);
+      const shape = item.type === "circle" ? "oval" : item.type === "diamond" ? "diamond" : "rectangle";
+      const fill = item.type === "schemaTable" || item.type === "group" ? "#ffffff" : item.type === "text" ? undefined : item.fillColor;
+      const stroke = item.type === "schemaTable" || item.type === "group" ? "#9ca3af" : item.type === "text" ? undefined : item.color;
+      lines.push(`${indent}${node.id}.shape: ${shape}`);
+      if (fill) lines.push(`${indent}${node.id}.style.fill: ${JSON.stringify(fill)}`);
+      if (stroke) lines.push(`${indent}${node.id}.style.stroke: ${JSON.stringify(stroke)}`);
+    }
+  };
+  writeNodes(elements, 0);
+  if (edges.length) lines.push("");
+  for (const edge of edges) {
+    const item = edge.item;
+    const operator = item.startHead && item.startHead !== "none" ? "<->" : "->";
+    lines.push(`  ${edge.from.id} ${operator} ${edge.to.id}${edge.label ? `: ${JSON.stringify(edge.label)}` : ""}`);
+  }
+  return lines.join("\n") + "\n";
 }
 
 function exportCsv(elements: Element[]) {
@@ -182,6 +275,7 @@ export function exportDiagramCode(format: DiagramCodeFormat, elements: Element[]
   switch (format) {
     case "mmd": return exportMermaid(elements);
     case "dot": return exportDot(elements);
+    case "d2": return exportD2(elements);
     case "csv": return exportCsv(elements);
     case "sql": return exportSchema(diagramParts(elements).tables, "sql");
     case "json": return exportSchema(diagramParts(elements).tables, "json");
@@ -197,7 +291,8 @@ export function plantUmlToDiagram(source: string): Element[] {
   const nodes = new Map<string, Node>(); const edges: { from: string; to: string; label: string }[] = [];
   const lines = source.replace(/\r/g, "").split("\n");
   let block: Node | undefined;
-  for (const raw of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const raw = lines[lineIndex];
     const line = raw.trim();
     if (!line || line.startsWith("'" ) || /^@(?:startuml|enduml)\b/i.test(line)) continue;
     if (block) {
@@ -206,7 +301,7 @@ export function plantUmlToDiagram(source: string): Element[] {
       block.fields.push(line.replace(/^[+\-#~]\s*/, ""));
       continue;
     }
-    const declaration = /^(?:class|entity|object|rectangle|component)\s+(?:"([^"]+)"\s+as\s+)?([A-Za-z_][\w.-]*)(?:\s*\{)?\s*$/i.exec(line);
+    const declaration = /^(?:abstract\s+)?(?:class|entity|object|rectangle|component|interface|enum|annotation|database|queue)\s+(?:"([^"]+)"\s+as\s+)?([A-Za-z_][\w.-]*)(?:\s*\{)?\s*$/i.exec(line);
     if (declaration) {
       const alias = declaration[2];
       if (nodes.has(alias)) throw new Error(`Duplicate PlantUML element: ${alias}`);
@@ -215,13 +310,23 @@ export function plantUmlToDiagram(source: string): Element[] {
       if (line.endsWith("{")) block = node;
       continue;
     }
-    const relationship = /^([A-Za-z_][\w.-]*)\s*(?:<\|\.\.|\*--|o--|<-->|<--|-->|\.\.>|--|\.\.|\*)\s*([A-Za-z_][\w.-]*)(?:\s*:\s*(.*))?$/.exec(line);
+    const cardinality = /^([A-Za-z_][\w.-]*)\s+"([^"]+)"\s*(<\|\.\.|<\|--|\.\.\|>|\*--|o--|<-->|<--|-->|\.\.>|--|\.\.|\*)\s*"([^"]+)"\s*([A-Za-z_][\w.-]*)(?:\s*:\s*(.*))?$/.exec(line);
+    if (cardinality) {
+      if (edges.length >= 500) throw new Error("A PlantUML import can contain up to 500 relationships.");
+      const [, from, leftCardinality, , rightCardinality, to, label = ""] = cardinality;
+      for (const id of [from, to]) if (!nodes.has(id)) nodes.set(id, { id, label: id, fields: [] });
+      edges.push({ from, to, label: [leftCardinality, rightCardinality, label].filter(Boolean).join(" · ") });
+      continue;
+    }
+    const relationship = /^([A-Za-z_][\w.-]*)\s*(?:<\|\.\.|<\|--|\.\.\|>|\*--|o--|<-->|<--|-->|\.\.>|--|\.\.|\*)\s*([A-Za-z_][\w.-]*)(?:\s*:\s*(.*))?$/.exec(line);
     if (relationship) {
       if (edges.length >= 500) throw new Error("A PlantUML import can contain up to 500 relationships.");
       const [, from, to, label = ""] = relationship;
       for (const id of [from, to]) if (!nodes.has(id)) nodes.set(id, { id, label: id, fields: [] });
       edges.push({ from, to, label });
+      continue;
     }
+    throw new Error(`Unsupported PlantUML construct on line ${lineIndex + 1}: “${line.slice(0, 80)}”. This importer currently supports class, entity, object, rectangle, component, members, and common relationships.`);
   }
   if (block) throw new Error("Close each PlantUML class body with }.");
   if (!nodes.size) throw new Error("Add at least one class, object, or relationship to the PlantUML file.");

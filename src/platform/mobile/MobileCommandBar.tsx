@@ -1,6 +1,4 @@
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
-import type { Tool } from "../../model";
-import { ToolbarOrderEditor } from "../../components/ToolbarOrderEditor";
 import { TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./GestureSettings";
 
 type MenuPanel = "file" | "settings" | undefined;
@@ -45,13 +43,9 @@ type Props = {
   showMobileLayoutSettings: boolean;
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
-  toolbarOrder: { value: Tool; label: string }[];
   onInterfaceScaleChange: (scale: number) => void;
   onMobileOrientationChange: (orientation: "landscape" | "portrait") => void;
   onToolbarPositionChange: (position: "top" | "bottom" | "left" | "right") => void;
-  onMoveToolbarTool: (tool: Tool, direction: -1 | 1) => void;
-  onReorderToolbarTool: (from: Tool, to: Tool) => void;
-  onResetToolbarOrder: () => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: "presets" | "stepper") => void;
   appAppearance: {
@@ -246,7 +240,6 @@ export function MobileCommandBar(props: Props) {
               <div class="mobile-settings-field"><span>Interface scale <strong>{Math.round(props.interfaceScale * 100)}%</strong></span><ChoiceRow label="Interface scale" value={props.interfaceScale} options={[0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4].map(scale => ({ value: scale, label: `${Math.round(scale * 100)}%` }))} onChange={props.onInterfaceScaleChange} /></div>
               <div class="mobile-settings-field"><span>Autosave interval</span><ChoiceRow label="Autosave interval" value={props.autosaveSeconds} options={[{ value: 5, label: "5 sec" }, { value: 10, label: "10 sec" }]} onChange={props.onAutosaveChange} /></div>
               <div class="mobile-settings-field"><span>Pen thickness control</span><ChoiceRow label="Pen thickness control" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} /></div>
-              <ToolbarOrderEditor items={props.toolbarOrder} onMove={props.onMoveToolbarTool} onReorder={props.onReorderToolbarTool} onReset={props.onResetToolbarOrder} />
               <button class="mobile-settings-reset" onClick={props.onRestoreDefaults}>Restore defaults</button>
             </section>
           </Show>

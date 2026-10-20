@@ -1,7 +1,7 @@
 import type { Bounds, CanvasState, Element, FontFamily, ImageElement, Point, ShapeElement, TextElement, Theme } from "../../model";
 import { alignedTextStartX, isConnector, isLabelShape, textLayout } from "../../operations";
 import { arrowHeadEntries, arrowHeadSvgPath, connectorSvgPath, flowchartSvgDetailPath, vectorFlowchartPath } from "../canvas/geometry";
-import { elementBounds, unionBounds } from "../canvas/bounds";
+import { elementBounds, unionBounds, visibleElementBounds } from "../canvas/bounds";
 import { themeInk } from "../canvas/rendering";
 import { stylusStrokeWidth } from "../canvas/freehand-rendering";
 import { drawNoteCard } from "../../notes";
@@ -16,6 +16,7 @@ type PdfRenderPorts = {
   pdfCropMarks: () => boolean;
   imageCache: Map<string, HTMLImageElement>;
   theme: () => Theme;
+  isHidden?: (element: Element) => boolean;
   simpleComponentElement: (element: Element) => Element;
   drawElement: (context: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems?: Element[]) => void;
   drawNoteCard: typeof drawNoteCard;
@@ -51,10 +52,11 @@ export function imagePdfPages(pages: PdfRasterPage[], options: Pick<PdfRenderPor
     const output = new Uint8Array(size); let cursor = 0; for (const part of parts) { output.set(part, cursor); cursor += part.length; } return output;
   }
 
-export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasState }[], output: { widthPt: number; heightPt: number }, marginMm: number, ports: PdfRenderPorts) {
+export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasState; bounds?: Bounds; padding?: number; isHidden?: (element: Element) => boolean }[], output: { widthPt: number; heightPt: number }, marginMm: number, ports: PdfRenderPorts) {
   const { pdfColorMode, pdfBleedMm, pdfHeader, pdfFooter, pdfCropMarks, imageCache, theme, simpleComponentElement, drawElement, drawNoteCard } = ports;
+  const isHidden = ports.isHidden ?? (element => element.hidden === true);
   let textMeasureContext: CanvasRenderingContext2D | null | undefined;
-    const { PDFDocument, StandardFonts, LineCapStyle, degrees, rgb, cmyk, pushGraphicsState, popGraphicsState, translate, rotateDegrees } = await import("pdf-lib");
+    const { PDFDocument, StandardFonts, LineCapStyle, degrees, rgb, cmyk, pushGraphicsState, popGraphicsState, translate, rotateDegrees, rectangle, clip, endPath } = await import("pdf-lib");
     const pdfColor = (color: string, mode: "rgb" | "cmyk" | "grayscale") => { const match=/^#([\da-f]{6})$/i.exec(color);if(!match)return rgb(.12,.12,.12);const channels=[0,2,4].map(i=>parseInt(match[1].slice(i,i+2),16)/255);if(mode==="grayscale"){const gray=channels[0]*.2126+channels[1]*.7152+channels[2]*.0722;return rgb(gray,gray,gray);}if(mode==="cmyk"){const black=1-Math.max(...channels);const divisor=1-black||1;return cmyk((1-channels[0]-black)/divisor,(1-channels[1]-black)/divisor,(1-channels[2]-black)/divisor,black);}return rgb(channels[0],channels[1],channels[2]);};
     const doc = await PDFDocument.create();
     const fontRegular = await doc.embedFont(StandardFonts.Helvetica); const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -82,9 +84,10 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
       if(rotated)page.pushOperators(popGraphicsState());
     };
     for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex++) {
-      const scene = scenes[sceneIndex]; const visible = scene.items.filter(item => !item.hidden); const raw = unionBounds(visible.map(elementBounds)) ?? { x: 0, y: 0, w: 800, h: 600 }; const padding = 24; const bounds = { x: raw.x - padding, y: raw.y - padding, w: Math.max(1, raw.w + padding * 2), h: Math.max(1, raw.h + padding * 2) };
+      const scene = scenes[sceneIndex]; const isSceneHidden = scene.isHidden ?? isHidden; const visibleBounds = scene.items.flatMap(item => visibleElementBounds(item, isSceneHidden)); const raw = scene.bounds ?? unionBounds(visibleBounds) ?? { x: 0, y: 0, w: 800, h: 600 }; const padding = Math.max(0, scene.padding ?? 24); const bounds = { x: raw.x - padding, y: raw.y - padding, w: Math.max(1, raw.w + padding * 2), h: Math.max(1, raw.h + padding * 2) };
       const usableW = output.widthPt - margin * 2; const usableH = output.heightPt - margin * 2; const scale = Math.max(.001, Math.min(usableW / bounds.w, usableH / bounds.h)); const x0 = bleed + margin - bounds.x * scale; const yTop = paperH - bleed - margin + bounds.y * scale;
       const page = doc.addPage([paperW, paperH]); page.setTrimBox(bleed, bleed, output.widthPt, output.heightPt); page.setBleedBox(0, 0, paperW, paperH);
+      page.pushOperators(pushGraphicsState(), rectangle(bleed + margin, bleed + margin, usableW, usableH), clip(), endPath());
       const drawText = (text: string, x: number, y: number, color: string, size: number, family: FontFamily | undefined, bold: boolean, italic: boolean, opacity: number, rotation = 0, rotationCenter?: Point, align: TextElement["textAlign"] = "left") => {
         const font = family === "mono" ? fontMono : family === "serif" ? bold && italic ? fontSerifBoldItalic : bold ? fontSerifBold : italic ? fontSerifItalic : fontSerif : family === "hand" ? bold ? fontBoldItalic : fontItalic : bold && italic ? fontBoldItalic : bold ? fontBold : italic ? fontItalic : fontRegular;
         const safeText = pdfText(text);
@@ -92,7 +95,7 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
         page.drawText(safeText, { x: x0 + tx * scale, y: paperH - (bleed + margin + (ty - bounds.y) * scale) - size * scale, size: size * scale, font, color: pdfColor(themeInk(color, theme()), pdfColorMode()), opacity, rotate: degrees(-rotation) });
       };
       const drawItem = async (element: Element): Promise<void> => {
-        if (element.hidden) return;
+        if (isSceneHidden(element)) return;
         element = simpleComponentElement(element);
         if (element.type === "group") {
           if (element.note) {
@@ -110,7 +113,22 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
             } catch { for (const child of element.elements) await drawItem(child); }
             return;
           }
-          for (const child of element.elements) await drawItem(child); return;
+          const containerBounds = element.container && !element.libraryComponent ? element.componentBounds ?? elementBounds(element) : undefined;
+          if (element.container && containerBounds) {
+            const box = containerBounds; const left = x0 + box.x * scale; const top = paperH - (bleed + margin + (box.y - bounds.y) * scale); const width = box.w * scale; const height = box.h * scale; const border = pdfColor(themeInk(element.container.borderColor ?? "#667085", theme()), pdfColorMode()); const borderWidth = (element.container.borderThickness ?? 1.5) * scale;
+            if (element.container.background) page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(element.container.background, pdfColorMode()) });
+            const borderStyle = element.container.borderStyle ?? (element.container.kind === "frame" ? "dashed" : "solid");
+            if (element.container.showBorder !== false) {
+              const borderDashArray = borderStyle === "dashed" ? [borderWidth * 4, borderWidth * 2.5] : borderStyle === "dotted" ? [borderWidth, borderWidth * 2.2] : undefined;
+              page.drawRectangle({ x: left, y: top - height, width, height, color: undefined, borderColor: border, borderWidth, borderDashArray });
+              if (borderStyle === "double") { const inset = Math.max(2, borderWidth * 1.5); page.drawRectangle({ x: left + inset, y: top - height + inset, width: Math.max(0, width - inset * 2), height: Math.max(0, height - inset * 2), color: undefined, borderColor: border, borderWidth }); }
+            }
+            if (element.container.showLabel !== false && element.container.name.trim()) drawText(element.container.name, box.x + 8, box.y - 19, "#475467", 14, "sans", true, false, 1);
+            if (element.container.clipChildren) page.pushOperators(pushGraphicsState(), rectangle(left, top - height, width, height), clip(), endPath());
+          }
+          for (const child of element.elements) await drawItem(child);
+          if (element.container?.clipChildren && containerBounds) page.pushOperators(popGraphicsState());
+          return;
         }
         if (element.type === "image") { try { const embedded = await readImage(element); const centerX=x0+(element.x+element.w/2)*scale,centerY=paperH-(bleed+margin+(element.y+element.h/2-bounds.y)*scale),rotated=!!element.rotation;if(rotated)page.pushOperators(pushGraphicsState(),translate(centerX,centerY),rotateDegrees(-(element.rotation??0)),translate(-centerX,-centerY));page.drawImage(embedded, { x: x0 + element.x * scale, y: paperH - (bleed + margin + (element.y - bounds.y + element.h) * scale), width: element.w * scale, height: element.h * scale, opacity: element.opacity ?? 1 });if(rotated)page.pushOperators(popGraphicsState()); } catch { /* Keep other vector content even if an embedded image cannot be decoded. */ } return; }
         if (element.type === "text") { const lines = element.text.split(/\r?\n/).map((line,index)=>element.listType==="bullet"?`• ${line}`:element.listType==="number"?`${index+1}. ${line}`:line); const textBox=elementBounds(element); const center={x:textBox.x+textBox.w/2,y:textBox.y+textBox.h/2}; lines.forEach((line, index) => drawText(line, element.x, element.y + index * element.fontSize * 1.25, element.color, element.fontSize, element.fontFamily, !!element.bold, !!element.italic, element.opacity ?? 1, element.rotation ?? 0, center, element.textAlign)); if (element.underline) {
@@ -218,7 +236,8 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
         if(isLabelShape(element) || isConnector(element))drawShapeLabel(element,drawText);
       };
       const drawShapeLabel=(shape:ShapeElement,draw:(text:string,x:number,y:number,color:string,size:number,family:FontFamily|undefined,bold:boolean,italic:boolean,opacity:number,rotation?:number,rotationCenter?:Point)=>void)=>{if(!shape.label||!textMeasureContext)return;const bounds=elementBounds(shape),center={x:bounds.x+bounds.w/2,y:bounds.y+bounds.h/2};for(const run of textLayout(textMeasureContext,shape))draw(run.text,run.x,run.y,shape.label.color,shape.label.fontSize,shape.label.fontFamily,!!shape.label.bold,!!shape.label.italic,shape.label.opacity??1,shape.rotation??0,center);};
-      for(const item of visible)await drawItem(item);
+      for(const item of scene.items) if (!isSceneHidden(item)) await drawItem(item);
+      page.pushOperators(popGraphicsState());
       if(pdfHeader().trim())page.drawText(pdfText(pdfHeader()),{x:bleed+margin,y:paperH-bleed-margin+4,size:9,font:fontBold,color:pdfColor("#333333",pdfColorMode())});
       if(pdfFooter().trim())page.drawText(pdfText(pdfFooter()),{x:bleed+margin,y:bleed+margin/2,size:9,font:fontRegular,color:pdfColor("#333333",pdfColorMode())});
       page.drawText(`Page ${sceneIndex+1} of ${scenes.length}`,{x:paperW-bleed-margin-56,y:bleed+margin/2,size:9,font:fontRegular,color:pdfColor("#333333",pdfColorMode())});

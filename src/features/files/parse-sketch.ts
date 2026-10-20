@@ -1,5 +1,7 @@
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, LayerFlags, LibraryChartData, LineRoute, MermaidMetadata, NoteKind, Point, RelationshipDirection, RelationshipType, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
+import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, ConnectionPoint, ContainerMetadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LineRoute, MermaidMetadata, NoteKind, Point, RelationshipDirection, RelationshipType, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
+import { ensureCanvasLayerPath, normalizeCanvasLayers } from "../canvas/structure";
+import { elementBounds, unionBounds } from "../canvas/bounds";
 import { validReferences } from "../../operations";
 import { curveControlPoints } from "../canvas/geometry";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
@@ -21,6 +23,38 @@ export function isEmbeddedRasterImage(value: unknown): value is string {
 
 export function finite(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+export function isLibraryChartData(value: unknown): value is LibraryChartData {
+  if (!isRecord(value)) return false;
+  const labels = value.labels;
+  const values = value.values;
+  if (!Array.isArray(labels) || labels.length < 1 || labels.length > 20 || !labels.every(label => typeof label === "string" && label.length <= 60)
+    || !Array.isArray(values) || values.length !== labels.length || !values.every(number => finite(number) && Math.abs(number) <= 1_000_000_000)) return false;
+  if (!["title", "xAxisLabel", "yAxisLabel", "secondaryYAxisLabel"].every(key => value[key] === undefined || typeof value[key] === "string" && (value[key] as string).length <= 80)) return false;
+  const series = value.series;
+  if (series !== undefined && (!Array.isArray(series) || series.length > 8 || !series.every(item => {
+    if (!isRecord(item) || typeof item.name !== "string" || item.name.length > 60 || !Array.isArray(item.values) || item.values.length !== labels.length || !item.values.every(number => finite(number) && Math.abs(number) <= 1_000_000_000)) return false;
+    return (item.chartType === undefined || ["bar", "line", "area", "scatter"].includes(String(item.chartType))) && (item.axis === undefined || item.axis === "primary" || item.axis === "secondary");
+  }))) return false;
+  const annotations = value.annotations;
+  if (annotations !== undefined && (!Array.isArray(annotations) || annotations.length > 32 || !annotations.every(item => {
+    if (!isRecord(item) || !finite(item.index) || !Number.isInteger(item.index) || item.index < 0 || item.index >= labels.length || typeof item.label !== "string" || item.label.length > 80) return false;
+    return (item.value === undefined || finite(item.value) && Math.abs(item.value) <= 1_000_000_000) && (item.axis === undefined || item.axis === "primary" || item.axis === "secondary");
+  }))) return false;
+  const options = value.options;
+  if (options !== undefined) {
+    if (!isRecord(options)) return false;
+    if (options.palette !== undefined && !["blue", "ocean", "warm", "violet", "mono"].includes(String(options.palette))) return false;
+    if (options.legend !== undefined && !["right", "bottom", "hidden"].includes(String(options.legend))) return false;
+    if (!["showGrid", "showValues", "smooth"].every(key => options[key] === undefined || typeof options[key] === "boolean")) return false;
+    if (!["maxValue", "pointSize", "lineWidth"].every(key => options[key] === undefined || finite(options[key]) && (key === "maxValue" ? options[key] > 0 && options[key] <= 1_000_000_000 : options[key] >= 1 && options[key] <= 32))) return false;
+  }
+  return true;
+}
+function normalizeConnectionPoints(value: unknown): ConnectionPoint[] | undefined {
+  if (!Array.isArray(value) || value.length > 32) return undefined;
+  const points = value.flatMap((raw): ConnectionPoint[] => isRecord(raw) && typeof raw.id === "string" && /^[\w.-]{1,80}$/.test(raw.id) && typeof raw.name === "string" && raw.name.trim().length > 0 && raw.name.length <= 80 && isRecord(raw.anchor) && finite(raw.anchor.x) && finite(raw.anchor.y) && raw.anchor.x >= 0 && raw.anchor.x <= 1 && raw.anchor.y >= 0 && raw.anchor.y <= 1 ? [{ id: raw.id, name: raw.name, anchor: { x: raw.anchor.x, y: raw.anchor.y } }] : []);
+  return points.length === value.length && new Set(points.map(point => point.id)).size === points.length ? points : undefined;
 }
 function normalizeArchitectureMetadata(value: unknown): ArchitectureMetadata | undefined {
   if (!isRecord(value)) return undefined;
@@ -61,11 +95,14 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     hidden: typeof value.hidden === "boolean" ? value.hidden : false,
     locked: typeof value.locked === "boolean" ? value.locked : false,
     rotation: finite(value.rotation) ? value.rotation : 0,
+    ...(value.aspectLocked === true ? { aspectLocked: true } : {}),
+    ...(typeof value.layerId === "string" && /^[\w.-]{1,100}$/.test(value.layerId) ? { layerId: value.layerId } : {}),
     ...(typeof value.layerName === "string" && value.layerName.trim().length <= 80 ? { layerName: value.layerName.trim() } : {}),
     ...(typeof value.componentId === "string" ? { componentId: value.componentId } : {}),
     ...(typeof value.componentRole === "string" ? { componentRole: value.componentRole } : {}),
     ...(typeof value.catalogId === "string" && value.catalogId.length <= 100 ? { catalogId: value.catalogId } : {}),
     ...(typeof value.pageLinkId === "string" && value.pageLinkId.length <= 100 ? { pageLinkId: value.pageLinkId } : {}),
+    ...(typeof value.masterElementId === "string" && value.masterElementId.length <= 100 ? { masterElementId: value.masterElementId } : {}),
     ...(Array.isArray(value.strideThreats) ? { strideThreats: [...new Set(value.strideThreats.filter((threat): threat is StrideThreatCategory => ["spoofing", "tampering", "repudiation", "information-disclosure", "denial-of-service", "elevation-of-privilege"].includes(String(threat))))].slice(0, 6) } : {}),
     ...(normalizeArchitectureMetadata(value.architecture) ? { architecture: normalizeArchitectureMetadata(value.architecture) } : {}),
   };
@@ -84,12 +121,16 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && (value.mermaid.format === undefined || value.mermaid.format === "mermaid" || value.mermaid.format === "plantuml")
       ? { source: value.mermaid.source, ...(value.mermaid.format ? { format: value.mermaid.format } : {}) } : undefined;
     const rawComponent = isRecord(value.libraryComponent) ? value.libraryComponent : undefined;
+    const componentConnectionPoints = rawComponent?.connectionPoints === undefined ? undefined : normalizeConnectionPoints(rawComponent.connectionPoints);
     const iconSvg = rawComponent && typeof rawComponent.iconSvg === "string" && rawComponent.iconSvg.length <= 100_000 && !/<script\b|\son[a-z]+\s*=|javascript:/i.test(rawComponent.iconSvg) ? rawComponent.iconSvg : undefined;
     const iconViewBox = rawComponent && typeof rawComponent.iconViewBox === "string" && /^-?[\d.]+\s+-?[\d.]+\s+[\d.]+\s+[\d.]+$/.test(rawComponent.iconViewBox) ? rawComponent.iconViewBox : undefined;
     const rawChartData = rawComponent && isRecord(rawComponent.chartData) ? rawComponent.chartData : undefined;
     const chartLabelsValid = rawChartData && Array.isArray(rawChartData.labels) && rawChartData.labels.length > 0 && rawChartData.labels.length <= 20 && rawChartData.labels.every(label => typeof label === "string" && label.length <= 60);
-    const chartSeries = rawChartData && Array.isArray(rawChartData.series) && rawChartData.series.length <= 8 && rawChartData.series.every(series => isRecord(series) && typeof series.name === "string" && series.name.length <= 60 && Array.isArray(series.values) && series.values.length === (Array.isArray(rawChartData.labels) ? rawChartData.labels.length : -1) && series.values.every(number => finite(number) && Math.abs(number) <= 1_000_000_000))
+    const chartSeries = rawChartData && Array.isArray(rawChartData.series) && rawChartData.series.length <= 8 && rawChartData.series.every(series => isRecord(series) && typeof series.name === "string" && series.name.length <= 60 && Array.isArray(series.values) && series.values.length === (Array.isArray(rawChartData.labels) ? rawChartData.labels.length : -1) && series.values.every(number => finite(number) && Math.abs(number) <= 1_000_000_000)
+      && (series.chartType === undefined || ["bar", "line", "area", "scatter"].includes(String(series.chartType))) && (series.axis === undefined || series.axis === "primary" || series.axis === "secondary"))
       ? rawChartData.series as LibraryChartData["series"] : undefined;
+    const chartAnnotations = rawChartData && Array.isArray(rawChartData.annotations) && rawChartData.annotations.length <= 32 && rawChartData.annotations.every(annotation => isRecord(annotation) && finite(annotation.index) && Number.isInteger(annotation.index) && annotation.index >= 0 && annotation.index < (Array.isArray(rawChartData.labels) ? rawChartData.labels.length : 0) && typeof annotation.label === "string" && annotation.label.length <= 80 && (annotation.value === undefined || finite(annotation.value) && Math.abs(annotation.value) <= 1_000_000_000) && (annotation.axis === undefined || annotation.axis === "primary" || annotation.axis === "secondary"))
+      ? rawChartData.annotations as LibraryChartData["annotations"] : undefined;
     const rawChartOptions = rawChartData && isRecord(rawChartData.options) ? rawChartData.options : undefined;
     const chartOptions: LibraryChartData["options"] | undefined = rawChartOptions
       && (rawChartOptions.palette === undefined || ["blue", "ocean", "warm", "violet", "mono"].includes(String(rawChartOptions.palette)))
@@ -103,7 +144,9 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && ["title", "xAxisLabel", "yAxisLabel"].every(key => rawChartData[key] === undefined || typeof rawChartData[key] === "string" && (rawChartData[key] as string).length <= 80)
       && (rawChartData.series === undefined || chartSeries !== undefined)
       && (rawChartData.options === undefined || chartOptions !== undefined)
-      ? { labels: rawChartData.labels as string[], values: rawChartData.values as number[], ...(typeof rawChartData.title === "string" ? { title: rawChartData.title } : {}), ...(typeof rawChartData.xAxisLabel === "string" ? { xAxisLabel: rawChartData.xAxisLabel } : {}), ...(typeof rawChartData.yAxisLabel === "string" ? { yAxisLabel: rawChartData.yAxisLabel } : {}), ...(chartSeries ? { series: chartSeries } : {}), ...(chartOptions ? { options: chartOptions } : {}) } : undefined;
+      && (rawChartData.annotations === undefined || chartAnnotations !== undefined)
+      && (rawChartData.secondaryYAxisLabel === undefined || typeof rawChartData.secondaryYAxisLabel === "string" && rawChartData.secondaryYAxisLabel.length <= 80)
+      ? { labels: rawChartData.labels as string[], values: rawChartData.values as number[], ...(typeof rawChartData.title === "string" ? { title: rawChartData.title } : {}), ...(typeof rawChartData.xAxisLabel === "string" ? { xAxisLabel: rawChartData.xAxisLabel } : {}), ...(typeof rawChartData.yAxisLabel === "string" ? { yAxisLabel: rawChartData.yAxisLabel } : {}), ...(typeof rawChartData.secondaryYAxisLabel === "string" ? { secondaryYAxisLabel: rawChartData.secondaryYAxisLabel } : {}), ...(chartSeries ? { series: chartSeries } : {}), ...(chartAnnotations ? { annotations: chartAnnotations } : {}), ...(chartOptions ? { options: chartOptions } : {}) } : undefined;
     const componentAppearance = rawComponent && (rawComponent.appearance === "simple" || rawComponent.appearance === "modern") ? rawComponent.appearance as "simple" | "modern" : undefined;
     const renderStyle = rawComponent?.renderStyle === "clean" ? "clean" as const : undefined;
     const trendDirection = rawComponent && (rawComponent.trendDirection === "up" || rawComponent.trendDirection === "down" || rawComponent.trendDirection === "steady") ? rawComponent.trendDirection as "up" | "down" | "steady" : undefined;
@@ -113,6 +156,22 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       ? rawComponent.formOptions as string[] : undefined;
     const formTitle = rawComponent && typeof rawComponent.formTitle === "string" && rawComponent.formTitle.length <= 80 ? rawComponent.formTitle : undefined;
     const formStates = rawComponent && Array.isArray(rawComponent.formStates) && rawComponent.formStates.length <= 12 && rawComponent.formStates.every(state => typeof state === "boolean") ? rawComponent.formStates as boolean[] : undefined;
+    const rawGuiProperties = rawComponent && isRecord(rawComponent.guiProperties) ? rawComponent.guiProperties : undefined;
+    const guiItems = rawGuiProperties && Array.isArray(rawGuiProperties.items) && rawGuiProperties.items.length > 0 && rawGuiProperties.items.length <= 12 && rawGuiProperties.items.every(item => typeof item === "string" && item.length <= 120) ? rawGuiProperties.items as string[] : undefined;
+    const guiProperties: GuiComponentProperties | undefined = rawGuiProperties ? {
+      ...(typeof rawGuiProperties.title === "string" && rawGuiProperties.title.length <= 120 ? { title: rawGuiProperties.title } : {}),
+      ...(["top", "bottom", "left", "right"].includes(String(rawGuiProperties.titlePosition)) ? { titlePosition: rawGuiProperties.titlePosition as GuiComponentProperties["titlePosition"] } : {}),
+      ...(typeof rawGuiProperties.placeholder === "string" && rawGuiProperties.placeholder.length <= 160 ? { placeholder: rawGuiProperties.placeholder } : {}),
+      ...(["vertical", "horizontal", "grid"].includes(String(rawGuiProperties.optionLayout)) ? { optionLayout: rawGuiProperties.optionLayout as GuiComponentProperties["optionLayout"] } : {}),
+      ...(finite(rawGuiProperties.optionColumns) && Number.isInteger(rawGuiProperties.optionColumns) && rawGuiProperties.optionColumns >= 1 && rawGuiProperties.optionColumns <= 12 ? { optionColumns: rawGuiProperties.optionColumns } : {}),
+      ...(finite(rawGuiProperties.optionGap) && rawGuiProperties.optionGap >= 0 && rawGuiProperties.optionGap <= 40 ? { optionGap: rawGuiProperties.optionGap } : {}),
+      ...(finite(rawGuiProperties.optionRowGap) && rawGuiProperties.optionRowGap >= 0 && rawGuiProperties.optionRowGap <= 40 ? { optionRowGap: rawGuiProperties.optionRowGap } : {}),
+      ...(finite(rawGuiProperties.optionColumnGap) && rawGuiProperties.optionColumnGap >= 0 && rawGuiProperties.optionColumnGap <= 40 ? { optionColumnGap: rawGuiProperties.optionColumnGap } : {}),
+      ...(typeof rawGuiProperties.bodyText === "string" && rawGuiProperties.bodyText.length <= 500 ? { bodyText: rawGuiProperties.bodyText } : {}),
+      ...(typeof rawGuiProperties.actionLabel === "string" && rawGuiProperties.actionLabel.length <= 120 ? { actionLabel: rawGuiProperties.actionLabel } : {}),
+      ...(guiItems ? { items: guiItems } : {}),
+      ...(finite(rawGuiProperties.activeItem) && Number.isInteger(rawGuiProperties.activeItem) && rawGuiProperties.activeItem >= 0 && rawGuiProperties.activeItem < 12 ? { activeItem: rawGuiProperties.activeItem } : {}),
+    } : undefined;
     const rawStyleOverrides = rawComponent && isRecord(rawComponent.styleOverrides) ? rawComponent.styleOverrides : undefined;
     const styleOverrides = rawStyleOverrides && (rawStyleOverrides.color === undefined || isColor(rawStyleOverrides.color)) && (rawStyleOverrides.fillColor === undefined || rawStyleOverrides.fillColor === null || isColor(rawStyleOverrides.fillColor)) && (rawStyleOverrides.fillOpacity === undefined || finite(rawStyleOverrides.fillOpacity) && rawStyleOverrides.fillOpacity >= 0 && rawStyleOverrides.fillOpacity <= 1)
       ? { ...(typeof rawStyleOverrides.color === "string" ? { color: rawStyleOverrides.color } : {}), ...(rawStyleOverrides.fillColor === null || typeof rawStyleOverrides.fillColor === "string" ? { fillColor: rawStyleOverrides.fillColor as string | null } : {}), ...(finite(rawStyleOverrides.fillOpacity) ? { fillOpacity: rawStyleOverrides.fillOpacity } : {}) } : undefined;
@@ -126,6 +185,34 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       ? { ...(finite(rawTextStyle.fontSize) ? { fontSize: rawTextStyle.fontSize } : {}), ...(typeof rawTextStyle.fontFamily === "string" ? { fontFamily: rawTextStyle.fontFamily as "sans" | "hand" | "serif" | "mono" | "rounded" | "display" } : {}), ...(typeof rawTextStyle.bold === "boolean" ? { bold: rawTextStyle.bold } : {}), ...(typeof rawTextStyle.italic === "boolean" ? { italic: rawTextStyle.italic } : {}), ...(typeof rawTextStyle.underline === "boolean" ? { underline: rawTextStyle.underline } : {}), ...(typeof rawTextStyle.textAlign === "string" ? { textAlign: rawTextStyle.textAlign as "left" | "center" | "right" | "justify" } : {}) } : undefined;
     const componentBoundsValue = isRecord(value.componentBounds) && finite(value.componentBounds.x) && finite(value.componentBounds.y) && finite(value.componentBounds.w) && value.componentBounds.w >= 2 && value.componentBounds.w <= 1_000_000 && finite(value.componentBounds.h) && value.componentBounds.h >= 2 && value.componentBounds.h <= 1_000_000
       ? { x: value.componentBounds.x, y: value.componentBounds.y, w: value.componentBounds.w, h: value.componentBounds.h } : undefined;
+    const masterId = typeof value.masterId === "string" && value.masterId.length > 0 && value.masterId.length <= 100 ? value.masterId : undefined;
+    const variantKey = typeof value.variantKey === "string" && /^[\p{L}\p{N}_.=-]{1,80}$/u.test(value.variantKey) ? value.variantKey : undefined;
+    const rawOverrides = isRecord(value.componentOverrides) ? value.componentOverrides : undefined;
+    const overrideChart = rawOverrides && isRecord(rawOverrides.chartData) ? rawOverrides.chartData : undefined;
+    const overrideChartData = overrideChart && isLibraryChartData(overrideChart) ? overrideChart : undefined;
+    const overrideFormOptions = rawOverrides && Array.isArray(rawOverrides.formOptions) && rawOverrides.formOptions.length <= 32 && rawOverrides.formOptions.every(option => typeof option === "string" && option.length <= 120) ? rawOverrides.formOptions as string[] : undefined;
+    const overridePortLabels = rawOverrides && isRecord(rawOverrides.portLabels) && Object.keys(rawOverrides.portLabels).length <= 32 && Object.entries(rawOverrides.portLabels).every(([key, label]) => /^[\w.-]{1,80}$/.test(key) && typeof label === "string" && label.length <= 80) ? rawOverrides.portLabels as Record<string, string> : undefined;
+    const componentOverrides = rawOverrides && (rawOverrides.label === undefined || typeof rawOverrides.label === "string" && rawOverrides.label.length <= 240) && (rawOverrides.color === undefined || isColor(rawOverrides.color)) && (rawOverrides.fillColor === undefined || rawOverrides.fillColor === null || isColor(rawOverrides.fillColor)) && (rawOverrides.fillOpacity === undefined || finite(rawOverrides.fillOpacity) && rawOverrides.fillOpacity >= 0 && rawOverrides.fillOpacity <= 1) && (rawOverrides.chartData === undefined || overrideChartData !== undefined) && (rawOverrides.formOptions === undefined || overrideFormOptions !== undefined) && (rawOverrides.portLabels === undefined || overridePortLabels !== undefined)
+      ? { ...(typeof rawOverrides.label === "string" ? { label: rawOverrides.label } : {}), ...(typeof rawOverrides.color === "string" ? { color: rawOverrides.color } : {}), ...(rawOverrides.fillColor === null || typeof rawOverrides.fillColor === "string" ? { fillColor: rawOverrides.fillColor as string | null } : {}), ...(finite(rawOverrides.fillOpacity) ? { fillOpacity: rawOverrides.fillOpacity } : {}), ...(overrideChartData ? { chartData: overrideChartData } : {}), ...(overrideFormOptions ? { formOptions: overrideFormOptions } : {}), ...(overridePortLabels ? { portLabels: overridePortLabels } : {}) } : undefined;
+    const connectionPoints = value.connectionPoints === undefined ? undefined : normalizeConnectionPoints(value.connectionPoints);
+    const rawStencilParameters = isRecord(value.stencilParameters) ? value.stencilParameters : undefined;
+    const stencilParameterNames = rawStencilParameters && Array.isArray(rawStencilParameters.parameters) && rawStencilParameters.parameters.length <= 12 && rawStencilParameters.parameters.every(name => typeof name === "string" && /^[\p{L}\p{N}_ -]{1,40}$/u.test(name)) ? rawStencilParameters.parameters as string[] : undefined;
+    const stencilParameterValues = rawStencilParameters && isRecord(rawStencilParameters.values) && Object.keys(rawStencilParameters.values).length <= 12 && Object.entries(rawStencilParameters.values).every(([key, entry]) => /^[\p{L}\p{N}_ -]{1,40}$/u.test(key) && typeof entry === "string" && entry.length <= 500) ? rawStencilParameters.values as Record<string, string> : undefined;
+    const stencilTemplate = rawStencilParameters && Array.isArray(rawStencilParameters.template) && rawStencilParameters.template.length <= MAX_ELEMENTS_PER_PAGE && rawStencilParameters.template.length > 0 ? rawStencilParameters.template.map(item => normalizeElementWithinBudget(item, depth + 1, budget)) : undefined;
+    const stencilParameters = stencilParameterNames && stencilParameterValues && stencilTemplate && !stencilTemplate.some(item => !item) && validReferences(stencilTemplate as Element[]) ? { parameters: stencilParameterNames, values: stencilParameterValues, template: stencilTemplate as Element[] } : undefined;
+    const rawContainer = isRecord(value.container) ? value.container : undefined;
+    const containerPorts = rawContainer?.connectionPoints === undefined ? undefined : normalizeConnectionPoints(rawContainer.connectionPoints);
+    const container: ContainerMetadata | undefined = rawContainer && ["frame", "container", "swimlane"].includes(String(rawContainer.kind))
+      && (rawContainer.name === undefined || typeof rawContainer.name === "string" && rawContainer.name.length <= 120)
+      && (rawContainer.background === undefined || isColor(rawContainer.background))
+      && (rawContainer.borderColor === undefined || isColor(rawContainer.borderColor))
+      && (rawContainer.borderThickness === undefined || finite(rawContainer.borderThickness) && rawContainer.borderThickness >= 0.5 && rawContainer.borderThickness <= 24)
+      && (rawContainer.borderStyle === undefined || ["solid", "dashed", "dotted", "double"].includes(String(rawContainer.borderStyle)))
+      && ["showBorder", "showLabel", "clipChildren", "autoResize", "lockedSize"].every(key => rawContainer[key] === undefined || typeof rawContainer[key] === "boolean")
+      && (rawContainer.padding === undefined || finite(rawContainer.padding) && rawContainer.padding >= 0 && rawContainer.padding <= 500)
+      && (rawContainer.connectionPoints === undefined || containerPorts !== undefined)
+      ? { kind: rawContainer.kind as ContainerMetadata["kind"], name: typeof rawContainer.name === "string" ? rawContainer.name.trim().slice(0, 120) || "Container" : "Container", ...(isColor(rawContainer.background) ? { background: rawContainer.background } : {}), ...(typeof rawContainer.showBorder === "boolean" ? { showBorder: rawContainer.showBorder } : {}), ...(typeof rawContainer.showLabel === "boolean" ? { showLabel: rawContainer.showLabel } : {}), ...(isColor(rawContainer.borderColor) ? { borderColor: rawContainer.borderColor } : {}), ...(finite(rawContainer.borderThickness) ? { borderThickness: rawContainer.borderThickness } : {}), ...(typeof rawContainer.borderStyle === "string" ? { borderStyle: rawContainer.borderStyle as ContainerMetadata["borderStyle"] } : {}), ...(typeof rawContainer.clipChildren === "boolean" ? { clipChildren: rawContainer.clipChildren } : {}), ...(typeof rawContainer.autoResize === "boolean" ? { autoResize: rawContainer.autoResize } : {}), ...(typeof rawContainer.lockedSize === "boolean" ? { lockedSize: rawContainer.lockedSize } : {}), ...(finite(rawContainer.padding) ? { padding: rawContainer.padding } : {}), ...(containerPorts?.length ? { connectionPoints: containerPorts } : {}) }
+      : undefined;
     const libraryComponent = rawComponent && typeof rawComponent.kind === "string" && rawComponent.kind.length <= 100
       && (rawComponent.label === undefined || typeof rawComponent.label === "string" && rawComponent.label.length <= 120)
       && (rawComponent.iconSvg === undefined || iconSvg !== undefined)
@@ -144,9 +231,19 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && (rawComponent.formTitle === undefined || formTitle !== undefined)
       && (rawComponent.trendDirection === undefined || trendDirection !== undefined)
       && (rawComponent.renderStyle === undefined || renderStyle !== undefined)
-      ? { kind: rawComponent.kind, ...(typeof rawComponent.label === "string" ? { label: rawComponent.label } : {}), ...(renderStyle ? { renderStyle } : {}), ...(iconSvg !== undefined ? { iconSvg, iconViewBox } : {}), ...(finite(rawComponent.portCount) ? { portCount: Math.round(rawComponent.portCount) } : {}), ...(finite(rawComponent.laneCount) ? { laneCount: Math.round(rawComponent.laneCount) } : {}), ...(finite(rawComponent.durationMinutes) && rawComponent.durationMinutes >= 0 && rawComponent.durationMinutes <= 100000 ? { durationMinutes: rawComponent.durationMinutes } : {}), ...(formTitle !== undefined ? { formTitle } : {}), ...(typeof rawComponent.formState === "boolean" ? { formState: rawComponent.formState } : {}), ...(formStates ? { formStates } : {}), ...(finite(rawComponent.selectedOption) ? { selectedOption: Math.floor(rawComponent.selectedOption) } : {}), ...(formOptions ? { formOptions } : {}), ...(chartData ? { chartData } : {}), ...(trendDirection ? { trendDirection } : {}), ...(componentAppearance ? { appearance: componentAppearance } : {}), ...(styleOverrides ? { styleOverrides } : {}), ...(textStyle ? { textStyle } : {}) } : undefined;
-    if ((value.note !== undefined && !note) || (value.mermaid !== undefined && !mermaid) || (value.libraryComponent !== undefined && !libraryComponent) || (value.componentBounds !== undefined && !componentBoundsValue) || (componentBoundsValue && !libraryComponent) || (note && mermaid) || (libraryComponent && (note || mermaid))) return undefined;
-    return { type: "group", ...flags, elements: children as Element[], ...(componentBoundsValue ? { componentBounds: componentBoundsValue } : {}), note, mermaid, libraryComponent };
+      && (rawComponent.connectionPoints === undefined || componentConnectionPoints !== undefined)
+      ? { kind: rawComponent.kind, ...(typeof rawComponent.label === "string" ? { label: rawComponent.label } : {}), ...(renderStyle ? { renderStyle } : {}), ...(iconSvg !== undefined ? { iconSvg, iconViewBox } : {}), ...(finite(rawComponent.portCount) ? { portCount: Math.round(rawComponent.portCount) } : {}), ...(componentConnectionPoints ? { connectionPoints: componentConnectionPoints } : {}), ...(finite(rawComponent.laneCount) ? { laneCount: Math.round(rawComponent.laneCount) } : {}), ...(finite(rawComponent.durationMinutes) && rawComponent.durationMinutes >= 0 && rawComponent.durationMinutes <= 100000 ? { durationMinutes: rawComponent.durationMinutes } : {}), ...(formTitle !== undefined ? { formTitle } : {}), ...(typeof rawComponent.formState === "boolean" ? { formState: rawComponent.formState } : {}), ...(formStates ? { formStates } : {}), ...(finite(rawComponent.selectedOption) ? { selectedOption: Math.floor(rawComponent.selectedOption) } : {}), ...(formOptions ? { formOptions } : {}), ...(guiProperties ? { guiProperties } : {}), ...(chartData ? { chartData } : {}), ...(trendDirection ? { trendDirection } : {}), ...(componentAppearance ? { appearance: componentAppearance } : {}), ...(styleOverrides ? { styleOverrides } : {}), ...(textStyle ? { textStyle } : {}) } : undefined;
+    const roleContainer = libraryComponent?.kind === "diagram-frame" || libraryComponent?.kind === "diagram-swimlane"
+      ? { kind: libraryComponent.kind === "diagram-frame" ? "frame" as const : "swimlane" as const, name: libraryComponent.label ?? "Frame", clipChildren: false, autoResize: false, padding: 20 }
+      : undefined;
+    const containerMetadata = container ?? roleContainer;
+    const contentBounds = containerMetadata && !componentBoundsValue ? unionBounds((children as Element[]).filter(child => !child.hidden).map(elementBounds)) : undefined;
+    const inferredBounds = containerMetadata && !componentBoundsValue
+      ? contentBounds ? { x: contentBounds.x - (containerMetadata.padding ?? 24), y: contentBounds.y - (containerMetadata.padding ?? 24), w: Math.max(25, contentBounds.w + (containerMetadata.padding ?? 24) * 2), h: Math.max(25, contentBounds.h + (containerMetadata.padding ?? 24) * 2) } : { x: 0, y: 0, w: 160, h: 100 }
+      : undefined;
+    const resolvedComponentBounds = componentBoundsValue ?? inferredBounds;
+    if ((value.note !== undefined && !note) || (value.mermaid !== undefined && !mermaid) || (value.libraryComponent !== undefined && !libraryComponent) || (value.componentBounds !== undefined && !componentBoundsValue) || (value.container !== undefined && !container) || (value.masterId !== undefined && !masterId) || (value.variantKey !== undefined && !variantKey) || (value.componentOverrides !== undefined && !componentOverrides) || (value.connectionPoints !== undefined && !connectionPoints) || (value.stencilParameters !== undefined && !stencilParameters) || (componentBoundsValue && !libraryComponent && !container && !masterId && !stencilParameters) || (containerMetadata?.kind === "frame" && !resolvedComponentBounds) || (note && mermaid) || (libraryComponent && (note || mermaid))) return undefined;
+    return { type: "group", ...flags, elements: children as Element[], ...(resolvedComponentBounds ? { componentBounds: resolvedComponentBounds } : {}), ...(containerMetadata ? { container: containerMetadata } : {}), note, mermaid, libraryComponent, ...(masterId ? { masterId } : {}), ...(variantKey ? { variantKey } : {}), ...(componentOverrides ? { componentOverrides } : {}), ...(connectionPoints?.length ? { connectionPoints } : {}), ...(stencilParameters ? { stencilParameters } : {}) };
   }
   if (value.type === "freehand") {
     if (!Array.isArray(value.points) || value.points.length > MAX_STROKE_POINTS || value.points.length > budget.remainingStrokePoints || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0 || !value.points.every((point) => isRecord(point) && finite(point.x) && finite(point.y))) return undefined;
@@ -200,7 +297,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
   if (value.type === "svgPath") {
     if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w <= 0 || !finite(value.h) || value.h <= 0 || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0 || typeof value.pathData !== "string" || !value.pathData.trim() || value.pathData.length > 500_000 || !finite(value.pathWidth) || value.pathWidth <= 0 || value.pathWidth > 100_000 || !finite(value.pathHeight) || value.pathHeight <= 0 || value.pathHeight > 100_000 || (value.fillRule !== undefined && value.fillRule !== "nonzero" && value.fillRule !== "evenodd")) return undefined;
     if (!/^[\d\s.,+\-eEmlhvcsqtazMLHVCSQTAZ]+$/.test(value.pathData)) return undefined;
-    return { type: "svgPath", ...flags, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness: Math.max(1, Math.round(value.thickness)), pathData: value.pathData, pathWidth: value.pathWidth, pathHeight: value.pathHeight, fillRule: value.fillRule === "evenodd" ? "evenodd" : "nonzero", svgStroke: value.svgStroke !== false, ...(isColor(value.fillColor) ? { fillColor: value.fillColor, fillOpacity: finite(value.fillOpacity) ? Math.max(0, Math.min(1, value.fillOpacity)) : 1 } : {}), opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
+    return { type: "svgPath", ...flags, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness: Math.max(1, Math.round(value.thickness)), pathData: value.pathData, pathWidth: value.pathWidth, pathHeight: value.pathHeight, fillRule: value.fillRule === "evenodd" ? "evenodd" : "nonzero", svgStroke: value.svgStroke !== false, svgNonScalingStroke: value.svgNonScalingStroke === true, ...(isColor(value.fillColor) ? { fillColor: value.fillColor, fillOpacity: finite(value.fillOpacity) ? Math.max(0, Math.min(1, value.fillOpacity)) : 1 } : {}), opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
   }
   if (["rectangle", "circle", "diamond", "triangle", "flowchart", "line", "arrow"].includes(value.type)) {
     if (!finite(value.x) || !finite(value.y) || !finite(value.w) || !finite(value.h) || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0) return undefined;
@@ -211,11 +308,13 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const fillOpacity = finite(value.fillOpacity) ? Math.max(0, Math.min(1, value.fillOpacity)) : 0.2;
     const validHead = (head: unknown): head is ArrowHead => ["none", "open", "solid", "hollow", "thick", "dot", "diamond", "open-diamond", "bar", "crow"].includes(String(head));
     const flowchartShape: FlowchartShape = FLOWCHART_SHAPES.some(shape => shape.value === value.flowchartShape) ? value.flowchartShape as FlowchartShape : "process";
-    const lineRoute: LineRoute = ["curve", "curve2", "curve3", "multi"].includes(String(value.lineRoute)) ? value.lineRoute as LineRoute : "straight";
+    const lineRoute: LineRoute = ["elbow", "curve", "curve2", "curve3", "multi"].includes(String(value.lineRoute)) ? value.lineRoute as LineRoute : "straight";
+    const connectionPoints = value.connectionPoints === undefined ? undefined : normalizeConnectionPoints(value.connectionPoints);
+    if (value.connectionPoints !== undefined && connectionPoints === undefined) return undefined;
     const thickness = Math.max(1, Math.round(value.thickness));
     const cornerRadius = finite(value.cornerRadius) ? Math.max(0, Math.min(100, value.cornerRadius)) : undefined;
     const arrowRoute: ArrowRoute = ["elbow", "forked", "loop", "jagged"].includes(String(value.arrowRoute)) ? value.arrowRoute as ArrowRoute : "straight";
-    const binding = (raw: unknown): Binding | undefined => isRecord(raw) && typeof raw.elementId === "string" && isRecord(raw.anchor) && finite(raw.anchor.x) && finite(raw.anchor.y) && raw.anchor.x >= 0 && raw.anchor.x <= 1 && raw.anchor.y >= 0 && raw.anchor.y <= 1 && (raw.rowId === undefined || typeof raw.rowId === "string") ? { elementId: raw.elementId, anchor: { x: raw.anchor.x, y: raw.anchor.y }, ...(typeof raw.rowId === "string" ? { rowId: raw.rowId } : {}) } : undefined;
+    const binding = (raw: unknown): Binding | undefined => isRecord(raw) && typeof raw.elementId === "string" && isRecord(raw.anchor) && finite(raw.anchor.x) && finite(raw.anchor.y) && raw.anchor.x >= 0 && raw.anchor.x <= 1 && raw.anchor.y >= 0 && raw.anchor.y <= 1 && (raw.rowId === undefined || typeof raw.rowId === "string") && (raw.portId === undefined || typeof raw.portId === "string" && /^[\w.-]{1,80}$/.test(raw.portId)) ? { elementId: raw.elementId, anchor: { x: raw.anchor.x, y: raw.anchor.y }, ...(typeof raw.rowId === "string" ? { rowId: raw.rowId } : {}), ...(typeof raw.portId === "string" ? { portId: raw.portId } : {}) } : undefined;
     if ((value.startBinding && !binding(value.startBinding)) || (value.endBinding && !binding(value.endBinding))) return undefined;
     const forkBranch = (raw: unknown) => {
       if (raw === undefined) return undefined;
@@ -246,7 +345,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const relationshipType: RelationshipType | undefined = ["association", "dependency", "data-flow", "inheritance", "aggregation", "composition", "sequence", "network", "other"].includes(String(value.relationshipType)) ? value.relationshipType as RelationshipType : undefined;
     const relationshipDirection: RelationshipDirection | undefined = ["forward", "both", "none"].includes(String(value.relationshipDirection)) ? value.relationshipDirection as RelationshipDirection : undefined;
     const transportSecurity: TransportSecurity | undefined = ["encrypted", "unencrypted", "unknown"].includes(String(value.transportSecurity)) ? value.transportSecurity as TransportSecurity : undefined;
-    return { type: value.type as ShapeElement["type"], ...flags, startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, ...(autoRoute ? { autoRoute: true, routeWaypoints: value.routeWaypoints as Point[] | undefined } : {}), ...(straightOnly ? { straightOnly: true } : {}), forkUpper: straightOnly ? undefined : forkUpper ?? undefined, forkLower: straightOnly ? undefined : forkLower ?? undefined, label, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, lineRoute: value.type === "line" ? straightOnly ? "straight" : lineRoute : undefined, arrowRoute: value.type === "arrow" ? straightOnly ? "straight" : arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(typeof value.cardinality === "string" && value.cardinality.length <= 40 ? { cardinality: value.cardinality } : {}), ...(typeof value.protocol === "string" && value.protocol.length <= 40 ? { protocol: value.protocol } : {}), ...(finite(value.portNumber) && value.portNumber >= 1 && value.portNumber <= 65535 ? { portNumber: Math.round(value.portNumber) } : {}), ...(typeof value.apiContract === "string" && value.apiContract.length <= 2000 ? { apiContract: value.apiContract } : {}), ...(typeof value.dataContract === "string" && value.dataContract.length <= 2000 ? { dataContract: value.dataContract } : {}), ...(typeof value.sequenceCondition === "string" && value.sequenceCondition.length <= 500 ? { sequenceCondition: value.sequenceCondition } : {}), ...(value.sequenceDefault === true ? { sequenceDefault: true } : {}), ...(relationshipType ? { relationshipType } : {}), ...(relationshipDirection ? { relationshipDirection } : {}), ...(transportSecurity ? { transportSecurity } : {}), ...(typeof value.schemaDiagramId === "string" ? { schemaDiagramId: value.schemaDiagramId } : {}) };
+    return { type: value.type as ShapeElement["type"], ...flags, ...(connectionPoints ? { connectionPoints } : {}), startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, ...(autoRoute ? { autoRoute: true, routeWaypoints: value.routeWaypoints as Point[] | undefined } : {}), ...(straightOnly ? { straightOnly: true } : {}), forkUpper: straightOnly ? undefined : forkUpper ?? undefined, forkLower: straightOnly ? undefined : forkLower ?? undefined, label, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, lineRoute: value.type === "line" ? straightOnly ? "straight" : lineRoute : undefined, arrowRoute: value.type === "arrow" ? straightOnly ? "straight" : arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(typeof value.cardinality === "string" && value.cardinality.length <= 40 ? { cardinality: value.cardinality } : {}), ...(typeof value.protocol === "string" && value.protocol.length <= 40 ? { protocol: value.protocol } : {}), ...(finite(value.portNumber) && value.portNumber >= 1 && value.portNumber <= 65535 ? { portNumber: Math.round(value.portNumber) } : {}), ...(typeof value.apiContract === "string" && value.apiContract.length <= 2000 ? { apiContract: value.apiContract } : {}), ...(typeof value.dataContract === "string" && value.dataContract.length <= 2000 ? { dataContract: value.dataContract } : {}), ...(typeof value.sequenceCondition === "string" && value.sequenceCondition.length <= 500 ? { sequenceCondition: value.sequenceCondition } : {}), ...(value.sequenceDefault === true ? { sequenceDefault: true } : {}), ...(relationshipType ? { relationshipType } : {}), ...(relationshipDirection ? { relationshipDirection } : {}), ...(transportSecurity ? { transportSecurity } : {}), ...(typeof value.schemaDiagramId === "string" ? { schemaDiagramId: value.schemaDiagramId } : {}) };
   }
   return undefined;
 }
@@ -294,16 +393,48 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
       return [group];
     });
   };
-  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, legacy: boolean, budget: ElementParseBudget): SketchPage | undefined => {
+  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, legacy: boolean, budget: ElementParseBudget, rawLayers?: unknown, rawMasters?: unknown): SketchPage | undefined => {
     if (typeof id !== "string" || typeof name !== "string" || !isRecord(stateValue) || !Array.isArray(elementsValue) || elementsValue.length > MAX_ELEMENTS_PER_PAGE) return undefined;
     const state = stateValue;
     if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !isColor(state.backgroundColor)) return undefined;
     const legacyBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES };
     const elements = elementsValue.map(element => normalizeElementWithinBudget(legacy ? addLegacyElementIds(element, 0, legacyBudget) : element, 0, budget));
     if (elements.some((element) => !element)) return undefined;
-    const normalizedElements = groupLegacyClassCards(elements as Element[]);
+    let normalizedElements = groupLegacyClassCards(elements as Element[]);
     if (!validReferences(normalizedElements)) return undefined;
-    return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff" }, elements: normalizedElements };
+    const normalizedLayers = normalizeCanvasLayers(rawLayers);
+    if (!normalizedLayers) return undefined;
+    let layers: CanvasLayer[] = normalizedLayers;
+    const layerPaths = new Map<string, string>();
+    const assignLayerIds = (items: Element[]): Element[] => items.map(item => {
+      let layerId = item.layerId;
+      if (!layerId && item.layerName) {
+        const path = item.layerName.split("/").map(part => part.trim()).filter(Boolean).join(" / ");
+        let resolved = layerPaths.get(path);
+        if (!resolved) { const result = ensureCanvasLayerPath(layers, path); layers = result.layers; resolved = result.id; if (resolved) layerPaths.set(path, resolved); }
+        layerId = resolved;
+      }
+      if (layerId && !layers.some(layer => layer.id === layerId)) layers = [...layers, { id: layerId, name: item.layerName?.split("/").pop()?.trim() || "Recovered layer", order: layers.length }];
+      if (item.type !== "group") return layerId === item.layerId ? item : { ...item, layerId } as Element;
+      const children = assignLayerIds(item.elements);
+      return layerId === item.layerId && children.every((child, index) => child === item.elements[index]) ? item : { ...item, layerId, elements: children };
+    });
+    normalizedElements = assignLayerIds(normalizedElements);
+    const guides = Array.isArray(state.guides) && state.guides.length <= 200 && state.guides.every(guide => isRecord(guide) && (guide.axis === "x" || guide.axis === "y") && finite(guide.position) && Math.abs(guide.position) <= 1_000_000_000)
+      ? state.guides.map(guide => ({ axis: guide.axis as "x" | "y", position: guide.position as number })) : undefined;
+    const componentMasters = Array.isArray(rawMasters) && rawMasters.length <= 100 ? rawMasters.flatMap(raw => {
+      if (!isRecord(raw) || typeof raw.id !== "string" || typeof raw.name !== "string" || !Array.isArray(raw.template) || !raw.template.length || raw.template.length > MAX_ELEMENTS_PER_PAGE || !isRecord(raw.bounds) || !finite(raw.bounds.x) || !finite(raw.bounds.y) || !finite(raw.bounds.w) || !finite(raw.bounds.h) || raw.bounds.w <= 0 || raw.bounds.h <= 0) return [];
+      const template = raw.template.map(item => normalizeElementWithinBudget(item, 0, budget));
+      if (template.some(item => !item) || !validReferences(template as Element[])) return [];
+      const connectionPoints = Array.isArray(raw.connectionPoints) && raw.connectionPoints.length <= 32 ? raw.connectionPoints.flatMap(point => isRecord(point) && typeof point.id === "string" && typeof point.name === "string" && isRecord(point.anchor) && finite(point.anchor.x) && finite(point.anchor.y) && point.anchor.x >= 0 && point.anchor.x <= 1 && point.anchor.y >= 0 && point.anchor.y <= 1 ? [{ id: point.id.slice(0, 80), name: point.name.slice(0, 80), anchor: { x: point.anchor.x, y: point.anchor.y } }] : []) : undefined;
+      const variants = isRecord(raw.variants) ? Object.entries(raw.variants).slice(0, 24).flatMap(([key, value]) => {
+        if (!/^[\p{L}\p{N}_.=-]{1,80}$/u.test(key) || !Array.isArray(value) || !value.length || value.length > MAX_ELEMENTS_PER_PAGE) return [];
+        const normalizedVariant = value.map(item => normalizeElementWithinBudget(item, 0, budget));
+        return normalizedVariant.some(item => !item) || !validReferences(normalizedVariant as Element[]) ? [] : [[key, normalizedVariant as Element[]] as const];
+      }) : [];
+      return [{ id: raw.id.slice(0, 80), name: raw.name.trim().slice(0, 80) || "Component", template: template as Element[], bounds: { x: raw.bounds.x, y: raw.bounds.y, w: raw.bounds.w, h: raw.bounds.h }, ...(variants.length ? { variants: Object.fromEntries(variants) } : {}), ...(typeof raw.variantKey === "string" ? { variantKey: raw.variantKey.slice(0, 80) } : {}), ...(connectionPoints?.length ? { connectionPoints } : {}), ...(finite(raw.createdAt) ? { createdAt: raw.createdAt } : {}) }];
+    }) : [];
+    return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff", ...(guides?.length ? { guides } : {}) }, elements: normalizedElements, ...(layers.length ? { layers } : {}), ...(componentMasters.length ? { componentMasters } : {}) };
   };
   const sourcePages = Array.isArray(canvasSection.pages) ? canvasSection.pages : Array.isArray(canvasSection.elements) ? [{ id: crypto.randomUUID(), name: "Page 1", canvasState: canvasSection.canvasState, elements: canvasSection.elements }] : undefined;
   if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100) return undefined;
@@ -312,7 +443,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
     if (!isRecord(page)) return undefined;
     const state = isRecord(page.canvasState) ? page.canvasState : {};
     const migratedState = version < SKETCH_FORMAT_VERSION ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
-    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, version < 6, elementBudget);
+    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, version < 6, elementBudget, page.layers, page.componentMasters ?? (index === 0 ? canvasSection.componentMasters : undefined));
   });
   if (pages.some((page) => !page)) return undefined;
   const normalized = pages as SketchPage[];
@@ -347,6 +478,10 @@ export function sketchFileResourceError(file: SketchFile): string | undefined {
         if (element.elements.length > MAX_ELEMENTS_PER_PAGE) return "A group contains too many canvas objects to save safely.";
         const error = visit(element.elements, depth + 1);
         if (error) return error;
+        if (element.stencilParameters) {
+          const parameterError = visit(element.stencilParameters.template, depth + 1);
+          if (parameterError) return parameterError;
+        }
       } else if ("label" in element && element.label) {
         if (depth + 1 > MAX_ELEMENT_DEPTH) return "This sketch contains labels nested too deeply to save safely.";
         nodeCount += 1;
@@ -368,6 +503,14 @@ export function sketchFileResourceError(file: SketchFile): string | undefined {
     if (page.elements.length > MAX_ELEMENTS_PER_PAGE) return "A page contains too many canvas objects to save safely.";
     const error = visit(page.elements, 0);
     if (error) return error;
+    for (const master of page.componentMasters ?? []) {
+      const masterError = visit(master.template, 0);
+      if (masterError) return masterError;
+      for (const variant of Object.values(master.variants ?? {})) {
+        const variantError = visit(variant, 0);
+        if (variantError) return variantError;
+      }
+    }
   }
   return undefined;
 }

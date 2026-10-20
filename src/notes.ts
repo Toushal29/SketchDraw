@@ -1,6 +1,7 @@
 import type { Element, FlowchartShape, GroupElement, LibraryChartData, LibraryChartKind, NoteKind, ShapeElement, TextElement, Theme } from "./model";
 export type { LibraryChartData } from "./model";
 import { CLOUD_PROVIDER_COMPONENTS, cloudProviderComponent, type CloudProviderComponentKind } from "./features/diagrams/cloud-providers";
+import { defaultGuiComponentProperties, GUI_COMPONENT_DEFINITIONS, isGuiComponentKind, type GuiComponentKind } from "./features/components/gui-components";
 
 const text = (x: number, y: number, value: string, color = "#303638", size = 14, family: TextElement["fontFamily"] = "sans", bold = false): TextElement => ({
   type: "text", x, y, text: value, color, fontSize: size, fontFamily: family, bold, textAlign: "left", listType: "none",
@@ -291,7 +292,7 @@ export function toggleChecklistContent(content: string, target: number): string 
   }).join("\n");
 }
 
-export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-one-many" | "er-many-many" | "c4-system" | "c4-container" | "c4-component" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-subprocess" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle" | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | CloudProviderComponentKind;
+export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-one-many" | "er-many-many" | "c4-system" | "c4-container" | "c4-component" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-subprocess" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | CloudProviderComponentKind;
 export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
   { kind: "diagram-frame", section: "General | Layout", label: "Frame", description: "Resizable titled boundary for any diagram", width: 420, height: 280 },
   { kind: "diagram-swimlane", section: "General | Layout", label: "Swimlane", description: "Resizable lanes for organizing responsibilities or stages", width: 520, height: 320 },
@@ -353,12 +354,7 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "viz-heatmap", section: "Data visualization | Charts", label: "Heatmap", description: "Compare values across rows and categories", width: 300, height: 210 },
   { kind: "viz-treemap", section: "Data visualization | Charts", label: "Treemap", description: "Compare hierarchical category sizes", width: 280, height: 190 },
   { kind: "viz-kpi", section: "Data visualization | Metrics", label: "Metric card", description: "Headline value, trend, and supporting caption", width: 220, height: 126 },
-  { kind: "form-button", section: "Forms & UI | Controls", label: "Button", description: "Primary action button", width: 164, height: 54 },
-  { kind: "form-input", section: "Forms & UI | Fields", label: "Text field", description: "Labeled text input with placeholder", width: 228, height: 78 },
-  { kind: "form-select", section: "Forms & UI | Fields", label: "Select field", description: "Labeled selection field with menu indicator", width: 228, height: 78 },
-  { kind: "form-checkbox", section: "Forms & UI | Choices", label: "Checkbox row", description: "Selectable option with supporting label", width: 218, height: 56 },
-  { kind: "form-radio", section: "Forms & UI | Choices", label: "Radio group", description: "Single-choice options in a compact group", width: 228, height: 98 },
-  { kind: "form-toggle", section: "Forms & UI | Choices", label: "Toggle switch", description: "Settings switch with status text", width: 206, height: 60 },
+  ...GUI_COMPONENT_DEFINITIONS,
   { kind: "bpmn-start", section: "BPMN | Events & flow", label: "Start event", description: "BPMN start event", width: 52, height: 52 },
   { kind: "bpmn-event", section: "BPMN | Events & flow", label: "Intermediate event", description: "BPMN intermediate event", width: 52, height: 52 },
   { kind: "bpmn-end", section: "BPMN | Events & flow", label: "End event", description: "BPMN end event", width: 52, height: 52 },
@@ -414,6 +410,7 @@ export function defaultLibraryFormOptions(kind: LibraryComponentKind): string[] 
 export function defaultLibraryFormTitle(kind: LibraryComponentKind): string | undefined {
   if (kind === "form-checkbox") return "Preferences";
   if (kind === "form-radio") return "Choose a plan";
+  if (kind === "form-input") return "Label";
   if (kind === "form-select") return "Country";
   if (kind === "form-toggle") return "Notifications";
   return undefined;
@@ -434,76 +431,26 @@ export function defaultLibraryChartData(kind: LibraryComponentKind): LibraryChar
   return undefined;
 }
 
-function buildSupplementalLibraryComponent(kind: LibraryComponentKind, x: number, y: number, formOptions?: string[], selectedOption = 0, formStates?: boolean[], formTitle?: string, formState = true): Element[] | undefined {
-  const stroke = (x1: number, y1: number, x2: number, y2: number, color: string, thickness = 1.4) => ({ ...lineElement(x1, y1, x2 - x1, y2 - y1, color), thickness });
-  const dot = (cx: number, cy: number, radius: number, color: string) => ({ type: "circle" as const, x: cx - radius, y: cy - radius, w: radius * 2, h: radius * 2, color, thickness: 1, fillColor: color });
-  const wrapFormText = (value: string, width: number, fontSize: number, maxLines = 1) => {
-    const maxCharacters = Math.max(1, Math.floor(width / (fontSize * .58)));
-    const lines: string[] = []; let line = "";
-    for (const word of value.trim().replace(/\s+/g, " ").split(" ").filter(Boolean)) {
-      if (line && `${line} ${word}`.length <= maxCharacters) { line += ` ${word}`; continue; }
-      if (line) { lines.push(line); line = ""; }
-      let remaining = word;
-      while (remaining.length > maxCharacters) { lines.push(remaining.slice(0, maxCharacters)); remaining = remaining.slice(maxCharacters); }
-      line = remaining;
-    }
-    if (line || !lines.length) lines.push(line);
-    if (lines.length > maxLines) {
-      lines.length = maxLines;
-      const last = lines.length - 1;
-      lines[last] = `${lines[last].slice(0, Math.max(0, maxCharacters - 1)).trimEnd()}…`;
-    }
-    return lines.join("\n");
-  };
-  if (kind.startsWith("form-")) {
-    const ink = "#40546a"; const muted = "#7b8998"; const edge = "#ced8e2"; const blue = "#4d78b8";
-    if (kind === "form-button") {
-      const fontSize = 14; const caption = wrapFormText(formOptions?.[selectedOption] ?? "Continue", 140, fontSize, 2); const lineCount = caption.split("\n").length;
-      return [rect(x, y, 164, 54, "#4d78b8", "#426ba7", 11), { ...text(x + 82, y + (54 - lineCount * fontSize * 1.25) / 2, caption, "#ffffff", fontSize, "sans", true), textAlign: "center", componentRole: "form-button-caption" }];
-    }
-    if (kind === "form-input" || kind === "form-select") return [
-      { ...text(x + 2, y + 2, wrapFormText(kind === "form-input" ? "Email address" : formTitle ?? defaultLibraryFormTitle(kind) ?? "Country", 224, 11), ink, 11, "sans", true), ...(kind === "form-select" ? { componentRole: "form-select-title" } : {}) },
-      rect(x, y + 22, 228, 45, "#ffffff", edge, 9),
-      { ...text(x + 13, y + 37, wrapFormText(kind === "form-input" ? "name@example.com" : (formOptions?.[selectedOption] ?? "Choose a country"), 174, 12), muted, 12), ...(kind === "form-select" ? { componentRole: "form-select-value" } : {}) },
-      ...(kind === "form-select" ? [stroke(x + 202, y + 40, x + 207, y + 45, muted, 1.6), stroke(x + 207, y + 45, x + 212, y + 40, muted, 1.6)] : []),
-    ];
-    if (kind === "form-checkbox") {
-      const options = (formOptions?.length ? formOptions : defaultLibraryFormOptions(kind)!).slice(0, 12);
-      const rows = options.map(label => { const wrapped = wrapFormText(label, 165, 11, 3); const lineCount = wrapped.split("\n").length; return { wrapped, lineCount, height: Math.max(27, lineCount * 11 * 1.25 + 8) }; });
-      const items: Element[] = [rect(x, y, 218, 33 + rows.reduce((sum, row) => sum + row.height, 0), "#ffffff", "#e1e7ed", 7), { ...text(x + 13, y + 9, wrapFormText(formTitle ?? defaultLibraryFormTitle(kind) ?? "Preferences", 192, 11), ink, 11, "sans", true), componentRole: "form-checkbox-title" }];
-      let rowY = y + 27;
-      rows.forEach(({ wrapped, lineCount, height }, index) => {
-        const centerY = rowY + height / 2; const checked = formStates?.[index] ?? index === 0;
-        items.push({ ...rect(x + 13, centerY - 9, 18, 18, checked ? "#edf4ff" : "#ffffff", blue, 4), componentRole: `form-checkbox-box-${index}` });
-        items.push({ ...stroke(x + 17, centerY, x + 21, centerY + 4, blue, 1.8), opacity: checked ? 1 : 0, componentRole: `form-checkbox-check-a-${index}` });
-        items.push({ ...stroke(x + 21, centerY + 4, x + 28, centerY - 5, blue, 1.8), opacity: checked ? 1 : 0, componentRole: `form-checkbox-check-b-${index}` });
-        items.push({ ...text(x + 41, rowY + (height - lineCount * 11 * 1.25) / 2, wrapped, ink, 11), componentRole: `form-checkbox-label-${index}` });
-        rowY += height;
-      });
-      return items;
-    }
-    if (kind === "form-radio") {
-      const options = (formOptions?.length ? formOptions : defaultLibraryFormOptions(kind)!).slice(0, 12);
-      const rows = options.map(label => { const wrapped = wrapFormText(label, 175, 10, 3); const lineCount = wrapped.split("\n").length; return { wrapped, lineCount, height: Math.max(26, lineCount * 10 * 1.25 + 8) }; });
-      const items: Element[] = [rect(x, y, 228, 42 + rows.reduce((sum, row) => sum + row.height, 0), "#ffffff", "#e1e7ed", 10), { ...text(x + 14, y + 12, wrapFormText(formTitle ?? defaultLibraryFormTitle(kind) ?? "Choose a plan", 200, 11), ink, 11, "sans", true), componentRole: "form-radio-title" }];
-      let rowY = y + 37;
-      rows.forEach(({ wrapped, lineCount, height }, index) => {
-        const centerY = rowY + height / 2;
-        items.push({ type: "circle", x: x + 15, y: centerY - 8, w: 16, h: 16, color: index === selectedOption ? blue : edge, thickness: 1.5, fillColor: "#ffffff", componentRole: `form-radio-option-${index}` });
-        if (index === selectedOption) items.push({ ...dot(x + 23, centerY, 4, blue), componentRole: `form-radio-dot-${index}` });
-        items.push({ ...text(x + 41, rowY + (height - lineCount * 10 * 1.25) / 2, wrapped, ink, 10), componentRole: `form-radio-label-${index}` });
-        rowY += height;
-      });
-      return items;
-    }
-    if (kind === "form-toggle") return [rect(x, y, 206, 60, "#ffffff", "#e1e7ed", 10), { ...text(x + 14, y + 20, wrapFormText(formTitle ?? defaultLibraryFormTitle(kind) ?? "Notifications", 120, 11), ink, 11, "sans", true), componentRole: "form-toggle-title" }, rect(x + 148, y + 16, 43, 26, formState ? "#dcece5" : "#e6e9ed", formState ? "#c7dfd4" : "#cbd1d8", 13), { ...dot(x + (formState ? 178 : 160), y + 29, 9, formState ? "#44a17f" : "#8b949e"), componentRole: "form-toggle-knob" }, { ...text(x + 14, y + 39, formState ? "Enabled" : "Disabled", formState ? "#628071" : "#7b838d", 9), componentRole: "form-toggle-state" }];
-  }
-  return undefined;
-}
-
 const usesCleanModelRenderer = (kind: LibraryComponentKind) => kind.startsWith("diagram-") || kind.startsWith("software-") || kind.startsWith("c4-") || kind.startsWith("bpmn-") || kind.startsWith("network-") && kind !== "network-access-point" || kind.startsWith("cloud-") || !!cloudProviderComponent(kind) || kind === "tech-service" || kind === "data-flow";
 
 export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number, options?: { chartData?: LibraryChartData; formOptions?: string[]; selectedOption?: number; formStates?: boolean[]; formTitle?: string; formState?: boolean; portCount?: number }): GroupElement {
+  if (isGuiComponentKind(kind)) {
+    const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
+    const guiProperties = defaultGuiComponentProperties(kind);
+    return {
+      type: "group", id: crypto.randomUUID(), elements: [],
+      componentBounds: { x, y, w: definition.width, h: definition.height },
+      libraryComponent: {
+        kind, label: definition.label,
+        ...(guiProperties ? { guiProperties } : {}),
+        ...(defaultLibraryFormOptions(kind) ? { formOptions: options?.formOptions ?? defaultLibraryFormOptions(kind) } : {}),
+        ...(defaultLibraryFormTitle(kind) ? { formTitle: options?.formTitle ?? defaultLibraryFormTitle(kind) } : {}),
+        ...(options?.selectedOption === undefined ? {} : { selectedOption: options.selectedOption }),
+        ...(options?.formStates ? { formStates: options.formStates } : {}),
+        ...(options?.formState === undefined ? {} : { formState: options.formState }),
+      },
+    };
+  }
   if (kind.startsWith("viz-")) {
     const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
     return { type: "group", id: crypto.randomUUID(), elements: [], componentBounds: { x, y, w: definition.width, h: definition.height }, libraryComponent: { kind, label: definition.label, chartData: options?.chartData ?? defaultLibraryChartData(kind) } };
@@ -519,14 +466,13 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     return {
       type: "group", id: crypto.randomUUID(), elements: [],
       componentBounds: { x, y, w: definition.width, h: definition.height },
+      ...((kind === "diagram-frame" || kind === "diagram-swimlane") ? { container: { kind: kind === "diagram-frame" ? "frame" as const : "swimlane" as const, name: definition.label, clipChildren: false, autoResize: false, padding: 20 } } : {}),
       libraryComponent: { kind, label: definition.label, renderStyle: "clean", ...(kind === "diagram-swimlane" ? { laneCount: 3 } : {}), ...(kind === "network-hub" ? { portCount: options?.portCount ?? 8 } : kind === "network-switch" ? { portCount: options?.portCount ?? 6 } : {}) },
     };
   }
   const elements: Element[] = [];
   const titled = (color: string, fontSize = 12) => ({ text: "", color, fontSize, fontFamily: "sans" as const, bold: true, italic: false, underline: false, textAlign: "center" as const, listType: "none" as const, verticalAlign: "middle" as const });
-  const supplemental = buildSupplementalLibraryComponent(kind, x, y, options?.formOptions, options?.selectedOption, options?.formStates, options?.formTitle, options?.formState);
-  if (supplemental) elements.push(...supplemental);
-  else if (kind === "uml-actor") {
+  if (kind === "uml-actor") {
     const color = "#7563ad";
     elements.push({ type: "circle", x: x + 22, y: y + 2, w: 20, h: 20, color, thickness: 1.8, fillColor: "#f6f2ff" });
     elements.push(lineElement(x + 32, y + 22, 0, 42, color), lineElement(x + 13, y + 39, 38, 0, color), lineElement(x + 32, y + 64, -18, 28, color), lineElement(x + 32, y + 64, 18, 28, color));

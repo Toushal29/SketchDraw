@@ -1,0 +1,19 @@
+platform: {
+  edge: {
+    gateway: "Public gateway"
+    gateway.shape: hexagon
+    gateway.style.fill: "#dbeafe"
+    api: "API service"
+  }
+  data: {
+    queue: "Event queue"
+    store: "Primary store"
+    store.shape: cylinder
+    store.style.fill: "#dcfce7"
+  }
+}
+
+gateway -> api: "HTTPS request"
+api -> queue: "publish event"
+queue -> store: "persist"
+store <-> api: "read / write"

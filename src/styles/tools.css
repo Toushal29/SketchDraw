@@ -1,4 +1,4 @@
-/* Keep Canvas options in the original compact popover layout. */
+/* View settings entry point in the canvas toolbar. */
 .canvas-options-family {
     position: relative;
     z-index: 30;
@@ -30,299 +30,9 @@
     height: 18px;
 }
 
-.canvas-options-menu {
-    position: absolute;
-    top: calc(100% + 9px);
-    right: auto;
-    left: 0;
-    z-index: 200;
-    display: none;
-    box-sizing: border-box;
-    width: min(326px, calc(100vw - 20px));
-    max-height: min(72vh, 520px);
-    overflow-y: auto;
-    padding: 8px 12px 10px;
-    border: 1px solid var(--theme-border);
-    border-radius: 15px;
-    color: var(--theme-text-primary);
-    background: var(--theme-surface-elevated);
-    box-shadow: 0 12px 34px var(--theme-shadow);
-}
-
-.canvas-options-family.options-open>.canvas-options-menu {
-    display: block;
-}
-
-.canvas-options-section {
-    padding: 9px 0 7px;
-    border-bottom: 1px solid var(--theme-border);
-}
-
-.canvas-options-section:last-child {
-    padding-bottom: 0;
-    border-bottom: 0;
-}
-
-.canvas-appearance-heading {
-    padding: 7px 7px 4px;
-    color: var(--theme-text-secondary);
-    font: 750 9px/1.2 var(--font-ui);
-}
-
-.canvas-appearance-options select {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    min-height: 32px;
-    padding: 4px 7px;
-    border: 1px solid var(--theme-border);
-    border-radius: 5px;
-    color: var(--theme-text-primary);
-    background: var(--theme-surface-input);
-    font: 10px var(--font-ui);
-}
-
-.canvas-view-color-row { display: flex; align-items: center; gap: 5px; }
-.canvas-view-color-row select { flex: 1 1 auto; }
-.canvas-view-color-row .custom-color-swatch { flex: 0 0 30px; width: 30px; height: 30px; }
-
-.canvas-options-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 3px;
-}
-
-.canvas-options-grid>button {
-    position: relative;
-    display: grid;
-    min-width: 0;
-    min-height: 42px;
-    grid-template-columns: 22px minmax(0, 1fr) auto;
-    align-items: center;
-    justify-content: start;
-    gap: 7px;
-    padding: 6px 8px;
-    border: 1px solid transparent;
-    border-radius: 9px;
-    color: var(--theme-text-secondary);
-    background: transparent;
-    font-size: 10px;
-    text-align: left;
-}
-
-.canvas-options-grid>button:hover:not(:disabled),
-.canvas-options-grid>button.active {
-    border-color: var(--ui-accent-border);
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
-}
-
-.canvas-options-grid>button:disabled {
-    opacity: .38;
-}
-
-.canvas-options-grid>button:focus-visible,
-.canvas-appearance-options button:focus-visible {
-    outline: 2px solid var(--ui-accent);
-    outline-offset: 1px;
-}
-
-.canvas-options-grid>button svg {
-    width: 18px;
-    height: 18px;
-    color: var(--theme-text-secondary);
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.canvas-options-grid>button kbd {
-    justify-self: end;
-    padding: 2px 4px;
-    border: 1px solid var(--theme-border);
-    border-radius: 4px;
-    color: var(--theme-text-tertiary);
-    background: var(--theme-surface);
-    font: var(--font-size-micro) var(--font-mono);
-}
-
-.canvas-appearance-colors {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 3px;
-}
-
-.canvas-color-choice {
-    position: relative;
-    display: flex;
-    min-width: 0;
-    min-height: 34px;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 5px;
-    border: 1px solid transparent;
-    border-radius: 7px;
-    color: var(--theme-text-secondary);
-    background: transparent;
-    font: 9px var(--font-ui);
-}
-
-.canvas-color-choice:hover:not(:disabled),
-.canvas-color-choice.active {
-    border-color: var(--ui-accent-border);
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
-}
-
-.canvas-color-choice:disabled {
-    opacity: .45;
-}
-
-.canvas-color-choice>i {
-    box-sizing: border-box;
-    width: 17px;
-    height: 17px;
-    flex: 0 0 17px;
-    border: 1px solid var(--theme-border-strong);
-    border-radius: 50%;
-}
-
-.canvas-color-choice>span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.canvas-color-auto {
-    background: conic-gradient(var(--theme-surface) 0 25%, var(--theme-border) 0 50%, var(--theme-surface-elevated) 0 75%, var(--theme-text-tertiary) 0);
-}
-
-.canvas-custom-color {
-    overflow: hidden;
-}
-
-.canvas-custom-color input {
-    position: absolute;
-    z-index: 1;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-}
-
-.canvas-custom-color>i {
-    pointer-events: none;
-}
-
-.canvas-pattern-options {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 3px;
-}
-
-.canvas-pattern-options>button {
-    display: flex;
-    min-width: 0;
-    min-height: 48px;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    padding: 3px;
-    border: 1px solid transparent;
-    border-radius: 7px;
-    color: var(--theme-text-secondary);
-    background: transparent;
-    font-size: var(--font-size-micro);
-    cursor: pointer;
-}
-
-.canvas-pattern-options>button:hover,
-.canvas-pattern-options>button.active,
-.canvas-component-appearance>button:hover,
-.canvas-component-appearance>button.active {
-    border-color: var(--ui-accent-border);
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
-}
-
-.canvas-pattern-options .paper-pattern-swatch {
-    display: block;
-    box-sizing: border-box;
-    width: 34px;
-    height: 20px;
-    flex: 0 0 34px;
-    border: 1px solid var(--theme-border-strong);
-    border-radius: 4px;
-    background-color: var(--theme-surface);
-}
-
-.canvas-pattern-options .paper-pattern-swatch.plain {
-    background-image: none;
-}
-
-.canvas-pattern-options .paper-pattern-swatch.dots {
-    background-image: radial-gradient(circle, var(--theme-text-secondary) 1.2px, transparent 1.4px);
-    background-size: 7px 7px;
-}
-
-.canvas-pattern-options .paper-pattern-swatch.small-dots {
-    background-image: radial-gradient(circle, var(--theme-text-secondary) 1px, transparent 1.2px);
-    background-size: 4px 4px;
-}
-
-.canvas-pattern-options .paper-pattern-swatch.lines,
-.canvas-pattern-options .paper-pattern-swatch.small-grid {
-    background-image: linear-gradient(to right, var(--theme-text-tertiary) 1px, transparent 1px), linear-gradient(to bottom, var(--theme-text-tertiary) 1px, transparent 1px);
-}
-
-.canvas-pattern-options .paper-pattern-swatch.lines {
-    background-size: 8px 8px;
-}
-
-.canvas-pattern-options .paper-pattern-swatch.small-grid {
-    background-size: 5px 5px;
-}
-
-.canvas-pattern-options .paper-pattern-swatch.ruled {
-    background-image: linear-gradient(to bottom, transparent 6px, var(--theme-text-tertiary) 7px, transparent 7.5px);
-    background-size: 100% 8px;
-}
-
-.canvas-pattern-options .paper-pattern-swatch.isometric {
-    background-image: repeating-linear-gradient(60deg, transparent 0 6px, var(--theme-text-tertiary) 6px 7px), repeating-linear-gradient(-60deg, transparent 0 6px, var(--theme-text-tertiary) 6px 7px), repeating-linear-gradient(0deg, transparent 0 6px, var(--theme-text-tertiary) 6px 7px);
-    background-size: 16px 14px;
-}
-
-.canvas-component-appearance {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px;
-}
-
-.canvas-component-appearance>button {
-    min-height: 34px;
-    border: 1px solid var(--theme-border);
-    border-radius: 7px;
-    color: var(--theme-text-secondary);
-    background: var(--theme-surface);
-    font: 600 9px var(--font-ui);
-}
-
-@media (max-width: 480px) {
-    .canvas-options-menu {
-        right: -20px;
-        width: min(326px, calc(100vw - 16px));
-    }
-
-    .canvas-options-grid {
-        grid-template-columns: minmax(0, 1fr);
-    }
-}
+.pen-options { width: 196px; flex-wrap: wrap; }
+.pen-options > button { width: calc(50% - 3px); flex-direction: row !important; justify-content: flex-start; gap: 7px; }
+.pen-options > button svg { width: 19px; height: 19px; flex: 0 0 19px; }
 
 /* Compact desktop rails keep their controls visible and scroll within the dock. */
 @media (max-width: 900px),
@@ -556,40 +266,6 @@
         left: 56px;
     }
 
-    .selection-delete-action {
-        position: absolute;
-        z-index: 25;
-        top: 56px;
-        right: 8px;
-        display: inline-flex;
-        min-height: 38px;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        padding: 0 11px;
-        border: 1px solid var(--theme-error-border);
-        border-radius: 11px;
-        color: var(--theme-error);
-        background: var(--theme-error-muted);
-        font-size: 11px;
-        font-weight: 650;
-        touch-action: manipulation;
-    }
-
-    .selection-delete-action svg {
-        width: 16px;
-        height: 16px;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 1.7;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
-
-    .selection-delete-action:disabled {
-        opacity: .45;
-    }
-
     .multi-selection-actions {
         display: flex;
         gap: 6px;
@@ -615,7 +291,6 @@
         opacity: .45;
     }
 
-    .theme-dark .selection-delete-action,
     .theme-dark .pane-delete-button {
         border-color: var(--theme-error-border);
     }
@@ -626,40 +301,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.selection-delete-action {
-    position: absolute;
-    z-index: 25;
-    top: 58px;
-    right: 12px;
-    display: inline-flex;
-    min-height: 38px;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 0 11px;
-    border: 1px solid var(--theme-error-border);
-    border-radius: 11px;
-    color: var(--theme-error);
-    background: var(--theme-error-muted);
-    font-size: 11px;
-    font-weight: 650;
-    touch-action: manipulation;
-}
-
-.selection-delete-action svg {
-    width: 16px;
-    height: 16px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.selection-delete-action:disabled {
-    opacity: .45;
 }
 
 .multi-selection-actions {
@@ -687,7 +328,6 @@
     opacity: .45;
 }
 
-.theme-dark .selection-delete-action,
 .theme-dark .pane-delete-button {
     border-color: var(--theme-error-border);
 }

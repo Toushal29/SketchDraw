@@ -1,10 +1,14 @@
-import { createSignal, Show } from "solid-js";
+import { Show } from "solid-js";
+import type { DiagramLayoutAlgorithm } from "../features/diagrams/auto-layout";
 
 export type CanvasOptionsMenuProps = {
   open: boolean;
   showGrid: boolean;
   snapToGrid: boolean;
   snapToObjects: boolean;
+  snapToGuides: boolean;
+  showRulers: boolean;
+  showGuides: boolean;
   hasElements: boolean;
   hasSelection: boolean;
   canGroup: boolean;
@@ -18,7 +22,28 @@ export type CanvasOptionsMenuProps = {
   onToggleGrid: () => void;
   onToggleSnapToGrid: () => void;
   onToggleSnapToObjects: () => void;
+  onToggleSnapToGuides: () => void;
+  onToggleRulers: () => void;
+  onToggleGuides: () => void;
   onGroupSelection: () => void;
+  guiDesign?: {
+    canCreateFrame: boolean;
+    canCreateComponent: boolean;
+    canArrange: boolean;
+    hasSelectedFrame: boolean;
+    hasFrames: boolean;
+    onOpenLibrary: () => void;
+    onCreateComponent: () => void;
+    onArrangeSelection: () => void;
+    onPresentFrames: () => void;
+    onExportFrame: () => void;
+  };
+  onCreateFrame?: () => void;
+  onSelectConnected?: () => void;
+  onSelectSimilar?: () => void;
+  onOrthogonalizeSelected?: () => void;
+  structureSelectionDisabled?: boolean;
+  orthogonalizeDisabled?: boolean;
   appAppearance?: {
     themeMode: "system" | "light" | "dark";
     accentColor: string;
@@ -41,14 +66,22 @@ export type CanvasOptionsMenuProps = {
     onPaperPatternChange: (pattern: "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric") => void;
   };
   canvasTools?: {
-    showAlignmentGuides: boolean;
     showMinimap: boolean;
+    orthogonalOnly?: boolean;
     autoLayoutDisabled?: boolean;
+    layoutAlgorithm?: DiagramLayoutAlgorithm;
+    layoutSelectionOnly?: boolean;
+    layoutSpacing?: number;
     presentation?: boolean;
     fullscreen?: boolean;
-    onToggleAlignmentGuides: () => void;
     onToggleMinimap: () => void;
+    onToggleOrthogonal?: () => void;
+    onReattachDangling?: () => void;
+    reattachDisabled?: boolean;
     onAutoLayout?: () => void;
+    onLayoutAlgorithmChange?: (algorithm: DiagramLayoutAlgorithm) => void;
+    onLayoutSelectionOnlyChange?: (selectionOnly: boolean) => void;
+    onLayoutSpacingChange?: (spacing: number) => void;
     onValidateDiagram?: () => void;
     onSearchObjects?: () => void;
     validationDisabled?: boolean;
@@ -60,87 +93,116 @@ export type CanvasOptionsMenuProps = {
 };
 
 export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
-  const [showMoreCanvasTools, setShowMoreCanvasTools] = createSignal(false);
-  const toggle = () => {
-    props.onToggle();
-    props.onCloseOtherTools();
-  };
+  const toggle = () => { props.onToggle(); props.onCloseOtherTools(); };
+  const check = (label: string, checked: boolean, run: () => void, disabled = false, shortcut?: string) => (
+    <button type="button" class="workspace-view-toggle" role="menuitemcheckbox" aria-checked={checked} disabled={disabled} onClick={run}>
+      <span>{label}{shortcut && <kbd>{shortcut}</kbd>}</span><i aria-hidden="true" />
+    </button>
+  );
+  const action = (label: string, run: () => void, disabled = false, shortcut?: string) => (
+    <button type="button" class="workspace-view-action" role="menuitem" disabled={disabled} onClick={run}>
+      <span>{label}</span>{shortcut && <kbd>{shortcut}</kbd>}
+    </button>
+  );
 
   return (
-    <div class="canvas-options-family" classList={{ "options-open": props.open, "mobile-simple-mode": !!props.mobileSimple, "show-advanced-tools": showMoreCanvasTools() }}>
-      <button
-        type="button"
-        class={`canvas-options-trigger ${props.open ? "active" : ""}`}
-        aria-label="View"
-        aria-haspopup="menu"
-        aria-expanded={props.open}
-        title="View"
-        onClick={toggle}
-      >
+    <div class="canvas-options-family" classList={{ "options-open": props.open, "mobile-simple-mode": !!props.mobileSimple }}>
+      <button type="button" class={`canvas-options-trigger ${props.open ? "active" : ""}`} aria-label="View and canvas settings" aria-haspopup="dialog" aria-expanded={props.open} title="View and canvas settings" onClick={toggle}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" /></svg>
       </button>
-      <div class="canvas-options-menu" role="menu" aria-label="View">
-        <section class="canvas-options-section">
-          <span>VIEW</span>
-          <div class="canvas-options-grid">
-            <button role="menuitem" disabled={!props.hasElements} title="Fit drawing (1)" onClick={props.onFitDrawing}><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8h8v8H8z" /></svg><span>Fit drawing</span><kbd>1</kbd></button>
-            <button role="menuitem" disabled={!props.hasSelection} title="Fit selection (2)" onClick={props.onFitSelection}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg><span>Fit selection</span><kbd>2</kbd></button>
-            <button role="menuitemcheckbox" aria-checked={props.showGrid} class={props.showGrid ? "active" : ""} title="Toggle grid (G)" onClick={props.onToggleGrid}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 4v16" /></svg><span>Show grid</span><kbd>G</kbd></button>
+      <div class="workspace-view-panel" role="dialog" aria-label="View and canvas settings">
+        <header class="workspace-view-header"><div><strong>Canvas</strong><span>View, arrange, and design</span></div><button type="button" aria-label="Close view panel" title="Close" onClick={toggle}>×</button></header>
+
+        <div class="workspace-view-fit-row" aria-label="Zoom to content">
+          <button type="button" disabled={!props.hasElements} onClick={props.onFitDrawing}><strong>Fit drawing</strong><kbd>1</kbd></button>
+          <button type="button" disabled={!props.hasSelection} onClick={props.onFitSelection}><strong>Fit selection</strong><kbd>2</kbd></button>
+        </div>
+
+        <Show when={props.guiDesign}>
+          {gui => <details class="workspace-view-section workspace-view-gui" open={!props.mobileSimple}>
+            <summary><span>UI design</span><small>Pages, screens, and components</small></summary>
+            <div class="workspace-view-gui-actions">
+              <button type="button" class="workspace-view-primary" onClick={gui().onOpenLibrary}>Open UI component library<span>Buttons · fields · cards · navigation</span></button>
+              <div class="workspace-view-action-grid">
+                <Show when={props.onCreateFrame}>{createFrame => <button type="button" disabled={!gui().canCreateFrame || props.boardLocked} onClick={createFrame()}>{gui().hasSelectedFrame ? "Create screen from selection" : "Create screen frame"}</button>}</Show>
+                <button type="button" disabled={!gui().canCreateComponent || props.boardLocked} onClick={gui().onCreateComponent}>Create reusable component</button>
+                <button type="button" disabled={!gui().canArrange || props.boardLocked} onClick={gui().onArrangeSelection}>Arrange selection</button>
+                <button type="button" disabled={!gui().hasFrames} onClick={gui().onPresentFrames}>Present screens</button>
+                <button type="button" disabled={!gui().hasSelectedFrame || props.boardLocked} onClick={gui().onExportFrame}>Export selected screen</button>
+              </div>
+            </div>
+          </details>}
+        </Show>
+
+        <details class="workspace-view-section" open>
+          <summary><span>Canvas aids</span><small>Grid and snapping</small></summary>
+          <div class="workspace-view-controls">
+            {check("Show grid", props.showGrid, props.onToggleGrid, false, "G")}
+            {check("Snap to grid", props.snapToGrid, props.onToggleSnapToGrid, false, "Shift+G")}
+            {check("Snap to objects", props.snapToObjects, props.onToggleSnapToObjects, false, "Shift+O")}
           </div>
-        </section>
-        <Show when={props.mobileSimple}><button type="button" class="mobile-more-canvas-tools" aria-expanded={showMoreCanvasTools()} onClick={() => setShowMoreCanvasTools(value => !value)}>{showMoreCanvasTools() ? "Hide extra tools" : "More canvas tools"}<span aria-hidden="true">{showMoreCanvasTools() ? "−" : "+"}</span></button></Show>
-        <Show when={props.canvasAppearance}>{appearance => <section class="canvas-options-section canvas-appearance-options mobile-advanced-canvas-tools">
-          <span>VIEW</span>
-          {props.appAppearance && <>
-            <div class="canvas-appearance-heading">Theme</div>
-            <select aria-label="Application theme" value={props.appAppearance.themeMode} onChange={event => props.appAppearance!.onThemeChange(event.currentTarget.value as "system" | "light" | "dark")}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
-            <div class="canvas-appearance-heading">Accent color</div>
-            <div class="canvas-view-color-row"><select aria-label="Accent color" value={props.appAppearance.accentColor} onChange={event => props.appAppearance!.onAccentChange(event.currentTarget.value)}>{props.appAppearance.accentOptions.map(option => <option value={option.value}>{option.label}</option>)}</select><label class="custom-color-swatch" title="Custom accent color"><input type="color" aria-label="Custom accent color" value={props.appAppearance.accentColor} onInput={event => props.appAppearance!.onAccentChange(event.currentTarget.value)} /></label></div>
-            <div class="canvas-appearance-heading">Toolbar surface</div>
-            <div class="canvas-view-color-row"><select aria-label="Toolbar surface" value={props.appAppearance.toolbarColorChoice} onChange={event => props.appAppearance!.onToolbarColorChange(event.currentTarget.value)}><option value="auto">Auto</option>{props.appAppearance.toolbarColorOptions.map(option => <option value={option.value}>{option.label}</option>)}</select><label class="custom-color-swatch" title="Custom toolbar surface"><input type="color" aria-label="Custom toolbar surface" value={props.appAppearance.toolbarColorChoice === "auto" ? "#ffffff" : props.appAppearance.toolbarColorChoice} onInput={event => props.appAppearance!.onToolbarColorChange(event.currentTarget.value)} /></label></div>
-          </>}
-          <div class="canvas-appearance-heading">Whiteboard color</div>
-          <div class="canvas-appearance-colors" role="group" aria-label="Whiteboard color">
-            <button type="button" class={`canvas-color-choice ${appearance().followsTheme ? "active" : ""}`} aria-label="Automatic whiteboard color" aria-pressed={appearance().followsTheme} disabled={appearance().boardLocked} onClick={appearance().onFollowTheme}><i class="canvas-color-auto" /><span>Auto</span></button>
-            {appearance().boardColors.map(option => <button type="button" class={`canvas-color-choice ${!appearance().followsTheme && appearance().backgroundColor === option.value ? "active" : ""}`} aria-label={option.label} aria-pressed={!appearance().followsTheme && appearance().backgroundColor === option.value} disabled={appearance().boardLocked} onClick={() => appearance().onBackgroundColorChange(option.value)}><i style={{ "background-color": option.value }} /><span>{option.label}</span></button>)}
-            <label class="canvas-color-choice canvas-custom-color" title="Custom whiteboard color"><input type="color" aria-label="Custom whiteboard color" value={appearance().renderedBackgroundColor} disabled={appearance().boardLocked} onInput={event => appearance().onBackgroundColorChange(event.currentTarget.value)} /><i style={{ "background-color": appearance().renderedBackgroundColor }} /><span>Custom</span></label>
+        </details>
+
+        <details class="workspace-view-section workspace-view-advanced">
+          <summary><span>Precision</span><small>Rulers, guides, and guide snapping</small></summary>
+          <div class="workspace-view-controls">
+            {check("Show rulers", props.showRulers, props.onToggleRulers)}
+            {check("Show guides", props.showGuides, props.onToggleGuides)}
+            {check("Snap to guides", props.snapToGuides, props.onToggleSnapToGuides)}
+            {props.canvasTools?.onToggleOrthogonal && check("Orthogonal connectors", props.canvasTools.orthogonalOnly ?? false, props.canvasTools.onToggleOrthogonal, props.boardLocked)}
           </div>
-          <div class="canvas-appearance-heading">Paper pattern</div>
-          <div class="canvas-pattern-options" role="group" aria-label="Paper pattern">
-            {([{ value: "plain", label: "Plain" }, { value: "dots", label: "Dots" }, { value: "small-dots", label: "Fine dots" }, { value: "lines", label: "Grid" }, { value: "small-grid", label: "Fine grid" }, { value: "ruled", label: "Ruled" }, { value: "isometric", label: "Isometric" }] as const).map(option => <button type="button" class={appearance().paperPattern === option.value ? "active" : ""} aria-pressed={appearance().paperPattern === option.value} onClick={() => appearance().onPaperPatternChange(option.value)}><i class={`paper-pattern-swatch ${option.value}`} /><span>{option.label}</span></button>)}
+          <p class="workspace-view-note">Hold Ctrl or Command while dragging to bypass snapping. Shift constrains movement or keeps proportions while resizing.</p>
+        </details>
+
+        <Show when={props.canvasAppearance || props.appAppearance}>
+          <details class="workspace-view-section workspace-view-advanced">
+            <summary><span>Appearance</span><small>Board and interface colors</small></summary>
+            <Show when={props.appAppearance}>{appearance => <div class="workspace-view-fields">
+              <label>Theme<select aria-label="Application theme" value={appearance().themeMode} onChange={event => appearance().onThemeChange(event.currentTarget.value as "system" | "light" | "dark")}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+              <label>Accent<select aria-label="Accent color" value={appearance().accentColor} onChange={event => appearance().onAccentChange(event.currentTarget.value)}>{appearance().accentOptions.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
+              <label>Toolbar<select aria-label="Toolbar surface" value={appearance().toolbarColorChoice} onChange={event => appearance().onToolbarColorChange(event.currentTarget.value)}><option value="auto">Automatic</option>{appearance().toolbarColorOptions.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
+            </div>}</Show>
+            <Show when={props.canvasAppearance}>{appearance => <>
+              <div class="workspace-view-color-row" aria-label="Board color">
+                <button type="button" class={appearance().followsTheme ? "selected" : ""} disabled={appearance().boardLocked} onClick={appearance().onFollowTheme}>Theme</button>
+                {appearance().boardColors.map(color => <button type="button" class={!appearance().followsTheme && appearance().backgroundColor === color.value ? "selected" : ""} aria-label={color.label} title={color.label} disabled={appearance().boardLocked} style={{ "--swatch-color": color.value }} onClick={() => appearance().onBackgroundColorChange(color.value)} />)}
+                <label class="workspace-view-custom-color" title="Custom board color"><input type="color" aria-label="Custom board color" value={appearance().renderedBackgroundColor} disabled={appearance().boardLocked} onInput={event => appearance().onBackgroundColorChange(event.currentTarget.value)} /><i style={{ "--swatch-color": appearance().renderedBackgroundColor }} /></label>
+              </div>
+              <label class="workspace-view-fields">Paper pattern<select aria-label="Paper pattern" value={appearance().paperPattern} onChange={event => appearance().onPaperPatternChange(event.currentTarget.value as "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric")}><option value="plain">Plain</option><option value="dots">Dots</option><option value="small-dots">Fine dots</option><option value="lines">Grid</option><option value="small-grid">Fine grid</option><option value="ruled">Ruled</option><option value="isometric">Isometric</option></select></label>
+            </>}</Show>
+          </details>
+        </Show>
+
+        <details class="workspace-view-section workspace-view-advanced">
+          <summary><span>Structure</span><small>Selection and connection tools</small></summary>
+          <div class="workspace-view-action-grid">
+            {action(props.grouped ? "Ungroup selection" : "Group selection", props.onGroupSelection, !props.canGroup || props.boardLocked, "Ctrl+G")}
+            {props.onSelectConnected && action("Select connected", props.onSelectConnected, !!props.structureSelectionDisabled || props.boardLocked)}
+            {props.onSelectSimilar && action("Select similar", props.onSelectSimilar, !!props.structureSelectionDisabled || props.boardLocked)}
+            {props.onOrthogonalizeSelected && action("Orthogonalize selected", props.onOrthogonalizeSelected, !!props.orthogonalizeDisabled || props.boardLocked)}
+            {props.canvasTools?.onReattachDangling && action("Reattach dangling connectors", props.canvasTools.onReattachDangling, !!props.canvasTools.reattachDisabled || props.boardLocked)}
+            {props.canvasTools?.onRenumberSequenceMessages && action("Number selected messages", props.canvasTools.onRenumberSequenceMessages, !!props.canvasTools.sequenceNumberingDisabled || props.boardLocked)}
           </div>
-        </section>}</Show>
-        <section class="canvas-options-section">
-          <span>SNAPPING</span>
-          <div class="canvas-options-grid">
-            <button role="menuitemcheckbox" aria-checked={props.snapToGrid} class={props.snapToGrid ? "active" : ""} title="Snap to grid (Shift+G)" onClick={props.onToggleSnapToGrid}><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8v8H8z" /></svg><span>Snap to grid</span><kbd>Shift G</kbd></button>
-            <button role="menuitemcheckbox" aria-checked={props.snapToObjects} class={props.snapToObjects ? "active" : ""} title="Snap to objects (Shift+O)" onClick={props.onToggleSnapToObjects}><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 14h5v5h-5zM10 7.5h4M16.5 10v4" /></svg><span>Snap to objects</span><kbd>Shift O</kbd></button>
-          </div>
-        </section>
-        <section class="canvas-options-section">
-          <span>SELECTION</span>
-          <div class="canvas-options-grid">
-            <button role="menuitem" disabled={!props.canGroup || props.boardLocked} class={props.grouped ? "active" : ""} title="Group or ungroup selection (Ctrl+G)" onClick={props.onGroupSelection}><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="9" height="9" rx="1.5" /><rect x="11.5" y="11" width="9" height="9" rx="1.5" /></svg><span>{props.grouped ? "Ungroup selection" : "Group selection"}</span><kbd>Ctrl G</kbd></button>
-            {props.canvasTools?.onRenumberSequenceMessages && <button role="menuitem" disabled={props.canvasTools.sequenceNumberingDisabled || props.boardLocked} title="Number the selected connectors in top to bottom order" onClick={() => props.canvasTools?.onRenumberSequenceMessages?.()}><svg viewBox="0 0 24 24"><path d="M4 6h4m-4 0 2-2v5m-2 5h4l-4 4h4m4-8h10m-10 5h10" /></svg><span>Number selected messages</span></button>}
-          </div>
-        </section>
-        {props.canvasTools && <section class="canvas-options-section canvas-tools-options mobile-advanced-canvas-tools">
-          <span>CANVAS TOOLS</span>
-          <div class="canvas-options-grid">
-            {props.canvasTools.onSearchObjects && <button role="menuitem" title="Find objects on the canvas (Ctrl+F)" onClick={props.canvasTools.onSearchObjects}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M7.5 10.5h6"/></svg><span>Find objects</span><kbd>Ctrl F</kbd></button>}
-            {props.canvasTools.onValidateDiagram && <button role="menuitem" disabled={props.canvasTools.validationDisabled} title="Check links and schema references" onClick={props.canvasTools.onValidateDiagram}><svg viewBox="0 0 24 24"><path d="M5 12.5 9.5 17 19 7.5M4 3h16v18H4z" /></svg><span>Validate diagram</span></button>}
-            <button role="menuitemcheckbox" aria-checked={props.canvasTools.showAlignmentGuides} class={props.canvasTools.showAlignmentGuides ? "active" : ""} title="Show or hide alignment guides while moving objects" onClick={props.canvasTools.onToggleAlignmentGuides}><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M7 7l10 10m0-10L7 17" /></svg><span>Alignment guides</span></button>
-            <button role="menuitemcheckbox" aria-checked={props.canvasTools.showMinimap} class={props.canvasTools.showMinimap ? "active" : ""} title="Show or hide the minimap" onClick={props.canvasTools.onToggleMinimap}><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M6 16l4-5 3 3 2-2 3 4M7 8h.01" /></svg><span>Minimap</span></button>
-            {props.canvasTools.onTogglePresentation && <button role="menuitemcheckbox" aria-checked={props.canvasTools.presentation ?? false} class={props.canvasTools.presentation ? "active" : ""} title={props.canvasTools.presentation ? "Exit presentation mode" : "Start presentation mode"} onClick={props.canvasTools.onTogglePresentation}><svg viewBox="0 0 24 24"><path d="m9 6 10 6-10 6z" /></svg><span>{props.canvasTools.presentation ? "Exit presentation" : "Presentation mode"}</span></button>}
-            {props.canvasTools.onToggleFullscreen && <button role="menuitemcheckbox" aria-checked={props.canvasTools.fullscreen ?? false} class={props.canvasTools.fullscreen ? "active" : ""} title={props.canvasTools.fullscreen ? "Exit full screen focus mode" : "Enter full screen focus mode"} onClick={props.canvasTools.onToggleFullscreen}><svg viewBox="0 0 24 24"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4" /></svg><span>{props.canvasTools.fullscreen ? "Exit full screen" : "Full screen"}</span></button>}
-          </div>
-        </section>}
-        {props.canvasTools?.onAutoLayout && <section class="canvas-options-section mobile-advanced-canvas-tools">
-          <span>DIAGRAM LAYOUT</span>
-          <div class="canvas-options-grid">
-            <button role="menuitem" disabled={props.canvasTools.autoLayoutDisabled} title="Arrange connected objects from left to right" onClick={props.canvasTools.onAutoLayout}><svg viewBox="0 0 24 24"><path d="M3 5h6v5H3zM15 14h6v5h-6zM9 7.5h3a3 3 0 0 1 3 3V14m0 0-2.5-2.5M15 14l2.5-2.5" /></svg><span>Auto arrange</span></button>
-          </div>
-        </section>}
+        </details>
+
+        <Show when={props.canvasTools}>
+          {tools => <details class="workspace-view-section workspace-view-advanced">
+            <summary><span>Diagram tools</span><small>Layout, validation, and focus</small></summary>
+            <div class="workspace-view-fields workspace-view-tools">
+              <Show when={tools().onAutoLayout}>{autoLayout => <>
+                <label>Layout algorithm<select aria-label="Layout algorithm" value={tools().layoutAlgorithm ?? "layered"} onChange={event => tools().onLayoutAlgorithmChange?.(event.currentTarget.value as DiagramLayoutAlgorithm)}><option value="layered">Layered</option><option value="mrtree">Tree</option><option value="radial">Radial</option><option value="force">Force</option><option value="stress">Stress</option></select></label>
+                <label class="workspace-view-range">Spacing <output>{tools().layoutSpacing ?? 48}</output><input aria-label="Layout spacing between elements" type="range" min="20" max="120" step="1" value={tools().layoutSpacing ?? 48} onPointerDown={event => event.stopPropagation()} onInput={event => tools().onLayoutSpacingChange?.(Number(event.currentTarget.value))} /></label>
+                <label class="workspace-view-checkbox"><input type="checkbox" checked={tools().layoutSelectionOnly ?? false} disabled={tools().autoLayoutDisabled} onChange={event => tools().onLayoutSelectionOnlyChange?.(event.currentTarget.checked)} />Layout selection only</label>
+                {action("Auto arrange", autoLayout(), !!tools().autoLayoutDisabled || !!tools().layoutSelectionOnly && !props.hasSelection)}
+              </>}</Show>
+              <Show when={tools().onSearchObjects}>{search => action("Find objects", search(), false, "Ctrl+F")}</Show>
+              <Show when={tools().onValidateDiagram}>{validate => action("Validate diagram", validate(), !!tools().validationDisabled)}</Show>
+              {check("Show minimap", tools().showMinimap, tools().onToggleMinimap)}
+              <Show when={tools().onTogglePresentation}>{present => check(tools().presentation ? "Exit presentation" : "Presentation mode", !!tools().presentation, present())}</Show>
+              <Show when={tools().onToggleFullscreen}>{fullscreen => action(tools().fullscreen ? "Exit full screen" : "Full screen focus", fullscreen())}</Show>
+            </div>
+          </details>}
+        </Show>
       </div>
     </div>
   );

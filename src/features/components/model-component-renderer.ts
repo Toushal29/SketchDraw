@@ -1,5 +1,6 @@
 import type { GroupElement, Theme } from "../../model";
 import { cloudProviderComponent } from "../diagrams/cloud-providers";
+import { drawGuiComponent, guiComponentSvg } from "./gui-components";
 
 type Palette = { ink: string; edge: string; fill: string; soft: string; muted: string; accent: string };
 const paletteFor = (dark: boolean): Palette => dark
@@ -136,7 +137,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   if (!bounds || !meta) return;
   const { x, y, w, h } = bounds; const kind = meta.kind;
   const ink = meta.styleOverrides?.color ?? (theme === "dark" ? "#eeeeee" : "#292929");
-  const edge = ink; const fill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? (theme === "dark" ? "#202020" : "#ffffff");
+  const edge = ink; const fill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? group.container?.background ?? (theme === "dark" ? "#202020" : "#ffffff");
   const soft = theme === "dark" ? "#343434" : "#eeeeee";
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
@@ -200,6 +201,21 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   }
   if (kind.startsWith("c4-")) { dashedBoundary(name, kind === "c4-system" ? "C4 · system context" : kind === "c4-container" ? "C4 · container" : "C4 · component"); ctx.restore(); return; }
   if (kind === "network-zone") { dashedBoundary(name, "Network boundary"); ctx.restore(); return; }
+  if (kind === "diagram-legend") {
+    box();
+    label(name, x + 12, y + 15, w - 24, Math.min(size, 14));
+    rule(x + 8, y + 29, x + w - 8, y + 29);
+    const rows = ["Component", "Decision", "Data store", "Relationship"];
+    rows.forEach((row, index) => {
+      const rowY = y + 42 + index * 18;
+      if (index === 0) box(x + 12, rowY - 5, 14, 10, soft);
+      else if (index === 1) { ctx.beginPath(); ctx.moveTo(x + 19, rowY - 7); ctx.lineTo(x + 26, rowY); ctx.lineTo(x + 19, rowY + 7); ctx.lineTo(x + 12, rowY); ctx.closePath(); ctx.fillStyle = soft; ctx.fill(); ctx.stroke(); }
+      else if (index === 2) { ctx.beginPath(); ctx.ellipse(x + 19, rowY, 7, 5, 0, 0, Math.PI * 2); ctx.fillStyle = soft; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.ellipse(x + 19, rowY, 7, 2, 0, 0, Math.PI); ctx.stroke(); }
+      else { rule(x + 12, rowY, x + 27, rowY); ctx.beginPath(); ctx.moveTo(x + 23, rowY - 3); ctx.lineTo(x + 27, rowY); ctx.lineTo(x + 23, rowY + 3); ctx.stroke(); }
+      label(row, x + 34, rowY, w - 44, Math.min(size, 10), false);
+    });
+    ctx.restore(); return;
+  }
   if (kind === "cloud-boundary") {
     cloudPath(ctx, x, y, w, h); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill();
     ctx.setLineDash([6, 4]); ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.stroke(); ctx.setLineDash([]);
@@ -326,6 +342,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   if (!bounds || !kind) return;
   const { x, y, w, h } = bounds;
   const meta = group.libraryComponent!;
+  if (drawGuiComponent(ctx, group, theme)) return;
   if (meta.renderStyle === "clean") { drawCleanModelComponent(ctx, group, theme); return; }
   // Modeling components share one plain visual language.
   const simple = true;
@@ -529,12 +546,14 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
 }
 
 export function modelComponentSvg(group: GroupElement) {
+  const guiSvg = guiComponentSvg(group);
+  if (guiSvg) return guiSvg;
   const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return "";
   const { x, y, w, h } = bounds; const meta = group.libraryComponent!;
   const simple = true;
   const palette = paletteFor(false); const edge = meta.styleOverrides?.color ?? palette.edge;
-  const fill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? palette.fill;
+  const fill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? group.container?.background ?? palette.fill;
   const rawTitle = meta.formTitle ?? meta.label ?? kind.replace(/-/g, " ");
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
@@ -580,6 +599,18 @@ export function modelComponentSvg(group: GroupElement) {
     };
     const r = (rx = x, ry = y, rw = w, rh = h, color = cleanFill) => `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${color}" stroke="${ink}" stroke-width="1.3"/>`;
     const p = (d: string, dash = "") => `<path d="${d}" fill="none" stroke="${ink}" stroke-width="1.3"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
+    if (kind === "diagram-legend") {
+      const rows = ["Component", "Decision", "Data store", "Relationship"];
+      const rowMarkup = rows.map((row, index) => {
+        const rowY = y + 42 + index * 18;
+        const glyph = index === 0 ? `<rect x="${x + 12}" y="${rowY - 5}" width="14" height="10" fill="${soft}" stroke="${ink}"/>`
+          : index === 1 ? `<path d="M ${x + 19} ${rowY - 7} l7 7-7 7-7-7Z" fill="${soft}" stroke="${ink}"/>`
+            : index === 2 ? `<ellipse cx="${x + 19}" cy="${rowY}" rx="7" ry="5" fill="${soft}" stroke="${ink}"/><path d="M ${x + 12} ${rowY} a7 2 0 0 0 14 0" fill="none" stroke="${ink}"/>`
+              : `<path d="M ${x + 12} ${rowY} H ${x + 27} m-4-3 4 3-4 3" fill="none" stroke="${ink}"/>`;
+        return `${glyph}${t(row, x + 34, rowY, w - 44, Math.min(size, 10), "start", 400)}`;
+      }).join("");
+      return `${r()}${t(rawTitle, x + 12, y + 15, w - 24, Math.min(size, 14))}<path d="M ${x + 8} ${y + 29} H ${x + w - 8}" stroke="${ink}"/>${rowMarkup}`;
+    }
     const provider = cloudProviderComponent(kind);
     if (provider) {
       const iconSide = Math.max(28, Math.min(54, h - 34, w * .34)); const iconX = x + 10; const iconY = y + (h - iconSide) / 2 - 3; const copyX = iconX + iconSide + 9;

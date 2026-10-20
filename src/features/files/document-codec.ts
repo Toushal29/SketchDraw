@@ -73,7 +73,7 @@ function normalizedElements(source: Element[]): Element[] {
 }
 
 function serializedPage(page: SketchPage): string {
-  const metadataKey = JSON.stringify([page.id, page.name, page.canvasState]);
+  const metadataKey = JSON.stringify([page.id, page.name, page.canvasState, page.layers]);
   const cached = serializedPageCache.get(page.elements);
   if (cached?.metadataKey === metadataKey) {
     serializedPageCache.delete(page.elements);
@@ -83,7 +83,7 @@ function serializedPage(page: SketchPage): string {
   // Reuse the element array encoding when only page metadata (such as pan or
   // zoom) changed. The v10 document still stores ordinary JSON page objects.
   const elementsJson = cached?.elementsJson ?? JSON.stringify(page.elements);
-  const pageShell = JSON.stringify({ id: page.id, name: page.name, canvasState: page.canvasState, elements: elementListMarker });
+  const pageShell = JSON.stringify({ id: page.id, name: page.name, canvasState: page.canvasState, ...(page.layers?.length ? { layers: page.layers } : {}), elements: elementListMarker });
   const block = `        ${pageShell.replace(`"elements":"${elementListMarker}"`, `"elements":${elementsJson}`)}`;
   const bytes = (block.length + elementsJson.length) * 2;
   if (cached) {
@@ -135,6 +135,8 @@ export function createSketchSnapshot(options: CreateSnapshotOptions): SketchFile
       name: page.name,
       canvasState: { ...state, backgroundColor, boardColorFollowsTheme: state.boardColorFollowsTheme ?? true },
       elements: normalized as Element[],
+      ...(page.layers?.length ? { layers: page.layers } : {}),
+      ...(page.componentMasters?.length ? { componentMasters: page.componentMasters } : {}),
     };
   });
   return {
@@ -148,11 +150,12 @@ export function createSketchSnapshot(options: CreateSnapshotOptions): SketchFile
 }
 
 export function serializeSketchSnapshot(snapshot: SketchFile): string {
+  const componentMasters = [...new Map(snapshot.pages.flatMap(page => page.componentMasters ?? []).map(master => [master.id, master] as const)).values()];
   const document: SketchFileDocumentV10 = {
     format: "SketchDraw",
     version: SKETCH_FORMAT_VERSION,
     sections: {
-      canvas: { activePageId: snapshot.activePageId, pages: pageListMarker as unknown as SketchFileDocumentV10["sections"]["canvas"]["pages"] },
+      canvas: { activePageId: snapshot.activePageId, pages: pageListMarker as unknown as SketchFileDocumentV10["sections"]["canvas"]["pages"], ...(componentMasters.length ? { componentMasters } : {}) },
     },
     ...(snapshot.windowsSync ? { windowsSync: snapshot.windowsSync } : {}),
   };

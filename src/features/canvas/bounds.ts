@@ -20,6 +20,43 @@ export function unionBounds(boxes: Bounds[]): Bounds | undefined {
   for (const box of boxes) { left = Math.min(left, box.x); top = Math.min(top, box.y); right = Math.max(right, box.x + box.w); bottom = Math.max(bottom, box.y + box.h); }
   return { x: left, y: top, w: right - left, h: bottom - top };
 }
+
+/** Resize a rectangle while preserving its original ratio and the opposite anchor. */
+export function lockAspectResizeBounds(before: Bounds, requested: Bounds, handle: string, minimumWidth = 1, minimumHeight = 1): Bounds {
+  if (before.w <= 0 || before.h <= 0) return requested;
+  const ratio = before.w / before.h;
+  const horizontal = handle.includes("e") || handle.includes("w");
+  const vertical = handle.includes("n") || handle.includes("s");
+  let width = requested.w;
+  let height = requested.h;
+  let x = requested.x;
+  let y = requested.y;
+  if (horizontal && vertical) {
+    const widthScale = Math.abs(width / before.w - 1);
+    const heightScale = Math.abs(height / before.h - 1);
+    if (widthScale >= heightScale) height = width / ratio;
+    else width = height * ratio;
+    const minimumScale = Math.max(minimumWidth / before.w, minimumHeight / before.h);
+    const scale = Math.max(minimumScale, width / before.w, height / before.h);
+    width = before.w * scale; height = before.h * scale;
+    if (handle.includes("w")) x = before.x + before.w - width;
+    if (handle.includes("n")) y = before.y + before.h - height;
+  } else if (horizontal) {
+    width = Math.max(minimumWidth, width);
+    height = Math.max(minimumHeight, width / ratio);
+    width = height * ratio;
+    x = handle.includes("w") ? before.x + before.w - width : before.x;
+    y = before.y + (before.h - height) / 2;
+  } else if (vertical) {
+    height = Math.max(minimumHeight, height);
+    width = Math.max(minimumWidth, height * ratio);
+    height = width / ratio;
+    y = handle.includes("n") ? before.y + before.h - height : before.y;
+    x = before.x + (before.w - width) / 2;
+  }
+  return { x, y, w: width, h: height };
+}
+
 export function elementBounds(element: Element): Bounds {
   const cached = boundsCache.get(element); if (cached) return cached;
   if (element.type === "group") {
@@ -61,6 +98,25 @@ export function elementBounds(element: Element): Bounds {
     return cacheBounds(element, labelBounds ? unionBounds([routeBounds, labelBounds])! : routeBounds);
   }
   return cacheBounds(element, rotatedBounds({ x, y, w, h }, element.rotation ?? 0));
+}
+
+/** Bounds for content that will actually be drawn, including inherited visibility and unclipped group children. */
+export function visibleElementBounds(element: Element, isHidden: (element: Element) => boolean = item => !!item.hidden): Bounds[] {
+  if (isHidden(element)) return [];
+  if (element.type !== "group") return [elementBounds(element)];
+  const ownBounds = element.note || element.componentBounds ? [elementBounds(element)] : [];
+  if (element.container?.showLabel !== false && element.container?.name.trim()) {
+    const box = elementBounds(element);
+    const label = { x: box.x + 8, y: box.y - 22, w: element.container.name.length * 10, h: 18 };
+    const rotation = element.rotation ?? 0;
+    if (rotation) {
+      const centerX = box.x + box.w / 2; const centerY = box.y + box.h / 2; const angle = rotation * Math.PI / 180;
+      const corners = [{ x: label.x, y: label.y }, { x: label.x + label.w, y: label.y }, { x: label.x + label.w, y: label.y + label.h }, { x: label.x, y: label.y + label.h }];
+      ownBounds.push(boundsOfPoints(corners.map(point => ({ x: centerX + (point.x - centerX) * Math.cos(angle) - (point.y - centerY) * Math.sin(angle), y: centerY + (point.x - centerX) * Math.sin(angle) + (point.y - centerY) * Math.cos(angle) }))));
+    } else ownBounds.push(label);
+  }
+  if (element.note || element.container?.clipChildren && element.componentBounds || element.componentBounds && element.libraryComponent && !element.container) return ownBounds;
+  return [...ownBounds, ...element.elements.flatMap(child => visibleElementBounds(child, isHidden))];
 }
 
 /** Returns the item's geometric bounds without stroke, shadow, or arrowhead padding. */

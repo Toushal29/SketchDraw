@@ -1,5 +1,6 @@
 import type { Element, GroupElement, LibraryComponentData, Point, ShapeElement } from "../../model";
 import { elementBounds } from "../canvas/bounds";
+import { defaultGuiComponentProperties, guiChoiceMinimumHeight, guiNavigationMinimumHeight } from "./gui-components";
 import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../notes";
 
 export type LibraryComponentField = { key: string; label: string; value: string };
@@ -8,7 +9,7 @@ export function libraryComponentFields(group: GroupElement): LibraryComponentFie
   if (group.libraryComponent?.kind.startsWith("viz-")) return [];
   if (group.componentBounds) {
     const kind = group.libraryComponent?.kind ?? "";
-    if (kind.startsWith("form-")) return [];
+    if (kind.startsWith("form-") || kind.startsWith("gui-")) return [];
     return [{ key: "label", label: "Label", value: group.libraryComponent?.label ?? LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? kind }];
   }
   const fields: LibraryComponentField[] = []; let textIndex = 0; let labelIndex = 0;
@@ -62,23 +63,32 @@ export function libraryComponentFontSize(group: GroupElement): number {
   return Math.round(size);
 }
 
-export function libraryComponentMinimum(_group: GroupElement, _axis: "w" | "h"): number {
-  const kind = _group.libraryComponent?.kind;
+export function libraryComponentMinimum(group: GroupElement, axis: "w" | "h"): number {
+  const kind = group.libraryComponent?.kind;
+  if (kind?.startsWith("gui-")) {
+    const minimums: Record<string, { w: number; h: number }> = {
+      "gui-card": { w: 120, h: 25 }, "gui-app-bar": { w: 60, h: 25 }, "gui-navigation": { w: 50, h: guiNavigationMinimumHeight(group) },
+      "gui-tabs": { w: 60, h: 25 }, "gui-image": { w: 40, h: 25 },
+    };
+    return minimums[kind]?.[axis] ?? 10;
+  }
   if (!kind?.startsWith("form-")) return 10;
-  const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind);
-  const optionCount = Math.max(1, Math.min(12, _group.libraryComponent?.formOptions?.length ?? defaultLibraryFormOptions(kind as LibraryComponentKind)?.length ?? 1));
-  if (_axis === "w") return Math.max(90, (definition?.width ?? 180) * .68);
-  if (kind === "form-checkbox") return 33 + optionCount * 18;
-  if (kind === "form-radio") return 42 + optionCount * 18;
-  if (kind === "form-button") return 36;
-  if (kind === "form-toggle") return 45;
-  return 58;
+  if (axis === "w") {
+    if (kind === "form-button") return 50;
+    if (kind === "form-toggle") return 75;
+    if (kind === "form-checkbox" || kind === "form-radio") return 75;
+    return 75;
+  }
+  if (kind === "form-checkbox" || kind === "form-radio") return guiChoiceMinimumHeight(group);
+  return 25;
 }
 
 export function assignLibraryComponentIds(group: GroupElement, kind: LibraryComponentKind, previous?: GroupElement): GroupElement {
   if (group.componentBounds) {
-    const metadata: LibraryComponentData = { kind, label: LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? String(kind), ...(defaultLibraryFormTitle(kind) ? { formTitle: defaultLibraryFormTitle(kind) } : {}), ...(defaultLibraryFormOptions(kind) ? { formOptions: defaultLibraryFormOptions(kind) } : {}), ...(defaultLibraryChartData(kind) ? { chartData: defaultLibraryChartData(kind) } : {}), ...(kind === "network-hub" ? { portCount: 8 } : kind === "network-switch" ? { portCount: 6 } : {}) };
-    return { ...group, id: previous?.id ?? group.id ?? crypto.randomUUID(), elements: [], libraryComponent: { ...metadata, ...(group.libraryComponent ?? {}), ...(previous?.libraryComponent ?? {}), kind } };
+    const guiProperties = defaultGuiComponentProperties(kind);
+    const metadata: LibraryComponentData = { kind, label: LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? String(kind), ...(defaultLibraryFormTitle(kind) ? { formTitle: defaultLibraryFormTitle(kind) } : {}), ...(defaultLibraryFormOptions(kind) ? { formOptions: defaultLibraryFormOptions(kind) } : {}), ...(defaultLibraryChartData(kind) ? { chartData: defaultLibraryChartData(kind) } : {}), ...(guiProperties ? { guiProperties } : {}), ...(kind === "network-hub" ? { portCount: 8 } : kind === "network-switch" ? { portCount: 6 } : {}) };
+    const savedGuiProperties = { ...(guiProperties ?? {}), ...(group.libraryComponent?.guiProperties ?? {}), ...(previous?.libraryComponent?.guiProperties ?? {}) };
+    return { ...group, id: previous?.id ?? group.id ?? crypto.randomUUID(), elements: [], libraryComponent: { ...metadata, ...(group.libraryComponent ?? {}), ...(previous?.libraryComponent ?? {}), ...(Object.keys(savedGuiProperties).length ? { guiProperties: savedGuiProperties } : {}), kind } };
   }
   const hasEditableText = (items: Element[]): boolean => items.some(element => element.type === "text" || "label" in element && !!element.label || element.type === "group" && hasEditableText(element.elements));
   if (!hasEditableText(group.elements) && kind !== "uml-activation") {
@@ -100,9 +110,11 @@ export function assignLibraryComponentIds(group: GroupElement, kind: LibraryComp
   const formState = kind === "form-checkbox" || kind === "form-toggle" ? true : undefined;
   const formStates = kind === "form-checkbox" ? (formOptions ?? []).map((_, index) => index === 0) : undefined;
   const selectedOption = kind === "form-radio" || kind === "form-select" || kind === "form-button" ? 0 : undefined;
-  const metadata: LibraryComponentData = { kind, ...(LIBRARY_COMPONENTS.find(item => item.kind === kind) ? { label: LIBRARY_COMPONENTS.find(item => item.kind === kind)!.label } : {}), ...(formTitle ? { formTitle } : {}), ...(formState === undefined ? {} : { formState }), ...(formStates ? { formStates } : {}), ...(selectedOption === undefined ? {} : { selectedOption }), ...(formOptions ? { formOptions } : {}), ...(chartData ? { chartData } : {}) };
+  const guiProperties = defaultGuiComponentProperties(kind);
+  const metadata: LibraryComponentData = { kind, ...(LIBRARY_COMPONENTS.find(item => item.kind === kind) ? { label: LIBRARY_COMPONENTS.find(item => item.kind === kind)!.label } : {}), ...(formTitle ? { formTitle } : {}), ...(formState === undefined ? {} : { formState }), ...(formStates ? { formStates } : {}), ...(selectedOption === undefined ? {} : { selectedOption }), ...(formOptions ? { formOptions } : {}), ...(guiProperties ? { guiProperties } : {}), ...(chartData ? { chartData } : {}) };
   const sourceElements = kind === "uml-activation" ? group.elements.filter(item => item.type !== "text") : group.elements;
-  return { ...group, id: previous?.id ?? group.id ?? crypto.randomUUID(), elements: sourceElements.map(addIds), libraryComponent: { ...metadata, ...(previous?.libraryComponent ?? {}), kind } };
+  const savedGuiProperties = { ...(guiProperties ?? {}), ...(previous?.libraryComponent?.guiProperties ?? {}) };
+  return { ...group, id: previous?.id ?? group.id ?? crypto.randomUUID(), elements: sourceElements.map(addIds), libraryComponent: { ...metadata, ...(previous?.libraryComponent ?? {}), ...(Object.keys(savedGuiProperties).length ? { guiProperties: savedGuiProperties } : {}), kind } };
 }
 
 /** Rebuilds a renderer-only library group as editable primitives for old-file compatibility. */
@@ -230,9 +242,10 @@ export function rebuildLibraryFormOptions(group: GroupElement, options: string[]
   const formStates = kind === "form-checkbox" ? formOptions.map((_, index) => group.libraryComponent?.formStates?.[index] ?? index === 0) : undefined;
   const formTitle = group.libraryComponent?.formTitle ?? defaultLibraryFormTitle(kind);
   if (group.componentBounds) {
-    const rows = formOptions.length;
-    const height = kind === "form-radio" || kind === "form-checkbox" ? Math.max(group.componentBounds.h, 42 + rows * 26) : group.componentBounds.h;
-    return { ...group, componentBounds: { ...group.componentBounds, h: height }, libraryComponent: { ...group.libraryComponent!, formOptions, selectedOption, ...(formStates ? { formStates } : {}) } };
+    const updated = { ...group, libraryComponent: { ...group.libraryComponent!, formOptions, selectedOption, ...(formStates ? { formStates } : {}) } };
+    const minimumHeight = libraryComponentMinimum(updated, "h");
+    const height = Math.max(group.componentBounds.h, minimumHeight);
+    return { ...updated, componentBounds: { ...group.componentBounds, h: height } };
   }
   const rebuilt = resizeLibraryFont(assignLibraryComponentIds(buildLibraryComponent(kind, bounds.x, bounds.y, { formOptions, selectedOption, formStates, formTitle }), kind, group), fontSize);
   const natural = elementBounds(rebuilt);
@@ -242,10 +255,10 @@ export function rebuildLibraryFormOptions(group: GroupElement, options: string[]
 
 export function setLibraryFormTitle(group: GroupElement, title: string): GroupElement {
   const kind = group.libraryComponent?.kind;
-  if (kind !== "form-checkbox" && kind !== "form-radio" && kind !== "form-select" && kind !== "form-toggle") return group;
+  if (kind !== "form-checkbox" && kind !== "form-radio" && kind !== "form-select" && kind !== "form-toggle" && kind !== "form-input") return group;
   const formTitle = title.slice(0, 80);
   if (group.componentBounds) return { ...group, libraryComponent: { ...group.libraryComponent!, formTitle } };
-  const titleRole = kind === "form-checkbox" ? "form-checkbox-title" : kind === "form-radio" ? "form-radio-title" : kind === "form-select" ? "form-select-title" : "form-toggle-title";
+  const titleRole = kind === "form-checkbox" ? "form-checkbox-title" : kind === "form-radio" ? "form-radio-title" : kind === "form-select" ? "form-select-title" : kind === "form-input" ? "form-input-title" : "form-toggle-title";
   const elements = mapDescendants(group.elements, element => element.type === "text" && element.componentRole === titleRole ? { ...element, text: formTitle } : element);
   return { ...group, elements, libraryComponent: { ...group.libraryComponent!, formTitle } };
 }

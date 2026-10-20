@@ -1,11 +1,19 @@
 import { createMemo, For, Show } from "solid-js";
 import type { ShapeElement } from "./model";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
+import { parseMermaidSequence } from "./mermaid";
 
 type PreviewModel = { error?: string; frames: ShapeElement[]; nodes: ShapeElement[]; links: LinkPreview[]; viewBox: string };
 type LinkPreview = { shape: ShapeElement; start: { x: number; y: number }; end: { x: number; y: number } };
 
 export function MermaidPreview(props: { source: string }) {
+  const sequence = createMemo(() => {
+    if (!/^\s*sequenceDiagram\b/im.test(props.source)) return undefined;
+    try {
+      const parsed = parseMermaidSequence(props.source);
+      return { ...parsed, width: Math.max(300, parsed.participants.length * 190 + 40), height: Math.max(220, parsed.messages.length * 50 + 120) };
+    } catch (cause) { return { error: cause instanceof Error ? cause.message : String(cause), participants: [], messages: [], width: 1, height: 1 }; }
+  });
   const preview = createMemo<PreviewModel>(() => {
     try {
       const parsed = parseMermaidFlowchart(props.source);
@@ -25,7 +33,7 @@ export function MermaidPreview(props: { source: string }) {
   const headMarker = (head: ShapeElement["endHead"]) => head === "none" || head === "dot" || head === "bar" ? undefined : "url(#mermaid-preview-" + (head === "open" ? "open" : "solid") + ")";
   return <section class="mermaid-preview-panel" aria-label="Live Mermaid preview">
     <div class="mermaid-preview-heading"><span>LIVE PREVIEW</span><Show when={!preview().error}><small>Native canvas shapes</small></Show></div>
-    <Show when={!preview().error} fallback={<div class="mermaid-preview-error">{preview().error || "Enter Mermaid flowchart code to preview it."}</div>}>
+    <Show when={sequence()} fallback={<Show when={!preview().error} fallback={<div class="mermaid-preview-error">{preview().error || "Enter Mermaid flowchart or sequence diagram code to preview it."}</div>}>
       <svg class="mermaid-preview-svg" viewBox={preview().viewBox} role="img" aria-label="Preview of the generated flowchart" preserveAspectRatio="xMidYMid meet">
         <defs>
           <marker id="mermaid-preview-solid" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0 0 9 4.5 0 9z" fill="#71869b" /></marker>
@@ -48,6 +56,12 @@ export function MermaidPreview(props: { source: string }) {
           <text x={node.x + node.w / 2} y={node.y + node.h / 2 - ((node.label?.text.split("\n").length ?? 1) - 1) * 7} fill="#33495d" font-size="12" text-anchor="middle" dominant-baseline="middle"><For each={(node.label?.text ?? "").split("\n")}>{(line, index) => <tspan x={node.x + node.w / 2} dy={index() === 0 ? 0 : 14}>{line}</tspan>}</For></text>
         </g>}</For>
       </svg>
+    </Show>}>
+      {model => <Show when={!model().error} fallback={<div class="mermaid-preview-error">{model().error}</div>}><svg class="mermaid-preview-svg" viewBox={`0 0 ${model().width} ${model().height}`} role="img" aria-label="Preview of the generated sequence diagram" preserveAspectRatio="xMidYMid meet">
+        <defs><marker id="mermaid-sequence-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8z" fill="#71869b"/></marker></defs>
+        <For each={model().participants}>{(participant, index) => { const x = 20 + index() * 190; return <g><rect x={x} y="18" width="150" height="32" rx="5" fill="#f3f7fb" stroke="#657f98"/><text x={x + 75} y="34" fill="#33495d" font-size="12" text-anchor="middle" dominant-baseline="middle">{participant.label}</text><path d={`M ${x + 75} 50 V ${model().height - 16}`} stroke="#8497a8" stroke-dasharray="5 4"/></g>; }}</For>
+        <For each={model().messages}>{(message, index) => { const from = model().participants.findIndex(item => item.id === message.from); const to = model().participants.findIndex(item => item.id === message.to); const y = 82 + index() * 50; const x1 = 95 + from * 190; const x2 = 95 + to * 190; return <g><path d={`M ${x1} ${y} H ${x2}`} fill="none" stroke="#71869b" stroke-dasharray={message.operator.startsWith("--") ? "5 3" : undefined} marker-end="url(#mermaid-sequence-arrow)"/><text x={(x1 + x2) / 2} y={y - 7} fill="#40556a" font-size="10" text-anchor="middle">{message.label}</text></g>; }}</For>
+      </svg></Show>}
     </Show>
   </section>;
 }

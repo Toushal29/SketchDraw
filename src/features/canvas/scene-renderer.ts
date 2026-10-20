@@ -7,10 +7,10 @@ import { SceneTileCache } from "./scene-tile-cache";
 import { gridStepForStyle, isometricRowHeight, isometricRowOffset, type CanvasGridStyle } from "./input";
 
 type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; snapTargets: { x: number[]; y: number[] }; targets: Map<string, Element> };
-type AlignmentGuides = { x?: number; y?: number };
-
 export type CanvasSceneRendererPorts = {
   elements: () => Element[];
+  isHidden: (element: Element) => boolean;
+  isLocked: (element: Element) => boolean;
   spatialIndex: () => ElementSpatialIndex;
   tileCacheKey: () => string;
   tileCacheAllowed: () => boolean;
@@ -26,9 +26,7 @@ export type CanvasSceneRendererPorts = {
   boardLocked: () => boolean;
   tool: () => Tool;
   attachmentHint: () => Point | undefined;
-  alignmentGuides: () => AlignmentGuides | undefined;
   marquee: () => { start: Point; end: Point } | undefined;
-  showAlignmentGuides: () => boolean;
   laserTrail: () => { points: Point[]; opacity: number } | undefined;
   laserThickness: () => number;
   preview: () => Preview | undefined;
@@ -71,17 +69,19 @@ export function transformHandlePoints(bounds: Bounds, zoom: number, includeRotat
 
 export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
   const tileCache = new SceneTileCache();
-  const autoRouteIndicesByElements = new WeakMap<Element[], number[]>();
+  const autoRouteIndicesByElements = new WeakMap<Element[], { visibilityKey: string; indices: number[] }>();
 
   function getAutoRouteIndices(items: Element[]) {
-    let indices = autoRouteIndicesByElements.get(items);
-    if (!indices) {
-      indices = [];
+    const visibilityKey = ports.tileCacheKey();
+    const cached = autoRouteIndicesByElements.get(items);
+    if (cached?.visibilityKey === visibilityKey) return cached.indices;
+    const indices: number[] = [];
+    {
       items.forEach((item, index) => {
-        if (isConnector(item) && item.autoRoute && !item.hidden && !item.routePoints) indices!.push(index);
+        if (isConnector(item) && item.autoRoute && !ports.isHidden(item) && !item.routePoints) indices.push(index);
       });
-      autoRouteIndicesByElements.set(items, indices);
     }
+    autoRouteIndicesByElements.set(items, { visibilityKey, indices });
     return indices;
   }
 
@@ -89,10 +89,10 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     ports.drawLaserStroke(ctx, points, opacity, thickness);
   }
 
-  function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, state: CanvasState, pixelRatio: number) {
+  function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, state: CanvasState) {
     const style = ports.whiteboardStyle();
     if (!ports.showGrid() || style === "plain") return;
-    const step = gridStepForStyle(style as CanvasGridStyle, ports.gridSize, state.zoom, pixelRatio); const left = -state.panX / state.zoom; const top = -state.panY / state.zoom;
+    const step = gridStepForStyle(style as CanvasGridStyle, ports.gridSize, state.zoom); const left = -state.panX / state.zoom; const top = -state.panY / state.zoom;
     const right = (width - state.panX) / state.zoom; const bottom = (height - state.panY) / state.zoom;
     const hex = ports.renderedBoardColor().replace("#", ""); const rgb = Number.parseInt(hex.length === 3 ? hex.split("").map(part => part + part).join("") : hex, 16); const luminance = (0.2126 * ((rgb >> 16) & 255)) + (0.7152 * ((rgb >> 8) & 255)) + (0.0722 * (rgb & 255));
     ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
@@ -140,7 +140,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
   function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, dpr: number, includeSelection: boolean, transparent = false, viewOverride?: CanvasState, sourceItems = ports.elements(), includeGrid = true, includeStrokePreview = true) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
     if (!transparent) { ctx.fillStyle = ports.renderedBoardColor(); ctx.fillRect(0, 0, width, height); }
-    const state = viewOverride ?? ports.canvasState(); if (!transparent && includeGrid) drawGrid(ctx, width, height, state, dpr);
+    const state = viewOverride ?? ports.canvasState(); if (!transparent && includeGrid) drawGrid(ctx, width, height, state);
     ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
     const padding = 16 / state.zoom;
     const viewport = { x: -state.panX / state.zoom - padding, y: -state.panY / state.zoom - padding, w: width / state.zoom + padding * 2, h: height / state.zoom + padding * 2 };
@@ -173,7 +173,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     for (const index of [...paintIndices].sort((a, b) => a - b)) {
       const element = sourceItems[index];
       if (!element) continue;
-      if (element.hidden) continue;
+      if (ports.isHidden(element)) continue;
       const moved = !!drag?.indices.includes(index);
       const resolvedElement = drag ? ports.resolveDraggedConnector(element, index, drag) : element;
       const drawnElement = isConnector(resolvedElement) ? ports.connectorForView(resolvedElement as ShapeElement, sourceItems) : resolvedElement;
@@ -186,7 +186,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       const isSelected = selected.has(index);
       if (includeSelection && (isSelected || ports.hoveredIndex() === index) && isConnector(element)) {
         ctx.save(); ctx.strokeStyle = "#548ce8"; ctx.globalAlpha = .65; ctx.lineWidth = (isSelected ? 2 : 1) / state.zoom; traceConnector(ctx, drawnElement as ShapeElement); ctx.stroke();
-        if (isSelected && selected.size === 1 && !element.locked && !ports.boardLocked()) for (const handle of ports.connectorHandles(element as ShapeElement)) { const routeHandle = handle.id.startsWith("route") || handle.id.startsWith("auto-route:") || handle.id.includes(":route:"); ctx.beginPath(); ctx.fillStyle = routeHandle ? "#dbeafe" : "#ffffff"; ctx.arc(handle.x, handle.y, (routeHandle ? 4 : 6) / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+        if (isSelected && selected.size === 1 && !ports.isLocked(element) && !ports.boardLocked()) for (const handle of ports.connectorHandles(element as ShapeElement)) { const routeHandle = handle.id.startsWith("route") || handle.id.startsWith("auto-route:") || handle.id.includes(":route:"); ctx.beginPath(); ctx.fillStyle = routeHandle ? "#dbeafe" : "#ffffff"; ctx.arc(handle.x, handle.y, (routeHandle ? 4 : 6) / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
         ctx.restore();
       } else if (includeSelection && (isSelected || ports.hoveredIndex() === index)) {
         const bounds = elementBounds(element); const handlePadding = 5 / state.zoom;
@@ -197,14 +197,14 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
           ctx.strokeRect(-frame.w / 2 - handlePadding, -frame.h / 2 - handlePadding, Math.max(frame.w + handlePadding * 2, 2 / state.zoom), Math.max(frame.h + handlePadding * 2, 2 / state.zoom));
         } else ctx.strokeRect(bounds.x - handlePadding, bounds.y - handlePadding, Math.max(bounds.w + handlePadding * 2, 2 / state.zoom), Math.max(bounds.h + handlePadding * 2, 2 / state.zoom));
         ctx.restore();
-        if (isSelected && !element.locked && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent) && element.type !== "freehand") {
-          drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent, rotation);
+        if (isSelected && !ports.isLocked(element) && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent || !!element.container) && element.type !== "freehand") {
+          drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent || !!element.container, rotation);
         }
       }
       ctx.restore();
     }
     const tokenId = ports.simulationTokenId?.();
-    const token = tokenId ? sourceItems.find(item => item.id === tokenId && !item.hidden) : undefined;
+    const token = tokenId ? sourceItems.find(item => item.id === tokenId && !ports.isHidden(item)) : undefined;
     if (token) {
       const tokenBounds = elementBounds(token); const tokenX = tokenBounds.x + tokenBounds.w / 2; const tokenY = tokenBounds.y + tokenBounds.h / 2;
       ctx.save(); ctx.fillStyle = "#f59e0b"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2 / state.zoom;
@@ -216,22 +216,24 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       const drawPorts = (items: Element[]) => { for (const item of items) {
         const moved = !!drag?.targets.has(item.id ?? ""); const bounds = elementBounds(item);
         const visibleBounds = moved ? { ...bounds, x: bounds.x + drag!.dx, y: bounds.y + drag!.dy } : bounds;
-        if (item.hidden || item.locked || !ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) continue;
+        if (ports.isHidden(item) || ports.isLocked(item) || !ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) continue;
         if (item.type === "group") {
-          if (item.componentBounds && item.libraryComponent) {
+          if (item.componentBounds && (item.libraryComponent || item.container)) {
             if (moved) { ctx.save(); ctx.translate(drag!.dx, drag!.dy); }
             for (const anchor of BOX_ANCHORS) { const point = anchorPoint(item, anchor); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
+            for (const port of item.libraryComponent?.connectionPoints ?? item.container?.connectionPoints ?? []) { const point = anchorPoint(item, port.anchor, undefined, port.id); ctx.beginPath(); ctx.arc(point.x, point.y, 5 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
             if (moved) ctx.restore();
           }
           drawPorts(item.elements); continue;
         }
         if (!isConnectable(item)) continue;
         if (moved) { ctx.save(); ctx.translate(drag!.dx, drag!.dy); }
-        const anchors: { anchor: Point; rowId?: string }[] = [
+        const anchors: { anchor: Point; rowId?: string; portId?: string }[] = [
           ...BOX_ANCHORS.map(anchor => ({ anchor })),
+          ...(("connectionPoints" in item ? item.connectionPoints : undefined) ?? []).map(port => ({ anchor: port.anchor, portId: port.id })),
           ...(item.type === "schemaTable" ? item.columns.flatMap(column => [{ anchor: { x: 0, y: .5 }, rowId: column.id }, { anchor: { x: 1, y: .5 }, rowId: column.id }]) : []),
         ];
-        for (const { anchor, rowId } of anchors) { const point = anchorPoint(item, anchor, rowId); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
+        for (const { anchor, rowId, portId } of anchors) { const point = anchorPoint(item, anchor, rowId, portId); ctx.beginPath(); ctx.arc(point.x, point.y, portId ? 5 / state.zoom : 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
         if (moved) ctx.restore();
       } }; ctx.save(); ctx.fillStyle = "#5d94e7"; ctx.globalAlpha = .7;
       const portElements = ports.elements();
@@ -240,14 +242,6 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       for (const index of drag?.indices ?? []) portIndices.add(index);
       drawPorts([...portIndices].sort((a, b) => a - b).map(index => portElements[index]).filter((item): item is Element => !!item));
       const hint = ports.attachmentHint(); if (hint) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(hint.x, hint.y, 8 / state.zoom, 0, Math.PI * 2); ctx.strokeStyle = "#2675f5"; ctx.lineWidth = 2 / state.zoom; ctx.stroke(); } ctx.restore();
-    }
-    const guides = ports.alignmentGuides();
-    if (includeSelection && guides && ports.showAlignmentGuides()) {
-      const left = -state.panX / state.zoom; const top = -state.panY / state.zoom; const right = (width - state.panX) / state.zoom; const bottom = (height - state.panY) / state.zoom;
-      ctx.save(); ctx.strokeStyle = "#668fd0"; ctx.globalAlpha = .85; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([5 / state.zoom, 4 / state.zoom]); ctx.beginPath();
-      if (guides.x !== undefined) { ctx.moveTo(guides.x, top); ctx.lineTo(guides.x, bottom); }
-      if (guides.y !== undefined) { ctx.moveTo(left, guides.y); ctx.lineTo(right, guides.y); }
-      ctx.stroke(); ctx.restore();
     }
     const transientLaser = ports.laserTrail();
     if (includeSelection && transientLaser) drawLaserStroke(ctx, transientLaser.points, transientLaser.opacity, ports.laserThickness() / state.zoom);

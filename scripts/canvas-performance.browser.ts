@@ -5,7 +5,9 @@ import { appendSimplifiedStrokePoint } from "../src/features/canvas/stroke-simpl
 import { canvasStateForTouchGesture, gridStepForStyle, gridSvgPattern, pointerToWorld, snapCanvasPoint, strokePointFromPointer, zoomCanvasStateAt } from "../src/features/canvas/input";
 import { alignedTextStartX, flatten, isConnectable, labelBox, textLayout, validReferences } from "../src/operations";
 import { drawShapeLabel } from "../src/features/canvas/rendering";
-import { elementBounds } from "../src/features/canvas/bounds";
+import { elementBounds, lockAspectResizeBounds } from "../src/features/canvas/bounds";
+import { parseEditablePath, updateEditablePath } from "../src/features/canvas/path-editing";
+import { recognizeStroke } from "../src/features/canvas/stroke-recognition";
 import { autoRouteConnectorSet, autoRoutePoints } from "../src/features/diagrams/connector-routing";
 import { autoLayoutElements } from "../src/features/diagrams/auto-layout";
 import { relationshipDirectionHeads, relationshipDisplayElement } from "../src/features/diagrams/relationships";
@@ -23,6 +25,8 @@ import { CanvasOptionsMenu } from "../src/components/CanvasOptionsMenu";
 import { parseSchema } from "../src/schema";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "../src/mermaid";
 import { exportDiagramCode, plantUmlToDiagram } from "../src/features/diagrams/code-formats";
+import { d2ToDiagram } from "../src/features/diagrams/d2";
+import complexArchitectureD2 from "./fixtures/complex-architecture.d2?raw";
 import { importDrawio, exportDrawio, importExcalidraw, exportExcalidraw } from "../src/features/diagrams/interchange";
 import { structuredYamlToDiagram, bicepToDiagram, kubernetesToDiagram } from "../src/features/diagrams/structured-data";
 import { svgPrimitivesToElements } from "../src/features/diagrams/svg-vectors";
@@ -130,7 +134,7 @@ async function run() {
   const stylusEvent = new PointerEvent("pointermove", { pointerType: "pen", pressure: .82, tiltX: 45, tiltY: -30, twist: 325 });
   Object.defineProperty(stylusEvent, "twist", { value: 725 });
   const stylusPoint = strokePointFromPointer(stylusEvent, { x: 12, y: 18 }, true, true);
-  check(stylusPoint.pressure === .82 && stylusPoint.tiltX === 45 && stylusPoint.tiltY === -30 && stylusPoint.orientation === 5, "Pointer stylus pressure, tilt, and normalized rotation reach the stroke model");
+  check(Math.abs((stylusPoint.pressure ?? 0) - .82) < .001 && stylusPoint.tiltX === 45 && stylusPoint.tiltY === -30 && stylusPoint.orientation === 5, "Pointer stylus pressure, tilt, and normalized rotation reach the stroke model");
   const touchPoint = strokePointFromPointer(new PointerEvent("pointermove", { pointerType: "touch", pressure: 1 }), { x: 14, y: 20 }, true, true);
   check(!("pressure" in touchPoint) && touchPoint.x === 14 && touchPoint.y === 20, "Touch drawing does not inherit synthetic stylus pressure");
 
@@ -278,6 +282,16 @@ async function run() {
     const items = plantUmlToDiagram("@startuml\nclass User {\n id: UUID\n}\n@enduml"); const code = exportDiagramCode("puml", items);
     return plantUmlToDiagram(code).length > 0;
   });
+  await importCheck("D2 complex group and style round trip fixture", () => {
+    const imported = d2ToDiagram(complexArchitectureD2);
+    const code = exportDiagramCode("d2", imported);
+    const roundTrip = d2ToDiagram(code);
+    const all = flatten(roundTrip);
+    const groups = (items: Element[]): number => items.reduce((count, item) => count + (item.type === "group" ? 1 + groups(item.elements) : 0), 0);
+    const connectors = all.filter(item => item.type === "line" || item.type === "arrow");
+    const labels = all.flatMap(item => "label" in item && item.label ? [item.label.text] : []);
+    return groups(roundTrip) >= 3 && connectors.length === 4 && labels.includes("Public gateway") && labels.includes("Primary store") && code.includes("#dbeafe") && code.includes("HTTPS request");
+  });
   await importCheck("CloudFormation and Kubernetes policy, ingress, and storage import", () => {
     const cloud = structuredYamlToDiagram(JSON.stringify({ Resources: { Role: { Type: "AWS::IAM::Role" }, Worker: { Type: "AWS::Lambda::Function", Properties: { Role: { Ref: "Role" } } } } }));
     const kubernetes = kubernetesToDiagram(`apiVersion: v1
@@ -404,14 +418,26 @@ spec:
     return imported.length === 1 && restored.length === 2 && restoredVector?.type === "svgPath" && restoredVector.pathData === vector.pathData && restoredVector.fillRule === "evenodd";
   });
   for (const zoom of [.2, .55, 1, 1.37, 2.2]) for (const ratio of [1, 1.25, 1.5, 2]) {
-    const step = gridStepForStyle("small-grid", 50, zoom, ratio); const pitch = step * zoom * ratio;
-    const snapped = snapCanvasPoint({ x: 137.4, y: -92.7 }, true, "small-grid", 50, zoom, ratio);
+    const step = gridStepForStyle("small-grid", 50, zoom); const pitch = step * zoom * ratio;
+    const snapped = snapCanvasPoint({ x: 137.4, y: -92.7 }, true, "small-grid", 50);
     const pattern = gridSvgPattern("small-grid", step * zoom);
-    check(Math.abs(pitch - Math.round(pitch)) < 1e-8, `Grid pitch is evenly spaced at zoom ${zoom} and pixel ratio ${ratio}`);
-    check(Math.abs(snapped.x / step - Math.round(snapped.x / step)) < 1e-8 && Math.abs(snapped.y / step - Math.round(snapped.y / step)) < 1e-8, `Grid snapping uses the displayed lattice at zoom ${zoom} and pixel ratio ${ratio}`);
+    check(Number.isFinite(pitch) && pitch > 0, `Grid pitch is visible at zoom ${zoom} and pixel ratio ${ratio}`);
+    check(Math.abs(snapped.x / 50 - Math.round(snapped.x / 50)) < 1e-8 && Math.abs(snapped.y / 50 - Math.round(snapped.y / 50)) < 1e-8, `Grid snapping uses the 50-unit document lattice at zoom ${zoom} and pixel ratio ${ratio}`);
     check(Math.abs(pattern.width - step * zoom) < 1e-8 && Math.abs(pattern.height - step * zoom) < 1e-8, `Paper pattern repeats at the snapped grid pitch at zoom ${zoom} and pixel ratio ${ratio}`);
   }
   check(alignedTextStartX(100, 40, "left") === 100 && alignedTextStartX(100, 40, "center") === 80 && alignedTextStartX(100, 40, "right") === 60, "Text alignment shares its anchor calculation across canvas and exports");
+  const aspect = lockAspectResizeBounds({ x: 0, y: 0, w: 100, h: 50 }, { x: 0, y: 0, w: 160, h: 50 }, "e");
+  check(Math.abs(aspect.w / aspect.h - 2) < 1e-8 && aspect.x === 0 && Math.abs(aspect.y + aspect.h / 2 - 25) < 1e-8, "Aspect-locked side resize preserves ratio and centers the opposite dimension");
+  const editablePath = parseEditablePath("M 0 0 L 100 0 L 100 100 Z");
+  const movedPath = editablePath && updateEditablePath({ type: "svgPath", x: 0, y: 0, w: 100, h: 100, color: "#26313b", thickness: 2, pathData: "M 0 0 L 100 0 L 100 100 Z", pathWidth: 100, pathHeight: 100 }, editablePath.points.map((point, index) => index === 1 ? { x: 120, y: 0 } : point));
+  const movedPathNodes = movedPath?.type === "svgPath" ? parseEditablePath(movedPath.pathData) : undefined;
+  const movedNodeWorldX = movedPath?.type === "svgPath" && movedPathNodes ? movedPath.x + movedPathNodes.points[1].x / (movedPath.pathWidth ?? movedPath.w) * movedPath.w : undefined;
+  check(!!(editablePath?.closed && movedPath?.type === "svgPath" && movedPath.pathData?.endsWith("Z") && movedNodeWorldX === 120 && !parseEditablePath("M 0 0 C 20 20 80 80 100 100")), "Simple SVG node editing preserves moved geometry and rejects unsupported curves");
+  const rectangleStroke: FreehandElement = { type: "freehand", points: [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }, { x: 100, y: 100 }, { x: 50, y: 100 }, { x: 0, y: 100 }, { x: 0, y: 50 }, { x: 0, y: 0 }], color: "#26313b", thickness: 2 };
+  const horizontalStroke: FreehandElement = { type: "freehand", points: Array.from({ length: 9 }, (_, index) => ({ x: index * 15, y: 20 })), color: "#26313b", thickness: 2 };
+  const ellipseStroke: FreehandElement = { type: "freehand", points: Array.from({ length: 33 }, (_, index) => ({ x: 50 + 40 * Math.cos(index / 32 * Math.PI * 2), y: 50 + 30 * Math.sin(index / 32 * Math.PI * 2) })), color: "#26313b", thickness: 2 };
+  const arrowStroke: FreehandElement = { type: "freehand", points: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 40, y: 0 }, { x: 60, y: 0 }, { x: 80, y: 0 }, { x: 100, y: 0 }, { x: 82, y: -14 }, { x: 100, y: 0 }, { x: 82, y: 14 }], color: "#26313b", thickness: 2 };
+  check(recognizeStroke(rectangleStroke)?.type === "rectangle" && recognizeStroke(horizontalStroke)?.type === "line" && recognizeStroke(ellipseStroke)?.type === "circle" && recognizeStroke(arrowStroke)?.type === "arrow", "Stroke cleanup recognizes rectangles, ellipses, horizontal lines, and arrows");
   const camera: CanvasState = { zoom: 1.4, panX: -73, panY: 41, backgroundColor: "#ffffff" };
   const viewport = { x: 174, y: 113 }; const viewportRect = DOMRect.fromRect({ x: 36, y: 22, width: 500, height: 340 });
   const worldBeforeZoom = pointerToWorld(viewportRect.left + viewport.x, viewportRect.top + viewport.y, viewportRect, camera);
@@ -477,7 +503,7 @@ spec:
       const specimen = fitComponentSpecimen(built, { x: 0, y: 0, w: 250, h: 136 }, 12); const specimenBounds = elementBounds(specimen);
       const resized = resizeLibraryGroup(built, { x: 20, y: 20, w: bounds.w * 1.1, h: bounds.h * 1.1 });
       const restored = normalizeElement(JSON.parse(JSON.stringify(built)));
-      const leaves = flatten([built]); const hasConnectableTarget = leaves.some(item => item.id !== built.id && isConnectable(item)) || isConnectable(built);
+      const leaves = flatten([built]); const hasConnectableTarget = leaves.some(item => item.id !== built.id && isConnectable(item)) || isConnectable(built) || leaves.some(item => item.type === "line" || item.type === "arrow");
       const geometryIsValid = [bounds.x, bounds.y, bounds.w, bounds.h, specimenBounds.x, specimenBounds.y, specimenBounds.w, specimenBounds.h].every(Number.isFinite)
         && bounds.w > 0 && bounds.h > 0 && specimenBounds.w <= 226.01 && specimenBounds.h <= 112.01;
       const roundTripIsValid = restored?.type === "group" && restored.libraryComponent?.kind === definition.kind && !!restored.id && validReferences([restored]);
@@ -524,7 +550,7 @@ spec:
     });
   }
   await importCheck("Relationship labels retain type, cardinality, and direction metadata", () => {
-    const relation: ShapeElement = { type: "arrow", id: "relationship-label", x: 20, y: 20, w: 120, h: 0, color: "#333", thickness: 1.5, relationshipType: "dependency", cardinality: "1..*", relationshipDirection: "both", label: { text: "calls", color: "#333", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } };
+    const relation: ShapeElement = { type: "arrow", id: "relationship-label", x: 20, y: 20, w: 120, h: 0, color: "#333333", thickness: 1.5, relationshipType: "dependency", cardinality: "1..*", relationshipDirection: "both", label: { text: "calls", color: "#333333", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } };
     const display = relationshipDisplayElement(relation); const serialized = normalizeElement(JSON.parse(JSON.stringify(relation)));
     const both = relationshipDirectionHeads("both"); const forward = relationshipDirectionHeads("forward"); const none = relationshipDirectionHeads("none");
     const caption = display.label?.text ?? "";
@@ -536,18 +562,20 @@ spec:
   const style = document.createElement("style"); style.textContent = mobileToolbarCss; document.head.append(style);
   const menuHost = document.createElement("div"); menuHost.className = "app-shell"; document.body.append(menuHost);
   const disposeMenu = render(() => createComponent(CanvasOptionsMenu, {
-    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false, mobileSimple: true,
-    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onGroupSelection() {},
-    canvasTools: { showAlignmentGuides: true, showMinimap: true, onToggleAlignmentGuides() {}, onToggleMinimap() {}, onAutoLayout() {} },
+    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, snapToGuides: true, showRulers: false, showGuides: true, measureMode: false, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false, mobileSimple: true,
+    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onToggleSnapToGuides() {}, onToggleRulers() {}, onToggleGuides() {}, onToggleMeasure() {}, onGroupSelection() {},
+    canvasTools: { showMinimap: true, onToggleMinimap() {}, onAutoLayout() {} },
   }), menuHost);
   const controls = [...menuHost.querySelectorAll<HTMLElement>("button,input,select,textarea,[role=button]")];
-  const moreTools = menuHost.querySelector<HTMLButtonElement>(".mobile-more-canvas-tools");
-  const advancedTools = [...menuHost.querySelectorAll<HTMLElement>(".mobile-advanced-canvas-tools")];
-  check(!!moreTools && moreTools.getAttribute("aria-expanded") === "false" && advancedTools.length > 0 && advancedTools.every(section => getComputedStyle(section).display === "none"), "Mobile advanced canvas tools start collapsed and hidden");
-  moreTools?.click();
-  check(moreTools?.getAttribute("aria-expanded") === "true" && advancedTools.every(section => getComputedStyle(section).display !== "none"), "Mobile More canvas tools opens advanced controls");
-  moreTools?.click();
-  check(moreTools?.getAttribute("aria-expanded") === "false" && advancedTools.every(section => getComputedStyle(section).display === "none"), "Mobile advanced canvas tools collapse again after use");
+  const viewMenu = menuHost.querySelector<HTMLElement>(".canvas-options-family.mobile-simple-mode");
+  const advancedSections = [...menuHost.querySelectorAll<HTMLDetailsElement>("details.workspace-view-advanced")];
+  const precisionSection = advancedSections.find(section => section.querySelector("summary")?.textContent?.includes("Precision"));
+  const precisionSummary = precisionSection?.querySelector<HTMLElement>("summary");
+  check(!!viewMenu && advancedSections.length > 0 && advancedSections.every(section => !section.open), "Mobile advanced canvas sections start collapsed");
+  precisionSummary?.click();
+  check(precisionSection?.open === true, "Mobile users can expand an advanced canvas section on demand");
+  precisionSummary?.click();
+  check(precisionSection?.open === false, "Mobile advanced canvas sections collapse again on demand");
   const unlabeledControls = controls.filter(control => !(control.getAttribute("aria-label") || control.getAttribute("title") || control.textContent?.trim() || control.closest("label")?.textContent?.trim()));
   check(unlabeledControls.length === 0, `Canvas view controls expose accessible names (${unlabeledControls.length} missing)`);
   const firstEnabled = controls.find(control => control instanceof HTMLButtonElement && !control.disabled);

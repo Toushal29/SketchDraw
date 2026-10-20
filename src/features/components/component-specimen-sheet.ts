@@ -5,8 +5,10 @@ import { resizeLibraryGroup } from "./library-component-editor";
 /** Fits a real component into a fixed specimen cell without changing its saved size. */
 export function fitComponentSpecimen(source: Element, cell: { x: number; y: number; w: number; h: number }, padding = 12): Element {
   const bounds = elementBounds(source);
-  const maxWidth = Math.max(1, cell.w - padding * 2);
-  const maxHeight = Math.max(1, cell.h - padding * 2);
+  // Primitive components can include fixed-size text and stroke padding, so
+  // leave a small safety margin after scaling their geometric bounds.
+  const maxWidth = Math.max(1, cell.w - padding * 2) * .98;
+  const maxHeight = Math.max(1, cell.h - padding * 2) * .98;
   const scale = Math.min(1, maxWidth / Math.max(1, bounds.w), maxHeight / Math.max(1, bounds.h));
   const width = Math.max(1, bounds.w * scale);
   const height = Math.max(1, bounds.h * scale);
