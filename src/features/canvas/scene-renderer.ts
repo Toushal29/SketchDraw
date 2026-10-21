@@ -129,11 +129,12 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     ctx.restore();
   }
 
-  function drawTransformHandles(ctx: CanvasRenderingContext2D, bounds: Bounds, zoom: number, includeRotate = true, rotation = 0) {
+  // Schema cards size to their field rows, so expose horizontal handles without empty vertical space.
+  function drawTransformHandles(ctx: CanvasRenderingContext2D, bounds: Bounds, zoom: number, includeRotate = true, rotation = 0, allowVerticalResize = true) {
     const handles = transformHandlePoints(bounds, zoom, includeRotate, rotation); const rotate = includeRotate ? handles.pop() : undefined; const top = rotatePoint({ x: bounds.x + bounds.w / 2, y: bounds.y }, { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }, rotation);
     ctx.save(); ctx.setLineDash([]); ctx.strokeStyle = "#547bb1"; ctx.fillStyle = "#ffffff"; ctx.lineWidth = 1 / zoom;
     if (rotate) { ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(rotate.x, rotate.y); ctx.stroke(); }
-    for (const handle of handles) { ctx.beginPath(); ctx.rect(handle.x - 4 / zoom, handle.y - 4 / zoom, 8 / zoom, 8 / zoom); ctx.fill(); ctx.stroke(); }
+    for (const handle of handles) { if (!allowVerticalResize && (handle.id === "n" || handle.id === "s")) continue; ctx.beginPath(); ctx.rect(handle.x - 4 / zoom, handle.y - 4 / zoom, 8 / zoom, 8 / zoom); ctx.fill(); ctx.stroke(); }
     if (rotate) { ctx.beginPath(); ctx.arc(rotate.x, rotate.y, 5 / zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } ctx.restore();
   }
 
@@ -198,7 +199,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         } else ctx.strokeRect(bounds.x - handlePadding, bounds.y - handlePadding, Math.max(bounds.w + handlePadding * 2, 2 / state.zoom), Math.max(bounds.h + handlePadding * 2, 2 / state.zoom));
         ctx.restore();
         if (isSelected && !ports.isLocked(element) && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent || !!element.container) && element.type !== "freehand") {
-          drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent || !!element.container, rotation);
+          drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent || !!element.container, rotation, element.type !== "schemaTable");
         }
       }
       ctx.restore();

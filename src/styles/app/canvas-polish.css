@@ -68,7 +68,6 @@
 .style-pane.quick-style-mode,
 .style-pane.full-style-mode {
     border-color: var(--theme-border);
-    border-radius: 50px;
     background: color-mix(in srgb, var(--theme-surface-elevated) 96.50%, transparent);
 }
 

@@ -7,6 +7,7 @@ import { freehandSvg } from "../canvas/freehand-rendering";
 import { modelComponentSvg } from "../components/model-component-renderer";
 import { renderLibraryChartSvg } from "../components/chart-engine";
 import { relationshipDisplayElement } from "../diagrams/relationships";
+import { fitSchemaTableText, schemaTableColors, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
 import { checklistRows, defaultNoteTitle, noteCardPalette, syntaxTokenColor, syntaxTokens } from "../../notes";
 
 type SvgRendererPorts = {
@@ -98,18 +99,32 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
     if (element.type === "group") return `<g>${element.elements.map(elementToSvg).join("")}</g>`;
     if (hidden(element)) return "";
     if (element.type === "image") { const sx = element.cropX ?? 0; const sy = element.cropY ?? 0; const sw = element.cropW ?? element.sourceWidth ?? element.w; const sh = element.cropH ?? element.sourceHeight ?? element.h; return `<svg x="${element.x}" y="${element.y}" width="${element.w}" height="${element.h}" viewBox="${sx} ${sy} ${sw} ${sh}" preserveAspectRatio="none" opacity="${element.opacity ?? 1}"><image width="${element.sourceWidth ?? sw}" height="${element.sourceHeight ?? sh}" href="${element.dataUrl}"/></svg>`; }
+    // Keep the vector card layout in step with canvas sizing and field-bound connector anchors.
     if (element.type === "schemaTable") {
-      const simple = true; const dark = theme() === "dark"; const size = element.fontSize ?? 12; const headerHeight = Math.max(42, size * 2.8); const rowHeight = Math.max(30, size * 1.8);
-      const ink = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const header = simple ? surface : (dark ? "#30465b" : "#e8f0f7"); const mainText = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e");
+      const { fontSize, titleHeight, rowHeight } = schemaTableMetrics(element.fontSize ?? 12);
+      const colors = schemaTableColors(theme()); const left = element.x; const top = element.y; const right = left + element.w;
+      const rowsTop = top + titleHeight;
       const rows = element.columns.map((column, index) => {
-        const y = element.y + headerHeight + index * rowHeight;
-        const badge = column.primaryKey || column.foreignTable ? '<rect x="' + (element.x + 11) + '" y="' + (y + 7) + '" width="24" height="16" rx="' + (simple ? 0 : 5) + '" fill="' + (simple ? (dark ? "#3a3a3a" : "#eeeeee") : column.primaryKey ? (dark ? "#6a5930" : "#f4e9c7") : (dark ? "#31556b" : "#e1eff6")) + '"/><text x="' + (element.x + 23) + '" y="' + (y + 18.5) + '" text-anchor="middle" font-family="sans-serif" font-size="9" font-weight="700" fill="' + (simple ? mainText : column.primaryKey ? (dark ? "#f0d58c" : "#826b2f") : (dark ? "#aed9ed" : "#436e85")) + '">' + (column.primaryKey ? "PK" : "FK") + "</text>" : "";
-        return (index ? '<path d="M ' + (element.x + 10) + " " + y + " H " + (element.x + element.w - 10) + '" stroke="' + (simple ? ink : dark ? "#394856" : "#e6ebf0") + '"/>' : "") + badge + '<text x="' + (element.x + 44) + '" y="' + (y + rowHeight * .64) + '" font-family="monospace" font-size="' + (size * .86) + '" fill="' + (simple ? mainText : dark ? "#dbe5ee" : "#354759") + '">' + escapeXml(column.name) + '</text><text x="' + (element.x + element.w - 14) + '" y="' + (y + rowHeight * .64) + '" text-anchor="end" font-family="monospace" font-size="' + (size * .78) + '" fill="' + (simple ? mainText : dark ? "#a4b1bf" : "#768493") + '">' + escapeXml(column.dataType || "type") + "</text>";
+        const rowTop = rowsTop + index * rowHeight; const middle = rowTop + rowHeight / 2;
+        const unique = element.constraints?.some(constraint => constraint.kind === "unique" && constraint.columns?.some(name => name.toLowerCase() === column.name.toLowerCase())) ?? false;
+        const layout = schemaTableRowLayout(left, element.w, column, fontSize, unique);
+        const markers = layout.markers.map(marker => {
+          const ink = marker.kind === "primary" ? colors.primaryKey : marker.kind === "foreign" ? colors.foreignKey : colors.required;
+          return `<text x="${marker.x}" y="${middle + fontSize * .2}" font-family="sans-serif" font-size="${Math.max(6, fontSize * .58)}" font-weight="700" fill="${ink}">${marker.label}</text>`;
+        }).join("");
+        return `${markers}
+          <text x="${layout.fieldX}" y="${middle + fontSize * .29}" font-family="monospace" font-size="${fontSize * .82}" font-weight="600" fill="${colors.text}">${escapeXml(fitSchemaTableText(column.name, layout.fieldWidth, fontSize * .82))}</text>
+          <text x="${layout.typeRight}" y="${middle + fontSize * .24}" text-anchor="end" font-family="monospace" font-size="${fontSize * .7}" fill="${colors.muted}">${escapeXml(fitSchemaTableText(column.dataType || "type", layout.typeWidth, fontSize * .7))}</text>`;
       }).join("");
-      const headerShape = simple ? '<rect x="' + element.x + '" y="' + element.y + '" width="' + element.w + '" height="' + headerHeight + '" fill="' + header + '"/>' : '<path d="M ' + (element.x + 10) + " " + element.y + " H " + (element.x + element.w - 10) + " Q " + (element.x + element.w) + " " + element.y + " " + (element.x + element.w) + " " + (element.y + 10) + " V " + (element.y + headerHeight) + " H " + element.x + " V " + (element.y + 10) + " Q " + element.x + " " + element.y + " " + (element.x + 10) + " " + element.y + ' Z" fill="' + header + '"/>';
-      const schemaDetails = [element.indexes?.length ? `${element.indexes.length} idx` : "", element.constraints?.length ? `${element.constraints.length} constraints` : ""].filter(Boolean).join(" · ");
-      const headingText = schemaDetails ? `${element.name} · ${schemaDetails}` : element.name;
-      return '<g opacity="' + (element.opacity ?? 1) + '"><rect x="' + element.x + '" y="' + element.y + '" width="' + element.w + '" height="' + element.h + '" rx="' + (simple ? 0 : 10) + '" fill="' + surface + '" stroke="' + ink + '" stroke-width="1.4"/>' + headerShape + '<path d="M ' + element.x + " " + (element.y + headerHeight) + " H " + (element.x + element.w) + '" stroke="' + ink + '"/><text x="' + (element.x + 14) + '" y="' + (element.y + headerHeight * .62) + '" font-family="sans-serif" font-size="' + size + '" font-weight="600" fill="' + mainText + '">' + escapeXml(headingText) + "</text>" + rows + "</g>";
+      return `<g opacity="${element.opacity ?? 1}">
+        <rect x="${left + 1}" y="${top + 2}" width="${element.w}" height="${element.h}" rx="4" fill="${theme() === "dark" ? "rgba(0,0,0,.28)" : "rgba(33,43,54,.14)"}"/>
+        <rect x="${left}" y="${top}" width="${element.w}" height="${element.h}" rx="4" fill="${colors.surface}"/>
+        <path d="M ${left + 4} ${top} H ${right - 4} Q ${right} ${top} ${right} ${top + 4} V ${top + titleHeight} H ${left} V ${top + 4} Q ${left} ${top} ${left + 4} ${top} Z" fill="${colors.header}"/>
+        <line x1="${left}" y1="${top + titleHeight}" x2="${right}" y2="${top + titleHeight}" stroke="${colors.divider}"/>
+        <text x="${left + 10}" y="${top + titleHeight * .68}" font-family="sans-serif" font-size="${fontSize * .96}" font-weight="600" fill="${colors.title}">${escapeXml(fitSchemaTableText(element.name, element.w - 20, fontSize * .96))}</text>
+        ${rows}
+        <rect x="${left}" y="${top}" width="${element.w}" height="${element.h}" rx="4" fill="none" stroke="${colors.border}" stroke-width="1"/>
+      </g>`;
     }
     if (element.type === "text") {
       const family = fontCss(element.fontFamily);

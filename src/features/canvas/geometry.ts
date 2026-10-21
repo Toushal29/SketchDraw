@@ -84,11 +84,15 @@ export function flowchartDatabaseRimPath(left: number, top: number, width: numbe
   rim.bezierCurveTo(mid + k * rx, top + 2 * ry, right, top + ry + k * ry, right, top + ry);
   return rim;
 }
+// A collapsed loop needs its own curve handles so its arrowhead has a visible approach direction.
 export function connectorControls(element: ShapeElement, loop = false) {
   const start = { x: element.x, y: element.y }; const end = { x: element.x + element.w, y: element.y + element.h };
   const dx = end.x - start.x; const dy = end.y - start.y; const length = Math.max(1, Math.hypot(dx, dy)); const normal = { x: -dy / length, y: dx / length };
   const bend = (loop ? .72 : .3) * length;
-  return { start, end, dx, dy, c1: element.routePoints?.[0] ?? { x: start.x + dx / 3 + normal.x * bend, y: start.y + dy / 3 + normal.y * bend }, c2: element.routePoints?.[1] ?? { x: start.x + dx * 2 / 3 + normal.x * bend, y: start.y + dy * 2 / 3 + normal.y * bend }, normal };
+  const collapsedLoop = loop && Math.hypot(dx, dy) < 1;
+  const c1 = element.routePoints?.[0] ?? (collapsedLoop ? { x: start.x + 24, y: start.y - 24 } : { x: start.x + dx / 3 + normal.x * bend, y: start.y + dy / 3 + normal.y * bend });
+  const c2 = element.routePoints?.[1] ?? (collapsedLoop ? { x: end.x - 24, y: end.y - 24 } : { x: start.x + dx * 2 / 3 + normal.x * bend, y: start.y + dy * 2 / 3 + normal.y * bend });
+  return { start, end, dx, dy, c1, c2, normal };
 }
 export function curveControlPoints(element: ShapeElement, route: LineRoute | ArrowRoute): Point[] {
   const defaults = connectorControls({ ...element, routePoints: undefined }, route === "loop");
@@ -202,17 +206,41 @@ export function connectorPoint(element: ShapeElement, route: ArrowRoute | LineRo
   if (route === "curve" || route === "curve2" || route === "curve3" || route === "loop") return evaluateBezier([start, ...curveControlPoints(element, route), end], t);
   return { x: start.x + element.w * t, y: start.y + element.h * t };
 }
-export function connectorTangent(element: ShapeElement, route: ArrowRoute | LineRoute, atEnd: boolean): number {
-  if (element.straightOnly) route = "straight";
-  if (element.routePoints?.length && !["curve", "curve2", "curve3", "loop", "forked"].includes(route)) { const a = atEnd ? element.routePoints[element.routePoints.length - 1] : { x: element.x, y: element.y }; const b = atEnd ? { x: element.x + element.w, y: element.y + element.h } : element.routePoints[0]; return Math.atan2(b.y - a.y, b.x - a.x); }
-  if (route === "curve" || route === "curve2" || route === "curve3" || route === "loop") {
-    const controls = curveControlPoints(element, route); const a = atEnd ? controls[controls.length - 1] : { x: element.x, y: element.y }; const b = atEnd ? { x: element.x + element.w, y: element.y + element.h } : controls[0];
-    return Math.atan2(b.y - a.y, b.x - a.x);
+// Finds the first non-zero segment at an endpoint, skipping duplicate route points.
+function polylineTangent(points: Point[], atEnd: boolean) {
+  if (points.length < 2) return 0;
+  if (atEnd) {
+    const end = points[points.length - 1];
+    for (let index = points.length - 2; index >= 0; index--) {
+      const dx = end.x - points[index].x; const dy = end.y - points[index].y;
+      if (Math.hypot(dx, dy) > .001) return Math.atan2(dy, dx);
+    }
+    return 0;
   }
-  if (route === "straight" || route === "forked") return Math.atan2(element.h, element.w);
-  if (route === "elbow") return atEnd ? Math.PI / 2 * Math.sign(element.h || 1) : element.w < 0 ? Math.PI : 0;
-  const before = connectorPoint(element, route, atEnd ? .99 : .01); const after = connectorPoint(element, route, atEnd ? 1 : .02);
-  return Math.atan2(after.y - before.y, after.x - before.x);
+  const start = points[0];
+  for (let index = 1; index < points.length; index++) {
+    const dx = points[index].x - start.x; const dy = points[index].y - start.y;
+    if (Math.hypot(dx, dy) > .001) return Math.atan2(dy, dx);
+  }
+  return 0;
+}
+
+// Arrowheads follow the actual last or first segment of the selected connector route.
+export function connectorTangent(element: ShapeElement, route: ArrowRoute | LineRoute, atEnd: boolean): number {
+  const start = { x: element.x, y: element.y }; const end = { x: element.x + element.w, y: element.y + element.h };
+  if (element.straightOnly || route === "straight") return polylineTangent([start, end], atEnd);
+  if (element.routePoints?.length && !["curve", "curve2", "curve3", "loop", "forked"].includes(route)) return polylineTangent([start, ...element.routePoints, end], atEnd);
+  if (route === "elbow") return polylineTangent([start, { x: end.x, y: start.y }, end], atEnd);
+  if (route === "jagged") return polylineTangent(jaggedVertices(element), atEnd);
+  if (route === "forked") {
+    const junction = forkGeometry(element).junction;
+    return polylineTangent([start, junction], atEnd);
+  }
+  if (route === "curve" || route === "curve2" || route === "curve3" || route === "loop") {
+    const points = Array.from({ length: 65 }, (_, index) => connectorPoint(element, route, index / 64));
+    return polylineTangent(points, atEnd);
+  }
+  return polylineTangent([start, end], atEnd);
 }
 export function traceConnector(ctx: CanvasRenderingContext2D, element: ShapeElement) {
   const route: ArrowRoute | LineRoute = element.straightOnly ? "straight" : element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";

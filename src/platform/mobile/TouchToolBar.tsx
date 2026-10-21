@@ -4,6 +4,8 @@ type Props = {
   mobile: boolean;
   open: boolean;
   styleOpen: boolean;
+  label?: string;
+  showStyleToggle?: boolean;
   children: JSX.Element;
   quickStyles?: JSX.Element;
   layers?: JSX.Element;
@@ -24,7 +26,7 @@ export function TouchToolBar(props: Props) {
     <Show when={props.mobile} fallback={
       <div class="touch-tool-host">
         <Show when={props.open} fallback={<ReopenButton mobile={false} onShow={props.onShow} />}>
-          <nav class="tool-deck" aria-label="Canvas tools">
+          <nav class="tool-deck" aria-label={props.label ?? "Canvas tools"}>
             <div class="touch-tool-content">{props.children}</div>
             <div class="touch-tool-actions">
               {props.quickStyles}
@@ -39,18 +41,16 @@ export function TouchToolBar(props: Props) {
       <div class="touch-tool-host">
         <Show when={props.open} fallback={<ReopenButton mobile onShow={props.onShow} />}>
           <div class="touch-toolbar-layout">
-            <nav class="touch-tool-bar" aria-label="Canvas tools">
+            <nav class="touch-tool-bar" aria-label={props.label ?? "Canvas tools"}>
               <div class="touch-tool-content">{props.children}</div>
               <div class="touch-tool-actions">
-                <button class={`touch-style-open ${props.styleOpen ? "active" : ""}`} title="Open advanced style panel" aria-label="Open advanced style panel" aria-expanded={props.styleOpen} aria-haspopup="dialog" onClick={props.onToggleStyle}>
+                {props.showStyleToggle !== false && <button class={`touch-style-open ${props.styleOpen ? "active" : ""}`} title="Open advanced style panel" aria-label="Open advanced style panel" aria-expanded={props.styleOpen} aria-haspopup="dialog" onClick={props.onToggleStyle}>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="11" cy="18" r="2"/></svg>
-                </button>
+                </button>}
                 {props.layers}
               </div>
             </nav>
-            <aside class="touch-quick-style-dock" aria-label="Quick style">
-              {props.quickStyles}
-            </aside>
+            {props.quickStyles && <aside class="touch-quick-style-dock" aria-label="Quick style">{props.quickStyles}</aside>}
           </div>
         </Show>
       </div>

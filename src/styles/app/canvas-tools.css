@@ -13,7 +13,9 @@
     justify-content: space-between;
     gap: 10px;
     margin-bottom: 13px;
+    border-radius: 8px;
     color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
     font-size: 14px;
 }
 

@@ -8,6 +8,7 @@ This file is the project-specific working guide for AI coding agents. Read it be
 - Keep README.md current when user-visible behavior changes.
 - **Bug / defect:** existing or directly requested behavior fails. **Visual / layout defect:** content is clipped, misaligned, unreadable, inconsistently spaced, or obscured. **Regression:** a previously working behavior breaks. **Execution / build defect:** parse, type, build, import, runtime, save, or export errors block a workflow. **Enhancement:** a new capability; do not report it as a defect.
 - Run `npm run typecheck` and `npm run build` for source changes when possible. Run `npm run test:canvas` when tests or verification are requested. Report only checks that actually ran.
+- If the ignored local `LOCAL_SESSION_NOTES.md` file exists, read it for recent uncommitted work and next-session handoff details. Keep its contents local; do not force-add it to Git.
 
 ## Project scope
 

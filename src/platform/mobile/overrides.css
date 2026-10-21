@@ -135,4 +135,4 @@
     .app-shell:not(.platform-windows) .page-tab { max-width: min(78px, 22vw); }
 }
 
-.app-shell:not(.platform-windows) .style-pane.quick-style-idle-hidden { display: none !important; visibility: hidden; pointer-events: none; }
+.app-shell .style-pane.quick-style-idle-hidden { display: none !important; visibility: hidden; pointer-events: none; }

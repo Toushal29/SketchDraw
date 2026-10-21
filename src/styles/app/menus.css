@@ -289,44 +289,6 @@
     gap: 7px;
 }
 
-.connector-route-buttons {
-    display: flex;
-    gap: 7px;
-}
-
-.connector-route-buttons button {
-    display: flex;
-    min-width: 58px;
-    min-height: 49px;
-    flex: 1;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    border: 1px solid var(--theme-border);
-    border-radius: 7px;
-    color: var(--theme-text-secondary);
-    background: var(--theme-surface-input);
-}
-
-.connector-route-buttons svg {
-    width: 25px;
-    height: 25px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.connector-route-buttons small {
-    font-size: 10px;
-}
-
-.theme-dark .connector-route-buttons button {
-    border-color: var(--theme-border);
-}
-
 .arrow-head-choices {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));

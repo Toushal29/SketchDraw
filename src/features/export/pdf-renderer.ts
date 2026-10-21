@@ -5,6 +5,7 @@ import { elementBounds, unionBounds, visibleElementBounds } from "../canvas/boun
 import { themeInk } from "../canvas/rendering";
 import { stylusStrokeWidth } from "../canvas/freehand-rendering";
 import { drawNoteCard } from "../../notes";
+import { fitSchemaTableText, schemaTableColors, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
 
 export type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
 
@@ -144,20 +145,30 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
             page.drawLine({ start: toPdf(start), end: toPdf(end), thickness: Math.max(.5, scale), color: pdfColor(themeInk(element.color, theme()), pdfColorMode()) });
           });
         } return; }
+        // Reuse canvas card metrics so PDF row positions match field-bound relationships.
         if (element.type === "schemaTable") {
-          const dark = theme() === "dark"; const simple = true; const fontSize = element.fontSize ?? 12; const headerHeight = Math.max(42, fontSize * 2.8); const rowHeight = Math.max(30, fontSize * 1.8); const surface = simple ? (dark ? "#202020" : "#ffffff") : (dark ? "#202a35" : "#fbfcfe"); const border = simple ? (dark ? "#b0b0b0" : "#555555") : (dark ? "#506174" : "#9badbf"); const heading = simple ? surface : dark ? "#30465b" : "#e8f0f7"; const ink = simple ? (dark ? "#f0f0f0" : "#262626") : (dark ? "#d8e8f5" : "#36556e"); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
+          const { fontSize, titleHeight, rowHeight } = schemaTableMetrics(element.fontSize ?? 12); const colors = schemaTableColors(theme()); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
           const centerX = left + width / 2; const centerY = top - height / 2; const rotated = !!element.rotation;
           if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
-          page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(surface, pdfColorMode()), opacity, borderColor: pdfColor(border, pdfColorMode()), borderWidth: 1.2 * scale, borderOpacity: opacity });
-          page.drawRectangle({ x: left, y: top - headerHeight * scale, width, height: headerHeight * scale, color: pdfColor(heading, pdfColorMode()), opacity });
-          const schemaDetails = [element.indexes?.length ? `${element.indexes.length} idx` : "", element.constraints?.length ? `${element.constraints.length} constraints` : ""].filter(Boolean).join(" · ");
-          drawText(schemaDetails ? `${element.name} · ${schemaDetails}` : element.name, element.x + 14, element.y + 13, ink, fontSize, "sans", true, false, opacity);
+          page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(colors.surface, pdfColorMode()), opacity });
+          page.drawRectangle({ x: left, y: top - titleHeight * scale, width, height: titleHeight * scale, color: pdfColor(colors.header, pdfColorMode()), opacity });
+          const line = (y: number, x1 = left, x2 = left + width, color = colors.divider, thickness = .7) => page.drawLine({ start: { x: x1, y: top - (y - element.y) * scale }, end: { x: x2, y: top - (y - element.y) * scale }, thickness: thickness * scale, color: pdfColor(color, pdfColorMode()), opacity });
+          line(element.y, left, left + width, colors.border, 1); line(element.y + element.h, left, left + width, colors.border, 1);
+          page.drawLine({ start: { x: left, y: top }, end: { x: left, y: top - height }, thickness: scale, color: pdfColor(colors.border, pdfColorMode()), opacity });
+          page.drawLine({ start: { x: left + width, y: top }, end: { x: left + width, y: top - height }, thickness: scale, color: pdfColor(colors.border, pdfColorMode()), opacity });
+          line(element.y + titleHeight, left, left + width, colors.border, 1);
+          drawText(fitSchemaTableText(element.name, element.w - 20, fontSize * .96), element.x + 10, element.y + Math.max(4, (titleHeight - fontSize * .96) / 2), colors.title, fontSize * .96, "sans", true, false, opacity);
+          const rowsTop = element.y + titleHeight;
           element.columns.forEach((column, index) => {
-            const rowY = element.y + headerHeight + index * rowHeight;
-            if (index) page.drawLine({ start: { x: left + 10 * scale, y: top - rowY * scale }, end: { x: left + width - 10 * scale, y: top - rowY * scale }, thickness: .7 * scale, color: pdfColor(simple ? border : dark ? "#394856" : "#e6ebf0", pdfColorMode()), opacity });
-            drawText(column.primaryKey ? "PK" : column.foreignTable ? "FK" : "", element.x + 13, rowY + 7, simple ? ink : column.primaryKey ? (dark ? "#f0d58c" : "#826b2f") : (dark ? "#aed9ed" : "#436e85"), 9, "sans", true, false, opacity);
-            drawText(column.name, element.x + 44, rowY + 5, simple ? ink : dark ? "#dbe5ee" : "#354759", fontSize * .86, "mono", false, false, opacity);
-            drawText(column.dataType || "type", element.x + element.w - 14, rowY + 5, simple ? ink : dark ? "#a4b1bf" : "#768493", fontSize * .78, "mono", false, false, opacity, 0, undefined, "right");
+            const rowY = rowsTop + index * rowHeight;
+            const unique = element.constraints?.some(constraint => constraint.kind === "unique" && constraint.columns?.some(name => name.toLowerCase() === column.name.toLowerCase())) ?? false;
+            const layout = schemaTableRowLayout(element.x, element.w, column, fontSize, unique);
+            layout.markers.forEach(marker => {
+              const ink = marker.kind === "primary" ? colors.primaryKey : marker.kind === "foreign" ? colors.foreignKey : colors.required;
+              drawText(marker.label, x0 + marker.x * scale, rowY + (rowHeight - Math.max(6, fontSize * .58)) / 2, ink, Math.max(6, fontSize * .58), "sans", true, false, opacity);
+            });
+            drawText(fitSchemaTableText(column.name, layout.fieldWidth, fontSize * .82), layout.fieldX, rowY + (rowHeight - fontSize * .82) / 2, colors.text, fontSize * .82, "mono", true, false, opacity);
+            drawText(fitSchemaTableText(column.dataType || "type", layout.typeWidth, fontSize * .7), layout.typeRight, rowY + (rowHeight - fontSize * .7) / 2, colors.muted, fontSize * .7, "mono", false, false, opacity, 0, undefined, "right");
           });
           if (rotated) page.pushOperators(popGraphicsState());
           return;

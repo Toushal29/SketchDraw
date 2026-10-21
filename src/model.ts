@@ -52,14 +52,14 @@ export type GuiComponentProperties = {
   items?: string[];
   activeItem?: number;
 };
-export type LibraryComponentData = { kind: string; label?: string; portCount?: number; connectionPoints?: ConnectionPoint[]; laneCount?: number; durationMinutes?: number; renderStyle?: "clean"; iconSvg?: string; iconViewBox?: string; formTitle?: string; formState?: boolean; formStates?: boolean[]; selectedOption?: number; formOptions?: string[]; guiProperties?: GuiComponentProperties; chartData?: LibraryChartData; trendDirection?: "up" | "down" | "steady"; appearance?: "modern" | "simple"; styleOverrides?: { color?: string; fillColor?: string | null; fillOpacity?: number }; textStyle?: { fontSize?: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify" } };
+export type LibraryComponentData = { kind: string; label?: string; portCount?: number; connectionPoints?: ConnectionPoint[]; laneCount?: number; durationMinutes?: number; renderStyle?: "clean"; iconSvg?: string; iconViewBox?: string; formTitle?: string; formState?: boolean; formStates?: boolean[]; selectedOption?: number; formOptions?: string[]; guiProperties?: GuiComponentProperties; chartData?: LibraryChartData; trendDirection?: "up" | "down" | "steady"; appearance?: "modern" | "simple"; styleOverrides?: { color?: string; fillColor?: string | null; fillOpacity?: number }; textStyle?: { color?: string; fontSize?: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify" } };
 export type ComponentOverrides = { label?: string; color?: string; fillColor?: string | null; fillOpacity?: number; chartData?: LibraryChartData; formOptions?: string[]; portLabels?: Record<string, string> };
 export type ComponentMaster = { id: string; name: string; template: Element[]; bounds: Bounds; variants?: Record<string, Element[]>; variantKey?: string; connectionPoints?: ConnectionPoint[]; createdAt?: number };
 export type StencilParameterData = { template: Element[]; parameters: string[]; values: Record<string, string> };
 export type GroupElement = LayerFlags & { type: "group"; elements: Element[]; componentBounds?: Bounds; container?: ContainerMetadata; note?: NoteMetadata; mermaid?: MermaidMetadata; libraryComponent?: LibraryComponentData; masterId?: string; componentOverrides?: ComponentOverrides; variantKey?: string; connectionPoints?: ConnectionPoint[]; stencilParameters?: StencilParameterData };
 export type Element = FreehandElement | ShapeElement | TextElement | ImageElement | SchemaTableElement | GroupElement;
 export type Tool = "select" | "pan" | "pen" | "laser" | "rectangle" | "circle" | "diamond" | "triangle" | "flowchart" | "line" | "arrow" | "text" | "bucket" | "eraser" | "crop";
-export type ToolbarItem = Tool | "measure" | "pathEdit" | "frame" | "codeData";
+export type ToolbarItem = Tool | "measure" | "pathEdit" | "frame" | "codeData" | "moreTools";
 export type CanvasGuide = { axis: "x" | "y"; position: number };
 export type CanvasState = { zoom: number; panX: number; panY: number; backgroundColor: string; boardColorFollowsTheme?: boolean; guides?: CanvasGuide[] };
 export type SketchPage = { id: string; name: string; canvasState: CanvasState; elements: Element[]; layers?: CanvasLayer[]; componentMasters?: ComponentMaster[] };
@@ -128,7 +128,7 @@ export type SketchFileDocumentV10 = { format: "SketchDraw"; version: typeof SKET
 export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; project?: ProjectWorkspaceData; library?: PersonalLibraryData; windowsSync?: WindowsSyncMetadata };
 export type Preview = { type: Exclude<Tool, "select" | "pan" | "laser" | "text" | "bucket" | "eraser" | "crop">; start: Point; end: Point; color: string; thickness: number; opacity?: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute };
 export type Bounds = { x: number; y: number; w: number; h: number };
-export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; shapeLabel?: boolean; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };
+export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; editingChildId?: string; shapeLabel?: boolean; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };
 export type Theme = "light" | "dark";
 export type ThemeMode = Theme | "system";
 

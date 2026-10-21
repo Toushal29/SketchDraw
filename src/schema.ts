@@ -221,6 +221,25 @@ export function parseSchema(source: string): SchemaTable[] {
   if (source.length > 500_000) throw new Error("Schema input is limited to 500,000 characters.");
   const input = source.trim(); if (!input) throw new Error("Paste SQL CREATE TABLE statements or a JSON table definition first.");
   const tables = input.startsWith("{") || input.startsWith("[") ? parseJson(input) : parseSql(input);
+  for (const table of tables) for (const constraint of table.constraints ?? []) {
+    if (constraint.kind !== "primary-key") continue;
+    for (const columnName of constraint.columns ?? []) {
+      const column = table.columns.find(candidate => candidate.name.toLowerCase() === columnName.toLowerCase());
+      if (column) { column.primaryKey = true; column.nullable = false; }
+    }
+  }
+  for (const table of tables) for (const constraint of table.constraints ?? []) {
+    if (constraint.kind !== "foreign-key" || !constraint.referencedTable) continue;
+    const target = tables.find(candidate => candidate.name.toLowerCase() === constraint.referencedTable!.toLowerCase());
+    const primaryKeys = target?.columns.filter(column => column.primaryKey).map(column => column.name) ?? [];
+    for (const [index, sourceName] of (constraint.columns ?? []).entries()) {
+      const sourceColumn = table.columns.find(column => column.name.toLowerCase() === sourceName.toLowerCase());
+      if (!sourceColumn) continue;
+      const referencedColumn = constraint.referencedColumns?.[index] ?? primaryKeys[index] ?? (primaryKeys.length === 1 ? primaryKeys[0] : undefined);
+      if (!sourceColumn.foreignTable) sourceColumn.foreignTable = constraint.referencedTable;
+      if (sourceColumn.foreignTable.toLowerCase() === constraint.referencedTable.toLowerCase() && !sourceColumn.foreignColumn && referencedColumn) sourceColumn.foreignColumn = referencedColumn;
+    }
+  }
   if (!tables.length) throw new Error("No tables with columns were found. Check the SQL CREATE TABLE syntax or the JSON tables array.");
   if (tables.length > 50) throw new Error("A visualizer import can include up to 50 tables at once.");
   if (tables.some(table => table.columns.length > 100)) throw new Error("A table can include up to 100 columns.");

@@ -8,9 +8,10 @@ import { ProjectTimeline } from "./ProjectTimeline";
 import { DEFAULT_WORKFLOW_COLUMNS } from "./project-data";
 import { advanceRecurringDate, formatProjectDate, isProjectTaskComplete, isProjectTaskOverdue, projectTaskWarnings, TASK_PRIORITY_LABELS } from "./project-utils";
 import { buildProjectReportHtml, exportPlanningCalendar, exportPlanningCsv, importPlanningCalendar, importPlanningCsv } from "./planning-exchange";
+import { ModelingGuide } from "./ModelingGuide";
 import type { DocumentWorkspaceArea } from "../workspace/workspace-types";
 
-export type ProjectWorkspaceView = "home" | "plans" | "notes" | "tasks" | "checklist" | "kanban" | "timeline" | "calendar" | "log" | "files" | "exchange" | "report";
+export type ProjectWorkspaceView = "home" | "plans" | "modeling-guide" | "notes" | "tasks" | "checklist" | "kanban" | "timeline" | "calendar" | "log" | "files" | "exchange" | "report";
 type Props = {
   data: ProjectWorkspaceData;
   editable: boolean;
@@ -32,7 +33,7 @@ type Props = {
 };
 
 const VIEWS: { value: ProjectWorkspaceView; label: string }[] = [
-  { value: "home", label: "Project Home" }, { value: "plans", label: "All plans" }, { value: "notes", label: "Notes" },
+  { value: "home", label: "Project Home" }, { value: "plans", label: "All plans" }, { value: "modeling-guide", label: "Modeling guide" }, { value: "notes", label: "Notes" },
   { value: "tasks", label: "Tasks" }, { value: "checklist", label: "Checklist" }, { value: "kanban", label: "Kanban" },
   { value: "timeline", label: "Timeline" }, { value: "calendar", label: "Calendar" }, { value: "exchange", label: "Import / export" }, { value: "report", label: "Reports" },
   { value: "log", label: "Decision log" }, { value: "files", label: "Files" },
@@ -326,6 +327,8 @@ export function ProjectWorkspace(props: Props) {
         </Show>
 
         <Show when={view() === "plans"}><ProjectPlansOverview paths={props.recentPlans} currentPath={props.planningPath} currentData={props.data} onOpen={props.onOpenPlan} onAddPlans={props.onAddPlans} /></Show>
+
+        <Show when={view() === "modeling-guide"}><ModelingGuide /></Show>
 
         <Show when={view() === "notes"}>
           <div class="project-page project-notes-page">

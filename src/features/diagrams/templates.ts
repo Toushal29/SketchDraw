@@ -1,5 +1,6 @@
 export type DiagramTemplateId = "c4" | "uml" | "erd" | "bpmn" | "network";
 import type { Element, GroupElement, SchemaTableElement, ShapeElement } from "../../model";
+import { schemaTableMinimumHeight } from "./schema-table-layout";
 import { buildLibraryComponent, buildLibraryRelationship, type LibraryComponentKind } from "../../notes";
 import { elementBounds } from "../canvas/bounds";
 
@@ -46,9 +47,12 @@ export function buildDiagramTemplate(id: DiagramTemplateId, origin = { x: 0, y: 
   }
   if (id === "erd") {
     const diagramId = crypto.randomUUID();
-    const users: SchemaTableElement = { type: "schemaTable", id: crypto.randomUUID(), x: x + 40, y: y + 70, w: 250, h: 150, name: "users", schemaDiagramId: diagramId, schemaSource: "", columns: [{ id: crypto.randomUUID(), name: "id", dataType: "INTEGER", primaryKey: true }, { id: crypto.randomUUID(), name: "email", dataType: "TEXT" }] };
-    const orders: SchemaTableElement = { type: "schemaTable", id: crypto.randomUUID(), x: x + 430, y: y + 70, w: 260, h: 176, name: "orders", schemaDiagramId: diagramId, schemaSource: "", columns: [{ id: crypto.randomUUID(), name: "id", dataType: "INTEGER", primaryKey: true }, { id: crypto.randomUUID(), name: "user_id", dataType: "INTEGER", foreignTable: "users", foreignColumn: "id" }, { id: crypto.randomUUID(), name: "created_at", dataType: "TIMESTAMP" }] };
-    const orderItems: SchemaTableElement = { type: "schemaTable", id: crypto.randomUUID(), x: x + 430, y: y + 355, w: 270, h: 180, name: "order_items", schemaDiagramId: diagramId, schemaSource: "", columns: [{ id: crypto.randomUUID(), name: "order_id", dataType: "INTEGER", primaryKey: true, foreignTable: "orders", foreignColumn: "id" }, { id: crypto.randomUUID(), name: "product_id", dataType: "INTEGER", primaryKey: true }, { id: crypto.randomUUID(), name: "quantity", dataType: "INTEGER" }] };
+    const usersColumns = [{ id: crypto.randomUUID(), name: "id", dataType: "INTEGER", primaryKey: true }, { id: crypto.randomUUID(), name: "email", dataType: "TEXT" }];
+    const ordersColumns = [{ id: crypto.randomUUID(), name: "id", dataType: "INTEGER", primaryKey: true }, { id: crypto.randomUUID(), name: "user_id", dataType: "INTEGER", foreignTable: "users", foreignColumn: "id" }, { id: crypto.randomUUID(), name: "created_at", dataType: "TIMESTAMP" }];
+    const orderItemsColumns = [{ id: crypto.randomUUID(), name: "order_id", dataType: "INTEGER", primaryKey: true, foreignTable: "orders", foreignColumn: "id" }, { id: crypto.randomUUID(), name: "product_id", dataType: "INTEGER", primaryKey: true }, { id: crypto.randomUUID(), name: "quantity", dataType: "INTEGER" }];
+    const users: SchemaTableElement = { type: "schemaTable", id: crypto.randomUUID(), x: x + 40, y: y + 70, w: 250, h: schemaTableMinimumHeight(usersColumns.length), name: "users", schemaDiagramId: diagramId, schemaSource: "", columns: usersColumns };
+    const orders: SchemaTableElement = { type: "schemaTable", id: crypto.randomUUID(), x: x + 430, y: y + 70, w: 260, h: schemaTableMinimumHeight(ordersColumns.length), name: "orders", schemaDiagramId: diagramId, schemaSource: "", columns: ordersColumns };
+    const orderItems: SchemaTableElement = { type: "schemaTable", id: crypto.randomUUID(), x: x + 430, y: y + 355, w: 270, h: schemaTableMinimumHeight(orderItemsColumns.length), name: "order_items", schemaDiagramId: diagramId, schemaSource: "", columns: orderItemsColumns };
     return [users, orders, orderItems, relation(users, orders, "1 to many"), relation(orders, orderItems, "1 to many")];
   }
   if (id === "bpmn") {

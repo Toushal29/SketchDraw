@@ -1,4 +1,4 @@
-import type { GroupElement, Theme } from "../../model";
+import type { FontFamily, GroupElement, Theme } from "../../model";
 import { cloudProviderComponent } from "../diagrams/cloud-providers";
 import { drawGuiComponent, guiComponentSvg } from "./gui-components";
 
@@ -13,12 +13,31 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   else ctx.rect(x, y, w, h);
 }
 
-function text(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, maxWidth: number, size: number, color: string, weight = 500, align: CanvasTextAlign = "left") {
-  ctx.fillStyle = color; ctx.font = `${weight} ${size}px system-ui, sans-serif`; ctx.textAlign = align; ctx.textBaseline = "middle";
+type ComponentTextStyle = NonNullable<NonNullable<GroupElement["libraryComponent"]>["textStyle"]>;
+function componentFontFamily(family?: FontFamily) {
+  return family === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : family === "serif" ? "Georgia, 'Times New Roman', serif" : family === "mono" ? "'Cascadia Mono', Consolas, monospace" : family === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : family === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif";
+}
+function componentFont(size: number, weight: number, style?: ComponentTextStyle) {
+  return `${style?.italic ? "italic " : ""}${style?.bold === undefined ? weight : style.bold ? 700 : 400} ${size}px ${componentFontFamily(style?.fontFamily)}`;
+}
+function componentTextAlign(align: ComponentTextStyle["textAlign"] | undefined, fallback: CanvasTextAlign): CanvasTextAlign {
+  return align === "justify" ? fallback : align ?? fallback;
+}
+function componentTextAnchor(x: number, width: number, from: CanvasTextAlign, to: CanvasTextAlign) {
+  const left = from === "center" ? x - width / 2 : from === "right" ? x - width : x;
+  return to === "center" ? left + width / 2 : to === "right" ? left + width : left;
+}
+function text(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, maxWidth: number, size: number, color: string, weight = 500, align: CanvasTextAlign = "left", style?: ComponentTextStyle) {
+  ctx.fillStyle = color; ctx.font = componentFont(size, weight, style); ctx.textAlign = align; ctx.textBaseline = "middle";
   ctx.fillText(value, x, y, Math.max(1, maxWidth));
+  if (style?.underline) {
+    const measured = Math.min(Math.max(1, maxWidth), ctx.measureText(value).width);
+    const start = align === "center" ? x - measured / 2 : align === "right" ? x - measured : x;
+    ctx.fillRect(start, y + size * .36, measured, Math.max(1, size / 14));
+  }
 }
 
-function fittedComponentSingleLine(ctx: CanvasRenderingContext2D, value: string, bounds: { x: number; y: number; w: number; h: number }, tx: number, ty: number, requestedWidth: number, requestedSize: number, color: string, weight = 500, align: CanvasTextAlign = "left") {
+function fittedComponentSingleLine(ctx: CanvasRenderingContext2D, value: string, bounds: { x: number; y: number; w: number; h: number }, tx: number, ty: number, requestedWidth: number, requestedSize: number, color: string, weight = 500, align: CanvasTextAlign = "left", style?: ComponentTextStyle) {
   const inset = Math.min(4, Math.max(1, Math.min(bounds.w, bounds.h) * .04)); const left = bounds.x + inset; const right = bounds.x + bounds.w - inset;
   const width = Math.max(0, Math.min(requestedWidth, right - left)); let x = tx; let maxWidth = width;
   if (align === "center") { x = Math.max(left + width / 2, Math.min(right - width / 2, tx)); maxWidth = Math.min(width, 2 * Math.min(x - left, right - x)); }
@@ -26,13 +45,13 @@ function fittedComponentSingleLine(ctx: CanvasRenderingContext2D, value: string,
   else { x = Math.max(left, Math.min(right, tx)); maxWidth = Math.min(width, right - x); }
   if (maxWidth < 2) return;
   let size = Math.max(5, Math.min(48, requestedSize, bounds.h - inset * 2)); let label = value.trim();
-  while (size > 5) { ctx.font = `${weight} ${size}px system-ui, sans-serif`; if (ctx.measureText(label).width <= maxWidth) break; size = Math.max(5, size - 1); }
-  ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+  while (size > 5) { ctx.font = componentFont(size, weight, style); if (ctx.measureText(label).width <= maxWidth) break; size = Math.max(5, size - 1); }
+  ctx.font = componentFont(size, weight, style);
   if (ctx.measureText(label).width > maxWidth) {
     while (label && ctx.measureText(`${label}…`).width > maxWidth) label = label.slice(0, -1);
     label = label ? `${label}…` : "…";
   }
-  text(ctx, label, x, ty, maxWidth, size, color, weight, align);
+  text(ctx, label, x, ty, maxWidth, size, color, weight, align, style);
 }
 
 function wrapComponentLabel(ctx: CanvasRenderingContext2D, value: string, width: number): string[] {
@@ -56,7 +75,7 @@ function wrapComponentLabel(ctx: CanvasRenderingContext2D, value: string, width:
   return output.length ? output : [""];
 }
 
-function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bounds: { x: number; y: number; w: number; h: number }, tx: number, ty: number, requestedWidth: number, requestedSize: number, color: string, weight = 500, align: CanvasTextAlign = "left") {
+function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bounds: { x: number; y: number; w: number; h: number }, tx: number, ty: number, requestedWidth: number, requestedSize: number, color: string, weight = 500, align: CanvasTextAlign = "left", style?: ComponentTextStyle) {
   const inset = Math.min(4, Math.max(1, Math.min(bounds.w, bounds.h) * .04));
   const left = bounds.x + inset; const right = bounds.x + bounds.w - inset;
   const top = bounds.y + inset; const bottom = bounds.y + bounds.h - inset;
@@ -79,7 +98,7 @@ function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bound
   let lineHeight = size * 1.18;
   let maxLines = Math.max(1, Math.floor((bottom - top) / lineHeight));
   for (;;) {
-    ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+    ctx.font = componentFont(size, weight, style);
     lines = wrapComponentLabel(ctx, value, maxWidth);
     lineHeight = size * 1.18;
     maxLines = Math.max(1, Math.floor((bottom - top) / lineHeight));
@@ -96,7 +115,7 @@ function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bound
   const stackHeight = lines.length * lineHeight;
   const centerY = Math.max(top + stackHeight / 2, Math.min(bottom - stackHeight / 2, ty));
   const firstY = centerY - stackHeight / 2 + lineHeight / 2;
-  for (const [index, line] of lines.entries()) text(ctx, line, x, firstY + index * lineHeight, maxWidth, size, color, weight, align);
+  for (const [index, line] of lines.entries()) text(ctx, line, x, firstY + index * lineHeight, maxWidth, size, color, weight, align, style);
 }
 
 function cloudPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
@@ -136,6 +155,8 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   const bounds = group.componentBounds; const meta = group.libraryComponent;
   if (!bounds || !meta) return;
   const { x, y, w, h } = bounds; const kind = meta.kind;
+  const textStyle = meta.textStyle;
+  const textInk = textStyle?.color ?? meta.styleOverrides?.color ?? (theme === "dark" ? "#eeeeee" : "#292929");
   const ink = meta.styleOverrides?.color ?? (theme === "dark" ? "#eeeeee" : "#292929");
   const edge = ink; const fill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? group.container?.background ?? (theme === "dark" ? "#202020" : "#ffffff");
   const soft = theme === "dark" ? "#343434" : "#eeeeee";
@@ -162,14 +183,16 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
       fittedComponentText(ctx, provider.glyph, bounds, iconX + iconSide / 2, iconY + iconSide / 2, iconSide - 5, provider.glyph.length > 2 ? 10 : 13, provider.accent, 700, "center");
     }
     const copyX = iconX + iconSide + 9; const copyWidth = w - (copyX - x) - 9;
-    fittedComponentText(ctx, name, bounds, copyX, y + h * .37, copyWidth, size, ink, 700);
-    fittedComponentText(ctx, provider.provider.toUpperCase(), bounds, copyX, y + h * .59, copyWidth, 8, provider.accent, 650);
-    fittedComponentText(ctx, provider.description, bounds, x + 10, y + h - 9, w - 20, 8, theme === "dark" ? "#c3cbd3" : "#606a73", 400);
+    const providerTextAlign = componentTextAlign(textStyle?.textAlign, "left");
+    fittedComponentText(ctx, name, bounds, componentTextAnchor(copyX, copyWidth, "left", providerTextAlign), y + h * .37, copyWidth, size, textInk, 700, providerTextAlign, textStyle);
+    fittedComponentText(ctx, provider.provider.toUpperCase(), bounds, componentTextAnchor(copyX, copyWidth, "left", providerTextAlign), y + h * .59, copyWidth, 8, textInk, 650, providerTextAlign, textStyle);
+    fittedComponentText(ctx, provider.description, bounds, componentTextAnchor(x + 10, w - 20, "left", providerTextAlign), y + h - 9, w - 20, 8, textInk, 400, providerTextAlign, textStyle);
     ctx.restore(); return;
   }
   const box = (bx = x, by = y, bw = w, bh = h, color = fill) => { ctx.fillStyle = color === "transparent" ? "rgba(0,0,0,0)" : color; if (color !== "transparent") ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.strokeRect(bx, by, bw, bh); };
   const label = (value = name, bx = x + 10, by = y + 15, max = w - 20, font = size, bold = true, align: CanvasTextAlign = "left") => {
-    fittedComponentText(ctx, value, bounds, bx, by, max, Math.min(maxLabelSize, font), ink, bold ? 650 : 400, align);
+    const textAlign = componentTextAlign(textStyle?.textAlign, align);
+    fittedComponentText(ctx, value, bounds, componentTextAnchor(bx, max, align, textAlign), by, max, Math.min(maxLabelSize, font), textInk, bold ? 650 : 400, textAlign, textStyle);
   };
   const rule = (x1: number, y1: number, x2: number, y2: number) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = edge; ctx.lineWidth = 1.2; ctx.stroke(); };
   const dashedBoundary = (title: string, caption: string) => {
@@ -342,6 +365,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   if (!bounds || !kind) return;
   const { x, y, w, h } = bounds;
   const meta = group.libraryComponent!;
+  const textStyle = meta.textStyle;
   if (drawGuiComponent(ctx, group, theme)) return;
   if (meta.renderStyle === "clean") { drawCleanModelComponent(ctx, group, theme); return; }
   // Modeling components share one plain visual language.
@@ -360,10 +384,14 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     ctx.strokeStyle = ink === palette.ink ? palette.edge : ink; ctx.lineWidth = strokeWidth; ctx.stroke();
   };
   const componentText = (value: string, tx: number, ty: number, maxWidth: number, fontSize: number, color: string, weight = 500, align: CanvasTextAlign = "left") => {
-    fittedComponentText(ctx, value, bounds, tx, ty, maxWidth, Math.min(maxLabelSize, fontSize), color, weight, align);
+    const textAlign = componentTextAlign(textStyle?.textAlign, align);
+    const textColor = textStyle?.color ?? color;
+    fittedComponentText(ctx, value, bounds, componentTextAnchor(tx, maxWidth, align, textAlign), ty, maxWidth, Math.min(maxLabelSize, fontSize), textColor, weight, textAlign, textStyle);
   };
   const componentSingleLine = (value: string, tx: number, ty: number, maxWidth: number, fontSize: number, color: string, weight = 500, align: CanvasTextAlign = "left") => {
-    fittedComponentSingleLine(ctx, value, bounds, tx, ty, maxWidth, Math.min(maxLabelSize, fontSize), color, weight, align);
+    const textAlign = componentTextAlign(textStyle?.textAlign, align);
+    const textColor = textStyle?.color ?? color;
+    fittedComponentSingleLine(ctx, value, bounds, componentTextAnchor(tx, maxWidth, align, textAlign), ty, maxWidth, Math.min(maxLabelSize, fontSize), textColor, weight, textAlign, textStyle);
   };
   const heading = (value = name, yy = y + Math.min(18, h * .18), left = x + 14, max = w - 28) => componentText(value.toUpperCase(), left, yy, max, size, ink, 700);
   const centerHeading = (value = name, yy = y + h * .55) => componentText(value, x + w / 2, yy, w - 18, size, ink, 650, "center");
@@ -545,7 +573,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   shell(12); centerHeading(name); ctx.restore();
 }
 
-export function modelComponentSvg(group: GroupElement) {
+function renderModelComponentSvg(group: GroupElement) {
   const guiSvg = guiComponentSvg(group);
   if (guiSvg) return guiSvg;
   const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
@@ -750,6 +778,27 @@ export function modelComponentSvg(group: GroupElement) {
   if (kind === "bpmn-task" || kind === "bpmn-pool" || kind === "bpmn-data") return `${box}${label}${kind === "bpmn-pool" ? `<path d="M ${x + 31} ${y} V ${y + h} M ${x + 31} ${y + h / 2} H ${x + w}" stroke="${edge}"/>` : ""}`;
   if (kind === "uml-class" || kind === "uml-interface" || kind === "er-table") return `${box}<rect x="${x + 1}" y="${y + 1}" width="${w - 2}" height="${Math.min(36, h * .28)}" rx="8" fill="${palette.soft}"/><text x="${x + 12}" y="${y + Math.min(36, h * .28) / 2}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700"${fitTextAttribute(rawTitle, w - 24)}>${title}</text><path d="M ${x} ${y + Math.min(36, h * .28)} H ${x + w} M ${x} ${y + h * .66} H ${x + w}" stroke="${edge}"/>`;
   return `${box}${label}`;
+}
+
+/** Keeps component text formatting consistent when the vector renderer exports its dynamic labels. */
+export function modelComponentSvg(group: GroupElement) {
+  const svg = renderModelComponentSvg(group);
+  const style = group.libraryComponent?.textStyle;
+  if (!svg || !style) return svg;
+  const family = componentFontFamily(style.fontFamily);
+  return svg.replace(/<text\b([^>]*)>/g, (_match, rawAttributes: string) => {
+    let attributes = rawAttributes;
+    const replace = (name: string, value: string) => {
+      const pattern = new RegExp(`\\b${name}="[^"]*"`);
+      attributes = pattern.test(attributes) ? attributes.replace(pattern, `${name}="${value}"`) : `${attributes} ${name}="${value}"`;
+    };
+    if (style.color) replace("fill", style.color);
+    if (style.fontFamily) replace("font-family", family);
+    if (style.bold !== undefined) replace("font-weight", style.bold ? "700" : "400");
+    if (style.italic !== undefined) replace("font-style", style.italic ? "italic" : "normal");
+    if (style.underline !== undefined) replace("text-decoration", style.underline ? "underline" : "none");
+    return `<text${attributes}>`;
+  });
 }
 
 const componentIconImages = new Map<string, HTMLImageElement>();

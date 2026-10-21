@@ -4,6 +4,10 @@ export type GuiComponentKind =
   | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle"
   | "gui-card" | "gui-app-bar" | "gui-navigation" | "gui-tabs" | "gui-image";
 
+function componentFontFamily(family?: string) {
+  return family === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : family === "serif" ? "Georgia, 'Times New Roman', serif" : family === "mono" ? "'Cascadia Mono', Consolas, monospace" : family === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : family === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif";
+}
+
 export const GUI_COMPONENT_DEFINITIONS: { kind: GuiComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
   { kind: "form-button", section: "Forms & UI | Controls", label: "Button", description: "Compact primary action button", width: 100, height: 50 },
   { kind: "form-input", section: "Forms & UI | Fields", label: "Text field", description: "Compact labeled text input", width: 175, height: 50 },
@@ -108,7 +112,7 @@ type Primitive =
   | { type: "circle"; x: number; y: number; r: number; fill: string; stroke?: string }
   | { type: "line"; x1: number; y1: number; x2: number; y2: number; stroke: string; width?: number }
   | { type: "path"; points: { x: number; y: number }[]; fill?: string; stroke?: string; width?: number; closed?: boolean }
-  | { type: "text"; value: string; x: number; y: number; width: number; size: number; fill: string; weight?: number; anchor?: "start" | "middle" | "end" };
+  | { type: "text"; value: string; x: number; y: number; width: number; size: number; fill: string; weight?: number; anchor?: "start" | "middle" | "end"; family?: string; italic?: boolean; underline?: boolean };
 
 function componentTitle(group: GroupElement) {
   const meta = group.libraryComponent!;
@@ -125,6 +129,7 @@ function buildPrimitives(group: GroupElement, theme: Theme): Primitive[] | undef
   const style = styleFor(group, theme);
   const props = meta.guiProperties ?? defaultGuiComponentProperties(meta.kind) ?? {};
   const title = componentTitle(group);
+  const textStyle = meta.textStyle;
   const size = Math.max(5, Math.min(14, meta.textStyle?.fontSize ?? 11, h * .32));
   const options = (meta.formOptions?.length ? meta.formOptions : ["First option", "Second option", "Third option"]).slice(0, 12);
   const p: Primitive[] = [];
@@ -133,7 +138,10 @@ function buildPrimitives(group: GroupElement, theme: Theme): Primitive[] | undef
   const circle = (cx: number, cy: number, r: number, fill: string, stroke = style.edge) => p.push({ type: "circle", x: cx, y: cy, r: Math.max(1, r), fill, stroke });
   const text = (value: string, tx: number, ty: number, tw: number, font = size, fill = style.ink, weight = 500, anchor: "start" | "middle" | "end" = "start") => {
     if (tw < 2 || h < 5) return;
-    p.push({ type: "text", value: clampText(value, tw, font), x: tx, y: ty, width: tw, size: font, fill, weight, anchor });
+    const finalAlign = textStyle?.textAlign ?? (anchor === "middle" ? "center" : anchor === "end" ? "right" : "left");
+    const left = anchor === "middle" ? tx - tw / 2 : anchor === "end" ? tx - tw : tx;
+    const finalX = finalAlign === "center" ? left + tw / 2 : finalAlign === "right" ? left + tw : left;
+    p.push({ type: "text", value: clampText(value, tw, font), x: finalX, y: ty, width: tw, size: font, fill: textStyle?.color ?? fill, weight: textStyle?.bold === undefined ? weight : textStyle.bold ? 700 : 400, anchor: finalAlign === "center" ? "middle" : finalAlign === "right" ? "end" : "start", family: componentFontFamily(textStyle?.fontFamily), italic: textStyle?.italic, underline: textStyle?.underline });
   };
   const inset = Math.max(5, Math.min(12, w * .06));
 
@@ -291,7 +299,10 @@ export function drawGuiComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     else if (item.type === "circle") { ctx.beginPath(); ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2); ctx.fillStyle = item.fill; ctx.fill(); if (item.stroke && item.stroke !== "transparent") { ctx.strokeStyle = item.stroke; ctx.lineWidth = 1; ctx.stroke(); } }
     else if (item.type === "line") { ctx.beginPath(); ctx.moveTo(item.x1, item.y1); ctx.lineTo(item.x2, item.y2); ctx.strokeStyle = item.stroke; ctx.lineWidth = item.width ?? 1; ctx.stroke(); }
     else if (item.type === "path") { ctx.beginPath(); item.points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); if (item.closed) ctx.closePath(); if (item.fill) { ctx.fillStyle = item.fill; ctx.fill(); } if (item.stroke) { ctx.strokeStyle = item.stroke; ctx.lineWidth = item.width ?? 1; ctx.stroke(); } }
-    else { ctx.fillStyle = item.fill; ctx.font = `${item.weight ?? 500} ${item.size}px system-ui, sans-serif`; ctx.textAlign = item.anchor === "middle" ? "center" : item.anchor === "end" ? "right" : "left"; ctx.textBaseline = "middle"; ctx.fillText(item.value, item.x, item.y, item.width); }
+    else {
+      ctx.fillStyle = item.fill; ctx.font = `${item.italic ? "italic " : ""}${item.weight ?? 500} ${item.size}px ${item.family ?? "system-ui, sans-serif"}`; ctx.textAlign = item.anchor === "middle" ? "center" : item.anchor === "end" ? "right" : "left"; ctx.textBaseline = "middle"; ctx.fillText(item.value, item.x, item.y, item.width);
+      if (item.underline) { const measured = Math.min(item.width, ctx.measureText(item.value).width); const start = item.anchor === "middle" ? item.x - measured / 2 : item.anchor === "end" ? item.x - measured : item.x; ctx.fillRect(start, item.y + item.size * .36, measured, Math.max(1, item.size / 14)); }
+    }
   }
   ctx.restore();
   return true;
@@ -306,7 +317,7 @@ export function guiComponentSvg(group: GroupElement) {
     if (item.type === "circle") return `<circle cx="${item.x}" cy="${item.y}" r="${item.r}" fill="${item.fill}"${item.stroke && item.stroke !== "transparent" ? ` stroke="${item.stroke}" stroke-width="1"` : ""}/>`;
     if (item.type === "line") return `<path d="M ${item.x1} ${item.y1} L ${item.x2} ${item.y2}" fill="none" stroke="${item.stroke}" stroke-width="${item.width ?? 1}" stroke-linecap="round"/>`;
     if (item.type === "path") { const d = item.points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ") + (item.closed ? " Z" : ""); return `<path d="${d}"${item.fill ? ` fill="${item.fill}"` : ` fill="none"`}${item.stroke ? ` stroke="${item.stroke}" stroke-width="${item.width ?? 1}"` : ""}/>`; }
-    return `<text x="${item.x}" y="${item.y}" text-anchor="${item.anchor ?? "start"}" dominant-baseline="middle" fill="${item.fill}" font-family="system-ui, sans-serif" font-size="${item.size}" font-weight="${item.weight ?? 500}">${escapeXml(item.value)}</text>`;
+    return `<text x="${item.x}" y="${item.y}" text-anchor="${item.anchor ?? "start"}" dominant-baseline="middle" fill="${item.fill}" font-family="${escapeXml(item.family ?? "system-ui, sans-serif")}" font-size="${item.size}" font-weight="${item.weight ?? 500}"${item.italic ? ` font-style="italic"` : ""}${item.underline ? ` text-decoration="underline"` : ""}>${escapeXml(item.value)}</text>`;
   }).join("");
   return `<g data-component="${meta.kind}" data-id="${escapeXml(group.id ?? "")}">${content}</g>`;
 }

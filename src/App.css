@@ -38,3 +38,5 @@
 @import "./styles/diagram-templates.css";
 @import "./styles/toolbar-and-view-popovers.css";
 @import "./styles/workspace-view-panel.css";
+@import "./styles/schema-editor.css";
+@import "/src/features/workspace/database-workspace.css";

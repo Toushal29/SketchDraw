@@ -5,6 +5,7 @@ import { elementBounds, unionBounds } from "../canvas/bounds";
 import { validReferences } from "../../operations";
 import { curveControlPoints } from "../canvas/geometry";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
+import { schemaTableMinimumHeight, schemaTableResizeMinimumWidth } from "../diagrams/schema-table-layout";
 import { normalizeProjectWorkspace } from "../project/project-data";
 import { normalizeLegacyLibraryData } from "./legacy-library-data";
 import { MAX_DOCUMENT_STROKE_POINTS, MAX_STROKE_POINTS } from "../canvas/stroke-limits";
@@ -178,11 +179,12 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const rawTextStyle = rawComponent && isRecord(rawComponent.textStyle) ? rawComponent.textStyle : undefined;
     const validFontFamilies = ["sans", "hand", "serif", "mono", "rounded", "display"];
     const validTextAlignments = ["left", "center", "right", "justify"];
-    const textStyle = rawTextStyle && (rawTextStyle.fontSize === undefined || finite(rawTextStyle.fontSize) && rawTextStyle.fontSize >= 8 && rawTextStyle.fontSize <= 160)
+    const textStyle = rawTextStyle && (rawTextStyle.color === undefined || isColor(rawTextStyle.color))
+      && (rawTextStyle.fontSize === undefined || finite(rawTextStyle.fontSize) && rawTextStyle.fontSize >= 8 && rawTextStyle.fontSize <= 160)
       && (rawTextStyle.fontFamily === undefined || typeof rawTextStyle.fontFamily === "string" && validFontFamilies.includes(rawTextStyle.fontFamily))
       && ["bold", "italic", "underline"].every(key => rawTextStyle[key] === undefined || typeof rawTextStyle[key] === "boolean")
       && (rawTextStyle.textAlign === undefined || typeof rawTextStyle.textAlign === "string" && validTextAlignments.includes(rawTextStyle.textAlign))
-      ? { ...(finite(rawTextStyle.fontSize) ? { fontSize: rawTextStyle.fontSize } : {}), ...(typeof rawTextStyle.fontFamily === "string" ? { fontFamily: rawTextStyle.fontFamily as "sans" | "hand" | "serif" | "mono" | "rounded" | "display" } : {}), ...(typeof rawTextStyle.bold === "boolean" ? { bold: rawTextStyle.bold } : {}), ...(typeof rawTextStyle.italic === "boolean" ? { italic: rawTextStyle.italic } : {}), ...(typeof rawTextStyle.underline === "boolean" ? { underline: rawTextStyle.underline } : {}), ...(typeof rawTextStyle.textAlign === "string" ? { textAlign: rawTextStyle.textAlign as "left" | "center" | "right" | "justify" } : {}) } : undefined;
+      ? { ...(typeof rawTextStyle.color === "string" ? { color: rawTextStyle.color } : {}), ...(finite(rawTextStyle.fontSize) ? { fontSize: rawTextStyle.fontSize } : {}), ...(typeof rawTextStyle.fontFamily === "string" ? { fontFamily: rawTextStyle.fontFamily as "sans" | "hand" | "serif" | "mono" | "rounded" | "display" } : {}), ...(typeof rawTextStyle.bold === "boolean" ? { bold: rawTextStyle.bold } : {}), ...(typeof rawTextStyle.italic === "boolean" ? { italic: rawTextStyle.italic } : {}), ...(typeof rawTextStyle.underline === "boolean" ? { underline: rawTextStyle.underline } : {}), ...(typeof rawTextStyle.textAlign === "string" ? { textAlign: rawTextStyle.textAlign as "left" | "center" | "right" | "justify" } : {}) } : undefined;
     const componentBoundsValue = isRecord(value.componentBounds) && finite(value.componentBounds.x) && finite(value.componentBounds.y) && finite(value.componentBounds.w) && value.componentBounds.w >= 2 && value.componentBounds.w <= 1_000_000 && finite(value.componentBounds.h) && value.componentBounds.h >= 2 && value.componentBounds.h <= 1_000_000
       ? { x: value.componentBounds.x, y: value.componentBounds.y, w: value.componentBounds.w, h: value.componentBounds.h } : undefined;
     const masterId = typeof value.masterId === "string" && value.masterId.length > 0 && value.masterId.length <= 100 ? value.masterId : undefined;
@@ -290,9 +292,10 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       const columns = Array.isArray(raw.columns) && raw.columns.length <= 100 && raw.columns.every(column => typeof column === "string" && column.length <= 200) ? raw.columns as string[] : undefined;
       return [{ kind: raw.kind as SchemaConstraint["kind"], ...(typeof raw.name === "string" ? { name: raw.name.slice(0, 200) } : {}), ...(columns ? { columns } : {}), ...(typeof raw.expression === "string" && raw.expression.length <= 2000 ? { expression: raw.expression } : {}), ...(typeof raw.referencedTable === "string" ? { referencedTable: raw.referencedTable.slice(0, 200) } : {}), ...(Array.isArray(raw.referencedColumns) && raw.referencedColumns.length <= 100 && raw.referencedColumns.every(column => typeof column === "string" && column.length <= 200) ? { referencedColumns: raw.referencedColumns as string[] } : {}) }];
     }) : [];
-    const fontSize = finite(value.fontSize) ? Math.max(8, Math.min(48, Math.round(value.fontSize))) : 14; const neededHeight = Math.max(42, fontSize * 2.8) + columns.length * Math.max(30, fontSize * 1.8);
-    const neededWidth = Math.max(180, ...columns.map(column => (column.name.length + (column.dataType ?? "type").length) * fontSize * .36 + 80));
-    return { type: "schemaTable", ...flags, x: value.x, y: value.y, w: Math.max(value.w, neededWidth), h: Math.max(value.h, neededHeight), name: value.name, columns, ...(indexes.length ? { indexes } : {}), ...(constraints.length ? { constraints } : {}), schemaDiagramId: value.schemaDiagramId, schemaSource: value.schemaSource, fontSize, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
+    // Refit saved cards to the shared compact row metrics while preserving their positions and widths.
+    const fontSize = finite(value.fontSize) ? Math.max(8, Math.min(48, Math.round(value.fontSize))) : 14; const neededHeight = schemaTableMinimumHeight(columns.length, fontSize);
+    const neededWidth = schemaTableResizeMinimumWidth();
+    return { type: "schemaTable", ...flags, x: value.x, y: value.y, w: Math.max(value.w, neededWidth), h: neededHeight, name: value.name, columns, ...(indexes.length ? { indexes } : {}), ...(constraints.length ? { constraints } : {}), schemaDiagramId: value.schemaDiagramId, schemaSource: value.schemaSource, fontSize, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
   }
   if (value.type === "svgPath") {
     if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w <= 0 || !finite(value.h) || value.h <= 0 || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0 || typeof value.pathData !== "string" || !value.pathData.trim() || value.pathData.length > 500_000 || !finite(value.pathWidth) || value.pathWidth <= 0 || value.pathWidth > 100_000 || !finite(value.pathHeight) || value.pathHeight <= 0 || value.pathHeight > 100_000 || (value.fillRule !== undefined && value.fillRule !== "nonzero" && value.fillRule !== "evenodd")) return undefined;

@@ -10,7 +10,7 @@ type ChartNode =
   | { type: "polygon"; points: Point[]; fill?: string; stroke?: string; lineWidth?: number; opacity?: number }
   | { type: "circle"; x: number; y: number; r: number; fill?: string; stroke?: string; lineWidth?: number; opacity?: number }
   | { type: "sector"; x: number; y: number; r: number; inner: number; start: number; end: number; fill: string; stroke?: string; lineWidth?: number }
-  | { type: "text"; x: number; y: number; value: string; size: number; fill: string; weight?: number; align?: CanvasTextAlign; baseline?: CanvasTextBaseline; maxWidth?: number; rotate?: number; family?: string };
+  | { type: "text"; x: number; y: number; value: string; size: number; fill: string; weight?: number; align?: CanvasTextAlign; baseline?: CanvasTextBaseline; maxWidth?: number; rotate?: number; family?: string; italic?: boolean; underline?: boolean };
 type Series = { name: string; values: number[]; chartType?: "bar" | "line" | "area" | "scatter"; axis?: "primary" | "secondary" };
 type ChartScene = { width: number; height: number; nodes: ChartNode[] };
 type ChartPalette = { series: string[]; ink: string; muted: string; grid: string; edge: string; surface: string };
@@ -147,6 +147,7 @@ function buildScene(group: GroupElement, theme: Theme, width: number, height: nu
   const colors = paletteFor(group, theme);
   const fontFamily = familyFor(meta.textStyle?.fontFamily);
   const fontSize = clamp(meta.textStyle?.fontSize ?? 12, 8, 18);
+  const textStyle = meta.textStyle;
   const pad = clamp(Math.min(width, height) * .055, 9, 16);
   const title = (data.title ?? meta.label ?? "Chart").trim().slice(0, 80) || "Chart";
   const titleSize = clamp(fontSize, 10, 16);
@@ -154,7 +155,7 @@ function buildScene(group: GroupElement, theme: Theme, width: number, height: nu
   const nodes: ChartNode[] = [];
   const add = (node: ChartNode) => nodes.push(node);
   const addText = (value: string, x: number, y: number, size: number, fill = colors.ink, align: CanvasTextAlign = "left", baseline: CanvasTextBaseline = "middle", maxWidth?: number, weight = 400, rotate?: number) => {
-    add({ type: "text", value, x, y, size, fill, align, baseline, maxWidth, weight, rotate, family: fontFamily });
+    add({ type: "text", value, x, y, size, fill: textStyle?.color ?? fill, align, baseline, maxWidth, weight: textStyle?.bold === undefined ? weight : textStyle.bold ? 700 : 400, rotate, family: fontFamily, italic: textStyle?.italic, underline: textStyle?.underline });
   };
   const addLine = (x1: number, y1: number, x2: number, y2: number, stroke = colors.grid, lineWidth = 1, dash?: number[]) => add({ type: "line", x1, y1, x2, y2, stroke, lineWidth, dash });
   const addRect = (x: number, y: number, w: number, h: number, fill?: string, stroke?: string, lineWidth = 1, radius = 0, opacity?: number) => add({ type: "rect", x, y, w, h, fill, stroke, lineWidth, radius, opacity });
@@ -664,9 +665,10 @@ function renderNodeToCanvas(ctx: CanvasRenderingContext2D, node: ChartNode) {
   } else {
     ctx.translate(node.x, node.y);
     if (node.rotate) ctx.rotate(node.rotate);
-    ctx.fillStyle = node.fill; ctx.font = (node.weight ?? 400) + " " + node.size + "px " + (node.family ?? "system-ui,sans-serif");
+    ctx.fillStyle = node.fill; ctx.font = (node.italic ? "italic " : "") + (node.weight ?? 400) + " " + node.size + "px " + (node.family ?? "system-ui,sans-serif");
     ctx.textAlign = node.align ?? "left"; ctx.textBaseline = node.baseline ?? "middle";
     if (node.maxWidth) ctx.fillText(node.value, 0, 0, node.maxWidth); else ctx.fillText(node.value, 0, 0);
+    if (node.underline) { const measured = Math.min(node.maxWidth ?? ctx.measureText(node.value).width, ctx.measureText(node.value).width); const start = node.align === "center" ? -measured / 2 : node.align === "right" ? -measured : 0; ctx.fillRect(start, node.size * .36, measured, Math.max(1, node.size / 14)); }
   }
   ctx.restore();
 }
@@ -680,7 +682,7 @@ function renderNodeToSvg(node: ChartNode) {
   const baseline = node.baseline === "top" ? "hanging" : node.baseline === "bottom" ? "text-after-edge" : "middle";
   const transform = node.rotate ? " transform=\"rotate(" + (node.rotate * 180 / Math.PI) + " " + node.x + " " + node.y + ")\"" : "";
   const length = node.maxWidth && node.value.length * node.size * .58 > node.maxWidth ? " textLength=\"" + Math.max(1, node.maxWidth) + "\" lengthAdjust=\"spacingAndGlyphs\"" : "";
-  return "<text x=\"" + node.x + "\" y=\"" + node.y + "\" text-anchor=\"" + (node.align === "center" ? "middle" : node.align === "right" ? "end" : "start") + "\" dominant-baseline=\"" + baseline + "\" fill=\"" + node.fill + "\" font-family=\"" + escapeXml(node.family ?? "system-ui,sans-serif") + "\" font-size=\"" + node.size + "\" font-weight=\"" + (node.weight ?? 400) + "\"" + length + transform + ">" + escapeXml(node.value) + "</text>";
+  return "<text x=\"" + node.x + "\" y=\"" + node.y + "\" text-anchor=\"" + (node.align === "center" ? "middle" : node.align === "right" ? "end" : "start") + "\" dominant-baseline=\"" + baseline + "\" fill=\"" + node.fill + "\" font-family=\"" + escapeXml(node.family ?? "system-ui,sans-serif") + "\" font-size=\"" + node.size + "\" font-weight=\"" + (node.weight ?? 400) + "\"" + (node.italic ? " font-style=\"italic\"" : "") + (node.underline ? " text-decoration=\"underline\"" : "") + length + transform + ">" + escapeXml(node.value) + "</text>";
 }
 
 export function drawLibraryChart(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme) {

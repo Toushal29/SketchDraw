@@ -151,14 +151,14 @@ export function restoreDirectLibraryComponent(group: GroupElement): Element[] | 
   const overrides = metadata.styleOverrides; const textStyle = metadata.textStyle;
   if (overrides || textStyle) {
     component = { ...component, elements: mapDescendants(component.elements, item => {
-      if (item.type === "text") return { ...item, ...(overrides?.color ? { color: overrides.color } : {}), ...(textStyle?.fontSize ? { fontSize: textStyle.fontSize } : {}), ...(textStyle?.fontFamily ? { fontFamily: textStyle.fontFamily } : {}), ...(textStyle?.bold === undefined ? {} : { bold: textStyle.bold }), ...(textStyle?.italic === undefined ? {} : { italic: textStyle.italic }), ...(textStyle?.underline === undefined ? {} : { underline: textStyle.underline }), ...(textStyle?.textAlign ? { textAlign: textStyle.textAlign } : {}) };
+      if (item.type === "text") return { ...item, ...(textStyle?.color || overrides?.color ? { color: textStyle?.color ?? overrides?.color } : {}), ...(textStyle?.fontSize ? { fontSize: textStyle.fontSize } : {}), ...(textStyle?.fontFamily ? { fontFamily: textStyle.fontFamily } : {}), ...(textStyle?.bold === undefined ? {} : { bold: textStyle.bold }), ...(textStyle?.italic === undefined ? {} : { italic: textStyle.italic }), ...(textStyle?.underline === undefined ? {} : { underline: textStyle.underline }), ...(textStyle?.textAlign ? { textAlign: textStyle.textAlign } : {}) };
       if (item.type === "freehand") return { ...item, ...(overrides?.color ? { color: overrides.color } : {}) };
       if (item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" || item.type === "line" || item.type === "arrow") return {
         ...item,
         ...(overrides?.color ? { color: overrides.color } : {}),
         ...(overrides && "fillColor" in overrides ? { fillColor: overrides.fillColor ?? undefined } : {}),
         ...(overrides?.fillOpacity === undefined ? {} : { fillOpacity: overrides.fillOpacity }),
-        ...(item.label && (overrides?.color || textStyle) ? { label: { ...item.label, ...(overrides?.color ? { color: overrides.color } : {}), ...(textStyle?.fontSize ? { fontSize: textStyle.fontSize } : {}), ...(textStyle?.fontFamily ? { fontFamily: textStyle.fontFamily } : {}), ...(textStyle?.bold === undefined ? {} : { bold: textStyle.bold }), ...(textStyle?.italic === undefined ? {} : { italic: textStyle.italic }), ...(textStyle?.underline === undefined ? {} : { underline: textStyle.underline }), ...(textStyle?.textAlign ? { textAlign: textStyle.textAlign } : {}) } } : {}),
+        ...(item.label && (overrides?.color || textStyle) ? { label: { ...item.label, ...(textStyle?.color || overrides?.color ? { color: textStyle?.color ?? overrides?.color } : {}), ...(textStyle?.fontSize ? { fontSize: textStyle.fontSize } : {}), ...(textStyle?.fontFamily ? { fontFamily: textStyle.fontFamily } : {}), ...(textStyle?.bold === undefined ? {} : { bold: textStyle.bold }), ...(textStyle?.italic === undefined ? {} : { italic: textStyle.italic }), ...(textStyle?.underline === undefined ? {} : { underline: textStyle.underline }), ...(textStyle?.textAlign ? { textAlign: textStyle.textAlign } : {}) } } : {}),
       };
       return item;
     }) };

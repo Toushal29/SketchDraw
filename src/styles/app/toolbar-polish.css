@@ -3,7 +3,6 @@
 .tool-options button>*,
 .quick-style-icon>*,
 .quick-arrow-heads button>*,
-.connector-route-buttons button>*,
 .arrow-head-choices button>* {
     pointer-events: none;
 }

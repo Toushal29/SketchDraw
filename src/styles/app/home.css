@@ -202,10 +202,6 @@
     background: var(--theme-primary-hover);
 }
 
-.home-action-secondary {
-    background: var(--theme-surface-input);
-}
-
 .home-file-note {
     display: flex;
     align-items: center;

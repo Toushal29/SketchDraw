@@ -30,8 +30,8 @@ export function MobileHomeScreen(props: Props) {
         </div>
         <div class="home-actions home-actions-mobile" aria-label="Start or open a whiteboard">
           <button class="home-action home-action-primary" type="button" onClick={() => void props.onCreate()}><span>New sketch</span><span aria-hidden="true">&rarr;</span></button>
-          <button class="home-action home-action-secondary" type="button" onClick={props.onGuides}>Diagram guides</button>
-          <button class="home-action home-action-secondary" type="button" onClick={() => void props.onOpen()}><span>Open sketch</span><span aria-hidden="true">&rarr;</span></button>
+          <button class="home-action" type="button" onClick={props.onGuides}>Diagram guides</button>
+          <button class="home-action" type="button" onClick={() => void props.onOpen()}><span>Open sketch</span><span aria-hidden="true">&rarr;</span></button>
         </div>
       </section>
 

@@ -125,7 +125,7 @@ export function autoRoutePoints(connector: ShapeElement, items: Element[] | Auto
   const pins = connector.routeWaypoints ?? [];
   const context = Array.isArray(items) ? createAutoRouteContext(items, isHidden) : items;
   const flatItems = context.flatItems;
-  const excluded = new Set([connector.id, connector.startBinding?.elementId, connector.endBinding?.elementId].filter(Boolean));
+  const excluded = new Set([connector.id].filter(Boolean));
   const queryBounds = { x: Math.min(start.x, end.x) - 240, y: Math.min(start.y, end.y) - 240, w: Math.abs(end.x - start.x) + 480, h: Math.abs(end.y - start.y) + 480 };
   const nearbyItems = context.index.query(queryBounds).map(index => flatItems[index]);
   const nearby = nearbyItems.flatMap(item => {
@@ -155,10 +155,30 @@ export function autoRoutePoints(connector: ShapeElement, items: Element[] | Auto
     .sort((left, right) => distanceToSegment({ x: (left.left + left.right) / 2, y: (left.top + left.bottom) / 2 }, start, end) - distanceToSegment({ x: (right.left + right.right) / 2, y: (right.top + right.bottom) / 2 }, start, end))
     .slice(0, 32);
   const rects = [...nodeRects, ...nearbyRouteObstacles];
-  const key = JSON.stringify([start, end, connector.thickness, pins, nearby.map(({ item, bounds }) => [item.id, bounds.x, bounds.y, bounds.w, bounds.h]), nearbyRouteObstacles]);
+  const key = JSON.stringify([start, end, connector.startBinding, connector.endBinding, connector.thickness, pins, nearby.map(({ item, bounds }) => [item.id, bounds.x, bounds.y, bounds.w, bounds.h]), nearbyRouteObstacles]);
   const cached = routeCache.get(connector);
   if (cached?.key === key) return cached.points;
-  const waypoints = [start, ...pins, end]; const full: Point[] = [];
+  // Keep bound tables in the obstacle set and route from a short stub outside their edge.
+  const endpointStub = (endpoint: Point, other: Point, binding: ShapeElement["startBinding"] | ShapeElement["endBinding"]): Point => {
+    if (!binding) return endpoint;
+    const target = flatItems.find(item => item.id === binding.elementId);
+    const bounds = target && context.candidates.get(target);
+    if (!target || !bounds) return endpoint;
+    const anchor = binding.anchor ?? { x: .5, y: .5 };
+    let nx = anchor.x - .5; let ny = anchor.y - .5;
+    if (Math.abs(nx) < .001 && Math.abs(ny) < .001) { nx = other.x - endpoint.x; ny = other.y - endpoint.y; }
+    if (Math.abs(nx) * bounds.w >= Math.abs(ny) * bounds.h) ny = 0;
+    else nx = 0;
+    const directionLength = Math.hypot(nx, ny);
+    if (directionLength < .001) return endpoint;
+    nx /= directionLength; ny /= directionLength;
+    const edgeDistance = nx > 0 ? bounds.x + bounds.w - endpoint.x : nx < 0 ? endpoint.x - bounds.x : ny > 0 ? bounds.y + bounds.h - endpoint.y : endpoint.y - bounds.y;
+    const distance = Math.max(0, edgeDistance) + padding + 8;
+    return { x: endpoint.x + nx * distance, y: endpoint.y + ny * distance };
+  };
+  const startStub = endpointStub(start, end, connector.startBinding);
+  const endStub = endpointStub(end, start, connector.endBinding);
+  const waypoints = [start, ...(startStub === start ? [] : [startStub]), ...pins, ...(endStub === end ? [] : [endStub]), end]; const full: Point[] = [];
   for (let index = 1; index < waypoints.length; index++) {
     const from = waypoints[index - 1]; const to = waypoints[index];
     const segmentRects = rects.filter(rect => rect.right >= Math.min(from.x, to.x) - 240 && rect.left <= Math.max(from.x, to.x) + 240 && rect.bottom >= Math.min(from.y, to.y) - 240 && rect.top <= Math.max(from.y, to.y) + 240);

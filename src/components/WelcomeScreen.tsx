@@ -31,8 +31,8 @@ export function WelcomeScreen(props: Props) {
             <p class="home-copy">Make diagrams, sketch ideas, and work things out on a fast, flexible whiteboard.</p>
             <div class="home-actions" aria-label="Start or open a whiteboard">
               <button type="button" class="home-action home-action-primary" onClick={() => void props.onCreateFile()}>Create a sketch <span aria-hidden="true">&rarr;</span></button>
-              <button type="button" class="home-action home-action-secondary" onClick={props.onGuides}>Diagram guides</button>
-              <button type="button" class="home-action home-action-secondary" onClick={props.onOpenFile}>Open a sketch</button>
+              <button type="button" class="home-action" onClick={props.onGuides}>Diagram guides</button>
+              <button type="button" class="home-action" onClick={props.onOpenFile}>Open a sketch</button>
             </div>
             <div class="home-file-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg><span>Your portable <strong>.sketch</strong> files stay in folders you choose.</span></div>
           </div>
@@ -76,7 +76,7 @@ export function WelcomeScreen(props: Props) {
             <span class="home-empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h5" /></svg></span>
             <strong>Your sketches will appear here</strong>
             <p>Open a sketch from your device to pick up where you left off.</p>
-            <button type="button" class="home-action home-action-secondary" onClick={props.onOpenFile}>Browse sketches</button>
+            <button type="button" class="home-action" onClick={props.onOpenFile}>Browse sketches</button>
           </div>
         }>
           <div class="home-recent-list" aria-label="Recent sketches">{props.recentFiles().map(path => <button type="button" class="home-file" onClick={() => void props.onOpenRecentFile(path)}>

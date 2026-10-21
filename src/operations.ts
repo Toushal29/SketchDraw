@@ -1,4 +1,5 @@
 import type { Binding, ConnectionPoint, Element, GroupElement, ShapeElement, SchemaTableElement, TextElement, Point, FlowchartShape, Bounds, RelationshipType } from "./model";
+import { schemaTableMetrics } from "./features/diagrams/schema-table-layout";
 
 export const isConnector = (element: Element): element is ShapeElement => element.type === "line" || element.type === "arrow";
 export const isLabelShape = (element: Element): element is ShapeElement => element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "svgPath";
@@ -73,10 +74,10 @@ export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextEleme
   const normalized = (portId ? connectionPointsFor(shape).find(port => port.id === portId)?.anchor : undefined) ?? anchor;
   let x = Math.min(box.x, box.x + box.w) + Math.abs(box.w) * normalized.x;
   const rowIndex = shape.type === "schemaTable" && rowId ? shape.columns.findIndex(column => column.id === rowId) : -1;
-  const rowFontSize = shape.type === "schemaTable" ? shape.fontSize ?? 12 : 14;
-  const rowHeaderHeight = Math.max(42, rowFontSize * 2.8); const rowHeight = Math.max(30, rowFontSize * 1.8);
+  // Use the card's shared metrics so row-bound connectors meet the rendered field center.
+  const { titleHeight, rowHeight } = shape.type === "schemaTable" ? schemaTableMetrics(shape.fontSize ?? 12) : { titleHeight: 0, rowHeight: 0 };
   let y = shape.type === "schemaTable" && rowIndex >= 0
-    ? shape.y + rowHeaderHeight + rowIndex * rowHeight + rowHeight / 2
+    ? shape.y + titleHeight + rowIndex * rowHeight + rowHeight / 2
     : Math.min(box.y, box.y + box.h) + Math.abs(box.h) * normalized.y;
   if (shape.type === "circle" && shape.w !== 0 && shape.h !== 0) {
     const dx = (x - cx) / (Math.abs(box.w) / 2); const dy = (y - cy) / (Math.abs(box.h) / 2);
