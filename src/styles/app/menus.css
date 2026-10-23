@@ -669,12 +669,6 @@
     display: flex;
 }
 
-.tool-family.options-open .flowchart-options {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(75px, 1fr));
-    width: 380px;
-}
-
 .palette-spawn-all {
     position: sticky;
     z-index: 2;

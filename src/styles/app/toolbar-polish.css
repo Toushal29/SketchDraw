@@ -186,11 +186,6 @@
     text-align: center;
 }
 
-.tool-family.options-open .flowchart-options {
-    width: 390px;
-    grid-template-columns: repeat(4, minmax(72px, 1fr));
-}
-
 .tool-collapse,
 .tool-deck-reopen {
     width: 32px;

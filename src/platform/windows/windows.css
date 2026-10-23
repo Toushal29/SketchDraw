@@ -482,13 +482,15 @@
     width: min(620px, calc(100vw - 28px));
     max-height: min(72vh, 620px);
     grid-template-columns: minmax(0, 1fr);
-    gap: 7px;
+    gap: 5px;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 12px;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px;
     border-color: color-mix(in srgb, var(--ui-accent) 20%, var(--toolbar-ink) 13%);
-    border-radius: 14px;
+    border-radius: 15px;
     box-shadow: 0 16px 44px color-mix(in srgb, var(--theme-shadow) 18%, transparent);
     transform: translateX(-50%);
 }

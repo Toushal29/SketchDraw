@@ -12,11 +12,11 @@
     overflow: auto;
     color: var(--theme-text-primary);
     background:
-        radial-gradient(ellipse at 6% 10%, color-mix(in srgb, var(--theme-primary) 10%, transparent), transparent 34%),
-        radial-gradient(ellipse at 96% 88%, color-mix(in srgb, var(--theme-info) 8%, transparent), transparent 38%),
-        radial-gradient(color-mix(in srgb, var(--theme-primary) 12%, transparent) 1px, transparent 1.5px),
+        radial-gradient(ellipse at 8% 12%, color-mix(in srgb, var(--theme-primary) 18%, transparent), transparent 35%),
+        radial-gradient(ellipse at 94% 84%, color-mix(in srgb, var(--theme-info) 15%, transparent), transparent 40%),
+        radial-gradient(color-mix(in srgb, var(--theme-primary) 16%, transparent) 1px, transparent 2px),
         var(--theme-background);
-    background-size: auto, auto, 24px 24px, auto;
+    background-size: auto, auto, 25px 25px, auto;
 }
 
 .home-screen-desktop {
@@ -31,7 +31,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1.12fr) minmax(290px, .78fr);
     grid-template-rows: minmax(0, 1fr);
-    gap: 14px;
+    gap: 15px;
     width: min(1400px, 100%);
     min-height: 540px;
     height: 100%;
@@ -46,11 +46,13 @@
     grid-row: auto;
     flex-direction: column;
     overflow: hidden;
-    padding: clamp(22px, 3vw, 40px);
-    border: 1px solid var(--theme-border);
-    border-radius: 22px;
-    background: var(--theme-surface);
-    box-shadow: 0 14px 36px var(--theme-shadow);
+    padding: clamp(25px, 3vw, 40px);
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 24%, var(--theme-border));
+    border-radius: 25px;
+    background:
+        radial-gradient(ellipse at 86% 82%, color-mix(in srgb, var(--theme-info) 13%, transparent), transparent 42%),
+        linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 9%, var(--theme-surface)) 0%, var(--theme-surface) 52%, color-mix(in srgb, var(--theme-info) 8%, var(--theme-surface)) 100%);
+    box-shadow: 0 20px 40px color-mix(in srgb, var(--theme-shadow) 75%, var(--theme-primary) 25%);
 }
 
 .home-hero::before {
@@ -61,7 +63,19 @@
     height: 360px;
     border: 1px solid color-mix(in srgb, var(--theme-primary) 12%, transparent);
     border-radius: 50%;
-    box-shadow: 0 0 0 34px color-mix(in srgb, var(--theme-primary) 3%, transparent);
+    box-shadow: 0 0 0 35px color-mix(in srgb, var(--theme-primary) 5%, transparent);
+    content: "";
+    pointer-events: none;
+}
+
+.home-hero::after {
+    position: absolute;
+    bottom: -145px;
+    left: -115px;
+    width: 320px;
+    height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--theme-primary) 16%, transparent), transparent 70%);
     content: "";
     pointer-events: none;
 }
@@ -89,7 +103,7 @@
     border: 1px solid var(--theme-primary-border);
     border-radius: 10px;
     color: var(--theme-primary);
-    background: var(--theme-primary-muted);
+    background: color-mix(in srgb, var(--theme-primary) 18%, var(--theme-surface));
 }
 
 .home-brand-mark svg {
@@ -171,13 +185,13 @@
 .home-action {
     display: inline-flex;
     min-width: 0;
-    min-height: 42px;
+    min-height: 45px;
     align-items: center;
     justify-content: center;
     gap: 12px;
-    padding: 0 13px;
+    padding: 0 15px;
     border: 1px solid var(--theme-border);
-    border-radius: 9px;
+    border-radius: 10px;
     color: var(--theme-text-primary);
     background: var(--theme-surface);
     cursor: pointer;
@@ -192,9 +206,10 @@
 }
 
 .home-action-primary {
-    border-color: var(--theme-primary);
+    border-color: var(--theme-primary-border);
     color: var(--theme-primary-contrast);
-    background: var(--theme-primary);
+    background: linear-gradient(110deg, var(--theme-primary), color-mix(in srgb, var(--theme-primary) 78%, var(--theme-info)));
+    box-shadow: 0 5px 15px color-mix(in srgb, var(--theme-primary) 26%, transparent);
 }
 
 .home-action-primary:hover {
@@ -235,12 +250,15 @@
     flex-direction: column;
     justify-content: space-between;
     overflow: hidden;
-    padding: 13px;
-    border: 1px solid var(--theme-border);
-    border-radius: 16px;
+    padding: 15px;
+    border: 1px solid color-mix(in srgb, var(--theme-info) 30%, var(--theme-border));
+    border-radius: 20px;
     background-color: var(--theme-surface-elevated);
-    background-image: radial-gradient(color-mix(in srgb, var(--theme-text-secondary) 22%, transparent) 1px, transparent 1.5px);
-    background-size: 18px 18px;
+    background-image:
+        radial-gradient(ellipse at 92% 12%, color-mix(in srgb, var(--theme-warning) 18%, transparent), transparent 38%),
+        radial-gradient(color-mix(in srgb, var(--theme-text-secondary) 24%, transparent) 1px, transparent 2px),
+        linear-gradient(150deg, color-mix(in srgb, var(--theme-info) 9%, var(--theme-surface-elevated)), var(--theme-surface-elevated) 70%);
+    background-size: auto, 20px 20px, auto;
 }
 
 .planning-preview-board {
@@ -386,11 +404,11 @@
 
 .home-preview-caption {
     align-self: flex-end;
-    padding: 7px 9px;
-    border: 1px solid var(--theme-border);
-    border-radius: 7px;
+    padding: 10px 15px;
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 25%, var(--theme-border));
+    border-radius: 10px;
     color: var(--theme-text-secondary);
-    background: var(--theme-surface-elevated);
+    background: color-mix(in srgb, var(--theme-surface-elevated) 88%, var(--theme-primary) 12%);
     font-size: 9px;
 }
 
@@ -425,11 +443,11 @@
     min-height: 0;
     flex-direction: column;
     overflow: hidden;
-    padding: 20px;
-    border: 1px solid var(--theme-border);
-    border-radius: 18px;
-    background: var(--theme-surface);
-    box-shadow: 0 10px 28px var(--theme-shadow);
+    padding: 25px;
+    border: 1px solid color-mix(in srgb, var(--theme-info) 20%, var(--theme-border));
+    border-radius: 20px;
+    background: linear-gradient(155deg, color-mix(in srgb, var(--theme-info) 6%, var(--theme-surface)), var(--theme-surface) 52%, color-mix(in srgb, var(--theme-primary) 5%, var(--theme-surface)));
+    box-shadow: 0 15px 30px var(--theme-shadow);
 }
 
 .home-library-heading {
@@ -438,7 +456,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding-bottom: 13px;
+    padding-bottom: 15px;
 }
 
 .home-section-label {
@@ -456,14 +474,14 @@
 
 .home-count {
     display: grid;
-    min-width: 26px;
-    height: 26px;
+    min-width: 30px;
+    height: 30px;
     place-items: center;
     padding: 0 7px;
-    border: 1px solid var(--theme-border);
-    border-radius: 8px;
-    color: var(--theme-text-secondary);
-    background: var(--theme-background);
+    border: 1px solid var(--theme-primary-border);
+    border-radius: 10px;
+    color: var(--theme-primary);
+    background: var(--theme-primary-muted);
     font: 10px var(--font-mono);
 }
 
@@ -472,7 +490,7 @@
     min-height: 0;
     flex: 1 1 auto;
     align-content: start;
-    gap: 6px;
+    gap: 10px;
     overflow: auto;
     padding: 2px 2px 2px 0;
     overscroll-behavior: contain;
@@ -481,11 +499,11 @@
 .home-file {
     display: grid;
     min-width: 0;
-    min-height: 54px;
-    grid-template-columns: 31px minmax(0, 1fr) auto;
+    min-height: 60px;
+    grid-template-columns: 35px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 9px;
-    padding: 7px 9px;
+    gap: 10px;
+    padding: 10px;
     border: 1px solid var(--theme-border);
     border-radius: 10px;
     color: inherit;
@@ -497,6 +515,7 @@
 
 .home-file:hover {
     border-color: var(--theme-primary-border);
+    background: color-mix(in srgb, var(--theme-primary-muted) 22%, var(--theme-background));
 }
 
 .home-file-mark,
@@ -510,13 +529,13 @@
 }
 
 .home-file-mark {
-    width: 30px;
-    height: 32px;
+    width: 35px;
+    height: 35px;
 }
 
 .home-file-mark svg {
-    width: 17px;
-    height: 17px;
+    width: 20px;
+    height: 20px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.5;
@@ -547,7 +566,7 @@
 }
 
 .home-file-open {
-    color: var(--theme-text-secondary);
+    color: var(--theme-primary);
     font-size: 9px;
     white-space: nowrap;
 }
@@ -566,14 +585,14 @@
 }
 
 .home-empty-mark {
-    width: 38px;
-    height: 40px;
+    width: 45px;
+    height: 45px;
     margin-bottom: 4px;
 }
 
 .home-empty-mark svg {
-    width: 19px;
-    height: 19px;
+    width: 20px;
+    height: 20px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.5;

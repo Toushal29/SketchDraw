@@ -448,6 +448,7 @@ function App() {
   let presentationTransitionClearTimer: number | undefined;
   const [presentationFrameIndex, setPresentationFrameIndex] = createSignal(-1);
   const [openSketchPaths, setOpenSketchPaths] = createSignal<string[]>([]);
+  const [openPlanningPaths, setOpenPlanningPaths] = createSignal<string[]>([]);
   const [whiteboardStyle, setWhiteboardStyle] = createSignal<WhiteboardStyle>(readWhiteboardStyle());
   const [snapToGrid, setSnapToGrid] = createSignal(false);
   const [snapToObjects, setSnapToObjects] = createSignal(true);
@@ -1215,7 +1216,7 @@ function App() {
       if (/^content:\/\//i.test(path)) await resolveAndroidDocumentName(path);
       const name = displayNameForPath(path).toLowerCase();
       if (name.endsWith(".sdplan")) {
-        if (await planningSession.load(path)) { setWorkspaceArea("planning"); recentAssociatedFileOpens.set(key, Date.now()); }
+        if (await planningSession.load(path)) { trackOpenPlanningPath(); setWorkspaceArea("planning"); recentAssociatedFileOpens.set(key, Date.now()); }
       } else if (name.endsWith(".sketch")) {
         await loadFile(path);
         recentAssociatedFileOpens.set(key, Date.now());
@@ -4304,7 +4305,12 @@ function App() {
     setWorkspaceArea("canvas");
   }
 
-  async function savePlanningAs() { return planningSession.saveAs(); }
+  async function savePlanningAs() {
+    const previousPath = planningPath();
+    const saved = await planningSession.saveAs();
+    if (saved) trackOpenPlanningPath(planningPath(), previousPath);
+    return saved;
+  }
   async function savePlanningDocument() { return planningSession.save(); }
   async function saveCurrentWorkspace() {
     if (workspaceArea() === "planning") return savePlanningDocument();
@@ -4313,14 +4319,36 @@ function App() {
   }
   async function openPlanningFile() {
     if (documentBusy()) return;
-    if (await planningSession.openPicker()) setWorkspaceArea("planning");
+    if (await planningSession.openPicker()) { trackOpenPlanningPath(); setWorkspaceArea("planning"); }
   }
   async function createPlanningFromHome() {
     if (documentBusy()) return;
-    if (await planningSession.create()) setWorkspaceArea("planning");
+    if (await planningSession.create()) { trackOpenPlanningPath(); setWorkspaceArea("planning"); }
   }
   async function openRecentPlan(path: string) {
-    if (await planningSession.load(path)) setWorkspaceArea("planning");
+    if (normalizeFileUri(path).toLowerCase() === normalizeFileUri(planningPath() ?? "").toLowerCase()) { setWorkspaceArea("planning"); return; }
+    if (await planningSession.load(path)) { trackOpenPlanningPath(); setWorkspaceArea("planning"); }
+  }
+  function trackOpenPlanningPath(path = planningPath(), replacedPath?: string) {
+    if (!isWindowsPlatform() || !path) return;
+    const key = normalizeFileUri(path).toLowerCase();
+    const replacedKey = replacedPath ? normalizeFileUri(replacedPath).toLowerCase() : undefined;
+    setOpenPlanningPaths(paths => {
+      const retained = replacedKey ? paths.filter(item => normalizeFileUri(item).toLowerCase() !== replacedKey) : paths;
+      return retained.some(item => normalizeFileUri(item).toLowerCase() === key) ? retained : [...retained, path];
+    });
+  }
+  async function closePlanningTab(path: string) {
+    if (!isWindowsPlatform()) return;
+    const key = normalizeFileUri(path).toLowerCase();
+    const remaining = openPlanningPaths().filter(item => normalizeFileUri(item).toLowerCase() !== key);
+    const currentKey = normalizeFileUri(planningPath() ?? "").toLowerCase();
+    if (key !== currentKey) { setOpenPlanningPaths(remaining); return; }
+    if (remaining.length) {
+      if (await planningSession.load(remaining[0])) setOpenPlanningPaths(remaining);
+      return;
+    }
+    if (await planningSession.close()) setOpenPlanningPaths(remaining);
   }
   async function addPlansToOverview() {
     try {
@@ -6742,7 +6770,7 @@ function App() {
             onToggle={() => alignTouchMenuPopover(appSettingsMenu)}
           />}>
           <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}</div>
-            <Show when={workspaceArea() === "planning"}><button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button><button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button><button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button><div class="menu-separator" /></Show><Show when={workspaceArea() !== "planning"}>
+            <Show when={workspaceArea() === "planning"}><button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button><button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button><button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button><button disabled={!planningPath() || planningSaving()} onClick={() => closeSystemMenu(() => { if (planningPath()) void closePlanningTab(planningPath()!); })}>Close plan</button><div class="menu-separator" /></Show><Show when={workspaceArea() !== "planning"}>
             <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open sketch as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save sketch <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save sketch as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile())}>Import editable diagram/code...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked()} onClick={() => closeSystemMenu(openWebEmbedDialog)}>Embed web page...</button><div class="menu-separator" /><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("drawio"))}>Export draw.io...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("excalidraw"))}>Export Excalidraw...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => setDiagramCodeExportOpen(true))}>Export diagram code...</button><button disabled={!activePath() || !isCanvasWorkspace() || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close sketch</button>
             <Show when={hasRetiredLibraryData(legacyLibraryData())}><button disabled={!activePath() || readOnlyView() || documentBusy() || nativeBusy()} onClick={() => closeSystemMenu(() => void exportRetiredLibraryArchive())}>Export retired Library data...</button></Show></Show>
           </div></details>
@@ -6779,6 +6807,7 @@ function App() {
         </nav>
         <WorkspaceAreaTabs active={workspaceArea()} documentTabs={!!activePath() && isCanvasWorkspace()} onSelect={area => setWorkspaceArea(area)} />
         <Show when={isWindowsPlatform() && activePath() && openSketchPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openSketchPaths()} activePath={activePath()} displayName={displayNameForPath} onSelect={path => { if (path !== activePath()) void loadFile(path); }} onClose={path => void closeSketchTab(path)} /></Suspense></Show>
+        <Show when={isWindowsPlatform() && workspaceArea() === "planning" && planningPath() && openPlanningPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openPlanningPaths()} activePath={planningPath()} displayName={displayNameForPath} ariaLabel="Open Planning files" onSelect={path => { if (normalizeFileUri(path).toLowerCase() !== normalizeFileUri(planningPath() ?? "").toLowerCase()) void openRecentPlan(path); }} onClose={path => void closePlanningTab(path)} /></Suspense></Show>
 
           <Show when={workspaceArea() === "planning" && planningPath()}><div class="top-actions"><span class={`save-status ${planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved"} title={planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status"}><i /><time>{planningSavedAt() || "—"}</time></span></div></Show>
           <Show when={isCanvasWorkspace() && activePath()}><div class="top-actions"><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>

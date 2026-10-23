@@ -91,6 +91,20 @@ export function createPlanningSession(ports: PlanningSessionPorts) {
     return saved && !dirty();
   }
 
+  async function close(): Promise<boolean> {
+    if (ports.busy() || saving() || !await beforeReplace()) return false;
+    setData(createProjectWorkspace());
+    setPath(undefined);
+    setBaselineRaw(undefined);
+    setDirty(false);
+    setSavedAt("");
+    setNeedsExtraction(false);
+    setLegacyPending(undefined);
+    legacySourcePath = undefined;
+    ports.setError("");
+    return true;
+  }
+
   async function load(filePath: string): Promise<boolean> {
     if (ports.busy()) return false;
     if (!await beforeReplace()) return false;
@@ -242,6 +256,6 @@ export function createPlanningSession(ports: PlanningSessionPorts) {
 
   return {
     recentPlans, data, path, dirty, saving, savedAt, legacyPending, needsExtraction,
-    update, remember, save, saveAs, beforeReplace, load, openPicker, create, saveLegacyCopy, importLegacy, importLegacyFromSketch, discardLegacyFromSketch, removeLegacySyncMetadata,
+    update, remember, save, saveAs, beforeReplace, close, load, openPicker, create, saveLegacyCopy, importLegacy, importLegacyFromSketch, discardLegacyFromSketch, removeLegacySyncMetadata,
   };
 }

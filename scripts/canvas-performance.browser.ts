@@ -19,9 +19,13 @@ import { renderLibraryChartSvg } from "../src/features/components/chart-engine";
 import { loadCloudProviderGlyph } from "../src/features/diagrams/cloud-providers";
 import { normalizeElement } from "../src/features/files/parse-sketch";
 import mobileToolbarCss from "../src/platform/mobile/touch-toolbar.css?inline";
+import quickStyleSizeCss from "../src/styles/quick-style-size.css?inline";
+import homeCss from "../src/styles/app/home.css?inline";
+import popoverCss from "../src/styles/toolbar-and-view-popovers.css?inline";
 import { createComponent } from "solid-js";
 import { render } from "solid-js/web";
 import { CanvasOptionsMenu } from "../src/components/CanvasOptionsMenu";
+import { DocumentTabs } from "../src/platform/windows/DocumentTabs";
 import { parseSchema } from "../src/schema";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "../src/mermaid";
 import { exportDiagramCode, plantUmlToDiagram } from "../src/features/diagrams/code-formats";
@@ -559,7 +563,59 @@ spec:
     return passed;
   });
   console.info("Audit: mobile controls and performance workloads");
-  const style = document.createElement("style"); style.textContent = mobileToolbarCss; document.head.append(style);
+  const style = document.createElement("style"); style.textContent = `${mobileToolbarCss}\n${quickStyleSizeCss}\n${homeCss}\n${popoverCss}`; document.head.append(style);
+  const styleFixtureHost = document.createElement("div");
+  styleFixtureHost.className = "app-shell platform-windows";
+  styleFixtureHost.style.cssText = "--theme-primary:rgb(30,90,200);--theme-primary-border:rgb(60,110,200);--theme-primary-muted:rgb(220,230,255);--theme-info:rgb(20,140,200);--theme-warning:rgb(210,150,30);--theme-background:rgb(245,247,250);--theme-surface:rgb(250,250,252);--theme-surface-elevated:rgb(255,255,255);--theme-border:rgb(200,210,220);--theme-shadow:rgb(0 0 0 / 0.2);--theme-text-primary:rgb(20,25,35);--theme-text-secondary:rgb(70,80,90);--theme-text-tertiary:rgb(100,110,120)";
+  document.body.append(styleFixtureHost);
+  const quickStyleFixture = document.createElement("aside");
+  quickStyleFixture.className = "style-pane quick-style-mode";
+  quickStyleFixture.innerHTML = `<div class="quick-style-heading"><button><svg></svg></button></div><div class="quick-style-controls"><button class="quick-style-icon"><svg></svg></button></div>`;
+  styleFixtureHost.append(quickStyleFixture);
+  const quickStyleButton = quickStyleFixture.querySelector<HTMLElement>(".quick-style-icon")!;
+  const quickStyleGlyph = quickStyleButton.querySelector<SVGElement>("svg")!;
+  const quickStyleDimensions = { pane: getComputedStyle(quickStyleFixture).width, button: getComputedStyle(quickStyleButton).width, glyph: getComputedStyle(quickStyleGlyph).width };
+  const quickStyleSizePass = quickStyleDimensions.pane === "45px" && quickStyleDimensions.button === "30px" && quickStyleDimensions.glyph === "20px";
+  if (!quickStyleSizePass) console.info("Quick-style size diagnostic:", JSON.stringify(quickStyleDimensions));
+  check(quickStyleSizePass, "Quick-style controls render 25% larger hit targets and legible icons");
+  const welcomeFixture = document.createElement("section");
+  welcomeFixture.className = "home-screen home-screen-desktop";
+  welcomeFixture.innerHTML = `<div class="home-desktop-layout"><section class="home-hero"></section><section class="home-library"></section></div>`;
+  styleFixtureHost.append(welcomeFixture);
+  const welcomeHero = welcomeFixture.querySelector<HTMLElement>(".home-hero")!;
+  const welcomeStyle = getComputedStyle(welcomeFixture);
+  const welcomePass = welcomeStyle.display === "block" && getComputedStyle(welcomeHero).backgroundImage.includes("linear-gradient");
+  if (!welcomePass) console.info("Welcome screen style diagnostic:", JSON.stringify({ display: welcomeStyle.display, background: getComputedStyle(welcomeHero).backgroundImage }));
+  check(welcomePass, "Desktop welcome viewport keeps its canvas/planning class structure and richer layered hero");
+  const flowchartFixture = document.createElement("div");
+  flowchartFixture.className = "tool-family options-open flowchart-family";
+  flowchartFixture.innerHTML = `<button class="tool-icon-button has-options"></button><div class="tool-options flowchart-options"><header class="flowchart-palette-heading"></header><label class="flowchart-palette-search"></label><div class="flowchart-palette-tabs"></div><div class="flowchart-shape-grid"></div><button class="flowchart-spawn-all"></button></div>`;
+  styleFixtureHost.append(flowchartFixture);
+  const flowchartPanel = flowchartFixture.querySelector<HTMLElement>(".flowchart-options")!;
+  const flowchartGrid = flowchartFixture.querySelector<HTMLElement>(".flowchart-shape-grid")!;
+  flowchartGrid.innerHTML = Array.from({ length: 40 }, (_, index) => `<button type="button">Shape ${index + 1}</button>`).join("");
+  flowchartGrid.scrollTop = flowchartGrid.scrollHeight;
+  const popoverScrollState = {
+    panelOverflow: getComputedStyle(flowchartPanel).overflowY,
+    gridOverflow: getComputedStyle(flowchartGrid).overflowY,
+    gridHasOverflow: flowchartGrid.scrollHeight > flowchartGrid.clientHeight,
+    gridReachedBottom: flowchartGrid.scrollTop + flowchartGrid.clientHeight >= flowchartGrid.scrollHeight - 1,
+    panelScrolls: flowchartPanel.scrollHeight > flowchartPanel.clientHeight,
+  };
+  const popoverScrollPass = popoverScrollState.panelOverflow === "hidden" && popoverScrollState.gridOverflow === "auto" && popoverScrollState.gridHasOverflow && popoverScrollState.gridReachedBottom && !popoverScrollState.panelScrolls;
+  if (!popoverScrollPass) console.info("Flowchart popover scroll diagnostic:", JSON.stringify(popoverScrollState));
+  check(popoverScrollPass, "Flowchart palette routes bottom scrolling through one shape-grid viewport");
+  flowchartFixture.remove();
+  const planningTabHost = document.createElement("div"); document.body.append(planningTabHost);
+  let closedPlanningPath = "";
+  const disposePlanningTabs = render(() => createComponent(DocumentTabs, {
+    paths: ["C:/SketchDraw/Launch.sdplan"], activePath: "C:/SketchDraw/Launch.sdplan", ariaLabel: "Open Planning files",
+    displayName: path => path.split("/").pop() ?? path, onSelect() {}, onClose: path => { closedPlanningPath = path; },
+  }), planningTabHost);
+  const planningTab = planningTabHost.querySelector<HTMLElement>(".windows-document-tabs");
+  planningTabHost.querySelector<HTMLButtonElement>(".windows-document-tab-close")?.click();
+  check(planningTab?.getAttribute("aria-label") === "Open Planning files" && closedPlanningPath === "C:/SketchDraw/Launch.sdplan", "Planning document tabs expose an accessible label and close the selected file");
+  disposePlanningTabs(); planningTabHost.remove();
   const menuHost = document.createElement("div"); menuHost.className = "app-shell"; document.body.append(menuHost);
   const disposeMenu = render(() => createComponent(CanvasOptionsMenu, {
     open: true, showGrid: true, snapToGrid: true, snapToObjects: true, measureMode: false, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false, mobileSimple: true,
@@ -569,18 +625,18 @@ spec:
   const controls = [...menuHost.querySelectorAll<HTMLElement>("button,input,select,textarea,[role=button]")];
   const viewMenu = menuHost.querySelector<HTMLElement>(".canvas-options-family.mobile-simple-mode");
   const advancedSections = [...menuHost.querySelectorAll<HTMLDetailsElement>("details.workspace-view-advanced")];
-  const precisionSection = advancedSections.find(section => section.querySelector("summary")?.textContent?.includes("Precision"));
-  const precisionSummary = precisionSection?.querySelector<HTMLElement>("summary");
+  const movementSection = advancedSections.find(section => section.querySelector("summary")?.textContent?.includes("Movement and resize"));
+  const movementSummary = movementSection?.querySelector<HTMLElement>("summary");
   check(!!viewMenu && advancedSections.length > 0 && advancedSections.every(section => !section.open), "Mobile advanced canvas sections start collapsed");
-  precisionSummary?.click();
-  check(precisionSection?.open === true, "Mobile users can expand an advanced canvas section on demand");
-  precisionSummary?.click();
-  check(precisionSection?.open === false, "Mobile advanced canvas sections collapse again on demand");
+  movementSummary?.click();
+  check(movementSection?.open === true, "Mobile users can expand an advanced canvas section on demand");
+  movementSummary?.click();
+  check(movementSection?.open === false, "Mobile advanced canvas sections collapse again on demand");
   const unlabeledControls = controls.filter(control => !(control.getAttribute("aria-label") || control.getAttribute("title") || control.textContent?.trim() || control.closest("label")?.textContent?.trim()));
   check(unlabeledControls.length === 0, `Canvas view controls expose accessible names (${unlabeledControls.length} missing)`);
   const firstEnabled = controls.find(control => control instanceof HTMLButtonElement && !control.disabled);
   firstEnabled?.focus(); check(!firstEnabled || document.activeElement === firstEnabled, "Canvas view controls can receive keyboard focus");
-  disposeMenu(); menuHost.remove(); style.remove();
+  disposeMenu(); menuHost.remove(); styleFixtureHost.remove(); style.remove();
   const performanceResults = {
     workload: "160 pressure strokes, 240 samples each, 1200x800 canvas, software-rendered panning",
     baseline: globalThis.__baselineRenderer ? crowded(globalThis.__baselineRenderer) : undefined, updated: crowded(createFreehandRenderer),

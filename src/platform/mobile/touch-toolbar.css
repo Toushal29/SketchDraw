@@ -213,8 +213,6 @@
   }
   .app-shell:not(.platform-windows) .touch-tool-content .tool-options:not(.stencil-options) > button > svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .app-shell:not(.platform-windows) .touch-tool-content .shape-options { width: min(240px, calc(100vw - 16px)); grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .app-shell:not(.platform-windows) .touch-tool-content .flowchart-options { width: min(360px, calc(100vw - 16px)); grid-template-columns: minmax(0, 1fr); }
-  .app-shell:not(.platform-windows) .touch-tool-content .flowchart-options .flowchart-shape-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .app-shell:not(.platform-windows) .touch-tool-content .flowchart-options .flowchart-shape-grid > button { grid-template-columns: 1fr; justify-items: center; min-height: 58px; padding: 5px 3px; text-align: center; }
   .app-shell:not(.platform-windows) .touch-tool-content .text-options { width: min(270px, calc(100vw - 16px)); grid-template-columns: 1fr; }
   .app-shell:not(.platform-windows) .touch-tool-content .text-options > button,

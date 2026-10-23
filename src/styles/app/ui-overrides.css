@@ -28,11 +28,6 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
 } */
 
-.tool-family.options-open .flowchart-options {
-    width: min(330px, calc(100vw - 24px));
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
 .tool-icon-button.selected,
 .canvas-options-trigger.active {
     border-color: var(--ui-accent-border);
@@ -89,13 +84,6 @@
 
 .theme-dark .accent-colors .ui-accent-swatch {
     border-color: var(--theme-border);
-}
-
-@media (max-width: 760px) {
-
-    .tool-family.options-open .flowchart-options {
-        width: min(286px, calc(100vw - 24px));
-    }
 }
 
 /* Compact layer drawer with one selectable layer for each drawing tool. */

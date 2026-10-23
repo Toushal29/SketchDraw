@@ -143,8 +143,6 @@
     .app-shell:not(.platform-windows) .route-options > button { justify-content: flex-start; gap: 6px; padding: 5px; text-align: left; }
     .app-shell:not(.platform-windows) .route-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }
     .app-shell:not(.platform-windows) .route-options > button span { min-width: 0; overflow-wrap: anywhere; font-size: 9px; }
-    .app-shell:not(.platform-windows) .tool-family.options-open .flowchart-options { --touch-popup-width: 360px; display: grid; grid-template-columns: minmax(0, 1fr); }
-    .app-shell:not(.platform-windows) .flowchart-options .flowchart-shape-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .app-shell:not(.platform-windows) .flowchart-options .flowchart-shape-grid > button { min-height: 58px; flex-direction: column; gap: 3px; padding: 5px 3px; }
     .app-shell:not(.platform-windows) .flowchart-options .flowchart-shape-grid > button svg { width: 21px; height: 21px; }
     .app-shell:not(.platform-windows) .flowchart-options .flowchart-shape-grid > button span { font-size: 9px; text-align: center; }

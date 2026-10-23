@@ -392,11 +392,6 @@ h1 em {
     white-space: nowrap;
 }
 
-.flowchart-options {
-    width: 276px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
 .style-pane {
     position: absolute;
     z-index: 3;
