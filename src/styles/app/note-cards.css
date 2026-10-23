@@ -416,8 +416,13 @@
 
 .schema-dialog {
     display: grid;
-    width: min(700px, 100%);
-    gap: 12px;
+    box-sizing: border-box;
+    width: min(680px, calc(100vw - 32px));
+    max-height: min(88dvh, 760px);
+    gap: 10px;
+    overflow-y: auto;
+    padding: 16px;
+    border-radius: 10px;
 }
 
 .validation-dialog {
@@ -579,11 +584,11 @@
 .schema-input {
     box-sizing: border-box;
     width: 100%;
-    min-height: 300px;
+    min-height: min(52vh, 460px);
     resize: vertical;
-    padding: 14px;
+    padding: 11px;
     border: 1px solid var(--theme-diagram-data);
-    border-radius: 10px;
+    border-radius: 7px;
     outline: none;
     color: var(--theme-diagram-data);
     background: var(--theme-diagram-data-muted);
@@ -650,5 +655,15 @@
     .schema-dialog-footer {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .schema-dialog {
+        width: calc(100vw - 24px);
+        max-height: calc(100dvh - 24px);
+        padding: 12px;
+    }
+
+    .schema-input {
+        min-height: min(48vh, 360px);
     }
 }

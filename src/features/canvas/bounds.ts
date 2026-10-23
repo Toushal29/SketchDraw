@@ -1,6 +1,6 @@
 import type { Point, Element, Bounds, ShapeElement } from "../../model";
 import { labelBox, textElementBox } from "../../operations";
-import { connectorPolylines, arrowHeadEntries, arrowHeadPoints } from "./geometry";
+import { connectorPolylines, arrowHeadEntries, arrowHeadPoints } from "../connectors/geometry";
 import { stylusStrokeWidth } from "./freehand-rendering";
 import { relationshipDisplayElement } from "../diagrams/relationships";
 

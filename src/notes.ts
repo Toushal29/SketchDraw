@@ -292,7 +292,7 @@ export function toggleChecklistContent(content: string, target: number): string 
   }).join("\n");
 }
 
-export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-subprocess" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | CloudProviderComponentKind;
+export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-associative-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-composite-attribute" | "er-key-attribute" | "er-partial-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-subprocess" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | CloudProviderComponentKind;
 export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
   { kind: "diagram-frame", section: "General | Layout", label: "Frame", description: "Resizable titled boundary for any diagram", width: 420, height: 280 },
   { kind: "diagram-swimlane", section: "General | Layout", label: "Swimlane", description: "Resizable lanes for organizing responsibilities or stages", width: 520, height: 320 },
@@ -312,10 +312,13 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "er-table", section: "ER | Entities & relations", label: "Table schema card", description: "Table with key, field, and type rows", width: 220, height: 156 },
   { kind: "er-entity", section: "ER | Entities & relations", label: "Entity", description: "Editable entity rectangle", width: 148, height: 82 },
   { kind: "er-weak-entity", section: "ER | Entities & relations", label: "Weak entity", description: "Entity with a double boundary", width: 148, height: 82 },
+  { kind: "er-associative-entity", section: "ER | Entities & relations", label: "Associative entity", description: "Entity marked with an embedded relationship symbol", width: 170, height: 92 },
   { kind: "er-relationship", section: "ER | Entities & relations", label: "Relationship", description: "Editable relationship diamond", width: 148, height: 88 },
   { kind: "er-identifying-relationship", section: "ER | Entities & relations", label: "Identifying relationship", description: "Relationship with a double boundary", width: 148, height: 88 },
   { kind: "er-attribute", section: "ER | Attributes", label: "Attribute", description: "Editable attribute oval", width: 148, height: 70 },
+  { kind: "er-composite-attribute", section: "ER | Attributes", label: "Composite attribute", description: "Parent attribute with two editable child attributes", width: 220, height: 140 },
   { kind: "er-key-attribute", section: "ER | Attributes", label: "Key attribute", description: "Underlined primary key attribute", width: 148, height: 70 },
+  { kind: "er-partial-key-attribute", section: "ER | Attributes", label: "Partial key attribute", description: "Dashed, underlined discriminator for a weak entity", width: 148, height: 70 },
   { kind: "er-multivalued-attribute", section: "ER | Attributes", label: "Multivalued attribute", description: "Attribute with a double boundary", width: 148, height: 70 },
   { kind: "er-derived-attribute", section: "ER | Attributes", label: "Derived attribute", description: "Dashed attribute oval", width: 148, height: 70 },
   { kind: "er-one-one", section: "ER | Relationships", label: "One to one", description: "Straight connector with one markers at both ends", width: 190, height: 42 },
@@ -521,20 +524,28 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     elements.push(text(x + 12, y + 9, "", "#36556e", 13, "sans", true));
     elements.push(lineElement(x, y + 32, 220, 0), lineElement(x, y + 73, 220, 0), lineElement(x, y + 114, 220, 0));
     elements.push(text(x + 10, y + 43, "", "#536477", 11, "mono"), text(x + 10, y + 84, "", "#536477", 11, "mono"), text(x + 10, y + 125, "", "#536477", 11, "mono"));
-  } else if (["er-entity", "er-weak-entity", "er-relationship", "er-identifying-relationship", "er-attribute", "er-key-attribute", "er-multivalued-attribute", "er-derived-attribute"].includes(kind)) {
+  } else if (["er-entity", "er-weak-entity", "er-associative-entity", "er-relationship", "er-identifying-relationship", "er-attribute", "er-composite-attribute", "er-key-attribute", "er-partial-key-attribute", "er-multivalued-attribute", "er-derived-attribute"].includes(kind)) {
     // Use ordinary editable canvas shapes for Chen ER entities, relations, and attributes.
     const outline = "#31877e";
     const fill = "#eff9f6";
     const label = (underline = false) => ({ text: "", color: "#28675f", fontSize: 12, fontFamily: "sans" as const, bold: false, italic: false, underline, textAlign: "center" as const, listType: "none" as const, verticalAlign: "middle" as const });
     const entity = (inset = 0, withLabel = false) => ({ type: "rectangle" as const, x: x + inset, y: y + inset, w: 148 - inset * 2, h: 82 - inset * 2, color: outline, thickness: 1.6, fillColor: fill, ...(withLabel ? { label: label() } : {}) });
     const relation = (inset = 0, withLabel = false) => ({ type: "diamond" as const, x: x + inset, y: y + inset, w: 148 - inset * 2, h: 88 - inset * 2, color: outline, thickness: 1.6, fillColor: fill, ...(withLabel ? { label: label() } : {}) });
-    const attribute = (inset = 0, withLabel = false, underline = false) => ({ type: "circle" as const, x: x + inset, y: y + inset, w: 148 - inset * 2, h: 70 - inset * 2, color: outline, thickness: 1.6, fillColor: fill, ...(kind === "er-derived-attribute" ? { lineStyle: "dashed" as const } : {}), ...(withLabel ? { label: label(underline) } : {}) });
+    const attribute = (inset = 0, withLabel = false, underline = false, dashed = false) => ({ type: "circle" as const, x: x + inset, y: y + inset, w: 148 - inset * 2, h: 70 - inset * 2, color: outline, thickness: 1.6, fillColor: fill, ...(dashed || kind === "er-derived-attribute" || kind === "er-partial-key-attribute" ? { lineStyle: "dashed" as const } : {}), ...(withLabel ? { label: label(underline) } : {}) });
     if (kind === "er-entity") elements.push(entity(0, true));
     else if (kind === "er-weak-entity") elements.push(entity(0), entity(6, true));
+    else if (kind === "er-associative-entity") elements.push(entity(0, true), { type: "diamond", x: x + 64, y: y + 2, w: 20, h: 20, color: outline, thickness: 1.6, fillColor: fill });
     else if (kind === "er-relationship") elements.push(relation(0, true));
     else if (kind === "er-identifying-relationship") elements.push(relation(0), relation(7, true));
     else if (kind === "er-key-attribute") elements.push(attribute(0, true, true));
+    else if (kind === "er-partial-key-attribute") elements.push(attribute(0, true, true, true));
     else if (kind === "er-multivalued-attribute") elements.push(attribute(0), attribute(6, true));
+    else if (kind === "er-composite-attribute") {
+      const parent = { type: "circle" as const, x: x + 36, y: y + 2, w: 76, h: 44, color: outline, thickness: 1.6, fillColor: fill, label: label() };
+      const leftChild = { type: "circle" as const, x: x + 2, y: y + 82, w: 94, h: 44, color: outline, thickness: 1.6, fillColor: fill, label: { ...label(), text: "Attribute 1" } };
+      const rightChild = { type: "circle" as const, x: x + 124, y: y + 82, w: 94, h: 44, color: outline, thickness: 1.6, fillColor: fill, label: { ...label(), text: "Attribute 2" } };
+      elements.push(lineElement(x + 74, y + 45, -25, 38, outline), lineElement(x + 75, y + 45, 96, 38, outline), parent, leftChild, rightChild);
+    }
     else elements.push(attribute(0, true));
   } else if (kind === "er-one-many" || kind === "er-many-one" || kind === "er-one-one" || kind === "er-many-many") {
     elements.push(lineElement(x + 8, y + 21, 174, 0, "#60788e"));

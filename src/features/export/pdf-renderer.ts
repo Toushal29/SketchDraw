@@ -1,11 +1,12 @@
 import type { Bounds, CanvasState, Element, FontFamily, ImageElement, Point, ShapeElement, TextElement, Theme } from "../../model";
 import { alignedTextStartX, isConnector, isLabelShape, textLayout } from "../../operations";
-import { arrowHeadEntries, arrowHeadSvgPath, connectorSvgPath, flowchartSvgDetailPath, vectorFlowchartPath } from "../canvas/geometry";
+import { shapeDetailPathData, shapePathData } from "../shapes/geometry";
+import { arrowHeadEntries, arrowHeadSvgPath, connectorSvgPath } from "../connectors/geometry";
 import { elementBounds, unionBounds, visibleElementBounds } from "../canvas/bounds";
 import { themeInk } from "../canvas/rendering";
 import { stylusStrokeWidth } from "../canvas/freehand-rendering";
 import { drawNoteCard } from "../../notes";
-import { fitSchemaTableText, schemaTableColors, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
+import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
 
 export type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
 
@@ -147,7 +148,7 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
         } return; }
         // Reuse canvas card metrics so PDF row positions match field-bound relationships.
         if (element.type === "schemaTable") {
-          const { fontSize, titleHeight, rowHeight } = schemaTableMetrics(element.fontSize ?? 12); const colors = schemaTableColors(theme()); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
+          const { fontSize, titleHeight, rowHeight } = schemaTableMetrics(element.fontSize ?? 12); const contentInset = schemaTableContentInset(fontSize); const colors = schemaTableColors(theme()); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
           const centerX = left + width / 2; const centerY = top - height / 2; const rotated = !!element.rotation;
           if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
           page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(colors.surface, pdfColorMode()), opacity });
@@ -157,7 +158,7 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
           page.drawLine({ start: { x: left, y: top }, end: { x: left, y: top - height }, thickness: scale, color: pdfColor(colors.border, pdfColorMode()), opacity });
           page.drawLine({ start: { x: left + width, y: top }, end: { x: left + width, y: top - height }, thickness: scale, color: pdfColor(colors.border, pdfColorMode()), opacity });
           line(element.y + titleHeight, left, left + width, colors.border, 1);
-          drawText(fitSchemaTableText(element.name, element.w - 20, fontSize * .96), element.x + 10, element.y + Math.max(4, (titleHeight - fontSize * .96) / 2), colors.title, fontSize * .96, "sans", true, false, opacity);
+          drawText(fitSchemaTableText(element.name, element.w - contentInset * 2, fontSize * .96), element.x + contentInset, element.y + Math.max(4, (titleHeight - fontSize * .96) / 2), colors.title, fontSize * .96, "sans", true, false, opacity);
           const rowsTop = element.y + titleHeight;
           element.columns.forEach((column, index) => {
             const rowY = rowsTop + index * rowHeight;
@@ -211,40 +212,28 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
           page.drawSvgPath(d, { x: x0, y: yTop, scale, borderColor: ink, borderWidth: element.thickness * scale, borderOpacity: element.opacity ?? 1, borderLineCap: LineCapStyle.Round });
           if (rotated) page.pushOperators(popGraphicsState()); return;
         }
-        const x=element.x,y=element.y,w=element.w,h=element.h; let path="";
-        if(element.type==="rectangle") { const l=Math.min(x,x+w),t=Math.min(y,y+h),ww=Math.abs(w),hh=Math.abs(h); const r=element.edgeStyle==="pill"?Math.min(ww,hh)/2:element.edgeStyle==="rounded"?Math.min(element.cornerRadius??14,ww/2,hh/2):0; const c=Math.min(element.cornerRadius??12,ww/2,hh/2); path=element.edgeStyle==="cut"?`M ${l+c} ${t} H ${l+ww-c} L ${l+ww} ${t+c} V ${t+hh-c} L ${l+ww-c} ${t+hh} H ${l+c} L ${l} ${t+hh-c} V ${t+c} Z`:r?`M ${l+r} ${t} H ${l+ww-r} Q ${l+ww} ${t} ${l+ww} ${t+r} V ${t+hh-r} Q ${l+ww} ${t+hh} ${l+ww-r} ${t+hh} H ${l+r} Q ${l} ${t+hh} ${l} ${t+hh-r} V ${t+r} Q ${l} ${t} ${l+r} ${t} Z`:`M ${l} ${t} H ${l+ww} V ${t+hh} H ${l} Z`; }
-        else if(element.type==="circle"){const cx=x+w/2,cy=y+h/2,rx=Math.abs(w)/2,ry=Math.abs(h)/2,k=.55228475;path=`M ${cx+rx} ${cy} C ${cx+rx} ${cy+k*ry} ${cx+k*rx} ${cy+ry} ${cx} ${cy+ry} C ${cx-k*rx} ${cy+ry} ${cx-rx} ${cy+k*ry} ${cx-rx} ${cy} C ${cx-rx} ${cy-k*ry} ${cx-k*rx} ${cy-ry} ${cx} ${cy-ry} C ${cx+k*rx} ${cy-ry} ${cx+rx} ${cy-k*ry} ${cx+rx} ${cy} Z`; }
-        else if(element.type==="diamond")path=`M ${x+w/2} ${y} L ${x+w} ${y+h/2} L ${x+w/2} ${y+h} L ${x} ${y+h/2} Z`;
-        else if(element.type==="triangle"){const l=Math.min(x,x+w),r=Math.max(x,x+w),t=Math.min(y,y+h),b=Math.max(y,y+h);path=`M ${(l+r)/2} ${t} L ${r} ${b} L ${l} ${b} Z`;}
-        else if(element.type==="flowchart")path=vectorFlowchartPath(element);
-        else {
-          const route = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
-          path = connectorSvgPath(element);
-          if (element.lineStyle === "double") {
-            const normal = { x: -h / Math.max(1, Math.hypot(w, h)), y: w / Math.max(1, Math.hypot(w, h)) };
-            const offset = Math.max(2.5, element.thickness * 1.2);
-            for (const side of [-1, 1]) {
-              const shifted = path.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_match, a, b) => `${Number(a) + normal.x * offset * side} ${Number(b) + normal.y * offset * side}`);
-              pathStyle(page, shifted, element, scale, x0, yTop);
-            }
-          } else pathStyle(page, path, element, scale, x0, yTop);
-          if (element.type === "arrow" || element.type === "line") for (const head of arrowHeadEntries(element, route)) {
-            const radius = Math.max(3, element.thickness * 1.15);
-            if (head.kind === "dot") {
-              page.drawEllipse({ x: bleed + margin + (head.tip.x - bounds.x) * scale, y: paperH - bleed - margin - (head.tip.y - bounds.y) * scale, xScale: radius * scale, yScale: radius * scale, color: pdfColor(themeInk(element.color, theme()), pdfColorMode()), opacity: element.opacity ?? 1 });
-              continue;
-            }
-            const headPath = arrowHeadSvgPath(head.tip, head.angle, head.kind, element.thickness);
-            if (!headPath) continue;
-            const filled = ["solid", "thick", "diamond"].includes(head.kind);
-            pathStyle(page, headPath, element, scale, x0, yTop, filled ? themeInk(element.color, theme()) : undefined, element.opacity ?? 1);
-          }
-          if (isLabelShape(element) || isConnector(element)) drawShapeLabel(element, drawText);
+        if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart") {
+          const outline = shapePathData(element); if (outline) pathStyle(page, outline, element, scale, x0, yTop, element.fillColor);
+          const details = shapeDetailPathData(element); if (details) pathStyle(page, details, element, scale, x0, yTop);
+          if (isLabelShape(element)) drawShapeLabel(element, drawText);
           return;
         }
-         if(path)pathStyle(page,path,element,scale,x0,yTop,element.fillColor);
-        if(element.type==="flowchart"&&element.flowchartShape==="database"){const detail=flowchartSvgDetailPath(element);if(detail)pathStyle(page,detail,element,scale,x0,yTop);}
-        if(isLabelShape(element) || isConnector(element))drawShapeLabel(element,drawText);
+        const route = element.type === "arrow" ? element.arrowRoute ?? "straight" : element.lineRoute ?? "straight";
+        const path = connectorSvgPath(element);
+        // The shared route already includes both sides of double connectors.
+        pathStyle(page, path, element, scale, x0, yTop);
+        if (element.type === "arrow" || element.type === "line") for (const head of arrowHeadEntries(element, route)) {
+          const radius = Math.max(3, element.thickness * 1.15);
+          if (head.kind === "dot") {
+            page.drawEllipse({ x: bleed + margin + (head.tip.x - bounds.x) * scale, y: paperH - bleed - margin - (head.tip.y - bounds.y) * scale, xScale: radius * scale, yScale: radius * scale, color: pdfColor(themeInk(element.color, theme()), pdfColorMode()), opacity: element.opacity ?? 1 });
+            continue;
+          }
+          const headPath = arrowHeadSvgPath(head.tip, head.angle, head.kind, element.thickness);
+          if (!headPath) continue;
+          const filled = ["solid", "thick", "diamond"].includes(head.kind);
+          pathStyle(page, headPath, element, scale, x0, yTop, filled ? themeInk(element.color, theme()) : undefined, element.opacity ?? 1);
+        }
+        if (isLabelShape(element) || isConnector(element)) drawShapeLabel(element, drawText);
       };
       const drawShapeLabel=(shape:ShapeElement,draw:(text:string,x:number,y:number,color:string,size:number,family:FontFamily|undefined,bold:boolean,italic:boolean,opacity:number,rotation?:number,rotationCenter?:Point)=>void)=>{if(!shape.label||!textMeasureContext)return;const bounds=elementBounds(shape),center={x:bounds.x+bounds.w/2,y:bounds.y+bounds.h/2};for(const run of textLayout(textMeasureContext,shape))draw(run.text,run.x,run.y,shape.label.color,shape.label.fontSize,shape.label.fontFamily,!!shape.label.bold,!!shape.label.italic,shape.label.opacity??1,shape.rotation??0,center);};
       for(const item of scene.items) if (!isSceneHidden(item)) await drawItem(item);

@@ -3,7 +3,7 @@ import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer,
 import { ensureCanvasLayerPath, normalizeCanvasLayers } from "../canvas/structure";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { validReferences } from "../../operations";
-import { curveControlPoints } from "../canvas/geometry";
+import { defaultCurveControlPoints } from "../connectors/geometry";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
 import { schemaTableMinimumHeight, schemaTableResizeMinimumWidth } from "../diagrams/schema-table-layout";
 import { normalizeProjectWorkspace } from "../project/project-data";
@@ -311,12 +311,14 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const fillOpacity = finite(value.fillOpacity) ? Math.max(0, Math.min(1, value.fillOpacity)) : 0.2;
     const validHead = (head: unknown): head is ArrowHead => ["none", "open", "solid", "hollow", "thick", "dot", "diamond", "open-diamond", "bar", "crow"].includes(String(head));
     const flowchartShape: FlowchartShape = FLOWCHART_SHAPES.some(shape => shape.value === value.flowchartShape) ? value.flowchartShape as FlowchartShape : "process";
-    const lineRoute: LineRoute = ["elbow", "curve", "curve2", "curve3", "multi"].includes(String(value.lineRoute)) ? value.lineRoute as LineRoute : "straight";
+    const savedLineRoute = String(value.lineRoute);
+    const lineRoute: LineRoute = savedLineRoute === "elbow" ? "elbow" : ["curve", "curve2", "curve3", "multi"].includes(savedLineRoute) ? "curve" : "straight";
+    const oldCurveNodeCount = savedLineRoute === "curve2" ? 2 : savedLineRoute === "curve3" ? 3 : savedLineRoute === "multi" ? 4 : 1;
     const connectionPoints = value.connectionPoints === undefined ? undefined : normalizeConnectionPoints(value.connectionPoints);
     if (value.connectionPoints !== undefined && connectionPoints === undefined) return undefined;
     const thickness = Math.max(1, Math.round(value.thickness));
     const cornerRadius = finite(value.cornerRadius) ? Math.max(0, Math.min(100, value.cornerRadius)) : undefined;
-    const arrowRoute: ArrowRoute = ["elbow", "forked", "loop", "jagged"].includes(String(value.arrowRoute)) ? value.arrowRoute as ArrowRoute : "straight";
+    const arrowRoute: ArrowRoute = ["elbow", "curve", "forked", "loop", "jagged"].includes(String(value.arrowRoute)) ? value.arrowRoute as ArrowRoute : "straight";
     const binding = (raw: unknown): Binding | undefined => isRecord(raw) && typeof raw.elementId === "string" && isRecord(raw.anchor) && finite(raw.anchor.x) && finite(raw.anchor.y) && raw.anchor.x >= 0 && raw.anchor.x <= 1 && raw.anchor.y >= 0 && raw.anchor.y <= 1 && (raw.rowId === undefined || typeof raw.rowId === "string") && (raw.portId === undefined || typeof raw.portId === "string" && /^[\w.-]{1,80}$/.test(raw.portId)) ? { elementId: raw.elementId, anchor: { x: raw.anchor.x, y: raw.anchor.y }, ...(typeof raw.rowId === "string" ? { rowId: raw.rowId } : {}), ...(typeof raw.portId === "string" ? { portId: raw.portId } : {}) } : undefined;
     if ((value.startBinding && !binding(value.startBinding)) || (value.endBinding && !binding(value.endBinding))) return undefined;
     const forkBranch = (raw: unknown) => {
@@ -342,8 +344,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const x = value.x as number; const y = value.y as number; const w = value.w as number; const h = value.h as number;
     const controlBase: ShapeElement = { type: "line", x, y, w, h, color: value.color as string, thickness, lineRoute };
     const normalizedRoutePoints = straightOnly ? undefined : autoRoute ? storedRoutePoints : value.type !== "line" ? storedRoutePoints
-      : lineRoute === "multi" ? [0.2, 0.4, 0.6, 0.8].map((ratio, index) => storedRoutePoints?.[index] ?? { x: x + w * ratio, y: y + h * ratio })
-      : ["curve", "curve2", "curve3"].includes(lineRoute) ? curveControlPoints(controlBase, lineRoute).map((point, index) => storedRoutePoints?.[index] ?? point)
+      : lineRoute === "curve" ? storedRoutePoints ?? defaultCurveControlPoints({ ...controlBase, routePoints: undefined }, oldCurveNodeCount)
       : storedRoutePoints;
     const relationshipType: RelationshipType | undefined = ["association", "dependency", "data-flow", "inheritance", "aggregation", "composition", "sequence", "network", "other"].includes(String(value.relationshipType)) ? value.relationshipType as RelationshipType : undefined;
     const relationshipDirection: RelationshipDirection | undefined = ["forward", "both", "none"].includes(String(value.relationshipDirection)) ? value.relationshipDirection as RelationshipDirection : undefined;

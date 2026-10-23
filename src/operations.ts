@@ -1,4 +1,4 @@
-import type { Binding, ConnectionPoint, Element, GroupElement, ShapeElement, SchemaTableElement, TextElement, Point, FlowchartShape, Bounds, RelationshipType } from "./model";
+import type { Binding, ConnectionPoint, Element, GroupElement, ShapeElement, SchemaTableElement, TextElement, Point, Bounds, RelationshipType } from "./model";
 import { schemaTableMetrics } from "./features/diagrams/schema-table-layout";
 
 export const isConnector = (element: Element): element is ShapeElement => element.type === "line" || element.type === "arrow";
@@ -283,39 +283,4 @@ export function textLayout(ctx: CanvasRenderingContext2D, shape: ShapeElement) {
     return [{ text: line.text, x: box.x + (label.textAlign === "center" ? (box.w - width) / 2 : label.textAlign === "right" ? box.w - width : 0), y }];
   });
   ctx.restore(); return output;
-}
-
-export function extraFlowchartPath(shape: FlowchartShape, x: number, y: number, w: number, h: number): string | undefined {
-  const r = x + w; const b = y + h; const m = x + w / 2;
-  if (shape === "connector") return `M ${x} ${y + h / 2} a ${w / 2} ${h / 2} 0 1 0 ${w} 0 a ${w / 2} ${h / 2} 0 1 0 ${-w} 0`;
-  if (shape === "off-page") return `M ${x} ${y} H ${r} V ${y + h * .65} L ${m} ${b} L ${x} ${y + h * .65} Z`;
-  if (shape === "manual-input") { const inset = Math.min(w * .22, h * .45); return `M ${x + inset} ${y} H ${r} V ${b} H ${x} V ${y + inset} Z`; }
-  if (shape === "manual-operation") return `M ${x} ${y} H ${r} L ${r - w * .2} ${b} H ${x + w * .2} Z`;
-  if (shape === "delay") return `M ${x} ${y} H ${m} C ${r + w / 6} ${y} ${r + w / 6} ${b} ${m} ${b} H ${x} Z`;
-  if (shape === "stored-data") return `M ${x + w * .2} ${y} H ${r} C ${r - w * .25} ${y + h / 3} ${r - w * .25} ${b - h / 3} ${r} ${b} H ${x + w * .2} C ${x - w * .06} ${b} ${x - w * .06} ${y} ${x + w * .2} ${y} Z`;
-  if (shape === "cloud") return `M ${x + w * .2} ${y + h * .76} C ${x + w * .04} ${y + h * .76} ${x} ${y + h * .63} ${x} ${y + h * .49} C ${x} ${y + h * .34} ${x + w * .13} ${y + h * .25} ${x + w * .29} ${y + h * .27} C ${x + w * .34} ${y + h * .08} ${x + w * .53} ${y} ${x + w * .68} ${y + h * .12} C ${x + w * .77} ${y + h * .18} ${x + w * .8} ${y + h * .26} ${x + w * .81} ${y + h * .31} C ${x + w} ${y + h * .29} ${r} ${y + h * .43} ${r} ${y + h * .56} C ${r} ${y + h * .69} ${x + w * .9} ${y + h * .76} ${x + w * .77} ${y + h * .76} Z`;
-  if (shape === "star") { const points = Array.from({ length: 10 }, (_, index) => { const angle = -Math.PI / 2 + index * Math.PI / 5; const radius = index % 2 ? .23 : .48; return `${m + Math.cos(angle) * w * radius} ${y + h / 2 + Math.sin(angle) * h * radius}`; }); return `M ${points.join(" L ")} Z`; }
-  if (shape === "lightning") return `M ${x + w * .58} ${y} L ${x + w * .18} ${y + h * .55} H ${x + w * .43} L ${x + w * .31} ${b} L ${r} ${y + h * .38} H ${x + w * .67} Z`;
-  if (shape === "heart") return `M ${m} ${b} C ${x + w * .81} ${y + h * .69} ${r} ${y + h * .52} ${r} ${y + h * .3} C ${r} ${y + h * .03} ${x + w * .61} ${y - h * .02} ${m} ${y + h * .23} C ${x + w * .39} ${y - h * .02} ${x} ${y + h * .03} ${x} ${y + h * .3} C ${x} ${y + h * .52} ${x + w * .19} ${y + h * .69} ${m} ${b} Z`;
-  if (shape === "callout") return `M ${x + w * .1} ${y} H ${r - w * .1} Q ${r} ${y} ${r} ${y + h * .12} V ${y + h * .68} Q ${r} ${y + h * .8} ${r - w * .1} ${y + h * .8} H ${x + w * .63} L ${x + w * .47} ${b} L ${x + w * .41} ${y + h * .8} H ${x + w * .1} Q ${x} ${y + h * .8} ${x} ${y + h * .68} V ${y + h * .12} Q ${x} ${y} ${x + w * .1} ${y} Z`;
-  if (shape === "gear") { const points = Array.from({ length: 24 }, (_, index) => { const angle = -Math.PI / 2 + index * Math.PI / 12; const radius = index % 6 < 2 ? .48 : index % 6 < 4 ? .39 : .48; return `${m + Math.cos(angle) * w * radius} ${y + h / 2 + Math.sin(angle) * h * radius}`; }); return `M ${points.join(" L ")} Z M ${m + w * .17} ${y + h / 2} A ${w * .17} ${h * .17} 0 1 0 ${m - w * .17} ${y + h / 2} A ${w * .17} ${h * .17} 0 1 0 ${m + w * .17} ${y + h / 2} Z`; }
-  if (shape === "hexagon") { const inset = Math.min(w * .2, h * .28); return `M ${x + inset} ${y} H ${r - inset} L ${r} ${y + h / 2} L ${r - inset} ${b} H ${x + inset} L ${x} ${y + h / 2} Z`; }
-  if (shape === "parallelogram") { const inset = Math.min(w * .22, h * .35); return `M ${x + inset} ${y} H ${r} L ${r - inset} ${b} H ${x} Z`; }
-  if (shape === "trapezoid") { const inset = Math.min(w * .2, h * .35); return `M ${x + inset} ${y} H ${r - inset} L ${r} ${b} H ${x} Z`; }
-  if (shape === "pentagon") { const points = Array.from({ length: 5 }, (_, index) => { const angle = -Math.PI / 2 + index * Math.PI * 2 / 5; return `${m + Math.cos(angle) * w * .48} ${y + h / 2 + Math.sin(angle) * h * .48}`; }); return `M ${points.join(" L ")} Z`; }
-  if (shape === "octagon") { const cut = Math.min(w * .2, h * .2); return `M ${x + cut} ${y} H ${r - cut} L ${r} ${y + cut} V ${b - cut} L ${r - cut} ${b} H ${x + cut} L ${x} ${b - cut} V ${y + cut} Z`; }
-  if (shape === "chevron") return `M ${x} ${y} H ${x + w * .62} L ${r} ${y + h / 2} L ${x + w * .62} ${b} H ${x} L ${x + w * .38} ${y + h / 2} Z`;
-  if (shape === "cross") { const arm = Math.min(w, h) * .32; return `M ${m - arm / 2} ${y} H ${m + arm / 2} V ${y + h / 2 - arm / 2} H ${r} V ${y + h / 2 + arm / 2} H ${m + arm / 2} V ${b} H ${m - arm / 2} V ${y + h / 2 + arm / 2} H ${x} V ${y + h / 2 - arm / 2} H ${m - arm / 2} Z`; }
-  if (shape === "folder") return `M ${x} ${y + h * .16} H ${x + w * .38} L ${x + w * .5} ${y + h * .32} H ${r} V ${b} H ${x} Z`;
-  if (shape === "note") return `M ${x} ${y} H ${r - w * .22} L ${r} ${y + h * .22} V ${b} H ${x} Z`;
-  if (shape === "display") return `M ${x} ${y} H ${r} V ${y + h * .68} H ${x} Z M ${x + w * .4} ${y + h * .68} L ${x + w * .34} ${b - h * .08} H ${x + w * .66} L ${x + w * .6} ${y + h * .68} Z M ${x + w * .28} ${b - h * .08} H ${x + w * .72} V ${b} H ${x + w * .28} Z`;
-  if (shape === "cube") return `M ${m} ${y} L ${r} ${y + h * .22} V ${y + h * .76} L ${m} ${b} L ${x} ${y + h * .76} V ${y + h * .22} Z`;
-  if (shape === "rounded-rectangle") { const radius = Math.min(w * .16, h * .3); return `M ${x + radius} ${y} H ${r - radius} Q ${r} ${y} ${r} ${y + radius} V ${b - radius} Q ${r} ${b} ${r - radius} ${b} H ${x + radius} Q ${x} ${b} ${x} ${b - radius} V ${y + radius} Q ${x} ${y} ${x + radius} ${y} Z`; }
-  if (shape === "shield") return `M ${x + w * .5} ${y} L ${r} ${y + h * .16} V ${y + h * .48} Q ${r} ${y + h * .82} ${m} ${b} Q ${x} ${y + h * .82} ${x} ${y + h * .48} V ${y + h * .16} Z`;
-}
-
-export function extraFlowchartDetailPath(shape: FlowchartShape, x: number, y: number, w: number, h: number): string | undefined {
-  const right = x + w; const bottom = y + h; const middle = x + w / 2;
-  if (shape === "note") return `M ${right - w * .22} ${y} V ${y + h * .22} H ${right}`;
-  if (shape === "cube") return `M ${x} ${y + h * .22} L ${middle} ${y + h * .48} L ${right} ${y + h * .22} M ${middle} ${y + h * .48} V ${bottom}`;
 }

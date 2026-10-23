@@ -1,7 +1,7 @@
 import type { ArrowHead, Bounds, CanvasState, EdgeStyle, Element, FreehandElement, Point, Preview, ShapeElement, StrokePoint, StrokeStyle, Tool } from "../../model";
 import { BOX_ANCHORS, anchorPoint, isConnectable, isConnector } from "../../operations";
 import { elementBounds } from "./bounds";
-import { traceConnector } from "./geometry";
+import { traceConnector } from "../connectors/geometry";
 import { ElementSpatialIndex, elementSpatialIndex } from "./spatial-index";
 import { SceneTileCache } from "./scene-tile-cache";
 import { gridStepForStyle, isometricRowHeight, isometricRowOffset, type CanvasGridStyle } from "./input";

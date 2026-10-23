@@ -1,13 +1,14 @@
 import type { ArrowHead, Element, Point, ShapeElement, Theme } from "../../model";
 import { isConnector, isLabelShape } from "../../operations";
-import { arrowHeadEntries, arrowHeadPoints, arrowHeadSvgPath, connectorSvgPath, flowchartSvgDetailPath, flowchartSvgPath } from "../canvas/geometry";
+import { shapeDetailPathData, shapeFillRule, shapePathData } from "../shapes/geometry";
+import { arrowHeadEntries, arrowHeadPoints, arrowHeadSvgPath, connectorSvgPath } from "../connectors/geometry";
 import { elementBounds } from "../canvas/bounds";
 import { fontCss, themeInk } from "../canvas/rendering";
 import { freehandSvg } from "../canvas/freehand-rendering";
 import { modelComponentSvg } from "../components/model-component-renderer";
 import { renderLibraryChartSvg } from "../components/chart-engine";
 import { relationshipDisplayElement } from "../diagrams/relationships";
-import { fitSchemaTableText, schemaTableColors, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
+import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
 import { checklistRows, defaultNoteTitle, noteCardPalette, syntaxTokenColor, syntaxTokens } from "../../notes";
 
 type SvgRendererPorts = {
@@ -102,6 +103,7 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
     // Keep the vector card layout in step with canvas sizing and field-bound connector anchors.
     if (element.type === "schemaTable") {
       const { fontSize, titleHeight, rowHeight } = schemaTableMetrics(element.fontSize ?? 12);
+      const contentInset = schemaTableContentInset(fontSize);
       const colors = schemaTableColors(theme()); const left = element.x; const top = element.y; const right = left + element.w;
       const rowsTop = top + titleHeight;
       const rows = element.columns.map((column, index) => {
@@ -121,7 +123,7 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
         <rect x="${left}" y="${top}" width="${element.w}" height="${element.h}" rx="4" fill="${colors.surface}"/>
         <path d="M ${left + 4} ${top} H ${right - 4} Q ${right} ${top} ${right} ${top + 4} V ${top + titleHeight} H ${left} V ${top + 4} Q ${left} ${top} ${left + 4} ${top} Z" fill="${colors.header}"/>
         <line x1="${left}" y1="${top + titleHeight}" x2="${right}" y2="${top + titleHeight}" stroke="${colors.divider}"/>
-        <text x="${left + 10}" y="${top + titleHeight * .68}" font-family="sans-serif" font-size="${fontSize * .96}" font-weight="600" fill="${colors.title}">${escapeXml(fitSchemaTableText(element.name, element.w - 20, fontSize * .96))}</text>
+        <text x="${left + contentInset}" y="${top + titleHeight * .68}" font-family="sans-serif" font-size="${fontSize * .96}" font-weight="600" fill="${colors.title}">${escapeXml(fitSchemaTableText(element.name, element.w - contentInset * 2, fontSize * .96))}</text>
         ${rows}
         <rect x="${left}" y="${top}" width="${element.w}" height="${element.h}" rx="4" fill="none" stroke="${colors.border}" stroke-width="1"/>
       </g>`;
@@ -145,19 +147,15 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
       const stroke = element.svgStroke === false ? "none" : escapeXml(themeInk(element.color, theme()));
       return `<path d="${path}" transform="translate(${element.x} ${element.y}) scale(${sx} ${sy})" fill="${fill}" fill-opacity="${element.fillOpacity ?? 1}" fill-rule="${element.fillRule ?? "nonzero"}" stroke="${stroke}" stroke-width="${element.thickness}"${element.svgNonScalingStroke ? ` vector-effect="non-scaling-stroke"` : ""} opacity="${element.opacity ?? 1}" stroke-linecap="round" stroke-linejoin="round"/>`;
     }
-    if (element.type === "rectangle") { const width = Math.abs(element.w); const height = Math.abs(element.h); const radius = element.edgeStyle === "pill" ? Math.min(width, height) / 2 : element.edgeStyle === "rounded" ? Math.min(element.cornerRadius ?? 12, width / 2, height / 2) : 0; if (element.edgeStyle === "cut") { const x = Math.min(element.x, element.x + element.w); const y = Math.min(element.y, element.y + element.h); const c = Math.min(element.cornerRadius ?? 12, width / 2, height / 2); return `<path d="M ${x + c} ${y} H ${x + width - c} L ${x + width} ${y + c} V ${y + height - c} L ${x + width - c} ${y + height} H ${x + c} L ${x} ${y + height - c} V ${y + c} Z" ${style}/>`; } return `<rect x="${Math.min(element.x, element.x + element.w)}" y="${Math.min(element.y, element.y + element.h)}" width="${width}" height="${height}" rx="${radius}" ${style}/>`; }
-    if (element.type === "diamond") return `<path d="M ${element.x + element.w / 2} ${element.y} L ${element.x + element.w} ${element.y + element.h / 2} L ${element.x + element.w / 2} ${element.y + element.h} L ${element.x} ${element.y + element.h / 2} Z" ${style}/>`;
-    if (element.type === "triangle") { const left = Math.min(element.x, element.x + element.w); const right = Math.max(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const bottom = Math.max(element.y, element.y + element.h); return `<path d="M ${(left + right) / 2} ${top} L ${right} ${bottom} L ${left} ${bottom} Z" ${style}/>`; }
-    if (element.type === "circle") return `<ellipse cx="${element.x + element.w / 2}" cy="${element.y + element.h / 2}" rx="${Math.abs(element.w / 2)}" ry="${Math.abs(element.h / 2)}" ${style}/>`;
-    if (element.type === "flowchart") {
-      const detail = flowchartSvgDetailPath(element);
+    if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart") {
+      const outline = shapePathData(element);
+      if (!outline) return "";
+      const details = shapeDetailPathData(element);
       const detailStyle = `fill="none" stroke="${escapeXml(ink)}" opacity="${element.opacity ?? 1}" stroke-width="${element.thickness}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-linejoin="round"`;
-      return `<path d="${flowchartSvgPath(element)}" fill-rule="evenodd" ${style}/>${detail ? `<path d="${detail}" ${detailStyle}/>` : ""}`;
+      return `<path d="${outline}" fill-rule="${shapeFillRule(element)}" ${style}/>${details ? `<path d="${details}" ${detailStyle}/>` : ""}`;
     }
     if (element.type === "line" || element.type === "arrow") {
       const routed = connectorForView(element); const path = connectorSvgPath(routed); const route = routed.type === "arrow" ? routed.arrowRoute ?? "straight" : routed.lineRoute ?? "straight";
-      const shift = routed.lineStyle === "double" ? Math.max(2.5, routed.thickness * 1.2) : 0; const first = routed.routePoints?.[0] ?? { x: routed.x + routed.w, y: routed.y + routed.h }; const normal = { x: -(first.y - routed.y) / Math.max(1, Math.hypot(first.x - routed.x, first.y - routed.y)), y: (first.x - routed.x) / Math.max(1, Math.hypot(first.x - routed.x, first.y - routed.y)) };
-      const paths = shift ? `<path d="${path}" transform="translate(${normal.x * shift} ${normal.y * shift})" ${style}/><path d="${path}" transform="translate(${-normal.x * shift} ${-normal.y * shift})" ${style}/>` : `<path d="${path}" ${style}/>`;
       const headSvg = (tip: Point, direction: number, kind: ArrowHead) => {
         if (kind === "none") return "";
         if (kind === "dot") return `<circle cx="${tip.x}" cy="${tip.y}" r="${Math.max(3, routed.thickness * 1.15)}" fill="${ink}" opacity="${routed.opacity ?? 1}"/>`;
@@ -166,7 +164,7 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
          if (kind === "open" || kind === "hollow" || kind === "open-diamond" || kind === "crow") return `<path d="${arrowHeadSvgPath(tip, direction, kind, routed.thickness)}" ${style}/>`;
         return `<path d="M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}" ${style}/>`;
       };
-      return `${paths}${arrowHeadEntries(routed, route).map(({ tip, angle: direction, kind }) => headSvg(tip, direction, kind)).join("")}`;
+      return `<path d="${path}" ${style}/>${arrowHeadEntries(routed, route).map(({ tip, angle: direction, kind }) => headSvg(tip, direction, kind)).join("")}`;
     }
     return "";
   }

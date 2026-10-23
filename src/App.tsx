@@ -60,7 +60,9 @@ import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/Proper
 import { LibraryComponentIcon } from "./components/LibraryComponentIcon";
 import { DesignShapePalette, type DesignPaletteItem } from "./features/workspace/DesignShapePalette";
 import { FLOWCHART_MENU_SHAPES, FLOWCHART_SHAPES } from "./features/diagrams/config";
-import { arrowHeadPoints, pointInPolygon, traceFlowchart, flowchartPathObject, flowchartDetailPathObject, traceFlowchartDetails, curveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector, flowchartDatabaseRimPath } from "./features/canvas/geometry";
+import { pointInPolygon } from "./features/canvas/geometry";
+import { shapeDetailPathObject, shapeFillRule, shapePathObject } from "./features/shapes/geometry";
+import { arrowHeadPoints, connectorControlPoints, defaultCurveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, doubleConnectorPolylines, arrowHeadEntries, traceConnector } from "./features/connectors/geometry";
 import { unionBounds, elementBounds, elementGridBounds, visibleElementBounds, distanceToSegment, lockAspectResizeBounds } from "./features/canvas/bounds";
 import { ElementSpatialIndex } from "./features/canvas/spatial-index";
 import { getToolLayers, reorderToolLayers, toggleToolLayer, type ToolLayerKind } from "./features/canvas/tool-layers";
@@ -93,7 +95,7 @@ import { createWindowsSyncMetadata } from "./platform/windows/sync";
 import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, displayShortcut, formatShortcutBindings, loadWindowsShortcuts, matchesWindowsMouseShortcut, matchesWindowsShortcut, normalizeShortcut, shortcutFromMouseEvent, type WindowsShortcutId, type WindowsShortcutMap, type WindowsShortcutSlot } from "./platform/windows/shortcuts";
 import { autoRouteConnectorSet, autoRoutePoints, createAutoRouteContext, type AutoRouteContext } from "./features/diagrams/connector-routing";
 import { createPlanningSession } from "./features/project/planning-session";
-import { fitSchemaTableText, schemaTableColors, schemaTableMetrics, schemaTableMinimumHeight, schemaTableMinimumWidth, schemaTableResizeMinimumWidth, schemaTableRowLayout } from "./features/diagrams/schema-table-layout";
+import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableMinimumHeight, schemaTableMinimumWidth, schemaTableResizeMinimumWidth, schemaTableRowLayout } from "./features/diagrams/schema-table-layout";
 import { clearRetiredLibraryData, createLegacyLibraryData, createRetiredLibraryArchive, hasRetiredLibraryData } from "./features/files/legacy-library-data";
 import { WorkspaceAreaTabs } from "./features/workspace/WorkspaceAreaTabs";
 import type { WorkspaceArea } from "./features/workspace/workspace-types";
@@ -250,13 +252,11 @@ const ORIGINAL_INSPECTOR_THICKNESS_PRESETS = [[1, "Ultra-thin"], [2, "Thin"], [5
 const ERASER_SIZE_PRESETS = [[2, "2px"], [10, "10px"], [24, "24px"]] as const;
 const ARROW_ROUTES: { value: ArrowRoute; label: string; path: string }[] = [
   { value: "straight", label: "Straight", path: "M3 12h17m-6-6 6 6-6 6" }, { value: "elbow", label: "Elbow", path: "M4 5v14h15m-6-6 6 6-6 6" },
+  { value: "curve", label: "Curve", path: "M3 18Q12 2 21 18" },
   { value: "forked", label: "Forked", path: "M3 12h8m0 0V5h9m-4-3 4 3-4 3m-5 4v7h9m-4-3 4 3-4 3" },
-  { value: "loop", label: "Loop", path: "M4 17c0-10 16-10 16 0m-6-4 6 4-6 4" }, { value: "jagged", label: "Jagged", path: "M3 12h4l3-5 4 10 3-5h3m-4-4 4 4-4 4" },
 ];
 const LINE_ROUTES: { value: LineRoute; label: string; path: string }[] = [
-  { value: "straight", label: "Straight", path: "M4 19 20 5" }, { value: "elbow", label: "Elbow", path: "M4 5v14h15" }, { value: "curve", label: "Curve · 1 point", path: "M3 18Q12 2 21 18" },
-  { value: "curve2", label: "Curve · 2 points", path: "M3 18C7 2 17 2 21 18" }, { value: "curve3", label: "Curve · 3 points", path: "M3 18C6 2 9 21 12 10S18 2 21 18" },
-  { value: "multi", label: "Multi-point", path: "M3 18 7 6l4 12 4-12 3 9 3-6" },
+  { value: "straight", label: "Straight", path: "M4 19 20 5" }, { value: "elbow", label: "Elbow", path: "M4 5v14h15" }, { value: "curve", label: "Curve", path: "M3 18Q12 2 21 18" },
 ];
 const ARROW_HEADS: { value: ArrowHead; label: string }[] = [
   { value: "none", label: "None" }, { value: "open", label: "Open" }, { value: "solid", label: "Solid" }, { value: "hollow", label: "Hollow triangle" },
@@ -582,16 +582,6 @@ function App() {
   let schemaLiveTimer: number | undefined;
   let schemaLivePending: { value: string; diagramId: string } | undefined;
   let schemaLiveApplying = false;
-  const schemaPanelPreview = createMemo(() => {
-    const source = schemaInput().trim();
-    if (!source) return { tables: [], referenceCount: 0, error: "" };
-    try {
-      const tables = parseSchema(source);
-      return { tables, referenceCount: schemaReferences(tables).length, error: "" };
-    } catch (cause) {
-      return { tables: [], referenceCount: 0, error: cause instanceof Error ? cause.message : String(cause) };
-    }
-  });
   const [validationOpen, setValidationOpen] = createSignal(false);
   const [validationIssues, setValidationIssues] = createSignal<DiagramIssue[]>([]);
   const [validationProfile, setValidationProfile] = createSignal<DiagramLintProfile>("general");
@@ -1031,8 +1021,23 @@ function App() {
         { id: "fork:lower:end", x: fork.lower.x, y: fork.lower.y },
       ];
     }
-    const points = item.routePoints?.length ? item.routePoints : route === "multi" ? [0.2, 0.4, 0.6, 0.8].map((ratio) => ({ x: item.x + item.w * ratio, y: item.y + item.h * ratio })) : route === "straight" ? [{ x: item.x + item.w / 2, y: item.y + item.h / 2 }] : route === "elbow" ? [{ x: item.x + item.w, y: item.y }] : route === "jagged" ? jaggedVertices(item).slice(1, -1) : route === "curve" || route === "curve2" || route === "curve3" || route === "loop" ? curveControlPoints(item, route) : [forkGeometry(item).junction];
+    const points = item.routePoints !== undefined ? item.routePoints : route === "straight" ? [{ x: item.x + item.w / 2, y: item.y + item.h / 2 }] : route === "elbow" ? [{ x: item.x + item.w, y: item.y }] : route === "jagged" ? jaggedVertices(item).slice(1, -1) : route === "curve" || route === "loop" ? connectorControlPoints(item, route) : [forkGeometry(item).junction];
     return [{ id: "start", x: item.x, y: item.y }, { id: "end", x: item.x + item.w, y: item.y + item.h }, ...points.map((point, index) => ({ ...point, id: `route:${index}` }))];
+  }
+  function setCurvePointCount(delta: number) {
+    if (boardLocked()) return;
+    // Re-space curve nodes evenly when the count changes; each can then be dragged independently.
+    changeSelected(item => {
+      if (!isConnector(item) || item.straightOnly) return item;
+      const route = item.type === "arrow" ? item.arrowRoute ?? "straight" : item.lineRoute ?? "straight";
+      if (route !== "curve") return item;
+      const count = Math.max(1, Math.min(12, connectorControlPoints(item, "curve").length + delta));
+      return { ...item, routePoints: defaultCurveControlPoints({ ...item, routePoints: undefined }, count), autoRoute: undefined, routeWaypoints: undefined };
+    });
+  }
+  function quickCurvePointCount() {
+    const item = styleTargetElement();
+    return item && isConnector(item) ? Math.max(1, connectorControlPoints(item, "curve").length) : 1;
   }
   function connectorEndpointMinimum(requested: Point, fixed: Point, item: ShapeElement, endpoint: "start" | "end", useGrid = true): Point {
     const dx = requested.x - fixed.x; const dy = requested.y - fixed.y; const length = Math.hypot(dx, dy);
@@ -1073,15 +1078,10 @@ function App() {
     const autoRouteMatch = /^auto-route:(\d+)$/.exec(handle);
     if (autoRouteMatch && item.autoRoute) {
       const route = connectorForView(item).routePoints ?? []; const routeIndex = Number(autoRouteMatch[1]);
-      const pins = [...(item.routeWaypoints ?? [])];
-      const existingPin = pins.findIndex(pin => Math.hypot(pin.x - route[routeIndex]?.x, pin.y - route[routeIndex]?.y) < .01);
-      if (existingPin >= 0) pins[existingPin] = snap(point);
-      else {
-        const routePosition = (pin: Point) => route.reduce((best, current, index) => Math.hypot(current.x - pin.x, current.y - pin.y) < Math.hypot(route[best].x - pin.x, route[best].y - pin.y) ? index : best, 0);
-        const insertAt = pins.findIndex(pin => routePosition(pin) > routeIndex);
-        pins.splice(insertAt < 0 ? pins.length : insertAt, 0, snap(point));
-      }
-      return { ...item, routeWaypoints: pins };
+      if (routeIndex < 0 || routeIndex >= route.length) return item;
+      // Convert the displayed route to a fixed manual path, so dragging one bend never inserts a new pin.
+      const points = route.map((routePoint, index) => index === routeIndex ? snap(point) : { ...routePoint });
+      return { ...item, autoRoute: undefined, routeWaypoints: undefined, lineRoute: item.type === "line" ? "elbow" : undefined, arrowRoute: item.type === "arrow" ? "elbow" : undefined, routePoints: points };
     }
     const branchMatch = /^fork:(upper|lower):(end|route)(?::(\d+))?$/.exec(handle);
     if (branchMatch) {
@@ -2320,11 +2320,14 @@ function App() {
       if ((element.type === "line" || element.type === "arrow") && property === "lineStyle") return { ...element, lineStyle: value as ShapeElement["lineStyle"] };
       if (element.type === "line" && property === "lineRoute") {
         const route = value as LineRoute;
-        const base = { ...element, routePoints: undefined };
-        const points = route === "multi" ? [0.2, 0.4, 0.6, 0.8].map((ratio) => ({ x: element.x + element.w * ratio, y: element.y + element.h * ratio })) : ["curve", "curve2", "curve3"].includes(route) ? curveControlPoints(base, route) : undefined;
+        const points = route === "curve" ? defaultCurveControlPoints({ ...element, routePoints: undefined }, 1) : undefined;
         return { ...element, lineRoute: route, routePoints: points, autoRoute: undefined, routeWaypoints: undefined };
       }
-      if (element.type === "arrow" && property === "arrowRoute") return { ...element, arrowRoute: value as ArrowRoute, routePoints: undefined, autoRoute: undefined, routeWaypoints: undefined };
+      if (element.type === "arrow" && property === "arrowRoute") {
+        const route = value as ArrowRoute;
+        const points = route === "curve" ? defaultCurveControlPoints({ ...element, routePoints: undefined }, 1) : undefined;
+        return { ...element, arrowRoute: route, routePoints: points, autoRoute: undefined, routeWaypoints: undefined };
+      }
       if (element.type === "arrow" && property === "forkUpperHead") return { ...element, forkUpper: { ...(element.forkUpper ?? {}), endHead: value as ArrowHead } };
       if (element.type === "arrow" && property === "forkLowerHead") return { ...element, forkLower: { ...(element.forkLower ?? {}), endHead: value as ArrowHead } };
       if (element.type === "flowchart" && property === "flowchartShape") return { ...element, flowchartShape: value as FlowchartShape };
@@ -2952,11 +2955,8 @@ function App() {
     }
     if (item.type === "connector") {
       const w = 148; const h = 64;
-      const routePoints = item.connector === "line" && item.route === "multi"
-        ? [{ x: w * .24, y: h * .76 }, { x: w * .48, y: h * .24 }, { x: w * .72, y: h * .76 }]
-        : undefined;
       const shape: ShapeElement = item.connector === "line"
-        ? { type: "line", x: 0, y: 0, w, h, color: color(), thickness: thickness(), lineStyle: item.lineStyle, lineRoute: item.route as LineRoute, startHead: item.startHead, endHead: item.endHead, ...(routePoints ? { routePoints } : {}) }
+        ? { type: "line", x: 0, y: 0, w, h, color: color(), thickness: thickness(), lineStyle: item.lineStyle, lineRoute: item.route as LineRoute, startHead: item.startHead, endHead: item.endHead }
         : { type: "arrow", x: 0, y: 0, w, h, color: color(), thickness: thickness(), lineStyle: item.lineStyle, arrowRoute: item.route as ArrowRoute, startHead: item.startHead, endHead: item.endHead, ...(item.route === "forked" ? { forkUpper: { endHead: item.endHead }, forkLower: { endHead: item.endHead } } : {}) };
       placeImportedElements([shape]); setSidebarTab("properties"); return;
     }
@@ -3285,13 +3285,6 @@ function App() {
     setCanvasState(current => ({ ...current, zoom: 1, panX: rect.width / 2 - centerWorld.x, panY: rect.height / 2 - centerWorld.y, backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() })); setDirty(!readOnlyView());
   }
 
-  function rectanglePathPoints(element: ShapeElement): Point[] {
-    const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h);
-    const width = Math.max(0, Math.abs(element.w)); const height = Math.max(0, Math.abs(element.h));
-    const right = left + width; const bottom = top + height;
-    return [{ x: left, y: top }, { x: right, y: top }, { x: right, y: bottom }, { x: left, y: bottom }];
-  }
-
   function hitElement(element: Element, point: Point, zoom: number, eraserSizePx?: number): boolean {
     if (isElementHidden(element) || isElementLocked(element)) return false;
     const eraserTolerance = eraserSizePx === undefined ? undefined : Math.max(1, eraserSizePx / 2) / zoom;
@@ -3349,49 +3342,19 @@ function App() {
       for (let i = 1; i < element.points.length; i++) if (distanceToSegment(point, element.points[i - 1], element.points[i]) <= tolerance) return true;
       return element.points.length === 1 && Math.hypot(point.x - element.points[0].x, point.y - element.points[0].y) <= tolerance;
     }
-    if (element.type === "rectangle") {
-      const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const width = Math.abs(element.w); const height = Math.abs(element.h);
-      const radius = element.edgeStyle === "pill" ? Math.min(width, height) / 2 : element.edgeStyle === "rounded" ? Math.min(element.cornerRadius ?? 12, width / 2, height / 2) : 0;
-      if (radius > 0 && canvas) { const context = canvas.getContext("2d"); if (context) { context.save(); context.setTransform(1, 0, 0, 1, 0, 0); context.beginPath(); context.roundRect(left, top, width, height, radius); const inside = !!element.fillColor && context.isPointInPath(point.x, point.y); context.lineWidth = tolerance * 2; const border = context.isPointInStroke(point.x, point.y); context.restore(); return inside || border; } }
-      if (element.fillColor && point.x >= left && point.x <= left + width && point.y >= top && point.y <= top + height) return true;
-      const points = rectanglePathPoints(element);
-      for (let i = 0; i < points.length; i++) if (distanceToSegment(point, points[i], points[(i + 1) % points.length]) <= tolerance) return true;
-      return false;
-    }
-    if (element.type === "diamond") {
-      const left = Math.min(element.x, element.x + element.w); const right = Math.max(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const bottom = Math.max(element.y, element.y + element.h);
-      const points = [{ x: (left + right) / 2, y: top }, { x: right, y: (top + bottom) / 2 }, { x: (left + right) / 2, y: bottom }, { x: left, y: (top + bottom) / 2 }];
-      if (element.fillColor && pointInPolygon(point, points)) return true;
-      for (let i = 0; i < points.length; i++) if (distanceToSegment(point, points[i], points[(i + 1) % points.length]) <= tolerance) return true;
-      return false;
-    }
-    if (element.type === "triangle") {
-      const left = Math.min(element.x, element.x + element.w); const right = Math.max(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const bottom = Math.max(element.y, element.y + element.h);
-      const points = [{ x: (left + right) / 2, y: top }, { x: right, y: bottom }, { x: left, y: bottom }];
-      if (element.fillColor && pointInPolygon(point, points)) return true;
-      for (let i = 0; i < points.length; i++) if (distanceToSegment(point, points[i], points[(i + 1) % points.length]) <= tolerance) return true;
-      return false;
-    }
-    if (element.type === "flowchart") {
-      const context = canvas?.getContext("2d"); if (!context) return false;
-      context.save(); context.setTransform(1, 0, 0, 1, 0, 0); const symbolPath = flowchartPathObject(element.flowchartShape ?? "process", element.x, element.y, element.w, element.h);
-      if (!symbolPath) traceFlowchart(context, element.flowchartShape ?? "process", element.x, element.y, element.w, element.h);
-      const inside = element.fillColor ? symbolPath ? context.isPointInPath(symbolPath, point.x, point.y, "evenodd") : context.isPointInPath(point.x, point.y, "evenodd") : false; context.lineWidth = tolerance * 2; let border = symbolPath ? context.isPointInStroke(symbolPath, point.x, point.y) : context.isPointInStroke(point.x, point.y);
-      const detailPath = flowchartDetailPathObject(element.flowchartShape ?? "process", element.x, element.y, element.w, element.h);
+    if (isLabelShape(element)) {
+      const context = canvas?.getContext("2d"); const path = shapePathObject(element);
+      if (!context || !path) return false;
+      context.save(); context.setTransform(1, 0, 0, 1, 0, 0);
+      const inside = !!element.fillColor && context.isPointInPath(path, point.x, point.y, shapeFillRule(element));
+      context.lineWidth = tolerance * 2;
+      let border = context.isPointInStroke(path, point.x, point.y);
+      const detailPath = shapeDetailPathObject(element);
       if (detailPath) border ||= context.isPointInStroke(detailPath, point.x, point.y);
-      if ((element.flowchartShape ?? "process") === "database") {
-        const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const width = Math.abs(element.w); const height = Math.abs(element.h);
-        if (width >= 1 && height >= 1) border ||= context.isPointInStroke(flowchartDatabaseRimPath(left, top, width, height), point.x, point.y);
-      }
       context.restore();
       return inside || border;
     }
-    const rx = Math.abs(element.w / 2); const ry = Math.abs(element.h / 2);
-    if (rx < 0.01 || ry < 0.01) return false;
-    const nx = (point.x - element.x - element.w / 2) / rx; const ny = (point.y - element.y - element.h / 2) / ry;
-    if (element.fillColor && nx * nx + ny * ny <= 1) return true;
-    const radialError = Math.abs(Math.hypot(nx, ny) - 1) * Math.min(rx, ry);
-    return radialError <= tolerance;
+    return false;
   }
 
   function hitTest(point: Point, eraserSizePx?: number): number | undefined {
@@ -3537,6 +3500,7 @@ function App() {
     if (element.type === "schemaTable") {
       const left = element.x; const top = element.y; const width = Math.abs(element.w); const height = Math.abs(element.h);
       const { fontSize, titleHeight, rowHeight } = schemaTableMetrics(element.fontSize ?? 12);
+      const contentInset = schemaTableContentInset(fontSize);
       const colors = schemaTableColors(theme()); const right = left + width; const rowsTop = top + titleHeight;
       ctx.save(); ctx.globalAlpha = element.opacity ?? 1;
       ctx.beginPath(); if (typeof ctx.roundRect === "function") ctx.roundRect(left, top, width, height, 4); else ctx.rect(left, top, width, height);
@@ -3546,7 +3510,7 @@ function App() {
       ctx.fillStyle = colors.header; ctx.fill(); ctx.fillRect(left, top + titleHeight - 4, width, 4);
       ctx.beginPath(); ctx.moveTo(left, rowsTop); ctx.lineTo(right, rowsTop); ctx.strokeStyle = colors.divider; ctx.stroke();
       ctx.fillStyle = colors.title; ctx.font = `600 ${fontSize * .96}px ${fontCss("sans")}`; ctx.textBaseline = "middle"; ctx.textAlign = "left";
-      ctx.fillText(fitSchemaTableText(element.name, width - 20, fontSize * .96), left + 10, top + titleHeight / 2);
+      ctx.fillText(fitSchemaTableText(element.name, width - contentInset * 2, fontSize * .96), left + contentInset, top + titleHeight / 2);
       element.columns.forEach((column, index) => {
         const rowTop = rowsTop + index * rowHeight; const middle = rowTop + rowHeight / 2;
         const unique = element.constraints?.some(constraint => constraint.kind === "unique" && constraint.columns?.some(name => name.toLowerCase() === column.name.toLowerCase())) ?? false;
@@ -3573,16 +3537,10 @@ function App() {
       const route = routeElement.type === "arrow" ? routeElement.arrowRoute ?? "straight" : routeElement.lineRoute ?? "straight";
       if (element.lineStyle === "double") {
         const paths = doubleConnectorPolylines(routeElement);
-        const firstPath = paths[0] ?? [];
-        const lastPoint = firstPath[firstPath.length - 1];
-        const dx = (lastPoint?.x ?? element.x + element.w) - (firstPath[0]?.x ?? element.x);
-        const dy = (lastPoint?.y ?? element.y + element.h) - (firstPath[0]?.y ?? element.y);
-        const angle = Math.atan2(dy, dx); const offset = Math.max(2.5, element.thickness * 1.2);
-        for (const side of [-1, 1]) {
-          ctx.save(); ctx.translate(-Math.sin(angle) * offset * side, Math.cos(angle) * offset * side); ctx.beginPath();
-          for (const points of paths) { if (!points.length) continue; ctx.moveTo(points[0].x, points[0].y); for (const point of points.slice(1)) ctx.lineTo(point.x, point.y); }
-          ctx.stroke(); ctx.restore();
-        }
+        // The shared geometry already returns the two offset paths; draw each once.
+        ctx.beginPath();
+        for (const points of paths) { if (!points.length) continue; ctx.moveTo(points[0].x, points[0].y); for (const point of points.slice(1)) ctx.lineTo(point.x, point.y); }
+        ctx.stroke();
       } else { traceConnector(ctx, routeElement); ctx.stroke(); }
       if (element.type === "arrow" || element.type === "line") {
         for (const { tip, angle: direction, kind } of arrowHeadEntries(routeElement, route)) {
@@ -3602,32 +3560,15 @@ function App() {
       freehandRenderer.draw(ctx, element, renderedInk);
       ctx.restore(); if (element.rotation) ctx.restore(); return;
     }
-    if (element.type === "rectangle") {
-      const left = Math.min(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const width = Math.abs(element.w); const height = Math.abs(element.h);
-      if ((element.edgeStyle === "rounded" || element.edgeStyle === "pill") && typeof ctx.roundRect === "function") ctx.roundRect(left, top, width, height, element.edgeStyle === "pill" ? Math.min(width, height) / 2 : Math.min(element.cornerRadius ?? 12, width / 2, height / 2));
-      else if (element.edgeStyle === "cut") { const c = Math.min(element.cornerRadius ?? 12, width / 2, height / 2); ctx.moveTo(left + c, top); ctx.lineTo(left + width - c, top); ctx.lineTo(left + width, top + c); ctx.lineTo(left + width, top + height - c); ctx.lineTo(left + width - c, top + height); ctx.lineTo(left + c, top + height); ctx.lineTo(left, top + height - c); ctx.lineTo(left, top + c); ctx.closePath(); }
-      else ctx.rect(left, top, width, height);
-    } else if (element.type === "triangle") {
-      const left = Math.min(element.x, element.x + element.w); const right = Math.max(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const bottom = Math.max(element.y, element.y + element.h);
-      ctx.moveTo((left + right) / 2, top); ctx.lineTo(right, bottom); ctx.lineTo(left, bottom); ctx.closePath();
-    } else if (element.type === "diamond") {
-      const left = Math.min(element.x, element.x + element.w); const right = Math.max(element.x, element.x + element.w); const top = Math.min(element.y, element.y + element.h); const bottom = Math.max(element.y, element.y + element.h);
-      ctx.moveTo((left + right) / 2, top); ctx.lineTo(right, (top + bottom) / 2); ctx.lineTo((left + right) / 2, bottom); ctx.lineTo(left, (top + bottom) / 2); ctx.closePath();
-    } else if (element.type === "circle") {
-      const rx = Math.abs(element.w / 2); const ry = Math.abs(element.h / 2); const cx = element.x + element.w / 2; const cy = element.y + element.h / 2;
-      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    } else if (element.type === "flowchart") {
-      const symbolPath = flowchartPathObject(element.flowchartShape ?? "process", element.x, element.y, element.w, element.h);
-      if (symbolPath) {
-        if (element.fillColor) { ctx.save(); ctx.globalAlpha = (element.opacity ?? 1) * (element.fillOpacity ?? fillOpacity()); ctx.fillStyle = element.fillColor; ctx.fill(symbolPath, "evenodd"); ctx.restore(); }
-        ctx.stroke(symbolPath); traceFlowchartDetails(ctx, element.flowchartShape ?? "process", element.x, element.y, element.w, element.h);
-        ctx.restore(); if (isLabelShape(element) && textDraft()?.editingChildId !== element.id && !(textDraft()?.shapeLabel && elements()[textDraft()!.editingIndex!]?.id === element.id)) drawLabel(ctx, element); if (element.rotation) ctx.restore(); return;
-      }
-      traceFlowchart(ctx, element.flowchartShape ?? "process", element.x, element.y, element.w, element.h);
+    const shapePath = shapePathObject(element);
+    if (!shapePath) { ctx.restore(); if (element.rotation) ctx.restore(); return; }
+    if (element.fillColor) {
+      ctx.save(); ctx.globalAlpha = (element.opacity ?? 1) * (element.fillOpacity ?? fillOpacity()); ctx.fillStyle = element.fillColor;
+      ctx.fill(shapePath, shapeFillRule(element)); ctx.restore();
     }
-    if ("fillColor" in element && element.fillColor) { ctx.fillStyle = element.fillColor; ctx.globalAlpha = (element.opacity ?? 1) * (element.fillOpacity ?? fillOpacity()); if (element.type === "flowchart") ctx.fill("evenodd"); else ctx.fill(); ctx.globalAlpha = element.opacity ?? 1; }
-    ctx.stroke();
-    if (element.type === "flowchart") traceFlowchartDetails(ctx, element.flowchartShape ?? "process", element.x, element.y, element.w, element.h);
+    ctx.stroke(shapePath);
+    const shapeDetails = shapeDetailPathObject(element);
+    if (shapeDetails) ctx.stroke(shapeDetails);
     ctx.restore(); if (isLabelShape(element) && textDraft()?.editingChildId !== element.id && !(textDraft()?.shapeLabel && elements()[textDraft()!.editingIndex!]?.id === element.id)) drawLabel(ctx, element); if (element.rotation) ctx.restore();
   }
 
@@ -5850,17 +5791,10 @@ function App() {
       const cx = shape.x + shape.w / 2; const cy = shape.y + shape.h / 2; const angle = -(shape.rotation ?? 0) * Math.PI / 180;
       const local = { x: cx + (point.x - cx) * Math.cos(angle) - (point.y - cy) * Math.sin(angle), y: cy + (point.x - cx) * Math.sin(angle) + (point.y - cy) * Math.cos(angle) };
       context.save(); context.setTransform(1, 0, 0, 1, 0, 0); context.beginPath();
-      const left = Math.min(shape.x, shape.x + shape.w); const top = Math.min(shape.y, shape.y + shape.h); const width = Math.abs(shape.w); const height = Math.abs(shape.h);
       if (shape.type === "svgPath") { try { const path = new Path2D(shape.pathData ?? ""); const px = (local.x - shape.x) * (shape.pathWidth ?? shape.w) / shape.w; const py = (local.y - shape.y) * (shape.pathHeight ?? shape.h) / shape.h; const inside = !!shape.fillColor && context.isPointInPath(path, px, py, shape.fillRule ?? "nonzero"); context.restore(); if (inside) return index; continue; } catch { context.restore(); continue; } }
-      const flowchartPath = shape.type === "flowchart" ? flowchartPathObject(shape.flowchartShape ?? "process", shape.x, shape.y, shape.w, shape.h) : undefined;
-      if (shape.type === "circle") context.ellipse(cx, cy, width / 2, height / 2, 0, 0, Math.PI * 2);
-      else if (shape.type === "diamond") { context.moveTo(cx, top); context.lineTo(left + width, cy); context.lineTo(cx, top + height); context.lineTo(left, cy); context.closePath(); }
-      else if (shape.type === "triangle") { context.moveTo(cx, top); context.lineTo(left + width, top + height); context.lineTo(left, top + height); context.closePath(); }
-      else if (shape.type === "flowchart") { if (!flowchartPath) traceFlowchart(context, shape.flowchartShape ?? "process", shape.x, shape.y, shape.w, shape.h); }
-      else if (shape.edgeStyle === "rounded" || shape.edgeStyle === "pill") context.roundRect(left, top, width, height, shape.edgeStyle === "pill" ? Math.min(width, height) / 2 : Math.min(shape.cornerRadius ?? 12, width / 2, height / 2));
-      else if (shape.edgeStyle === "cut") { const c=Math.min(shape.cornerRadius ?? 12,width/2,height/2);context.moveTo(left+c,top);context.lineTo(left+width-c,top);context.lineTo(left+width,top+c);context.lineTo(left+width,top+height-c);context.lineTo(left+width-c,top+height);context.lineTo(left+c,top+height);context.lineTo(left,top+height-c);context.lineTo(left,top+c);context.closePath(); }
-      else context.rect(left, top, width, height);
-      const inside = flowchartPath ? context.isPointInPath(flowchartPath, local.x, local.y) : context.isPointInPath(local.x, local.y); context.restore(); if (inside) return index;
+      const shapePath = shapePathObject(shape);
+      const inside = shapePath ? context.isPointInPath(shapePath, local.x, local.y, shapeFillRule(shape)) : false;
+      context.restore(); if (inside) return index;
     }
     return undefined;
   }
@@ -6003,7 +5937,7 @@ function App() {
     if (activePreview) {
       const item: Element = activePreview.type === "pen"
         ? { type: "freehand", points: currentPoints, color: activePreview.color, thickness: activePreview.thickness, opacity: activePreview.opacity }
-        : { type: activePreview.type, x: activePreview.start.x, y: activePreview.start.y, w: activePreview.end.x - activePreview.start.x, h: activePreview.end.y - activePreview.start.y, color: activePreview.color, thickness: activePreview.thickness, lineStyle: lineStyle(), edgeStyle: edgeStyle(), cornerRadius: cornerRadius(), flowchartShape: activePreview.type === "flowchart" ? activePreview.flowchartShape : undefined, lineRoute: activePreview.type === "line" ? activePreview.lineRoute : undefined, routePoints: activePreview.type === "line" && activePreview.lineRoute === "multi" ? [0.2, 0.4, 0.6, 0.8].map((ratio) => ({ x: activePreview.start.x + (activePreview.end.x - activePreview.start.x) * ratio, y: activePreview.start.y + (activePreview.end.y - activePreview.start.y) * ratio })) : undefined, arrowRoute: activePreview.type === "arrow" ? activePreview.arrowRoute : undefined, ...(fillEnabled() && (activePreview.type === "rectangle" || activePreview.type === "circle" || activePreview.type === "diamond" || activePreview.type === "triangle" || activePreview.type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(activePreview.type === "line" ? { startHead: defaultLineStartHead(), endHead: defaultLineEndHead() } : {}), ...(activePreview.type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead(), ...(activePreview.arrowRoute === "forked" ? { forkUpper: { endHead: defaultForkUpperHead() }, forkLower: { endHead: defaultForkLowerHead() } } : {}) } : {}) } as ShapeElement;
+        : { type: activePreview.type, x: activePreview.start.x, y: activePreview.start.y, w: activePreview.end.x - activePreview.start.x, h: activePreview.end.y - activePreview.start.y, color: activePreview.color, thickness: activePreview.thickness, lineStyle: lineStyle(), edgeStyle: edgeStyle(), cornerRadius: cornerRadius(), flowchartShape: activePreview.type === "flowchart" ? activePreview.flowchartShape : undefined, lineRoute: activePreview.type === "line" ? activePreview.lineRoute : undefined, arrowRoute: activePreview.type === "arrow" ? activePreview.arrowRoute : undefined, ...(fillEnabled() && (activePreview.type === "rectangle" || activePreview.type === "circle" || activePreview.type === "diamond" || activePreview.type === "triangle" || activePreview.type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(activePreview.type === "line" ? { startHead: defaultLineStartHead(), endHead: defaultLineEndHead() } : {}), ...(activePreview.type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead(), ...(activePreview.arrowRoute === "forked" ? { forkUpper: { endHead: defaultForkUpperHead() }, forkLower: { endHead: defaultForkLowerHead() } } : {}) } : {}) } as ShapeElement;
       const valid = activePreview.type === "pen" ? currentPoints.length > 0 : Math.hypot(activePreview.end.x - activePreview.start.x, activePreview.end.y - activePreview.start.y) > 1;
       if (item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" || item.type === "svgPath") {
         if (Math.abs(item.w) < 25) item.w = Math.sign(item.w || 1) * 25;
@@ -7167,19 +7101,8 @@ function App() {
               <Show when={selectedSchemaTable()}>{table => <div class="quick-style-panel schema-editor-panel">
                 <header class="schema-editor-heading"><div><span>DATABASE SCHEMA VISUALIZER</span><strong>{table().name}</strong></div><small>LIVE</small><Show when={workspaceArea() === "design"}><button type="button" class="design-library-back" onClick={() => setSelectedIndices([])}>Library</button><button type="button" class="design-panel-toggle" aria-label={designPanelCollapsed() ? "Expand schema editor" : "Collapse schema editor"} title={designPanelCollapsed() ? "Expand panel" : "Collapse panel"} aria-expanded={!designPanelCollapsed()} onClick={toggleDesignPanel}><svg viewBox="0 0 20 20" aria-hidden="true"><path d={designPanelCollapsed() ? "M4 10h12m-5-5 5 5-5 5" : "M16 10H4m5-5-5 5 5 5"} /></svg></button></Show></header>
                 <div class="schema-editor-actions"><button class="quiet-button" type="button" disabled={boardLocked() || readOnlyView()} onClick={() => void loadSchemaSourceFile(true)}>Load SQL or JSON file</button><small>Changes redraw the linked cards on the canvas.</small></div>
-                <textarea ref={element => { schemaPanelTextarea = element; }} class="schema-side-input" aria-label="Edit selected schema source" spellcheck={false} rows="12" disabled={boardLocked() || readOnlyView()} value={schemaInput()} onInput={event => scheduleSchemaVisualUpdate(event.currentTarget.value)} onBlur={flushSchemaVisualUpdate} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, scheduleSchemaVisualUpdate); }} />
-                <div class="schema-editor-status" role={schemaError() || schemaPanelPreview().error ? "alert" : "status"}>
-                  <Show when={schemaError() || schemaPanelPreview().error} fallback={<span>{schemaPanelPreview().tables.length} tables · {schemaPanelPreview().referenceCount} relationships</span>}>
-                    <span class="schema-editor-error">{schemaError() || schemaPanelPreview().error}</span>
-                  </Show>
-                </div>
-                <div class="schema-editor-preview" aria-label="Schema preview">
-                  <For each={schemaPanelPreview().tables}>{previewTable => <article class="schema-preview-table">
-                    <header><strong>{previewTable.name}</strong><small>{previewTable.columns.length}</small></header>
-                    <For each={previewTable.columns}>{column => <div class="schema-preview-field"><span><small>{[column.primaryKey ? "PK" : "", column.foreignTable ? "FK" : "", !column.primaryKey && column.nullable === false ? "NN" : "", !column.primaryKey && previewTable.constraints?.some(constraint => constraint.kind === "unique" && constraint.columns?.some(name => name.toLowerCase() === column.name.toLowerCase())) ? "UQ" : ""].filter(Boolean).join(" ")}</small><span>{column.name}</span></span><code>{column.type}</code></div>}</For>
-                  </article>}</For>
-                  <Show when={!schemaPanelPreview().tables.length && !schemaPanelPreview().error}><small>Enter SQL, JSON table data, or a JSON Schema object to preview the diagram.</small></Show>
-                </div>
+                <textarea ref={element => { schemaPanelTextarea = element; }} class="schema-side-input" aria-label="Edit selected schema source" aria-invalid={!!schemaError()} spellcheck={false} rows="12" disabled={boardLocked() || readOnlyView()} value={schemaInput()} onInput={event => scheduleSchemaVisualUpdate(event.currentTarget.value)} onBlur={flushSchemaVisualUpdate} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, scheduleSchemaVisualUpdate); }} />
+                <Show when={schemaError()}><small class="schema-editor-error" role="alert">{schemaError()}</small></Show>
                 <label class="schema-editor-font">Card font size<input type="number" min="8" max="48" step="1" value={table().fontSize ?? 12} disabled={boardLocked() || !!table().locked} onChange={event => updateProperty("fontSize", Math.round(Number(event.currentTarget.value)))} /></label>
               </div>}</Show>
               <Show when={!selectedSchemaTable() && workspaceArea() !== "design"}>
@@ -7253,7 +7176,13 @@ function App() {
                       <div class="quick-style-popover quick-line-styles">{(["solid", "dashed", "dotted", "double"] as const).map(value => <button class={quickCurrentLineStyle() === value ? "active" : ""} aria-label={`${value} ${styleContainerSelection() ? "border" : "line"}`} title={`${value} ${styleContainerSelection() ? "border" : "line"}`} onClick={() => { updateQuickLineStyle(value); setQuickStylePopover(undefined); }}><svg viewBox="0 0 24 24" class={`line-preview ${value}`}><path d={value === "double" ? "M3 9h18M3 15h18" : "M3 12h18"} /></svg></button>)}</div>
                     </Show>
                     <Show when={quickStylePopover() === "route" && !quickShapeSelection()?.straightOnly}>
-                      <div class="quick-style-popover quick-routes">{quickRouteChoices().map(route => <button class={quickCurrentRoute() === route.value ? "active" : ""} aria-label={route.label} title={route.label} onClick={() => { if (quickElementType() === "arrow") { if (styleTargetElement()?.type === "arrow") updateProperty("arrowRoute", route.value); else setArrowRoute(route.value as ArrowRoute); } else { if (styleTargetElement()?.type === "line") updateProperty("lineRoute", route.value); else setLineRoute(route.value as LineRoute); } setQuickStylePopover(undefined); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg></button>)}</div>
+                      <div class="quick-style-popover quick-routes">{quickRouteChoices().map(route => <button class={quickCurrentRoute() === route.value ? "active" : ""} aria-label={route.label} title={route.label} onClick={() => { if (quickElementType() === "arrow") { if (styleTargetElement()?.type === "arrow") updateProperty("arrowRoute", route.value); else setArrowRoute(route.value as ArrowRoute); } else { if (styleTargetElement()?.type === "line") updateProperty("lineRoute", route.value); else setLineRoute(route.value as LineRoute); } setQuickStylePopover(undefined); }}><svg viewBox="0 0 24 24"><path d={route.path} /></svg></button>)}
+                        <Show when={quickCurrentRoute() === "curve" && styleTargetElement() && isConnector(styleTargetElement()!)}>
+                          <div class="quick-curve-point-count" role="group" aria-label="Curve control points">
+                            <span>Points</span><button type="button" aria-label="Remove curve point" title="Remove a curve point" disabled={quickCurvePointCount() <= 1 || boardLocked()} onClick={() => setCurvePointCount(-1)}>-</button><output>{quickCurvePointCount()}</output><button type="button" aria-label="Add curve point" title="Add a curve point" disabled={quickCurvePointCount() >= 12 || boardLocked()} onClick={() => setCurvePointCount(1)}>+</button>
+                          </div>
+                        </Show>
+                      </div>
                     </Show>
                     <Show when={quickStylePopover() === "heads" && quickIsConnector()}>
                       <div class="quick-style-popover quick-arrow-heads" aria-label="Connector arrowhead styles">{(["start", "end"] as const).map(end => <div><span>{end}</span><div>{ARROW_HEADS.map(({ value, label }) => <button class={quickArrowHead(end) === value ? "active" : ""} title={`${label} ${end} head`} aria-label={`${label} ${end} arrowhead`} onClick={() => setConnectorHead(end, value)}><ArrowHeadIcon kind={value} /></button>)}</div></div>)}</div>

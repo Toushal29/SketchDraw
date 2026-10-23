@@ -1,0 +1,56 @@
+/* Keep the quick-style toolbar compact without shrinking its text popovers. */
+.style-pane.quick-style-mode {
+    box-sizing: border-box;
+    width: 34px;
+    padding: 4px 0;
+}
+
+.style-pane.quick-style-mode .quick-style-heading {
+    height: 18px;
+    margin-bottom: 4px;
+}
+
+.style-pane.quick-style-mode .quick-style-heading button {
+    width: 20px;
+    height: 18px;
+}
+
+.style-pane.quick-style-mode .quick-style-heading svg {
+    width: 13px;
+    height: 13px;
+}
+
+.style-pane.quick-style-mode .quick-style-controls {
+    gap: 4px;
+}
+
+.style-pane.quick-style-mode .quick-style-icon {
+    width: 23px;
+    height: 23px;
+    flex-basis: 23px;
+    padding: 3px;
+}
+
+.style-pane.quick-style-mode .quick-style-icon svg,
+.style-pane.quick-style-mode .quick-style-icon .quick-color-mark {
+    width: 14px;
+    height: 14px;
+}
+
+.style-pane.quick-style-mode .quick-width-icon {
+    grid-template-columns: 12px auto;
+    gap: 1px;
+}
+
+.style-pane.quick-style-mode .quick-width-icon > i {
+    width: 12px;
+}
+
+@media (max-width: 900px) {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-collapsed {
+        width: 30px;
+        height: 30px;
+        min-height: 30px;
+        max-height: 30px;
+    }
+}

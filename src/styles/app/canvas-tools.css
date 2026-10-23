@@ -309,6 +309,38 @@
     gap: 4px;
 }
 
+.quick-routes {
+    flex-wrap: wrap;
+}
+
+.quick-curve-point-count {
+    display: flex;
+    flex: 1 0 100%;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 4px;
+    border-top: 1px solid var(--theme-border);
+    color: var(--theme-text-secondary);
+    font-size: 11px;
+}
+
+.quick-curve-point-count button {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    font-size: 15px;
+}
+
+.quick-curve-point-count button:disabled {
+    opacity: .45;
+}
+
+.quick-curve-point-count output {
+    min-width: 16px;
+    text-align: center;
+}
+
 .quick-arrow-heads {
     display: grid;
     gap: 5px;
