@@ -30,8 +30,8 @@ function relation(from: Element, to: Element, label = "", sequenceCondition?: st
 export function buildDiagramTemplate(id: DiagramTemplateId, origin = { x: 0, y: 0 }): Element[] {
   const x = origin.x; const y = origin.y;
   if (id === "c4") {
-    const actor = component("uml-actor", x + 20, y + 130, "Customer");
-    const system = component("c4-system", x + 210, y + 70, "Order system");
+    const actor = component("c4-person", x + 20, y + 130, "Customer");
+    const system = component("c4-software-system", x + 210, y + 70, "Order system");
     const service = component("c4-container", x + 600, y + 95, "Order API");
     const store = component("software-database", x + 620, y + 330, "Orders database");
     return [actor, system, service, store, relation(actor, system, "places orders"), relation(system, service, "HTTP / JSON"), relation(service, store, "reads and writes")];

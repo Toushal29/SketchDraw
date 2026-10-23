@@ -17,6 +17,7 @@
 | Canvas web preview | `src/styles/app/web-preview.css` owns the live preview panel and embed dialog; `src/App.tsx` imports it directly after the global stylesheet manifest with a Vite root-relative path. | Use the shared layout and theme tokens. | Use the shared layout and theme tokens. |
 | Notes and diagram cards | `src/styles/app/note-cards.css` owns shared canvas cards and notes. | Keep shared behavior here unless a touch-only layout is needed; put that layout in the owning mobile component stylesheet. | Keep shared behavior here unless a Windows-only layout is needed; put that layout in `windows.css`. |
 | Project planning | `src/features/project/project-workspace.css` owns the lazily loaded Planning workspace, `.sdplan` toolbar, responsive layouts, report printing, and scoped coarse-pointer navigation behavior. | The Planning component stylesheet contains the small touch-specific navigation rule under `.app-shell:not(.platform-windows)`. `src/platform/mobile/layout-fixes.css` only owns shared workspace-shell sizing. | No separate Windows Planning overrides currently exist; add them in `src/platform/windows/windows.css` only when needed. |
+| Design shape library and text toolbar | `src/features/workspace/database-workspace.css` owns the searchable Design palette and shared text formatting controls. | `src/platform/mobile/design-workspace.css` gives the Design formatting strip readable controls beside vertical touch rails and improves palette tiles on narrow screens. | Use the shared Design controls. |
 
 ## Shared refinement sheets
 

@@ -263,7 +263,7 @@
     display: grid;
     place-items: center;
     padding: 18px;
-    background: rgb(12 18 26 / 42%);
+    background: var(--theme-backdrop);
 }
 
 .toolbar-order-editor {
@@ -279,7 +279,7 @@
     border-radius: 14px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
-    box-shadow: 0 22px 70px rgb(8 15 28 / 28%);
+    box-shadow: var(--theme-elevation-dialog);
 }
 
 .toolbar-order-editor > .toolbar-organizer-heading {

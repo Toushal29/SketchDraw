@@ -15,7 +15,7 @@
 
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-layout {
         display: grid;
-        grid-template-areas: "hero" "library" "planning" "footer";
+        grid-template-areas: "hero" "library" "footer";
         grid-template-columns: minmax(0, 1fr);
         align-content: start;
         gap: 12px;
@@ -73,12 +73,6 @@
     .app-shell.home-screen-active:not(.platform-windows) .home-empty-mobile { min-height: 70px; flex: 0 0 auto; align-items: flex-start; padding: 8px 2px; text-align: left; }
     .app-shell.home-screen-active:not(.platform-windows) .home-empty-mobile p { margin: 0; }
 
-    .app-shell.home-screen-active:not(.platform-windows) .home-planning-mobile {
-        grid-area: planning;
-        margin-top: 0;
-        padding-top: 9px;
-    }
-
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-footer {
         display: flex;
         grid-area: footer;
@@ -103,9 +97,9 @@
 
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-layout {
         box-sizing: border-box;
-        grid-template-areas: "hero library" "hero planning" "footer footer";
+        grid-template-areas: "hero library" "footer footer";
         grid-template-columns: minmax(240px, .82fr) minmax(0, 1.18fr);
-        grid-template-rows: minmax(0, 1fr) auto auto;
+        grid-template-rows: minmax(0, 1fr) auto;
         align-content: stretch;
         gap: 10px 16px;
         width: min(1120px, 100%);
@@ -118,7 +112,6 @@
     .app-shell.home-screen-active:not(.platform-windows) .home-actions-mobile { grid-template-columns: minmax(0, 1fr); }
     .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile { display: flex; box-sizing: border-box; overflow: hidden; }
     .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile .home-recent-list { min-height: 0; max-height: none; flex: 1 1 auto; }
-    .app-shell.home-screen-active:not(.platform-windows) .home-planning-mobile { align-self: end; }
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-footer { display: none; }
 }
 
@@ -128,7 +121,6 @@
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-hero { gap: 14px; padding: 15px; border-radius: 15px; }
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-title { font-size: clamp(27px, 8vw, 34px); }
     .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile { padding: 12px; }
-    .app-shell.home-screen-active:not(.platform-windows) .home-planning-mobile { gap: 5px 7px; }
 }
 
 @media (max-height: 430px) and (orientation: landscape) {
@@ -138,5 +130,4 @@
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-title { font-size: 25px; }
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-copy { display: none; }
     .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile { padding: 10px; }
-    .app-shell.home-screen-active:not(.platform-windows) .home-planning-mobile p { display: none; }
 }

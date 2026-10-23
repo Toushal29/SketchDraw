@@ -610,7 +610,7 @@
     background: var(--workspace-raised, var(--theme-background));
 }
 
-.app-shell.platform-windows>.topbar>.document-workspace-tabs {
+.app-shell.platform-windows>.topbar>:is(.document-workspace-tabs, .workspace-viewport-tabs) {
     margin-left: auto;
     flex: 0 1 auto;
     gap: 2px;
@@ -618,9 +618,9 @@
     border-radius: 9px;
 }
 
-.app-shell.platform-windows>.topbar>.document-workspace-tabs button {
-    min-height: 28px;
-    padding-inline: 9px;
+.app-shell.platform-windows>.topbar>:is(.document-workspace-tabs, .workspace-viewport-tabs) button {
+    min-height: 32px;
+    padding-inline: 11px;
     font-size: 10px;
 }
 

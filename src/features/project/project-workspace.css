@@ -493,32 +493,6 @@
   font-size: 9px;
 }
 
-.project-open-canvas-card {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
-  padding: 14px;
-  border: 1px solid var(--project-line);
-  border-radius: 10px;
-  color: var(--project-ink);
-  background: var(--project-surface);
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-}
-
-.project-open-canvas-card>span:first-child {
-  display: grid;
-  gap: 3px;
-}
-
-.project-open-canvas-card small {
-  color: var(--project-muted);
-}
-
 /* Notes and task lists */
 .project-notes-layout {
   display: grid;

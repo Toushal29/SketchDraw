@@ -1,4 +1,4 @@
-/* Keep Design relationship and schema actions compact beside the canvas toolbar. */
+/* Keep Design text formatting compact beside the canvas toolbar. */
 .design-workspace-active .tool-deck {
   box-sizing: border-box;
   max-width: min(1000px, calc(100vw - 32px));
@@ -30,8 +30,10 @@
 .design-toolbar-group:first-child { padding-left: 0; }
 .design-toolbar-group:last-child { padding-right: 0; border-right: 0; }
 
-/* Keep text styling beside Design actions so editing does not need a second panel. */
-.design-toolbar-group.design-text-tools { gap: 5px; }
+/* Keep text styling visible while editing without opening a second panel. */
+.design-toolbar-group.design-text-tools { gap: 5px; overflow: visible; }
+.design-text-choice { display: inline-flex; align-items: center; gap: 4px; color: var(--toolbar-ink, var(--theme-text-secondary)); font-size: 10px; white-space: nowrap; }
+.design-text-choice > span { color: var(--theme-text-tertiary); font-size: 9px; font-weight: 650; }
 .design-text-size,
 .design-text-color {
   display: inline-flex;
@@ -41,7 +43,9 @@
   font-size: 10px;
 }
 .design-text-size input,
-.design-text-family {
+.design-text-family,
+.design-text-alignment,
+.design-text-paragraph {
   box-sizing: border-box;
   height: 29px;
   border: 1px solid var(--theme-border);
@@ -52,9 +56,9 @@
   font-size: 12px;
 }
 .design-text-size input { width: 48px; padding: 3px 4px; }
-.design-text-family { width: 88px; padding: 3px 5px; }
-.design-text-alignment { width: 72px; padding: 3px 5px; }
-.design-text-paragraph { width: 82px; padding: 3px 5px; }
+.design-text-family { width: 108px; padding: 3px 22px 3px 7px; }
+.design-text-alignment { width: 88px; padding: 3px 22px 3px 7px; }
+.design-text-paragraph { width: 104px; padding: 3px 22px 3px 7px; }
 .design-text-color input {
   box-sizing: border-box;
   width: 27px;
@@ -83,59 +87,6 @@
 .design-text-tools :is(button, input, select):focus-visible { outline: 2px solid var(--ui-accent-border); outline-offset: 1px; }
 .design-text-tools :is(button, input, select):disabled { opacity: .45; cursor: default; }
 
-.app-shell .tool-deck .design-toolbar .design-tool-button {
-  box-sizing: border-box;
-  display: grid;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 42px;
-  align-items: center;
-  justify-content: center;
-  place-items: center;
-  gap: 0;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  color: var(--toolbar-ink, var(--theme-text-secondary));
-  background: transparent;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.app-shell .tool-deck .design-toolbar .design-tool-button > svg {
-  display: block;
-  width: 19px;
-  height: 19px;
-  flex: 0 0 19px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.app-shell .tool-deck .design-toolbar .design-tool-button > span {
-  display: none;
-}
-
-.app-shell .tool-deck .design-toolbar .design-tool-button:hover:not(:disabled) {
-  border-color: var(--ui-accent-border);
-  color: var(--ui-accent-ink);
-  background: var(--ui-accent-soft);
-}
-
-.app-shell .tool-deck .design-toolbar .design-tool-button.selected {
-  border-color: var(--ui-accent-border);
-  color: var(--ui-accent-ink);
-  background: var(--ui-accent-soft);
-}
-
-.app-shell .tool-deck .design-toolbar .design-tool-button:disabled {
-  opacity: .42;
-  cursor: default;
-}
-
-.app-shell .tool-deck .design-toolbar .design-tool-button:focus-visible,
 .design-panel-toggle:focus-visible {
   outline: 2px solid var(--ui-accent-border);
   outline-offset: 1px;
@@ -180,18 +131,20 @@
 .design-palette-search > svg { width: 17px; height: 17px; flex: 0 0 17px; fill: none; stroke: var(--theme-text-tertiary); stroke-width: 1.7; stroke-linecap: round; }
 .design-palette-search > input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: var(--theme-text-primary); background: transparent; font: inherit; font-size: 12px; }
 .design-palette-groups { min-height: 0; flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; }
-.design-palette-section { border-bottom: 1px solid var(--theme-border); }
+.design-palette-section { border-bottom: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent); }
 .design-palette-section-toggle { display: flex; width: 100%; min-height: 34px; align-items: center; gap: 6px; padding: 0 3px; border: 0; color: var(--theme-text-primary); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; text-align: left; }
 .design-palette-section-toggle > small { margin-left: auto; color: var(--theme-text-tertiary); font-size: 10px; font-weight: 400; }
 .design-palette-section-toggle > svg { width: 14px; height: 14px; flex: 0 0 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; transition: transform .12s ease; }
 .design-palette-section-toggle[aria-expanded="true"] > svg { transform: rotate(180deg); }
 .design-palette-section-toggle:hover { color: var(--ui-accent-ink); }
-.design-palette-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 2px 0 7px; }
-.design-palette-item { display: flex; min-width: 0; min-height: 58px; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 4px 2px; border: 1px solid transparent; border-radius: 4px; color: var(--theme-text-primary); background: transparent; cursor: pointer; }
-.design-palette-item:hover:not(:disabled) { border-color: var(--theme-border); background: var(--theme-surface); }
+.design-palette-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 3px 0 8px; }
+.design-palette-item { display: flex; min-width: 0; min-height: 64px; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 5px 3px; border: 1px solid transparent; border-radius: 8px; color: var(--theme-text-primary); background: transparent; cursor: pointer; touch-action: manipulation; }
+.design-palette-item:hover:not(:disabled) { border-color: var(--ui-accent-border); background: var(--ui-accent-soft); }
+.design-palette-item:focus-visible { outline: 2px solid var(--ui-accent-border); outline-offset: 1px; }
 .design-palette-item:disabled { opacity: .45; cursor: default; }
-.design-palette-item > svg { width: 25px; height: 25px; flex: 0 0 25px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.design-palette-item > span { display: -webkit-box; width: 100%; overflow: hidden; color: var(--theme-text-secondary); font-size: 9px; line-height: 1.15; text-align: center; text-overflow: ellipsis; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.design-palette-item > svg { width: 26px; height: 26px; flex: 0 0 26px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.design-palette-item > svg [fill="currentColor"] { fill: currentColor; }
+.design-palette-item > span { display: -webkit-box; width: 100%; overflow: hidden; color: var(--theme-text-secondary); font-size: 10px; line-height: 1.2; text-align: center; text-overflow: ellipsis; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .design-palette-empty { margin: 12px 4px; color: var(--theme-text-tertiary); font-size: 11px; }
 
 .design-panel-toggle {
@@ -233,9 +186,6 @@
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
   .app-shell:not(.platform-windows) .design-toolbar { gap: 2px; }
   .app-shell:not(.platform-windows) .design-toolbar-group { gap: 1px; padding: 0 2px; }
-  .app-shell:not(.platform-windows) .design-toolbar .design-tool-button { width: 42px; min-width: 42px; height: 42px; min-height: 42px; flex-basis: 42px; }
-  .app-shell:not(.platform-windows) .design-toolbar .design-tool-button > span { display: none; }
-
   .app-shell:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
     position: fixed; z-index: 70; display: flex;
@@ -271,23 +221,11 @@
   .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.design-panel-collapsed { left: calc(max(8px, env(safe-area-inset-left)) + 52px); }
   .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.design-panel-collapsed,
   .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.design-panel-collapsed { right: calc(max(8px, env(safe-area-inset-right)) + 52px); left: auto; }
-
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-toolbar { max-height: 100%; flex-direction: column; overflow-x: hidden; overflow-y: auto; }
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-toolbar-group { flex-direction: column; padding: 2px 0; border-right: 0; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 14%, transparent); }
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-toolbar-group:last-child { border-bottom: 0; }
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-toolbar-group.design-text-tools { width: 42px; gap: 4px; align-items: center; }
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-size,
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-color { flex-direction: column; gap: 1px; }
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-size > span,
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-color > span { display: none; }
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-size input,
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-family,
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-alignment,
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-paragraph { width: 40px; max-width: 40px; padding: 2px; font-size: 10px; }
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-emphasis { flex-direction: column; }
 }
 
-/* Align every Design side panel below the fixed 65px workspace toolbar. */
-.app-shell.design-workspace-active .style-pane.design-palette-active,
-.app-shell.design-workspace-active .style-pane.schema-editor-active,
-.app-shell.design-workspace-active .component-editor-dock { top: 65px !important; }
+/* Align Design panels below the fixed desktop toolbar. Touch layouts set their own lane positions above. */
+@media (min-width: 901px) and (pointer: fine) {
+  .app-shell.design-workspace-active .style-pane.design-palette-active,
+  .app-shell.design-workspace-active .style-pane.schema-editor-active,
+  .app-shell.design-workspace-active .component-editor-dock { top: 65px; }
+}

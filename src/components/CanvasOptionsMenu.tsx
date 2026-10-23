@@ -6,9 +6,6 @@ export type CanvasOptionsMenuProps = {
   showGrid: boolean;
   snapToGrid: boolean;
   snapToObjects: boolean;
-  snapToGuides: boolean;
-  showRulers: boolean;
-  showGuides: boolean;
   hasElements: boolean;
   hasSelection: boolean;
   canGroup: boolean;
@@ -22,9 +19,6 @@ export type CanvasOptionsMenuProps = {
   onToggleGrid: () => void;
   onToggleSnapToGrid: () => void;
   onToggleSnapToObjects: () => void;
-  onToggleSnapToGuides: () => void;
-  onToggleRulers: () => void;
-  onToggleGuides: () => void;
   onGroupSelection: () => void;
   guiDesign?: {
     canCreateFrame: boolean;
@@ -135,22 +129,17 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
         </Show>
 
         <details class="workspace-view-section" open>
-          <summary><span>Canvas aids</span><small>Grid and snapping</small></summary>
+          <summary><span>Canvas aids</span><small>Grid, snapping, and connectors</small></summary>
           <div class="workspace-view-controls">
             {check("Show grid", props.showGrid, props.onToggleGrid, false, "G")}
             {check("Snap to grid", props.snapToGrid, props.onToggleSnapToGrid, false, "Shift+G")}
             {check("Snap to objects", props.snapToObjects, props.onToggleSnapToObjects, false, "Shift+O")}
+            {props.canvasTools?.onToggleOrthogonal && check("Orthogonal connectors", props.canvasTools.orthogonalOnly ?? false, props.canvasTools.onToggleOrthogonal, props.boardLocked)}
           </div>
         </details>
 
         <details class="workspace-view-section workspace-view-advanced">
-          <summary><span>Precision</span><small>Rulers, guides, and guide snapping</small></summary>
-          <div class="workspace-view-controls">
-            {check("Show rulers", props.showRulers, props.onToggleRulers)}
-            {check("Show guides", props.showGuides, props.onToggleGuides)}
-            {check("Snap to guides", props.snapToGuides, props.onToggleSnapToGuides)}
-            {props.canvasTools?.onToggleOrthogonal && check("Orthogonal connectors", props.canvasTools.orthogonalOnly ?? false, props.canvasTools.onToggleOrthogonal, props.boardLocked)}
-          </div>
+          <summary><span>Movement and resize</span><small>Snapping and proportions</small></summary>
           <p class="workspace-view-note">Hold Ctrl or Command while dragging to bypass snapping. Shift constrains movement or keeps proportions while resizing.</p>
         </details>
 

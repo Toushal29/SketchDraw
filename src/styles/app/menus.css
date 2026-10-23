@@ -325,7 +325,7 @@
     display: grid;
     place-items: center;
     padding: 24px;
-    background: color-mix(in srgb, var(--theme-surface-elevated) 40.00%, transparent);
+    background: var(--theme-backdrop);
 }
 
 .confirm-dialog {

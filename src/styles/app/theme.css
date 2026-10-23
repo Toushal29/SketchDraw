@@ -7,74 +7,53 @@
     --font-serif: Georgia, "Times New Roman", serif;
     --font-size-micro: 9px;
 
-    --theme-background: #F8F9FA;
+    /* The light palette uses a cool, quiet workspace with crisp white panels. */
+    --theme-background: #F2F4F8;
     --theme-surface: #FFFFFF;
     --theme-surface-elevated: #FFFFFF;
-    --theme-surface-input: #FFFFFF;
-    --theme-border: #E5E7EB;
-    --theme-border-strong: color-mix(in srgb, var(--theme-border) 70%, var(--theme-text-secondary));
-    --theme-text-primary: #111827;
-    --theme-text-secondary: #6B7280;
-    --theme-text-tertiary: #9CA3AF;
-    --theme-primary: #4F46E5;
-    --theme-primary-hover: #4338CA;
-    --theme-primary-muted: #EEF2FF;
+    --theme-surface-input: #F8FAFC;
+    --theme-border: #D8DFEA;
+    --theme-text-primary: #172033;
+    --theme-text-secondary: #566276;
+    --theme-text-tertiary: #77849A;
+    --theme-primary: #554BE0;
+    --theme-primary-hover: #4439C5;
+    --theme-primary-muted: #EEEDFF;
     --theme-primary-contrast: #FFFFFF;
-    --theme-ink-on-light: #111827;
-    --theme-ink-on-dark: #F3F4F6;
-    --theme-success: #059669;
-    --theme-warning: #D97706;
-    --theme-error: #DC2626;
-    --theme-info: #0284C7;
-    --theme-shadow: rgb(17 24 39 / 12%);
-
-    /* Diagram-family accents use the same contrast and surface system. */
-    --theme-diagram-uml: var(--theme-primary);
-    --theme-diagram-data: var(--theme-success);
-    --theme-diagram-architecture: var(--theme-info);
-    --theme-diagram-process: var(--theme-warning);
-    --theme-diagram-network: var(--theme-info);
-    --theme-diagram-forms: var(--theme-warning);
-
-    --theme-surface-hover: color-mix(in srgb, var(--theme-surface) 82%, var(--theme-background));
-    --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, transparent);
-    --theme-primary-border: color-mix(in srgb, var(--theme-primary) 38%, var(--theme-border));
-    --theme-success-border: color-mix(in srgb, var(--theme-success) 42%, var(--theme-border));
-    --theme-warning-border: color-mix(in srgb, var(--theme-warning) 42%, var(--theme-border));
-    --theme-error-border: color-mix(in srgb, var(--theme-error) 42%, var(--theme-border));
-    --theme-info-border: color-mix(in srgb, var(--theme-info) 42%, var(--theme-border));
-    --theme-success-muted: color-mix(in srgb, var(--theme-success) 10%, var(--theme-surface));
-    --theme-warning-muted: color-mix(in srgb, var(--theme-warning) 11%, var(--theme-surface));
-    --theme-error-muted: color-mix(in srgb, var(--theme-error) 9%, var(--theme-surface));
-    --theme-info-muted: color-mix(in srgb, var(--theme-info) 10%, var(--theme-surface));
-    --theme-diagram-uml-muted: color-mix(in srgb, var(--theme-diagram-uml) 10%, var(--theme-surface));
-    --theme-diagram-data-muted: color-mix(in srgb, var(--theme-diagram-data) 10%, var(--theme-surface));
-    --theme-diagram-architecture-muted: color-mix(in srgb, var(--theme-diagram-architecture) 10%, var(--theme-surface));
-    --theme-diagram-process-muted: color-mix(in srgb, var(--theme-diagram-process) 10%, var(--theme-surface));
-    --theme-diagram-network-muted: color-mix(in srgb, var(--theme-diagram-network) 10%, var(--theme-surface));
-    --theme-diagram-forms-muted: color-mix(in srgb, var(--theme-diagram-forms) 10%, var(--theme-surface));
+    --theme-ink-on-light: #172033;
+    --theme-ink-on-dark: #F2F4F8;
+    --theme-success: #087F5B;
+    --theme-warning: #A65C00;
+    --theme-error: #B42332;
+    --theme-info: #096DAD;
+    --theme-shadow: rgb(26 39 61 / 12%);
+    --theme-backdrop: rgb(25 34 49 / 36%);
 }
 
 .app-shell.theme-dark {
     color-scheme: dark;
 
-    --theme-background: #0F1115;
-    --theme-surface: #181B22;
-    --theme-surface-elevated: #1F232D;
-    --theme-surface-input: #1F232D;
-    --theme-border: #2A2F3A;
-    --theme-text-primary: #F3F4F6;
-    --theme-text-secondary: #C1C7D0;
-    --theme-text-tertiary: #9299A5;
-    --theme-primary: #818CF8;
-    --theme-primary-hover: #A5B4FC;
-    --theme-primary-muted: #1E1B4B;
-    --theme-primary-contrast: #0F1115;
-    --theme-success: #34D399;
-    --theme-warning: #FBBF24;
-    --theme-error: #F87171;
-    --theme-info: #38BDF8;
-    --theme-shadow: rgb(0 0 0 / 34%);
+    /* Blue-slate surfaces give the dark UI clear depth without pure black. */
+    --theme-background: #10141B;
+    --theme-surface: #171C25;
+    --theme-surface-elevated: #202734;
+    --theme-surface-input: #141A23;
+    --theme-border: #313B4C;
+    --theme-text-primary: #F1F4FA;
+    --theme-text-secondary: #B5BFCE;
+    --theme-text-tertiary: #8D98AA;
+    --theme-primary: #A8AEFF;
+    --theme-primary-hover: #C2C6FF;
+    --theme-primary-muted: #292A4C;
+    --theme-primary-contrast: #181923;
+    --theme-ink-on-light: #172033;
+    --theme-ink-on-dark: #F2F4F8;
+    --theme-success: #4DD4A1;
+    --theme-warning: #FFD166;
+    --theme-error: #FF8484;
+    --theme-info: #68C9F2;
+    --theme-shadow: rgb(0 0 0 / 48%);
+    --theme-backdrop: rgb(0 0 0 / 62%);
 
     --theme-success-muted: color-mix(in srgb, var(--theme-success) 15%, var(--theme-surface));
     --theme-warning-muted: color-mix(in srgb, var(--theme-warning) 15%, var(--theme-surface));
@@ -89,6 +68,37 @@
 }
 
 .app-shell {
+    /* Calculate derived colors here so dark mode uses its own foregrounds. */
+    --theme-border-strong: color-mix(in srgb, var(--theme-border) 58%, var(--theme-text-secondary));
+    --theme-surface-hover: color-mix(in srgb, var(--theme-surface-elevated) 78%, var(--theme-background));
+    --theme-border-subtle: color-mix(in srgb, var(--theme-border) 72%, transparent);
+    --theme-primary-border: color-mix(in srgb, var(--theme-primary) 40%, var(--theme-border));
+    --theme-success-border: color-mix(in srgb, var(--theme-success) 42%, var(--theme-border));
+    --theme-warning-border: color-mix(in srgb, var(--theme-warning) 42%, var(--theme-border));
+    --theme-error-border: color-mix(in srgb, var(--theme-error) 42%, var(--theme-border));
+    --theme-info-border: color-mix(in srgb, var(--theme-info) 42%, var(--theme-border));
+    --theme-success-muted: color-mix(in srgb, var(--theme-success) 10%, var(--theme-surface));
+    --theme-warning-muted: color-mix(in srgb, var(--theme-warning) 11%, var(--theme-surface));
+    --theme-error-muted: color-mix(in srgb, var(--theme-error) 9%, var(--theme-surface));
+    --theme-info-muted: color-mix(in srgb, var(--theme-info) 10%, var(--theme-surface));
+
+    /* Diagram-family accents use the same contrast and surface system. */
+    --theme-diagram-uml: var(--theme-primary);
+    --theme-diagram-data: var(--theme-success);
+    --theme-diagram-architecture: var(--theme-info);
+    --theme-diagram-process: var(--theme-warning);
+    --theme-diagram-network: var(--theme-info);
+    --theme-diagram-forms: var(--theme-warning);
+    --theme-diagram-uml-muted: color-mix(in srgb, var(--theme-diagram-uml) 10%, var(--theme-surface));
+    --theme-diagram-data-muted: color-mix(in srgb, var(--theme-diagram-data) 10%, var(--theme-surface));
+    --theme-diagram-architecture-muted: color-mix(in srgb, var(--theme-diagram-architecture) 10%, var(--theme-surface));
+    --theme-diagram-process-muted: color-mix(in srgb, var(--theme-diagram-process) 10%, var(--theme-surface));
+    --theme-diagram-network-muted: color-mix(in srgb, var(--theme-diagram-network) 10%, var(--theme-surface));
+    --theme-diagram-forms-muted: color-mix(in srgb, var(--theme-diagram-forms) 10%, var(--theme-surface));
+
+    --theme-elevation-popover: 0 12px 36px var(--theme-shadow);
+    --theme-elevation-dialog: 0 26px 78px var(--theme-shadow);
+
     --ui-accent: var(--theme-primary);
     --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 12%, var(--theme-surface));
     --ui-accent-border: color-mix(in srgb, var(--ui-accent) 42%, var(--theme-border));
@@ -123,4 +133,23 @@
     --view-hover: var(--theme-surface-hover);
 
     color: var(--theme-text-primary);
+}
+
+/* Shared elevation keeps floating controls distinct in both color modes. */
+.app-shell :is(
+    .system-menu-popover,
+    .tool-options,
+    .style-pane,
+    .floating-layer-panel,
+    .view-settings-popover,
+    .app-settings-popover,
+    .gesture-settings-popover,
+    .mobile-command-panel,
+    .touch-pages-popover
+) {
+    box-shadow: var(--theme-elevation-popover);
+}
+
+.app-shell :is(.confirm-dialog, .help-dialog, .toolbar-order-editor) {
+    box-shadow: var(--theme-elevation-dialog);
 }

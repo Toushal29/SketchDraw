@@ -7,6 +7,7 @@ type SettingsTab = "appearance" | "view" | "touch" | "help";
 type Props = {
   fileName: string;
   hasFile: boolean;
+  planning: boolean;
   canSave: boolean;
   canSaveAs: boolean;
   canRename: boolean;
@@ -70,6 +71,7 @@ type Props = {
   onTapChange: (fingers: "one" | "two" | "three", action: TouchTapAction) => void;
   onGestureChange: (fingers: 1 | 2 | 3, action: string) => void;
   onOpenGuide: () => void;
+  onOpenDiagramGuides: () => void;
   onOpenShortcuts: () => void;
   onCheckForUpdates: () => void;
   onInstallUpdate: () => void;
@@ -172,6 +174,9 @@ export function MobileCommandBar(props: Props) {
     { label: "Clear canvas", disabled: () => !props.canClear, action: props.onClearCanvas },
     { label: "Close file", disabled: () => !props.canClose, action: props.onCloseFile },
   ];
+  const visibleFileActions = () => props.planning
+    ? fileActions.filter(item => item.action === props.onNewPlan || item.action === props.onOpenPlan || item.action === props.onSave || item.action === props.onSaveAs)
+    : fileActions.filter(item => item.action !== props.onNewPlan && item.action !== props.onOpenPlan);
 
   onMount(() => {
     const outside = (event: PointerEvent) => { if (root && !root.contains(event.target as Node)) close(); };
@@ -213,7 +218,7 @@ export function MobileCommandBar(props: Props) {
     <Show when={panel() === "file"}>
       <nav id="mobile-file-menu" class="mobile-command-panel mobile-file-dropdown" aria-label="File actions">
         <div class="mobile-file-actions">
-          {fileActions.map(item => <button type="button" disabled={item.disabled()} onClick={() => run(item.action)}>
+          {visibleFileActions().map(item => <button type="button" disabled={item.disabled()} onClick={() => run(item.action)}>
             <span>{item.label}</span>
             {item.shortcut && <kbd>{item.shortcut()}</kbd>}
           </button>)}
@@ -271,7 +276,7 @@ export function MobileCommandBar(props: Props) {
           </Show>
 
           <Show when={settingsTab() === "help"}>
-            <section class="mobile-settings-section"><h3>Help</h3><button class="mobile-help-action" onClick={() => run(props.onOpenGuide)}>Open the guide <span>›</span></button><button class="mobile-help-action" onClick={() => run(props.onOpenShortcuts)}>Keyboard shortcuts <kbd>F1</kbd></button></section>
+            <section class="mobile-settings-section"><h3>Help</h3><button class="mobile-help-action" onClick={() => run(props.onOpenGuide)}>Open the guide <span>›</span></button><button class="mobile-help-action" onClick={() => run(props.onOpenDiagramGuides)}>Diagram guides <span>›</span></button><button class="mobile-help-action" onClick={() => run(props.onOpenShortcuts)}>Keyboard shortcuts <kbd>F1</kbd></button></section>
             <section class="mobile-settings-section"><h3>Updates</h3>
               <button class="mobile-update-check" disabled={props.updateStatus === "checking" || props.updateStatus === "installing"} onClick={props.onCheckForUpdates}>{props.updateStatus === "checking" ? "Checking for updates…" : "Check for updates"}</button>
               <div class="mobile-app-version"><span>Installed version</span><strong>{props.appVersion}</strong></div>

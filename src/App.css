@@ -40,3 +40,4 @@
 @import "./styles/workspace-view-panel.css";
 @import "./styles/schema-editor.css";
 @import "/src/features/workspace/database-workspace.css";
+@import "./platform/mobile/design-workspace.css";

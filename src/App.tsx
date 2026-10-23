@@ -12,7 +12,7 @@ import type { PdfRasterPage } from "./features/export/pdf-renderer";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_FORMAT_VERSION } from "./model";
-import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, ToolbarItem, CanvasState, CanvasGuide, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipType, RelationshipDirection, ConnectionPoint, CanvasLayer, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition } from "./model";
+import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, ToolbarItem, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipType, RelationshipDirection, ConnectionPoint, CanvasLayer, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition } from "./model";
 import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox, alignedTextStartX, reattachDanglingConnectors } from "./operations";
 import type { NoteKind } from "./model";
 import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, defaultNoteTitle, EXTRA_FLOWCHART_SHAPES, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryComponentKind } from "./notes";
@@ -74,7 +74,7 @@ import { drawLibraryChart } from "./features/components/chart-engine";
 import { fitComponentSpecimen } from "./features/components/component-specimen-sheet";
 import { cacheComponentIconImage, drawModelComponent } from "./features/components/model-component-renderer";
 import { createFreehandRenderer } from "./features/canvas/freehand-rendering";
-import { CanvasRulers } from "./features/canvas/CanvasRulers";
+import { CanvasInteractionOverlay } from "./features/canvas/CanvasInteractionOverlay";
 import { parseEditablePath, updateEditablePath } from "./features/canvas/path-editing";
 import { replaceElementText } from "./features/canvas/text-replace";
 import { ObjectSearchDialog, type ObjectSearchResult } from "./features/canvas/ObjectSearchDialog";
@@ -415,8 +415,8 @@ function App() {
   const [renameFileName, setRenameFileName] = createSignal("");
   const [renameFileError, setRenameFileError] = createSignal("");
   const [topbarHeight, setTopbarHeight] = createSignal(66);
-  const navigateWorkspace = (area: WorkspaceArea) => setWorkspaceArea(area);
   const isCanvasWorkspace = () => workspaceArea() === "canvas" || workspaceArea() === "design";
+  const showWelcomeScreen = () => isCanvasWorkspace() ? !activePath() : !planningPath();
   const [tool, setTool] = createSignal<Tool>("pen");
   const [color, setColor] = createSignal("#252525");
   const [thickness, setThickness] = createSignal(2);
@@ -451,12 +451,8 @@ function App() {
   const [whiteboardStyle, setWhiteboardStyle] = createSignal<WhiteboardStyle>(readWhiteboardStyle());
   const [snapToGrid, setSnapToGrid] = createSignal(false);
   const [snapToObjects, setSnapToObjects] = createSignal(true);
-  const [snapToGuides, setSnapToGuides] = createSignal(readPreference("sketchdraw-snap-guides", "true") !== "false");
-  const [showRulers, setShowRulers] = createSignal(readPreference("sketchdraw-show-rulers", "false") === "true");
-  const [showGuides, setShowGuides] = createSignal(readPreference("sketchdraw-show-guides", "true") !== "false");
   const [measureMode, setMeasureMode] = createSignal(false);
   const [measurement, setMeasurement] = createSignal<{ start: Point; end: Point }>();
-  const [snapFeedback, setSnapFeedback] = createSignal<{ x?: number; y?: number }>();
   const [pathNodeEditMode, setPathNodeEditMode] = createSignal(false);
   const [selectedPathNodeIndex, setSelectedPathNodeIndex] = createSignal<number>();
   const [fillEnabled, setFillEnabled] = createSignal(false);
@@ -709,7 +705,7 @@ function App() {
   let windowsFocusWasFullscreen = false;
   let windowsFocusUsedDocumentFullscreen = false;
   let presentationOwnsFullscreen = false;
-  let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; axisLock?: "x" | "y"; snapTargets: { x: number[]; y: number[]; guideX?: number[]; guideY?: number[]; spacingBoxes?: Bounds[] }; targets: Map<string, Element> } | undefined;
+  let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; axisLock?: "x" | "y"; snapTargets: { x: number[]; y: number[]; spacingBoxes?: Bounds[] }; targets: Map<string, Element> } | undefined;
   let libraryControlOrigin: { index: number } | undefined;
   let labelMoveOrigin: { index: number; point: Point; before: Element[]; offsetX: number; offsetY: number; rotation: number; moved: boolean } | undefined;
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number } | undefined;
@@ -836,10 +832,10 @@ function App() {
   const pathNodeHandles = (): { index: number; x: number; y: number; selected: boolean }[] => {
     if (!pathNodeEditMode() || boardLocked() || readOnlyView() || selectedIndices().length !== 1) return [];
     const item = selectedGeometryElement(); if (!item) return [];
-    const originX = showRulers() ? 26 : 0; const zoom = canvasState().zoom; const state = canvasState();
+    const zoom = canvasState().zoom; const state = canvasState();
     if (item.type === "freehand") {
       const stride = Math.max(1, Math.ceil(item.points.length / 256));
-      return item.points.flatMap((point, index) => index % stride === 0 || index === item.points.length - 1 ? [{ index, x: originX + state.panX + point.x * zoom, y: state.panY + point.y * zoom, selected: selectedPathNodeIndex() === index }] : []);
+      return item.points.flatMap((point, index) => index % stride === 0 || index === item.points.length - 1 ? [{ index, x: state.panX + point.x * zoom, y: state.panY + point.y * zoom, selected: selectedPathNodeIndex() === index }] : []);
     }
     if (item.type !== "svgPath") return [];
     const path = parseEditablePath(item.pathData); if (!path) return [];
@@ -847,7 +843,7 @@ function App() {
     const bounds = elementBounds(item); const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
     return path.points.map((point, index) => {
       const world = rotateCanvasPoint({ x: item.x + point.x / pathWidth * item.w, y: item.y + point.y / pathHeight * item.h }, center, item.rotation ?? 0);
-      return { index, x: originX + state.panX + world.x * zoom, y: state.panY + world.y * zoom, selected: selectedPathNodeIndex() === index };
+      return { index, x: state.panX + world.x * zoom, y: state.panY + world.y * zoom, selected: selectedPathNodeIndex() === index };
     });
   };
   function selectedGeometryMin(axis: "w" | "h"): number {
@@ -1993,13 +1989,6 @@ function App() {
     else if (samples.some(sample => sample.phase === "start")) pendingAndroidStylusSamples = samples.slice(-12);
   }
   const snap = (point: Point): Point => snapCanvasPoint(point, snapToGrid(), whiteboardStyle(), GRID_SIZE);
-  const setCanvasViewPreference = (key: string, setter: (value: boolean) => void, value: boolean) => {
-    setter(value);
-    try { localStorage.setItem(key, String(value)); } catch { /* The current canvas view still updates. */ }
-  };
-  const setRulersVisible = (value: boolean) => setCanvasViewPreference("sketchdraw-show-rulers", setShowRulers, value);
-  const setGuidesVisible = (value: boolean) => setCanvasViewPreference("sketchdraw-show-guides", setShowGuides, value);
-  const setGuideSnapping = (value: boolean) => setCanvasViewPreference("sketchdraw-snap-guides", setSnapToGuides, value);
   const toggleMeasureMode = () => { const enabled = !measureMode(); setMeasureMode(enabled); if (!enabled) { measureOrigin = undefined; setMeasurement(undefined); } };
   function editPathNode(original: Element, nodeIndex: number, world: Point): Element {
     if (original.type === "freehand") return { ...original, points: original.points.map((point, index) => index === nodeIndex ? { ...point, x: world.x, y: world.y } : point) };
@@ -2076,16 +2065,6 @@ function App() {
     const converted = convertedData as unknown as ShapeElement;
     const before = cloneElements(elements()); setElements(items => items.map((element, current) => current === index ? converted : element)); pushUndo(before); setDirty(true);
   }
-  const updatePageGuides = (operation: (guides: CanvasGuide[]) => CanvasGuide[]) => {
-    if (boardLocked() || readOnlyView()) return;
-    const guides = operation([...(canvasState().guides ?? [])]).slice(0, 200);
-    setCanvasState(current => ({ ...current, ...(guides.length ? { guides } : { guides: undefined }) }));
-    setDirty(true);
-  };
-  const addPageGuide = (axis: CanvasGuide["axis"], position: number) => updatePageGuides(guides => guides.length >= 200 ? guides : [...guides, { axis, position: Math.max(-1_000_000_000, Math.min(1_000_000_000, position)) }]);
-  const movePageGuide = (index: number, position: number) => updatePageGuides(guides => guides.map((guide, current) => current === index ? { ...guide, position: Math.max(-1_000_000_000, Math.min(1_000_000_000, position)) } : guide));
-  const removePageGuide = (index: number) => updatePageGuides(guides => guides.filter((_guide, current) => current !== index));
-
   const undo = canvasHistory.undo;
   const redo = canvasHistory.redo;
   function deleteSelected() {
@@ -2951,15 +2930,6 @@ function App() {
     await insertSchemaVisual(false, source);
   }
 
-  // Relationship modes reuse the canvas line tool so endpoints can snap and bind to table fields.
-  function activateDatabaseRelationship(kind: "one-many" | "many-many") {
-    if (readOnlyView() || boardLocked()) return;
-    setDefaultLineStartHead(kind === "one-many" ? "bar" : "crow");
-    setDefaultLineEndHead("crow");
-    setLineRoute("straight");
-    setTool("line"); setSelectedIndices([]); setSidebarTab("properties");
-  }
-
   // Insert a chosen palette item through the same canvas and modeling helpers used elsewhere.
   function insertDesignPaletteItem(item: DesignPaletteItem) {
     if (!activePath() || readOnlyView() || boardLocked()) return;
@@ -2980,11 +2950,21 @@ function App() {
       const text: TextElement = { type: "text", x: 0, y: 0, text: "Text", color: color(), fontSize: defaultFontSize(), fontFamily: defaultFontFamily(), textAlign: "left" };
       placeImportedElements([text]); setSidebarTab("properties"); return;
     }
+    if (item.type === "connector") {
+      const w = 148; const h = 64;
+      const routePoints = item.connector === "line" && item.route === "multi"
+        ? [{ x: w * .24, y: h * .76 }, { x: w * .48, y: h * .24 }, { x: w * .72, y: h * .76 }]
+        : undefined;
+      const shape: ShapeElement = item.connector === "line"
+        ? { type: "line", x: 0, y: 0, w, h, color: color(), thickness: thickness(), lineStyle: item.lineStyle, lineRoute: item.route as LineRoute, startHead: item.startHead, endHead: item.endHead, ...(routePoints ? { routePoints } : {}) }
+        : { type: "arrow", x: 0, y: 0, w, h, color: color(), thickness: thickness(), lineStyle: item.lineStyle, arrowRoute: item.route as ArrowRoute, startHead: item.startHead, endHead: item.endHead, ...(item.route === "forked" ? { forkUpper: { endHead: item.endHead }, forkLower: { endHead: item.endHead } } : {}) };
+      placeImportedElements([shape]); setSidebarTab("properties"); return;
+    }
 
     const isFilledShape = item.type === "flowchart" || ["rectangle", "circle", "diamond", "triangle"].includes(item.shape);
     const shape: ShapeElement = item.type === "flowchart"
       ? { type: "flowchart", x: 0, y: 0, w: 148, h: 88, color: color(), thickness: thickness(), flowchartShape: item.shape, ...(fillEnabled() ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}) }
-      : { type: item.shape, x: 0, y: 0, w: 148, h: item.shape === "line" || item.shape === "arrow" ? 64 : 88, color: color(), thickness: thickness(), lineStyle: lineStyle(), edgeStyle: edgeStyle(), ...(isFilledShape && fillEnabled() ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(item.shape === "line" ? { lineRoute: "straight" } : {}), ...(item.shape === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead(), arrowRoute: arrowRoute() } : {}) };
+      : { type: item.shape, x: 0, y: 0, w: 148, h: 88, color: color(), thickness: thickness(), lineStyle: lineStyle(), edgeStyle: edgeStyle(), ...(isFilledShape && fillEnabled() ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}) };
     placeImportedElements([shape]); setSidebarTab("properties");
   }
 
@@ -3763,7 +3743,7 @@ function App() {
     return { ...element, ...next };
   }
 
-  function snapResizePoint(element: Element, handle: string, start: Point, point: Point, bypass = false): { point: Point; snapX?: number; snapY?: number } {
+  function snapResizePoint(element: Element, handle: string, start: Point, point: Point, bypass = false): { point: Point } {
     if (bypass || handle === "rotate" || element.type === "text") return { point };
     const rotation = element.rotation ?? 0;
     const resizeBounds = rotation ? elementBounds({ ...element, rotation: 0 } as Element) : element.type === "group" ? elementBounds(element) : elementGridBounds(element) ?? elementBounds(element);
@@ -3779,10 +3759,10 @@ function App() {
     const edgeY = handle.includes("n") ? resizeBounds.y + dy : resizeBounds.y + resizeBounds.h + dy;
     const threshold = 8 / canvasState().zoom;
     const nearest = (position: number, axis: "x" | "y") => {
-      const candidates: { target: number; correction: number; priority: number }[] = [];
+      const candidates: { target: number; correction: number }[] = [];
       if (snapToGrid()) {
         const probe = axis === "x" ? snapCanvasPoint({ x: position, y: 0 }, true, whiteboardStyle(), GRID_SIZE).x : snapCanvasPoint({ x: 0, y: position }, true, whiteboardStyle(), GRID_SIZE).y;
-        if (Math.abs(probe - position) <= threshold) candidates.push({ target: probe, correction: probe - position, priority: 1 });
+        if (Math.abs(probe - position) <= threshold) candidates.push({ target: probe, correction: probe - position });
       }
       if (!rotation) {
         const margin = 32 / Math.max(.02, canvasState().zoom);
@@ -3792,16 +3772,15 @@ function App() {
           const target = elements()[index]; if (!target || isElementHidden(target)) continue;
           const bounds = elementBounds(target);
           const values = axis === "x" ? [bounds.x, bounds.x + bounds.w / 2, bounds.x + bounds.w] : [bounds.y, bounds.y + bounds.h / 2, bounds.y + bounds.h];
-          for (const value of values) if (Math.abs(value - position) <= threshold) candidates.push({ target: value, correction: value - position, priority: 2 });
+          for (const value of values) if (Math.abs(value - position) <= threshold) candidates.push({ target: value, correction: value - position });
         }
-        if (snapToGuides()) for (const guide of canvasState().guides ?? []) if (guide.axis === axis && Math.abs(guide.position - position) <= threshold) candidates.push({ target: guide.position, correction: guide.position - position, priority: 3 });
       }
-      return candidates.sort((a, b) => Math.abs(a.correction) - Math.abs(b.correction) || b.priority - a.priority)[0];
+      return candidates.sort((a, b) => Math.abs(a.correction) - Math.abs(b.correction))[0];
     };
     const correctionX = movesX ? nearest(edgeX, "x") : undefined;
     const correctionY = movesY ? nearest(edgeY, "y") : undefined;
     const corrected = { x: movesX ? localPoint.x + (correctionX?.correction ?? 0) : localPoint.x, y: movesY ? localPoint.y + (correctionY?.correction ?? 0) : localPoint.y };
-    return { point: rotation ? rotateCanvasPoint(corrected, center, rotation) : corrected, snapX: rotation ? undefined : correctionX?.target, snapY: rotation ? undefined : correctionY?.target };
+    return { point: rotation ? rotateCanvasPoint(corrected, center, rotation) : corrected };
   }
 
   const sceneRenderer = createCanvasSceneRenderer({
@@ -4025,8 +4004,6 @@ function App() {
       if ((event.ctrlKey || event.metaKey) && key === "d") { event.preventDefault(); insertCopies(selectedElements()); return; }
       if ((event.ctrlKey || event.metaKey) && key === "a") { event.preventDefault(); setSelectedIndices(elements().flatMap((item, index) => !isElementHidden(item) && !isElementLocked(item) ? [index] : [])); return; }
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (event.shiftKey && key === "r") { setRulersVisible(!showRulers()); return; }
-      if (event.shiftKey && key === "h") { setGuideSnapping(!snapToGuides()); return; }
       if (key === "m") { toggleMeasureMode(); return; }
       if (key === "[") { cycleSelection(-1); return; }
       if (key === "]") { cycleSelection(1); return; }
@@ -4681,7 +4658,7 @@ function App() {
   }
 
   function runWindowsShortcut(id: WindowsShortcutId) {
-    if (isCanvasWorkspace() && readOnlyView() && !["commandPalette", "openSketch", "fitDrawing", "fitSelection", "resetZoom", "presentation", "snapGuides", "toggleRulers", "measureTool", "cycleSelectionPrevious", "cycleSelectionNext"].includes(id)) return;
+    if (isCanvasWorkspace() && readOnlyView() && !["commandPalette", "openSketch", "fitDrawing", "fitSelection", "resetZoom", "presentation", "measureTool", "cycleSelectionPrevious", "cycleSelectionNext"].includes(id)) return;
     switch (id) {
       case "commandPalette": setCommandPaletteOpen(true); break;
       case "newSketch": void createFile(); break;
@@ -4700,8 +4677,6 @@ function App() {
       case "toggleGrid": setShowGrid(value => !value); break;
       case "snapGrid": setSnapToGrid(value => !value); break;
       case "snapObjects": setSnapToObjects(value => !value); break;
-      case "snapGuides": setGuideSnapping(!snapToGuides()); break;
-      case "toggleRulers": setRulersVisible(!showRulers()); break;
       case "measureTool": toggleMeasureMode(); break;
       case "cycleSelectionPrevious": cycleSelection(-1); break;
       case "cycleSelectionNext": cycleSelection(1); break;
@@ -5590,7 +5565,7 @@ function App() {
     drawing = false; currentPoints = []; strokePointLimitReached = false; penEraserDrawing = false;
     setPreview(undefined); setMarquee(undefined); setAttachmentHint(undefined);
     resizeOrigin = undefined; moveOrigin = undefined; labelMoveOrigin = undefined; pathNodeOrigin = undefined; measureOrigin = undefined; marqueeOrigin = undefined; panOrigin = undefined;
-    setMeasurement(undefined); setSnapFeedback(undefined);
+    setMeasurement(undefined);
     setIsPanning(false);
   }
 
@@ -5714,7 +5689,6 @@ function App() {
     if (resizeOrigin) {
       const pointerPoint = toWorld(event); if (Math.hypot(pointerPoint.x - resizeOrigin.start.x, pointerPoint.y - resizeOrigin.start.y) > 0.5) resizeOrigin.moved = true;
       const snapped = isConnector(resizeOrigin.original) ? { point: pointerPoint } : snapResizePoint(resizeOrigin.original, resizeOrigin.handle, resizeOrigin.start, pointerPoint, event.ctrlKey || event.metaKey);
-      setSnapFeedback({ x: snapped.snapX, y: snapped.snapY });
       const resized = resizeElement(resizeOrigin.original, resizeOrigin.handle, resizeOrigin.start, snapped.point, event.shiftKey || !!resizeOrigin.original.aspectLocked);
       setElementsTransient(resizeOrigin.before.map((element, index) => index === resizeOrigin!.index ? resized : element), [resizeOrigin.index]); setDirty(true); return;
     }
@@ -5727,7 +5701,7 @@ function App() {
       if (Math.hypot(dx, dy) > 0.5) moveOrigin.moved = true;
       if (moveOrigin.moved) {
         const snapped = snapTranslation(moveOrigin.indices, moveOrigin.before, dx, dy, moveOrigin.snapTargets, event.ctrlKey || event.metaKey);
-        moveOrigin.dx = snapped.dx; moveOrigin.dy = snapped.dy; setSnapFeedback({ x: snapped.snapX, y: snapped.snapY, equalSpacingX: snapped.equalSpacingX, equalSpacingY: snapped.equalSpacingY }); scheduleCanvasRender(); setDirty(true);
+        moveOrigin.dx = snapped.dx; moveOrigin.dy = snapped.dy; scheduleCanvasRender(); setDirty(true);
       }
       return;
     }
@@ -5788,11 +5762,8 @@ function App() {
         x.push(box.x, box.x + box.w / 2, box.x + box.w); y.push(box.y, box.y + box.h / 2, box.y + box.h);
       }
     }
-    const guideX = (canvasState().guides ?? []).filter(guide => guide.axis === "x").map(guide => guide.position);
-    const guideY = (canvasState().guides ?? []).filter(guide => guide.axis === "y").map(guide => guide.position);
     x.sort((left, right) => left - right); y.sort((left, right) => left - right);
-    guideX.sort((left, right) => left - right); guideY.sort((left, right) => left - right);
-    return { x, y, guideX, guideY, spacingBoxes };
+    return { x, y, spacingBoxes };
   }
 
   function collectMoveTargets(indices: number[], before: Element[]) {
@@ -5802,13 +5773,13 @@ function App() {
     return targets;
   }
 
-  function snapTranslation(indices: number[], before: Element[], dx: number, dy: number, snapTargets: { x: number[]; y: number[]; guideX?: number[]; guideY?: number[]; spacingBoxes?: Bounds[] }, bypass = false) {
+  function snapTranslation(indices: number[], before: Element[], dx: number, dy: number, snapTargets: { x: number[]; y: number[]; spacingBoxes?: Bounds[] }, bypass = false) {
     const selected = new Set(indices); const moving = unionBounds(before.flatMap((element, index) => {
       if (!selected.has(index) || isElementHidden(element)) return [];
       const bounds = elementGridBounds(element);
       return bounds ? [bounds] : [];
     }));
-    if (!moving) return { dx, dy, snapX: undefined, snapY: undefined };
+    if (!moving) return { dx, dy };
     const left = moving.x; const top = moving.y; const right = moving.x + moving.w; const bottom = moving.y + moving.h;
     const movingX = [left, (left + right) / 2, right]; const movingY = [top, (top + bottom) / 2, bottom];
     const threshold = 8 / canvasState().zoom;
@@ -5826,11 +5797,9 @@ function App() {
       }
       return best;
     };
-    if (bypass) return { dx, dy, snapX: undefined, snapY: undefined };
+    if (bypass) return { dx, dy };
     const objectX = snapToObjects() ? closest(snapTargets.x, movingX, dx) : undefined;
     const objectY = snapToObjects() ? closest(snapTargets.y, movingY, dy) : undefined;
-    const guideX = snapToGuides() ? closest(snapTargets.guideX ?? [], movingX, dx) : undefined;
-    const guideY = snapToGuides() ? closest(snapTargets.guideY ?? [], movingY, dy) : undefined;
     const findEqualGap = (axis: "x" | "y") => {
       if (!snapToObjects()) return undefined;
       const boxes = [...(snapTargets.spacingBoxes ?? [])].sort((left, right) => (axis === "x" ? left.x : left.y) - (axis === "x" ? right.x : right.y));
@@ -5869,13 +5838,9 @@ function App() {
     const objectCorrectionY = objectY && (!snapToGrid() || landsOnGrid(objectY.target) && landsOnGrid(moving.y + dy + objectY.correction)) ? objectY.correction : undefined;
     const objectOrSpaceX = spacingX && (!objectCorrectionX || Math.abs(spacingX.correction) < Math.abs(objectCorrectionX)) ? spacingX : objectCorrectionX !== undefined ? { correction: objectCorrectionX, target: objectX!.target } : undefined;
     const objectOrSpaceY = spacingY && (!objectCorrectionY || Math.abs(spacingY.correction) < Math.abs(objectCorrectionY)) ? spacingY : objectCorrectionY !== undefined ? { correction: objectCorrectionY, target: objectY!.target } : undefined;
-    const guideWinsX = guideX && (!objectOrSpaceX || Math.abs(guideX.correction) <= Math.abs(objectOrSpaceX.correction));
-    const guideWinsY = guideY && (!objectOrSpaceY || Math.abs(guideY.correction) <= Math.abs(objectOrSpaceY.correction));
-    const correctionX = guideWinsX ? guideX!.correction : objectOrSpaceX?.correction ?? gridX ?? 0;
-    const correctionY = guideWinsY ? guideY!.correction : objectOrSpaceY?.correction ?? gridY ?? 0;
-    const snapX = guideWinsX ? guideX!.target : objectOrSpaceX?.target ?? (gridX ? movingX[0] + dx + gridX : undefined);
-    const snapY = guideWinsY ? guideY!.target : objectOrSpaceY?.target ?? (gridY ? movingY[0] + dy + gridY : undefined);
-    return { dx: dx + correctionX, dy: dy + correctionY, snapX, snapY, equalSpacingX: spacingX !== undefined && objectOrSpaceX === spacingX && !guideWinsX, equalSpacingY: spacingY !== undefined && objectOrSpaceY === spacingY && !guideWinsY };
+    const correctionX = objectOrSpaceX?.correction ?? gridX ?? 0;
+    const correctionY = objectOrSpaceY?.correction ?? gridY ?? 0;
+    return { dx: dx + correctionX, dy: dy + correctionY };
   }
 
   function hitInterior(point: Point): number | undefined {
@@ -5997,7 +5962,7 @@ function App() {
       if (origin.moved) { setElements(elements()); pushUndo(origin.before); }
       labelMoveOrigin = undefined; scheduleCanvasRender(); return;
     }
-    if (resizeOrigin) { const origin = resizeOrigin; if (origin.moved) { setElements(elements()); pushUndo(origin.before); } resizeOrigin = undefined; setSnapFeedback(undefined); return; }
+    if (resizeOrigin) { const origin = resizeOrigin; if (origin.moved) { setElements(elements()); pushUndo(origin.before); } resizeOrigin = undefined; return; }
     if (moveOrigin) {
       const origin = moveOrigin;
       if (origin.moved) {
@@ -6006,7 +5971,7 @@ function App() {
         pushUndo(origin.before);
       } else if (libraryControlOrigin) activateLibraryControl(libraryControlOrigin.index, toWorld(event));
       libraryControlOrigin = undefined;
-      moveOrigin = undefined; setSnapFeedback(undefined); scheduleCanvasRender(); return;
+      moveOrigin = undefined; scheduleCanvasRender(); return;
     }
     if (!drawing) return;
     if (penEraserDrawing) { penEraserDrawing = false; drawing = false; return; }
@@ -6681,13 +6646,10 @@ function App() {
       { id: "export-pdf", label: "Print preview and export PDF", category: "Export", keywords: "page breaks margins", run: () => openExportOptions("pdf") },
       { id: "export-png", label: "Export PNG", category: "Export", run: () => openExportOptions("png") },
       { id: "toggle-grid", label: "Toggle canvas grid", category: "View", shortcut: formatShortcutBindings(shortcuts().toggleGrid), run: () => setShowGrid(value => !value) },
-      { id: "toggle-guides", label: "Toggle canvas guides", category: "View", keywords: "show hide rulers", run: () => setGuidesVisible(!showGuides()) },
       { id: "toggle-minimap", label: "Toggle minimap", category: "View", run: () => { const value = !showMinimap(); setShowMinimap(value); try { localStorage.setItem("sketchdraw-canvas-minimap", String(value)); } catch { /* Applied for this session. */ } } },
       { id: "fullscreen", label: "Toggle full screen focus mode", category: "View", run: () => void toggleWindowsFullscreen() },
       { id: "snap-grid", label: "Toggle grid snapping", category: "View", shortcut: formatShortcutBindings(shortcuts().snapGrid), run: () => setSnapToGrid(value => !value) },
       { id: "snap-objects", label: "Toggle object snapping", category: "View", shortcut: formatShortcutBindings(shortcuts().snapObjects), run: () => setSnapToObjects(value => !value) },
-      { id: "snap-guides", label: "Toggle guide snapping", category: "View", shortcut: formatShortcutBindings(shortcuts().snapGuides), run: () => setGuideSnapping(!snapToGuides()) },
-      { id: "toggle-rulers", label: "Toggle bottom and left rulers", category: "View", shortcut: formatShortcutBindings(shortcuts().toggleRulers), run: () => setRulersVisible(!showRulers()) },
       { id: "theme-system", label: "Use system theme", category: "View", keywords: "appearance light dark", run: () => setThemePreference("system") },
       { id: "theme-light", label: "Use light theme", category: "View", keywords: "appearance system dark", run: () => setThemePreference("light") },
       { id: "theme-dark", label: "Use dark theme", category: "View", keywords: "appearance system light", run: () => setThemePreference("dark") },
@@ -6731,7 +6693,8 @@ function App() {
 
   const mobileCommandBar = () => <Suspense fallback={null}><MobileCommandBar
     fileName={workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}
-    hasFile={!!activePath() || !!planningPath()}
+    hasFile={workspaceArea() === "planning" ? !!planningPath() : !!activePath()}
+    planning={workspaceArea() === "planning"}
     canSave={workspaceArea() === "planning" || !!activePath() && !readOnlyView()}
     canSaveAs={workspaceArea() === "planning" || !!activePath() && !documentBusy()}
     canRename={isCanvasWorkspace() && !!activePath() && !readOnlyView()}
@@ -6786,6 +6749,7 @@ function App() {
     onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)}
     onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)}
     onOpenGuide={() => { setHelpSection("guide"); setHelpOpen(true); }}
+    onOpenDiagramGuides={() => setTemplateGalleryOpen(true)}
     onOpenShortcuts={() => { setHelpSection("shortcuts"); setHelpOpen(true); }}
     onCheckForUpdates={() => void checkForUpdates()}
     onInstallUpdate={() => void installUpdate()}
@@ -6797,7 +6761,7 @@ function App() {
   /></Suspense>;
 
   return (
-    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": !activePath() && isCanvasWorkspace(), "design-workspace-active": workspaceArea() === "design", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() === "planning", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family, .stencil-options")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 88%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
+    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": showWelcomeScreen(), "design-workspace-active": workspaceArea() === "design", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() === "planning", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family, .stencil-options")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 88%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
       <Show when={toolbarOrganizerOpen()}><ToolbarOrderEditor toolbarItems={organizerItems(toolbarOrder())} moreItems={organizerItems(moreToolsOrder())} onMove={moveToolbarTool} onReorder={reorderToolbarTool} onReset={resetToolbarOrder} onClose={() => setToolbarOrganizerOpen(false)} /></Show>
       <Show when={legacyMigrationPath() && !recoveryPrompt() && !syncConflict()}>
         <div class="confirm-backdrop legacy-refactor-backdrop"><section class="confirm-dialog legacy-refactor-dialog" role="alertdialog" aria-modal="true" aria-labelledby="legacy-refactor-title">
@@ -6812,14 +6776,14 @@ function App() {
       <Show when={!isWindowsPlatform()}>
         <MobileWorkspaceHeader
           brandName={workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}
-          hasFile={!!activePath() || workspaceArea() === "planning"}
+          hasFile={workspaceArea() === "planning" ? !!planningPath() : !!activePath()}
           readOnly={readOnlyView()}
           planning={workspaceArea() === "planning"}
           headerRef={element => { appTopbar = element; }}
           commands={<nav class="mobile-command-host" aria-label="File and application settings">{mobileCommandBar()}</nav>}
-          workspaceTabs={<Show when={activePath() || workspaceArea() === "planning"}><WorkspaceAreaTabs active={workspaceArea()} includeDesign={!!activePath()} onSelect={navigateWorkspace} /></Show>}
+          workspaceTabs={<WorkspaceAreaTabs active={workspaceArea()} documentTabs={!!activePath() && isCanvasWorkspace()} onSelect={area => setWorkspaceArea(area)} />}
           pageMenu={<Show when={activePath() && isCanvasWorkspace()}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} onToggle={alignTouchMenuPopover} /></Show>}
-          status={<Show when={activePath() || workspaceArea() === "planning"}><div class="mobile-header-status"><span class={`save-status ${workspaceArea() === "planning" ? planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved" : saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={workspaceArea() === "planning" ? planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved" : status()} title={workspaceArea() === "planning" ? planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status" : status()}><i /></span></div></Show>}
+          status={<Show when={workspaceArea() === "planning" ? planningPath() : activePath()}><div class="mobile-header-status"><span class={`save-status ${workspaceArea() === "planning" ? planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved" : saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={workspaceArea() === "planning" ? planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved" : status()} title={workspaceArea() === "planning" ? planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status" : status()}><i /></span></div></Show>}
         />
       </Show>
       <Show when={isWindowsPlatform()}>
@@ -6845,9 +6809,9 @@ function App() {
             onToggle={() => alignTouchMenuPopover(appSettingsMenu)}
           />}>
           <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}</div>
-            <button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button><button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button><button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button><div class="menu-separator" />
+            <Show when={workspaceArea() === "planning"}><button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button><button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button><button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button><div class="menu-separator" /></Show><Show when={workspaceArea() !== "planning"}>
             <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open sketch as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save sketch <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save sketch as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile())}>Import editable diagram/code...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked()} onClick={() => closeSystemMenu(openWebEmbedDialog)}>Embed web page...</button><div class="menu-separator" /><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("drawio"))}>Export draw.io...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("excalidraw"))}>Export Excalidraw...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => setDiagramCodeExportOpen(true))}>Export diagram code...</button><button disabled={!activePath() || !isCanvasWorkspace() || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close sketch</button>
-            <Show when={hasRetiredLibraryData(legacyLibraryData())}><button disabled={!activePath() || readOnlyView() || documentBusy() || nativeBusy()} onClick={() => closeSystemMenu(() => void exportRetiredLibraryArchive())}>Export retired Library data...</button></Show>
+            <Show when={hasRetiredLibraryData(legacyLibraryData())}><button disabled={!activePath() || readOnlyView() || documentBusy() || nativeBusy()} onClick={() => closeSystemMenu(() => void exportRetiredLibraryArchive())}>Export retired Library data...</button></Show></Show>
           </div></details>
             <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={() => alignViewSettingsPopover()}>
               <summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>View</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
@@ -6880,24 +6844,22 @@ function App() {
           </WindowsMenuRail>
           </Show>
         </nav>
-        <Show when={activePath() || workspaceArea() === "planning"}><WorkspaceAreaTabs active={workspaceArea()} includeDesign={!!activePath()} onSelect={navigateWorkspace} /></Show>
+        <WorkspaceAreaTabs active={workspaceArea()} documentTabs={!!activePath() && isCanvasWorkspace()} onSelect={area => setWorkspaceArea(area)} />
         <Show when={isWindowsPlatform() && activePath() && openSketchPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openSketchPaths()} activePath={activePath()} displayName={displayNameForPath} onSelect={path => { if (path !== activePath()) void loadFile(path); }} onClose={path => void closeSketchTab(path)} /></Suspense></Show>
 
-          <Show when={workspaceArea() === "planning"}><div class="top-actions"><span class={`save-status ${planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved"} title={planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status"}><i /><time>{planningSavedAt() || "—"}</time></span></div></Show>
+          <Show when={workspaceArea() === "planning" && planningPath()}><div class="top-actions"><span class={`save-status ${planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved"} title={planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status"}><i /><time>{planningSavedAt() || "—"}</time></span></div></Show>
           <Show when={isCanvasWorkspace() && activePath()}><div class="top-actions"><span class="live-sync-indicator" title="Watches this open .sketch file for changes from another app, with a 30 second polling fallback for cloud folders."><i />Live file updates</span><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
       </header>
       </Show>
-      <Show when={workspaceArea() === "planning"}><Suspense fallback={null}><ProjectWorkspace
+      <Show when={workspaceArea() === "planning" && planningPath()}><Suspense fallback={null}><ProjectWorkspace
           data={projectWorkspaceData()}
           editable
           fileName={planningPath() ? displayNameForPath(planningPath()!) : "Unsaved plan"}
           recentPlans={recentPlans()}
           planningPath={planningPath()}
-          canvasFileName={activePath() ? fileName() : undefined}
           dirty={planningDirty()}
           saving={planningSaving()}
           onChange={planningSession.update}
-          onNavigate={navigateWorkspace}
           onNew={() => void createPlanningFromHome()}
           onOpen={() => void openPlanningFile()}
           onSave={() => void savePlanningDocument()}
@@ -6906,10 +6868,14 @@ function App() {
           onOpenPlan={openRecentPlan}
           onExport={exportPlanningText}
         /></Suspense></Show>
+      <Show when={showWelcomeScreen()}>
+        <MobileHomeScreen planningViewport={workspaceArea() === "planning"} recentFiles={recentFiles()} recentPlans={recentPlans()} displayPathName={displayNameForPath} onCreate={createFile} onNewPlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentPlan={openRecentPlan} />
+        <WelcomeScreen planningViewport={workspaceArea() === "planning"} recentFiles={recentFiles} recentPlans={recentPlans} displayNameForPath={displayNameForPath} onCreateFile={createFile} onOpenFile={openFile} onCreatePlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpenRecentPlan={openRecentPlan} onOpenRecentFile={loadFile} />
+      </Show>
       <Show when={isCanvasWorkspace()}>
-      <Show when={activePath()} fallback={<><MobileHomeScreen recentFiles={recentFiles()} recentPlans={recentPlans()} displayPathName={displayNameForPath} onCreate={createFile} onGuides={() => setTemplateGalleryOpen(true)} onNewPlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentPlan={openRecentPlan} /><WelcomeScreen recentFiles={recentFiles} recentPlans={recentPlans} displayNameForPath={displayNameForPath} onCreateFile={createFile} onGuides={() => setTemplateGalleryOpen(true)} onOpenFile={openFile} onCreatePlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpenRecentPlan={openRecentPlan} onOpenRecentFile={loadFile} /></>}>
+      <Show when={activePath()}>
         <>
-          <section class="canvas-wrap" ref={canvasWrap} classList={{ "canvas-minimap-visible": showMinimap(), "canvas-rulers-visible": showRulers() }}>
+          <section class="canvas-wrap" ref={canvasWrap} classList={{ "canvas-minimap-visible": showMinimap() }}>
             <Show when={touchFocusMode()}><TouchFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={chooseFocusTool} onExit={() => void toggleTouchFocusMode(false)} /></Show>
             <Show when={isWindowsPlatform() && windowsFullscreenMode()}><WindowsFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={selectedTool => { if (readOnlyView() && selectedTool !== "select" && selectedTool !== "laser") { setTool("laser"); return; } if (selectedTool === "select") { setTool("select"); setStyleMenuMode("quick"); } else activateTool(selectedTool); }} onExit={() => void toggleWindowsFullscreen(false)} /></Show>
             <Show when={touchStylePanel() && !isWindowsPlatform() && isCompactTouchLayout()}><TouchStylePanel
@@ -6999,10 +6965,10 @@ function App() {
             /></Show>
             <canvas ref={canvas} class="drawing-canvas" style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onWheel={handleCanvasWheel} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} />
             <Show when={presentationMode() && presentationTransition()}><div class="canvas-presentation-transition" classList={{ "canvas-presentation-transition-fade": presentationTransition() === "fade", "canvas-presentation-transition-slide": presentationTransition() === "slide" }} aria-hidden="true" /></Show>
-            <CanvasRulers state={canvasState()} showRulers={showRulers()} showGuides={showGuides()} guides={canvasState().guides ?? []} snapFeedback={snapFeedback()} measurement={measurement()} nodeHandles={pathNodeHandles()} disabled={boardLocked() || readOnlyView()} onAddGuide={addPageGuide} onMoveGuide={movePageGuide} onRemoveGuide={removePageGuide} onPathNodePointerDown={beginPathNodeEdit} onPathNodePointerMove={moveEditedPathNode} onPathNodePointerUp={finishPathNodeEdit} onPathNodePointerCancel={cancelPathNodeEdit} />
+            <CanvasInteractionOverlay state={canvasState()} measurement={measurement()} nodeHandles={pathNodeHandles()} disabled={boardLocked() || readOnlyView()} onPathNodePointerDown={beginPathNodeEdit} onPathNodePointerMove={moveEditedPathNode} onPathNodePointerUp={finishPathNodeEdit} onPathNodePointerCancel={cancelPathNodeEdit} />
             <Show when={activeWebPreview()}>{preview => <Show when={elements().find((item): item is ImageElement => item.type === "image" && item.id === preview().id)}>{item => {
               const zoom = canvasState().zoom; const width = Math.min(Math.max(320, item().w * zoom), Math.max(280, canvasWrap.clientWidth - 16)); const height = Math.min(Math.max(260, item().h * zoom), Math.max(220, canvasWrap.clientHeight - 16));
-              const left = Math.max(8, Math.min(canvasWrap.clientWidth - width - 8, (showRulers() ? 26 : 0) + canvasState().panX + item().x * zoom)); const top = Math.max(8, Math.min(canvasWrap.clientHeight - height - 8, canvasState().panY + item().y * zoom));
+              const left = Math.max(8, Math.min(canvasWrap.clientWidth - width - 8, canvasState().panX + item().x * zoom)); const top = Math.max(8, Math.min(canvasWrap.clientHeight - height - 8, canvasState().panY + item().y * zoom));
               return <section class="canvas-web-preview" role="dialog" aria-label={`Web preview for ${new URL(preview().url).hostname}`} style={{ left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px`, transform: `rotate(${item().rotation ?? 0}deg)` }} onPointerDown={event => event.stopPropagation()}>
                 <header><strong>{new URL(preview().url).hostname}</strong><a href={preview().url} target="_blank" rel="noreferrer">Open in browser</a><button type="button" aria-label="Close web preview" title="Close preview" onClick={() => setActiveWebPreview(undefined)}>&times;</button></header>
                  <iframe title={`Web preview of ${new URL(preview().url).hostname}`} src={preview().embedUrl} loading="lazy" referrerPolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />
@@ -7041,9 +7007,6 @@ function App() {
                 showGrid={showGrid()}
                 snapToGrid={snapToGrid()}
                 snapToObjects={snapToObjects()}
-                snapToGuides={snapToGuides()}
-                showRulers={showRulers()}
-                showGuides={showGuides()}
                 hasElements={elements().length > 0}
                 hasSelection={selectedIndices().length >= 2}
                 canGroup={groupActionEnabled()}
@@ -7057,9 +7020,6 @@ function App() {
                 onToggleGrid={() => setShowGrid(value => !value)}
                 onToggleSnapToGrid={() => setSnapToGrid(value => !value)}
                 onToggleSnapToObjects={() => setSnapToObjects(value => !value)}
-                onToggleSnapToGuides={() => { setGuideSnapping(!snapToGuides()); setCanvasOptionsOpen(false); }}
-                onToggleRulers={() => { setRulersVisible(!showRulers()); setCanvasOptionsOpen(false); }}
-                onToggleGuides={() => { setGuidesVisible(!showGuides()); setCanvasOptionsOpen(false); }}
                 onGroupSelection={() => { groupSelection(); setCanvasOptionsOpen(false); }}
                 onCreateFrame={() => { createFrameFromSelection(); setCanvasOptionsOpen(false); }}
                 guiDesign={{
@@ -7140,32 +7100,24 @@ function App() {
                 <button class={`tool-icon-button canvas-utility-button mobile-tool-essential ${boardLocked() ? "selected" : ""}`} title={`Canvas ${boardLocked() ? "locked" : "unlocked"} (K)`} aria-label={boardLocked() ? "Unlock canvas" : "Lock canvas"} aria-pressed={boardLocked()} onClick={() => setBoardLocked(value => !value)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button>
               </div>
               </>}>
-                <div class="design-toolbar" role="toolbar" aria-label="Design tools">
+                <div class="design-toolbar" role="toolbar" aria-label="Design text formatting">
                   <div class="design-toolbar-group design-text-tools" role="group" aria-label="Text formatting" onPointerDown={event => event.stopPropagation()}>
                     <label class="design-text-size" title="Font size"><span>Size</span><input aria-label="Font size" type="number" min="8" max="160" step="1" value={selectedText()?.fontSize ?? defaultFontSize()} disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designTextStyleAvailable()} onChange={event => setTextFormat("fontSize", Number(event.currentTarget.value))} /></label>
-                    <select class="design-text-family" aria-label="Font family" title="Font family" value={selectedText()?.fontFamily ?? defaultFontFamily()} disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designTextStyleAvailable()} onChange={event => setTextFormat("fontFamily", event.currentTarget.value)}>
+                    <label class="design-text-choice design-text-family-choice" title="Font family"><span>Font</span><select class="design-text-family" aria-label="Font family" value={selectedText()?.fontFamily ?? defaultFontFamily()} disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designTextStyleAvailable()} onChange={event => setTextFormat("fontFamily", event.currentTarget.value)}>
                       <option value="sans">Sans</option><option value="hand">Handwritten</option><option value="serif">Serif</option><option value="mono">Monospace</option><option value="rounded">Rounded</option><option value="display">Display</option>
-                    </select>
-                    <select class="design-text-alignment" aria-label="Text alignment" title="Text alignment" value={selectedText()?.textAlign ?? defaultTextAlign()} disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designTextStyleAvailable()} onChange={event => setTextFormat("textAlign", event.currentTarget.value)}>
+                    </select></label>
+                    <label class="design-text-choice design-text-alignment-choice" title="Text alignment"><span>Align</span><select class="design-text-alignment" aria-label="Text alignment" value={selectedText()?.textAlign ?? defaultTextAlign()} disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designTextStyleAvailable()} onChange={event => setTextFormat("textAlign", event.currentTarget.value)}>
                       <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option>
-                    </select>
-                    <select class="design-text-paragraph" aria-label="Paragraph style" title="Paragraph style" value={selectedText()?.listType ?? defaultListType()} disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designParagraphStyleAvailable()} onChange={event => setTextFormat("listType", event.currentTarget.value)}>
+                    </select></label>
+                    <label class="design-text-choice design-text-paragraph-choice" title="Paragraph style"><span>List</span><select class="design-text-paragraph" aria-label="Paragraph style" value={selectedText()?.listType ?? defaultListType()} disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designParagraphStyleAvailable()} onChange={event => setTextFormat("listType", event.currentTarget.value)}>
                       <option value="none">Paragraph</option><option value="bullet">Bullets</option><option value="number">Numbered</option>
-                    </select>
+                    </select></label>
                     <div class="design-text-emphasis" role="group" aria-label="Font style">
                       <button type="button" class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designTextStyleAvailable()} onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button>
                       <button type="button" class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designTextStyleAvailable()} onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button>
                       <button type="button" class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designTextStyleAvailable()} onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button>
                     </div>
                     <label class="design-text-color" title="Font color"><span>Color</span><input aria-label="Font color" type="color" value={selectedText()?.color ?? selectedLabel()?.color ?? color()} disabled={boardLocked() || readOnlyView() || !!focusedElement()?.locked || !designTextStyleAvailable()} onInput={event => setTextFormat("color", event.currentTarget.value)} /></label>
-                  </div>
-                  <div class="design-toolbar-group" role="group" aria-label="Relationships">
-                    <button type="button" class={`tool-icon-button design-tool-button ${tool() === "line" && defaultLineEndHead() === "crow" && defaultLineStartHead() === "bar" ? "selected" : ""}`} aria-label="Draw one-to-many relationship" title="Draw a one-to-many relationship" disabled={readOnlyView() || boardLocked()} onClick={() => activateDatabaseRelationship("one-many")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m0-5v10m0-10 5 5-5 5m-13-5v-5m0 5v5"/></svg><span>1 to many</span></button>
-                    <button type="button" class={`tool-icon-button design-tool-button ${tool() === "line" && defaultLineEndHead() === "crow" && defaultLineStartHead() === "crow" ? "selected" : ""}`} aria-label="Draw many-to-many relationship" title="Draw a many-to-many relationship" disabled={readOnlyView() || boardLocked()} onClick={() => activateDatabaseRelationship("many-many")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-13 0-4-5m4 5-4 5m17-5 4-5m-4 5 4 5" transform="translate(2 0)"/></svg><span>Many to many</span></button>
-                  </div>
-                  <div class="design-toolbar-group" role="group" aria-label="Schema import and export">
-                    <button type="button" class="tool-icon-button design-tool-button" aria-label="Import or edit SQL schema" title="Import or edit SQL / JSON schema" disabled={!activePath() || readOnlyView() || boardLocked() || schemaImporting()} onClick={() => openSchemaDialog(selectedSchemaTable()?.schemaDiagramId, selectedSchemaTable() ? undefined : "CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  name VARCHAR(120) NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  user_id INTEGER REFERENCES users(id)\n); ")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m-5-5 5 5 5-5M4 20h16"/></svg><span>Import</span></button>
-                    <button type="button" class="tool-icon-button design-tool-button" aria-label="Export database schema as SQL" title="Export database schema as SQL" disabled={!elements().some(item => item.type === "schemaTable") || readOnlyView()} onClick={() => { setDiagramCodeFormat("sql"); setDiagramCodeScope("page"); setDiagramCodeExportOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V8m5 5-5-5-5 5M4 4h16"/></svg><span>Export SQL</span></button>
                   </div>
                 </div>
               </Show>
@@ -7476,7 +7428,7 @@ function App() {
                 </Show>
               </aside>
             </Show>
-            <Show when={textDraft()}>{draft => <div class="text-editor-frame" style={{ left: `${(showRulers() ? 26 : 0) + canvasState().panX + editorLeft(draft()) * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${editorWidth(draft()) * canvasState().zoom}px`, height: draft().height ? `${draft().height! * canvasState().zoom}px` : undefined, transform: `rotate(${draft().rotation ?? 0}deg)`, "justify-content": draft().verticalAlign === "bottom" ? "flex-end" : draft().verticalAlign === "middle" ? "center" : "flex-start", "font-size": `${draft().fontSize * canvasState().zoom}px`, "font-family": fontCss(draft().fontFamily), "font-weight": draft().bold ? 700 : 400, "font-style": draft().italic ? "italic" : "normal", "text-decoration": draft().underline ? "underline" : "none", "text-align": draft().textAlign, color: themeInk(draft().color, theme()), opacity: draft().opacity }}>
+            <Show when={textDraft()}>{draft => <div class="text-editor-frame" style={{ left: `${canvasState().panX + editorLeft(draft()) * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${editorWidth(draft()) * canvasState().zoom}px`, height: draft().height ? `${draft().height! * canvasState().zoom}px` : undefined, transform: `rotate(${draft().rotation ?? 0}deg)`, "justify-content": draft().verticalAlign === "bottom" ? "flex-end" : draft().verticalAlign === "middle" ? "center" : "flex-start", "font-size": `${draft().fontSize * canvasState().zoom}px`, "font-family": fontCss(draft().fontFamily), "font-weight": draft().bold ? 700 : 400, "font-style": draft().italic ? "italic" : "normal", "text-decoration": draft().underline ? "underline" : "none", "text-align": draft().textAlign, color: themeInk(draft().color, theme()), opacity: draft().opacity }}>
               <div ref={element => { textEditorElement = element; requestAnimationFrame(() => { if (element.isConnected && textDraft()) { element.innerText = draft().value; if (textEditorPendingPointerId === undefined) element.focus(); const range = document.createRange(); range.selectNodeContents(element); range.collapse(false); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); } }); }} class="canvas-text-editor" contentEditable={true} role="textbox" aria-label="Canvas text" aria-multiline="true" data-placeholder="Type here…" onInput={event => updateTextDraft(event.currentTarget.innerText)} onBlur={event => { if (!isWindowsPlatform()) return; const next = event.relatedTarget; if (!(next instanceof HTMLElement && next.closest(".style-pane, .component-editor-dock, .design-toolbar"))) commitTextDraft(); }} onPointerDown={event => event.stopPropagation()} onPaste={event => { event.preventDefault(); const text = event.clipboardData?.getData("text/plain") ?? ""; const selection = window.getSelection(); if (selection?.rangeCount) { const range = selection.getRangeAt(0); range.deleteContents(); const node = document.createTextNode(text); range.insertNode(node); range.setStartAfter(node); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); updateTextDraft(event.currentTarget.innerText); } }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Escape" || (event.key === "Enter" && (event.ctrlKey || event.metaKey))) { event.preventDefault(); commitTextDraft(); if (event.key === "Escape") { setTool(isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform()) setStyleMenuMode("quick"); setSelectedIndices([]); setHoveredIndex(undefined); } } }} />
             </div>}</Show>
             <div class="canvas-help">Wheel to zoom <span>|</span> Hold Space or select the hand tool to pan <span>|</span> Use Gestures to set touch actions <span>|</span> V to select and drag to move</div>

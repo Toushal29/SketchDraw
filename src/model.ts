@@ -60,6 +60,7 @@ export type GroupElement = LayerFlags & { type: "group"; elements: Element[]; co
 export type Element = FreehandElement | ShapeElement | TextElement | ImageElement | SchemaTableElement | GroupElement;
 export type Tool = "select" | "pan" | "pen" | "laser" | "rectangle" | "circle" | "diamond" | "triangle" | "flowchart" | "line" | "arrow" | "text" | "bucket" | "eraser" | "crop";
 export type ToolbarItem = Tool | "measure" | "pathEdit" | "frame" | "codeData" | "moreTools";
+// Retained only to round-trip this legacy .sketch field; the editor no longer exposes or applies guides.
 export type CanvasGuide = { axis: "x" | "y"; position: number };
 export type CanvasState = { zoom: number; panX: number; panY: number; backgroundColor: string; boardColorFollowsTheme?: boolean; guides?: CanvasGuide[] };
 export type SketchPage = { id: string; name: string; canvasState: CanvasState; elements: Element[]; layers?: CanvasLayer[]; componentMasters?: ComponentMaster[] };

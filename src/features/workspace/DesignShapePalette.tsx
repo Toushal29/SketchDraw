@@ -1,14 +1,15 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import type { ComponentMaster, FlowchartShape } from "../../model";
+import type { ArrowHead, ArrowRoute, ComponentMaster, FlowchartShape, LineRoute, StrokeStyle } from "../../model";
 import { LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../notes";
 import { FLOWCHART_SHAPES } from "../diagrams/config";
 import type { CustomStencil } from "../components/custom-stencils";
 import { LibraryComponentIcon } from "../../components/LibraryComponentIcon";
 
-type PrimitiveShape = "rectangle" | "circle" | "diamond" | "triangle" | "line" | "arrow";
+type PrimitiveShape = "rectangle" | "circle" | "diamond" | "triangle";
 
 export type DesignPaletteItem =
   | { type: "primitive"; shape: PrimitiveShape; label: string }
+  | { type: "connector"; connector: "line" | "arrow"; route: LineRoute | ArrowRoute; lineStyle: StrokeStyle; startHead: ArrowHead; endHead: ArrowHead; label: string }
   | { type: "text"; label: string }
   | { type: "flowchart"; shape: FlowchartShape; label: string }
   | { type: "component"; kind: LibraryComponentKind; label: string }
@@ -24,14 +25,50 @@ const primitiveShapes: { shape: PrimitiveShape; label: string; path: string }[] 
   { shape: "circle", label: "Ellipse", path: "M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0z" },
   { shape: "diamond", label: "Diamond", path: "m12 3 9 9-9 9-9-9z" },
   { shape: "triangle", label: "Triangle", path: "m12 4 9 16H3z" },
-  { shape: "line", label: "Line", path: "M4 19 20 5" },
-  { shape: "arrow", label: "Arrow", path: "M4 19 20 5m-9 0h9v9" },
 ];
+
+const generalFlowchartShapes = new Set<FlowchartShape>([
+  "rounded-rectangle", "cloud", "star", "lightning", "heart", "callout", "gear", "hexagon",
+  "parallelogram", "trapezoid", "pentagon", "octagon", "chevron", "cross", "folder", "note",
+  "display", "cube", "shield",
+]);
+
+const connectorPresets: Omit<Extract<DesignPaletteItem, { type: "connector" }>, "type">[] = [
+  { connector: "line", route: "straight", lineStyle: "solid", startHead: "none", endHead: "none", label: "Straight line" },
+  { connector: "line", route: "elbow", lineStyle: "solid", startHead: "none", endHead: "none", label: "Elbow line" },
+  { connector: "line", route: "curve2", lineStyle: "solid", startHead: "none", endHead: "none", label: "Curved line" },
+  { connector: "line", route: "multi", lineStyle: "solid", startHead: "none", endHead: "none", label: "Multi-point line" },
+  { connector: "line", route: "straight", lineStyle: "dashed", startHead: "none", endHead: "none", label: "Dashed line" },
+  { connector: "line", route: "straight", lineStyle: "dotted", startHead: "none", endHead: "none", label: "Dotted line" },
+  { connector: "line", route: "straight", lineStyle: "double", startHead: "none", endHead: "none", label: "Double line" },
+  { connector: "arrow", route: "straight", lineStyle: "solid", startHead: "none", endHead: "open", label: "Arrow" },
+  { connector: "arrow", route: "elbow", lineStyle: "solid", startHead: "none", endHead: "open", label: "Elbow arrow" },
+  { connector: "arrow", route: "forked", lineStyle: "solid", startHead: "none", endHead: "open", label: "Forked arrow" },
+  { connector: "arrow", route: "loop", lineStyle: "solid", startHead: "none", endHead: "open", label: "Loop arrow" },
+  { connector: "arrow", route: "jagged", lineStyle: "solid", startHead: "none", endHead: "open", label: "Jagged arrow" },
+  { connector: "arrow", route: "straight", lineStyle: "solid", startHead: "solid", endHead: "solid", label: "Two-way arrow" },
+  { connector: "arrow", route: "straight", lineStyle: "dashed", startHead: "none", endHead: "open", label: "Dashed arrow" },
+];
+
+function connectorIconPath(item: Extract<DesignPaletteItem, { type: "connector" }>) {
+  const routes: Record<string, string> = {
+    straight: "M4 12h15",
+    elbow: "M4 5v7h15",
+    curve: "M4 18Q12 4 20 18",
+    curve2: "M4 18C7 4 17 4 20 18",
+    curve3: "M4 18C7 4 9 22 12 12s5-10 8 0",
+    multi: "M4 18 8 7l5 10 3-8 4 3",
+    forked: "M4 12h8m0 0 7-6m-7 6 7 6",
+    loop: "M4 17C3 4 20 4 20 17",
+    jagged: "m4 12 4-6 4 12 4-12 4 6",
+  };
+  return routes[item.route] ?? routes.straight;
+}
 
 function createPaletteSections(stencils: CustomStencil[], masters: ComponentMaster[]): PaletteSection[] {
   const components = new Map<string, PaletteEntry[]>();
   for (const component of LIBRARY_COMPONENTS) {
-    const category = component.section.startsWith("ER") ? "Database" : component.section.split("|")[0].trim();
+    const category = component.section.startsWith("ER") ? "Database" : component.section.startsWith("C4") || component.section.startsWith("Architecture") ? "Architecture" : component.section.split("|")[0].trim();
     const entries = components.get(category) ?? [];
     entries.push({ item: { type: "component", kind: component.kind, label: component.label }, searchText: `${component.label} ${component.description} ${component.section}` });
     components.set(category, entries);
@@ -44,17 +81,20 @@ function createPaletteSections(stencils: CustomStencil[], masters: ComponentMast
   ];
   const generalEntries: PaletteEntry[] = [
     ...primitiveShapes.map(shape => ({ item: { type: "primitive" as const, shape: shape.shape, label: shape.label }, searchText: shape.label })),
+    ...FLOWCHART_SHAPES.filter(shape => generalFlowchartShapes.has(shape.value)).map(shape => ({ item: { type: "flowchart" as const, shape: shape.value, label: shape.label }, searchText: `${shape.label} general shape ${shape.value}` })),
+    ...connectorPresets.map(preset => ({ item: { type: "connector" as const, ...preset }, searchText: `${preset.label} ${preset.connector} connector ${preset.route} ${preset.lineStyle} line arrow` })),
     { item: { type: "text", label: "Text" }, searchText: "text label" },
     ...(components.get("General") ?? []),
   ];
   const sections: PaletteSection[] = [
     { name: "General", entries: generalEntries },
-    { name: "Flowchart", entries: FLOWCHART_SHAPES.map(shape => ({ item: { type: "flowchart", shape: shape.value, label: shape.label }, searchText: `${shape.label} flowchart ${shape.value}` })) },
+    { name: "Flowchart", entries: FLOWCHART_SHAPES.filter(shape => !generalFlowchartShapes.has(shape.value) && shape.value !== "database").map(shape => ({ item: { type: "flowchart", shape: shape.value, label: shape.label }, searchText: `${shape.label} flowchart ${shape.value}` })) },
     { name: "Database", entries: databaseEntries },
+    { name: "Architecture", entries: components.get("Architecture") ?? [] },
   ];
 
   for (const [name, entries] of components) {
-    if (name === "Database" || name === "General") continue;
+    if (name === "Database" || name === "General" || name === "Architecture") continue;
     sections.push({ name, entries });
   }
   if (stencils.length) sections.push({ name: "My stencils", entries: stencils.map(stencil => ({ item: { type: "custom-stencil", stencil, label: stencil.name }, searchText: `${stencil.name} ${stencil.tags.join(" ")} ${stencil.folder ?? ""} ${stencil.preview}` })) });
@@ -72,6 +112,15 @@ function PaletteIcon(props: { item: DesignPaletteItem }) {
   if (item.type === "primitive") {
     const shape = primitiveShapes.find(entry => entry.shape === item.shape);
     return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={shape?.path ?? "M4 4h16v16H4z"} /></svg>;
+  }
+  if (item.type === "connector") {
+    const path = connectorIconPath(item);
+    return <svg viewBox="0 0 24 24" aria-hidden="true">
+      {item.lineStyle === "double" && <path d={path} transform="translate(0 2)" />}
+      <path d={path} stroke-dasharray={item.lineStyle === "dashed" ? "3 2" : item.lineStyle === "dotted" ? "1 2" : undefined} />
+      {item.startHead !== "none" && <path d={item.startHead === "solid" ? "m8 8-4 4 4 4z" : "m8 8-4 4 4 4"} fill={item.startHead === "solid" ? "currentColor" : "none"} />}
+      {item.endHead !== "none" && <path d={item.endHead === "solid" ? "m16 8 4 4-4 4z" : "m16 8 4 4-4 4"} fill={item.endHead === "solid" ? "currentColor" : "none"} />}
+    </svg>;
   }
   if (item.type === "text") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M12 6v13m-4 0h8" /><text x="8" y="17" fill="currentColor" stroke="none" font-size="8">T</text></svg>;
   if (item.type === "schema-table") {
@@ -129,7 +178,7 @@ export function DesignShapePalette(props: {
         </button>
         <Show when={openSections().has(section.name)}>
           <div class="design-palette-grid">
-            <For each={section.entries}>{entry => <button type="button" class="design-palette-item" title={entry.searchText} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
+            <For each={section.entries}>{entry => <button type="button" class="design-palette-item" title={entry.item.label} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
               <PaletteIcon item={entry.item} />
               <span>{entry.item.label}</span>
             </button>}</For>

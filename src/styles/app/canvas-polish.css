@@ -147,38 +147,19 @@
     }
 
 }
-.canvas-wrap.canvas-rulers-visible .drawing-canvas {
-    inset: 0 0 26px 26px;
-    width: calc(100% - 26px);
-    height: calc(100% - 26px);
-}
-
-.canvas-precision-overlay {
+.canvas-interaction-overlay {
     position: absolute;
     z-index: 12;
     inset: 0;
     overflow: hidden;
     pointer-events: none;
 }
-.canvas-precision-overlay > svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.canvas-guide-line { stroke: #13a8a0; stroke-width: 1; stroke-dasharray: 5 3; pointer-events: none; }
-.canvas-guide-hit { stroke: transparent; stroke-width: 12; cursor: grab; pointer-events: stroke; touch-action: none; }
-.canvas-precision-overlay:has(.canvas-guide-hit:hover) .canvas-guide-line { stroke-width: 1.5; }
+.canvas-interaction-overlay > svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .canvas-path-node-handle { fill: var(--theme-surface, #fff); stroke: var(--theme-primary, #5b55e7); stroke-width: 2; cursor: grab; pointer-events: all; touch-action: none; }
 .canvas-path-node-handle:hover { fill: var(--theme-primary, #5b55e7); r: 7; }
 .canvas-path-node-handle.selected { fill: var(--theme-primary, #5b55e7); stroke: var(--theme-surface, #fff); }
 .geometry-aspect-lock { grid-column: 1 / -1; margin-top: 3px; }
-.canvas-snap-line { stroke: #ef5da8; stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
-.canvas-snap-label { fill: #c73881; font: 600 10px var(--font-ui, system-ui); paint-order: stroke; stroke: var(--theme-surface, #fff); stroke-width: 3px; pointer-events: none; }
 .canvas-measurement { pointer-events: none; }
 .canvas-measurement line { stroke: #ec8d16; stroke-width: 1.5; stroke-dasharray: 5 3; }
 .canvas-measurement circle { fill: #fff; stroke: #ec8d16; stroke-width: 1.5; }
 .canvas-measurement text { paint-order: stroke; stroke: var(--theme-surface-elevated, #fff); stroke-width: 4px; stroke-linejoin: round; fill: var(--theme-text-primary, #202124); font: 600 12px var(--font-ui, system-ui); }
-.canvas-ruler-strip { fill: var(--theme-surface-elevated, #f8f9fb); stroke: none; pointer-events: all; cursor: crosshair; touch-action: none; }
-.canvas-ruler-corner { fill: var(--theme-surface, #eef0f4); pointer-events: none; }
-.canvas-ruler-tick { stroke: color-mix(in srgb, var(--theme-text-secondary, #647084) 34%, transparent); stroke-width: .7; pointer-events: none; }
-.canvas-ruler-tick.major { stroke: color-mix(in srgb, var(--theme-text-secondary, #647084) 62%, transparent); }
-.canvas-ruler-label { fill: var(--theme-text-secondary, #647084); font: 9px var(--font-mono, ui-monospace, monospace); pointer-events: none; }
-.canvas-ruler-edge { stroke: var(--theme-border, #d7dbe2); stroke-width: 1; pointer-events: none; }
-.canvas-rulers-visible .canvas-precision-overlay .canvas-ruler-strip { pointer-events: all; }
-.app-shell:not(.platform-windows).touch-focus-mode .canvas-wrap.canvas-rulers-visible .drawing-canvas { inset: 0 0 26px 26px; width: calc(100% - 26px); height: calc(100% - 26px); }

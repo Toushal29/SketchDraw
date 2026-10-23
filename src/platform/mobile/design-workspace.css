@@ -1,0 +1,61 @@
+/* Design workspace controls that need a larger touch target than the vertical tool rail. */
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical.design-workspace-active .touch-tool-content > .design-toolbar {
+    position: fixed;
+    z-index: 1850;
+    top: calc(var(--touch-header-height, 48px) + 8px);
+    right: max(8px, env(safe-area-inset-right));
+    left: calc(max(8px, env(safe-area-inset-left)) + 54px);
+    box-sizing: border-box;
+    width: auto;
+    max-width: none;
+    min-height: 44px;
+    max-height: 50px;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 6px;
+    border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 16%, transparent);
+    border-radius: 12px;
+    background: var(--toolbar-surface, var(--theme-surface-elevated));
+    box-shadow: 0 7px 24px color-mix(in srgb, var(--theme-shadow) 15%, transparent);
+    scrollbar-width: thin;
+  }
+
+  .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .touch-tool-content > .design-toolbar {
+    right: calc(max(8px, env(safe-area-inset-right)) + 54px);
+    left: max(8px, env(safe-area-inset-left));
+  }
+
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical.design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical.design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded,
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical.design-workspace-active .style-pane.design-panel-collapsed,
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical.design-workspace-active .component-editor-dock:not(.collapsed) {
+    top: calc(var(--touch-header-height, 48px) + 60px);
+  }
+
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-toolbar-group.design-text-tools {
+    width: max-content;
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+  }
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-choice { gap: 3px; }
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-choice > span,
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-size > span,
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-color > span { display: none; }
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-size,
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-color { flex-direction: row; }
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-size input { width: 54px; }
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-family { width: 112px; }
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-alignment { width: 90px; }
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-paragraph { width: 108px; }
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical .design-text-emphasis { flex-direction: row; }
+}
+
+@media (max-width: 480px) {
+  .app-shell:not(.platform-windows).design-workspace-active .design-palette-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+  .app-shell:not(.platform-windows).design-workspace-active .design-palette-item { min-height: 68px; padding: 6px 4px; }
+}

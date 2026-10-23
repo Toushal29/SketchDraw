@@ -174,7 +174,7 @@
         z-index: 2600;
         align-items: end;
         padding: 8px 8px max(8px, env(safe-area-inset-bottom));
-        background: color-mix(in srgb, var(--theme-background) 43.92%, transparent);
+        background: var(--theme-backdrop);
     }
 
     .app-shell:not(.platform-windows) .confirm-dialog {

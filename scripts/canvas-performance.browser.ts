@@ -562,8 +562,8 @@ spec:
   const style = document.createElement("style"); style.textContent = mobileToolbarCss; document.head.append(style);
   const menuHost = document.createElement("div"); menuHost.className = "app-shell"; document.body.append(menuHost);
   const disposeMenu = render(() => createComponent(CanvasOptionsMenu, {
-    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, snapToGuides: true, showRulers: false, showGuides: true, measureMode: false, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false, mobileSimple: true,
-    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onToggleSnapToGuides() {}, onToggleRulers() {}, onToggleGuides() {}, onToggleMeasure() {}, onGroupSelection() {},
+    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, measureMode: false, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false, mobileSimple: true,
+    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onToggleMeasure() {}, onGroupSelection() {},
     canvasTools: { showMinimap: true, onToggleMinimap() {}, onAutoLayout() {} },
   }), menuHost);
   const controls = [...menuHost.querySelectorAll<HTMLElement>("button,input,select,textarea,[role=button]")];

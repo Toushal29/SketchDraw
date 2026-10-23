@@ -136,3 +136,30 @@
 }
 
 .app-shell .style-pane.quick-style-idle-hidden { display: none !important; visibility: hidden; pointer-events: none; }
+
+/* Keep the component editor dock out of the touch header and tool rail lanes. */
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+  .app-shell.mobile-toolbar-top:not(.platform-windows) .component-editor-dock:not(.collapsed) {
+    top: calc(var(--touch-header-height, 48px) + var(--mobile-horizontal-toolbar-height, 50px) + 8px);
+  }
+  .app-shell.mobile-toolbar-bottom:not(.platform-windows) .component-editor-dock:not(.collapsed) {
+    top: calc(var(--touch-header-height, 48px) + 8px);
+    bottom: calc(var(--mobile-horizontal-toolbar-height, 50px) + max(8px, env(safe-area-inset-bottom)) + 8px);
+  }
+  .app-shell.mobile-toolbar-left:not(.platform-windows) .component-editor-dock:not(.collapsed) {
+    top: calc(var(--touch-header-height, 48px) + 8px);
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
+    width: auto;
+    min-width: 0;
+  }
+  .app-shell.mobile-toolbar-right:not(.platform-windows) .component-editor-dock:not(.collapsed) {
+    top: calc(var(--touch-header-height, 48px) + 8px);
+    right: calc(max(8px, env(safe-area-inset-right)) + 52px);
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    width: auto;
+    min-width: 0;
+  }
+}

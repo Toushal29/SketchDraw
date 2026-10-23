@@ -9,7 +9,6 @@ import { DEFAULT_WORKFLOW_COLUMNS } from "./project-data";
 import { advanceRecurringDate, formatProjectDate, isProjectTaskComplete, isProjectTaskOverdue, projectTaskWarnings, TASK_PRIORITY_LABELS } from "./project-utils";
 import { buildProjectReportHtml, exportPlanningCalendar, exportPlanningCsv, importPlanningCalendar, importPlanningCsv } from "./planning-exchange";
 import { ModelingGuide } from "./ModelingGuide";
-import type { DocumentWorkspaceArea } from "../workspace/workspace-types";
 
 export type ProjectWorkspaceView = "home" | "plans" | "modeling-guide" | "notes" | "tasks" | "checklist" | "kanban" | "timeline" | "calendar" | "log" | "files" | "exchange" | "report";
 type Props = {
@@ -18,11 +17,9 @@ type Props = {
   fileName: string;
   recentPlans: string[];
   planningPath?: string;
-  canvasFileName?: string;
   dirty: boolean;
   saving: boolean;
   onChange: (data: ProjectWorkspaceData) => void;
-  onNavigate: (area: DocumentWorkspaceArea) => void;
   onNew: () => void;
   onOpen: () => void;
   onSave: () => void;
@@ -322,7 +319,6 @@ export function ProjectWorkspace(props: Props) {
               <button onClick={() => setView("files")}><strong>Planning files</strong><span>{props.data.files.length} items</span></button>
               <button onClick={() => setView("report")}><strong>Project report</strong><span>Summary &amp; decisions</span></button>
             </nav>
-            <button class="project-open-canvas-card" onClick={() => props.onNavigate("canvas")}><span><strong>Return to canvas</strong><small>{props.canvasFileName ? `Continue in ${props.canvasFileName}` : "Create or open a whiteboard"}</small></span><span aria-hidden="true">&rarr;</span></button>
           </div>
         </Show>
 

@@ -222,6 +222,39 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     }
     ctx.restore(); return;
   }
+  if (kind === "c4-person") {
+    const cx = x + w / 2; const headY = y + 24;
+    ctx.beginPath(); ctx.arc(cx, headY, 10, 0, Math.PI * 2); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, headY + 11); ctx.lineTo(cx, y + 63); ctx.moveTo(cx - 20, y + 42); ctx.lineTo(cx + 20, y + 42); ctx.moveTo(cx, y + 63); ctx.lineTo(cx - 15, y + 82); ctx.moveTo(cx, y + 63); ctx.lineTo(cx + 15, y + 82); ctx.stroke();
+    label(name, x + 6, y + h - 8, w - 12, Math.min(size, 12), true, "center");
+    ctx.restore(); return;
+  }
+  if (kind === "c4-software-system") {
+    box();
+    label("SOFTWARE SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), false);
+    label(name, x + 10, y + h * .64, w - 20, size, true);
+    ctx.restore(); return;
+  }
+  if (kind === "c4-external-system") {
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2); ctx.setLineDash([]);
+    label("EXTERNAL SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), false);
+    label(name, x + 10, y + h * .62, w - 20, size, true);
+    ctx.restore(); return;
+  }
+  if (kind === "c4-deployment-node") {
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+    rule(x + 12, y + 27, x + w - 12, y + 27);
+    label("DEPLOYMENT NODE", x + 10, y + 15, w - 20, Math.min(size, 12));
+    const rackTop = y + 40; const rackHeight = Math.min(28, (h - 54) / 2);
+    for (let index = 0; index < 2; index++) {
+      const rowY = rackTop + index * (rackHeight + 6);
+      ctx.strokeRect(x + 14, rowY, w - 28, rackHeight);
+      ctx.beginPath(); ctx.arc(x + 24, rowY + rackHeight / 2, 2, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill();
+      rule(x + 32, rowY + rackHeight / 2, x + w - 14, rowY + rackHeight / 2);
+    }
+    label(name, x + 10, y + h - 6, w - 20, Math.max(8, size * .72), false);
+    ctx.restore(); return;
+  }
   if (kind.startsWith("c4-")) { dashedBoundary(name, kind === "c4-system" ? "C4 · system context" : kind === "c4-container" ? "C4 · container" : "C4 · component"); ctx.restore(); return; }
   if (kind === "network-zone") { dashedBoundary(name, "Network boundary"); ctx.restore(); return; }
   if (kind === "diagram-legend") {
@@ -648,6 +681,10 @@ function renderModelComponentSvg(group: GroupElement) {
         : `<rect x="${iconX}" y="${iconY}" width="${iconSide}" height="${iconSide}" fill="${soft}" stroke="${provider.accent}" stroke-width="1.2"/><text x="${iconX + iconSide / 2}" y="${iconY + iconSide / 2}" text-anchor="middle" dominant-baseline="middle" fill="${provider.accent}" font-family="sans-serif" font-size="${provider.glyph.length > 2 ? 10 : 13}" font-weight="700">${xmlText(provider.glyph)}</text>`;
       return `${outer}${icon}${t(rawTitle, copyX, y + h * .37, w - (copyX - x) - 9, size)}${t(provider.provider.toUpperCase(), copyX, y + h * .59, w - (copyX - x) - 9, 8, "start", 650)}${t(provider.description, x + 10, y + h - 9, w - 20, 8, "start", 400)}`;
     }
+    if (kind === "c4-person") return `<circle cx="${x + w / 2}" cy="${y + 24}" r="10" fill="none" stroke="${ink}" stroke-width="1.5"/>${p(`M ${x + w / 2} ${y + 35} V ${y + 63} M ${x + w / 2 - 20} ${y + 42} H ${x + w / 2 + 20} M ${x + w / 2} ${y + 63} L ${x + w / 2 - 15} ${y + 82} M ${x + w / 2} ${y + 63} L ${x + w / 2 + 15} ${y + 82}`)}${t(rawTitle, x + w / 2, y + h - 8, w - 12, Math.min(size, 12), "middle")}`;
+    if (kind === "c4-software-system") return `${r()}${t("SOFTWARE SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), "start", 400)}${t(rawTitle, x + 10, y + h * .64, w - 20, size)}`;
+    if (kind === "c4-external-system") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t("EXTERNAL SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), "start", 400)}${t(rawTitle, x + 10, y + h * .62, w - 20, size)}`;
+    if (kind === "c4-deployment-node") return `${r()}${t("DEPLOYMENT NODE", x + 10, y + 15, w - 20, Math.min(size, 12))}${p(`M ${x + 12} ${y + 27} H ${x + w - 12}`)}${[0, 1].map(index => `${r(x + 14, y + 40 + index * 34, w - 28, 28, "none")}<circle cx="${x + 24}" cy="${y + 54 + index * 34}" r="2" fill="${ink}"/>${p(`M ${x + 32} ${y + 54 + index * 34} H ${x + w - 14}`)}`).join("")}${t(rawTitle, x + 10, y + h - 6, w - 20, Math.max(8, size * .72), "start", 400)}`;
     if (kind.startsWith("c4-") || kind === "network-zone") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t(rawTitle.toUpperCase(), x + 12, y + 15, w - 24, Math.min(size, 14))}${t(kind.startsWith("c4-") ? "C4 boundary" : "Network boundary", x + 12, y + 34, w - 24, Math.max(8, size * .75), "start", 400)}`;
     if (kind === "cloud-boundary") {
       const d = `M ${x + w * .15} ${y + h * .8} C ${x + w * .04} ${y + h * .8}, ${x + w * .015} ${y + h * .66}, ${x + w * .05} ${y + h * .56} C ${x + w * .08} ${y + h * .45}, ${x + w * .17} ${y + h * .42}, ${x + w * .25} ${y + h * .44} C ${x + w * .25} ${y + h * .22}, ${x + w * .4} ${y + h * .12}, ${x + w * .53} ${y + h * .23} C ${x + w * .66} ${y + h * .05}, ${x + w * .85} ${y + h * .12}, ${x + w * .87} ${y + h * .36} C ${x + w * .97} ${y + h * .38}, ${x + w * .99} ${y + h * .49}, ${x + w * .96} ${y + h * .59} C ${x + w * .99} ${y + h * .72}, ${x + w * .9} ${y + h * .81}, ${x + w * .81} ${y + h * .8} Z`;
