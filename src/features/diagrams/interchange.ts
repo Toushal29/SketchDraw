@@ -1,11 +1,16 @@
 import type { Element as CanvasElement, FreehandElement, ImageElement, Point, ShapeElement, TextElement } from "../../model";
 import { elementBounds } from "../canvas/bounds";
+import { ALL_FLOWCHART_SHAPES } from "./config";
 
 const MAX_IMPORT_BYTES = 25_000_000;
 const MAX_IMPORTED_POINTS = 250_000;
 const MAX_IMPORT_LABEL = 50_000;
-const FLOWCHART_SHAPES = new Set(["process", "terminator", "decision", "data", "document", "database", "predefined-process", "preparation", "manual-input", "connector", "off-page", "delay", "manual-operation", "stored-data", "cloud", "star", "lightning", "heart", "callout", "gear", "hexagon", "parallelogram", "trapezoid", "pentagon", "octagon", "chevron", "cross", "folder", "note", "display", "cube", "rounded-rectangle", "shield"]);
-const DRAWIO_FLOWCHART_SHAPES: Record<string, NonNullable<ShapeElement["flowchartShape"]>> = { parallelogram: "data", cylinder: "database", cloud: "cloud", document: "document", hexagon: "hexagon", callout: "callout", "mxgraph.flowchart.decision": "decision", "mxgraph.flowchart.terminator": "terminator", "mxgraph.flowchart.process": "process", "mxgraph.flowchart.database": "database", "mxgraph.flowchart.document": "document", "mxgraph.flowchart.data": "data" };
+const FLOWCHART_SHAPES = new Set<string>(ALL_FLOWCHART_SHAPES.map(shape => shape.value));
+const DRAWIO_FLOWCHART_SHAPES: Record<string, NonNullable<ShapeElement["flowchartShape"]>> = {
+  parallelogram: "data", cylinder: "database", cloud: "cloud", document: "document", hexagon: "hexagon", callout: "callout",
+  "mxgraph.flowchart.decision": "decision", "mxgraph.flowchart.terminator": "terminator", "mxgraph.flowchart.process": "process", "mxgraph.flowchart.database": "database", "mxgraph.flowchart.document": "document", "mxgraph.flowchart.data": "data",
+  "mxgraph.flowchart.internalStorage": "internal-storage", "mxgraph.flowchart.multiDocument": "multi-document", "mxgraph.flowchart.merge": "merge", "mxgraph.flowchart.extract": "extract", "mxgraph.flowchart.collate": "collate", "mxgraph.flowchart.sort": "sort", "mxgraph.flowchart.summingJunction": "summing-junction", "mxgraph.flowchart.or": "or", "mxgraph.flowchart.loopLimit": "loop-limit", "mxgraph.flowchart.loopStart": "loop-start", "mxgraph.flowchart.loopEnd": "loop-end", "mxgraph.flowchart.alternateProcess": "alternate-process", "mxgraph.flowchart.card": "card", "mxgraph.flowchart.punchedTape": "punched-tape", "mxgraph.flowchart.sequentialData": "sequential-data", "mxgraph.flowchart.directData": "direct-data", "mxgraph.flowchart.display": "display",
+};
 const id = (prefix: string) => `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
 const finite = (value: unknown, fallback = 0) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));

@@ -1,7 +1,7 @@
 export type Point = { x: number; y: number };
 export type StrokePoint = Point & { pressure?: number; tiltX?: number; tiltY?: number; orientation?: number };
 export type ArrowHead = "none" | "open" | "solid" | "hollow" | "thick" | "dot" | "diamond" | "open-diamond" | "bar" | "crow";
-export type FlowchartShape = "process" | "terminator" | "decision" | "data" | "document" | "database" | "predefined-process" | "preparation" | "manual-input" | "connector" | "off-page" | "delay" | "manual-operation" | "stored-data" | "cloud" | "star" | "lightning" | "heart" | "callout" | "gear" | "hexagon" | "parallelogram" | "trapezoid" | "pentagon" | "octagon" | "chevron" | "cross" | "folder" | "note" | "display" | "cube" | "rounded-rectangle" | "shield";
+export type FlowchartShape = "process" | "terminator" | "decision" | "data" | "document" | "multi-document" | "database" | "predefined-process" | "internal-storage" | "preparation" | "manual-input" | "manual-operation" | "connector" | "off-page" | "delay" | "stored-data" | "display" | "merge" | "extract" | "collate" | "sort" | "summing-junction" | "or" | "loop-limit" | "loop-start" | "loop-end" | "alternate-process" | "card" | "punched-tape" | "sequential-data" | "direct-data" | "cloud" | "star" | "lightning" | "heart" | "callout" | "gear" | "hexagon" | "parallelogram" | "trapezoid" | "pentagon" | "octagon" | "chevron" | "cross" | "folder" | "note" | "cube" | "rounded-rectangle" | "shield";
 export type ArrowRoute = "straight" | "elbow" | "curve" | "forked" | "loop" | "jagged";
 export type LineRoute = "straight" | "elbow" | "curve";
 export type StrokeStyle = "solid" | "dashed" | "dotted" | "double";

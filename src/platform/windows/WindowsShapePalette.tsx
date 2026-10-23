@@ -1,5 +1,5 @@
 import type { FlowchartShape, Tool } from "../../model";
-import { FLOWCHART_SHAPES } from "../../features/diagrams/config";
+import { FLOWCHART_SHAPES, GENERAL_SHAPES } from "../../features/diagrams/config";
 
 type BasicShapeTool = Extract<Tool, "rectangle" | "circle" | "diamond" | "triangle">;
 export type WindowsShapeChoice =
@@ -23,17 +23,12 @@ const basicShapes: ShapeOption[] = [
   { kind: "basic", tool: "triangle", label: "Triangle", path: "M12 4 21 20H3z" },
 ];
 
-const flowchartByValue = new Map(FLOWCHART_SHAPES.map(shape => [shape.value, shape]));
-const flowchartGroup = (values: FlowchartShape[]): ShapeOption[] => values.flatMap(value => {
-  const shape = flowchartByValue.get(value);
-  return shape ? [{ kind: "flowchart" as const, shape: value, label: shape.label, path: shape.path }] : [];
-});
+const flowchartGroup = (shapes: typeof FLOWCHART_SHAPES): ShapeOption[] => shapes.map(shape => ({ kind: "flowchart", shape: shape.value, label: shape.label, path: shape.path }));
 
 const groups: { label: string; shapes: ShapeOption[] }[] = [
   { label: "Basic", shapes: basicShapes },
-  { label: "Flowchart", shapes: flowchartGroup(["process", "terminator", "decision", "data", "document", "database", "predefined-process", "preparation", "manual-input", "connector", "off-page", "delay", "manual-operation", "stored-data", "cloud"]) },
-  { label: "Block shapes", shapes: flowchartGroup(["hexagon", "parallelogram", "trapezoid", "pentagon", "octagon", "chevron", "cross", "folder", "note", "display", "cube", "rounded-rectangle", "shield"]) },
-  { label: "Decorative", shapes: flowchartGroup(["star", "lightning", "heart", "callout", "gear"]) },
+  { label: "Flowchart", shapes: flowchartGroup(FLOWCHART_SHAPES) },
+  { label: "General", shapes: flowchartGroup(GENERAL_SHAPES) },
 ];
 
 function isActive(shape: ShapeOption, activeTool: Tool, activeFlowchartShape: FlowchartShape) {

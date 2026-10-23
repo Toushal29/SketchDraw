@@ -4,7 +4,7 @@ import { ensureCanvasLayerPath, normalizeCanvasLayers } from "../canvas/structur
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { validReferences } from "../../operations";
 import { defaultCurveControlPoints } from "../connectors/geometry";
-import { FLOWCHART_SHAPES } from "../diagrams/config";
+import { ALL_FLOWCHART_SHAPES } from "../diagrams/config";
 import { schemaTableMinimumHeight, schemaTableResizeMinimumWidth } from "../diagrams/schema-table-layout";
 import { normalizeProjectWorkspace } from "../project/project-data";
 import { normalizeLegacyLibraryData } from "./legacy-library-data";
@@ -310,7 +310,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const fillColor = isColor(value.fillColor) ? value.fillColor : undefined;
     const fillOpacity = finite(value.fillOpacity) ? Math.max(0, Math.min(1, value.fillOpacity)) : 0.2;
     const validHead = (head: unknown): head is ArrowHead => ["none", "open", "solid", "hollow", "thick", "dot", "diamond", "open-diamond", "bar", "crow"].includes(String(head));
-    const flowchartShape: FlowchartShape = FLOWCHART_SHAPES.some(shape => shape.value === value.flowchartShape) ? value.flowchartShape as FlowchartShape : "process";
+    const flowchartShape: FlowchartShape = ALL_FLOWCHART_SHAPES.some(shape => shape.value === value.flowchartShape) ? value.flowchartShape as FlowchartShape : "process";
     const savedLineRoute = String(value.lineRoute);
     const lineRoute: LineRoute = savedLineRoute === "elbow" ? "elbow" : ["curve", "curve2", "curve3", "multi"].includes(savedLineRoute) ? "curve" : "straight";
     const oldCurveNodeCount = savedLineRoute === "curve2" ? 2 : savedLineRoute === "curve3" ? 3 : savedLineRoute === "multi" ? 4 : 1;

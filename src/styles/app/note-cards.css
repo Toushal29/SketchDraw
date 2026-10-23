@@ -618,35 +618,6 @@
     font-size: 12px;
 }
 
-.pen-input-popover {
-    display: grid;
-    min-width: 192px;
-    gap: 9px;
-    color: var(--theme-text-primary);
-    font-size: 12px;
-}
-
-.pen-input-popover>strong {
-    color: var(--theme-text-secondary);
-    font-size: 11px;
-}
-
-.pen-input-popover>label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.pen-input-popover input {
-    accent-color: var(--theme-text-secondary);
-}
-
-.pen-input-popover>small {
-    color: var(--muted);
-    font-size: 10px;
-    line-height: 1.4;
-}
-
 .theme-dark .schema-input {
     border-color: var(--theme-diagram-data);
 }

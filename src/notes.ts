@@ -1,4 +1,4 @@
-import type { Element, FlowchartShape, GroupElement, LibraryChartData, LibraryChartKind, NoteKind, ShapeElement, TextElement, Theme } from "./model";
+import type { Element, GroupElement, LibraryChartData, LibraryChartKind, NoteKind, ShapeElement, TextElement, Theme } from "./model";
 export type { LibraryChartData } from "./model";
 import { CLOUD_PROVIDER_COMPONENTS, cloudProviderComponent, type CloudProviderComponentKind } from "./features/diagrams/cloud-providers";
 import { defaultGuiComponentProperties, GUI_COMPONENT_DEFINITIONS, isGuiComponentKind, type GuiComponentKind } from "./features/components/gui-components";
@@ -265,12 +265,6 @@ export function noteCollapseHit(group: GroupElement, point: { x: number; y: numb
   return point.x >= x && point.x <= x + 24 && point.y >= y && point.y <= y + 24;
 }
 
-export const EXTRA_FLOWCHART_SHAPES: { value: FlowchartShape; label: string }[] = [
-  { value: "cloud", label: "Cloud / external service" }, { value: "star", label: "Star" },
-  { value: "lightning", label: "Lightning" }, { value: "heart", label: "Heart" },
-  { value: "callout", label: "Callout" },
-];
-
 export function checklistIndexAt(group: GroupElement, point: { x: number; y: number }): number | undefined {
   if (group.note?.kind !== "checklist" || group.note.collapsed) return undefined;
   const background = group.elements.find((item): item is ShapeElement => item.type === "rectangle");
@@ -292,7 +286,7 @@ export function toggleChecklistContent(content: string, target: number): string 
   }).join("\n");
 }
 
-export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-associative-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-composite-attribute" | "er-key-attribute" | "er-partial-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-subprocess" | "bpmn-data" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | CloudProviderComponentKind;
+export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "uml-state" | "uml-initial-state" | "uml-final-state" | "uml-fork" | "uml-join" | "uml-component" | "uml-node" | "uml-artifact" | "uml-enumeration" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-associative-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-composite-attribute" | "er-key-attribute" | "er-partial-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-message-event" | "bpmn-timer-event" | "bpmn-error-event" | "bpmn-signal-event" | "bpmn-terminate-event" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-user-task" | "bpmn-service-task" | "bpmn-script-task" | "bpmn-call-activity" | "bpmn-subprocess" | "bpmn-data" | "bpmn-data-store" | "bpmn-text-annotation" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-proxy" | "network-bridge" | "network-bastion" | "network-gateway" | "network-printer" | "network-workstation" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | CloudProviderComponentKind;
 export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
   { kind: "diagram-frame", section: "General | Layout", label: "Frame", description: "Resizable titled boundary for any diagram", width: 420, height: 280 },
   { kind: "diagram-swimlane", section: "General | Layout", label: "Swimlane", description: "Resizable lanes for organizing responsibilities or stages", width: 520, height: 320 },
@@ -302,6 +296,15 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "sequence-sync", section: "UML | Classes & sequence", label: "Sync message", description: "Solid synchronous message arrow", width: 184, height: 50 },
   { kind: "sequence-async", section: "UML | Classes & sequence", label: "Async message", description: "Open asynchronous message arrow", width: 184, height: 50 },
   { kind: "uml-interface", section: "UML | Classes & sequence", label: "Interface", description: "Interface with operations compartment", width: 190, height: 124 },
+  { kind: "uml-enumeration", section: "UML | Classes & sequence", label: "Enumeration", description: "Enumeration classifier with literal compartment", width: 190, height: 132 },
+  { kind: "uml-state", section: "UML | State machines", label: "State", description: "Rounded UML state with room for entry or exit actions", width: 170, height: 104 },
+  { kind: "uml-initial-state", section: "UML | State machines", label: "Initial state", description: "Filled initial pseudostate", width: 54, height: 54 },
+  { kind: "uml-final-state", section: "UML | State machines", label: "Final state", description: "Bullseye final pseudostate", width: 58, height: 58 },
+  { kind: "uml-fork", section: "UML | State machines", label: "Fork", description: "Fork bar for concurrent state transitions", width: 140, height: 24 },
+  { kind: "uml-join", section: "UML | State machines", label: "Join", description: "Join bar for synchronizing concurrent transitions", width: 140, height: 24 },
+  { kind: "uml-component", section: "UML | Structure", label: "Component", description: "Component classifier with UML component tabs", width: 190, height: 116 },
+  { kind: "uml-node", section: "UML | Structure", label: "Node", description: "Three-dimensional deployment node", width: 190, height: 130 },
+  { kind: "uml-artifact", section: "UML | Structure", label: "Artifact", description: "Folded-corner deployment artifact", width: 160, height: 110 },
   { kind: "uml-inheritance", section: "UML | Relationships", label: "Inheritance", description: "Straight connector with a hollow arrowhead", width: 184, height: 42 },
   { kind: "uml-realization", section: "UML | Relationships", label: "Realization", description: "Straight dashed connector with a hollow arrowhead", width: 184, height: 42 },
   { kind: "uml-aggregation", section: "UML | Relationships", label: "Aggregation", description: "Straight connector with an open diamond endpoint", width: 184, height: 42 },
@@ -373,6 +376,11 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "viz-kpi", section: "Data visualization | Metrics", label: "Metric card", description: "Headline value, trend, and supporting caption", width: 220, height: 126 },
   ...GUI_COMPONENT_DEFINITIONS,
   { kind: "bpmn-start", section: "BPMN | Events & flow", label: "Start event", description: "BPMN start event", width: 52, height: 52 },
+  { kind: "bpmn-message-event", section: "BPMN | Events & flow", label: "Message event", description: "BPMN message trigger or result event", width: 58, height: 58 },
+  { kind: "bpmn-timer-event", section: "BPMN | Events & flow", label: "Timer event", description: "BPMN timer trigger event", width: 58, height: 58 },
+  { kind: "bpmn-error-event", section: "BPMN | Events & flow", label: "Error event", description: "BPMN error event for an exception path", width: 58, height: 58 },
+  { kind: "bpmn-signal-event", section: "BPMN | Events & flow", label: "Signal event", description: "BPMN signal event for broadcast process flow", width: 58, height: 58 },
+  { kind: "bpmn-terminate-event", section: "BPMN | Events & flow", label: "Terminate event", description: "BPMN event that ends the current process instance", width: 58, height: 58 },
   { kind: "bpmn-event", section: "BPMN | Events & flow", label: "Intermediate event", description: "BPMN intermediate event", width: 52, height: 52 },
   { kind: "bpmn-end", section: "BPMN | Events & flow", label: "End event", description: "BPMN end event", width: 52, height: 52 },
   { kind: "bpmn-boundary-event", section: "BPMN | Events & flow", label: "Boundary event", description: "Event marker to place on a task boundary", width: 62, height: 66 },
@@ -381,14 +389,26 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "bpmn-inclusive-gateway", section: "BPMN | Events & flow", label: "Inclusive gateway", description: "BPMN gateway for one or more selected paths", width: 58, height: 58 },
   { kind: "bpmn-event-gateway", section: "BPMN | Events & flow", label: "Event gateway", description: "BPMN event-based routing gateway", width: 58, height: 58 },
   { kind: "bpmn-task", section: "BPMN | Tasks & data", label: "Task", description: "BPMN activity task", width: 168, height: 82 },
+  { kind: "bpmn-user-task", section: "BPMN | Tasks & data", label: "User task", description: "Human work completed with a task or form", width: 168, height: 82 },
+  { kind: "bpmn-service-task", section: "BPMN | Tasks & data", label: "Service task", description: "Automated work performed by a service", width: 168, height: 82 },
+  { kind: "bpmn-script-task", section: "BPMN | Tasks & data", label: "Script task", description: "Automated work performed by an embedded script", width: 168, height: 82 },
+  { kind: "bpmn-call-activity", section: "BPMN | Tasks & data", label: "Call activity", description: "Reusable called process or global task", width: 168, height: 82 },
   { kind: "bpmn-subprocess", section: "BPMN | Tasks & data", label: "Subprocess", description: "Collapsed BPMN subprocess with expand marker", width: 168, height: 90 },
   { kind: "bpmn-data", section: "BPMN | Tasks & data", label: "Data object", description: "BPMN document data object", width: 86, height: 112 },
+  { kind: "bpmn-data-store", section: "BPMN | Tasks & data", label: "Data store", description: "Persistent data available beyond one process instance", width: 120, height: 90 },
+  { kind: "bpmn-text-annotation", section: "BPMN | Tasks & data", label: "Text annotation", description: "Annotation connected to a flow object", width: 190, height: 90 },
   { kind: "bpmn-pool", section: "BPMN | Tasks & data", label: "Pool / lane", description: "BPMN participant pool with a lane divider", width: 300, height: 156 },
   { kind: "network-internet", section: "Network | Devices", label: "Internet", description: "External internet or public network cloud", width: 128, height: 92 },
   { kind: "network-vpn", section: "Network | Devices", label: "VPN tunnel", description: "Encrypted site-to-site or client VPN path", width: 164, height: 88 },
   { kind: "network-dns", section: "Network | Devices", label: "DNS server", description: "Name resolution service node", width: 120, height: 100 },
   { kind: "network-nat-gateway", section: "Network | Devices", label: "NAT gateway", description: "Address translation between private and public networks", width: 156, height: 100 },
   { kind: "network-modem", section: "Network | Devices", label: "Modem", description: "Network access modem with status and radio marks", width: 120, height: 88 },
+  { kind: "network-proxy", section: "Network | Security", label: "Proxy", description: "Intermediary that forwards client requests to services", width: 150, height: 96 },
+  { kind: "network-bridge", section: "Network | Devices", label: "Bridge", description: "Layer-two bridge between network segments", width: 150, height: 96 },
+  { kind: "network-bastion", section: "Network | Security", label: "Bastion host", description: "Hardened access host at a protected network boundary", width: 158, height: 112 },
+  { kind: "network-gateway", section: "Network | Devices", label: "Gateway", description: "Gateway connecting two network domains", width: 150, height: 96 },
+  { kind: "network-printer", section: "Network | Devices", label: "Printer", description: "Shared network printer endpoint", width: 130, height: 102 },
+  { kind: "network-workstation", section: "Network | Devices", label: "Workstation", description: "User workstation on a local network", width: 150, height: 112 },
 ];
 const lineElement = (x: number, y: number, w: number, h: number, color = "#74889a", dashed = false): ShapeElement => ({ type: "line", x, y, w, h, color, thickness: 1.4, lineStyle: dashed ? "dashed" : "solid", startHead: "none", endHead: "none" });
 
@@ -450,7 +470,8 @@ export function defaultLibraryChartData(kind: LibraryComponentKind): LibraryChar
   return undefined;
 }
 
-const usesCleanModelRenderer = (kind: LibraryComponentKind) => kind.startsWith("diagram-") || kind.startsWith("software-") || kind.startsWith("c4-") || kind.startsWith("bpmn-") || kind.startsWith("network-") && kind !== "network-access-point" || kind.startsWith("cloud-") || !!cloudProviderComponent(kind) || kind === "tech-service" || kind === "data-flow";
+const cleanUmlKinds = new Set<LibraryComponentKind>(["uml-state", "uml-initial-state", "uml-final-state", "uml-fork", "uml-join", "uml-component", "uml-node", "uml-artifact", "uml-enumeration"]);
+const usesCleanModelRenderer = (kind: LibraryComponentKind) => kind.startsWith("diagram-") || kind.startsWith("software-") || kind.startsWith("c4-") || kind.startsWith("bpmn-") || kind.startsWith("network-") && kind !== "network-access-point" || kind.startsWith("cloud-") || !!cloudProviderComponent(kind) || kind === "tech-service" || kind === "data-flow" || cleanUmlKinds.has(kind);
 
 export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number, options?: { chartData?: LibraryChartData; formOptions?: string[]; selectedOption?: number; formStates?: boolean[]; formTitle?: string; formState?: boolean; portCount?: number }): GroupElement {
   if (isGuiComponentKind(kind)) {

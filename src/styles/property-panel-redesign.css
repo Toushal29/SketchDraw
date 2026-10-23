@@ -1,16 +1,3 @@
-/* Small, plain panels; Quick style stays on the left. */
-.style-pane.full-style-mode {
-    box-sizing: border-box;
-    width: 46px;
-    padding: 4px;
-    overflow: visible;
-}
-
-.full-style-mode>.quick-style-panel {
-    display: block;
-    width: 100%;
-}
-
 .component-editor-dock {
     position: absolute;
     z-index: 6;
@@ -97,9 +84,12 @@
 }
 
 .component-editor-scroll {
+    display: flex;
     min-width: 0;
     min-height: 0;
     flex: 1;
+    flex-direction: column;
+    gap: 5px;
     overflow: auto;
     padding: 8px;
     border: 0;
@@ -107,6 +97,14 @@
     background: transparent;
     box-shadow: none;
 }
+
+.component-editor-scroll > * { order: 20; }
+.component-editor-scroll > :is(.library-component-properties, .note-editor-fields, .class-component-properties, .stencil-parameter-editor, .container-properties) { order: 10; }
+.component-editor-scroll > .geometry-properties { order: 30; }
+.component-editor-scroll > .component-structure-actions { order: 40; }
+.component-editor-scroll > :is(.relationship-properties, .component-navigation-details) { order: 60; }
+.component-editor-scroll > .chart-data-actions { order: 70; }
+.component-editor-scroll > .diagram-source-editor { order: 80; }
 
 .component-editor-scroll .connection-point-editor>p {
     margin: 0 0 7px;
@@ -421,8 +419,7 @@
         justify-content: center;
     }
 
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded,
-    .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded {
         top: 8px;
         right: 8px;
         bottom: auto;
@@ -732,10 +729,10 @@
 }
 
 .component-editor-dock .structure-container-editor {
-    padding: 8px;
-    border: 1px solid var(--theme-border);
-    border-radius: 6px;
-    background: var(--theme-surface);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
 }
 
 .component-editor-dock .container-structure-actions {

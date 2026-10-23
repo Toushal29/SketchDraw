@@ -52,8 +52,7 @@
     .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-controls,
     .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed .mobile-advanced-properties { display: none; }
 
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded,
-    .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded {
         top: 8px;
         right: 8px;
         bottom: auto;
@@ -67,8 +66,7 @@
         overflow: visible;
         border-radius: 13px;
     }
-    .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded { z-index: 70; }
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded > .quick-style-panel {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded > .quick-style-panel {
         display: flex;
         width: 100%;
         height: auto;
@@ -77,7 +75,7 @@
         gap: 4px;
         overflow: visible;
     }
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading {
         width: auto;
         min-width: 36px;
         height: 36px;
@@ -85,8 +83,8 @@
         margin: 0;
         gap: 3px;
     }
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > button,
-    .app-shell:not(.platform-windows) .style-pane .quick-style-heading > .mobile-advanced-properties {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > button,
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode .quick-style-heading > .mobile-advanced-properties {
         display: grid;
         box-sizing: border-box;
         width: 34px;
@@ -98,9 +96,9 @@
         place-items: center;
         border-radius: 10px;
     }
-    .app-shell:not(.platform-windows) .style-pane .quick-style-heading > .mobile-advanced-properties { display: none; }
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties { display: grid; }
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-controls {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode .quick-style-heading > .mobile-advanced-properties { display: none; }
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties { display: grid; }
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-controls {
         display: flex;
         min-width: 0;
         max-height: calc(min(46dvh, 300px) - 12px);
@@ -112,7 +110,7 @@
         overscroll-behavior: contain;
         touch-action: pan-y;
     }
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-popover {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-popover {
         top: 50px;
         right: auto;
         bottom: auto;
@@ -123,8 +121,8 @@
         transform: none;
     }
     .app-shell.theme-dark:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-heading > button,
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > button,
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > button,
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
         border-color: var(--theme-border);
         color: var(--theme-text-primary);
         background: var(--theme-surface-elevated);

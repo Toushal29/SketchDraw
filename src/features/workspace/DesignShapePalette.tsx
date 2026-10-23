@@ -1,7 +1,7 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { ArrowHead, ArrowRoute, ComponentMaster, FlowchartShape, LineRoute, StrokeStyle } from "../../model";
 import { LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../notes";
-import { FLOWCHART_SHAPES } from "../diagrams/config";
+import { FLOWCHART_SHAPES, GENERAL_SHAPES } from "../diagrams/config";
 import type { CustomStencil } from "../components/custom-stencils";
 import { LibraryComponentIcon } from "../../components/LibraryComponentIcon";
 
@@ -26,12 +26,6 @@ const primitiveShapes: { shape: PrimitiveShape; label: string; path: string }[] 
   { shape: "diamond", label: "Diamond", path: "m12 3 9 9-9 9-9-9z" },
   { shape: "triangle", label: "Triangle", path: "m12 4 9 16H3z" },
 ];
-
-const generalFlowchartShapes = new Set<FlowchartShape>([
-  "rounded-rectangle", "cloud", "star", "lightning", "heart", "callout", "gear", "hexagon",
-  "parallelogram", "trapezoid", "pentagon", "octagon", "chevron", "cross", "folder", "note",
-  "display", "cube", "shield",
-]);
 
 const connectorPresets: Omit<Extract<DesignPaletteItem, { type: "connector" }>, "type">[] = [
   { connector: "line", route: "straight", lineStyle: "solid", startHead: "none", endHead: "none", label: "Straight line" },
@@ -76,14 +70,14 @@ function createPaletteSections(stencils: CustomStencil[], masters: ComponentMast
   ];
   const generalEntries: PaletteEntry[] = [
     ...primitiveShapes.map(shape => ({ item: { type: "primitive" as const, shape: shape.shape, label: shape.label }, searchText: shape.label })),
-    ...FLOWCHART_SHAPES.filter(shape => generalFlowchartShapes.has(shape.value)).map(shape => ({ item: { type: "flowchart" as const, shape: shape.value, label: shape.label }, searchText: `${shape.label} general shape ${shape.value}` })),
+    ...GENERAL_SHAPES.map(shape => ({ item: { type: "flowchart" as const, shape: shape.value, label: shape.label }, searchText: `${shape.label} general shape ${shape.value}` })),
     ...connectorPresets.map(preset => ({ item: { type: "connector" as const, ...preset }, searchText: `${preset.label} ${preset.connector} connector ${preset.route} ${preset.lineStyle} line arrow` })),
     { item: { type: "text", label: "Text" }, searchText: "text label" },
     ...(components.get("General") ?? []),
   ];
   const sections: PaletteSection[] = [
     { name: "General", entries: generalEntries },
-    { name: "Flowchart", entries: FLOWCHART_SHAPES.filter(shape => !generalFlowchartShapes.has(shape.value) && shape.value !== "database").map(shape => ({ item: { type: "flowchart", shape: shape.value, label: shape.label }, searchText: `${shape.label} flowchart ${shape.value}` })) },
+    { name: "Flowchart", entries: FLOWCHART_SHAPES.filter(shape => shape.value !== "database").map(shape => ({ item: { type: "flowchart", shape: shape.value, label: shape.label }, searchText: `${shape.label} flowchart ${shape.value}` })) },
     { name: "Database", entries: databaseEntries },
     { name: "Architecture", entries: components.get("Architecture") ?? [] },
   ];

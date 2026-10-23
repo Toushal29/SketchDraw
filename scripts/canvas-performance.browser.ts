@@ -618,20 +618,18 @@ spec:
   disposePlanningTabs(); planningTabHost.remove();
   const menuHost = document.createElement("div"); menuHost.className = "app-shell"; document.body.append(menuHost);
   const disposeMenu = render(() => createComponent(CanvasOptionsMenu, {
-    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, measureMode: false, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false, mobileSimple: true,
-    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onToggleMeasure() {}, onGroupSelection() {},
+    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false,
+    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onGroupSelection() {},
+    penInput: { pressureWidth: false, tiltShaping: false, stylusEraserEnd: false, disabled: false, onPressureWidthChange() {}, onTiltShapingChange() {}, onStylusEraserEndChange() {} },
     canvasTools: { showMinimap: true, onToggleMinimap() {}, onAutoLayout() {} },
   }), menuHost);
   const controls = [...menuHost.querySelectorAll<HTMLElement>("button,input,select,textarea,[role=button]")];
-  const viewMenu = menuHost.querySelector<HTMLElement>(".canvas-options-family.mobile-simple-mode");
-  const advancedSections = [...menuHost.querySelectorAll<HTMLDetailsElement>("details.workspace-view-advanced")];
-  const movementSection = advancedSections.find(section => section.querySelector("summary")?.textContent?.includes("Movement and resize"));
-  const movementSummary = movementSection?.querySelector<HTMLElement>("summary");
-  check(!!viewMenu && advancedSections.length > 0 && advancedSections.every(section => !section.open), "Mobile advanced canvas sections start collapsed");
-  movementSummary?.click();
-  check(movementSection?.open === true, "Mobile users can expand an advanced canvas section on demand");
-  movementSummary?.click();
-  check(movementSection?.open === false, "Mobile advanced canvas sections collapse again on demand");
+  const viewMenu = menuHost.querySelector<HTMLElement>(".canvas-options-family");
+  const sections = [...menuHost.querySelectorAll<HTMLElement>(".workspace-view-section")];
+  const movementSection = sections.find(section => section.querySelector("h2")?.textContent?.includes("Movement and resize"));
+  check(!!viewMenu && !viewMenu.classList.contains("mobile-simple-mode") && sections.length > 0 && sections.every(section => section.tagName === "SECTION"), "Canvas settings use plain, always-visible sections");
+  check(!!movementSection && !menuHost.querySelector("details.workspace-view-section, .workspace-view-section > summary, .workspace-view-header button"), "Canvas settings have no expand or close controls");
+  check(!!menuHost.querySelector(".workspace-view-section h2") && controls.some(control => control.textContent?.includes("Pressure width")), "Canvas and pen settings remain available in the panel");
   const unlabeledControls = controls.filter(control => !(control.getAttribute("aria-label") || control.getAttribute("title") || control.textContent?.trim() || control.closest("label")?.textContent?.trim()));
   check(unlabeledControls.length === 0, `Canvas view controls expose accessible names (${unlabeledControls.length} missing)`);
   const firstEnabled = controls.find(control => control instanceof HTMLButtonElement && !control.disabled);

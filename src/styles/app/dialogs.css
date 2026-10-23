@@ -256,16 +256,6 @@
     overflow: visible;
 }
 
-.style-pane.full-style-mode {
-    display: flex;
-    align-items: stretch;
-    gap: 9px;
-    width: 364px;
-    max-height: calc(100% - 36px);
-    padding: 8px;
-    overflow: hidden;
-}
-
 .quick-style-panel {
     display: none;
     width: 100%;
@@ -279,13 +269,6 @@
 .quick-style-mode> :not(.quick-style-panel) {
     display: none !important;
 }
-
-.full-style-mode>.quick-style-panel {
-    display: block;
-    flex: 0 0 40px;
-    width: 40px;
-}
-
 
 .quick-style-heading {
     height: 29px;
@@ -340,8 +323,7 @@
 .quick-style-popover.thickness-popover,
 .quick-style-popover.quick-line-styles,
 .quick-style-popover.quick-routes,
-.quick-style-popover.quick-arrow-heads,
-.quick-style-popover.pen-input-popover {
+.quick-style-popover.quick-arrow-heads {
     top: 0;
     left: calc(100% + 9px);
     right: auto;
@@ -667,10 +649,6 @@
 }
 
 @media (max-width: 760px) {
-    .style-pane.full-style-mode {
-        width: min(364px, calc(100vw - 80px));
-    }
-
     .export-layout {
         grid-template-columns: 1fr;
         gap: 14px;
@@ -698,9 +676,8 @@
     min-width: 42px;
 }
 
-/* Keep quick styles fixed at the canvas edge; the full inspector opens as its own panel. */
-.style-pane.quick-style-mode,
-.style-pane.full-style-mode {
+/* Keep quick styles as a compact rail. */
+.style-pane.quick-style-mode {
     z-index: 7;
     display: block;
     width: 45px;
@@ -709,27 +686,6 @@
     overflow: visible;
     border: 1px solid var(--theme-border);
     border-radius: 17px;
-}
-
-.style-pane.full-style-mode>.quick-style-panel {
-    display: block;
-    width: 100%;
-    flex: initial;
-}
-
-.style-pane.full-style-mode .quick-style-heading {
-    justify-content: center;
-    margin-bottom: 10px;
-}
-
-.style-pane.full-style-mode .quick-style-heading button {
-    border-color: var(--theme-border);
-    color: var(--theme-text-secondary);
-    background: var(--theme-surface-input);
-}
-
-.style-pane.full-style-mode .quick-style-controls {
-    gap: 7px;
 }
 
 .style-pane .quick-style-icon {
@@ -856,3 +812,14 @@
   .named-snapshot-visual-compare { grid-template-columns: 1fr; }
   .named-snapshot-create { align-items: stretch; flex-direction: column; }
 }
+
+.diagram-source-editor > small { color: var(--theme-text-secondary); font-size: 10px; }
+.diagram-source-editor textarea,
+.csv-chart-dialog textarea { width: 100%; min-height: 130px; resize: vertical; padding: 10px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface); color: var(--theme-text); font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.diagram-source-editor .mermaid-preview-panel { max-height: 250px; overflow: hidden; }
+.diagram-source-preview { max-height: 220px; overflow: auto; margin: 5px 0; padding: 10px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface); color: var(--theme-text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.diagram-code-limitations { color: var(--theme-text-secondary); font-size: 11px; line-height: 1.45; }
+.csv-chart-dialog { width: min(620px, calc(100vw - 30px)); max-height: min(90vh, 820px); overflow: auto; }
+.csv-chart-mapping { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(190px, 1.2fr); gap: 10px; align-items: start; }
+.csv-chart-mapping fieldset { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 5px; min-width: 0; margin: 0; padding: 10px; border: 1px solid var(--theme-border); border-radius: 5px; }
+.csv-chart-series { display: flex; align-items: center; gap: 5px; font-size: 11px; }

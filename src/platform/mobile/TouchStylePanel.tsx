@@ -50,9 +50,6 @@ type Props = {
   hasSelection: boolean;
   selectionOpacity: number;
   canRotate: boolean;
-  penPressure: boolean;
-  penTilt: boolean;
-  penEraser: boolean;
   isLaser: boolean;
   laserColor: string;
   laserThickness: number;
@@ -82,9 +79,6 @@ type Props = {
   onSelectionOpacityChange: (opacity: number) => void;
   onRotate: (degrees: number) => void;
   onResetRotation: () => void;
-  onPenPressureChange: (enabled: boolean) => void;
-  onPenTiltChange: (enabled: boolean) => void;
-  onPenEraserChange: (enabled: boolean) => void;
   onLaserChange: (key: "color" | "thickness" | "fade" | "rainbow", value: string) => void;
   onBucketColorChange: (color: string) => void;
 };
@@ -129,7 +123,7 @@ export function TouchStylePanel(props: Props) {
               <input class="touch-style-range" aria-label="Stroke width" type="range" min="1" max="24" step="1" value={props.width} disabled={props.locked} onInput={event => props.onWidthChange(Number(event.currentTarget.value))} /></>}</>}
       </section>}
 
-      {props.tool === "pen" && <section class="touch-style-section"><div class="touch-style-section-title"><strong>Pen and brush</strong></div><div class="touch-brush-grid">{BRUSHES.map(brush => <button class={props.brushMode === brush.value ? "active" : ""} aria-pressed={props.brushMode === brush.value} disabled={props.locked} onClick={() => props.onBrushModeChange(brush.value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={brush.value === "fine" ? "m5 18 13-12M4 21h16" : brush.value === "pencil" ? "m5 19 11-11 3 3L8 22H5zm10-13 2-2 4 4-2 2" : brush.value === "brush" ? "M5 17c4 0 3-7 8-7 4 0 4 4 7 4M5 20h14" : brush.value === "marker" ? "M5 18 17 6l3 3L8 21H5zm9-9 3 3" : brush.value === "highlighter" ? "M4 16 15 5l5 5-11 11H4zm4-2 5 5" : "M5 18 17 6m-8 12 2 2M4 21h16"}/></svg><span>{brush.label}</span></button>)}</div><div class="touch-style-subsection"><strong>Stylus input</strong><label class="touch-style-check"><input type="checkbox" checked={props.penPressure} onChange={event => props.onPenPressureChange(event.currentTarget.checked)} /> Pressure width</label><label class="touch-style-check"><input type="checkbox" checked={props.penTilt} onChange={event => props.onPenTiltChange(event.currentTarget.checked)} /> Tilt shaping</label><label class="touch-style-check"><input type="checkbox" checked={props.penEraser} onChange={event => props.onPenEraserChange(event.currentTarget.checked)} /> Stylus eraser end</label></div></section>}
+      {props.tool === "pen" && <section class="touch-style-section"><div class="touch-style-section-title"><strong>Pen and brush</strong></div><div class="touch-brush-grid">{BRUSHES.map(brush => <button class={props.brushMode === brush.value ? "active" : ""} aria-pressed={props.brushMode === brush.value} disabled={props.locked} onClick={() => props.onBrushModeChange(brush.value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={brush.value === "fine" ? "m5 18 13-12M4 21h16" : brush.value === "pencil" ? "m5 19 11-11 3 3L8 22H5zm10-13 2-2 4 4-2 2" : brush.value === "brush" ? "M5 17c4 0 3-7 8-7 4 0 4 4 7 4M5 20h14" : brush.value === "marker" ? "M5 18 17 6l3 3L8 21H5zm9-9 3 3" : brush.value === "highlighter" ? "M4 16 15 5l5 5-11 11H4zm4-2 5 5" : "M5 18 17 6m-8 12 2 2M4 21h16"}/></svg><span>{brush.label}</span></button>)}</div></section>}
 
       {props.supportsLineStyle && <section class="touch-style-section"><div class="touch-style-section-title"><strong>{props.supportsContainerAppearance ? "Group border style" : "Line style"}</strong></div><div class="touch-line-style-grid">{LINE_STYLES.filter(style => style.value !== "double" || props.isLine || props.isArrow || props.supportsContainerAppearance).map(style => <button class={props.lineStyle === style.value ? "active" : ""} aria-pressed={props.lineStyle === style.value} disabled={props.locked} onClick={() => props.onLineStyleChange(style.value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={style.icon}/></svg><span>{style.label}</span></button>)}</div>{props.supportsContainerAppearance && <div class="touch-style-subsection"><strong>Group appearance</strong><label class="touch-style-check"><input type="checkbox" checked={props.showContainerBorder} disabled={props.locked} onChange={event => props.onContainerBorderChange(event.currentTarget.checked)} /> Show border</label><label class="touch-style-check"><input type="checkbox" checked={props.showContainerLabel} disabled={props.locked} onChange={event => props.onContainerLabelChange(event.currentTarget.checked)} /> Show label</label></div>}</section>}
 

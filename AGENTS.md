@@ -82,6 +82,8 @@ Use these labels in audits and release reports so defects stay distinct from fea
 - `src/features/canvas/`: rendering, geometry, pointer input, selection, snapping, and history.
 - `src/features/components/`: canvas component and chart rendering.
 - `src/features/diagrams/`: modeling, import/export formats, layout, routing, and validation.
+- `src/features/diagrams/config.ts`: shared Flowchart and General shape catalogs. Keep menu shapes separate from `ALL_FLOWCHART_SHAPES`, which validates legacy serialized values.
+- `src/features/diagrams/guides/`: authored diagram guide definitions, editable guide builder, gallery, and gallery-owned stylesheet. Keep previews and inserted examples driven by the same guide definitions.
 - `src/features/files/` and `src/features/document/`: Sketch file parsing, serialization, and document lifecycle.
 - `src/features/project/`: separate `.sdplan` planning workflows.
 - `src/platform/mobile/` and `src/platform/windows/`: platform-specific UI and behavior. Follow `src/platform/AGENTS.md` for platform changes.

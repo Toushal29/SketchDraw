@@ -49,8 +49,7 @@
     .app-shell:not(.platform-windows) .canvas-zoom-reset kbd { color: var(--ui-accent-ink); }
 
     /* Properties start as a one-tap button; full properties become a real sheet. */
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode,
-    .app-shell:not(.platform-windows) .style-pane.full-style-mode {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode {
         z-index: 76;
         top: 62px;
         right: max(12px, env(safe-area-inset-right));
@@ -69,10 +68,10 @@
         /* The advanced inspector is fixed to the screen from inside this pane. */
     }
 
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-heading,
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading { margin: 0; }
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-collapsed .quick-style-heading,
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading { margin: 0; }
 
-    .app-shell:not(.platform-windows) .style-pane .quick-style-heading > button {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode .quick-style-heading > button {
         width: 38px;
         min-width: 38px;
         max-width: 38px;
@@ -81,8 +80,7 @@
         border-radius: 12px;
     }
 
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded.quick-style-mode,
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded.full-style-mode {
+    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded.quick-style-mode {
         z-index: 180;
         top: 62px;
         right: max(12px, env(safe-area-inset-right));
@@ -97,19 +95,19 @@
         overflow: visible;
     }
 
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded > .quick-style-panel {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded > .quick-style-panel {
         align-items: flex-start;
         gap: 5px;
     }
 
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading {
         flex: 0 0 auto;
         align-items: center;
         gap: 3px;
     }
 
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > button,
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > button,
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
         width: 38px;
         min-width: 38px;
         max-width: 38px;
@@ -118,16 +116,16 @@
         border-radius: 12px;
     }
 
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-controls {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-controls {
         max-height: min(38dvh, 280px);
         align-content: flex-start;
         gap: 4px;
         padding: 1px;
     }
 
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-style-icon,
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-text-size,
-    .app-shell:not(.platform-windows) .style-pane.mobile-properties-expanded .quick-text-format {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-icon,
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-text-size,
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-text-format {
         min-height: 38px;
         border-radius: 11px;
     }

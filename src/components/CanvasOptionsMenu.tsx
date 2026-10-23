@@ -13,7 +13,6 @@ export type CanvasOptionsMenuProps = {
   boardLocked: boolean;
   onToggle: () => void;
   onCloseOtherTools: () => void;
-  mobileSimple?: boolean;
   onFitDrawing: () => void;
   onFitSelection: () => void;
   onToggleGrid: () => void;
@@ -59,6 +58,15 @@ export type CanvasOptionsMenuProps = {
     onBackgroundColorChange: (color: string) => void;
     onPaperPatternChange: (pattern: "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric") => void;
   };
+  penInput?: {
+    pressureWidth: boolean;
+    tiltShaping: boolean;
+    stylusEraserEnd: boolean;
+    disabled: boolean;
+    onPressureWidthChange: (enabled: boolean) => void;
+    onTiltShapingChange: (enabled: boolean) => void;
+    onStylusEraserEndChange: (enabled: boolean) => void;
+  };
   canvasTools?: {
     showMinimap: boolean;
     orthogonalOnly?: boolean;
@@ -100,12 +108,12 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
   );
 
   return (
-    <div class="canvas-options-family" classList={{ "options-open": props.open, "mobile-simple-mode": !!props.mobileSimple }}>
+    <div class="canvas-options-family" classList={{ "options-open": props.open }}>
       <button type="button" class={`canvas-options-trigger ${props.open ? "active" : ""}`} aria-label="View and canvas settings" aria-haspopup="dialog" aria-expanded={props.open} title="View and canvas settings" onClick={toggle}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" /></svg>
       </button>
       <div class="workspace-view-panel" role="dialog" aria-label="View and canvas settings">
-        <header class="workspace-view-header"><div><strong>Canvas</strong><span>View, arrange, and design</span></div><button type="button" aria-label="Close view panel" title="Close" onClick={toggle}>×</button></header>
+        <header class="workspace-view-header"><strong>Canvas settings</strong></header>
 
         <div class="workspace-view-fit-row" aria-label="Zoom to content">
           <button type="button" disabled={!props.hasElements} onClick={props.onFitDrawing}><strong>Fit drawing</strong><kbd>1</kbd></button>
@@ -113,8 +121,8 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
         </div>
 
         <Show when={props.guiDesign}>
-          {gui => <details class="workspace-view-section workspace-view-gui" open={!props.mobileSimple}>
-            <summary><span>UI design</span><small>Pages, screens, and components</small></summary>
+          {gui => <section class="workspace-view-section workspace-view-gui">
+            <h2>UI design</h2>
             <div class="workspace-view-gui-actions">
               <button type="button" class="workspace-view-primary" onClick={gui().onOpenLibrary}>Open UI component library<span>Buttons · fields · cards · navigation</span></button>
               <div class="workspace-view-action-grid">
@@ -125,27 +133,38 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
                 <button type="button" disabled={!gui().hasSelectedFrame || props.boardLocked} onClick={gui().onExportFrame}>Export selected screen</button>
               </div>
             </div>
-          </details>}
+          </section>}
         </Show>
 
-        <details class="workspace-view-section" open>
-          <summary><span>Canvas aids</span><small>Grid, snapping, and connectors</small></summary>
+        <section class="workspace-view-section">
+          <h2>Canvas aids</h2>
           <div class="workspace-view-controls">
             {check("Show grid", props.showGrid, props.onToggleGrid, false, "G")}
             {check("Snap to grid", props.snapToGrid, props.onToggleSnapToGrid, false, "Shift+G")}
             {check("Snap to objects", props.snapToObjects, props.onToggleSnapToObjects, false, "Shift+O")}
             {props.canvasTools?.onToggleOrthogonal && check("Orthogonal connectors", props.canvasTools.orthogonalOnly ?? false, props.canvasTools.onToggleOrthogonal, props.boardLocked)}
           </div>
-        </details>
+        </section>
 
-        <details class="workspace-view-section workspace-view-advanced">
-          <summary><span>Movement and resize</span><small>Snapping and proportions</small></summary>
+        <Show when={props.penInput}>
+          {pen => <section class="workspace-view-section">
+            <h2>Pen input</h2>
+            <div class="workspace-view-controls">
+              {check("Pressure width", pen().pressureWidth, () => pen().onPressureWidthChange(!pen().pressureWidth), pen().disabled)}
+              {check("Tilt shaping", pen().tiltShaping, () => pen().onTiltShapingChange(!pen().tiltShaping), pen().disabled)}
+              {check("Stylus eraser end", pen().stylusEraserEnd, () => pen().onStylusEraserEndChange(!pen().stylusEraserEnd), pen().disabled)}
+            </div>
+          </section>}
+        </Show>
+
+        <section class="workspace-view-section workspace-view-advanced">
+          <h2>Movement and resize</h2>
           <p class="workspace-view-note">Hold Ctrl or Command while dragging to bypass snapping. Shift constrains movement or keeps proportions while resizing.</p>
-        </details>
+        </section>
 
         <Show when={props.canvasAppearance || props.appAppearance}>
-          <details class="workspace-view-section workspace-view-advanced">
-            <summary><span>Appearance</span><small>Board and interface colors</small></summary>
+          <section class="workspace-view-section workspace-view-advanced">
+            <h2>Appearance</h2>
             <Show when={props.appAppearance}>{appearance => <div class="workspace-view-fields">
               <label>Theme<select aria-label="Application theme" value={appearance().themeMode} onChange={event => appearance().onThemeChange(event.currentTarget.value as "system" | "light" | "dark")}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
               <label>Accent<select aria-label="Accent color" value={appearance().accentColor} onChange={event => appearance().onAccentChange(event.currentTarget.value)}>{appearance().accentOptions.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
@@ -159,11 +178,11 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
               </div>
               <label class="workspace-view-fields">Paper pattern<select aria-label="Paper pattern" value={appearance().paperPattern} onChange={event => appearance().onPaperPatternChange(event.currentTarget.value as "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric")}><option value="plain">Plain</option><option value="dots">Dots</option><option value="small-dots">Fine dots</option><option value="lines">Grid</option><option value="small-grid">Fine grid</option><option value="ruled">Ruled</option><option value="isometric">Isometric</option></select></label>
             </>}</Show>
-          </details>
+          </section>
         </Show>
 
-        <details class="workspace-view-section workspace-view-advanced">
-          <summary><span>Structure</span><small>Selection and connection tools</small></summary>
+        <section class="workspace-view-section workspace-view-advanced">
+          <h2>Structure</h2>
           <div class="workspace-view-action-grid">
             {action(props.grouped ? "Ungroup selection" : "Group selection", props.onGroupSelection, !props.canGroup || props.boardLocked, "Ctrl+G")}
             {props.onSelectConnected && action("Select connected", props.onSelectConnected, !!props.structureSelectionDisabled || props.boardLocked)}
@@ -172,11 +191,11 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
             {props.canvasTools?.onReattachDangling && action("Reattach dangling connectors", props.canvasTools.onReattachDangling, !!props.canvasTools.reattachDisabled || props.boardLocked)}
             {props.canvasTools?.onRenumberSequenceMessages && action("Number selected messages", props.canvasTools.onRenumberSequenceMessages, !!props.canvasTools.sequenceNumberingDisabled || props.boardLocked)}
           </div>
-        </details>
+        </section>
 
         <Show when={props.canvasTools}>
-          {tools => <details class="workspace-view-section workspace-view-advanced">
-            <summary><span>Diagram tools</span><small>Layout, validation, and focus</small></summary>
+          {tools => <section class="workspace-view-section workspace-view-advanced">
+            <h2>Diagram tools</h2>
             <div class="workspace-view-fields workspace-view-tools">
               <Show when={tools().onAutoLayout}>{autoLayout => <>
                 <label>Layout algorithm<select aria-label="Layout algorithm" value={tools().layoutAlgorithm ?? "layered"} onChange={event => tools().onLayoutAlgorithmChange?.(event.currentTarget.value as DiagramLayoutAlgorithm)}><option value="layered">Layered</option><option value="mrtree">Tree</option><option value="radial">Radial</option><option value="force">Force</option><option value="stress">Stress</option></select></label>
@@ -190,7 +209,7 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
               <Show when={tools().onTogglePresentation}>{present => check(tools().presentation ? "Exit presentation" : "Presentation mode", !!tools().presentation, present())}</Show>
               <Show when={tools().onToggleFullscreen}>{fullscreen => action(tools().fullscreen ? "Exit full screen" : "Full screen focus", fullscreen())}</Show>
             </div>
-          </details>}
+          </section>}
         </Show>
       </div>
     </div>

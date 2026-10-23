@@ -1,7 +1,6 @@
 import { createSignal, For, Show } from "solid-js";
 import type { GroupElement, GuiComponentProperties } from "../model";
 import { chartDataFromCsv } from "../features/components/chart-import";
-import { elementBounds } from "../features/canvas/bounds";
 import { defaultGuiComponentProperties } from "../features/components/gui-components";
 import {
   defaultLibraryChartData,
@@ -60,14 +59,6 @@ export function LibraryComponentEditor(props: Props) {
     if (!Number.isFinite(requestedSize) || requestedSize < 8 || requestedSize > 160) return;
     props.onRememberFontSize(requestedSize);
     changeGroup(current => resizeLibraryFont(current, requestedSize));
-  };
-  const componentDimensions = () => group().componentBounds ?? elementBounds({ ...group(), rotation: 0 });
-  const changeSize = (axis: "w" | "h", value: number) => {
-    if (!Number.isFinite(value)) return;
-    changeGroup(current => {
-      const bounds = current.componentBounds ?? elementBounds({ ...current, rotation: 0 });
-      return resizeLibraryGroup(current, { ...bounds, [axis]: Math.max(libraryComponentMinimum(current, axis), Math.min(4000, value)) });
-    });
   };
   const changeOption = (index: number, value: string) => changeGroup(current => {
     const next = [...optionsFor(current)];
@@ -186,8 +177,8 @@ export function LibraryComponentEditor(props: Props) {
   });
   const locked = () => !props.isDraft && (props.boardLocked() || !!group().locked);
 
-  return <div class="component-editor-content">
-    <div class="precision-grid component-size-grid"><label>Width<input aria-label="Component width" type="number" min={libraryComponentMinimum(group(), "w")} max="4000" step="1" value={Math.round(componentDimensions().w)} disabled={locked()} onChange={event => changeSize("w", Number(event.currentTarget.value))} /></label><label>Height<input aria-label="Component height" type="number" min={libraryComponentMinimum(group(), "h")} max="4000" step="1" value={Math.round(componentDimensions().h)} disabled={locked()} onChange={event => changeSize("h", Number(event.currentTarget.value))} /></label><Show when={hasEditableText()}><label>Font<input aria-label="Component font size" type="number" min="8" max="160" value={libraryComponentFontSize(group())} disabled={locked()} onChange={event => changeComponentFontSize(Number(event.currentTarget.value))} /></label></Show></div>
+  return <div class="component-editor-content library-component-properties">
+    <Show when={libraryComponentFields(group()).length > 0}><div class="component-field-list"><For each={libraryComponentFields(group()).map(field => field.key)}>{key => { const field = () => libraryComponentFields(group()).find(entry => entry.key === key)!; return <label class="property-label"><span>{field().label}</span><textarea data-component-field-key={key} rows={Math.min(4, Math.max(1, field().value.split(/\r?\n/).length))} maxlength="2000" value={field().value} disabled={locked()} onInput={event => changeGroup(current => setLibraryComponentField(current, key, event.currentTarget.value))} /></label>; }}</For></div></Show>
     <Show when={kind() === "uml-lifeline"}><label class="property-label">Lifeline length<input aria-label="Lifeline length" type="number" min="24" max="4000" step="1" value={libraryLifelineLength(group())} disabled={locked()} onChange={event => changeGroup(current => setLibraryLifelineLength(current, Number(event.currentTarget.value)))} /></label></Show>
     <Show when={kind() === "bpmn-task"}><label class="property-label">Task duration (minutes)<input aria-label="BPMN task duration in minutes" type="number" min="0" max="100000" step="1" value={group().libraryComponent?.durationMinutes ?? 0} disabled={locked()} onChange={event => changeTaskDuration(Number(event.currentTarget.value))} /></label></Show>
     <Show when={kind() === "form-toggle"}>
@@ -293,7 +284,7 @@ export function LibraryComponentEditor(props: Props) {
         </Show>
       </div>
     </Show>
-    <Show when={libraryComponentFields(group()).length > 0}><div class="component-field-list"><For each={libraryComponentFields(group()).map(field => field.key)}>{key => { const field = () => libraryComponentFields(group()).find(entry => entry.key === key)!; return <label class="property-label"><span>{field().label}</span><textarea data-component-field-key={key} rows={Math.min(4, Math.max(1, field().value.split(/\r?\n/).length))} maxlength="2000" value={field().value} disabled={locked()} onInput={event => changeGroup(current => setLibraryComponentField(current, key, event.currentTarget.value))} /></label>; }}</For></div></Show>
+    <Show when={hasEditableText()}><label class="property-label">Font<input aria-label="Component font size" type="number" min="8" max="160" value={libraryComponentFontSize(group())} disabled={locked()} onChange={event => changeComponentFontSize(Number(event.currentTarget.value))} /></label></Show>
     <Show when={props.isDraft}><div class="component-draft-actions"><button type="button" class="quiet-button" onClick={props.onCancelDraft}>Cancel</button><button type="button" class="save-button" disabled={props.boardLocked()} onClick={props.onCommitDraft}>Add to canvas</button></div></Show>
   </div>;
 }

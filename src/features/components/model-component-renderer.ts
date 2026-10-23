@@ -222,6 +222,29 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     }
     ctx.restore(); return;
   }
+  if (["uml-state", "uml-initial-state", "uml-final-state", "uml-fork", "uml-join", "uml-component", "uml-node", "uml-artifact", "uml-enumeration"].includes(kind)) {
+    if (kind === "uml-initial-state") {
+      ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) * .38, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill();
+    } else if (kind === "uml-final-state") {
+      ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) * .44, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) * .29, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill();
+    } else if (kind === "uml-fork" || kind === "uml-join") {
+      ctx.fillStyle = ink; ctx.fillRect(x, y + h * .3, w, Math.max(6, h * .4));
+    } else if (kind === "uml-state") {
+      roundRect(ctx, x, y, w, h, 10); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke();
+      label(name, x + 10, y + h * .4, w - 20, size, true, "center");
+      label("entry / exit / do", x + 10, y + h * .72, w - 20, Math.max(8, size * .65), false, "center");
+    } else if (kind === "uml-component") {
+      box(); ctx.strokeRect(x + w - 25, y + 12, 14, 10); ctx.strokeRect(x + w - 25, y + 28, 14, 10); label(name, x + 10, y + h / 2, w - 45, size, true, "center");
+    } else if (kind === "uml-node") {
+      const dx = Math.min(18, w * .12); const dy = Math.min(15, h * .12); box(x + dx, y + dy, w - dx, h - dy); ctx.beginPath(); ctx.moveTo(x + dx, y + dy); ctx.lineTo(x + dx + 10, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + dy); ctx.moveTo(x + w - dx, y + dy); ctx.lineTo(x + w, y); ctx.strokeStyle = edge; ctx.stroke(); label(name, x + dx + 8, y + h * .58, w - dx - 16, size, true, "center");
+    } else if (kind === "uml-artifact") {
+      const fold = Math.min(20, w * .18); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w - fold, y); ctx.lineTo(x + w, y + fold); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke(); rule(x + w - fold, y, x + w - fold, y + fold); rule(x + w - fold, y + fold, x + w, y + fold); label(name, x + 8, y + h * .57, w - 16, size, true, "center");
+    } else {
+      box(); const header = Math.min(40, h * .3); label("«enumeration»", x + 8, y + 14, w - 16, Math.max(8, size * .68), false, "center"); label(name, x + 8, y + header, w - 16, size, true, "center"); rule(x, y + header + 8, x + w, y + header + 8); label("«literal»", x + 12, y + header + 28, w - 24, Math.max(8, size * .68), false);
+    }
+    ctx.restore(); return;
+  }
   if (kind === "c4-person") {
     const cx = x + w / 2; const headY = y + 24;
     ctx.beginPath(); ctx.arc(cx, headY, 10, 0, Math.PI * 2); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke();
@@ -366,9 +389,37 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     box(); label(name.toUpperCase(), x + 6, y + 13, w - 12, Math.min(size, 11), true, "center"); rule(x + 10, y + h * .42, x + w - 10, y + h * .42);
     for (let index = 0; index < 4; index++) { ctx.beginPath(); ctx.arc(x + 15 + index * 11, y + h * .67, 2, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill(); }
     for (const scale of [1, .65]) { ctx.beginPath(); ctx.arc(x + w - 23, y + h * .74, 8 * scale, Math.PI, 0); ctx.stroke(); }
-  } else if (kind === "bpmn-start" || kind === "bpmn-event" || kind === "bpmn-end" || kind === "bpmn-boundary-event") {
-    const diameter = Math.min(w, h - 14); const cx = x + w / 2; const cy = y + diameter / 2 + 1; ctx.beginPath(); ctx.arc(cx, cy, diameter * .43, 0, Math.PI * 2); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "bpmn-end" ? 2.5 : 1.3; ctx.stroke();
-    if (kind === "bpmn-event" || kind === "bpmn-boundary-event") { ctx.beginPath(); ctx.arc(cx, cy, diameter * .34, 0, Math.PI * 2); if (kind === "bpmn-boundary-event") ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]); }
+  } else if (["network-proxy", "network-bridge", "network-bastion", "network-gateway", "network-printer", "network-workstation"].includes(kind)) {
+    box(); label(name.toUpperCase(), x + 8, y + 14, w - 16, Math.min(size, 12), true, "center");
+    if (kind === "network-proxy") {
+      const cy = y + h * .62; rule(x + 20, cy - 8, x + w - 20, cy - 8); rule(x + w - 28, cy + 8, x + 28, cy + 8);
+      ctx.beginPath(); ctx.moveTo(x + w - 24, cy - 13); ctx.lineTo(x + w - 18, cy - 8); ctx.lineTo(x + w - 24, cy - 3); ctx.moveTo(x + 24, cy + 3); ctx.lineTo(x + 18, cy + 8); ctx.lineTo(x + 24, cy + 13); ctx.stroke();
+    } else if (kind === "network-bridge") {
+      const cy = y + h * .66; rule(x + 25, cy, x + w - 25, cy); rule(x + w * .3, cy, x + w * .3, y + h * .43); rule(x + w * .7, cy, x + w * .7, y + h * .43);
+      ctx.beginPath(); ctx.moveTo(x + w * .3, y + h * .43); ctx.quadraticCurveTo(x + w * .5, y + h * .22, x + w * .7, y + h * .43); ctx.stroke();
+      ctx.strokeRect(x + 15, cy - 5, 10, 10); ctx.strokeRect(x + w - 25, cy - 5, 10, 10);
+    } else if (kind === "network-bastion") {
+      const cx = x + w / 2; const top = y + h * .35;
+      ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx + 28, top + 10); ctx.lineTo(cx + 24, top + 32); ctx.quadraticCurveTo(cx, top + 50, cx - 24, top + 32); ctx.lineTo(cx - 28, top + 10); ctx.closePath(); ctx.stroke();
+      rule(cx - 8, top + 15, cx + 8, top + 15); rule(cx - 8, top + 22, cx + 8, top + 22); rule(cx - 8, top + 29, cx + 8, top + 29);
+    } else if (kind === "network-gateway") {
+      const cx = x + w / 2; const cy = y + h * .63;
+      ctx.beginPath(); ctx.moveTo(cx, cy - 20); ctx.lineTo(cx + 22, cy); ctx.lineTo(cx, cy + 20); ctx.lineTo(cx - 22, cy); ctx.closePath(); ctx.stroke();
+      rule(x + 18, cy, cx - 22, cy); rule(cx + 22, cy, x + w - 18, cy); rule(cx, cy - 31, cx, cy - 20); rule(cx, cy + 20, cx, y + h - 10);
+    } else if (kind === "network-printer") {
+      const bodyY = y + h * .43; ctx.strokeRect(x + w * .2, bodyY, w * .6, h * .36); ctx.strokeRect(x + w * .3, y + h * .27, w * .4, h * .22); ctx.strokeRect(x + w * .3, bodyY + h * .26, w * .4, h * .2); rule(x + w * .36, bodyY + h * .1, x + w * .64, bodyY + h * .1);
+    } else {
+      const screenY = y + h * .34; ctx.strokeRect(x + w * .2, screenY, w * .6, h * .34); rule(x + w / 2, screenY + h * .34, x + w / 2, y + h * .82); rule(x + w * .34, y + h * .82, x + w * .66, y + h * .82);
+    }
+  } else if (["bpmn-start", "bpmn-event", "bpmn-end", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind)) {
+    const diameter = Math.min(w, h - 14); const cx = x + w / 2; const cy = y + diameter / 2 + 1; const marked = ["bpmn-event", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind);
+    ctx.beginPath(); ctx.arc(cx, cy, diameter * .43, 0, Math.PI * 2); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "bpmn-end" || kind === "bpmn-terminate-event" ? 2.5 : 1.3; ctx.stroke();
+    if (marked) { ctx.beginPath(); ctx.arc(cx, cy, diameter * .34, 0, Math.PI * 2); if (kind === "bpmn-boundary-event") ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]); }
+    if (kind === "bpmn-message-event") { const mw = diameter * .38; const mh = diameter * .24; ctx.strokeRect(cx - mw / 2, cy - mh / 2, mw, mh); ctx.beginPath(); ctx.moveTo(cx - mw / 2, cy - mh / 2); ctx.lineTo(cx, cy + mh * .18); ctx.lineTo(cx + mw / 2, cy - mh / 2); ctx.stroke(); }
+    else if (kind === "bpmn-timer-event") { ctx.beginPath(); ctx.moveTo(cx, cy - diameter * .2); ctx.lineTo(cx, cy); ctx.lineTo(cx + diameter * .14, cy + diameter * .08); ctx.stroke(); }
+    else if (kind === "bpmn-error-event") { ctx.beginPath(); ctx.moveTo(cx + diameter * .08, cy - diameter * .22); ctx.lineTo(cx - diameter * .1, cy); ctx.lineTo(cx + diameter * .04, cy); ctx.lineTo(cx - diameter * .08, cy + diameter * .22); ctx.stroke(); }
+    else if (kind === "bpmn-signal-event") { ctx.beginPath(); ctx.moveTo(cx, cy - diameter * .2); ctx.lineTo(cx + diameter * .18, cy + diameter * .16); ctx.lineTo(cx - diameter * .18, cy + diameter * .16); ctx.closePath(); ctx.stroke(); }
+    else if (kind === "bpmn-terminate-event") { ctx.beginPath(); ctx.arc(cx, cy, diameter * .18, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); }
     label(name, x, y + h - 8, w, Math.max(7, size * .64), false, "center");
   } else if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) {
     const side = Math.min(w, h - 12); const cx = x + w / 2; const cy = side / 2; ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(x + w, y + cy); ctx.lineTo(cx, y + side); ctx.lineTo(x, y + cy); ctx.closePath(); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
@@ -377,13 +428,22 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     else if (kind === "bpmn-event-gateway") { ctx.beginPath(); ctx.arc(cx, cy, side * .2, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, side * .14, 0, Math.PI * 2); ctx.stroke(); }
     else { rule(x + w * .34, y + side * .34, x + w * .66, y + side * .66); rule(x + w * .66, y + side * .34, x + w * .34, y + side * .66); }
     label(name, x, y + h - 8, w, Math.max(7, size * .58), false, "center");
-  } else if (kind === "bpmn-task") {
-    box(); label(name.toUpperCase(), x + 8, y + h / 2, w - 16, size, true, "center");
+  } else if (["bpmn-task", "bpmn-user-task", "bpmn-service-task", "bpmn-script-task", "bpmn-call-activity"].includes(kind)) {
+    box(); if (kind === "bpmn-call-activity") ctx.strokeRect(x + 4, y + 4, w - 8, h - 8);
+    const gx = x + 15; const gy = y + 18;
+    if (kind === "bpmn-user-task") { ctx.beginPath(); ctx.arc(gx + 5, gy + 4, 3, 0, Math.PI * 2); ctx.stroke(); rule(gx, gy + 16, gx + 10, gy + 16); rule(gx + 5, gy + 8, gx + 5, gy + 20); }
+    else if (kind === "bpmn-service-task") { ctx.beginPath(); ctx.arc(gx + 5, gy + 8, 6, 0, Math.PI * 2); ctx.stroke(); rule(gx - 2, gy + 8, gx + 12, gy + 8); rule(gx + 5, gy + 1, gx + 5, gy + 15); }
+    else if (kind === "bpmn-script-task") { ctx.strokeRect(gx, gy, 12, 16); rule(gx + 3, gy + 5, gx + 9, gy + 5); rule(gx + 3, gy + 9, gx + 9, gy + 9); rule(gx + 3, gy + 13, gx + 7, gy + 13); }
+    label(name.toUpperCase(), x + 10, y + h * .7, w - 20, size, true, "center");
   } else if (kind === "bpmn-subprocess") {
     box(); label(name.toUpperCase(), x + 10, y + h * .42, w - 20, size, true, "center");
     ctx.strokeRect(x + w / 2 - 6, y + h - 18, 12, 12); rule(x + w / 2 - 3, y + h - 12, x + w / 2 + 3, y + h - 12); rule(x + w / 2, y + h - 15, x + w / 2, y + h - 9);
   } else if (kind === "bpmn-data") {
     box(); ctx.beginPath(); ctx.moveTo(x + w - 18, y); ctx.lineTo(x + w, y + 18); ctx.lineTo(x + w - 18, y + 18); ctx.closePath(); ctx.strokeStyle = edge; ctx.stroke(); rule(x + 12, y + h - 23, x + w - 12, y + h - 23); label(name.toUpperCase(), x + 5, y + h / 2, w - 10, Math.max(8, size * .8), true, "center");
+  } else if (kind === "bpmn-data-store") {
+    const ry = Math.min(12, h * .16); ctx.beginPath(); ctx.ellipse(x + w / 2, y + ry, w * .42, ry, 0, 0, Math.PI * 2); ctx.moveTo(x + w * .08, y + ry); ctx.lineTo(x + w * .08, y + h - ry); ctx.ellipse(x + w / 2, y + h - ry, w * .42, ry, 0, Math.PI, 0, true); ctx.lineTo(x + w * .92, y + ry); ctx.strokeStyle = edge; ctx.stroke(); ctx.beginPath(); ctx.ellipse(x + w / 2, y + ry, w * .42, ry, 0, 0, Math.PI * 2); ctx.stroke(); label(name.toUpperCase(), x + 8, y + h * .58, w - 16, Math.max(8, size * .72), true, "center");
+  } else if (kind === "bpmn-text-annotation") {
+    rule(x + 15, y + 8, x + 15, y + h - 8); rule(x + 15, y + 8, x + 28, y + 8); rule(x + 15, y + h - 8, x + 28, y + h - 8); label(name, x + 30, y + h / 2, w - 40, Math.max(8, size * .8), false);
   } else if (kind === "bpmn-pool") {
     box(); box(x, y, Math.min(34, w / 3), h, soft); rule(x + Math.min(34, w / 3), y + h / 2, x + w, y + h / 2); label(name.toUpperCase(), x + 2, y + h / 2, Math.min(30, w / 3), Math.max(8, size * .55), true, "center");
   } else if (kind === "data-flow") {
@@ -660,6 +720,17 @@ function renderModelComponentSvg(group: GroupElement) {
     };
     const r = (rx = x, ry = y, rw = w, rh = h, color = cleanFill) => `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${color}" stroke="${ink}" stroke-width="1.3"/>`;
     const p = (d: string, dash = "") => `<path d="${d}" fill="none" stroke="${ink}" stroke-width="1.3"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
+    if (["uml-state", "uml-initial-state", "uml-final-state", "uml-fork", "uml-join", "uml-component", "uml-node", "uml-artifact", "uml-enumeration"].includes(kind)) {
+      if (kind === "uml-initial-state") return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .38}" fill="${ink}" stroke="${ink}"/>`;
+      if (kind === "uml-final-state") return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .44}" fill="${cleanFill}" stroke="${ink}" stroke-width="2"/><circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .29}" fill="${ink}"/>`;
+      if (kind === "uml-fork" || kind === "uml-join") return `<rect x="${x}" y="${y + h * .3}" width="${w}" height="${Math.max(6, h * .4)}" fill="${ink}"/>`;
+      if (kind === "uml-state") return `${r()}${t(rawTitle, x + w / 2, y + h * .4, w - 20, size, "middle")}${t("entry / exit / do", x + w / 2, y + h * .72, w - 20, Math.max(8, size * .65), "middle", 400)}`;
+      if (kind === "uml-component") return `${r()}${r(x + w - 25, y + 12, 14, 10, "none")}${r(x + w - 25, y + 28, 14, 10, "none")}${t(rawTitle, x + (w - 35) / 2, y + h / 2, w - 45, size, "middle")}`;
+      if (kind === "uml-node") { const dx = Math.min(18, w * .12); const dy = Math.min(15, h * .12); return `${r(x + dx, y + dy, w - dx, h - dy)}${p(`M ${x + dx} ${y + dy} L ${x + dx + 10} ${y} H ${x + w} V ${y + dy} M ${x + w - dx} ${y + dy} L ${x + w} ${y}`)}${t(rawTitle, x + w / 2 + dx / 2, y + h * .58, w - dx - 16, size, "middle")}`; }
+      if (kind === "uml-artifact") { const fold = Math.min(20, w * .18); return `${p(`M ${x} ${y} H ${x + w - fold} L ${x + w} ${y + fold} V ${y + h} H ${x} Z M ${x + w - fold} ${y} V ${y + fold} H ${x + w}`)}${t(rawTitle, x + w / 2, y + h * .57, w - 16, size, "middle")}`; }
+      const header = Math.min(40, h * .3);
+      return `${r()}${t("«enumeration»", x + w / 2, y + 14, w - 16, Math.max(8, size * .68), "middle", 400)}${t(rawTitle, x + w / 2, y + header, w - 16, size, "middle")}${p(`M ${x} ${y + header + 8} H ${x + w}`)}${t("«literal»", x + 12, y + header + 28, w - 24, Math.max(8, size * .68), "start", 400)}`;
+    }
     if (kind === "diagram-legend") {
       const rows = ["Component", "Decision", "Data store", "Relationship"];
       const rowMarkup = rows.map((row, index) => {
@@ -731,11 +802,40 @@ function renderModelComponentSvg(group: GroupElement) {
     if (kind === "network-dns") { const cx = x + w / 2; const cy = y + h * .4; const radius = Math.min(w * .24, h * .24); return `${r()}<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${ink}"/><ellipse cx="${cx}" cy="${cy}" rx="${radius * .48}" ry="${radius}" fill="none" stroke="${ink}"/>${p(`M ${cx - radius} ${cy} H ${cx + radius}`)}${t(rawTitle.toUpperCase(), cx, y + h - 15, w - 16, Math.max(8, size * .72), "middle")}`; }
     if (kind === "network-nat-gateway") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 14, w - 16, Math.min(size, 12), "middle")}${p(`M ${x + 24} ${y + h - 13} L ${x + w / 2} ${y + h * .55} L ${x + w - 24} ${y + h - 13} M ${x + w / 2} ${y + h * .55} V ${y + h * .31} l -4 6 m 4 -6 l 4 6`)}<circle cx="${x + 24}" cy="${y + h - 13}" r="3" fill="${cleanFill}" stroke="${ink}"/><circle cx="${x + w - 24}" cy="${y + h - 13}" r="3" fill="${cleanFill}" stroke="${ink}"/>`;
     if (kind === "network-modem") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 13, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 10} ${y + h * .42} H ${x + w - 10}`)}${[0, 1, 2, 3].map(index => `<circle cx="${x + 15 + index * 11}" cy="${y + h * .67}" r="2" fill="${ink}"/>`).join("")}${p(`M ${x + w - 31} ${y + h * .74} A 8 8 0 0 1 ${x + w - 15} ${y + h * .74} M ${x + w - 28} ${y + h * .74} A 5 5 0 0 1 ${x + w - 18} ${y + h * .74}`)}${t("WAN", x + w - 23, y + h - 9, 30, 7, "middle", 400)}`;
-    if (["bpmn-start", "bpmn-event", "bpmn-end", "bpmn-boundary-event"].includes(kind)) { const diameter = Math.min(w, h - 14); const cx = x + w / 2; const cy = diameter / 2 + y + 1; const inner = kind === "bpmn-event" || kind === "bpmn-boundary-event" ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .34}" fill="none" stroke="${ink}"${kind === "bpmn-boundary-event" ? " stroke-dasharray=\"3 2\"" : ""}/>` : ""; return `<circle cx="${cx}" cy="${cy}" r="${diameter * .43}" fill="${cleanFill}" stroke="${ink}" stroke-width="${kind === "bpmn-end" ? 2.5 : 1.3}"/>${inner}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .64), "middle", 400)}`; }
+    if (["network-proxy", "network-bridge", "network-bastion", "network-gateway", "network-printer", "network-workstation"].includes(kind)) {
+      const cx = x + w / 2; const cy = y + h * .55;
+      if (kind === "network-workstation") return `${r(x + 10, y + 8, w - 20, h * .58, soft)}${p(`M ${x + w * .3} ${y + h * .72} H ${x + w * .7} M ${cx} ${y + h * .66} V ${y + h * .82} M ${x + w * .28} ${y + h * .82} H ${x + w * .72}`)}${t(rawTitle.toUpperCase(), cx, y + h - 8, w - 8, Math.max(7, size * .7), "middle")}`;
+      if (kind === "network-printer") return `${r(x + 12, y + h * .34, w - 24, h * .48, soft)}${r(x + 24, y + 5, w - 48, h * .34, cleanFill)}${p(`M ${x + 28} ${y + h * .7} H ${x + w - 28} M ${x + 30} ${y + h * .84} H ${x + w - 30}`)}<circle cx="${x + w - 22}" cy="${y + h * .48}" r="2" fill="${ink}"/>${t(rawTitle.toUpperCase(), cx, y + h - 7, w - 8, Math.max(7, size * .66), "middle")}`;
+      if (kind === "network-bridge") return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 16} ${cy} H ${x + w - 16} M ${x + w * .3} ${cy - 12} V ${cy + 12} M ${x + w * .7} ${cy - 12} V ${cy + 12}`)}${[.16, .5, .84].map(position => `<circle cx="${x + w * position}" cy="${cy}" r="4" fill="${cleanFill}" stroke="${ink}"/>`).join("")}`;
+      if (kind === "network-gateway") return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${cx} ${y + h * .35} V ${y + h * .72} M ${cx - 16} ${y + h * .72} H ${cx + 16} M ${cx - 12} ${y + h * .42} L ${cx} ${y + h * .32} L ${cx + 12} ${y + h * .42}`)}`;
+      if (kind === "network-bastion") return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${cx} ${y + h * .31} L ${cx + 18} ${y + h * .4} V ${y + h * .58} Q ${cx + 16} ${y + h * .76} ${cx} ${y + h * .84} Q ${cx - 16} ${y + h * .76} ${cx - 18} ${y + h * .58} V ${y + h * .4} Z M ${cx - 8} ${y + h * .56} L ${cx - 2} ${y + h * .63} L ${cx + 10} ${y + h * .48}`)}`;
+      return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 12} ${cy} H ${x + w - 12} M ${x + w * .32} ${cy - 7} l-7 7 7 7 M ${x + w * .68} ${cy - 7} l7 7-7 7`)}`;
+    }
+    if (["bpmn-start", "bpmn-event", "bpmn-end", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind)) {
+      const diameter = Math.min(w, h - 14); const cx = x + w / 2; const cy = diameter / 2 + y + 1;
+      const marked = !["bpmn-start", "bpmn-end"].includes(kind);
+      const outer = `<circle cx="${cx}" cy="${cy}" r="${diameter * .43}" fill="${kind === "bpmn-terminate-event" ? ink : cleanFill}" stroke="${ink}" stroke-width="${kind === "bpmn-end" || kind === "bpmn-terminate-event" ? 2.5 : 1.3}"/>`;
+      const inner = marked ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .34}" fill="none" stroke="${kind === "bpmn-terminate-event" ? cleanFill : ink}"${kind === "bpmn-boundary-event" ? " stroke-dasharray=\"3 2\"" : ""}/>` : "";
+      const marker = kind === "bpmn-message-event" ? `<path d="M ${cx - 8} ${cy - 5} H ${cx + 8} V ${cy + 5} H ${cx - 8} Z M ${cx - 8} ${cy - 5} L ${cx} ${cy + 1} L ${cx + 8} ${cy - 5}" fill="none" stroke="${ink}"/>`
+        : kind === "bpmn-timer-event" ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .17}" fill="none" stroke="${ink}"/><path d="M ${cx} ${cy - 5} V ${cy} L ${cx + 5} ${cy + 3}" stroke="${ink}"/>`
+          : kind === "bpmn-error-event" ? `<path d="M ${cx + 4} ${cy - 9} L ${cx - 4} ${cy} H ${cx + 2} L ${cx - 4} ${cy + 9}" stroke="${ink}"/>`
+            : kind === "bpmn-signal-event" ? `<path d="M ${cx} ${cy - 9} L ${cx + 8} ${cy + 7} H ${cx - 8} Z" fill="none" stroke="${ink}"/>`
+              : kind === "bpmn-terminate-event" ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .17}" fill="${cleanFill}"/>` : "";
+      return `${outer}${inner}${marker}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .64), "middle", 400)}`;
+    }
     if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) { const side = Math.min(w, h - 12); const cx = x + w / 2; const cy = side / 2; const marks = kind === "bpmn-parallel-gateway" ? `M ${cx} ${y + side * .28} V ${y + side * .72} M ${x + w * .28} ${y + cy} H ${x + w * .72}` : kind === "bpmn-inclusive-gateway" ? `M ${cx} ${cy - side * .18} A ${side * .18} ${side * .18} 0 1 0 ${cx} ${cy + side * .18} A ${side * .18} ${side * .18} 0 1 0 ${cx} ${cy - side * .18}` : kind === "bpmn-event-gateway" ? `M ${cx} ${cy - side * .2} A ${side * .2} ${side * .2} 0 1 0 ${cx} ${cy + side * .2} A ${side * .2} ${side * .2} 0 1 0 ${cx} ${cy - side * .2} M ${cx} ${cy - side * .14} A ${side * .14} ${side * .14} 0 1 0 ${cx} ${cy + side * .14} A ${side * .14} ${side * .14} 0 1 0 ${cx} ${cy - side * .14}` : `M ${x + w * .34} ${y + side * .34} L ${x + w * .66} ${y + side * .66} M ${x + w * .66} ${y + side * .34} L ${x + w * .34} ${y + side * .66}`; return `<path d="M ${cx} ${y} L ${x + w} ${y + cy} L ${cx} ${y + side} L ${x} ${y + cy} Z" fill="${cleanFill}" stroke="${ink}"/>${p(marks)}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .58), "middle", 400)}`; }
-    if (kind === "bpmn-task") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + h / 2, w - 16, size, "middle")}`;
+    if (["bpmn-task", "bpmn-user-task", "bpmn-service-task", "bpmn-script-task", "bpmn-call-activity"].includes(kind)) {
+      const iconX = x + 14; const iconY = y + 14;
+      const marker = kind === "bpmn-user-task" ? `<circle cx="${iconX + 5}" cy="${iconY + 4}" r="3" fill="none" stroke="${ink}"/><path d="M ${iconX} ${iconY + 16} H ${iconX + 10} M ${iconX + 5} ${iconY + 8} V ${iconY + 18}" stroke="${ink}"/>`
+        : kind === "bpmn-service-task" ? `<circle cx="${iconX + 7}" cy="${iconY + 8}" r="6" fill="none" stroke="${ink}"/><path d="M ${iconX + 1} ${iconY + 8} H ${iconX + 13} M ${iconX + 7} ${iconY + 2} V ${iconY + 14}" stroke="${ink}"/>`
+          : kind === "bpmn-script-task" ? `<rect x="${iconX}" y="${iconY}" width="13" height="17" fill="none" stroke="${ink}"/><path d="M ${iconX + 3} ${iconY + 5} H ${iconX + 10} M ${iconX + 3} ${iconY + 9} H ${iconX + 10} M ${iconX + 3} ${iconY + 13} H ${iconX + 8}" stroke="${ink}"/>` : "";
+      const callBorder = kind === "bpmn-call-activity" ? r(x + 4, y + 4, w - 8, h - 8, "none") : "";
+      return `${r()}${callBorder}${marker}${t(rawTitle.toUpperCase(), x + w / 2, y + h / 2, w - 20, size, "middle")}`;
+    }
     if (kind === "bpmn-subprocess") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + h * .42, w - 20, size, "middle")}${r(x + w / 2 - 6, y + h - 18, 12, 12, cleanFill)}${p(`M ${x + w / 2 - 3} ${y + h - 12} H ${x + w / 2 + 3} M ${x + w / 2} ${y + h - 15} V ${y + h - 9}`)}`;
     if (kind === "bpmn-data") return `${r()}${p(`M ${x + w - 18} ${y} L ${x + w - 18} ${y + 18} H ${x + w}`)}${t(rawTitle.toUpperCase(), x + w / 2, y + h / 2, w - 10, Math.max(8, size * .8), "middle")}`;
+    if (kind === "bpmn-data-store") { const ry = Math.min(12, h * .16); return `<path d="M ${x} ${y + ry} C ${x} ${y - ry * .3} ${x + w} ${y - ry * .3} ${x + w} ${y + ry} V ${y + h - ry} C ${x + w} ${y + h + ry * .3} ${x} ${y + h + ry * .3} ${x} ${y + h - ry} Z" fill="${cleanFill}" stroke="${ink}"/><ellipse cx="${x + w / 2}" cy="${y + ry}" rx="${w / 2}" ry="${ry}" fill="${cleanFill}" stroke="${ink}"/>${t(rawTitle.toUpperCase(), x + w / 2, y + h / 2, w - 12, size, "middle")}`; }
+    if (kind === "bpmn-text-annotation") return `${p(`M ${x + 14} ${y} H ${x + 4} V ${y + h} H ${x + 14}`)}${t(rawTitle, x + 22, y + h / 2, w - 28, size, "start", 400)}`;
     if (kind === "bpmn-pool") return `${r()}${r(x, y, Math.min(34, w / 3), h, soft)}${p(`M ${x + 34} ${y + h / 2} H ${x + w}`)}${t("POOL", x + 17, y + h / 2, 30, Math.max(8, size * .55), "middle")}`;
     if (kind === "data-flow") return `${t(rawTitle.toUpperCase(), x + w / 2, y + 9, w, Math.max(8, size * .72), "middle")}${p(`M ${x + 4} ${y + h * .72} H ${x + w - 10} l -8 -5 m 8 5 l -8 5`)}`;
   }
