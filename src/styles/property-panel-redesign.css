@@ -108,16 +108,6 @@
     box-shadow: none;
 }
 
-.component-editor-scroll>.connection-point-editor {
-    padding: 8px 0;
-}
-
-.component-editor-scroll .connection-point-editor .pane-heading {
-    margin-bottom: 5px;
-    color: var(--theme-text-primary);
-    font-size: 11px;
-}
-
 .component-editor-scroll .connection-point-editor>p {
     margin: 0 0 7px;
     color: var(--theme-text-secondary);

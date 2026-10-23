@@ -1,56 +1,95 @@
 /* Keep the quick-style toolbar compact without shrinking its text popovers. */
-.style-pane.quick-style-mode {
+.style-pane.quick-style-mode.schema-editor-active {
+    box-sizing: border-box;
+    width: min(380px, calc(100vw - 36px));
+    min-width: 0;
+    top: 65px !important;
+}
+
+.style-pane.quick-style-mode:not(.schema-editor-active):not(.mobile-properties-expanded):not(.mobile-properties-collapsed) {
     box-sizing: border-box;
     width: 34px;
     padding: 4px 0;
 }
 
-.style-pane.quick-style-mode .quick-style-heading {
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-heading {
     height: 18px;
     margin-bottom: 4px;
 }
 
-.style-pane.quick-style-mode .quick-style-heading button {
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-heading button {
     width: 20px;
     height: 18px;
 }
 
-.style-pane.quick-style-mode .quick-style-heading svg {
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-heading svg {
     width: 13px;
     height: 13px;
 }
 
-.style-pane.quick-style-mode .quick-style-controls {
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-controls {
     gap: 4px;
 }
 
-.style-pane.quick-style-mode .quick-style-icon {
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-icon {
     width: 23px;
     height: 23px;
     flex-basis: 23px;
     padding: 3px;
 }
 
-.style-pane.quick-style-mode .quick-style-icon svg,
-.style-pane.quick-style-mode .quick-style-icon .quick-color-mark {
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-icon svg,
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-icon .quick-color-mark {
     width: 14px;
     height: 14px;
 }
 
-.style-pane.quick-style-mode .quick-width-icon {
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-width-icon {
     grid-template-columns: 12px auto;
     gap: 1px;
 }
 
-.style-pane.quick-style-mode .quick-width-icon > i {
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-width-icon > i {
     width: 12px;
 }
 
 @media (max-width: 900px) {
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-collapsed {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode:not(.schema-editor-active).mobile-properties-collapsed {
         width: 30px;
         height: 30px;
         min-height: 30px;
         max-height: 30px;
+    }
+
+    .style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-heading {
+        width: 27px;
+        height: 27px;
+        flex-basis: 27px;
+    }
+
+    .style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-heading button {
+        width: 28.5px;
+        min-width: 28.5px;
+        max-width: 28.5px;
+        height: 28.5px;
+        min-height: 28.5px;
+        flex-basis: 28.5px;
+    }
+
+    .style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-heading svg {
+        width: 13.5px;
+        height: 13.5px;
+    }
+
+    .style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-controls {
+        gap: 4.5px;
+    }
+
+    .style-pane.quick-style-mode:not(.schema-editor-active) .quick-style-icon {
+        width: 28.5px;
+        min-width: 28.5px;
+        height: 28.5px;
+        min-height: 28.5px;
+        flex-basis: 28.5px;
     }
 }

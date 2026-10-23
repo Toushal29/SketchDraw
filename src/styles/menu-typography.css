@@ -1,0 +1,28 @@
+/* Give the File, View, Help, and Settings menus one shared type scale. */
+:root {
+  --menu-font-family: var(--font-ui);
+  --menu-font-size: 12px;
+  --menu-line-height: 1.35;
+  --menu-trigger-size: 12px;
+  --menu-trigger-weight: 600;
+}
+
+.app-shell .topbar :is(.app-menu-items, .app-menu-rail, .app-menus) > .menu-dropdown > summary {
+  font-family: var(--menu-font-family);
+  font-size: var(--menu-trigger-size);
+  font-weight: var(--menu-trigger-weight);
+  line-height: 1.25;
+}
+
+:is(.system-menu-popover, .view-settings-popover, .app-settings-popover) {
+  font-family: var(--menu-font-family);
+  font-size: var(--menu-font-size);
+  line-height: var(--menu-line-height);
+}
+
+:is(.system-menu-popover, .view-settings-popover, .app-settings-popover) :is(button, input, select, textarea) {
+  font-family: var(--menu-font-family);
+  font-size: var(--menu-font-size);
+  font-weight: 500;
+  line-height: var(--menu-line-height);
+}

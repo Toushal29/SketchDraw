@@ -1,73 +1,84 @@
-/* The selected schema replaces the narrow quick-style rail with its source editor. */
+/* The selected schema replaces the compact quick-style rail with a full-height source editor. */
 .style-pane.schema-editor-active {
-    box-sizing: border-box;
-    position: fixed;
-    display: flex;
-    width: min(380px, calc(100% - 36px));
-    /* Responsive legacy pane rules reposition this editor; keep it below the app header. */
-    top: 65px !important;
-    bottom: max(12px, env(safe-area-inset-bottom));
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    flex-direction: column;
-    gap: 8px;
-    overflow: hidden;
-    padding: 10px;
+  box-sizing: border-box;
+  position: fixed;
+  top: 65px !important;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex;
+  width: min(380px, calc(100vw - 36px));
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  padding: 10px;
 }
 
 .schema-editor-active > .schema-editor-panel {
-    display: flex;
-    width: 100%;
-    min-width: 0;
-    min-height: 0;
-    flex: 1 1 auto;
-    flex-direction: column;
-    gap: 8px;
-    overflow: hidden;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
 }
 
-.schema-editor-active > .full-inspector { display: none !important; }
 .schema-editor-heading,
 .schema-editor-heading > div { display: flex; align-items: center; }
-.schema-editor-heading { justify-content: space-between; }
+.schema-editor-heading { justify-content: space-between; gap: 8px; }
 .schema-editor-heading > div { min-width: 0; flex-direction: column; gap: 2px; }
 .schema-editor-heading > div > span { color: var(--theme-text-tertiary); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
 .schema-editor-heading > div > strong { overflow: hidden; color: var(--theme-text-primary); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
 .schema-editor-heading > small { color: var(--ui-accent-ink); font-size: 9px; font-weight: 750; }
-.schema-editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.schema-editor-actions > small { color: var(--theme-text-tertiary); font-size: 9px; text-align: right; }
-.schema-editor-actions .quiet-button { margin: 0; padding: 5px 7px; white-space: nowrap; }
+.schema-editor-actions { display: flex; min-width: 0; align-items: center; margin: 0; }
+.schema-editor-actions .quiet-button { min-height: 28px; margin: 0; padding: 4px 7px; white-space: nowrap; }
+
 .schema-side-input {
-    box-sizing: border-box;
-    display: block;
-    width: 100%;
-    height: 0;
-    min-height: 0;
-    max-height: none;
-    flex: 1 1 0;
-    resize: none;
-    padding: 8px;
-    border: 1px solid var(--theme-border);
-    border-radius: 6px;
-    outline-color: var(--theme-primary);
-    color: var(--theme-text-primary);
-    background: var(--theme-surface-input);
-    font: 11px/1.45 var(--font-mono, monospace);
-    tab-size: 2;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: 0;
+  min-height: 0;
+  flex: 1 1 0;
+  resize: none;
+  padding: 8px;
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  outline-color: var(--theme-primary);
+  color: var(--theme-text-primary);
+  background: var(--theme-surface-input);
+  font: 11px/1.45 var(--font-mono, monospace);
+  tab-size: 2;
 }
-.schema-editor-error { max-height: 4em; overflow: auto; color: var(--theme-danger, #b42318); font-size: 10px; line-height: 1.35; }
 .schema-side-input[aria-invalid="true"] { border-color: var(--theme-danger, #b42318); }
+.schema-editor-error { max-height: 4em; overflow: auto; color: var(--theme-danger, #b42318); font-size: 10px; line-height: 1.35; }
 .schema-editor-font { display: grid; grid-template-columns: 1fr 82px; align-items: center; gap: 8px; color: var(--theme-text-secondary); font-size: 10px; }
-.schema-editor-font input { width: 100%; height: 28px; padding: 3px 6px; border: 1px solid var(--theme-border); border-radius: 5px; color: var(--theme-text-primary); background: var(--theme-surface-input); }
+.schema-editor-font input { box-sizing: border-box; width: 100%; height: 28px; padding: 3px 6px; border: 1px solid var(--theme-border); border-radius: 5px; color: var(--theme-text-primary); background: var(--theme-surface-input); }
 
 @media (max-width: 900px) {
-    .style-pane.schema-editor-active { bottom: calc(env(safe-area-inset-bottom) + 70px); width: min(380px, calc(100vw - 16px)); }
-    .app-shell:not(.platform-windows) .style-pane.schema-editor-active.mobile-properties-expanded { right: 8px; bottom: calc(env(safe-area-inset-bottom) + 66px); left: max(66px, calc(env(safe-area-inset-left) + 60px)); width: auto; height: auto; max-height: none; padding: 8px; }
-    .app-shell:not(.platform-windows) .schema-editor-active > .schema-editor-panel { height: 100%; }
+  .style-pane.schema-editor-active { bottom: calc(env(safe-area-inset-bottom) + 70px); width: min(380px, calc(100vw - 16px)); }
+  .app-shell:not(.platform-windows) .style-pane.schema-editor-active.mobile-properties-expanded {
+    right: 8px;
+    bottom: calc(env(safe-area-inset-bottom) + 66px);
+    left: max(66px, calc(env(safe-area-inset-left) + 60px));
+    width: auto;
+    min-width: 0;
+    padding: 8px;
+  }
+  .schema-editor-active > .schema-editor-panel { height: 100%; }
+  .schema-side-input { min-height: 90px; }
 }
 
 @media (max-width: 900px) and (orientation: landscape) {
-    .style-pane.schema-editor-active { right: auto; bottom: calc(env(safe-area-inset-bottom) + 66px); left: 8px; width: min(380px, calc(100vw - 16px)); height: auto; max-height: none; padding: 8px; }
-    .schema-editor-active > .schema-editor-panel { display: flex; height: 100%; flex-direction: column; overflow: hidden; }
+  .style-pane.schema-editor-active:not(.mobile-properties-expanded) {
+    right: auto;
+    bottom: calc(env(safe-area-inset-bottom) + 66px);
+    left: 8px;
+    width: min(380px, calc(100vw - 16px));
+    padding: 8px;
+  }
 }

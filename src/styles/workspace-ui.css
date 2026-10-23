@@ -638,10 +638,6 @@
     border-left: 1px solid var(--workspace-line, var(--theme-border));
 }
 
-.app-shell.platform-windows .live-sync-indicator {
-    white-space: nowrap;
-}
-
 .app-shell.platform-windows .save-status {
     min-width: 58px;
 }
@@ -699,10 +695,6 @@
 
     .app-shell.platform-windows .app-menu-items>.menu-dropdown>summary {
         padding-inline: 7px;
-    }
-
-    .app-shell.platform-windows .live-sync-indicator {
-        display: none;
     }
 
     .app-shell.platform-windows .topbar .top-actions {
