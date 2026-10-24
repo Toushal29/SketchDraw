@@ -56,6 +56,33 @@
 }
 
 @media (max-width: 480px) {
-  .app-shell:not(.platform-windows).design-workspace-active .design-palette-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
-  .app-shell:not(.platform-windows).design-workspace-active .design-palette-item { min-height: 68px; padding: 6px 4px; }
+  .app-shell:not(.platform-windows).design-workspace-active .design-palette-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .app-shell:not(.platform-windows).design-workspace-active .design-palette-item { min-height: 48px; padding: 6px; }
+}
+
+@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+  .app-shell:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
+  .app-shell:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
+    right: auto;
+    left: max(8px, env(safe-area-inset-left));
+    width: min(320px, calc(100vw - max(8px, env(safe-area-inset-left)) - 8px));
+    border-radius: 0 12px 12px 0;
+    box-shadow: none;
+  }
+
+  .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
+  .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
+    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
+    width: min(320px, calc(100vw - max(8px, env(safe-area-inset-left)) - 60px));
+  }
+
+  .app-shell.mobile-toolbar-top:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
+  .app-shell.mobile-toolbar-top:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded,
+  .app-shell.mobile-toolbar-bottom:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
+  .app-shell.mobile-toolbar-bottom:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded,
+  .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
+  .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
+    right: auto;
+    left: max(8px, env(safe-area-inset-left));
+  }
 }

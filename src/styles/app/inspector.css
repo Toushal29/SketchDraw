@@ -323,15 +323,16 @@
 .component-navigation-details > summary::after { content: "+"; color: var(--theme-text-secondary); font-size: 16px; }
 .component-navigation-details[open] > summary::after { content: "−"; }
 .component-navigation-details > .pane-section { margin: 0; padding: 6px 0; }
-.relationship-properties > summary.pane-heading { display: flex; min-height: 34px; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
-.relationship-properties > summary.pane-heading::-webkit-details-marker { display: none; }
-.relationship-properties > summary.pane-heading::after { content: "+"; color: var(--theme-text-secondary); font-size: 16px; }
-.relationship-properties[open] > summary.pane-heading::after { content: "−"; }
-.geometry-properties > summary.pane-heading { display: flex; min-height: 34px; align-items: center; justify-content: space-between; margin: 0; cursor: pointer; list-style: none; }
-.geometry-properties > summary.pane-heading::-webkit-details-marker { display: none; }
-.geometry-properties > summary.pane-heading::after { content: "+"; color: var(--theme-text-secondary); font-size: 16px; }
-.geometry-properties[open] > summary.pane-heading { margin-bottom: 10px; }
-.geometry-properties[open] > summary.pane-heading::after { content: "−"; }
+.relationship-properties > summary.inspector-disclosure-summary,
+.geometry-properties > summary.inspector-disclosure-summary { display: flex; min-height: 34px; align-items: center; justify-content: space-between; color: var(--theme-text-secondary); font-size: 10px; font-weight: 600; cursor: pointer; list-style: none; }
+.relationship-properties > summary.inspector-disclosure-summary::-webkit-details-marker,
+.geometry-properties > summary.inspector-disclosure-summary::-webkit-details-marker { display: none; }
+.relationship-properties > summary.inspector-disclosure-summary::after,
+.geometry-properties > summary.inspector-disclosure-summary::after { content: "+"; color: var(--theme-text-secondary); font-size: 16px; }
+.relationship-properties[open] > summary.inspector-disclosure-summary::after,
+.geometry-properties[open] > summary.inspector-disclosure-summary::after { content: "−"; }
+.geometry-properties > summary.inspector-disclosure-summary { margin: 0; }
+.geometry-properties[open] > summary.inspector-disclosure-summary { margin-bottom: 10px; }
 .page-link-empty p { margin: 0 0 7px; color: var(--theme-text-secondary); font-size: 11px; line-height: 1.4; }
 .nested-page-link { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
 .nested-page-link > span { min-width: 0; overflow-wrap: anywhere; color: var(--theme-text-secondary); font-size: 11px; }

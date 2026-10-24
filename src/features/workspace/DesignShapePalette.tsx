@@ -20,6 +20,23 @@ export type DesignPaletteItem =
 type PaletteEntry = { item: DesignPaletteItem; searchText: string };
 type PaletteSection = { name: string; entries: PaletteEntry[] };
 
+const COMPONENT_GROUPS = [
+  { name: "Diagram structure", sources: ["General"] },
+  { name: "Database", sources: ["ER", "Database"] },
+  { name: "Architecture", sources: ["Architecture"] },
+  { name: "Software", sources: ["Software"] },
+  { name: "Cloud", sources: ["Cloud"] },
+  { name: "Network", sources: ["Network"] },
+  { name: "UML", sources: ["UML"] },
+  { name: "BPMN", sources: ["BPMN"] },
+  { name: "Data visualization", sources: ["Data visualization"] },
+  { name: "Text & annotations", sources: ["Annotations & aids"] },
+] as const;
+
+const COMPONENT_GROUP_BY_SOURCE = new Map<string, string>(
+  COMPONENT_GROUPS.flatMap(group => group.sources.map(source => [source, group.name] as const)),
+);
+
 const primitiveShapes: { shape: PrimitiveShape; label: string; path: string }[] = [
   { shape: "rectangle", label: "Rectangle", path: "M4 5h16v14H4z" },
   { shape: "circle", label: "Ellipse", path: "M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0z" },
@@ -38,8 +55,10 @@ const connectorPresets: Omit<Extract<DesignPaletteItem, { type: "connector" }>, 
   { connector: "arrow", route: "elbow", lineStyle: "solid", startHead: "none", endHead: "open", label: "Elbow arrow" },
   { connector: "arrow", route: "curve", lineStyle: "solid", startHead: "none", endHead: "open", label: "Curve arrow" },
   { connector: "arrow", route: "forked", lineStyle: "solid", startHead: "none", endHead: "open", label: "Forked arrow" },
+  { connector: "arrow", route: "straight", lineStyle: "solid", startHead: "none", endHead: "solid", label: "Filled arrow" },
   { connector: "arrow", route: "straight", lineStyle: "solid", startHead: "solid", endHead: "solid", label: "Two-way arrow" },
   { connector: "arrow", route: "straight", lineStyle: "dashed", startHead: "none", endHead: "open", label: "Dashed arrow" },
+  { connector: "arrow", route: "straight", lineStyle: "dotted", startHead: "none", endHead: "open", label: "Dotted arrow" },
 ];
 
 function connectorIconPath(item: Extract<DesignPaletteItem, { type: "connector" }>) {
@@ -55,40 +74,52 @@ function connectorIconPath(item: Extract<DesignPaletteItem, { type: "connector" 
 }
 
 function createPaletteSections(stencils: CustomStencil[], masters: ComponentMaster[]): PaletteSection[] {
-  const components = new Map<string, PaletteEntry[]>();
+  const components = new Map<string, PaletteEntry[]>(COMPONENT_GROUPS.map(group => [group.name, []]));
   for (const component of LIBRARY_COMPONENTS) {
-    const category = component.section.startsWith("ER") ? "Entity relationship" : component.section.startsWith("C4") || component.section.startsWith("Architecture") ? "Architecture" : component.section.split("|")[0].trim();
-    const entries = components.get(category) ?? [];
+    const sourceGroup = component.section.split("|")[0].trim();
+    const category = COMPONENT_GROUP_BY_SOURCE.get(sourceGroup);
+    // New component families must be assigned to a real palette group before they are shown.
+    if (!category) continue;
+    const entries = components.get(category)!;
     entries.push({ item: { type: "component", kind: component.kind, label: component.label }, searchText: `${component.label} ${component.description} ${component.section}` });
-    components.set(category, entries);
   }
+
+  const architectureEntries = components.get("Architecture")!;
+  const bpmnEntries = components.get("BPMN")!;
 
   const databaseEntries: PaletteEntry[] = [
     { item: { type: "schema-table", label: "Schema table" }, searchText: "schema table entity sql database relational table" },
-    ...FLOWCHART_SHAPES.filter(shape => shape.value === "database").map(shape => ({ item: { type: "flowchart" as const, shape: shape.value, label: "Database cylinder" }, searchText: "database cylinder data store" })),
-    ...(components.get("Database") ?? []),
+    ...components.get("Database")!,
   ];
-  const generalEntries: PaletteEntry[] = [
+  const basicShapeEntries: PaletteEntry[] = [
     ...primitiveShapes.map(shape => ({ item: { type: "primitive" as const, shape: shape.shape, label: shape.label }, searchText: shape.label })),
     ...GENERAL_SHAPES.map(shape => ({ item: { type: "flowchart" as const, shape: shape.value, label: shape.label }, searchText: `${shape.label} general shape ${shape.value}` })),
-    ...connectorPresets.map(preset => ({ item: { type: "connector" as const, ...preset }, searchText: `${preset.label} ${preset.connector} connector ${preset.route} ${preset.lineStyle} line arrow` })),
-    { item: { type: "text", label: "Text" }, searchText: "text label" },
-    ...(components.get("General") ?? []),
   ];
+  const connectorEntries = connectorPresets.map(preset => ({
+    item: { type: "connector" as const, ...preset },
+    searchText: `${preset.label} ${preset.connector} connector ${preset.route} ${preset.lineStyle} line arrow C4 relationship BPMN sequence flow message flow data association`,
+  }));
   const sections: PaletteSection[] = [
-    { name: "General", entries: generalEntries },
-    { name: "Flowchart", entries: FLOWCHART_SHAPES.filter(shape => shape.value !== "database").map(shape => ({ item: { type: "flowchart", shape: shape.value, label: shape.label }, searchText: `${shape.label} flowchart ${shape.value}` })) },
+    { name: "Basic shapes", entries: basicShapeEntries },
+    { name: "Connectors", entries: connectorEntries },
+    { name: "Flowchart", entries: FLOWCHART_SHAPES.map(shape => ({ item: { type: "flowchart", shape: shape.value, label: shape.label }, searchText: `${shape.label} flowchart ${shape.value}` })) },
     { name: "Database", entries: databaseEntries },
-    { name: "Architecture", entries: components.get("Architecture") ?? [] },
+    { name: "Architecture", entries: architectureEntries },
+    { name: "Software", entries: components.get("Software")! },
+    { name: "Cloud", entries: components.get("Cloud")! },
+    { name: "Network", entries: components.get("Network")! },
+    { name: "UML", entries: components.get("UML")! },
+    { name: "BPMN", entries: bpmnEntries },
+    { name: "Data visualization", entries: components.get("Data visualization")! },
+    { name: "Diagram structure", entries: components.get("Diagram structure")! },
+    { name: "Text & annotations", entries: [
+      { item: { type: "text", label: "Text" }, searchText: "text label annotation" },
+      ...components.get("Text & annotations")!,
+    ] },
   ];
-
-  for (const [name, entries] of components) {
-    if (name === "Database" || name === "General" || name === "Architecture") continue;
-    sections.push({ name, entries });
-  }
   if (stencils.length) sections.push({ name: "My stencils", entries: stencils.map(stencil => ({ item: { type: "custom-stencil", stencil, label: stencil.name }, searchText: `${stencil.name} ${stencil.tags.join(" ")} ${stencil.folder ?? ""} ${stencil.preview}` })) });
   if (masters.length) sections.push({ name: "Reusable components", entries: masters.map(master => ({ item: { type: "component-master", master, label: master.name }, searchText: `${master.name} reusable component` })) });
-  return sections;
+  return sections.filter(section => section.entries.length > 0);
 }
 
 function PaletteIcon(props: { item: DesignPaletteItem }) {
@@ -128,7 +159,7 @@ export function DesignShapePalette(props: {
   onInsert: (item: DesignPaletteItem) => void;
 }) {
   const [search, setSearch] = createSignal("");
-  const [openSections, setOpenSections] = createSignal(new Set(["General"]));
+  const [openSections, setOpenSections] = createSignal(new Set(["Basic shapes"]));
   // Build the shape catalog once per document palette update, then filter it as the query changes.
   const paletteSections = createMemo(() => createPaletteSections(props.stencils, props.masters));
   function updateSearch(value: string) {
@@ -156,8 +187,11 @@ export function DesignShapePalette(props: {
       </button>
     </header>
     <div class="design-palette-groups">
-      <For each={sections()}>{section => <section class="design-palette-section">
-        <button type="button" class="design-palette-section-toggle" aria-expanded={openSections().has(section.name)} onClick={() => setOpenSections(current => {
+      <For each={sections()}>{section => {
+        const sectionId = `design-palette-${section.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+        const isOpen = () => openSections().has(section.name);
+        return <section class="design-palette-section">
+        <button type="button" class="design-palette-section-toggle" aria-expanded={isOpen()} aria-controls={sectionId} onClick={() => setOpenSections(current => {
           const next = new Set(current);
           if (next.has(section.name)) next.delete(section.name);
           else next.add(section.name);
@@ -165,15 +199,15 @@ export function DesignShapePalette(props: {
         })}>
           <span>{section.name}</span><small>{section.entries.length}</small><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
         </button>
-        <Show when={openSections().has(section.name)}>
-          <div class="design-palette-grid">
+          <div class="design-palette-grid" id={sectionId} role="group" aria-label={`${section.name} shapes`} hidden={!isOpen()}>
+          <Show when={isOpen()}>
             <For each={section.entries}>{entry => <button type="button" class="design-palette-item" title={entry.item.label} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
               <PaletteIcon item={entry.item} />
               <span>{entry.item.label}</span>
             </button>}</For>
+          </Show>
           </div>
-        </Show>
-      </section>}</For>
+      </section>}}</For>
       <Show when={!sections().length}><p class="design-palette-empty">No matching shapes</p></Show>
     </div>
   </div>;

@@ -226,6 +226,74 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   ctx.beginPath(); ctx.rect(x - 1, y - 1, w + 2, h + 2); ctx.clip();
   ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.font = `${size}px system-ui, sans-serif`;
 
+  if (kind === "db-view") {
+    const fold = Math.min(22, w * .14); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w - fold, y); ctx.lineTo(x + w, y + fold); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    rule(x + w - fold, y, x + w - fold, y + fold); rule(x + w - fold, y + fold, x + w, y + fold); label(name.toUpperCase(), x + 10, y + 18, w - 30, Math.min(size, 12)); rule(x + 10, y + 31, x + w - 10, y + 31);
+    const sources = field("sources"); const query = field("query"); const refresh = field("refresh");
+    if (sources) label(`Sources: ${sources}`, x + 10, y + 49, w - 20, Math.max(7, size * .62), false);
+    if (query) label(`Query: ${query}`, x + 10, y + 75, w - 20, Math.max(7, size * .58), false);
+    if (refresh) label(`Refresh: ${refresh}`, x + 10, y + h - 9, w - 20, Math.max(7, size * .56), false);
+    ctx.restore(); return;
+  }
+  if (kind === "db-index") {
+    box(); label("INDEX", x + 10, y + 17, w - 20, Math.min(size, 11)); rule(x + 10, y + 29, x + w - 10, y + 29);
+    const method = field("method"); const columns = field("columns"); const uniqueness = field("uniqueness"); const predicate = field("predicate");
+    const rootX = x + 20; const rootY = y + 48; ctx.strokeStyle = edge; ctx.beginPath(); ctx.moveTo(rootX, rootY); ctx.lineTo(x + 45, rootY + 13); ctx.moveTo(x + 45, rootY + 13); ctx.lineTo(x + 31, rootY + 25); ctx.moveTo(x + 45, rootY + 13); ctx.lineTo(x + 59, rootY + 25); ctx.stroke();
+    for (const [px, py] of [[rootX, rootY], [x + 31, rootY + 25], [x + 59, rootY + 25]]) { ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fillStyle = soft; ctx.fill(); ctx.stroke(); }
+    const details = [uniqueness, columns, method, predicate].filter(Boolean).slice(0, 3);
+    details.forEach((value, index) => label(value, x + 70, y + 47 + index * 21, w - 80, Math.max(7, size * .58), index === 0));
+    ctx.restore(); return;
+  }
+  if (kind === "db-procedure") {
+    roundRect(ctx, x, y, w, h, 9); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x + 25, y + 25, 14, 0, Math.PI * 2); ctx.fillStyle = soft; ctx.fill(); ctx.stroke(); label("ƒx", x + 13, y + 25, 24, 12, true, "center");
+    label(name.toUpperCase(), x + 48, y + 18, w - 58, Math.min(size, 12)); rule(x + 48, y + 31, x + w - 10, y + 31);
+    const signature = field("signature"); const parameters = field("parameters"); const transaction = field("transaction"); const effects = field("effects");
+    if (signature) label(signature, x + 12, y + 55, w - 24, Math.max(7, size * .64), true);
+    if (parameters) label(`Parameters: ${parameters}`, x + 12, y + 78, w - 24, Math.max(7, size * .56), false);
+    if (transaction || effects) label([transaction, effects].filter(Boolean).join(" · "), x + 12, y + h - 10, w - 24, Math.max(7, size * .52), false);
+    ctx.restore(); return;
+  }
+  if (kind === "uml-object") {
+    box(); label("«instance»", x + 8, y + 16, w - 16, Math.max(8, size * .68), false, "center");
+    const classifier = field("classifier"); label(classifier ? `${name} : ${classifier}` : name, x + 8, y + 37, w - 16, size, true, "center"); rule(x, y + 52, x + w, y + 52);
+    const state = field("state"); const slots = field("slots"); if (state) label(`State: ${state}`, x + 10, y + 69, w - 20, Math.max(7, size * .64), false);
+    if (slots) slots.split(/\r?\n/).filter(Boolean).slice(0, 4).forEach((slot, index) => label(slot, x + 12, y + 89 + index * 14, w - 24, Math.max(7, size * .58), false));
+    ctx.restore(); return;
+  }
+  if (kind === "uml-activity-action") {
+    roundRect(ctx, x, y, w, h, 15); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    label(name, x + 12, y + 22, w - 24, size, true, "center");
+    const behavior = field("behavior"); const inputs = field("inputs"); const outputs = field("outputs");
+    if (behavior) label(behavior, x + 12, y + 47, w - 24, Math.max(7, size * .62), false, "center");
+    if (inputs) { box(x - 1, y + h * .5 - 5, 8, 10, soft); label(inputs.split(/\r?\n/)[0], x + 10, y + h * .72, w * .42, Math.max(6, size * .52), false); }
+    if (outputs) { box(x + w - 7, y + h * .5 - 5, 8, 10, soft); label(outputs.split(/\r?\n/)[0], x + w * .54, y + h * .72, w * .4, Math.max(6, size * .52), false); }
+    ctx.restore(); return;
+  }
+  if (kind === "uml-activity-decision") {
+    ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    const condition = field("condition"); const guards = field("guards"); label(condition || name, x + w * .24, y + h * .45, w * .52, Math.max(7, size * .65), true, "center");
+    if (guards) label(guards.split(/\r?\n/)[0], x + 3, y + h - 5, w - 6, Math.max(6, size * .48), false, "center");
+    ctx.restore(); return;
+  }
+  if (kind === "uml-activity-initial" || kind === "uml-activity-final") {
+    const radius = Math.min(w, h) * .28; ctx.beginPath(); ctx.arc(x + w / 2, y + h * .42, radius, 0, Math.PI * 2); ctx.fillStyle = kind === "uml-activity-initial" ? ink : (fill === "transparent" ? "rgba(0,0,0,0)" : fill); if (kind === "uml-activity-initial" || fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "uml-activity-final" ? 2 : 1.3; ctx.stroke();
+    if (kind === "uml-activity-final") { ctx.beginPath(); ctx.arc(x + w / 2, y + h * .42, radius * .65, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); }
+    label(name, x + 2, y + h - 5, w - 4, Math.max(7, size * .58), false, "center"); ctx.restore(); return;
+  }
+  if (kind === "c4-container-instance" || kind === "c4-component-instance") {
+    box(); label(kind === "c4-container-instance" ? "CONTAINER" : "COMPONENT", x + 10, y + 16, w - 20, Math.max(8, size * .7), false); rule(x + 1, y + 29, x + w - 1, y + 29); label(name, x + 10, y + 49, w - 20, size, true);
+    const main = field("responsibility"); const implementation = field(kind === "c4-container-instance" ? "technology" : "implementation"); const interfaces = field(kind === "c4-container-instance" ? "interfaces" : "interface");
+    if (main) label(main, x + 10, y + 74, w - 20, Math.max(7, size * .62), false);
+    if (implementation) label(implementation, x + 10, y + 96, w - 20, Math.max(7, size * .58), false);
+    if (interfaces) label(interfaces, x + 10, y + h - 8, w - 20, Math.max(7, size * .52), false);
+    ctx.restore(); return;
+  }
+  if (kind === "bpmn-group") {
+    roundRect(ctx, x + 2, y + 2, w - 4, h - 4, 8); ctx.setLineDash([6, 4]); ctx.strokeStyle = edge; ctx.stroke(); ctx.setLineDash([]); label(name.toUpperCase(), x + 12, y + 17, w - 24, Math.min(size, 12));
+    const purpose = field("purpose"); if (purpose) label(purpose, x + 12, y + 43, w - 24, Math.max(7, size * .64), false); ctx.restore(); return;
+  }
+
   if (kind === "uml-enumeration") {
     box(); const header = Math.min(40, h * .3);
     label("<<enumeration>>", x + 8, y + 14, w - 16, Math.max(8, size * .68), false, "center");
@@ -1069,6 +1137,43 @@ function renderModelComponentSvg(group: GroupElement): string {
     const field = (key: string) => componentFieldValue(group, key);
     const r = (rx = x, ry = y, rw = w, rh = h, color = cleanFill) => `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${color}" stroke="${ink}" stroke-width="1.3"/>`;
     const p = (d: string, dash = "") => `<path d="${d}" fill="none" stroke="${ink}" stroke-width="1.3"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
+    if (kind === "db-view") {
+      const fold = Math.min(22, w * .14); const sources = field("sources"); const query = field("query"); const refresh = field("refresh");
+      return `${p(`M ${x} ${y} H ${x + w - fold} L ${x + w} ${y + fold} V ${y + h} H ${x} Z M ${x + w - fold} ${y} V ${y + fold} H ${x + w}`)}${t(rawTitle.toUpperCase(), x + 10, y + 18, w - 30, Math.min(size, 12))}${p(`M ${x + 10} ${y + 31} H ${x + w - 10}`)}${sources ? t(`Sources: ${sources}`, x + 10, y + 49, w - 20, Math.max(7, size * .62), "start", 400) : ""}${query ? t(`Query: ${query}`, x + 10, y + 75, w - 20, Math.max(7, size * .58), "start", 400) : ""}${refresh ? t(`Refresh: ${refresh}`, x + 10, y + h - 9, w - 20, Math.max(7, size * .56), "start", 400) : ""}`;
+    }
+    if (kind === "db-index") {
+      const details = [field("uniqueness"), field("columns"), field("method"), field("predicate")].filter(Boolean).slice(0, 3);
+      const branch = `<path d="M ${x + 20} ${y + 48} L ${x + 45} ${y + 61} M ${x + 45} ${y + 61} L ${x + 31} ${y + 73} M ${x + 45} ${y + 61} L ${x + 59} ${y + 73}" fill="none" stroke="${ink}"/><circle cx="${x + 20}" cy="${y + 48}" r="3" fill="${soft}" stroke="${ink}"/><circle cx="${x + 31}" cy="${y + 73}" r="3" fill="${soft}" stroke="${ink}"/><circle cx="${x + 59}" cy="${y + 73}" r="3" fill="${soft}" stroke="${ink}"/>`;
+      return `${r()}${t("INDEX", x + 10, y + 17, w - 20, Math.min(size, 11))}${p(`M ${x + 10} ${y + 29} H ${x + w - 10}`)}${branch}${details.map((value, index) => t(value, x + 70, y + 47 + index * 21, w - 80, Math.max(7, size * .58), "start", index === 0 ? 600 : 400)).join("")}`;
+    }
+    if (kind === "db-procedure") {
+      const signature = field("signature"); const parameters = field("parameters"); const transaction = field("transaction"); const effects = field("effects");
+      return `${r(x, y, w, h, cleanFill)}<circle cx="${x + 25}" cy="${y + 25}" r="14" fill="${soft}" stroke="${ink}"/>${t("ƒx", x + 25, y + 25, 24, 12, "middle")}${t(rawTitle.toUpperCase(), x + 48, y + 18, w - 58, Math.min(size, 12))}${p(`M ${x + 48} ${y + 31} H ${x + w - 10}`)}${signature ? t(signature, x + 12, y + 55, w - 24, Math.max(7, size * .64)) : ""}${parameters ? t(`Parameters: ${parameters}`, x + 12, y + 78, w - 24, Math.max(7, size * .56), "start", 400) : ""}${transaction || effects ? t([transaction, effects].filter(Boolean).join(" · "), x + 12, y + h - 10, w - 24, Math.max(7, size * .52), "start", 400) : ""}`;
+    }
+    if (kind === "uml-object") {
+      const classifier = field("classifier"); const state = field("state"); const slots = field("slots"); const slotLines = slots.split(/\r?\n/).filter(Boolean).slice(0, 4);
+      return `${r()}${t("«instance»", x + w / 2, y + 16, w - 16, Math.max(8, size * .68), "middle", 400)}${t(classifier ? `${rawTitle} : ${classifier}` : rawTitle, x + w / 2, y + 37, w - 16, size, "middle")}${p(`M ${x} ${y + 52} H ${x + w}`)}${state ? t(`State: ${state}`, x + 10, y + 69, w - 20, Math.max(7, size * .64), "start", 400) : ""}${slotLines.map((slot, index) => t(slot, x + 12, y + 89 + index * 14, w - 24, Math.max(7, size * .58), "start", 400)).join("")}`;
+    }
+    if (kind === "uml-activity-action") {
+      const behavior = field("behavior"); const inputs = field("inputs").split(/\r?\n/).filter(Boolean)[0]; const outputs = field("outputs").split(/\r?\n/).filter(Boolean)[0];
+      return `${r(x, y, w, h, cleanFill)}${t(rawTitle, x + w / 2, y + 22, w - 24, size, "middle")}${behavior ? t(behavior, x + w / 2, y + 47, w - 24, Math.max(7, size * .62), "middle", 400) : ""}${inputs ? `${r(x, y + h * .5 - 5, 8, 10, soft)}${t(inputs, x + 10, y + h * .72, w * .42, Math.max(6, size * .52), "start", 400)}` : ""}${outputs ? `${r(x + w - 8, y + h * .5 - 5, 8, 10, soft)}${t(outputs, x + w * .54, y + h * .72, w * .4, Math.max(6, size * .52), "start", 400)}` : ""}`;
+    }
+    if (kind === "uml-activity-decision") {
+      const condition = field("condition"); const guards = field("guards").split(/\r?\n/).filter(Boolean)[0];
+      return `<path d="M ${x + w / 2} ${y} L ${x + w} ${y + h / 2} L ${x + w / 2} ${y + h} L ${x} ${y + h / 2} Z" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3"/>${t(condition || rawTitle, x + w * .24, y + h * .45, w * .52, Math.max(7, size * .65), "middle")}${guards ? t(guards, x + w / 2, y + h - 5, w - 6, Math.max(6, size * .48), "middle", 400) : ""}`;
+    }
+    if (kind === "uml-activity-initial" || kind === "uml-activity-final") {
+      const radius = Math.min(w, h) * .28; const cx = x + w / 2; const cy = y + h * .42; const circle = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${kind === "uml-activity-initial" ? ink : cleanFill}" stroke="${ink}" stroke-width="${kind === "uml-activity-final" ? 2 : 1.3}"/>`;
+      return `${circle}${kind === "uml-activity-final" ? `<circle cx="${cx}" cy="${cy}" r="${radius * .65}" fill="${ink}"/>` : ""}${t(rawTitle, cx, y + h - 5, w - 4, Math.max(7, size * .58), "middle", 400)}`;
+    }
+    if (kind === "c4-container-instance" || kind === "c4-component-instance") {
+      const container = kind === "c4-container-instance"; const responsibility = field("responsibility"); const implementation = field(container ? "technology" : "implementation"); const interfaces = field(container ? "interfaces" : "interface");
+      return `${r()}${t(container ? "CONTAINER" : "COMPONENT", x + 10, y + 16, w - 20, Math.max(8, size * .7), "start", 400)}${p(`M ${x + 1} ${y + 29} H ${x + w - 1}`)}${t(rawTitle, x + 10, y + 49, w - 20, size)}${responsibility ? t(responsibility, x + 10, y + 74, w - 20, Math.max(7, size * .62), "start", 400) : ""}${implementation ? t(implementation, x + 10, y + 96, w - 20, Math.max(7, size * .58), "start", 400) : ""}${interfaces ? t(interfaces, x + 10, y + h - 8, w - 20, Math.max(7, size * .52), "start", 400) : ""}`;
+    }
+    if (kind === "bpmn-group") {
+      const purpose = field("purpose");
+      return `${p(`M ${x + 10} ${y + 2} H ${x + w - 10} Q ${x + w - 2} ${y + 2} ${x + w - 2} ${y + 10} V ${y + h - 10} Q ${x + w - 2} ${y + h - 2} ${x + w - 10} ${y + h - 2} H ${x + 10} Q ${x + 2} ${y + h - 2} ${x + 2} ${y + h - 10} V ${y + 10} Q ${x + 2} ${y + 2} ${x + 10} ${y + 2} Z`, "6 4")}${t(rawTitle.toUpperCase(), x + 12, y + 17, w - 24, Math.min(size, 12))}${purpose ? t(purpose, x + 12, y + 43, w - 24, Math.max(7, size * .64), "start", 400) : ""}`;
+    }
     if (["uml-state", "uml-initial-state", "uml-final-state", "uml-fork", "uml-join", "uml-component", "uml-node", "uml-artifact", "uml-enumeration"].includes(kind)) {
       if (kind === "uml-initial-state") return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .38}" fill="${ink}" stroke="${ink}"/>`;
       if (kind === "uml-final-state") return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .44}" fill="${cleanFill}" stroke="${ink}" stroke-width="2"/><circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .29}" fill="${ink}"/>`;

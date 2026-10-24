@@ -145,6 +145,20 @@ export function libraryComponentFontSize(group: GroupElement): number {
 export function libraryComponentMinimum(group: GroupElement, axis: "w" | "h"): number {
   const kind = group.libraryComponent?.kind;
   if (kind === "uml-class") return axis === "w" ? 180 : 110;
+  const modelMinimums: Record<string, { w: number; h: number }> = {
+    "uml-object": { w: 150, h: 96 },
+    "uml-activity-action": { w: 140, h: 72 },
+    "uml-activity-decision": { w: 76, h: 76 },
+    "uml-activity-initial": { w: 38, h: 38 },
+    "uml-activity-final": { w: 46, h: 46 },
+    "db-view": { w: 150, h: 96 },
+    "db-index": { w: 160, h: 92 },
+    "db-procedure": { w: 164, h: 104 },
+    "c4-container-instance": { w: 160, h: 96 },
+    "c4-component-instance": { w: 150, h: 92 },
+    "bpmn-group": { w: 150, h: 90 },
+  };
+  if (kind && modelMinimums[kind]) return modelMinimums[kind][axis];
   if (kind?.startsWith("gui-")) {
     const minimums: Record<string, { w: number; h: number }> = {
       "gui-card": { w: 120, h: 25 }, "gui-app-bar": { w: 60, h: 25 }, "gui-navigation": { w: 50, h: guiNavigationMinimumHeight(group) },
