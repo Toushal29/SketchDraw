@@ -52,7 +52,7 @@ export const DIAGRAM_GUIDES: DiagramGuide[] = [
   },
   {
     id: "data-model", category: "Database", title: "Customer and orders", summary: "Connect related records and make the key fields visible.", use: "Use an ER model to discuss table ownership, keys, and one-to-many relations.", tip: "Mark primary and foreign keys explicitly before adding optional fields.", source: { label: "draw.io database shapes", href: "https://www.drawio.com/docs/manual/shapes/" }, width: 950, height: 350,
-    nodes: [componentNode("Customer", 35, 80, "er-table", 240, 175, "#eff9f6"), componentNode("Order", 355, 80, "er-table", 240, 175, "#eff9f6"), componentNode("Order line", 675, 80, "er-table", 240, 175, "#eff9f6")],
+    nodes: [componentNode("Customer", 35, 80, "er-table", 240, 175), componentNode("Order", 355, 80, "er-table", 240, 175), componentNode("Order line", 675, 80, "er-table", 240, 175)],
     edges: [{ from: 0, to: 1, label: "1 to many" }, { from: 1, to: 2, label: "1 to many" }],
   },
   {

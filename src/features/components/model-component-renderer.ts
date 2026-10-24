@@ -176,8 +176,9 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   if (!bounds || !meta) return;
   const { x, y, w, h } = bounds; const kind = meta.kind;
   const textStyle = meta.textStyle;
-  const textInk = textStyle?.color ?? meta.styleOverrides?.color ?? (theme === "dark" ? "#eeeeee" : "#292929");
-  const ink = meta.styleOverrides?.color ?? (theme === "dark" ? "#eeeeee" : "#292929");
+  const defaultInk = kind.startsWith("er-") ? "#000000" : theme === "dark" ? "#eeeeee" : "#292929";
+  const textInk = textStyle?.color ?? meta.styleOverrides?.color ?? defaultInk;
+  const ink = meta.styleOverrides?.color ?? defaultInk;
   const edge = ink; const fill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? group.container?.background ?? (theme === "dark" ? "#202020" : "#ffffff");
   const soft = theme === "dark" ? "#343434" : "#eeeeee";
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
@@ -225,6 +226,15 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   ctx.save();
   ctx.beginPath(); ctx.rect(x - 1, y - 1, w + 2, h + 2); ctx.clip();
   ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.font = `${size}px system-ui, sans-serif`;
+
+  if (kind === "uml-use-case") {
+    ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2 - .65, h / 2 - .65, 0, 0, Math.PI * 2);
+    ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill();
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.stroke();
+    label(name, x + w / 2, y + h / 2, w - 16, size, true, "center");
+    const outcome = field("outcome"); if (outcome) label(outcome, x + w / 2, y + h * .68, w * .64, Math.max(7, size * .62), false, "center");
+    ctx.restore(); return;
+  }
 
   if (kind === "db-view") {
     const fold = Math.min(22, w * .14); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w - fold, y); ctx.lineTo(x + w, y + fold); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
@@ -277,9 +287,9 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     ctx.restore(); return;
   }
   if (kind === "uml-activity-initial" || kind === "uml-activity-final") {
-    const radius = Math.min(w, h) * .28; ctx.beginPath(); ctx.arc(x + w / 2, y + h * .42, radius, 0, Math.PI * 2); ctx.fillStyle = kind === "uml-activity-initial" ? ink : (fill === "transparent" ? "rgba(0,0,0,0)" : fill); if (kind === "uml-activity-initial" || fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "uml-activity-final" ? 2 : 1.3; ctx.stroke();
-    if (kind === "uml-activity-final") { ctx.beginPath(); ctx.arc(x + w / 2, y + h * .42, radius * .65, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); }
-    label(name, x + 2, y + h - 5, w - 4, Math.max(7, size * .58), false, "center"); ctx.restore(); return;
+    const radius = Math.min(w, h) / 2 - 1; ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, radius, 0, Math.PI * 2); ctx.fillStyle = kind === "uml-activity-initial" ? ink : (fill === "transparent" ? "rgba(0,0,0,0)" : fill); if (kind === "uml-activity-initial" || fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "uml-activity-final" ? 2 : 1.3; ctx.stroke();
+    if (kind === "uml-activity-final") { ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, radius * .65, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); }
+    ctx.restore(); return;
   }
   if (kind === "c4-container-instance" || kind === "c4-component-instance") {
     box(); label(kind === "c4-container-instance" ? "CONTAINER" : "COMPONENT", x + 10, y + 16, w - 20, Math.max(8, size * .7), false); rule(x + 1, y + 29, x + w - 1, y + 29); label(name, x + 10, y + 49, w - 20, size, true);
@@ -325,12 +335,13 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   }
   if (["uml-state", "uml-initial-state", "uml-final-state", "uml-fork", "uml-join", "uml-component", "uml-node", "uml-artifact", "uml-enumeration"].includes(kind)) {
     if (kind === "uml-initial-state") {
-      ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) * .38, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill();
+      ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) / 2 - .65, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill();
     } else if (kind === "uml-final-state") {
-      ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) * .44, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 2; ctx.stroke();
-      ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) * .29, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill();
+      const outerRadius = Math.min(w, h) / 2 - 1;
+      ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, outerRadius, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, outerRadius * .65, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill();
     } else if (kind === "uml-fork" || kind === "uml-join") {
-      ctx.fillStyle = ink; ctx.fillRect(x, y + h * .3, w, Math.max(6, h * .4));
+      ctx.fillStyle = ink; ctx.fillRect(x, y + 1, w, Math.max(1, h - 2));
     } else if (kind === "uml-state") {
       roundRect(ctx, x, y, w, h, 10); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke();
       label(name, x + 10, y + h * .4, w - 20, size, true, "center");
@@ -742,12 +753,12 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   const meta = group.libraryComponent!;
   const textStyle = meta.textStyle;
   if (drawGuiComponent(ctx, group, theme)) return;
-  if (meta.renderStyle === "clean") { drawCleanModelComponent(ctx, group, theme); return; }
+  if (meta.renderStyle === "clean" && !kind.startsWith("er-")) { drawCleanModelComponent(ctx, group, theme); return; }
   // Modeling components share one plain visual language.
   const simple = true;
   const basePalette = paletteFor(theme === "dark");
   const palette: Palette = kind.startsWith("er-")
-    ? { ...basePalette, edge: theme === "dark" ? "#88c7bb" : "#31877e", fill: theme === "dark" ? "#172b28" : "#eff9f6", soft: theme === "dark" ? "#29413c" : "#dcefe9", muted: theme === "dark" ? "#9ac9c0" : "#28675f" }
+    ? { ...basePalette, ink: "#000000", edge: "#000000", fill: "#ffffff", soft: "#ffffff", muted: "#000000" }
     : basePalette;
   const ink = meta.styleOverrides?.color ?? palette.ink;
   const fill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? palette.fill;
@@ -949,8 +960,8 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     ctx.restore(); return;
   }
   if (kind.startsWith("er-") && !["er-table", "er-one-one", "er-one-many", "er-many-one", "er-many-many"].includes(kind)) {
-    const erEdge = meta.styleOverrides?.color ?? (theme === "dark" ? "#88c7bb" : "#31877e");
-    const erFill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? (theme === "dark" ? "#172b28" : "#eff9f6");
+    const erEdge = meta.styleOverrides?.color ?? "#000000";
+    const erFill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? "#ffffff";
     const erName = meta.label ?? name;
     const paintShape = () => { ctx.fillStyle = erFill === "transparent" ? "rgba(0,0,0,0)" : erFill; if (erFill !== "transparent") ctx.fill(); ctx.strokeStyle = erEdge; ctx.lineWidth = strokeWidth; ctx.stroke(); };
     const erLabel = (value = erName, tx = x + w / 2, ty = y + h / 2, maxWidth = w - 14, underline = false) => {
@@ -985,9 +996,9 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
       if (sourceRole || targetRole) erLabel(`${sourceRole || "?"} - ${targetRole || "?"}`, x + w / 2, y + h * .66, w * .48);
     } else if (kind.includes("attribute")) {
       const double = kind === "er-multivalued-attribute"; const inset = double ? 5 : 0;
-      ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * .46 - inset, h * .42 - inset, 0, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2 - strokeWidth / 2 - inset, h / 2 - strokeWidth / 2 - inset, 0, 0, Math.PI * 2);
       if (kind === "er-derived-attribute" || kind === "er-partial-key-attribute") ctx.setLineDash([4, 3]); paintShape(); ctx.setLineDash([]);
-      if (double) { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * .46, h * .42, 0, 0, Math.PI * 2); ctx.strokeStyle = erEdge; ctx.stroke(); }
+      if (double) { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2 - strokeWidth / 2, h / 2 - strokeWidth / 2, 0, 0, Math.PI * 2); ctx.strokeStyle = erEdge; ctx.stroke(); }
       erLabel(erName, x + w / 2, y + h * .42, w * .72, kind === "er-key-attribute" || kind === "er-partial-key-attribute");
       const type = field(kind === "er-multivalued-attribute" ? "element-type" : kind === "er-derived-attribute" ? "expression" : "data-type");
       if (type) erLabel(type, x + w / 2, y + h * .7, w * .7);
@@ -1018,9 +1029,9 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     if (goal) componentText(goal, cx, y + h - 8, w - 8, Math.max(7, size * .58), ink, 400, "center");
     ctx.restore(); return;
   }
-  if (kind === "uml-use-case") { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * .46, h * .4, 0, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); centerHeading(name, y + h * .39); const outcome = field("outcome"); if (outcome) componentText(outcome, x + w / 2, y + h * .66, w * .64, Math.max(7, size * .62), palette.muted, 400, "center"); ctx.restore(); return; }
+  if (kind === "uml-use-case") { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2 - strokeWidth / 2, h / 2 - strokeWidth / 2, 0, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); centerHeading(name, y + h / 2); const outcome = field("outcome"); if (outcome) componentText(outcome, x + w / 2, y + h * .68, w * .64, Math.max(7, size * .62), palette.muted, 400, "center"); ctx.restore(); return; }
   if (kind === "uml-lifeline") { roundRect(ctx, x, y, w, Math.min(34, h), simple ? 0 : 8); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); heading(name, y + 17); ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(x + w / 2, y + 34); ctx.lineTo(x + w / 2, y + h); ctx.strokeStyle = palette.edge; ctx.stroke(); ctx.setLineDash([]); ctx.restore(); return; }
-  if (kind === "uml-activation") { const activationWidth = Math.min(w, Math.max(10, w * .44)); roundRect(ctx, x + (w - activationWidth) / 2, y, activationWidth, h, 4); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); ctx.restore(); return; }
+  if (kind === "uml-activation") { roundRect(ctx, x + .65, y, Math.max(1, w - 1.3), h, 1); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); ctx.restore(); return; }
   if (kind.startsWith("sequence-") || kind.startsWith("uml-") && ["uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition", "uml-association", "uml-dependency", "uml-include", "uml-extend"].includes(kind) || kind.startsWith("er-one-") || kind === "er-many-one" || kind === "er-many-many" || kind === "data-flow") {
     const yy = y + h / 2; const relationshipDiamond = kind === "uml-aggregation" || kind === "uml-composition";
     if (kind === "uml-realization" || kind === "uml-dependency" || kind === "uml-include" || kind === "uml-extend") ctx.setLineDash([5, 4]);
@@ -1078,7 +1089,9 @@ function renderModelComponentSvg(group: GroupElement): string {
   const { x, y, w, h } = bounds; const meta = group.libraryComponent!;
   const field = (key: string) => componentFieldValue(group, key);
   const simple = true;
-  const palette = paletteFor(false); const edge = meta.styleOverrides?.color ?? palette.edge;
+  const basePalette = paletteFor(false);
+  const palette: Palette = kind.startsWith("er-") ? { ...basePalette, ink: "#000000", edge: "#000000", fill: "#ffffff", soft: "#ffffff", muted: "#000000" } : basePalette;
+  const edge = meta.styleOverrides?.color ?? palette.edge;
   const fill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? group.container?.background ?? palette.fill;
   const rawTitle = meta.formTitle ?? meta.label ?? kind.replace(/-/g, " ");
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
@@ -1093,7 +1106,7 @@ function renderModelComponentSvg(group: GroupElement): string {
   const fitTextAttribute = (value: string, availableWidth: number, fontSize = size) => value.length * fontSize * .58 > availableWidth
     ? ` textLength="${Math.max(1, availableWidth)}" lengthAdjust="spacingAndGlyphs"`
     : "";
-  if (meta.renderStyle === "clean") {
+  if (meta.renderStyle === "clean" && !kind.startsWith("er-")) {
     const ink = meta.styleOverrides?.color ?? "#292929"; const cleanFill = fill; const soft = "#eeeeee";
     const t = (value: string, tx: number, ty: number, tw = w - 20, font = size, anchor = "start", weight = 600) => {
       const fittedFont = Math.min(maxLabelSize, Math.max(5, font));
@@ -1163,8 +1176,8 @@ function renderModelComponentSvg(group: GroupElement): string {
       return `<path d="M ${x + w / 2} ${y} L ${x + w} ${y + h / 2} L ${x + w / 2} ${y + h} L ${x} ${y + h / 2} Z" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3"/>${t(condition || rawTitle, x + w * .24, y + h * .45, w * .52, Math.max(7, size * .65), "middle")}${guards ? t(guards, x + w / 2, y + h - 5, w - 6, Math.max(6, size * .48), "middle", 400) : ""}`;
     }
     if (kind === "uml-activity-initial" || kind === "uml-activity-final") {
-      const radius = Math.min(w, h) * .28; const cx = x + w / 2; const cy = y + h * .42; const circle = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${kind === "uml-activity-initial" ? ink : cleanFill}" stroke="${ink}" stroke-width="${kind === "uml-activity-final" ? 2 : 1.3}"/>`;
-      return `${circle}${kind === "uml-activity-final" ? `<circle cx="${cx}" cy="${cy}" r="${radius * .65}" fill="${ink}"/>` : ""}${t(rawTitle, cx, y + h - 5, w - 4, Math.max(7, size * .58), "middle", 400)}`;
+      const radius = Math.min(w, h) / 2 - 1; const cx = x + w / 2; const cy = y + h / 2; const circle = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${kind === "uml-activity-initial" ? ink : cleanFill}" stroke="${ink}" stroke-width="${kind === "uml-activity-final" ? 2 : 1.3}"/>`;
+      return `${circle}${kind === "uml-activity-final" ? `<circle cx="${cx}" cy="${cy}" r="${radius * .65}" fill="${ink}"/>` : ""}`;
     }
     if (kind === "c4-container-instance" || kind === "c4-component-instance") {
       const container = kind === "c4-container-instance"; const responsibility = field("responsibility"); const implementation = field(container ? "technology" : "implementation"); const interfaces = field(container ? "interfaces" : "interface");
@@ -1175,9 +1188,9 @@ function renderModelComponentSvg(group: GroupElement): string {
       return `${p(`M ${x + 10} ${y + 2} H ${x + w - 10} Q ${x + w - 2} ${y + 2} ${x + w - 2} ${y + 10} V ${y + h - 10} Q ${x + w - 2} ${y + h - 2} ${x + w - 10} ${y + h - 2} H ${x + 10} Q ${x + 2} ${y + h - 2} ${x + 2} ${y + h - 10} V ${y + 10} Q ${x + 2} ${y + 2} ${x + 10} ${y + 2} Z`, "6 4")}${t(rawTitle.toUpperCase(), x + 12, y + 17, w - 24, Math.min(size, 12))}${purpose ? t(purpose, x + 12, y + 43, w - 24, Math.max(7, size * .64), "start", 400) : ""}`;
     }
     if (["uml-state", "uml-initial-state", "uml-final-state", "uml-fork", "uml-join", "uml-component", "uml-node", "uml-artifact", "uml-enumeration"].includes(kind)) {
-      if (kind === "uml-initial-state") return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .38}" fill="${ink}" stroke="${ink}"/>`;
-      if (kind === "uml-final-state") return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .44}" fill="${cleanFill}" stroke="${ink}" stroke-width="2"/><circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .29}" fill="${ink}"/>`;
-      if (kind === "uml-fork" || kind === "uml-join") return `<rect x="${x}" y="${y + h * .3}" width="${w}" height="${Math.max(6, h * .4)}" fill="${ink}"/>`;
+    if (kind === "uml-initial-state") return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) / 2 - .65}" fill="${ink}" stroke="${ink}"/>`;
+    if (kind === "uml-final-state") { const outerRadius = Math.min(w, h) / 2 - 1; return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${outerRadius}" fill="${cleanFill}" stroke="${ink}" stroke-width="2"/><circle cx="${x + w / 2}" cy="${y + h / 2}" r="${outerRadius * .65}" fill="${ink}"/>`; }
+    if (kind === "uml-fork" || kind === "uml-join") return `<rect x="${x}" y="${y + 1}" width="${w}" height="${Math.max(1, h - 2)}" fill="${ink}"/>`;
       if (kind === "uml-state") {
         const actions = (["entry", "do", "exit"] as const).flatMap(key => {
           const value = meta.componentFields?.find(field => field.key === key)?.value.trim();
@@ -1201,7 +1214,7 @@ function renderModelComponentSvg(group: GroupElement): string {
       const figure = `<circle cx="${cx}" cy="${y + head + 3}" r="${head}" fill="${cleanFill}" stroke="${ink}"/><path d="M ${cx} ${y + head * 2 + 3} V ${y + h * .58} M ${cx - figureWidth * .38} ${y + h * .38} H ${cx + figureWidth * .38} M ${cx} ${y + h * .58} L ${cx - figureWidth * .3} ${y + h * .69} M ${cx} ${y + h * .58} L ${cx + figureWidth * .3} ${y + h * .69}" fill="none" stroke="${ink}"/>`;
       return `${figure}${t(rawTitle, cx, y + h - (role && goal ? 42 : role || goal ? 30 : 20), w - 8, size, "middle")}${role ? t(role, cx, y + h - (goal ? 25 : 8), w - 8, Math.max(7, size * .64), "middle", 400) : ""}${goal ? t(goal, cx, y + h - 8, w - 8, Math.max(7, size * .58), "middle", 400) : ""}`;
     }
-    if (kind === "uml-use-case") return `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46}" ry="${h * .4}" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3"/>${t(rawTitle, x + w / 2, y + h * .39, w * .72, size, "middle")}${field("outcome") ? t(field("outcome"), x + w / 2, y + h * .66, w * .64, Math.max(7, size * .62), "middle", 400) : ""}`;
+    if (kind === "uml-use-case") return `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2 - .65}" ry="${h / 2 - .65}" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3"/>${t(rawTitle, x + w / 2, y + h / 2, w * .84, size, "middle")}${field("outcome") ? t(field("outcome"), x + w / 2, y + h * .68, w * .64, Math.max(7, size * .62), "middle", 400) : ""}`;
     if (kind === "diagram-legend") {
       const rows = ["Component", "Decision", "Data store", "Relationship"];
       const rowMarkup = rows.map((row, index) => {
@@ -1443,7 +1456,7 @@ function renderModelComponentSvg(group: GroupElement): string {
     return `${box}${label}${rows}`;
   }
   if (kind.startsWith("er-") && kind !== "er-table") {
-    const erEdge = meta.styleOverrides?.color ?? "#31877e"; const erFill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? "#eff9f6";
+    const erEdge = meta.styleOverrides?.color ?? "#000000"; const erFill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? "#ffffff";
     const text = (value: string, tx: number, ty: number, width = w - 14, font = size) => `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" fill="${erEdge}" font-family="sans-serif" font-size="${font}"${fitTextAttribute(value, width, font)}>${xmlText(value)}</text>`;
     if (["er-entity", "er-weak-entity", "er-associative-entity"].includes(kind)) {
       const inset = kind === "er-weak-entity" ? 6 : 0; const outer = `<rect x="${x + inset}" y="${y + inset}" width="${w - inset * 2}" height="${h - inset * 2}" fill="${erFill}" stroke="${erEdge}"/>`;
@@ -1467,8 +1480,8 @@ function renderModelComponentSvg(group: GroupElement): string {
     }
     if (kind.includes("attribute")) {
       const inset = kind === "er-multivalued-attribute" ? 5 : 0; const dash = kind === "er-derived-attribute" || kind === "er-partial-key-attribute" ? ` stroke-dasharray="4 3"` : "";
-      const ellipse = `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46 - inset}" ry="${h * .42 - inset}" fill="${erFill}" stroke="${erEdge}"${dash}/>`;
-      const outer = kind === "er-multivalued-attribute" ? `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46}" ry="${h * .42}" fill="none" stroke="${erEdge}"/>` : "";
+      const ellipse = `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2 - .7 - inset}" ry="${h / 2 - .7 - inset}" fill="${erFill}" stroke="${erEdge}"${dash}/>`;
+      const outer = kind === "er-multivalued-attribute" ? `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2 - .7}" ry="${h / 2 - .7}" fill="none" stroke="${erEdge}"/>` : "";
       const label = text(rawTitle, x + w / 2, y + h * .42, w * .72); const underline = kind === "er-key-attribute" || kind === "er-partial-key-attribute" ? `<path d="M ${x + w * .28} ${y + h * .51} H ${x + w * .72}" stroke="${erEdge}"/>` : "";
       const type = field(kind === "er-multivalued-attribute" ? "element-type" : kind === "er-derived-attribute" ? "expression" : "data-type");
       return `${ellipse}${outer}${label}${underline}${type ? text(type, x + w / 2, y + h * .7, w * .7, Math.max(7, size * .6)) : ""}`;
@@ -1480,9 +1493,9 @@ function renderModelComponentSvg(group: GroupElement): string {
   }
   if (kind === "uml-package") { const tabW = Math.min(w * .42, 86); const tabH = Math.min(22, h * .22); return `<path d="M ${x} ${y + tabH} V ${y + 2} H ${x + tabW} L ${x + tabW + 12} ${y + tabH} H ${x + w - 2} V ${y + h - 2} H ${x + 2} Z" fill="${fill}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + tabH + h * .35}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 24)}>${title}</text>`; }
   if (kind === "uml-actor") { const cx = x + w / 2; const figureWidth = Math.min(58, w * .72); const head = Math.min(12, h * .11); return `<circle cx="${cx}" cy="${y + head + 3}" r="${head}" fill="${fill}" stroke="${edge}"/><path d="M ${cx} ${y + head * 2 + 3} V ${y + h * .62} M ${cx - figureWidth * .38} ${y + h * .4} H ${cx + figureWidth * .38} M ${cx} ${y + h * .62} L ${cx - figureWidth * .3} ${y + h * .74} M ${cx} ${y + h * .62} L ${cx + figureWidth * .3} ${y + h * .74}" fill="none" stroke="${edge}"/><text x="${cx}" y="${y + h * .9}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 8)}>${title}</text>`; }
-  if (kind === "uml-use-case") return `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46}" ry="${h * .4}" fill="${fill}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w * .84)}>${title}</text>`;
+  if (kind === "uml-use-case") return `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2 - .65}" ry="${h / 2 - .65}" fill="${fill}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w * .84)}>${title}</text>`;
   if (kind === "uml-lifeline") return `<rect x="${x}" y="${y}" width="${w}" height="${Math.min(34, h)}" rx="${simple ? 0 : 8}" fill="${fill}" fill-opacity="${meta.styleOverrides?.fillOpacity ?? 1}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + 17}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700">${title}</text><path d="M ${x + w / 2} ${y + 34} V ${y + h}" stroke="${edge}" stroke-dasharray="6 5"/>`;
-  if (kind === "uml-activation") { const activationWidth = Math.min(w, Math.max(10, w * .44)); return `<rect x="${x + (w - activationWidth) / 2}" y="${y}" width="${activationWidth}" height="${h}" rx="4" fill="${palette.soft}" stroke="${edge}"/>`; }
+  if (kind === "uml-activation") return `<rect x="${x + .65}" y="${y}" width="${Math.max(1, w - 1.3)}" height="${h}" fill="${palette.soft}" stroke="${edge}"/>`;
   if (kind === "sequence-sync" || kind === "sequence-async" || kind.startsWith("uml-") && ["uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition", "uml-association", "uml-dependency", "uml-include", "uml-extend"].includes(kind) || kind.startsWith("er-one-") || kind === "er-many-one" || kind === "er-many-many" || kind === "data-flow") {
     const yy = y + h / 2; const diamond = kind === "uml-aggregation" || kind === "uml-composition"; const dashed = ["uml-realization", "uml-dependency", "uml-include", "uml-extend"].includes(kind) ? " stroke-dasharray=\"5 4\"" : "";
     const relation = `<path d="M ${x + (diamond ? 25 : 6)} ${yy} H ${x + w - 9}" fill="none" stroke="${edge}"${dashed}/>`;

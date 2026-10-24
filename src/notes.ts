@@ -307,7 +307,7 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "uml-activity-initial", section: "UML | Activity diagrams", label: "Activity initial node", description: "Control-flow start marker for an activity", width: 54, height: 54 },
   { kind: "uml-activity-action", section: "UML | Activity diagrams", label: "Action", description: "Executable activity step with inputs and outputs", width: 190, height: 100 },
   { kind: "uml-activity-decision", section: "UML | Activity diagrams", label: "Decision / merge", description: "Decision or merge node with an editable condition and guards", width: 100, height: 100 },
-  { kind: "uml-activity-final", section: "UML | Activity diagrams", label: "Activity final node", description: "Bullseye marker that ends the whole activity", width: 70, height: 70 },
+  { kind: "uml-activity-final", section: "UML | Activity diagrams", label: "Activity final node", description: "Bullseye marker that ends the whole activity", width: 54, height: 54 },
   { kind: "uml-component", section: "UML | Structure", label: "Component", description: "Component classifier with UML component tabs", width: 190, height: 116 },
   { kind: "uml-node", section: "UML | Structure", label: "Node", description: "Three-dimensional deployment node", width: 190, height: 130 },
   { kind: "uml-artifact", section: "UML | Structure", label: "Artifact", description: "Folded-corner deployment artifact", width: 160, height: 110 },
@@ -319,7 +319,7 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "uml-dependency", section: "UML | Relationships", label: "Dependency", description: "Dashed dependency arrow between classifiers", width: 184, height: 42 },
   { kind: "uml-include", section: "UML | Use cases", label: "Include", description: "Dashed include relationship between use cases", width: 184, height: 42 },
   { kind: "uml-extend", section: "UML | Use cases", label: "Extend", description: "Dashed extension relationship between use cases", width: 184, height: 42 },
-  { kind: "uml-actor", section: "UML | Use cases", label: "Actor", description: "Use case actor with an editable role and goal", width: 122, height: 144 },
+  { kind: "uml-actor", section: "UML | Use cases", label: "Actor", description: "Use case actor with an editable role and goal", width: 76, height: 116 },
   { kind: "uml-use-case", section: "UML | Use cases", label: "Use case", description: "Use case ellipse with an outcome", width: 190, height: 102 },
   { kind: "uml-package", section: "UML | Use cases", label: "Package", description: "Package boundary for grouped model elements", width: 190, height: 132 },
   { kind: "er-table", section: "ER | Entities & relations", label: "Table schema card", description: "Table with key, field, and type rows", width: 220, height: 156 },
@@ -337,10 +337,10 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "er-partial-key-attribute", section: "ER | Attributes", label: "Partial key attribute", description: "Dashed, underlined discriminator for a weak entity", width: 148, height: 70 },
   { kind: "er-multivalued-attribute", section: "ER | Attributes", label: "Multivalued attribute", description: "Attribute with a double boundary", width: 148, height: 70 },
   { kind: "er-derived-attribute", section: "ER | Attributes", label: "Derived attribute", description: "Dashed attribute oval", width: 148, height: 70 },
-  { kind: "er-one-one", section: "ER | Relationships", label: "One to one", description: "Straight connector with one markers at both ends", width: 190, height: 42 },
-  { kind: "er-one-many", section: "ER | Entities & relations", label: "One to many", description: "Straight connector with one and crow's foot endpoints", width: 190, height: 42 },
-  { kind: "er-many-one", section: "ER | Relationships", label: "Many to one", description: "Straight connector with a crow's foot and one marker", width: 190, height: 42 },
-  { kind: "er-many-many", section: "ER | Entities & relations", label: "Many to many", description: "Straight connector with crow's foot endpoints", width: 190, height: 42 },
+  { kind: "er-one-one", section: "ER | Relationships", label: "One to one", description: "Straight connector with one markers at both ends", width: 190, height: 20 },
+  { kind: "er-one-many", section: "ER | Entities & relations", label: "One to many", description: "Straight connector with one and crow's foot endpoints", width: 190, height: 20 },
+  { kind: "er-many-one", section: "ER | Relationships", label: "Many to one", description: "Straight connector with a crow's foot and one marker", width: 190, height: 20 },
+  { kind: "er-many-many", section: "ER | Entities & relations", label: "Many to many", description: "Straight connector with crow's foot endpoints", width: 190, height: 20 },
   { kind: "c4-system", section: "Architecture | C4 boundaries", label: "System boundary", description: "C4 system context enclosure", width: 300, height: 190 },
   { kind: "c4-software-system", section: "Architecture | C4 people & systems", label: "Software system", description: "System that delivers a capability to its users and integrates with other systems", width: 220, height: 120 },
   { kind: "c4-container-instance", section: "Architecture | C4 elements", label: "C4 container", description: "Deployable application or data store with responsibility and technology", width: 220, height: 128 },
@@ -448,10 +448,10 @@ export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, 
     "uml-dependency": { color: "#7563ad", lineStyle: "dashed", startHead: "none", endHead: "open" },
     "uml-include": { color: "#7563ad", lineStyle: "dashed", startHead: "none", endHead: "open" },
     "uml-extend": { color: "#7563ad", lineStyle: "dashed", startHead: "none", endHead: "open" },
-    "er-one-many": { color: "#31877e", lineStyle: "solid", startHead: "bar", endHead: "crow" },
-    "er-one-one": { color: "#31877e", lineStyle: "solid", startHead: "bar", endHead: "bar" },
-    "er-many-one": { color: "#31877e", lineStyle: "solid", startHead: "crow", endHead: "bar" },
-    "er-many-many": { color: "#31877e", lineStyle: "solid", startHead: "crow", endHead: "crow" },
+    "er-one-many": { color: "#000000", lineStyle: "solid", startHead: "bar", endHead: "crow" },
+    "er-one-one": { color: "#000000", lineStyle: "solid", startHead: "bar", endHead: "bar" },
+    "er-many-one": { color: "#000000", lineStyle: "solid", startHead: "crow", endHead: "bar" },
+    "er-many-many": { color: "#000000", lineStyle: "solid", startHead: "crow", endHead: "crow" },
     "sequence-sync": { color: "#7563ad", lineStyle: "solid", startHead: "none", endHead: "solid" },
     "sequence-async": { color: "#7563ad", lineStyle: "solid", startHead: "none", endHead: "open" },
     "data-flow": { color: "#333333", lineStyle: "solid", startHead: "none", endHead: "solid" },
@@ -768,9 +768,9 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     elements.push(text(x + 10, y + 43, "", "#536477", 11, "mono"), text(x + 10, y + 84, "", "#536477", 11, "mono"), text(x + 10, y + 125, "", "#536477", 11, "mono"));
   } else if (["er-entity", "er-weak-entity", "er-associative-entity", "er-relationship", "er-identifying-relationship", "er-attribute", "er-composite-attribute", "er-key-attribute", "er-partial-key-attribute", "er-multivalued-attribute", "er-derived-attribute"].includes(kind)) {
     // Use ordinary editable canvas shapes for Chen ER entities, relations, and attributes.
-    const outline = "#31877e";
-    const fill = "#eff9f6";
-    const label = (underline = false) => ({ text: "", color: "#28675f", fontSize: 12, fontFamily: "sans" as const, bold: false, italic: false, underline, textAlign: "center" as const, listType: "none" as const, verticalAlign: "middle" as const });
+    const outline = "#000000";
+    const fill = "#ffffff";
+    const label = (underline = false) => ({ text: "", color: "#000000", fontSize: 12, fontFamily: "sans" as const, bold: false, italic: false, underline, textAlign: "center" as const, listType: "none" as const, verticalAlign: "middle" as const });
     const entity = (inset = 0, withLabel = false) => ({ type: "rectangle" as const, x: x + inset, y: y + inset, w: 148 - inset * 2, h: 82 - inset * 2, color: outline, thickness: 1.6, fillColor: fill, ...(withLabel ? { label: label() } : {}) });
     const relation = (inset = 0, withLabel = false) => ({ type: "diamond" as const, x: x + inset, y: y + inset, w: 148 - inset * 2, h: 88 - inset * 2, color: outline, thickness: 1.6, fillColor: fill, ...(withLabel ? { label: label() } : {}) });
     const attribute = (inset = 0, withLabel = false, underline = false, dashed = false) => ({ type: "circle" as const, x: x + inset, y: y + inset, w: 148 - inset * 2, h: 70 - inset * 2, color: outline, thickness: 1.6, fillColor: fill, ...(dashed || kind === "er-derived-attribute" || kind === "er-partial-key-attribute" ? { lineStyle: "dashed" as const } : {}), ...(withLabel ? { label: label(underline) } : {}) });
@@ -790,20 +790,20 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     }
     else elements.push(attribute(0, true));
   } else if (kind === "er-one-many" || kind === "er-many-one" || kind === "er-one-one" || kind === "er-many-many") {
-    elements.push(lineElement(x + 8, y + 21, 174, 0, "#60788e"));
-    const foot = (fx: number, fy: number, direction: number) => [lineElement(fx, fy, direction * 12, -10, "#60788e"), lineElement(fx, fy, direction * 12, 0, "#60788e"), lineElement(fx, fy, direction * 12, 10, "#60788e")];
-    const one = (fx: number, fy: number, direction: number) => lineElement(fx, fy, 0, direction * 14, "#60788e");
-    if (kind === "er-many-many") elements.push(...foot(x + 9, y + 21, 1), ...foot(x + 181, y + 21, -1));
-    else if (kind === "er-one-one") elements.push(one(x + 9, y + 21, 1), one(x + 181, y + 21, -1));
-    else if (kind === "er-many-one") elements.push(...foot(x + 9, y + 21, 1), one(x + 181, y + 21, -1));
-    else elements.push(one(x + 9, y + 21, 1), ...foot(x + 181, y + 21, -1));
+    elements.push(lineElement(x + 8, y + 10, 174, 0, "#000000"));
+    const foot = (fx: number, fy: number, direction: number) => [lineElement(fx, fy, direction * 12, -10, "#000000"), lineElement(fx, fy, direction * 12, 0, "#000000"), lineElement(fx, fy, direction * 12, 10, "#000000")];
+    const one = (fx: number) => lineElement(fx, y, 0, 20, "#000000");
+    if (kind === "er-many-many") elements.push(...foot(x + 9, y + 10, 1), ...foot(x + 181, y + 10, -1));
+    else if (kind === "er-one-one") elements.push(one(x + 9), one(x + 181));
+    else if (kind === "er-many-one") elements.push(...foot(x + 9, y + 10, 1), one(x + 181));
+    else elements.push(one(x + 9), ...foot(x + 181, y + 10, -1));
   }
   const defaultLabel = LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? kind;
   elements.forEach(element => { if ((element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "line" || element.type === "arrow") && element.label && !element.label.text.trim()) element.label = { ...element.label, text: defaultLabel }; });
   const palette = kind.startsWith("uml-") || kind.startsWith("sequence-")
     ? { fill: "#f6f2ff", header: "#e9e3f7", edge: "#7563ad", ink: "#59488c" }
     : kind.startsWith("er-")
-      ? { fill: "#eff9f6", header: "#dcefe9", edge: "#31877e", ink: "#28675f" }
+      ? { fill: "#ffffff", header: "#ffffff", edge: "#000000", ink: "#000000" }
       : { fill: "#eef5fa", header: "#dfeaf2", edge: "#527d9b", ink: "#3d6384" };
   if (!kind.startsWith("form-")) elements.forEach((element, index) => {
     if (element.type === "text") element.color = palette.ink;

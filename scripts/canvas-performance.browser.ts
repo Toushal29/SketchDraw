@@ -618,17 +618,17 @@ spec:
   disposePlanningTabs(); planningTabHost.remove();
   const menuHost = document.createElement("div"); menuHost.className = "app-shell"; document.body.append(menuHost);
   const disposeMenu = render(() => createComponent(CanvasOptionsMenu, {
-    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false,
-    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onGroupSelection() {},
+    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, snapMovesToTen: true, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false,
+    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onToggleSnapMovesToTen() {}, onGroupSelection() {},
     penInput: { pressureWidth: false, tiltShaping: false, stylusEraserEnd: false, disabled: false, onPressureWidthChange() {}, onTiltShapingChange() {}, onStylusEraserEndChange() {} },
     canvasTools: { showMinimap: true, onToggleMinimap() {}, onAutoLayout() {} },
   }), menuHost);
   const controls = [...menuHost.querySelectorAll<HTMLElement>("button,input,select,textarea,[role=button]")];
   const viewMenu = menuHost.querySelector<HTMLElement>(".canvas-options-family");
   const sections = [...menuHost.querySelectorAll<HTMLElement>(".workspace-view-section")];
-  const movementSection = sections.find(section => section.querySelector("h2")?.textContent?.includes("Movement and resize"));
+  const canvasAidsSection = sections.find(section => section.querySelector("h2")?.textContent?.includes("Canvas aids"));
   check(!!viewMenu && !viewMenu.classList.contains("mobile-simple-mode") && sections.length > 0 && sections.every(section => section.tagName === "SECTION"), "Canvas settings use plain, always-visible sections");
-  check(!!movementSection && !menuHost.querySelector("details.workspace-view-section, .workspace-view-section > summary, .workspace-view-header button"), "Canvas settings have no expand or close controls");
+  check(!!canvasAidsSection && sections[0] === canvasAidsSection && !menuHost.querySelector("details.workspace-view-section, .workspace-view-section > summary, .workspace-view-header button"), "Canvas aids appear first with no expand or close controls");
   check(!!menuHost.querySelector(".workspace-view-section h2") && controls.some(control => control.textContent?.includes("Pressure width")), "Canvas and pen settings remain available in the panel");
   const unlabeledControls = controls.filter(control => !(control.getAttribute("aria-label") || control.getAttribute("title") || control.textContent?.trim() || control.closest("label")?.textContent?.trim()));
   check(unlabeledControls.length === 0, `Canvas view controls expose accessible names (${unlabeledControls.length} missing)`);

@@ -467,6 +467,7 @@ function App() {
   const [whiteboardStyle, setWhiteboardStyle] = createSignal<WhiteboardStyle>(readWhiteboardStyle());
   const [snapToGrid, setSnapToGrid] = createSignal(false);
   const [snapToObjects, setSnapToObjects] = createSignal(true);
+  const [snapMovesToTen, setSnapMovesToTenValue] = createSignal(readPreference("sketchdraw-snap-moves-to-ten", "true") !== "false");
   const [measureMode, setMeasureMode] = createSignal(false);
   const [measurement, setMeasurement] = createSignal<{ start: Point; end: Point }>();
   const [pathNodeEditMode, setPathNodeEditMode] = createSignal(false);
@@ -716,7 +717,7 @@ function App() {
   let windowsFocusWasFullscreen = false;
   let windowsFocusUsedDocumentFullscreen = false;
   let presentationOwnsFullscreen = false;
-  let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; axisLock?: "x" | "y"; snapTargets: { x: number[]; y: number[]; spacingBoxes?: Bounds[] }; targets: Map<string, Element> } | undefined;
+  let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; axisLock?: "x" | "y"; guides?: { x?: number; y?: number }; snapTargets: { x: number[]; y: number[]; spacingBoxes?: Bounds[] }; targets: Map<string, Element> } | undefined;
   let libraryControlOrigin: { index: number } | undefined;
   let labelMoveOrigin: { index: number; point: Point; before: Element[]; offsetX: number; offsetY: number; rotation: number; moved: boolean } | undefined;
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number } | undefined;
@@ -4182,6 +4183,10 @@ function App() {
     setWhiteboardStyle(style);
     try { localStorage.setItem("sketchdraw-whiteboard-style", style); } catch { /* The style remains active for this session. */ }
   }
+  function setSnapMovesToTen(enabled: boolean) {
+    setSnapMovesToTenValue(enabled);
+    try { localStorage.setItem("sketchdraw-snap-moves-to-ten", String(enabled)); } catch { /* The setting still applies for this session. */ }
+  }
   function runTouchTapAction(action: TouchTapAction) {
     if (action === "none") return;
     commitTextDraft();
@@ -5701,7 +5706,7 @@ function App() {
       if (Math.hypot(dx, dy) > 0.5) moveOrigin.moved = true;
       if (moveOrigin.moved) {
         const snapped = snapTranslation(moveOrigin.indices, moveOrigin.before, dx, dy, moveOrigin.snapTargets, event.ctrlKey || event.metaKey);
-        moveOrigin.dx = snapped.dx; moveOrigin.dy = snapped.dy; scheduleCanvasRender(); setDirty(true);
+        moveOrigin.dx = snapped.dx; moveOrigin.dy = snapped.dy; moveOrigin.guides = snapped.guides; scheduleCanvasRender(); setDirty(true);
       }
       return;
     }
@@ -5773,7 +5778,7 @@ function App() {
     return targets;
   }
 
-  function snapTranslation(indices: number[], before: Element[], dx: number, dy: number, snapTargets: { x: number[]; y: number[]; spacingBoxes?: Bounds[] }, bypass = false) {
+  function snapTranslation(indices: number[], before: Element[], dx: number, dy: number, snapTargets: { x: number[]; y: number[]; spacingBoxes?: Bounds[] }, bypass = false): { dx: number; dy: number; guides?: { x?: number; y?: number } } {
     const selected = new Set(indices); const moving = unionBounds(before.flatMap((element, index) => {
       if (!selected.has(index) || isElementHidden(element)) return [];
       const bounds = elementGridBounds(element);
@@ -5825,22 +5830,26 @@ function App() {
       return best;
     };
     const spacingX = findEqualGap("x"); const spacingY = findEqualGap("y");
+    const gridEnabled = snapToGrid() && !snapMovesToTen();
     let gridX: number | undefined; let gridY: number | undefined;
-    if (snapToGrid()) {
+    if (gridEnabled) {
       const style = whiteboardStyle();
       const snapped = snapCanvasPoint({ x: moving.x + dx, y: moving.y + dy }, true, style, GRID_SIZE);
       gridX = snapped.x - (moving.x + dx); gridY = snapped.y - (moving.y + dy);
     }
-    // Keep object alignment when it also lands the moved bounds on the grid;
-    // otherwise grid snapping takes priority and stays exact.
+    // Keep object alignment on the active 25-unit move lattice; otherwise the lattice takes priority.
     const landsOnGrid = (position: number) => Math.abs(position / GRID_SIZE - Math.round(position / GRID_SIZE)) < 1e-7;
-    const objectCorrectionX = objectX && (!snapToGrid() || landsOnGrid(objectX.target) && landsOnGrid(moving.x + dx + objectX.correction)) ? objectX.correction : undefined;
-    const objectCorrectionY = objectY && (!snapToGrid() || landsOnGrid(objectY.target) && landsOnGrid(moving.y + dy + objectY.correction)) ? objectY.correction : undefined;
+    const objectCorrectionX = objectX && (!gridEnabled || landsOnGrid(objectX.target) && landsOnGrid(moving.x + dx + objectX.correction)) ? objectX.correction : undefined;
+    const objectCorrectionY = objectY && (!gridEnabled || landsOnGrid(objectY.target) && landsOnGrid(moving.y + dy + objectY.correction)) ? objectY.correction : undefined;
     const objectOrSpaceX = spacingX && (!objectCorrectionX || Math.abs(spacingX.correction) < Math.abs(objectCorrectionX)) ? spacingX : objectCorrectionX !== undefined ? { correction: objectCorrectionX, target: objectX!.target } : undefined;
     const objectOrSpaceY = spacingY && (!objectCorrectionY || Math.abs(spacingY.correction) < Math.abs(objectCorrectionY)) ? spacingY : objectCorrectionY !== undefined ? { correction: objectCorrectionY, target: objectY!.target } : undefined;
     const correctionX = objectOrSpaceX?.correction ?? gridX ?? 0;
     const correctionY = objectOrSpaceY?.correction ?? gridY ?? 0;
-    return { dx: dx + correctionX, dy: dy + correctionY };
+    const moveStepX = snapMovesToTen() && !objectOrSpaceX ? Math.round((moving.x + dx) / 10) * 10 - (moving.x + dx) : 0;
+    const moveStepY = snapMovesToTen() && !objectOrSpaceY ? Math.round((moving.y + dy) / 10) * 10 - (moving.y + dy) : 0;
+    const guideX = objectCorrectionX !== undefined && (!spacingX || Math.abs(objectCorrectionX) <= Math.abs(spacingX.correction)) ? objectX?.target : undefined;
+    const guideY = objectCorrectionY !== undefined && (!spacingY || Math.abs(objectCorrectionY) <= Math.abs(spacingY.correction)) ? objectY?.target : undefined;
+    return { dx: dx + correctionX + (!objectOrSpaceX && gridX === undefined ? moveStepX : 0), dy: dy + correctionY + (!objectOrSpaceY && gridY === undefined ? moveStepY : 0), guides: { x: guideX, y: guideY } };
   }
 
   function hitInterior(point: Point): number | undefined {
@@ -7020,6 +7029,7 @@ function App() {
                 showGrid={showGrid()}
                 snapToGrid={snapToGrid()}
                 snapToObjects={snapToObjects()}
+                snapMovesToTen={snapMovesToTen()}
                 hasElements={elements().length > 0}
                 hasSelection={selectedIndices().length >= 2}
                 canGroup={groupActionEnabled()}
@@ -7032,6 +7042,7 @@ function App() {
                 onToggleGrid={() => setShowGrid(value => !value)}
                 onToggleSnapToGrid={() => setSnapToGrid(value => !value)}
                 onToggleSnapToObjects={() => setSnapToObjects(value => !value)}
+                onToggleSnapMovesToTen={() => setSnapMovesToTen(!snapMovesToTen())}
                 onGroupSelection={() => { groupSelection(); setCanvasOptionsOpen(false); }}
                 onCreateFrame={() => { createFrameFromSelection(); setCanvasOptionsOpen(false); }}
                 guiDesign={{
@@ -7128,6 +7139,7 @@ function App() {
                       showGrid={showGrid()}
                       snapToGrid={snapToGrid()}
                       snapToObjects={snapToObjects()}
+                      snapMovesToTen={snapMovesToTen()}
                       hasElements={elements().length > 0}
                       hasSelection={selectedIndices().length > 0}
                       canGroup={groupActionEnabled()}
@@ -7140,6 +7152,7 @@ function App() {
                       onToggleGrid={() => setShowGrid(value => !value)}
                       onToggleSnapToGrid={() => setSnapToGrid(value => !value)}
                       onToggleSnapToObjects={() => setSnapToObjects(value => !value)}
+                      onToggleSnapMovesToTen={() => setSnapMovesToTen(!snapMovesToTen())}
                       onGroupSelection={() => { groupSelection(); setCanvasOptionsOpen(false); }}
                     />
                   </div>

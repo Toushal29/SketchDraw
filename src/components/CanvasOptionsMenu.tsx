@@ -6,6 +6,7 @@ export type CanvasOptionsMenuProps = {
   showGrid: boolean;
   snapToGrid: boolean;
   snapToObjects: boolean;
+  snapMovesToTen: boolean;
   hasElements: boolean;
   hasSelection: boolean;
   canGroup: boolean;
@@ -18,6 +19,7 @@ export type CanvasOptionsMenuProps = {
   onToggleGrid: () => void;
   onToggleSnapToGrid: () => void;
   onToggleSnapToObjects: () => void;
+  onToggleSnapMovesToTen: () => void;
   onGroupSelection: () => void;
   guiDesign?: {
     canCreateFrame: boolean;
@@ -109,32 +111,11 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
 
   return (
     <div class="canvas-options-family" classList={{ "options-open": props.open }}>
-      <button type="button" class={`canvas-options-trigger ${props.open ? "active" : ""}`} aria-label="View and canvas settings" aria-haspopup="dialog" aria-expanded={props.open} title="View and canvas settings" onClick={toggle}>
+      <button type="button" class={props.open ? "canvas-options-trigger active" : "canvas-options-trigger"} aria-label="View and canvas settings" aria-haspopup="dialog" aria-expanded={props.open} title="View and canvas settings" onClick={toggle}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" /></svg>
       </button>
       <div class="workspace-view-panel" role="dialog" aria-label="View and canvas settings">
         <header class="workspace-view-header"><strong>Canvas settings</strong></header>
-
-        <div class="workspace-view-fit-row" aria-label="Zoom to content">
-          <button type="button" disabled={!props.hasElements} onClick={props.onFitDrawing}><strong>Fit drawing</strong><kbd>1</kbd></button>
-          <button type="button" disabled={!props.hasSelection} onClick={props.onFitSelection}><strong>Fit selection</strong><kbd>2</kbd></button>
-        </div>
-
-        <Show when={props.guiDesign}>
-          {gui => <section class="workspace-view-section workspace-view-gui">
-            <h2>UI design</h2>
-            <div class="workspace-view-gui-actions">
-              <button type="button" class="workspace-view-primary" onClick={gui().onOpenLibrary}>Open UI component library<span>Buttons · fields · cards · navigation</span></button>
-              <div class="workspace-view-action-grid">
-                <Show when={props.onCreateFrame}>{createFrame => <button type="button" disabled={!gui().canCreateFrame || props.boardLocked} onClick={createFrame()}>{gui().hasSelectedFrame ? "Create screen from selection" : "Create screen frame"}</button>}</Show>
-                <button type="button" disabled={!gui().canCreateComponent || props.boardLocked} onClick={gui().onCreateComponent}>Create reusable component</button>
-                <button type="button" disabled={!gui().canArrange || props.boardLocked} onClick={gui().onArrangeSelection}>Arrange selection</button>
-                <button type="button" disabled={!gui().hasFrames} onClick={gui().onPresentFrames}>Present screens</button>
-                <button type="button" disabled={!gui().hasSelectedFrame || props.boardLocked} onClick={gui().onExportFrame}>Export selected screen</button>
-              </div>
-            </div>
-          </section>}
-        </Show>
 
         <section class="workspace-view-section">
           <h2>Canvas aids</h2>
@@ -142,28 +123,64 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
             {check("Show grid", props.showGrid, props.onToggleGrid, false, "G")}
             {check("Snap to grid", props.snapToGrid, props.onToggleSnapToGrid, false, "Shift+G")}
             {check("Snap to objects", props.snapToObjects, props.onToggleSnapToObjects, false, "Shift+O")}
+            {check("Snap moves to 10 units", props.snapMovesToTen, props.onToggleSnapMovesToTen)}
             {props.canvasTools?.onToggleOrthogonal && check("Orthogonal connectors", props.canvasTools.orthogonalOnly ?? false, props.canvasTools.onToggleOrthogonal, props.boardLocked)}
+          </div>
+          <p class="workspace-view-note">10-unit move snapping is on by default. When it is off, Snap to grid can use 25-unit steps. Ctrl or Command bypasses snapping; Shift constrains movement or resizing.</p>
+        </section>
+
+        <div class="workspace-view-fit-row" aria-label="Zoom to content">
+          <button type="button" disabled={!props.hasElements} onClick={props.onFitDrawing}><strong>Fit drawing</strong><kbd>1</kbd></button>
+          <button type="button" disabled={!props.hasSelection} onClick={props.onFitSelection}><strong>Fit selection</strong><kbd>2</kbd></button>
+        </div>
+
+        <section class="workspace-view-section">
+          <h2>Structure</h2>
+          <div class="workspace-view-action-grid">
+            {action(props.grouped ? "Ungroup selection" : "Group selection", props.onGroupSelection, !props.canGroup || props.boardLocked, "Ctrl+G")}
+            {props.onSelectConnected && action("Select connected", props.onSelectConnected, !!props.structureSelectionDisabled || props.boardLocked)}
+            {props.onSelectSimilar && action("Select similar", props.onSelectSimilar, !!props.structureSelectionDisabled || props.boardLocked)}
+            {props.onOrthogonalizeSelected && action("Orthogonalize selected", props.onOrthogonalizeSelected, !!props.orthogonalizeDisabled || props.boardLocked)}
+            {props.canvasTools?.onReattachDangling && action("Reattach dangling connectors", props.canvasTools.onReattachDangling, !!props.canvasTools.reattachDisabled || props.boardLocked)}
+            {props.canvasTools?.onRenumberSequenceMessages && action("Number selected messages", props.canvasTools.onRenumberSequenceMessages, !!props.canvasTools.sequenceNumberingDisabled || props.boardLocked)}
           </div>
         </section>
 
-        <Show when={props.penInput}>
-          {pen => <section class="workspace-view-section">
-            <h2>Pen input</h2>
-            <div class="workspace-view-controls">
-              {check("Pressure width", pen().pressureWidth, () => pen().onPressureWidthChange(!pen().pressureWidth), pen().disabled)}
-              {check("Tilt shaping", pen().tiltShaping, () => pen().onTiltShapingChange(!pen().tiltShaping), pen().disabled)}
-              {check("Stylus eraser end", pen().stylusEraserEnd, () => pen().onStylusEraserEndChange(!pen().stylusEraserEnd), pen().disabled)}
+        <Show when={props.canvasTools}>
+          {tools => <section class="workspace-view-section">
+            <h2>Diagram tools</h2>
+            <div class="workspace-view-fields workspace-view-tools">
+              <Show when={tools().onAutoLayout}>{autoLayout => <>
+                <label>Layout algorithm<select aria-label="Layout algorithm" value={tools().layoutAlgorithm ?? "layered"} onChange={event => tools().onLayoutAlgorithmChange?.(event.currentTarget.value as DiagramLayoutAlgorithm)}><option value="layered">Layered</option><option value="mrtree">Tree</option><option value="radial">Radial</option><option value="force">Force</option><option value="stress">Stress</option></select></label>
+                <label class="workspace-view-range">Spacing <output>{tools().layoutSpacing ?? 48}</output><input aria-label="Layout spacing between elements" type="range" min="20" max="120" step="1" value={tools().layoutSpacing ?? 48} onPointerDown={event => event.stopPropagation()} onInput={event => tools().onLayoutSpacingChange?.(Number(event.currentTarget.value))} /></label>
+                <label class="workspace-view-checkbox"><input type="checkbox" checked={tools().layoutSelectionOnly ?? false} disabled={tools().autoLayoutDisabled} onChange={event => tools().onLayoutSelectionOnlyChange?.(event.currentTarget.checked)} />Layout selection only</label>
+                {action("Auto arrange", autoLayout(), !!tools().autoLayoutDisabled || !!tools().layoutSelectionOnly && !props.hasSelection)}
+              </>}</Show>
+              <Show when={tools().onSearchObjects}>{search => action("Find objects", search(), false, "Ctrl+F")}</Show>
+              <Show when={tools().onValidateDiagram}>{validate => action("Validate diagram", validate(), !!tools().validationDisabled)}</Show>
+              {check("Show minimap", tools().showMinimap, tools().onToggleMinimap)}
+              <Show when={tools().onTogglePresentation}>{present => check(tools().presentation ? "Exit presentation" : "Presentation mode", !!tools().presentation, present())}</Show>
+              <Show when={tools().onToggleFullscreen}>{fullscreen => action(tools().fullscreen ? "Exit full screen" : "Full screen focus", fullscreen())}</Show>
             </div>
           </section>}
         </Show>
 
-        <section class="workspace-view-section workspace-view-advanced">
-          <h2>Movement and resize</h2>
-          <p class="workspace-view-note">Hold Ctrl or Command while dragging to bypass snapping. Shift constrains movement or keeps proportions while resizing.</p>
-        </section>
+        <Show when={props.guiDesign}>
+          {gui => <section class="workspace-view-section">
+            <h2>UI design</h2>
+            <button type="button" class="workspace-view-primary" onClick={gui().onOpenLibrary}>Open UI component library<span>Buttons, fields, cards, and navigation</span></button>
+            <div class="workspace-view-action-grid">
+              <Show when={props.onCreateFrame}>{createFrame => <button type="button" disabled={!gui().canCreateFrame || props.boardLocked} onClick={createFrame()}>{gui().hasSelectedFrame ? "Create screen from selection" : "Create screen frame"}</button>}</Show>
+              <button type="button" disabled={!gui().canCreateComponent || props.boardLocked} onClick={gui().onCreateComponent}>Create reusable component</button>
+              <button type="button" disabled={!gui().canArrange || props.boardLocked} onClick={gui().onArrangeSelection}>Arrange selection</button>
+              <button type="button" disabled={!gui().hasFrames} onClick={gui().onPresentFrames}>Present screens</button>
+              <button type="button" disabled={!gui().hasSelectedFrame || props.boardLocked} onClick={gui().onExportFrame}>Export selected screen</button>
+            </div>
+          </section>}
+        </Show>
 
-        <Show when={props.canvasAppearance || props.appAppearance}>
-          <section class="workspace-view-section workspace-view-advanced">
+        <Show when={props.appAppearance || props.canvasAppearance}>
+          <section class="workspace-view-section">
             <h2>Appearance</h2>
             <Show when={props.appAppearance}>{appearance => <div class="workspace-view-fields">
               <label>Theme<select aria-label="Application theme" value={appearance().themeMode} onChange={event => appearance().onThemeChange(event.currentTarget.value as "system" | "light" | "dark")}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
@@ -181,33 +198,13 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
           </section>
         </Show>
 
-        <section class="workspace-view-section workspace-view-advanced">
-          <h2>Structure</h2>
-          <div class="workspace-view-action-grid">
-            {action(props.grouped ? "Ungroup selection" : "Group selection", props.onGroupSelection, !props.canGroup || props.boardLocked, "Ctrl+G")}
-            {props.onSelectConnected && action("Select connected", props.onSelectConnected, !!props.structureSelectionDisabled || props.boardLocked)}
-            {props.onSelectSimilar && action("Select similar", props.onSelectSimilar, !!props.structureSelectionDisabled || props.boardLocked)}
-            {props.onOrthogonalizeSelected && action("Orthogonalize selected", props.onOrthogonalizeSelected, !!props.orthogonalizeDisabled || props.boardLocked)}
-            {props.canvasTools?.onReattachDangling && action("Reattach dangling connectors", props.canvasTools.onReattachDangling, !!props.canvasTools.reattachDisabled || props.boardLocked)}
-            {props.canvasTools?.onRenumberSequenceMessages && action("Number selected messages", props.canvasTools.onRenumberSequenceMessages, !!props.canvasTools.sequenceNumberingDisabled || props.boardLocked)}
-          </div>
-        </section>
-
-        <Show when={props.canvasTools}>
-          {tools => <section class="workspace-view-section workspace-view-advanced">
-            <h2>Diagram tools</h2>
-            <div class="workspace-view-fields workspace-view-tools">
-              <Show when={tools().onAutoLayout}>{autoLayout => <>
-                <label>Layout algorithm<select aria-label="Layout algorithm" value={tools().layoutAlgorithm ?? "layered"} onChange={event => tools().onLayoutAlgorithmChange?.(event.currentTarget.value as DiagramLayoutAlgorithm)}><option value="layered">Layered</option><option value="mrtree">Tree</option><option value="radial">Radial</option><option value="force">Force</option><option value="stress">Stress</option></select></label>
-                <label class="workspace-view-range">Spacing <output>{tools().layoutSpacing ?? 48}</output><input aria-label="Layout spacing between elements" type="range" min="20" max="120" step="1" value={tools().layoutSpacing ?? 48} onPointerDown={event => event.stopPropagation()} onInput={event => tools().onLayoutSpacingChange?.(Number(event.currentTarget.value))} /></label>
-                <label class="workspace-view-checkbox"><input type="checkbox" checked={tools().layoutSelectionOnly ?? false} disabled={tools().autoLayoutDisabled} onChange={event => tools().onLayoutSelectionOnlyChange?.(event.currentTarget.checked)} />Layout selection only</label>
-                {action("Auto arrange", autoLayout(), !!tools().autoLayoutDisabled || !!tools().layoutSelectionOnly && !props.hasSelection)}
-              </>}</Show>
-              <Show when={tools().onSearchObjects}>{search => action("Find objects", search(), false, "Ctrl+F")}</Show>
-              <Show when={tools().onValidateDiagram}>{validate => action("Validate diagram", validate(), !!tools().validationDisabled)}</Show>
-              {check("Show minimap", tools().showMinimap, tools().onToggleMinimap)}
-              <Show when={tools().onTogglePresentation}>{present => check(tools().presentation ? "Exit presentation" : "Presentation mode", !!tools().presentation, present())}</Show>
-              <Show when={tools().onToggleFullscreen}>{fullscreen => action(tools().fullscreen ? "Exit full screen" : "Full screen focus", fullscreen())}</Show>
+        <Show when={props.penInput}>
+          {pen => <section class="workspace-view-section">
+            <h2>Pen input</h2>
+            <div class="workspace-view-controls">
+              {check("Pressure width", pen().pressureWidth, () => pen().onPressureWidthChange(!pen().pressureWidth), pen().disabled)}
+              {check("Tilt shaping", pen().tiltShaping, () => pen().onTiltShapingChange(!pen().tiltShaping), pen().disabled)}
+              {check("Stylus eraser end", pen().stylusEraserEnd, () => pen().onStylusEraserEndChange(!pen().stylusEraserEnd), pen().disabled)}
             </div>
           </section>}
         </Show>

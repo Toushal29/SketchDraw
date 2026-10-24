@@ -382,8 +382,7 @@
 (max-width: 1600px) and (pointer: coarse) {
 
     .app-shell.theme-dark:not(.platform-windows) .canvas-zoom-reset,
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode,
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode {
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode {
         border-color: var(--theme-border);
         color: var(--theme-text-primary);
     }

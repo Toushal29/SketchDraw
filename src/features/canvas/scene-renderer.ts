@@ -6,7 +6,7 @@ import { ElementSpatialIndex, elementSpatialIndex } from "./spatial-index";
 import { SceneTileCache } from "./scene-tile-cache";
 import { gridStepForStyle, isometricRowHeight, isometricRowOffset, type CanvasGridStyle } from "./input";
 
-type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; snapTargets: { x: number[]; y: number[] }; targets: Map<string, Element> };
+type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; guides?: { x?: number; y?: number }; snapTargets: { x: number[]; y: number[] }; targets: Map<string, Element> };
 export type CanvasSceneRendererPorts = {
   elements: () => Element[];
   isHidden: (element: Element) => boolean;
@@ -203,6 +203,12 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         }
       }
       ctx.restore();
+    }
+    if (drag?.guides && (Number.isFinite(drag.guides.x) || Number.isFinite(drag.guides.y))) {
+      ctx.save(); ctx.strokeStyle = "#e24978"; ctx.globalAlpha = .92; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([6 / state.zoom, 4 / state.zoom]); ctx.beginPath();
+      if (Number.isFinite(drag.guides.x)) { ctx.moveTo(drag.guides.x!, viewport.y); ctx.lineTo(drag.guides.x!, viewport.y + viewport.h); }
+      if (Number.isFinite(drag.guides.y)) { ctx.moveTo(viewport.x, drag.guides.y!); ctx.lineTo(viewport.x + viewport.w, drag.guides.y!); }
+      ctx.stroke(); ctx.restore();
     }
     const tokenId = ports.simulationTokenId?.();
     const token = tokenId ? sourceItems.find(item => item.id === tokenId && !ports.isHidden(item)) : undefined;

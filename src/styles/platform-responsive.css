@@ -168,8 +168,7 @@ body,
         transform: translateX(-50%);
     }
 
-    .style-pane.quick-style-mode,
-    .style-pane.full-style-mode {
+    .style-pane.quick-style-mode {
         top: auto;
         bottom: calc(env(safe-area-inset-bottom) + 70px);
         left: 8px;
@@ -276,8 +275,7 @@ body,
 }
 
 @media (max-height: 540px) and (max-width: 900px) {
-    .style-pane.quick-style-mode,
-    .style-pane.full-style-mode {
+    .style-pane.quick-style-mode {
         bottom: calc(env(safe-area-inset-bottom) + 62px);
     }
 
@@ -289,8 +287,7 @@ body,
 
 /* Short landscape phones get two compact control rows above the canvas edge. */
 @media (max-width: 900px) and (orientation: landscape) {
-    .style-pane.quick-style-mode,
-    .style-pane.full-style-mode {
+    .style-pane.quick-style-mode {
         right: 8px;
         bottom: calc(env(safe-area-inset-bottom) + 66px);
         left: 8px;
@@ -301,8 +298,7 @@ body,
         overflow: visible;
     }
 
-    .style-pane.quick-style-mode > .quick-style-panel,
-    .style-pane.full-style-mode > .quick-style-panel {
+    .style-pane.quick-style-mode > .quick-style-panel {
         display: flex;
         width: 100%;
         height: 100%;

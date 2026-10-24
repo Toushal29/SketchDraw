@@ -60,8 +60,7 @@
     outline-offset: 2px;
 }
 
-.style-pane.quick-style-mode,
-.style-pane.full-style-mode {
+.style-pane.quick-style-mode {
     border-color: var(--theme-border);
     background: color-mix(in srgb, var(--theme-surface-elevated) 96.50%, transparent);
 }

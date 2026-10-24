@@ -574,20 +574,11 @@
   .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-collapsed,
   .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded {
     position: fixed;
-    z-index: 190;
+    z-index: 70;
     top: calc(var(--touch-header-height, 60px) + 10px + env(safe-area-inset-top));
     right: auto;
     bottom: auto;
     left: max(8px, env(safe-area-inset-left));
-    display: flex;
-    box-sizing: border-box;
-    width: min(300px, calc(100vw - max(8px, env(safe-area-inset-left)) - 8px));
-    max-width: calc(100vw - max(8px, env(safe-area-inset-left)) - 8px);
-    height: auto;
-    min-height: 0;
-    max-height: calc(100dvh - var(--touch-header-height, 60px) - 10px - env(safe-area-inset-top) - max(12px, env(safe-area-inset-bottom)));
-    flex-direction: column;
-    overflow-x: hidden;
     overflow-y: hidden;
   }
 
