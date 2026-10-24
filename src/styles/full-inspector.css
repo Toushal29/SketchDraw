@@ -83,7 +83,3 @@
 .full-inspector select,
 .full-inspector input,
 .full-inspector textarea { max-width: 100%; }
-
-@media (max-width: 560px) {
-  .style-pane.full-style-mode { width: min(300px, calc(100vw - 70px)); }
-}

@@ -112,12 +112,12 @@ export function createComponentMaster(selection: Element[], name: string): Compo
 function withOverrides(items: Element[], overrides: ComponentOverrides = {}): Element[] {
   let result = items;
   if (overrides.label !== undefined) result = updateFirstLabel(result, overrides.label).items;
-  const color = overrides.color; const fillColor = overrides.fillColor; const fillOpacity = overrides.fillOpacity;
+  const color = overrides.color; const fillColor = overrides.fillColor; const fillOpacity = overrides.fillOpacity; const lineStyle = overrides.lineStyle;
   const recolor = (item: Element): Element => {
-    if (item.type === "group") return { ...item, elements: item.elements.map(recolor), ...(item.libraryComponent ? { libraryComponent: { ...item.libraryComponent, ...(overrides.chartData ? { chartData: overrides.chartData } : {}), ...(overrides.formOptions ? { formOptions: overrides.formOptions } : {}), styleOverrides: { ...item.libraryComponent.styleOverrides, ...(color ? { color } : {}), ...(fillColor === null ? { fillColor: null } : fillColor ? { fillColor } : {}), ...(fillOpacity !== undefined ? { fillOpacity } : {}) } } } : {}) };
+    if (item.type === "group") return { ...item, elements: item.elements.map(recolor), ...(item.libraryComponent ? { libraryComponent: { ...item.libraryComponent, ...(overrides.chartData ? { chartData: overrides.chartData } : {}), ...(overrides.formOptions ? { formOptions: overrides.formOptions } : {}), styleOverrides: { ...item.libraryComponent.styleOverrides, ...(color ? { color } : {}), ...(fillColor === null ? { fillColor: null } : fillColor ? { fillColor } : {}), ...(fillOpacity !== undefined ? { fillOpacity } : {}), ...(lineStyle ? { lineStyle } : {}) } } } : {}) };
     if (item.type === "freehand" || item.type === "text") return color ? { ...item, color } : item;
     if (item.type === "schemaTable" || item.type === "image") return item;
-    return { ...item, ...(color ? { color } : {}), ...(fillColor === null ? { fillColor: undefined } : fillColor ? { fillColor } : {}), ...(fillOpacity !== undefined ? { fillOpacity } : {}) };
+    return { ...item, ...(color ? { color } : {}), ...(fillColor === null ? { fillColor: undefined } : fillColor ? { fillColor } : {}), ...(fillOpacity !== undefined ? { fillOpacity } : {}), ...(lineStyle ? { lineStyle } : {}) };
   };
   result = result.map(recolor);
   return result;

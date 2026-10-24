@@ -3,6 +3,7 @@ import { labelBox, textElementBox } from "../../operations";
 import { connectorPolylines, arrowHeadEntries, arrowHeadPoints } from "../connectors/geometry";
 import { stylusStrokeWidth } from "./freehand-rendering";
 import { relationshipDisplayElement } from "../diagrams/relationships";
+import { strokeStyleLineGap } from "./stroke-style";
 
 const boundsCache = new WeakMap<Element, Bounds>();
 const cacheBounds = (element: Element, bounds: Bounds): Bounds => { boundsCache.set(element, bounds); return bounds; };
@@ -91,7 +92,7 @@ export function elementBounds(element: Element): Bounds {
       points.push(...arrowHeadPoints(head.tip, head.angle, head.kind, element.thickness));
       if (head.kind === "dot") { const radius = Math.max(3, element.thickness * 1.15); points.push({ x: head.tip.x - radius, y: head.tip.y - radius }, { x: head.tip.x + radius, y: head.tip.y + radius }); }
     }
-    const doubleOffset = element.lineStyle === "double" ? Math.max(2.5, element.thickness * 1.2) : 0;
+    const doubleOffset = strokeStyleLineGap(element.lineStyle, element.thickness);
     const routeBounds = rotatedBounds(boundsOfPoints(points, element.thickness / 2 + doubleOffset), element.rotation ?? 0);
     const displayElement = relationshipDisplayElement(element);
     const labelBounds = displayElement.label?.text ? rotatedBounds(labelBox(displayElement), element.rotation ?? 0) : undefined;

@@ -21,6 +21,8 @@ type Props = {
   onColorChange: (value: string) => void;
   onWidthChange: (value: number) => void;
   showAppearance?: boolean;
+  showLineStyle?: boolean;
+  lineStyleLabel?: string;
   borderVisible?: boolean;
   labelVisible?: boolean;
   lineStyle?: StrokeStyle;
@@ -112,17 +114,17 @@ export function TouchQuickStyleControls(props: Props): JSX.Element {
           <span>{width()}px</span>
         </button>
       </Show>
-      <Show when={props.showAppearance}>
+      <Show when={props.showAppearance || props.showLineStyle}>
         <div class="touch-quick-appearance" role="group" aria-label="Group appearance">
-          <button type="button" class={`touch-quick-appearance-toggle ${props.borderVisible ? "active" : ""}`} aria-label={props.borderVisible ? "Hide group border" : "Show group border"} aria-pressed={!!props.borderVisible} title={props.borderVisible ? "Hide group border" : "Show group border"} disabled={props.disabled} onClick={props.onToggleBorder}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1" /></svg></button>
-          <button type="button" class={`touch-quick-appearance-toggle ${props.labelVisible ? "active" : ""}`} aria-label={props.labelVisible ? "Hide group label" : "Show group label"} aria-pressed={!!props.labelVisible} title={props.labelVisible ? "Hide group label" : "Show group label"} disabled={props.disabled} onClick={props.onToggleLabel}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M5 18l5-12 5 12m-8-4h6m2-2h5m-5 4h5" /></svg></button>
-          <button ref={element => { lineStyleButton = element; }} type="button" class={`touch-quick-line-style ${lineStylePanelOpen() ? "active" : ""}`} aria-haspopup="dialog" aria-expanded={lineStylePanelOpen()} aria-label={`Group border style: ${props.lineStyle ?? "solid"}`} title={`Group border style: ${props.lineStyle ?? "solid"}`} disabled={props.disabled} onClick={() => {
+          <Show when={props.showAppearance}><button type="button" class={`touch-quick-appearance-toggle ${props.borderVisible ? "active" : ""}`} aria-label={props.borderVisible ? "Hide group border" : "Show group border"} aria-pressed={!!props.borderVisible} title={props.borderVisible ? "Hide group border" : "Show group border"} disabled={props.disabled} onClick={props.onToggleBorder}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1" /></svg></button>
+          <button type="button" class={`touch-quick-appearance-toggle ${props.labelVisible ? "active" : ""}`} aria-label={props.labelVisible ? "Hide group label" : "Show group label"} aria-pressed={!!props.labelVisible} title={props.labelVisible ? "Hide group label" : "Show group label"} disabled={props.disabled} onClick={props.onToggleLabel}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M5 18l5-12 5 12m-8-4h6m2-2h5m-5 4h5" /></svg></button></Show>
+          <Show when={props.showAppearance || props.showLineStyle}><button ref={element => { lineStyleButton = element; }} type="button" class={`touch-quick-line-style ${lineStylePanelOpen() ? "active" : ""}`} aria-haspopup="dialog" aria-expanded={lineStylePanelOpen()} aria-label={`${props.lineStyleLabel ?? "Line style"}: ${props.lineStyle ?? "solid"}`} title={`${props.lineStyleLabel ?? "Line style"}: ${props.lineStyle ?? "solid"}`} disabled={props.disabled} onClick={() => {
             setWidthPanelOpen(false);
             setColorPanelOpen(false);
             const position = panelPosition(lineStyleButton, 210, 56);
             setLineStylePanelPosition(position ? { ...position, transform: "none" } : undefined);
             setLineStylePanelOpen(open => !open);
-          }}><svg viewBox="0 0 24 24" aria-hidden="true"><path class={props.lineStyle ?? "solid"} d={props.lineStyle === "double" ? "M3 9h18M3 15h18" : "M3 12h18"} /></svg></button>
+          }}><svg viewBox="0 0 24 24" aria-hidden="true"><path class={props.lineStyle ?? "solid"} d={props.lineStyle === "double" ? "M3 9h18M3 15h18" : "M3 12h18"} /></svg></button></Show>
         </div>
       </Show>
       <Show when={colorPanelOpen() && props.showColor}>
@@ -134,11 +136,11 @@ export function TouchQuickStyleControls(props: Props): JSX.Element {
           </div>
         </Portal>
       </Show>
-      <Show when={lineStylePanelOpen() && props.showAppearance}>
+      <Show when={lineStylePanelOpen() && (props.showAppearance || props.showLineStyle)}>
         <Portal mount={document.querySelector<HTMLElement>(".app-shell") ?? document.body}>
           <div class="touch-quick-line-style-scrim" role="presentation" onPointerDown={event => { if (event.target === event.currentTarget) setLineStylePanelOpen(false); }} onKeyDown={event => { if (event.key === "Escape") { setLineStylePanelOpen(false); requestAnimationFrame(() => lineStyleButton?.focus()); } }}>
-            <div class="touch-quick-line-style-panel" style={lineStylePanelPosition() ?? {}} role="dialog" aria-modal="false" aria-label="Group border style" onPointerDown={event => event.stopPropagation()}>
-              {(["solid", "dashed", "dotted", "double"] as const).map(value => <button type="button" class={props.lineStyle === value ? "active" : ""} aria-label={`${value} border`} aria-pressed={props.lineStyle === value} title={`${value} border`} disabled={props.disabled} onClick={() => { props.onLineStyleChange?.(value); setLineStylePanelOpen(false); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path class={value} d={value === "double" ? "M3 9h18M3 15h18" : "M3 12h18"} /></svg></button>)}
+            <div class="touch-quick-line-style-panel" style={lineStylePanelPosition() ?? {}} role="dialog" aria-modal="false" aria-label={props.lineStyleLabel ?? "Line style"} onPointerDown={event => event.stopPropagation()}>
+              {(["solid", "dashed", "dotted", "double"] as const).map(value => <button type="button" class={props.lineStyle === value ? "active" : ""} aria-label={`${value} ${props.lineStyleLabel ?? "line"}`} aria-pressed={props.lineStyle === value} title={`${value} ${props.lineStyleLabel ?? "line"}`} disabled={props.disabled} onClick={() => { props.onLineStyleChange?.(value); setLineStylePanelOpen(false); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path class={value} d={value === "double" ? "M3 9h18M3 15h18" : "M3 12h18"} /></svg></button>)}
             </div>
           </div>
         </Portal>
@@ -175,5 +177,5 @@ export function TouchQuickStyleControls(props: Props): JSX.Element {
       </Show>
     </div>;
 
-  return <Show when={props.showColor || props.showWidth || props.showAppearance}>{quickStyleControls}</Show>;
+  return <Show when={props.showColor || props.showWidth || props.showAppearance || props.showLineStyle}>{quickStyleControls}</Show>;
 }

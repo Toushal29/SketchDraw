@@ -5,6 +5,7 @@ import { arrowHeadEntries, arrowHeadSvgPath, connectorSvgPath } from "../connect
 import { elementBounds, unionBounds, visibleElementBounds } from "../canvas/bounds";
 import { themeInk } from "../canvas/rendering";
 import { stylusStrokeWidth } from "../canvas/freehand-rendering";
+import { strokeDashPattern } from "../canvas/stroke-style";
 import { drawNoteCard } from "../../notes";
 import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
 
@@ -79,7 +80,7 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
       const temp = document.createElement("canvas"); temp.width = image.naturalWidth; temp.height = image.naturalHeight; temp.getContext("2d")!.drawImage(image, 0, 0); const blob = await new Promise<Blob>((resolve, reject) => temp.toBlob(value => value ? resolve(value) : reject(new Error("Could not encode an imported image for PDF.")), "image/png")); return doc.embedPng(new Uint8Array(await blob.arrayBuffer()));
     };
     const pathStyle = (page: import("pdf-lib").PDFPage, path: string, element: ShapeElement, scale: number, originX: number, originY: number, fill?: string, fillAlpha?: number) => {
-      const dash = element.lineStyle === "dashed" ? [element.thickness * scale * 4, element.thickness * scale * 2.5] : element.lineStyle === "dotted" ? [element.thickness * scale, element.thickness * scale * 2.2] : undefined;
+      const dashValues = strokeDashPattern(element.lineStyle, element.thickness); const dash = dashValues.length ? dashValues.map(value => value * scale) : undefined;
       const centerX=originX+(element.x+element.w/2)*scale; const centerY=originY-(element.y+element.h/2)*scale; const rotated=!!element.rotation;
       if(rotated)page.pushOperators(pushGraphicsState(),translate(centerX,centerY),rotateDegrees(-(element.rotation??0)),translate(-centerX,-centerY));
       page.drawSvgPath(path, { x: originX, y: originY, scale, color: fill ? pdfColor(fill, pdfColorMode()) : undefined, opacity: fill ? fillAlpha ?? (element.opacity ?? 1) * (element.fillOpacity ?? .2) : 1, borderColor: pdfColor(themeInk(element.color, theme()), pdfColorMode()), borderWidth: element.thickness * scale, borderOpacity: element.opacity ?? 1, borderDashArray: dash, borderLineCap: LineCapStyle.Round });
@@ -121,7 +122,7 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
             if (element.container.background) page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(element.container.background, pdfColorMode()) });
             const borderStyle = element.container.borderStyle ?? (element.container.kind === "frame" ? "dashed" : "solid");
             if (element.container.showBorder !== false) {
-              const borderDashArray = borderStyle === "dashed" ? [borderWidth * 4, borderWidth * 2.5] : borderStyle === "dotted" ? [borderWidth, borderWidth * 2.2] : undefined;
+              const borderDashValues = strokeDashPattern(borderStyle, borderWidth); const borderDashArray = borderDashValues.length ? borderDashValues : undefined;
               page.drawRectangle({ x: left, y: top - height, width, height, color: undefined, borderColor: border, borderWidth, borderDashArray });
               if (borderStyle === "double") { const inset = Math.max(2, borderWidth * 1.5); page.drawRectangle({ x: left + inset, y: top - height + inset, width: Math.max(0, width - inset * 2), height: Math.max(0, height - inset * 2), color: undefined, borderColor: border, borderWidth }); }
             }
@@ -213,7 +214,18 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
           if (rotated) page.pushOperators(popGraphicsState()); return;
         }
         if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart") {
-          const outline = shapePathData(element); if (outline) pathStyle(page, outline, element, scale, x0, yTop, element.fillColor);
+          const outline = shapePathData(element);
+          if (outline) {
+            pathStyle(page, outline, element, scale, x0, yTop, element.fillColor);
+            if (element.lineStyle === "double") {
+              const insetX = element.w * .03; const insetY = element.h * .03;
+              if (element.w > insetX * 2 && element.h > insetY * 2) {
+                const innerElement = { ...element, x: element.x + insetX, y: element.y + insetY, w: element.w * .94, h: element.h * .94, fillColor: undefined };
+                const inner = shapePathData(innerElement);
+                if (inner) pathStyle(page, inner, innerElement, scale, x0, yTop);
+              }
+            }
+          }
           const details = shapeDetailPathData(element); if (details) pathStyle(page, details, element, scale, x0, yTop);
           if (isLabelShape(element)) drawShapeLabel(element, drawText);
           return;

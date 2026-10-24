@@ -5,7 +5,7 @@ const TILE_SIZE = 512;
 const TILE_BLEED = 1;
 const MAX_TILE_BYTES = 24 * 1024 * 1024;
 const MAX_VISIBLE_TILES = 64;
-const MAX_CACHED_TILE_SCALE = 2;
+const MAX_CACHED_TILE_SCALE = 3;
 
 type SceneTile = {
   x: number;
@@ -40,8 +40,10 @@ export class SceneTileCache {
     drawElement: (context: CanvasRenderingContext2D, element: Element, viewport: Bounds, sourceItems: Element[]) => void,
   ): boolean {
     const physicalScale = zoom * devicePixelRatio;
-    if (!Number.isFinite(physicalScale) || physicalScale > MAX_CACHED_TILE_SCALE + .25) return false;
-    const scale = Math.max(.75, Math.min(MAX_CACHED_TILE_SCALE, Math.ceil(physicalScale * 2) / 2));
+    if (!Number.isFinite(physicalScale) || physicalScale > MAX_CACHED_TILE_SCALE) return false;
+    // Keep cached detail close to the screen's physical pixel scale to avoid
+    // interpolation blur at 100% zoom and nearby zoom levels.
+    const scale = Math.max(.75, Math.min(MAX_CACHED_TILE_SCALE, Math.round(physicalScale * 8) / 8));
     this.sync(elements, spatialIndex, renderKey);
 
     const left = Math.floor(viewport.x / TILE_SIZE);

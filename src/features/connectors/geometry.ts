@@ -1,4 +1,5 @@
 import type { ArrowHead, ArrowRoute, LineRoute, Point, ShapeElement } from "../../model";
+import { strokeStyleLineGap } from "../canvas/stroke-style";
 
 type Route = ArrowRoute | LineRoute;
 type HeadEntry = { tip: Point; angle: number; kind: ArrowHead };
@@ -244,7 +245,7 @@ function trimByHeads(element: ShapeElement, route: Route, paths: Point[][]): Poi
 }
 
 export function doubleConnectorPolylines(element: ShapeElement): Point[][] {
-  const route = routeFor(element); const offset = Math.max(2.5, element.thickness * 1.2);
+  const route = routeFor(element); const offset = strokeStyleLineGap("double", element.thickness);
   const paths = connectorPolylines(element, route);
   const offsetPath = (path: Point[], direction: -1 | 1) => path.map((point, index) => {
     const before = path[Math.max(0, index - 1)]; const after = path[Math.min(path.length - 1, index + 1)];

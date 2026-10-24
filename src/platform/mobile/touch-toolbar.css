@@ -357,17 +357,9 @@
     bottom: max(10px, env(safe-area-inset-bottom));
     left: max(65px, calc(env(safe-area-inset-left) + 60px));
     width: auto;
-    height: auto;
-    min-width: 0;
-    min-height: 0;
     max-height: none;
-    padding: 10px;
-    overflow: hidden;
-    border-radius: 10px;
-    background: var(--theme-surface-elevated);
   }
   .app-shell:not(.platform-windows) .style-pane.full-style-mode > .full-inspector { max-height: none; }
-  .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-inspector-header button,
   .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-inspector button { min-height: 35px; touch-action: manipulation; }
   .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-inspector-header .full-inspector-close { width: 35px; min-width: 35px; height: 35px; }
 }

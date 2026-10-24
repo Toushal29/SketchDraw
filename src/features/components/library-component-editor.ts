@@ -1,9 +1,9 @@
 import type { Element, GroupElement, LibraryComponentData, Point, ShapeElement } from "../../model";
 import { elementBounds } from "../canvas/bounds";
 import { defaultGuiComponentProperties, guiChoiceMinimumHeight, guiNavigationMinimumHeight } from "./gui-components";
-import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../notes";
+import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryComponentFields, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../notes";
 
-export type LibraryComponentField = { key: string; label: string; value: string };
+export type LibraryComponentField = { key: string; label: string; value: string; hint?: string };
 
 export function libraryComponentFields(group: GroupElement): LibraryComponentField[] {
   if (group.libraryComponent?.kind.startsWith("viz-")) return [];
@@ -11,8 +11,8 @@ export function libraryComponentFields(group: GroupElement): LibraryComponentFie
     const kind = group.libraryComponent?.kind ?? "";
     if (kind.startsWith("form-") || kind.startsWith("gui-")) return [];
     return [
-      { key: "label", label: "Label", value: group.libraryComponent?.label ?? LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? kind },
-      ...(group.libraryComponent?.componentFields ?? []).map(field => ({ key: `component:${field.key}`, label: field.label, value: field.value })),
+      { key: "label", label: "Name", value: group.libraryComponent?.label ?? LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? kind },
+      ...(group.libraryComponent?.componentFields ?? []).map(field => ({ key: `component:${field.key}`, label: field.label, value: field.value, ...(field.hint ? { hint: field.hint } : {}) })),
     ];
   }
   const fields: LibraryComponentField[] = []; let textIndex = 0; let labelIndex = 0;
@@ -50,7 +50,21 @@ export function setLibraryComponentField(group: GroupElement, key: string, value
 export function upgradeLegacyLibraryComponent(group: GroupElement): GroupElement | undefined {
   const kind = group.libraryComponent?.kind as LibraryComponentKind | undefined;
   const definition = kind && LIBRARY_COMPONENTS.find(item => item.kind === kind);
-  if (!kind || !definition || group.componentBounds || group.container || !group.elements.length) return undefined;
+  if (!kind || !definition) return undefined;
+
+  const defaults = defaultLibraryComponentFields(kind);
+  if (group.componentBounds) {
+    if (!defaults.length || group.container && ["diagram-frame", "diagram-swimlane"].includes(kind)) return undefined;
+    const existing = group.libraryComponent?.componentFields ?? [];
+    const mergedDefaults = defaults.map(field => {
+      const previous = existing.find(item => item.key === field.key);
+      return { ...field, ...(previous ? { ...previous, label: field.label, hint: field.hint, value: previous.value } : {}) };
+    });
+    const fields = [...mergedDefaults, ...existing.filter(field => !defaults.some(defaultField => defaultField.key === field.key))].slice(0, 32);
+    if (fields.length === existing.length && fields.every(field => existing.some(item => item.key === field.key && item.label === field.label && item.hint === field.hint && item.value === field.value))) return undefined;
+    return { ...group, libraryComponent: { ...group.libraryComponent!, componentFields: fields } };
+  }
+  if (group.container || !group.elements.length) return undefined;
 
   const fields = libraryComponentFields(group);
   const fieldValues = fields.filter(field => field.key !== "label");
@@ -72,7 +86,7 @@ export function upgradeLegacyLibraryComponent(group: GroupElement): GroupElement
 
   let componentFields = group.libraryComponent?.componentFields;
   if (!componentFields?.length) {
-    const defaults = kind === "uml-class"
+    const legacyDefaults = kind === "uml-class"
       ? [{ key: "attributes", label: "Attributes" }, { key: "methods", label: "Methods" }]
       : kind === "uml-interface" ? [{ key: "operations", label: "Operations" }]
         : kind === "uml-enumeration" ? [{ key: "literals", label: "Literals" }]
@@ -86,7 +100,15 @@ export function upgradeLegacyLibraryComponent(group: GroupElement): GroupElement
           : kind === "er-table" ? oldText.slice(1, 4)
             : kind === "er-composite-attribute" ? legacyShapeLabels.slice(1, 3)
             : [];
-    componentFields = defaults.map((field, index) => ({ ...field, value: values[index] ?? "" }));
+    componentFields = legacyDefaults.map((field, index) => ({ ...field, value: values[index] ?? "" }));
+  }
+
+  if (defaults.length) {
+    const mergedDefaults = defaults.map(field => {
+      const previous = componentFields!.find(item => item.key === field.key);
+      return { ...field, ...(previous ? { ...previous, label: field.label, hint: field.hint } : {}) };
+    });
+    componentFields = [...mergedDefaults, ...componentFields.filter(field => !defaults.some(defaultField => defaultField.key === field.key))].slice(0, 32);
   }
 
   return {

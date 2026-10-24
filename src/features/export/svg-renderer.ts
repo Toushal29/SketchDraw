@@ -5,6 +5,7 @@ import { arrowHeadEntries, arrowHeadPoints, arrowHeadSvgPath, connectorSvgPath }
 import { elementBounds } from "../canvas/bounds";
 import { fontCss, themeInk } from "../canvas/rendering";
 import { freehandSvg } from "../canvas/freehand-rendering";
+import { strokeDashPattern } from "../canvas/stroke-style";
 import { modelComponentSvg } from "../components/model-component-renderer";
 import { renderLibraryChartSvg } from "../components/chart-engine";
 import { relationshipDisplayElement } from "../diagrams/relationships";
@@ -78,7 +79,7 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
         const clippedComponent = component ? `<defs><clipPath id="${clipId}"><rect x="${bounds.x}" y="${bounds.y}" width="${Math.max(0, bounds.w)}" height="${Math.max(0, bounds.h)}"/></clipPath></defs><g clip-path="url(#${clipId})">${component}</g>` : "";
         const children = element.container ? element.elements.map(elementToSvg).join("") : "";
         const borderStyle = element.container?.borderStyle ?? (element.container?.kind === "frame" ? "dashed" : "solid"); const borderWidth = element.container?.borderThickness ?? 1.5;
-        const borderDash = borderStyle === "dashed" ? ` stroke-dasharray="${borderWidth * 4} ${borderWidth * 2.5}"` : borderStyle === "dotted" ? ` stroke-dasharray="${borderWidth} ${borderWidth * 2.2}"` : "";
+        const borderDashValues = strokeDashPattern(borderStyle, borderWidth); const borderDash = borderDashValues.length ? ` stroke-dasharray="${borderDashValues.join(" ")}"` : "";
         const containerRect = element.container && !element.libraryComponent && (element.container.showBorder !== false || !!element.container.background)
           ? `<rect x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}" fill="${element.container.background ?? "none"}"${element.container.showBorder === false ? ' stroke="none"' : ` stroke="${element.container.borderColor ?? "#667085"}" stroke-width="${borderWidth}"${borderDash}`}/>${element.container.showBorder !== false && borderStyle === "double" ? `<rect x="${bounds.x + Math.max(2, borderWidth * 1.5)}" y="${bounds.y + Math.max(2, borderWidth * 1.5)}" width="${Math.max(0, bounds.w - Math.max(2, borderWidth * 1.5) * 2)}" height="${Math.max(0, bounds.h - Math.max(2, borderWidth * 1.5) * 2)}" fill="none" stroke="${element.container.borderColor ?? "#667085"}" stroke-width="${borderWidth}"/>` : ""}` : "";
         const containerLabel = element.container && !element.libraryComponent && element.container.showLabel !== false && element.container.name.trim()
@@ -134,7 +135,7 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
       return `<text x="${element.x}" y="${element.y + element.fontSize}" fill="${escapeXml(themeInk(element.color, theme()))}" opacity="${element.opacity ?? 1}" font-size="${element.fontSize}" font-family="${family}" font-weight="${element.bold ? "700" : "400"}" font-style="${element.italic ? "italic" : "normal"}" text-decoration="${element.underline ? "underline" : "none"}" text-anchor="${element.textAlign === "center" ? "middle" : element.textAlign === "right" ? "end" : "start"}">${lines}</text>`;
     }
     const fillColor = "fillColor" in element ? element.fillColor : undefined;
-    const dash = "lineStyle" in element && element.lineStyle === "dashed" ? `${element.thickness * 4} ${element.thickness * 2.5}` : "lineStyle" in element && element.lineStyle === "dotted" ? `${element.thickness} ${element.thickness * 2.2}` : "";
+    const dash = "lineStyle" in element ? strokeDashPattern(element.lineStyle, element.thickness).join(" ") : "";
     const fillOpacity = "fillOpacity" in element ? element.fillOpacity ?? 0.2 : 0.2;
     const ink = themeInk(element.color, theme());
     const strokeWidth = element.thickness;
@@ -145,14 +146,18 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
       const path = escapeXml(element.pathData ?? ""); const sx = element.w / Math.max(1, element.pathWidth ?? element.w); const sy = element.h / Math.max(1, element.pathHeight ?? element.h);
       const fill = element.fillColor ? escapeXml(element.fillColor) : "none";
       const stroke = element.svgStroke === false ? "none" : escapeXml(themeInk(element.color, theme()));
-      return `<path d="${path}" transform="translate(${element.x} ${element.y}) scale(${sx} ${sy})" fill="${fill}" fill-opacity="${element.fillOpacity ?? 1}" fill-rule="${element.fillRule ?? "nonzero"}" stroke="${stroke}" stroke-width="${element.thickness}"${element.svgNonScalingStroke ? ` vector-effect="non-scaling-stroke"` : ""} opacity="${element.opacity ?? 1}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      const svgStyle = `fill="${fill}" fill-opacity="${element.fillOpacity ?? 1}" fill-rule="${element.fillRule ?? "nonzero"}" stroke="${stroke}" stroke-width="${element.thickness}"${element.lineStyle === "double" ? "" : dash ? ` stroke-dasharray="${dash}"` : ""}${element.svgNonScalingStroke ? ` vector-effect="non-scaling-stroke"` : ""} opacity="${element.opacity ?? 1}" stroke-linecap="round" stroke-linejoin="round"`;
+      const base = `<path d="${path}" transform="translate(${element.x} ${element.y}) scale(${sx} ${sy})" ${svgStyle}/>`;
+      if (element.lineStyle !== "double" || element.svgStroke === false) return base;
+      return `${base}<path d="${path}" transform="translate(${element.x + element.w * .03} ${element.y + element.h * .03}) scale(${sx * .94} ${sy * .94})" fill="none" stroke="${stroke}" stroke-width="${element.thickness}"${element.svgNonScalingStroke ? ` vector-effect="non-scaling-stroke"` : ""} opacity="${element.opacity ?? 1}" stroke-linecap="round" stroke-linejoin="round"/>`;
     }
     if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart") {
       const outline = shapePathData(element);
       if (!outline) return "";
       const details = shapeDetailPathData(element);
       const detailStyle = `fill="none" stroke="${escapeXml(ink)}" opacity="${element.opacity ?? 1}" stroke-width="${element.thickness}" stroke-dasharray="${dash}" stroke-linecap="round" stroke-linejoin="round"`;
-      return `<path d="${outline}" fill-rule="${shapeFillRule(element)}" ${style}/>${details ? `<path d="${details}" ${detailStyle}/>` : ""}`;
+      const inner = element.lineStyle === "double" ? `<path d="${outline}" transform="translate(${element.x + element.w / 2} ${element.y + element.h / 2}) scale(.94) translate(${-element.x - element.w / 2} ${-element.y - element.h / 2})" fill="none" stroke="${escapeXml(ink)}" opacity="${strokeOpacity}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>` : "";
+      return `<path d="${outline}" fill-rule="${shapeFillRule(element)}" ${style}/>${inner}${details ? `<path d="${details}" ${detailStyle}/>` : ""}`;
     }
     if (element.type === "line" || element.type === "arrow") {
       const routed = connectorForView(element); const path = connectorSvgPath(routed); const route = routed.type === "arrow" ? routed.arrowRoute ?? "straight" : routed.lineRoute ?? "straight";

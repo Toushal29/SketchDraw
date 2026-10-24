@@ -1,20 +1,161 @@
+import type { Component } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import {
+  IconAccessPoint,
+  IconAlertTriangle,
+  IconAffiliate,
+  IconApi,
+  IconArrowsSplit,
+  IconArrowRight,
+  IconArrowRightDashed,
+  IconBolt,
+  IconBox,
+  IconBrowser,
   IconChartAreaLine,
   IconChartBar,
   IconChartDonut,
   IconChartLine,
   IconChartPie,
   IconChartScatter,
+  IconCheckbox,
+  IconCircle,
+  IconCircleCheck,
+  IconCircleDashed,
+  IconCircleDot,
+  IconClick,
+  IconCloud,
+  IconCloudCode,
+  IconCloudDataConnection,
+  IconColumns3,
   IconComponents,
+  IconCpu,
+  IconDatabase,
+  IconDeviceDesktop,
+  IconDiamond,
+  IconDiamondFilled,
+  IconFileText,
+  IconGitFork,
+  IconHierarchy2,
+  IconHierarchy3,
+  IconListCheck,
+  IconListDetails,
+  IconMessage,
+  IconNetwork,
+  IconOval,
+  IconPackage,
+  IconPlayerStop,
+  IconRectangleVertical,
+  IconRelationManyToMany,
+  IconRelationOneToMany,
+  IconRouter,
+  IconSelect,
+  IconServer,
+  IconSettingsCode,
+  IconStopwatch,
+  IconShield,
+  IconStack,
+  IconTable,
+  IconTextSize,
+  IconTimeline,
+  IconToggleRight,
+  IconTopologyBus,
+  IconTopologyStar,
+  IconUser,
+  IconWorld,
   type IconProps,
 } from "@tabler/icons-solidjs";
-import type { Component } from "solid-js";
-import { buildLibraryComponent, buildLibraryRelationship, LIBRARY_COMPONENTS, type LibraryComponentKind } from "../notes";
-import type { GroupElement } from "../model";
-import { modelComponentSvg } from "../features/components/model-component-renderer";
+import { type LibraryComponentKind } from "../notes";
 
-const chartIcons: Partial<Record<LibraryComponentKind, Component<IconProps>>> = {
+const icons: Partial<Record<LibraryComponentKind, Component<IconProps>>> = {
+  "diagram-frame": IconBox,
+  "diagram-swimlane": IconColumns3,
+  "diagram-legend": IconListDetails,
+  "uml-class": IconListDetails,
+  "uml-lifeline": IconTimeline,
+  "uml-activation": IconRectangleVertical,
+  "uml-inheritance": IconHierarchy3,
+  "uml-realization": IconHierarchy2,
+  "uml-aggregation": IconDiamond,
+  "uml-composition": IconDiamondFilled,
+  "uml-association": IconAffiliate,
+  "uml-dependency": IconArrowRightDashed,
+  "uml-include": IconArrowRightDashed,
+  "uml-extend": IconArrowRightDashed,
+  "uml-actor": IconUser,
+  "uml-use-case": IconOval,
+  "uml-package": IconPackage,
+  "uml-interface": IconApi,
+  "uml-state": IconRectangleVertical,
+  "uml-initial-state": IconCircle,
+  "uml-final-state": IconCircleCheck,
+  "uml-fork": IconColumns3,
+  "uml-join": IconColumns3,
+  "uml-component": IconComponents,
+  "uml-node": IconBox,
+  "uml-artifact": IconFileText,
+  "uml-enumeration": IconListDetails,
+  "sequence-sync": IconArrowRight,
+  "sequence-async": IconArrowRightDashed,
+  "er-table": IconTable,
+  "er-entity": IconBox,
+  "er-weak-entity": IconRectangleVertical,
+  "er-associative-entity": IconAffiliate,
+  "er-relationship": IconDiamond,
+  "er-identifying-relationship": IconDiamondFilled,
+  "er-attribute": IconOval,
+  "er-composite-attribute": IconHierarchy2,
+  "er-key-attribute": IconCircleDot,
+  "er-partial-key-attribute": IconCircleDashed,
+  "er-multivalued-attribute": IconCircle,
+  "er-derived-attribute": IconCircleDashed,
+  "er-one-one": IconRelationOneToMany,
+  "er-one-many": IconRelationOneToMany,
+  "er-many-one": IconRelationOneToMany,
+  "er-many-many": IconRelationManyToMany,
+  "c4-system": IconTopologyStar,
+  "c4-software-system": IconComponents,
+  "c4-container": IconBox,
+  "c4-component": IconComponents,
+  "c4-person": IconUser,
+  "c4-external-system": IconCloud,
+  "c4-deployment-node": IconServer,
+  "c4-infrastructure-node": IconNetwork,
+  "c4-code-element": IconFileText,
+  "software-client": IconBrowser,
+  "software-api": IconApi,
+  "software-service": IconSettingsCode,
+  "software-database": IconDatabase,
+  "software-queue": IconStack,
+  "software-event-bus": IconAffiliate,
+  "software-cache": IconBolt,
+  "tech-service": IconCpu,
+  "data-flow": IconArrowRight,
+  "cloud-boundary": IconCloud,
+  "cloud-function": IconCloudCode,
+  "cloud-storage": IconCloudDataConnection,
+  "cloud-database": IconDatabase,
+  "cloud-queue": IconStack,
+  "network-zone": IconTopologyStar,
+  "network-subnet": IconNetwork,
+  "network-router": IconRouter,
+  "network-server": IconServer,
+  "network-firewall": IconShield,
+  "network-client": IconDeviceDesktop,
+  "network-switch": IconNetwork,
+  "network-hub": IconTopologyBus,
+  "network-load-balancer": IconArrowsSplit,
+  "network-proxy": IconAffiliate,
+  "network-bridge": IconNetwork,
+  "network-bastion": IconShield,
+  "network-gateway": IconRouter,
+  "network-printer": IconDeviceDesktop,
+  "network-workstation": IconDeviceDesktop,
+  "network-access-point": IconAccessPoint,
+  "network-internet": IconWorld,
+  "network-vpn": IconShield,
+  "network-dns": IconNetwork,
+  "network-nat-gateway": IconRouter,
+  "network-modem": IconAccessPoint,
   "viz-bar": IconChartBar,
   "viz-horizontal-bar": IconChartBar,
   "viz-stacked-bar": IconChartBar,
@@ -29,32 +170,63 @@ const chartIcons: Partial<Record<LibraryComponentKind, Component<IconProps>>> = 
   "viz-heatmap": IconChartScatter,
   "viz-treemap": IconChartBar,
   "viz-kpi": IconChartBar,
+  "form-button": IconClick,
+  "form-input": IconTextSize,
+  "form-select": IconSelect,
+  "form-checkbox": IconCheckbox,
+  "form-radio": IconCircleDot,
+  "form-toggle": IconToggleRight,
+  "gui-card": IconListDetails,
+  "gui-app-bar": IconBrowser,
+  "gui-navigation": IconColumns3,
+  "gui-tabs": IconComponents,
+  "gui-image": IconDeviceDesktop,
+  "bpmn-start": IconCircle,
+  "bpmn-message-event": IconMessage,
+  "bpmn-timer-event": IconStopwatch,
+  "bpmn-error-event": IconAlertTriangle,
+  "bpmn-signal-event": IconAccessPoint,
+  "bpmn-terminate-event": IconPlayerStop,
+  "bpmn-event": IconCircleDashed,
+  "bpmn-end": IconCircleCheck,
+  "bpmn-boundary-event": IconCircleDashed,
+  "bpmn-gateway": IconDiamond,
+  "bpmn-parallel-gateway": IconGitFork,
+  "bpmn-inclusive-gateway": IconHierarchy2,
+  "bpmn-event-gateway": IconHierarchy3,
+  "bpmn-task": IconListCheck,
+  "bpmn-user-task": IconUser,
+  "bpmn-service-task": IconSettingsCode,
+  "bpmn-script-task": IconCpu,
+  "bpmn-call-activity": IconComponents,
+  "bpmn-subprocess": IconBox,
+  "bpmn-manual-task": IconClick,
+  "bpmn-business-rule-task": IconListDetails,
+  "bpmn-send-task": IconArrowRight,
+  "bpmn-receive-task": IconArrowRightDashed,
+  "bpmn-data": IconFileText,
+  "bpmn-data-store": IconDatabase,
+  "bpmn-text-annotation": IconTextSize,
+  "bpmn-pool": IconColumns3,
 };
 
-const renderedIcons = new Map<LibraryComponentKind, string>();
-
-function componentIconSvg(kind: LibraryComponentKind): string {
-  const cached = renderedIcons.get(kind);
-  if (cached !== undefined) return cached;
-  const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind);
-  if (!definition) return "";
-  const relation = buildLibraryRelationship(kind, 0, 0);
-  const component: GroupElement = relation
-    ? { type: "group", elements: [], componentBounds: { x: 0, y: 0, w: definition.width, h: definition.height }, libraryComponent: { kind, label: definition.label } }
-    : buildLibraryComponent(kind, 0, 0);
-  const svg = modelComponentSvg(component);
-  renderedIcons.set(kind, svg);
-  return svg;
+function providerIcon(kind: string): Component<IconProps> {
+  if (/lambda|function/i.test(kind)) return IconCloudCode;
+  if (/storage|bucket|blob|s3/i.test(kind)) return IconCloudDataConnection;
+  if (/database|\bsql\b|rds|cosmos|spanner|firestore/i.test(kind)) return IconDatabase;
+  if (/api|gateway/i.test(kind)) return IconApi;
+  if (/queue|bus|pub.?sub|event.?hub|sqs/i.test(kind)) return IconStack;
+  if (/network|vpc|vnet|subnet|dns/i.test(kind)) return IconNetwork;
+  if (/load.?balanc|front.?door|application.?gateway/i.test(kind)) return IconArrowsSplit;
+  if (/firewall|security|vault|secret|key/i.test(kind)) return IconShield;
+  if (/monitor|insight|metric|logging/i.test(kind)) return IconChartLine;
+  if (/container|kubernetes|cluster|aks|eks|gke/i.test(kind)) return IconBox;
+  if (/user|identity|account/i.test(kind)) return IconUser;
+  if (/compute|server|instance|machine|vm|ec2/i.test(kind)) return IconServer;
+  return IconCloud;
 }
 
 export function LibraryComponentIcon(props: { kind: LibraryComponentKind }) {
-  const definition = () => LIBRARY_COMPONENTS.find(item => item.kind === props.kind);
-  const svg = () => componentIconSvg(props.kind);
-  return <>
-    {chartIcons[props.kind]
-      ? <Dynamic component={chartIcons[props.kind]!} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />
-      : definition() && svg()
-        ? <svg class="stencil-component-icon stencil-component-rendered-icon" viewBox={`0 0 ${definition()!.width} ${definition()!.height}`} aria-hidden="true" innerHTML={svg()} />
-        : <Dynamic component={IconComponents} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />}
-  </>;
+  const icon = () => icons[props.kind] ?? providerIcon(props.kind);
+  return <Dynamic component={icon()} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />;
 }

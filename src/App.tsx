@@ -71,6 +71,7 @@ import { createCanvasHistory } from "./features/canvas/history";
 import { canvasStateForTouchGesture, gridStepForStyle, gridSvgPattern, isometricRowHeight, isometricRowOffset, pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePoint, zoomCanvasStateAt } from "./features/canvas/input";
 import { canGroupSelection, deletableSelectionCount as countDeletableSelection, focusedSelectionElement, isGroupSelection, primarySelectionIndex, selectedElements as getSelectedElements } from "./features/canvas/selection";
 import { createCanvasRenderScheduler, drawShapeLabel, fontCss, shapeLabelSvg, themeInk } from "./features/canvas/rendering";
+import { strokeDashPattern, strokeStyleLineGap } from "./features/canvas/stroke-style";
 import { createCanvasSceneRenderer, transformHandlePoints } from "./features/canvas/scene-renderer";
 import { drawLibraryChart } from "./features/components/chart-engine";
 import { fitComponentSpecimen } from "./features/components/component-specimen-sheet";
@@ -1733,7 +1734,7 @@ function App() {
   const sidebarVisible = () => !!activePath();
   const showStrokeControls = () => { const focused = focusedElement(); return tool() !== "bucket" && (
     tool() === "pen" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || tool() === "line" || tool() === "arrow" || (tool() === "text" && textMode() === "text") ||
-    !!styleContainerSelection() || (tool() === "select" && !!focused && "color" in focused)
+    !!styleContainerSelection() || (tool() === "select" && !!focused && ("color" in focused || focused.type === "group" && (!!focused.libraryComponent || !!focused.masterId)))
   ); };
   const showThicknessControls = () => { const focused = focusedElement(); return tool() !== "bucket" && tool() !== "text" && (
     tool() === "pen" || tool() === "rectangle" || tool() === "circle" || tool() === "diamond" || tool() === "triangle" || tool() === "flowchart" || tool() === "line" || tool() === "arrow" || tool() === "eraser" ||
@@ -1742,7 +1743,7 @@ function App() {
   const isPenBrushThicknessTarget = () => tool() === "pen" || (tool() === "select" && focusedElement()?.type === "freehand");
   const quickElementType = () => tool() === "select" ? selectedText() ? "text" : focusedElement()?.type ?? "select" : tool();
   const quickShapeSelection = () => { const focused = focusedElement(); return focused && "thickness" in focused ? focused as ShapeElement : undefined; };
-  const quickHasShapeFill = () => !!selectedLibraryComponent() || ["rectangle", "circle", "diamond", "triangle", "flowchart", "svgPath"].includes(quickElementType());
+  const quickHasShapeFill = () => { const focused = focusedElement(); return !!selectedLibraryComponent() || focused?.type === "group" && (!!focused.libraryComponent || !!focused.masterId) || ["rectangle", "circle", "diamond", "triangle", "flowchart", "svgPath"].includes(quickElementType()); };
   const quickHasText = () => {
     const target = styleTargetElement();
     if (tool() === "text" && textMode() === "text" || !!textDraft() || !!selectedTextValue().trim()) return true;
@@ -1886,8 +1887,8 @@ function App() {
   const quickIsConnector = () => quickElementType() === "line" || quickElementType() === "arrow";
   const quickRouteChoices = () => quickElementType() === "arrow" ? ARROW_ROUTES : LINE_ROUTES;
   const quickCurrentRoute = () => { const focused = styleTargetElement(); if (quickElementType() === "arrow") return focused?.type === "arrow" ? focused.arrowRoute ?? "straight" : arrowRoute(); return focused?.type === "line" ? focused.lineRoute ?? "straight" : lineRoute(); };
-  const quickCurrentLineStyle = () => { const container = styleContainerSelection(); if (container) return container.container?.borderStyle ?? (container.container?.kind === "frame" ? "dashed" : "solid"); const focused = styleTargetElement(); return focused && "lineStyle" in focused ? focused.lineStyle ?? "solid" : lineStyle(); };
-  const quickFocusedHasLineStyle = () => { const focused = styleTargetElement(); return !!styleContainerSelection() || !!focused && "lineStyle" in focused; };
+  const quickCurrentLineStyle = () => { const container = styleContainerSelection(); if (container) return container.container?.borderStyle ?? (container.container?.kind === "frame" ? "dashed" : "solid"); const focused = styleTargetElement(); if (focused?.type === "group") return focused.componentOverrides?.lineStyle ?? focused.libraryComponent?.styleOverrides?.lineStyle ?? "solid"; return focused && "lineStyle" in focused ? focused.lineStyle ?? "solid" : lineStyle(); };
+  const quickFocusedHasLineStyle = () => { const focused = styleTargetElement(); return !!styleContainerSelection() || !!focused && ("lineStyle" in focused || focused.type === "group" && (!!focused.libraryComponent || !!focused.masterId)); };
   const updateQuickLineStyle = (value: StrokeStyle) => { if (styleContainerSelection()) updateSelectedContainer(container => ({ ...container, borderStyle: value })); else if (quickFocusedHasLineStyle()) updateProperty("lineStyle", value); else setLineStyle(value); };
   const quickArrowHead = (end: "start" | "end") => { const focused = styleTargetElement(); if (focused && isConnector(focused)) return (end === "start" ? focused.startHead : focused.endHead) ?? (focused.type === "arrow" && end === "end" ? "open" : "none"); if (tool() === "line") return end === "start" ? defaultLineStartHead() : defaultLineEndHead(); return end === "start" ? defaultStartHead() : defaultEndHead(); };
   const renderedBoardColor = () => boardColorFollowsTheme() ? theme() === "dark" ? "#17191f" : "#ffffff" : boardColor();
@@ -2295,18 +2296,19 @@ function App() {
     const update = (element: Element): Element => {
       if (isElementLocked(element)) return element;
       if (element.type === "group") {
-        if (!element.libraryComponent) return { ...element, elements: element.elements.map(update) };
+        if (!element.libraryComponent) return { ...element, elements: element.elements.map(update), ...(element.masterId && property === "lineStyle" ? { componentOverrides: { ...element.componentOverrides, lineStyle: value as StrokeStyle } } : {}) };
         const styleOverrides = { ...element.libraryComponent.styleOverrides };
         if (property === "color") styleOverrides.color = String(value);
         if (property === "fillColor") styleOverrides.fillColor = value ? String(value) : null;
         if (property === "fillOpacity") styleOverrides.fillOpacity = Number(value);
+        if (property === "lineStyle") styleOverrides.lineStyle = value as StrokeStyle;
         const textStyle = { ...element.libraryComponent.textStyle };
         if (property === "textColor") textStyle.color = String(value);
         if (property === "fontSize") textStyle.fontSize = Math.max(8, Math.min(160, Math.round(Number(value))));
         if (property === "fontFamily") textStyle.fontFamily = value as FontFamily;
         if (property === "bold" || property === "italic" || property === "underline" || property === "textAlign") textStyle[property] = value as never;
         const updatesChildText = ["textColor", "fontSize", "fontFamily", "bold", "italic", "underline", "textAlign", "listType"].includes(property);
-        return { ...element, ...(updatesChildText ? { elements: element.elements.map(update) } : {}), libraryComponent: { ...element.libraryComponent, styleOverrides, textStyle } };
+        return { ...element, ...(updatesChildText ? { elements: element.elements.map(update) } : {}), ...(element.masterId && property === "lineStyle" ? { componentOverrides: { ...element.componentOverrides, lineStyle: value as StrokeStyle } } : {}), libraryComponent: { ...element.libraryComponent, styleOverrides, textStyle } };
       }
       if (element.type === "schemaTable" && property === "fontSize") { const size = Math.max(8, Math.min(48, Math.round(Number(value)))); return { ...element, fontSize: size, w: Math.max(element.w, schemaTableResizeMinimumWidth()), h: schemaTableMinimumHeight(element.columns.length, size) }; }
       if (property === "color") return { ...element, color: String(value) } as Element;
@@ -3313,7 +3315,7 @@ function App() {
       if (element.label?.text || element.relationshipType || element.cardinality) { const textBox = labelBox(relationshipDisplayElement(element)); if (point.x >= textBox.x && point.x <= textBox.x + textBox.w && point.y >= textBox.y && point.y <= textBox.y + textBox.h) return true; }
       const routed = connectorForView(element);
       const route = routed.type === "arrow" ? routed.arrowRoute ?? "straight" : routed.lineRoute ?? "straight";
-      for (const samples of connectorPolylines(routed, route, 33)) for (let index = 1; index < samples.length; index++) if (distanceToSegment(point, samples[index - 1], samples[index]) <= tolerance + (routed.lineStyle === "double" ? 3 : 0)) return true;
+      for (const samples of connectorPolylines(routed, route, 33)) for (let index = 1; index < samples.length; index++) if (distanceToSegment(point, samples[index - 1], samples[index]) <= tolerance + strokeStyleLineGap(routed.lineStyle, routed.thickness)) return true;
       for (const { tip, angle: direction, kind } of arrowHeadEntries(routed, route)) {
         if (kind === "dot" && Math.hypot(point.x - tip.x, point.y - tip.y) <= Math.max(4, routed.thickness * 1.5) + tolerance) return true;
         const points = arrowHeadPoints(tip, direction, kind, routed.thickness);
@@ -3379,7 +3381,8 @@ function App() {
         const originalFill = item.fillColor;
         const fillColor = styleOverrides?.fillColor === null ? undefined : styleOverrides?.fillColor ?? (originalFill ? (originalFill.toLowerCase() === "#ffffff" ? (theme() === "dark" ? "#202428" : "#ffffff") : theme() === "dark" ? "#3a424a" : "#e9edf1") : undefined);
         const label = item.label ? { ...item.label, color: ink } : undefined;
-        return { ...item, color: stroke, fillColor, fillOpacity: fillColor ? styleOverrides?.fillOpacity ?? item.fillOpacity ?? 1 : 0, edgeStyle: item.edgeStyle ? "sharp" : item.edgeStyle, cornerRadius: 0, ...(label ? { label } : {}) };
+        const lineStyle = styleOverrides?.lineStyle ?? item.lineStyle;
+        return { ...item, color: stroke, fillColor, fillOpacity: fillColor ? styleOverrides?.fillOpacity ?? item.fillOpacity ?? 1 : 0, edgeStyle: item.edgeStyle ? "sharp" : item.edgeStyle, cornerRadius: 0, ...(lineStyle ? { lineStyle } : {}), ...(label ? { label } : {}) };
       }
       return item;
     };
@@ -3445,7 +3448,7 @@ function App() {
         if (element.container.showBorder !== false) {
           const borderStyle = element.container.borderStyle ?? (frame ? "dashed" : "solid"); const borderWidth = element.container.borderThickness ?? 1.5;
           ctx.strokeStyle = themeInk(element.container.borderColor ?? "#667085", theme()); ctx.lineWidth = borderWidth;
-          ctx.setLineDash(borderStyle === "dashed" ? [borderWidth * 4, borderWidth * 2.5] : borderStyle === "dotted" ? [borderWidth, borderWidth * 2.2] : []);
+          ctx.setLineDash(strokeDashPattern(borderStyle, borderWidth));
           ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
           if (borderStyle === "double") { ctx.setLineDash([]); const inset = Math.max(2, borderWidth * 1.5); ctx.strokeRect(bounds.x + inset, bounds.y + inset, Math.max(0, bounds.w - inset * 2), Math.max(0, bounds.h - inset * 2)); }
           ctx.setLineDash([]);
@@ -3473,7 +3476,7 @@ function App() {
         const path = new Path2D(element.pathData ?? ""); const sx = element.w / (element.pathWidth ?? element.w); const sy = element.h / (element.pathHeight ?? element.h);
         ctx.save(); ctx.globalAlpha = element.opacity ?? 1; ctx.translate(element.x, element.y); ctx.scale(sx, sy);
         if (element.fillColor) { ctx.fillStyle = element.fillColor; ctx.globalAlpha = (element.opacity ?? 1) * (element.fillOpacity ?? 1); ctx.fill(path, element.fillRule ?? "nonzero"); }
-        if (element.svgStroke !== false) { ctx.globalAlpha = element.opacity ?? 1; ctx.strokeStyle = themeInk(element.color, theme()); const shapeScale = Math.max(0.001, Math.min(Math.abs(sx), Math.abs(sy))); ctx.lineWidth = element.thickness / (shapeScale * (element.svgNonScalingStroke ? canvasState().zoom : 1)); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke(path); }
+        if (element.svgStroke !== false) { ctx.globalAlpha = element.opacity ?? 1; ctx.strokeStyle = themeInk(element.color, theme()); const shapeScale = Math.max(0.001, Math.min(Math.abs(sx), Math.abs(sy))); ctx.lineWidth = element.thickness / (shapeScale * (element.svgNonScalingStroke ? canvasState().zoom : 1)); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.setLineDash(strokeDashPattern(element.lineStyle, ctx.lineWidth)); ctx.stroke(path); if (element.lineStyle === "double") { const pathWidth = element.pathWidth ?? element.w; const pathHeight = element.pathHeight ?? element.h; ctx.setLineDash([]); ctx.translate(pathWidth / 2, pathHeight / 2); ctx.scale(.94, .94); ctx.translate(-pathWidth / 2, -pathHeight / 2); ctx.stroke(path); } ctx.setLineDash([]); }
         ctx.restore();
       } catch { /* Malformed legacy vector paths remain selectable by their bounds. */ }
       if (element.rotation) ctx.restore(); return;
@@ -3521,7 +3524,7 @@ function App() {
     ctx.save(); ctx.globalAlpha = element.opacity ?? 1;
     const renderedInk = themeInk(element.color, theme());
     ctx.strokeStyle = renderedInk; ctx.lineWidth = element.thickness; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath();
-    if ("lineStyle" in element) ctx.setLineDash(element.lineStyle === "dashed" ? [element.thickness * 4, element.thickness * 2.5] : element.lineStyle === "dotted" ? [element.thickness, element.thickness * 2.2] : []);
+    if ("lineStyle" in element) ctx.setLineDash(strokeDashPattern(element.lineStyle, element.thickness));
       if (element.type === "line" || element.type === "arrow") {
       const routeElement = element;
       const route = routeElement.type === "arrow" ? routeElement.arrowRoute ?? "straight" : routeElement.lineRoute ?? "straight";
@@ -3557,6 +3560,9 @@ function App() {
       ctx.fill(shapePath, shapeFillRule(element)); ctx.restore();
     }
     ctx.stroke(shapePath);
+    if (element.lineStyle === "double") {
+      ctx.save(); ctx.setLineDash([]); ctx.translate(element.x + element.w / 2, element.y + element.h / 2); ctx.scale(.94, .94); ctx.translate(-(element.x + element.w / 2), -(element.y + element.h / 2)); ctx.stroke(shapePath); ctx.restore();
+    }
     const shapeDetails = shapeDetailPathObject(element);
     if (shapeDetails) ctx.stroke(shapeDetails);
     ctx.restore(); if (isLabelShape(element) && textDraft()?.editingChildId !== element.id && !(textDraft()?.shapeLabel && elements()[textDraft()!.editingIndex!]?.id === element.id)) drawLabel(ctx, element); if (element.rotation) ctx.restore();
@@ -6952,6 +6958,8 @@ function App() {
               presets={(tool() === "eraser" ? ERASER_SIZE_PRESETS : isPenBrushThicknessTarget() ? THICKNESS_PRESETS : ORIGINAL_INSPECTOR_THICKNESS_PRESETS).map(([value, label]) => ({ value, label }))}
               disabled={tool() !== "laser" && (boardLocked() || !!focusedElement()?.locked)}
               showAppearance={!!styleContainerSelection()}
+              showLineStyle={quickHasShapeFill() || quickIsConnector()}
+              lineStyleLabel={styleContainerSelection() ? "Group border style" : "Line style"}
               borderVisible={styleContainerSelection()?.container?.showBorder !== false}
               labelVisible={styleContainerSelection()?.container?.showLabel !== false}
               lineStyle={quickCurrentLineStyle()}
@@ -7162,7 +7170,7 @@ function App() {
                     <Show when={quickHasShapeFill()}>
                       <button class={`quick-style-icon ${fillEnabled() || !!selectedFillColor() ? "active" : ""}`} onClick={() => setQuickStylePopover(quickStylePopover() === "fill" ? undefined : "fill")} aria-label="Shape fill" title="Shape fill" aria-expanded={quickStylePopover() === "fill"}><svg class="quick-fill-preview-icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" style={{ fill: selectedFillColor() ?? (fillEnabled() ? fillColor() : "#ffffff") }} /><path d="M4 4h16v16H4z" /></svg></button>
                     </Show>
-                    <Show when={quickIsConnector() || styleContainerSelection()}>
+                    <Show when={quickIsConnector() || quickHasShapeFill() || styleContainerSelection()}>
                       <button class="quick-style-icon" onClick={() => setQuickStylePopover(quickStylePopover() === "lineStyle" ? undefined : "lineStyle")} aria-label={styleContainerSelection() ? "Group border style" : "Line style"} title={styleContainerSelection() ? "Group border style" : "Line style"} aria-expanded={quickStylePopover() === "lineStyle"}><svg class={`line-preview ${quickCurrentLineStyle()}`} viewBox="0 0 24 24"><path d={quickCurrentLineStyle() === "double" ? "M3 9h18M3 15h18" : "M3 12h18"} /></svg></button>
                     </Show>
                     <Show when={quickIsConnector()}>
@@ -7260,20 +7268,19 @@ function App() {
                           </div>
                         </Show>
                       </Show>
-                      <Show when={tool() === "line" || tool() === "arrow" || focusedElement()?.type === "line" || focusedElement()?.type === "arrow" || focusedElement()?.type === "rectangle" || focusedElement()?.type === "circle" || focusedElement()?.type === "diamond" || focusedElement()?.type === "triangle" || focusedElement()?.type === "flowchart"}>
+                      <Show when={quickHasShapeFill()}>
+                        <div class="property-label">Fill<div class="fill-options"><button type="button" class={!fillEnabled() && !selectedFillColor() ? "active" : ""} disabled={boardLocked()} onClick={() => { setFillEnabled(false); if (hasStyleSelection()) updateProperty("fillColor", undefined); }}>None</button><button type="button" class={fillEnabled() || !!selectedFillColor() ? "active" : ""} disabled={boardLocked()} onClick={() => { setFillEnabled(true); if (hasStyleSelection()) updateProperty("fillColor", fillColor()); }}>Solid</button></div></div>
+                        <label class="property-label">Fill color<input type="color" value={selectedFillColor() ?? fillColor()} disabled={boardLocked()} onInput={event => { const value = event.currentTarget.value; setFillColor(value); setFillEnabled(true); if (hasStyleSelection()) updateProperty("fillColor", value); }} /></label>
+                      </Show>
+                      <Show when={quickIsConnector() || quickHasShapeFill()}>
                         <div class="property-label">Line style<div class="choice-deck line-choices">
-                          {(["solid", "dashed", "dotted"] as const).map(style => <button type="button" class={quickCurrentLineStyle() === style ? "active" : ""} aria-pressed={quickCurrentLineStyle() === style} title={`${style} line`} disabled={boardLocked()} onClick={() => updateQuickLineStyle(style)}><svg viewBox="0 0 24 24" class={`${style}-icon`}><path d="M3 12h18" /></svg><small>{style === "dashed" ? "Dash" : style === "dotted" ? "Dot" : "Solid"}</small></button>)}
-                          <Show when={quickIsConnector()}><button type="button" class={quickCurrentLineStyle() === "double" ? "active" : ""} aria-pressed={quickCurrentLineStyle() === "double"} title="Double line" disabled={boardLocked()} onClick={() => updateQuickLineStyle("double")}><svg viewBox="0 0 24 24"><path d="M3 9h18M3 15h18" /></svg><small>Double</small></button></Show>
+                          {(["solid", "dashed", "dotted", "double"] as const).map(style => <button type="button" class={quickCurrentLineStyle() === style ? "active" : ""} aria-pressed={quickCurrentLineStyle() === style} title={`${style} line`} disabled={boardLocked()} onClick={() => updateQuickLineStyle(style)}><svg viewBox="0 0 24 24" class={`${style}-icon`}><path d={style === "double" ? "M3 9h18M3 15h18" : "M3 12h18"} /></svg><small>{style === "dashed" ? "Dash" : style === "dotted" ? "Dot" : style === "double" ? "Double" : "Solid"}</small></button>)}
                         </div></div>
                       </Show>
                       <Show when={quickIsConnector() && !quickShapeSelection()?.straightOnly}>
                         <label class="property-label">Connector route<select aria-label="Connector route" value={quickCurrentRoute()} disabled={boardLocked()} onChange={event => { const route = event.currentTarget.value; if (quickElementType() === "arrow") { if (styleTargetElement()?.type === "arrow") updateProperty("arrowRoute", route); else setArrowRoute(route as ArrowRoute); } else if (styleTargetElement()?.type === "line") updateProperty("lineRoute", route); else setLineRoute(route as LineRoute); }}>
                           {quickRouteChoices().map(route => <option value={route.value}>{route.label}</option>)}
                         </select></label>
-                      </Show>
-                      <Show when={quickHasShapeFill()}>
-                        <div class="property-label">Fill<div class="fill-options"><button type="button" class={!fillEnabled() && !selectedFillColor() ? "active" : ""} disabled={boardLocked()} onClick={() => { setFillEnabled(false); if (hasStyleSelection()) updateProperty("fillColor", undefined); }}>None</button><button type="button" class={fillEnabled() || !!selectedFillColor() ? "active" : ""} disabled={boardLocked()} onClick={() => { setFillEnabled(true); if (hasStyleSelection()) updateProperty("fillColor", fillColor()); }}>Solid</button></div></div>
-                        <label class="property-label">Fill color<input type="color" value={selectedFillColor() ?? fillColor()} disabled={boardLocked()} onInput={event => { const value = event.currentTarget.value; setFillColor(value); setFillEnabled(true); if (hasStyleSelection()) updateProperty("fillColor", value); }} /></label>
                       </Show>
                       <Show when={quickIsConnector()}>
                         <div class="inspector-arrow-heads">{(["start", "end"] as const).map(end => <div class="property-label"><span>{end === "start" ? "Start head" : "End head"}</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button type="button" class={quickArrowHead(end) === value ? "active" : ""} aria-pressed={quickArrowHead(end) === value} title={`${label} ${end} head`} aria-label={`${label} ${end} arrowhead`} disabled={boardLocked()} onClick={() => setConnectorHead(end, value)}><ArrowHeadIcon kind={value} /></button>)}</div></div>)}</div>
@@ -7320,8 +7327,8 @@ function App() {
                   <div class="component-editor-scroll">
 
                 <Show when={selectedGeometryBounds() || selectedIndices().length === 1 && !!focusedElement() && isConnector(focusedElement()!)}>
-                  <section class="pane-section geometry-properties">
-                    <div class="pane-heading">Position &amp; size</div>
+                  <details class="pane-section geometry-properties" open>
+                    <summary class="pane-heading">Position &amp; size</summary>
                     <Show when={selectedGeometryBounds()}>{bounds => <div class="geometry-property-grid">
                       <label>X<input aria-label="Position X" type="number" step="0.1" value={Math.round(bounds().x * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("x", Number(event.currentTarget.value))} /></label>
                       <label>Y<input aria-label="Position Y" type="number" step="0.1" value={Math.round(bounds().y * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("y", Number(event.currentTarget.value))} /></label>
@@ -7347,7 +7354,7 @@ function App() {
                       <button class="quiet-button" disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => changeSelected(item => isConnector(item) ? { ...item, startBinding: undefined, endBinding: undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, endBinding: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, endBinding: undefined } : undefined } : item)}>Detach endpoints</button>
                       <Show when={!(focusedElement() as ShapeElement | undefined)?.straightOnly}><button class="quiet-button" disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => changeSelected(item => isConnector(item) ? { ...item, routePoints: undefined, routeWaypoints: item.autoRoute ? [] : undefined, forkUpper: item.forkUpper ? { ...item.forkUpper, routePoints: undefined } : undefined, forkLower: item.forkLower ? { ...item.forkLower, routePoints: undefined } : undefined } : item)}>Reset route</button></Show>
                     </Show>
-                  </section>
+                  </details>
                 </Show>
 
                 <Show when={primarySelection() !== undefined}>

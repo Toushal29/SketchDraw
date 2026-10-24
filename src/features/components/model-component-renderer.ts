@@ -13,6 +13,10 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   else ctx.rect(x, y, w, h);
 }
 
+function componentFieldValue(group: GroupElement, key: string): string {
+  return group.libraryComponent?.componentFields?.find(field => field.key === key)?.value.trim() ?? "";
+}
+
 type ComponentTextStyle = NonNullable<NonNullable<GroupElement["libraryComponent"]>["textStyle"]>;
 function componentFontFamily(family?: FontFamily) {
   return family === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : family === "serif" ? "Georgia, 'Times New Roman', serif" : family === "mono" ? "'Cascadia Mono', Consolas, monospace" : family === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : family === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif";
@@ -72,6 +76,22 @@ function wrapComponentLabel(ctx: CanvasRenderingContext2D, value: string, width:
     }
     if (line) output.push(line);
   }
+  return output.length ? output : [""];
+}
+
+function wrapComponentApprox(value: string, width: number, size: number): string[] {
+  const maxChars = Math.max(1, Math.floor(width / Math.max(1, size * .58)));
+  const output: string[] = [];
+  let line = "";
+  for (const word of value.replace(/\s+/g, " ").trim().split(" ").filter(Boolean)) {
+    if (line && `${line} ${word}`.length <= maxChars) { line += ` ${word}`; continue; }
+    if (line) { output.push(line); line = ""; }
+    for (let offset = 0; offset < word.length; offset += maxChars) {
+      const part = word.slice(offset, offset + maxChars);
+      if (offset + maxChars < word.length) output.push(part); else line = part;
+    }
+  }
+  if (line) output.push(line);
   return output.length ? output : [""];
 }
 
@@ -163,6 +183,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
   const name = meta.label ?? kind.replace(/^(network|cloud|software|bpmn|c4)-/, "").replace(/-/g, " ");
+  const field = (key: string) => componentFieldValue(group, key);
   const provider = cloudProviderComponent(kind);
   if (provider) {
     ctx.save();
@@ -184,15 +205,16 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     }
     const copyX = iconX + iconSide + 9; const copyWidth = w - (copyX - x) - 9;
     const providerTextAlign = componentTextAlign(textStyle?.textAlign, "left");
-    fittedComponentText(ctx, name, bounds, componentTextAnchor(copyX, copyWidth, "left", providerTextAlign), y + h * .37, copyWidth, size, textInk, 700, providerTextAlign, textStyle);
-    fittedComponentText(ctx, provider.provider.toUpperCase(), bounds, componentTextAnchor(copyX, copyWidth, "left", providerTextAlign), y + h * .59, copyWidth, 8, textInk, 650, providerTextAlign, textStyle);
-    fittedComponentText(ctx, provider.description, bounds, componentTextAnchor(x + 10, w - 20, "left", providerTextAlign), y + h - 9, w - 20, 8, textInk, 400, providerTextAlign, textStyle);
+    fittedComponentSingleLine(ctx, name, bounds, componentTextAnchor(copyX, copyWidth, "left", providerTextAlign), y + h * .37, copyWidth, size, textInk, 700, providerTextAlign, textStyle);
+    fittedComponentSingleLine(ctx, provider.provider.toUpperCase(), bounds, componentTextAnchor(copyX, copyWidth, "left", providerTextAlign), y + h * .59, copyWidth, 8, textInk, 650, providerTextAlign, textStyle);
+    const providerDetails = (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, 2);
+    providerDetails.forEach((item, index) => fittedComponentSingleLine(ctx, `${item.label}: ${item.value.replace(/\s*\n\s*/g, " · ")}`, bounds, componentTextAnchor(copyX, copyWidth, "left", providerTextAlign), y + h * (.76 + index * .13), copyWidth, 7, textInk, 400, providerTextAlign, textStyle));
     ctx.restore(); return;
   }
   const box = (bx = x, by = y, bw = w, bh = h, color = fill) => { ctx.fillStyle = color === "transparent" ? "rgba(0,0,0,0)" : color; if (color !== "transparent") ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.strokeRect(bx, by, bw, bh); };
   const label = (value = name, bx = x + 10, by = y + 15, max = w - 20, font = size, bold = true, align: CanvasTextAlign = "left") => {
     const textAlign = componentTextAlign(textStyle?.textAlign, align);
-    fittedComponentText(ctx, value, bounds, componentTextAnchor(bx, max, align, textAlign), by, max, Math.min(maxLabelSize, font), textInk, bold ? 650 : 400, textAlign, textStyle);
+    fittedComponentSingleLine(ctx, value.replace(/\s*\n\s*/g, " · "), bounds, componentTextAnchor(bx, max, "left", textAlign), by, max, Math.min(maxLabelSize, font), textInk, bold ? 650 : 400, textAlign, textStyle);
   };
   const rule = (x1: number, y1: number, x2: number, y2: number) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = edge; ctx.lineWidth = 1.2; ctx.stroke(); };
   const dashedBoundary = (title: string, caption: string) => {
@@ -244,13 +266,26 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     } else if (kind === "uml-state") {
       roundRect(ctx, x, y, w, h, 10); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke();
       label(name, x + 10, y + h * .4, w - 20, size, true, "center");
-      label("entry / exit / do", x + 10, y + h * .72, w - 20, Math.max(8, size * .65), false, "center");
+      const actions = (["entry", "do", "exit"] as const).flatMap(key => {
+        const value = meta.componentFields?.find(field => field.key === key)?.value.trim();
+        return value ? [`${key}: ${value}`] : [];
+      });
+      actions.forEach((action, index) => label(action, x + 10, y + h * (.62 + index * .12), w - 20, Math.max(7, size * .6), false, "center"));
     } else if (kind === "uml-component") {
-      box(); ctx.strokeRect(x + w - 25, y + 12, 14, 10); ctx.strokeRect(x + w - 25, y + 28, 14, 10); label(name, x + 10, y + h / 2, w - 45, size, true, "center");
+      box(); ctx.strokeRect(x + w - 25, y + 12, 14, 10); ctx.strokeRect(x + w - 25, y + 28, 14, 10); label(name, x + 10, y + h * .36, w - 45, size, true, "center");
+      const provided = field("provided"); const required = field("required");
+      if (provided) label(`Provides: ${provided}`, x + 10, y + h * .65, w - 20, Math.max(7, size * .65), false);
+      if (required) label(`Requires: ${required}`, x + 10, y + h * .82, w - 20, Math.max(7, size * .62), false);
     } else if (kind === "uml-node") {
-      const dx = Math.min(18, w * .12); const dy = Math.min(15, h * .12); box(x + dx, y + dy, w - dx, h - dy); ctx.beginPath(); ctx.moveTo(x + dx, y + dy); ctx.lineTo(x + dx + 10, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + dy); ctx.moveTo(x + w - dx, y + dy); ctx.lineTo(x + w, y); ctx.strokeStyle = edge; ctx.stroke(); label(name, x + dx + 8, y + h * .58, w - dx - 16, size, true, "center");
+      const dx = Math.min(18, w * .12); const dy = Math.min(15, h * .12); box(x + dx, y + dy, w - dx, h - dy); ctx.beginPath(); ctx.moveTo(x + dx, y + dy); ctx.lineTo(x + dx + 10, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + dy); ctx.moveTo(x + w - dx, y + dy); ctx.lineTo(x + w, y); ctx.strokeStyle = edge; ctx.stroke(); label(name, x + dx + 8, y + h * .43, w - dx - 16, size, true, "center");
+      const environment = field("execution-environment"); const location = field("location");
+      if (environment) label(environment, x + dx + 8, y + h * .64, w - dx - 16, Math.max(7, size * .65), false, "center");
+      if (location) label(location, x + dx + 8, y + h * .82, w - dx - 16, Math.max(7, size * .6), false, "center");
     } else if (kind === "uml-artifact") {
-      const fold = Math.min(20, w * .18); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w - fold, y); ctx.lineTo(x + w, y + fold); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke(); rule(x + w - fold, y, x + w - fold, y + fold); rule(x + w - fold, y + fold, x + w, y + fold); label(name, x + 8, y + h * .57, w - 16, size, true, "center");
+      const fold = Math.min(20, w * .18); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w - fold, y); ctx.lineTo(x + w, y + fold); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke(); rule(x + w - fold, y, x + w - fold, y + fold); rule(x + w - fold, y + fold, x + w, y + fold); label(name, x + 8, y + h * .43, w - 16, size, true, "center");
+      const version = field("version"); const repository = field("repository");
+      if (version) label(`Version ${version}`, x + 8, y + h * .65, w - 16, Math.max(7, size * .65), false, "center");
+      if (repository) label(repository, x + 8, y + h * .82, w - 16, Math.max(7, size * .6), false, "center");
     } else {
       box(); const header = Math.min(40, h * .3); label("«enumeration»", x + 8, y + 14, w - 16, Math.max(8, size * .68), false, "center"); label(name, x + 8, y + header, w - 16, size, true, "center"); rule(x, y + header + 8, x + w, y + header + 8); label("«literal»", x + 12, y + header + 28, w - 24, Math.max(8, size * .68), false);
     }
@@ -260,25 +295,37 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     const cx = x + w / 2; const headY = y + 24;
     ctx.beginPath(); ctx.arc(cx, headY, 10, 0, Math.PI * 2); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx, headY + 11); ctx.lineTo(cx, y + 63); ctx.moveTo(cx - 20, y + 42); ctx.lineTo(cx + 20, y + 42); ctx.moveTo(cx, y + 63); ctx.lineTo(cx - 15, y + 82); ctx.moveTo(cx, y + 63); ctx.lineTo(cx + 15, y + 82); ctx.stroke();
-    label(name, x + 6, y + h - 8, w - 12, Math.min(size, 12), true, "center");
+    const role = field("role"); const goal = field("goal");
+    label(name, x + 6, y + h - (role && goal ? 38 : role || goal ? 27 : 8), w - 12, Math.min(size, 12), true, "center");
+    if (role) label(role, x + 6, y + h - (goal ? 24 : 12), w - 12, Math.max(7, size * .64), false, "center");
+    if (goal) label(goal, x + 6, y + h - 5, w - 12, Math.max(7, size * .58), false, "center");
     ctx.restore(); return;
   }
   if (kind === "c4-software-system") {
     box();
     label("SOFTWARE SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), false);
-    label(name, x + 10, y + h * .64, w - 20, size, true);
+    label(name, x + 10, y + h * .42, w - 20, size, true);
+    const capability = field("description"); const technology = field("technology");
+    if (capability) label(capability, x + 10, y + h * .66, w - 20, Math.max(7, size * .68), false);
+    if (technology) label(technology, x + 10, y + h - 8, w - 20, Math.max(7, size * .62), false);
     ctx.restore(); return;
   }
   if (kind === "c4-external-system") {
     ctx.setLineDash([6, 4]); ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2); ctx.setLineDash([]);
     label("EXTERNAL SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), false);
-    label(name, x + 10, y + h * .62, w - 20, size, true);
+    label(name, x + 10, y + h * .4, w - 20, size, true);
+    const capability = field("description"); const integration = field("interface");
+    if (capability) label(capability, x + 10, y + h * .65, w - 20, Math.max(7, size * .66), false);
+    if (integration) label(integration, x + 10, y + h - 8, w - 20, Math.max(7, size * .6), false);
     ctx.restore(); return;
   }
   if (kind === "c4-code-element") {
     box(); label("CODE ELEMENT", x + 10, y + 16, w - 20, Math.max(8, size * .7), false);
-    rule(x + 1, y + 27, x + w - 1, y + 27); label(name, x + 12, y + h * .47, w - 24, size, true);
-    rule(x + 1, y + h * .63, x + w - 1, y + h * .63); label("attributes / operations", x + 12, y + h * .82, w - 24, Math.max(8, size * .7), false);
+    rule(x + 1, y + 27, x + w - 1, y + 27); label(name, x + 12, y + h * .39, w - 24, size, true);
+    rule(x + 1, y + h * .54, x + w - 1, y + h * .54);
+    const signature = field("signature"); const responsibility = field("responsibility");
+    if (signature) label(signature, x + 12, y + h * .68, w - 24, Math.max(7, size * .66), false);
+    if (responsibility) label(responsibility, x + 12, y + h * .84, w - 24, Math.max(7, size * .62), false);
     ctx.restore(); return;
   }
   if (kind === "c4-deployment-node" || kind === "c4-infrastructure-node") {
@@ -286,17 +333,42 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     rule(x + 12, y + 27, x + w - 12, y + 27);
     label(kind === "c4-deployment-node" ? "DEPLOYMENT NODE" : "INFRASTRUCTURE NODE", x + 10, y + 15, w - 20, Math.min(size, 12));
     const rackTop = y + 40; const rackHeight = Math.min(28, (h - 54) / 2);
+    const deploymentDetails = kind === "c4-deployment-node"
+      ? [field("environment") && `Environment: ${field("environment")}`, field("instance") && `Instance: ${field("instance")}`, field("technology") && `Runtime: ${field("technology")}`]
+      : [field("infrastructure-role") && `Role: ${field("infrastructure-role")}`, field("technology") && `Technology: ${field("technology")}`, field("location") && `Location: ${field("location")}`];
     for (let index = 0; index < 2; index++) {
       const rowY = rackTop + index * (rackHeight + 6);
       ctx.strokeRect(x + 14, rowY, w - 28, rackHeight);
       ctx.beginPath(); ctx.arc(x + 24, rowY + rackHeight / 2, 2, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill();
-      rule(x + 32, rowY + rackHeight / 2, x + w - 14, rowY + rackHeight / 2);
+      const detail = deploymentDetails[index];
+      if (detail) label(detail, x + 32, rowY + rackHeight / 2, w - 48, Math.max(7, size * .58), false);
+      else rule(x + 32, rowY + rackHeight / 2, x + w - 14, rowY + rackHeight / 2);
     }
     label(name, x + 10, y + h - 6, w - 20, Math.max(8, size * .72), false);
     ctx.restore(); return;
   }
-  if (kind.startsWith("c4-")) { dashedBoundary(name, kind === "c4-system" ? "C4 · system context" : kind === "c4-container" ? "C4 · container" : "C4 · component"); ctx.restore(); return; }
-  if (kind === "network-zone" || kind === "network-subnet") { dashedBoundary(name, kind === "network-subnet" ? "Subnet boundary" : "Network boundary"); ctx.restore(); return; }
+  if (kind === "c4-system" || kind === "c4-container" || kind === "c4-component") {
+    dashedBoundary(name, kind === "c4-system" ? "System context" : kind === "c4-container" ? "Container boundary" : "Component boundary");
+    const responsibility = field(kind === "c4-system" ? "system-scope" : "description");
+    const implementation = field(kind === "c4-system" ? "context" : "technology");
+    if (responsibility) label(responsibility, x + 12, y + 56, w - 24, Math.max(8, size * .72), false);
+    if (implementation) label(implementation, x + 12, y + 78, w - 24, Math.max(8, size * .66), false);
+    ctx.restore(); return;
+  }
+  if (kind === "network-zone" || kind === "network-subnet") {
+    dashedBoundary(name, kind === "network-subnet" ? "IP subnet" : "Network trust zone");
+    if (kind === "network-subnet") {
+      const cidr = field("cidr"); const gateway = field("gateway"); const vlan = field("vlan");
+      if (cidr) label(cidr, x + 12, y + 56, w - 24, Math.max(9, size * .82), true);
+      if (gateway) label(`Gateway: ${gateway}`, x + 12, y + 78, w - 24, Math.max(8, size * .68), false);
+      if (vlan) label(`VLAN: ${vlan}`, x + 12, y + 99, w - 24, Math.max(8, size * .64), false);
+    } else {
+      const trust = field("trust-level"); const ingress = field("ingress-policy");
+      if (trust) label(`Trust: ${trust}`, x + 12, y + 56, w - 24, Math.max(9, size * .78), true);
+      if (ingress) label(`Ingress: ${ingress}`, x + 12, y + 78, w - 24, Math.max(8, size * .68), false);
+    }
+    ctx.restore(); return;
+  }
   if (kind === "diagram-legend") {
     box();
     label(name, x + 12, y + 15, w - 24, Math.min(size, 14));
@@ -324,10 +396,46 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     box(); label(name.toUpperCase()); rule(x, y + 27, x + w, y + 27);
     for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x + 12 + i * 10, y + 14, 2, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); }
     box(x + 12, y + 38, w * .32, h - 52, soft); box(x + w * .42, y + 38, w * .48, 16, soft); box(x + w * .42, y + 62, w * .48, h - 76, soft);
-  } else if (kind === "software-api" || kind === "software-service" || kind === "tech-service") {
+  } else if (kind === "software-api") {
+    box(); label(name, x + 12, y + 16, w - 24, Math.min(size, 13), true);
+    rule(x + 1, y + 29, x + w - 1, y + 29);
+    const method = field("method").toUpperCase(); const path = field("path");
+    const methodWidth = Math.min(64, Math.max(44, w * .27));
+    const routeX = x + 12 + (method ? methodWidth + 8 : 0);
+    if (method) label(method, x + 12, y + 49, methodWidth, 9, true);
+    if (path) label(path, routeX, y + 49, Math.max(1, x + w - 12 - routeX), Math.max(8, size * .78), true);
+    const details = [
+      ["Summary", field("summary")],
+      ["Request", field("request-body")],
+      ["Response", field("responses")],
+      ["Parameters", field("parameters")],
+      ["Server", field("server")],
+      ["Auth", field("security")],
+      ["Operation", field("operation-id")],
+    ].filter(([, value]) => value) as [string, string][];
+    const detailTop = y + 66; const detailBottom = y + h - 5; const detailWidth = w - 24;
+    const detailSize = Math.max(6, Math.min(8, size * .58)); const lineHeight = detailSize * 1.3;
+    const maxLines = Math.max(1, Math.floor((detailBottom - detailTop) / lineHeight));
+    const textAlign = componentTextAlign(textStyle?.textAlign, "left");
+    const anchorX = componentTextAnchor(x + 12, detailWidth, "left", textAlign);
+    const lines = details.flatMap(([title, value]) => {
+      const normalized = value.split(/\r?\n/).map(part => part.trim()).filter(Boolean).join(" · ");
+      ctx.font = componentFont(detailSize, 400, textStyle);
+      return wrapComponentLabel(ctx, `${title}: ${normalized}`, detailWidth);
+    });
+    const visibleLines = lines.slice(0, maxLines);
+    if (lines.length > maxLines && visibleLines.length) {
+      let finalLine = visibleLines[visibleLines.length - 1];
+      while (finalLine && ctx.measureText(`${finalLine}…`).width > detailWidth) finalLine = finalLine.slice(0, -1);
+      visibleLines[visibleLines.length - 1] = `${finalLine.trimEnd()}…`;
+    }
+    ctx.save(); ctx.font = componentFont(detailSize, 400, textStyle); ctx.fillStyle = textStyle?.color ?? textInk; ctx.textAlign = textAlign; ctx.textBaseline = "top";
+    visibleLines.forEach((line, index) => ctx.fillText(line, anchorX, detailTop + index * lineHeight, detailWidth)); ctx.restore();
+  } else if (kind === "software-service" || kind === "tech-service") {
     box(); label(name.toUpperCase());
     rule(x + 10, y + h * .48, x + w - 10, y + h * .48);
-    label(kind === "software-api" ? "HTTP / RPC" : kind === "tech-service" ? "Technology" : "Module / worker", x + 10, y + h * .72, w - 20, Math.max(8, size * .8), false);
+    const detail = field(kind === "tech-service" ? "technology" : "responsibility");
+    label(detail || (kind === "tech-service" ? "Technology" : "Module / worker"), x + 10, y + h * .72, w - 20, Math.max(8, size * .8), false);
   } else if (kind === "software-database" || kind === "cloud-database") {
     const inset = w * .07; const ry = Math.max(7, Math.min(12, h * .12)); const left = x + inset; const right = x + w - inset;
     ctx.beginPath(); ctx.moveTo(left, y + ry); ctx.lineTo(left, y + h - ry); ctx.ellipse(x + w / 2, y + h - ry, w * .43, ry, 0, Math.PI, 0, true); ctx.lineTo(right, y + ry); ctx.closePath();
@@ -335,13 +443,24 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     ctx.beginPath(); ctx.ellipse(x + w / 2, y + ry, w * .43, ry, 0, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
     ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * .55, w * .43, ry, 0, 0, Math.PI); ctx.strokeStyle = edge; ctx.stroke();
     if (kind === "cloud-database") {
-      label("MANAGED DATABASE", x + 8, y + h * .38, w - 16, Math.max(8, size * .68), true, "center");
-      label("SQL · BACKUP · REPLICAS", x + 7, y + h * .72, w - 14, Math.max(7, size * .52), false, "center");
-    } else label(name.toUpperCase(), x + 8, y + h * .48, w - 16, Math.max(8, size * .78), true, "center");
+      label(field("engine") || "MANAGED DATABASE", x + 8, y + h * .38, w - 16, Math.max(8, size * .68), true, "center");
+      const database = field("database-name"); const availability = field("availability");
+      if (database) label(database, x + 7, y + h * .57, w - 14, Math.max(7, size * .62), false, "center");
+      if (availability) label(availability, x + 7, y + h * .82, w - 14, Math.max(7, size * .5), false, "center");
+    } else {
+      label(name.toUpperCase(), x + 8, y + h * .4, w - 16, Math.max(8, size * .78), true, "center");
+      const engine = field("engine"); const schema = field("schema"); const recovery = field("recovery");
+      if (engine) label(engine, x + 8, y + h * .57, w - 16, Math.max(7, size * .62), false, "center");
+      if (schema || recovery) label(schema || recovery, x + 8, y + h * .73, w - 16, Math.max(7, size * .55), false, "center");
+    }
   } else if (kind === "software-queue" || kind === "cloud-queue") {
     box(); label(name.toUpperCase());
     const count = 3; const cellW = (w - 32) / count; for (let i = 0; i < count; i++) box(x + 10 + i * cellW, y + h * .48, cellW - 6, Math.min(24, h * .28), soft);
     rule(x + 10, y + h - 14, x + w - 10, y + h - 14);
+    const address = kind === "cloud-queue" ? field("queue-address") : field("queue-name");
+    const contract = kind === "cloud-queue" ? field("message-type") : field("message-shape");
+    if (address) label(address, x + 8, y + h * .35, w - 16, Math.max(7, size * .62), false, "center");
+    if (contract) label(contract, x + 8, y + h - 5, w - 16, Math.max(7, size * .56), false, "center");
   } else if (kind === "software-event-bus") {
     const busTop = y + h * .33; const busBottom = y + h * .67;
     box(x + 2, busTop, w - 4, busBottom - busTop, soft); label(name.toUpperCase(), x + 8, y + h * .5, w - 16, size, true, "center");
@@ -355,81 +474,125 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
       ctx.beginPath(); ctx.arc(px, y + 17, 2.5, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill();
     }
   } else if (kind === "software-cache") {
-    box(); label(name.toUpperCase()); label("KEY / VALUE", x + 10, y + h * .68, w - 20, Math.max(8, size * .8), false);
+    box(); label(name.toUpperCase());
+    const cachedValues = field("cached-values"); const expiration = field("expiration"); const eviction = field("eviction");
+    label(cachedValues || "KEY / VALUE", x + 10, y + h * .56, w - 20, Math.max(8, size * .7), false);
+    if (expiration || eviction) label([expiration && `TTL ${expiration}`, eviction].filter(Boolean).join(" · "), x + 10, y + h * .8, w - 20, Math.max(7, size * .58), false);
     for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x + w - 14, y + 14 + i * 10, 2, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); }
   } else if (kind === "cloud-function") {
     box(); box(x + 10, y + 10, Math.min(32, h - 20), Math.min(32, h - 20), soft); label("fn", x + 10, y + Math.min(26, h / 2), Math.min(32, h - 20), 14, true, "center");
-    label(name.toUpperCase(), x + 50, y + 22, w - 60, Math.max(8, size * .8)); label("On demand", x + 50, y + 43, w - 60, Math.max(8, size * .75), false);
+    label(name.toUpperCase(), x + 50, y + 22, w - 60, Math.max(8, size * .8));
+    const runtime = field("runtime"); const handler = field("handler"); const trigger = field("invocation");
+    label(runtime || handler || "Function runtime", x + 50, y + 43, w - 60, Math.max(8, size * .7), false);
+    if (trigger) label(`Trigger: ${trigger}`, x + 10, y + h - 9, w - 20, Math.max(7, size * .58), false);
   } else if (kind === "cloud-storage") {
     box(); label(name.toUpperCase());
-    for (let i = 0; i < 3; i++) rule(x + 12, y + 42 + i * 14, x + w - 12, y + 42 + i * 14);
+    const bucket = field("bucket"); const contents = field("stored-objects"); const access = field("access-policy");
+    if (bucket) label(bucket, x + 12, y + 39, w - 24, Math.max(7, size * .66), true);
+    rule(x + 12, y + 48, x + w - 12, y + 48);
+    if (contents) label(contents, x + 12, y + 67, w - 24, Math.max(7, size * .62), false);
+    if (access) label(access, x + 12, y + 88, w - 24, Math.max(7, size * .56), false);
   } else if (kind === "network-switch" || kind === "network-hub") {
     box(); label(name.toUpperCase());
     const count = Math.max(1, Math.min(32, Math.round(meta.portCount ?? (kind === "network-hub" ? 8 : 6)))); const columns = Math.min(8, count); const rows = Math.ceil(count / columns);
     const gapX = (w - 24) / columns; const startY = y + 32; const rowGap = Math.max(10, (h - 42) / rows);
     for (let i = 0; i < count; i++) { const col = i % columns; const row = Math.floor(i / columns); const pw = Math.min(12, gapX - 2); ctx.strokeStyle = edge; ctx.strokeRect(x + 12 + col * gapX + (gapX - pw) / 2, startY + row * rowGap, pw, Math.min(7, rowGap - 2)); }
+    const networkNote = kind === "network-switch" ? field("vlans") : field("connected-devices");
+    if (networkNote) label(networkNote, x + 8, y + h - 5, w - 16, Math.max(6, size * .55), false, "center");
   } else if (kind === "network-server") {
     box(); label(name.toUpperCase()); for (let row = 0; row < 3; row++) { const yy = y + 28 + row * ((h - 36) / 3); box(x + 10, yy, w - 20, Math.max(8, (h - 48) / 3), soft); ctx.beginPath(); ctx.arc(x + 18, yy + 7, 2, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); }
+    const address = field("ip-addresses"); const services = field("services");
+    if (address) label(address, x + 24, y + h * .49, w - 34, Math.max(6, size * .5), false);
+    if (services) label(services, x + 24, y + h * .7, w - 34, Math.max(6, size * .48), false);
   } else if (kind === "network-firewall") {
-    box(); label(name.toUpperCase()); const top = y + 30; const brickW = (w - 24) / 4; const brickH = (h - 40) / 2;
+    box(); label(name.toUpperCase());
+    const action = field("default-action"); const rules = field("rules");
+    if (action) label(`Default: ${action}`, x + 8, y + 28, w - 16, Math.max(6, size * .5), false);
+    const top = y + 38; const brickW = (w - 24) / 4; const brickH = (h - 50) / 2;
     for (let row = 0; row < 2; row++) for (let col = 0; col < 4; col++) ctx.strokeRect(x + 8 + col * brickW + (row ? brickW / 2 : 0), top + row * brickH, brickW, brickH);
+    if (rules) label(rules, x + 8, y + h - 4, w - 16, Math.max(6, size * .48), false, "center");
   } else if (kind === "network-client") {
-    box(x + 8, y + 4, w - 16, h * .68); rule(x + w * .25, y + h * .82, x + w * .75, y + h * .82); rule(x + w * .5, y + h * .68, x + w * .5, y + h * .82); label(name.toUpperCase(), x + 4, y + h - 8, w - 8, Math.max(8, size * .72), true, "center");
+    box(x + 8, y + 4, w - 16, h * .68);
+    const platform = field("platform"); const network = field("network");
+    if (platform) label(platform, x + 12, y + h * .39, w - 24, Math.max(7, size * .58), false, "center");
+    if (network) label(network, x + 12, y + h * .55, w - 24, Math.max(6, size * .5), false, "center");
+    rule(x + w * .25, y + h * .82, x + w * .75, y + h * .82); rule(x + w * .5, y + h * .68, x + w * .5, y + h * .82); label(name.toUpperCase(), x + 4, y + h - 8, w - 8, Math.max(8, size * .72), true, "center");
   } else if (kind === "network-router" || kind === "network-load-balancer") {
     box(); label(name.toUpperCase()); const cx = x + w / 2; const cy = y + h * .61; ctx.beginPath(); ctx.arc(cx, cy, Math.min(w, h) * .1, 0, Math.PI * 2); ctx.strokeStyle = edge; ctx.stroke();
-    const ends = kind === "network-router" ? [[x + 8, cy], [x + w - 8, cy], [cx, y + h - 7], [cx, y + 30]] : [[x + 10, y + h - 8], [cx, y + h - 8], [x + w - 10, y + h - 8]];
+    const note = kind === "network-router" ? field("routing-protocol") : field("listeners");
+    if (note) label(note, x + 8, y + 27, w - 16, Math.max(6, size * .52), false, "center");
+    const ends = kind === "network-router" ? [[x + 8, cy], [x + w - 8, cy], [cx, y + h - 7], [cx, y + 39]] : [[x + 10, y + h - 8], [cx, y + h - 8], [x + w - 10, y + h - 8]];
     for (const [ex, ey] of ends) { rule(cx, cy, ex, ey); ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI * 2); ctx.stroke(); }
   } else if (kind === "network-access-point") {
-    const r = Math.min(w * .28, h * .34); const cx = x + w / 2; const cy = y + h * .4;
+    const r = Math.min(w * .21, h * .27); const cx = x + w / 2; const cy = y + h * .37;
     for (const scale of [1, .68, .32]) { ctx.beginPath(); ctx.arc(cx, cy, r * scale, Math.PI, 0); ctx.strokeStyle = edge; ctx.stroke(); }
-    ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); label(name.toUpperCase(), x + 4, y + h - 10, w - 8, Math.max(7, size * .72), true, "center");
+    ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill();
+    label(name.toUpperCase(), x + 4, y + 12, w - 8, Math.max(7, size * .72), true, "center");
+    const ssid = field("ssid"); const security = field("security-mode"); const channel = field("channel");
+    if (ssid) label(ssid, x + 6, y + h * .72, w - 12, Math.max(7, size * .58), true, "center");
+    if (security || channel) label([security, channel].filter(Boolean).join(" · "), x + 6, y + h * .88, w - 12, Math.max(6, size * .48), false, "center");
   } else if (kind === "network-internet") {
     cloudPath(ctx, x + 5, y + 5, w - 10, h - 14); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
-    label(name.toUpperCase(), x + 14, y + h * .57, w - 28, Math.min(size, 12), true, "center");
+    const prefix = field("public-prefix");
+    label(name.toUpperCase(), x + 14, y + h * (prefix ? .45 : .57), w - 28, Math.min(size, 12), true, "center");
+    if (prefix) label(prefix, x + 14, y + h * .67, w - 28, Math.max(7, size * .58), false, "center");
   } else if (kind === "network-vpn") {
     box(); label(name.toUpperCase(), x + 8, y + 14, w - 16, Math.min(size, 12), true, "center");
     ctx.setLineDash([5, 4]); rule(x + 16, y + h * .63, x + w - 16, y + h * .63); ctx.setLineDash([]);
     for (const px of [x + 17, x + w - 17]) { ctx.beginPath(); ctx.arc(px, y + h * .63, 4, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? "#ffffff" : fill; ctx.fill(); ctx.strokeStyle = edge; ctx.stroke(); }
-    label("ENCRYPTED TUNNEL", x + 8, y + h - 9, w - 16, Math.max(7, size * .58), false, "center");
+    const route = [field("local-prefixes"), field("remote-prefixes")].filter(Boolean).join(" to ");
+    label(route || "Encrypted tunnel", x + 8, y + h - 9, w - 16, Math.max(7, size * .56), false, "center");
   } else if (kind === "network-dns") {
     box(); const radius = Math.min(w * .24, h * .25); const cx = x + w / 2; const cy = y + h * .4;
     ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.strokeStyle = edge; ctx.stroke();
     ctx.beginPath(); ctx.ellipse(cx, cy, radius * .48, radius, 0, 0, Math.PI * 2); ctx.stroke();
     rule(cx - radius, cy, cx + radius, cy);
-    label(name.toUpperCase(), x + 8, y + h - 15, w - 16, Math.max(8, size * .72), true, "center");
+    const zone = field("zone");
+    if (zone) label(zone, x + 8, y + h * .7, w - 16, Math.max(7, size * .58), false, "center");
+    label(name.toUpperCase(), x + 8, y + h - 7, w - 16, Math.max(8, size * .68), true, "center");
   } else if (kind === "network-nat-gateway") {
     box(); label(name.toUpperCase(), x + 8, y + 14, w - 16, Math.min(size, 12), true, "center");
     const centerX = x + w / 2; const centerY = y + h * .55;
     for (const startX of [x + 24, x + w - 24]) { rule(startX, y + h - 13, centerX, centerY); ctx.beginPath(); ctx.arc(startX, y + h - 13, 3, 0, Math.PI * 2); ctx.stroke(); }
     rule(centerX, centerY, centerX, y + h * .31); ctx.beginPath(); ctx.moveTo(centerX - 4, y + h * .37); ctx.lineTo(centerX, y + h * .3); ctx.lineTo(centerX + 4, y + h * .37); ctx.stroke();
+    const publicAddress = field("public-address");
+    if (publicAddress) label(publicAddress, x + 8, y + h - 5, w - 16, Math.max(7, size * .55), false, "center");
   } else if (kind === "network-modem") {
     box(); label(name.toUpperCase(), x + 6, y + 13, w - 12, Math.min(size, 11), true, "center"); rule(x + 10, y + h * .42, x + w - 10, y + h * .42);
     for (let index = 0; index < 4; index++) { ctx.beginPath(); ctx.arc(x + 15 + index * 11, y + h * .67, 2, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill(); }
     for (const scale of [1, .65]) { ctx.beginPath(); ctx.arc(x + w - 23, y + h * .74, 8 * scale, Math.PI, 0); ctx.stroke(); }
+    const access = field("access-technology");
+    if (access) label(access, x + 6, y + h - 5, w - 12, Math.max(6, size * .5), false, "center");
   } else if (["network-proxy", "network-bridge", "network-bastion", "network-gateway", "network-printer", "network-workstation"].includes(kind)) {
     box(); label(name.toUpperCase(), x + 8, y + 14, w - 16, Math.min(size, 12), true, "center");
     if (kind === "network-proxy") {
       const cy = y + h * .62; rule(x + 20, cy - 8, x + w - 20, cy - 8); rule(x + w - 28, cy + 8, x + 28, cy + 8);
       ctx.beginPath(); ctx.moveTo(x + w - 24, cy - 13); ctx.lineTo(x + w - 18, cy - 8); ctx.lineTo(x + w - 24, cy - 3); ctx.moveTo(x + 24, cy + 3); ctx.lineTo(x + 18, cy + 8); ctx.lineTo(x + 24, cy + 13); ctx.stroke();
+      const upstream = field("upstream"); if (upstream) label(upstream, x + 8, y + h - 5, w - 16, Math.max(6, size * .5), false, "center");
     } else if (kind === "network-bridge") {
       const cy = y + h * .66; rule(x + 25, cy, x + w - 25, cy); rule(x + w * .3, cy, x + w * .3, y + h * .43); rule(x + w * .7, cy, x + w * .7, y + h * .43);
       ctx.beginPath(); ctx.moveTo(x + w * .3, y + h * .43); ctx.quadraticCurveTo(x + w * .5, y + h * .22, x + w * .7, y + h * .43); ctx.stroke();
       ctx.strokeRect(x + 15, cy - 5, 10, 10); ctx.strokeRect(x + w - 25, cy - 5, 10, 10);
+      const segments = field("segments"); if (segments) label(segments, x + 8, y + h - 5, w - 16, Math.max(6, size * .5), false, "center");
     } else if (kind === "network-bastion") {
       const cx = x + w / 2; const top = y + h * .35;
       ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx + 28, top + 10); ctx.lineTo(cx + 24, top + 32); ctx.quadraticCurveTo(cx, top + 50, cx - 24, top + 32); ctx.lineTo(cx - 28, top + 10); ctx.closePath(); ctx.stroke();
       rule(cx - 8, top + 15, cx + 8, top + 15); rule(cx - 8, top + 22, cx + 8, top + 22); rule(cx - 8, top + 29, cx + 8, top + 29);
+      const sources = field("allowed-sources"); if (sources) label(sources, x + 8, y + h - 5, w - 16, Math.max(6, size * .5), false, "center");
     } else if (kind === "network-gateway") {
       const cx = x + w / 2; const cy = y + h * .63;
       ctx.beginPath(); ctx.moveTo(cx, cy - 20); ctx.lineTo(cx + 22, cy); ctx.lineTo(cx, cy + 20); ctx.lineTo(cx - 22, cy); ctx.closePath(); ctx.stroke();
       rule(x + 18, cy, cx - 22, cy); rule(cx + 22, cy, x + w - 18, cy); rule(cx, cy - 31, cx, cy - 20); rule(cx, cy + 20, cx, y + h - 10);
+      const gatewayType = field("gateway-type"); if (gatewayType) label(gatewayType, x + 8, y + h - 5, w - 16, Math.max(6, size * .5), false, "center");
     } else if (kind === "network-printer") {
       const bodyY = y + h * .43; ctx.strokeRect(x + w * .2, bodyY, w * .6, h * .36); ctx.strokeRect(x + w * .3, y + h * .27, w * .4, h * .22); ctx.strokeRect(x + w * .3, bodyY + h * .26, w * .4, h * .2); rule(x + w * .36, bodyY + h * .1, x + w * .64, bodyY + h * .1);
+      const model = field("model"); if (model) label(model, x + w * .3, y + h * .36, w * .4, Math.max(6, size * .48), false, "center");
     } else {
       const screenY = y + h * .34; ctx.strokeRect(x + w * .2, screenY, w * .6, h * .34); rule(x + w / 2, screenY + h * .34, x + w / 2, y + h * .82); rule(x + w * .34, y + h * .82, x + w * .66, y + h * .82);
+      const platform = field("platform"); if (platform) label(platform, x + w * .24, screenY + h * .18, w * .52, Math.max(6, size * .5), false, "center");
     }
   } else if (["bpmn-start", "bpmn-event", "bpmn-end", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind)) {
-    const diameter = Math.min(w, h - 14); const cx = x + w / 2; const cy = y + diameter / 2 + 1; const marked = ["bpmn-event", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind);
+    const diameter = h >= 72 ? Math.min(58, w, h - 38) : Math.min(w, h - 14); const cx = x + w / 2; const cy = y + diameter / 2 + 1; const marked = ["bpmn-event", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind);
     ctx.beginPath(); ctx.arc(cx, cy, diameter * .43, 0, Math.PI * 2); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "bpmn-end" || kind === "bpmn-terminate-event" ? 2.5 : 1.3; ctx.stroke();
     if (marked) { ctx.beginPath(); ctx.arc(cx, cy, diameter * .34, 0, Math.PI * 2); if (kind === "bpmn-boundary-event") ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]); }
     if (kind === "bpmn-message-event") { const mw = diameter * .38; const mh = diameter * .24; ctx.strokeRect(cx - mw / 2, cy - mh / 2, mw, mh); ctx.beginPath(); ctx.moveTo(cx - mw / 2, cy - mh / 2); ctx.lineTo(cx, cy + mh * .18); ctx.lineTo(cx + mw / 2, cy - mh / 2); ctx.stroke(); }
@@ -437,13 +600,22 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     else if (kind === "bpmn-error-event") { ctx.beginPath(); ctx.moveTo(cx + diameter * .08, cy - diameter * .22); ctx.lineTo(cx - diameter * .1, cy); ctx.lineTo(cx + diameter * .04, cy); ctx.lineTo(cx - diameter * .08, cy + diameter * .22); ctx.stroke(); }
     else if (kind === "bpmn-signal-event") { ctx.beginPath(); ctx.moveTo(cx, cy - diameter * .2); ctx.lineTo(cx + diameter * .18, cy + diameter * .16); ctx.lineTo(cx - diameter * .18, cy + diameter * .16); ctx.closePath(); ctx.stroke(); }
     else if (kind === "bpmn-terminate-event") { ctx.beginPath(); ctx.arc(cx, cy, diameter * .18, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); }
+    const eventDetail = kind === "bpmn-start" ? field("trigger-reference")
+      : kind === "bpmn-message-event" ? field("message-name")
+        : kind === "bpmn-timer-event" ? field("timer-expression")
+          : kind === "bpmn-error-event" ? field("error-code")
+            : kind === "bpmn-signal-event" ? field("signal")
+              : kind === "bpmn-boundary-event" ? field("event-definition")
+                : kind === "bpmn-terminate-event" ? field("reason")
+                  : kind === "bpmn-end" ? field("outcome") : field("event-definition");
+    if (eventDetail && h >= 72) label(eventDetail, x + 4, y + h - 24, w - 8, Math.max(7, size * .6), false, "center");
     label(name, x, y + h - 8, w, Math.max(7, size * .64), false, "center");
   } else if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) {
-    const side = Math.min(w, h - 12); const cx = x + w / 2; const cy = side / 2; ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(x + w, y + cy); ctx.lineTo(cx, y + side); ctx.lineTo(x, y + cy); ctx.closePath(); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
-    if (kind === "bpmn-parallel-gateway") { rule(cx, y + side * .28, cx, y + side * .72); rule(x + w * .28, y + cy, x + w * .72, y + cy); }
+    const side = Math.min(w, h - 12, 58); const cx = x + w / 2; const left = cx - side / 2; const cy = side / 2; ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(cx + side / 2, y + cy); ctx.lineTo(cx, y + side); ctx.lineTo(left, y + cy); ctx.closePath(); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    if (kind === "bpmn-parallel-gateway") { rule(cx, y + side * .28, cx, y + side * .72); rule(cx - side * .22, y + cy, cx + side * .22, y + cy); }
     else if (kind === "bpmn-inclusive-gateway") { ctx.beginPath(); ctx.arc(cx, cy, side * .18, 0, Math.PI * 2); ctx.stroke(); }
     else if (kind === "bpmn-event-gateway") { ctx.beginPath(); ctx.arc(cx, cy, side * .2, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, side * .14, 0, Math.PI * 2); ctx.stroke(); }
-    else { rule(x + w * .34, y + side * .34, x + w * .66, y + side * .66); rule(x + w * .66, y + side * .34, x + w * .34, y + side * .66); }
+    else { rule(cx - side * .16, y + side * .34, cx + side * .16, y + side * .66); rule(cx + side * .16, y + side * .34, cx - side * .16, y + side * .66); }
     label(name, x, y + h - 8, w, Math.max(7, size * .58), false, "center");
   } else if (["bpmn-task", "bpmn-user-task", "bpmn-service-task", "bpmn-script-task", "bpmn-manual-task", "bpmn-business-rule-task", "bpmn-send-task", "bpmn-receive-task", "bpmn-call-activity"].includes(kind)) {
     box(); if (kind === "bpmn-call-activity") ctx.strokeRect(x + 4, y + 4, w - 8, h - 8);
@@ -454,14 +626,34 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     else if (kind === "bpmn-manual-task") { ctx.beginPath(); ctx.moveTo(gx + 2, gy + 18); ctx.lineTo(gx + 3, gy + 7); ctx.lineTo(gx + 5, gy + 7); ctx.lineTo(gx + 6, gy + 14); ctx.lineTo(gx + 7, gy + 4); ctx.lineTo(gx + 9, gy + 4); ctx.lineTo(gx + 10, gy + 14); ctx.lineTo(gx + 11, gy + 7); ctx.lineTo(gx + 13, gy + 7); ctx.lineTo(gx + 14, gy + 17); ctx.stroke(); }
     else if (kind === "bpmn-business-rule-task") { ctx.strokeRect(gx, gy + 2, 16, 14); rule(gx, gy + 7, gx + 16, gy + 7); rule(gx, gy + 12, gx + 16, gy + 12); rule(gx + 6, gy + 2, gx + 6, gy + 16); }
     else if (kind === "bpmn-send-task" || kind === "bpmn-receive-task") { ctx.strokeRect(gx, gy + 3, 17, 12); ctx.beginPath(); ctx.moveTo(gx, gy + 3); ctx.lineTo(gx + 8.5, gy + 10); ctx.lineTo(gx + 17, gy + 3); ctx.stroke(); if (kind === "bpmn-send-task") { ctx.beginPath(); ctx.arc(gx + 8.5, gy + 9, 1.5, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill(); } }
-    label(name.toUpperCase(), x + 10, y + h * .7, w - 20, size, true, "center");
+    const taskDescription = kind === "bpmn-user-task" ? field("assignee")
+      : kind === "bpmn-service-task" ? field("operation")
+        : kind === "bpmn-script-task" ? field("script-language")
+          : kind === "bpmn-manual-task" ? field("instruction")
+            : kind === "bpmn-business-rule-task" ? field("decision")
+              : kind === "bpmn-send-task" ? field("message")
+                : kind === "bpmn-receive-task" ? field("message")
+                  : kind === "bpmn-call-activity" ? field("called-process")
+                    : field("activity");
+    const taskPrefix = kind === "bpmn-user-task" ? "Assignee" : kind === "bpmn-service-task" ? "Operation" : kind === "bpmn-script-task" ? "Language" : kind === "bpmn-manual-task" ? "Instruction" : kind === "bpmn-business-rule-task" ? "Decision" : kind === "bpmn-send-task" ? "Send" : kind === "bpmn-receive-task" ? "Receive" : kind === "bpmn-call-activity" ? "Calls" : "Work";
+    label(name, x + 34, y + h * .59, w - 42, size, true, "center");
+    if (taskDescription) label(`${taskPrefix}: ${taskDescription}`, x + 12, y + h * .84, w - 24, Math.max(7, size * .62), false, "center");
   } else if (kind === "bpmn-subprocess") {
-    box(); label(name.toUpperCase(), x + 10, y + h * .42, w - 20, size, true, "center");
+    box(); label(name.toUpperCase(), x + 10, y + h * .36, w - 20, size, true, "center");
+    const purpose = field("purpose"); const entry = field("entry-condition");
+    if (purpose) label(purpose, x + 10, y + h * .59, w - 20, Math.max(7, size * .64), false, "center");
+    if (entry) label(`Starts when: ${entry}`, x + 10, y + h * .78, w - 20, Math.max(7, size * .58), false, "center");
     ctx.strokeRect(x + w / 2 - 6, y + h - 18, 12, 12); rule(x + w / 2 - 3, y + h - 12, x + w / 2 + 3, y + h - 12); rule(x + w / 2, y + h - 15, x + w / 2, y + h - 9);
   } else if (kind === "bpmn-data") {
-    box(); ctx.beginPath(); ctx.moveTo(x + w - 18, y); ctx.lineTo(x + w, y + 18); ctx.lineTo(x + w - 18, y + 18); ctx.closePath(); ctx.strokeStyle = edge; ctx.stroke(); rule(x + 12, y + h - 23, x + w - 12, y + h - 23); label(name.toUpperCase(), x + 5, y + h / 2, w - 10, Math.max(8, size * .8), true, "center");
+    box(); ctx.beginPath(); ctx.moveTo(x + w - 18, y); ctx.lineTo(x + w, y + 18); ctx.lineTo(x + w - 18, y + 18); ctx.closePath(); ctx.strokeStyle = edge; ctx.stroke(); rule(x + 12, y + h - 23, x + w - 12, y + h - 23); label(name.toUpperCase(), x + 5, y + h * .38, w - 10, Math.max(8, size * .8), true, "center");
+    const state = field("state"); const format = field("format");
+    if (state) label(state, x + 6, y + h * .59, w - 12, Math.max(7, size * .62), false, "center");
+    if (format) label(format, x + 6, y + h * .75, w - 12, Math.max(7, size * .56), false, "center");
   } else if (kind === "bpmn-data-store") {
-    const ry = Math.min(12, h * .16); ctx.beginPath(); ctx.ellipse(x + w / 2, y + ry, w * .42, ry, 0, 0, Math.PI * 2); ctx.moveTo(x + w * .08, y + ry); ctx.lineTo(x + w * .08, y + h - ry); ctx.ellipse(x + w / 2, y + h - ry, w * .42, ry, 0, Math.PI, 0, true); ctx.lineTo(x + w * .92, y + ry); ctx.strokeStyle = edge; ctx.stroke(); ctx.beginPath(); ctx.ellipse(x + w / 2, y + ry, w * .42, ry, 0, 0, Math.PI * 2); ctx.stroke(); label(name.toUpperCase(), x + 8, y + h * .58, w - 16, Math.max(8, size * .72), true, "center");
+    const ry = Math.min(12, h * .16); ctx.beginPath(); ctx.ellipse(x + w / 2, y + ry, w * .42, ry, 0, 0, Math.PI * 2); ctx.moveTo(x + w * .08, y + ry); ctx.lineTo(x + w * .08, y + h - ry); ctx.ellipse(x + w / 2, y + h - ry, w * .42, ry, 0, Math.PI, 0, true); ctx.lineTo(x + w * .92, y + ry); ctx.strokeStyle = edge; ctx.stroke(); ctx.beginPath(); ctx.ellipse(x + w / 2, y + ry, w * .42, ry, 0, 0, Math.PI * 2); ctx.stroke(); label(name.toUpperCase(), x + 8, y + h * .42, w - 16, Math.max(8, size * .72), true, "center");
+    const store = field("store"); const retention = field("retention");
+    if (store) label(store, x + 8, y + h * .62, w - 16, Math.max(7, size * .62), false, "center");
+    if (retention) label(`Retention: ${retention}`, x + 8, y + h * .8, w - 16, Math.max(7, size * .56), false, "center");
   } else if (kind === "bpmn-text-annotation") {
     rule(x + 15, y + 8, x + 15, y + h - 8); rule(x + 15, y + 8, x + 28, y + 8); rule(x + 15, y + h - 8, x + 28, y + h - 8); label(name, x + 30, y + h / 2, w - 40, Math.max(8, size * .8), false);
   } else if (kind === "bpmn-pool") {
@@ -495,6 +687,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
   const name = meta.formTitle ?? meta.label ?? kind.replace(/^(network|cloud|software|bpmn|uml|c4|er)-/, "").replace(/-/g, " ").toUpperCase();
+  const field = (key: string) => componentFieldValue(group, key);
   const strokeWidth = Math.max(1.25, Math.min(2.5, Math.min(w, h) * .018));
   const shell = (radius = 12, inset = 0) => {
     roundRect(ctx, x + inset, y + inset, w - inset * 2, h - inset * 2, radius);
@@ -504,7 +697,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   const componentText = (value: string, tx: number, ty: number, maxWidth: number, fontSize: number, color: string, weight = 500, align: CanvasTextAlign = "left") => {
     const textAlign = componentTextAlign(textStyle?.textAlign, align);
     const textColor = textStyle?.color ?? color;
-    fittedComponentText(ctx, value, bounds, componentTextAnchor(tx, maxWidth, align, textAlign), ty, maxWidth, Math.min(maxLabelSize, fontSize), textColor, weight, textAlign, textStyle);
+    fittedComponentSingleLine(ctx, value.replace(/\s*\n\s*/g, " · "), bounds, componentTextAnchor(tx, maxWidth, align, textAlign), ty, maxWidth, Math.min(maxLabelSize, fontSize), textColor, weight, textAlign, textStyle);
   };
   const componentSingleLine = (value: string, tx: number, ty: number, maxWidth: number, fontSize: number, color: string, weight = 500, align: CanvasTextAlign = "left") => {
     const textAlign = componentTextAlign(textStyle?.textAlign, align);
@@ -570,23 +763,34 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
         ctx.fillStyle = palette.fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke();
         ctx.fillStyle = palette.accent; ctx.fillRect(cx - Math.min(2, socketWidth / 4), cy + socketHeight - 2, Math.min(4, socketWidth / 2), 1.5);
       }
-      if (h > 68) componentText( `${count} PORT${count === 1 ? "" : "S"} · REPEATER`, x + 12, y + h - 10, w - 24, 8, palette.muted, 500);
+      const clients = field("connected-devices");
+      if (clients && h > 68) componentText(clients, x + 12, y + h - 10, w - 24, 7, palette.muted, 500);
+      else if (h > 68) componentText(`${count} PORT${count === 1 ? "" : "S"} · REPEATER`, x + 12, y + h - 10, w - 24, 8, palette.muted, 500);
     } else {
       const count = Math.max(1, Math.min(32, Math.round(meta.portCount ?? 6)));
       shell(simple ? 0 : 11); heading(name, y + 15);
       drawPorts(ctx, x, y, w, count, palette, false);
       if (count > 8) componentText( `${count} PORTS`, x + w - 10, y + 15, w * .45, Math.max(8, size * .7), palette.muted, 500, "right");
+      const vlans = field("vlans");
+      if (vlans) componentText(vlans, x + w / 2, y + h - 4, w - 16, Math.max(6, size * .55), palette.muted, 400, "center");
     }
     ctx.restore(); return;
   }
   if (kind === "network-server") {
     shell(10); const rows = Math.max(2, Math.min(4, Math.floor((h - 22) / 23))); const rowH = (h - 26) / rows;
     heading(); for (let index = 0; index < rows; index++) { const yy = y + 25 + index * rowH; roundRect(ctx, x + 10, yy, w - 20, rowH - 5, 4); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); ctx.beginPath(); ctx.arc(x + 20, yy + (rowH - 5) / 2, 2.4, 0, Math.PI * 2); ctx.fillStyle = palette.accent; ctx.fill(); }
+    const addresses = field("ip-addresses"); const services = field("services");
+    if (addresses && rows > 1) componentText(addresses, x + 28, y + 25 + rowH * 1.5, w - 38, Math.max(6, size * .52), palette.ink, 400);
+    if (services && rows > 2) componentText(services, x + 28, y + 25 + rowH * 2.5, w - 38, Math.max(6, size * .5), palette.ink, 400);
     ctx.restore(); return;
   }
   if (kind === "network-firewall") {
-    shell(9); heading(); const top = y + Math.min(29, h * .34); const rowH = (h - (top - y) - 12) / 2;
+    shell(9); heading();
+    const action = field("default-action"); const rules = field("rules");
+    if (action) componentText(`Default: ${action}`, x + 10, y + 27, w - 20, Math.max(7, size * .55), palette.muted, 500);
+    const top = y + Math.min(42, h * .46); const rowH = (h - (top - y) - 10) / 2;
     for (let row = 0; row < 2; row++) { const yy = top + row * rowH; for (let col = 0; col < 4; col++) { const bw = (w - 28) / 4; roundRect(ctx, x + 10 + col * bw + (row % 2 ? bw / 2 : 0), yy + 2, bw - 4, rowH - 5, 2); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); } }
+    if (rules) componentText(rules, x + 10, y + h - 5, w - 20, Math.max(6, size * .5), palette.muted, 400);
     ctx.restore(); return;
   }
   if (kind === "network-access-point") {
@@ -596,15 +800,30 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     ctx.strokeStyle = palette.accent; ctx.lineWidth = Math.max(1.4, strokeWidth); ctx.beginPath(); ctx.moveTo(cx - radius * .31, cy - radius * .03); ctx.quadraticCurveTo(cx, cy - radius * .56, cx + radius * .31, cy - radius * .03); ctx.moveTo(cx - radius * .17, cy + radius * .12); ctx.quadraticCurveTo(cx, cy - radius * .16, cx + radius * .17, cy + radius * .12); ctx.stroke();
     ctx.beginPath(); ctx.arc(cx, cy + radius * .26, Math.max(1.5, radius * .06), 0, Math.PI * 2); ctx.fillStyle = palette.accent; ctx.fill();
     for (const offset of [-.18, 0, .18]) { ctx.beginPath(); ctx.arc(cx + radius * offset * 3, cy + radius * .62, Math.max(1.2, radius * .045), 0, Math.PI * 2); ctx.fillStyle = palette.accent; ctx.fill(); }
-    componentText( "ACCESS POINT", cx, y + h * .88, w - 12, size, ink, 700, "center");
+    const ssid = field("ssid"); const security = field("security-mode");
+    if (ssid) componentText(ssid, cx, y + h * .72, w - 12, Math.max(7, size * .62), palette.muted, 500, "center");
+    if (security) componentText(security, cx, y + h * .86, w - 12, Math.max(7, size * .56), palette.muted, 400, "center");
+    else componentText(name, cx, y + h * .88, w - 12, size, ink, 700, "center");
     ctx.restore(); return;
   }
   if (kind === "network-router" || kind === "network-load-balancer" || kind === "network-client") {
     shell(kind === "network-client" ? 8 : 16); heading();
     const cy = y + h * .58; const cx = x + w / 2;
-    if (kind === "network-client") { ctx.strokeStyle = palette.edge; ctx.beginPath(); ctx.moveTo(x + w * .28, y + h * .78); ctx.lineTo(x + w * .72, y + h * .78); ctx.moveTo(cx, y + h * .64); ctx.lineTo(cx, y + h * .79); ctx.stroke(); }
-    else if (kind === "network-load-balancer") { ctx.beginPath(); ctx.arc(cx, cy, Math.min(w, h) * .13, 0, Math.PI * 2); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); for (const direction of [-1, 0, 1]) { const xx = cx + direction * w * .31; ctx.beginPath(); ctx.moveTo(cx, cy + 10); ctx.lineTo(xx, y + h * .82); ctx.stroke(); ctx.beginPath(); ctx.arc(xx, y + h * .82, 4, 0, Math.PI * 2); ctx.fillStyle = palette.accent; ctx.fill(); } }
-    else { ctx.strokeStyle = palette.edge; for (const direction of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx, cy + direction * 8); ctx.lineTo(cx + direction * w * .27, cy + direction * h * .22); ctx.stroke(); } }
+    if (kind === "network-client") {
+      const platform = field("platform"); const network = field("network");
+      if (platform) componentText(platform, cx, y + h * .47, w * .68, Math.max(7, size * .62), palette.ink, 500, "center");
+      if (network) componentText(network, cx, y + h * .58, w * .68, Math.max(6, size * .54), palette.muted, 400, "center");
+      ctx.strokeStyle = palette.edge; ctx.beginPath(); ctx.moveTo(x + w * .28, y + h * .78); ctx.lineTo(x + w * .72, y + h * .78); ctx.moveTo(cx, y + h * .64); ctx.lineTo(cx, y + h * .79); ctx.stroke();
+    }
+    else if (kind === "network-load-balancer") {
+      const listeners = field("listeners"); if (listeners) componentText(listeners, cx, y + h * .3, w - 20, Math.max(7, size * .58), palette.muted, 400, "center");
+      ctx.beginPath(); ctx.arc(cx, cy, Math.min(w, h) * .13, 0, Math.PI * 2); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); for (const direction of [-1, 0, 1]) { const xx = cx + direction * w * .31; ctx.beginPath(); ctx.moveTo(cx, cy + 10); ctx.lineTo(xx, y + h * .82); ctx.stroke(); ctx.beginPath(); ctx.arc(xx, y + h * .82, 4, 0, Math.PI * 2); ctx.fillStyle = palette.accent; ctx.fill(); }
+    }
+    else {
+      const protocol = field("routing-protocol"); const asn = field("autonomous-system");
+      if (protocol) componentText(protocol + (asn ? ` · AS${asn}` : ""), cx, y + h * .36, w - 16, Math.max(7, size * .58), palette.muted, 500, "center");
+      ctx.strokeStyle = palette.edge; for (const direction of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx, cy + direction * 8); ctx.lineTo(cx + direction * w * .27, cy + direction * h * .22); ctx.stroke(); }
+    }
     ctx.restore(); return;
   }
   if (kind === "software-database" || kind === "cloud-database") {
@@ -675,17 +894,35 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
       ctx.beginPath(); ctx.rect(x + inset, y + inset, w - inset * 2, h - inset * 2); paintShape();
       if (kind === "er-weak-entity") { ctx.beginPath(); ctx.rect(x, y, w, h); ctx.strokeStyle = erEdge; ctx.stroke(); }
       if (kind === "er-associative-entity") { ctx.beginPath(); ctx.moveTo(x + w / 2, y + 2); ctx.lineTo(x + w / 2 + 10, y + 12); ctx.lineTo(x + w / 2, y + 22); ctx.lineTo(x + w / 2 - 10, y + 12); ctx.closePath(); paintShape(); }
-      erLabel();
+      erLabel(erName, x + w / 2, y + 17, w - 16);
+      if (kind === "er-weak-entity") {
+        const owner = field("owner"); const discriminator = field("partial-key");
+        if (owner) erLabel(`Owner: ${owner}`, x + w / 2, y + 37, w - 18);
+        if (discriminator) erLabel(`Key: ${discriminator}`, x + w / 2, y + 56, w - 18);
+      } else if (kind === "er-associative-entity") {
+        const participants = [field("first-entity"), field("second-entity")].filter(Boolean).join(" / "); const key = field("association-key");
+        if (participants) erLabel(participants, x + w / 2, y + 42, w - 18);
+        if (key) erLabel(`Key: ${key}`, x + w / 2, y + 65, w - 18);
+      } else {
+        const identifier = field("identifier"); const attributes = field("attributes").split(/\r?\n/).filter(Boolean);
+        if (identifier) erLabel(`PK ${identifier}`, x + w / 2, y + 38, w - 18);
+        attributes.slice(0, 2).forEach((attribute, index) => erLabel(attribute, x + w / 2, y + 56 + index * 14, w - 18));
+      }
     } else if (kind === "er-relationship" || kind === "er-identifying-relationship") {
       ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath(); paintShape();
       if (kind === "er-identifying-relationship") { ctx.beginPath(); ctx.moveTo(x + w / 2, y + 7); ctx.lineTo(x + w - 8, y + h / 2); ctx.lineTo(x + w / 2, y + h - 7); ctx.lineTo(x + 8, y + h / 2); ctx.closePath(); ctx.strokeStyle = erEdge; ctx.stroke(); }
-      erLabel();
+      erLabel(erName, x + w / 2, y + h * .42, w * .62);
+      const sourceRole = field(kind === "er-identifying-relationship" ? "owner-role" : "source-role");
+      const targetRole = field(kind === "er-identifying-relationship" ? "dependent-role" : "target-role");
+      if (sourceRole || targetRole) erLabel(`${sourceRole || "?"} - ${targetRole || "?"}`, x + w / 2, y + h * .66, w * .48);
     } else if (kind.includes("attribute")) {
       const double = kind === "er-multivalued-attribute"; const inset = double ? 5 : 0;
       ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * .46 - inset, h * .42 - inset, 0, 0, Math.PI * 2);
       if (kind === "er-derived-attribute" || kind === "er-partial-key-attribute") ctx.setLineDash([4, 3]); paintShape(); ctx.setLineDash([]);
       if (double) { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * .46, h * .42, 0, 0, Math.PI * 2); ctx.strokeStyle = erEdge; ctx.stroke(); }
-      erLabel(erName, x + w / 2, y + h / 2, w * .72, kind === "er-key-attribute" || kind === "er-partial-key-attribute");
+      erLabel(erName, x + w / 2, y + h * .42, w * .72, kind === "er-key-attribute" || kind === "er-partial-key-attribute");
+      const type = field(kind === "er-multivalued-attribute" ? "element-type" : kind === "er-derived-attribute" ? "expression" : "data-type");
+      if (type) erLabel(type, x + w / 2, y + h * .7, w * .7);
     } else if (kind === "er-composite-attribute") {
       const parentX = x + w / 2; const parentY = y + h * .22; const childY = y + h * .77;
       ctx.beginPath(); ctx.moveTo(parentX, parentY + h * .16); ctx.lineTo(x + w * .25, childY - h * .16); ctx.moveTo(parentX, parentY + h * .16); ctx.lineTo(x + w * .75, childY - h * .16); ctx.strokeStyle = erEdge; ctx.stroke();
@@ -699,12 +936,21 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   if (kind === "uml-package") {
     const tabW = Math.min(w * .42, 86); const tabH = Math.min(22, h * .22);
     ctx.beginPath(); ctx.moveTo(x, y + tabH); ctx.lineTo(x, y + 2); ctx.lineTo(x + tabW, y + 2); ctx.lineTo(x + tabW + 12, y + tabH); ctx.lineTo(x + w - 2, y + tabH); ctx.lineTo(x + w - 2, y + h - 2); ctx.lineTo(x + 2, y + h - 2); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke();
-    componentText(name, x + 12, y + tabH + h * .35, w - 24, size, ink, 650, "center"); ctx.restore(); return;
+    const namespace = field("namespace"); const contents = field("contents");
+    componentText(name, x + w / 2, y + tabH + h * .31, w - 24, size, ink, 650, "center");
+    if (namespace) componentText(namespace, x + w / 2, y + tabH + h * .52, w - 24, Math.max(7, size * .7), palette.muted, 500, "center");
+    if (contents) componentText(contents, x + w / 2, y + tabH + h * .7, w - 24, Math.max(7, size * .64), ink, 400, "center");
+    ctx.restore(); return;
   }
   if (kind === "uml-actor") {
-    const cx = x + w / 2; const head = Math.min(w * .22, h * .11); ctx.strokeStyle = ink; ctx.beginPath(); ctx.arc(cx, y + head + 3, head, 0, Math.PI * 2); ctx.moveTo(cx, y + head * 2 + 3); ctx.lineTo(cx, y + h * .62); ctx.moveTo(x + w * .2, y + h * .4); ctx.lineTo(x + w * .8, y + h * .4); ctx.moveTo(cx, y + h * .62); ctx.lineTo(x + w * .25, y + h * .74); ctx.moveTo(cx, y + h * .62); ctx.lineTo(x + w * .75, y + h * .74); ctx.stroke(); componentText( name, cx, y + h * .9, w - 8, size, ink, 500, "center"); ctx.restore(); return;
+    const cx = x + w / 2; const figureWidth = Math.min(58, w * .72); const head = Math.min(12, h * .11); ctx.strokeStyle = ink; ctx.beginPath(); ctx.arc(cx, y + head + 3, head, 0, Math.PI * 2); ctx.moveTo(cx, y + head * 2 + 3); ctx.lineTo(cx, y + h * .58); ctx.moveTo(cx - figureWidth * .38, y + h * .38); ctx.lineTo(cx + figureWidth * .38, y + h * .38); ctx.moveTo(cx, y + h * .58); ctx.lineTo(cx - figureWidth * .3, y + h * .69); ctx.moveTo(cx, y + h * .58); ctx.lineTo(cx + figureWidth * .3, y + h * .69); ctx.stroke();
+    const role = field("role"); const goal = field("goal");
+    componentText(name, cx, y + h - (role && goal ? 42 : role || goal ? 30 : 20), w - 8, size, ink, 500, "center");
+    if (role) componentText(role, cx, y + h - (goal ? 25 : 8), w - 8, Math.max(7, size * .64), palette.muted, 400, "center");
+    if (goal) componentText(goal, cx, y + h - 8, w - 8, Math.max(7, size * .58), ink, 400, "center");
+    ctx.restore(); return;
   }
-  if (kind === "uml-use-case") { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * .46, h * .4, 0, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); centerHeading(name); ctx.restore(); return; }
+  if (kind === "uml-use-case") { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * .46, h * .4, 0, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); centerHeading(name, y + h * .39); const outcome = field("outcome"); if (outcome) componentText(outcome, x + w / 2, y + h * .66, w * .64, Math.max(7, size * .62), palette.muted, 400, "center"); ctx.restore(); return; }
   if (kind === "uml-lifeline") { roundRect(ctx, x, y, w, Math.min(34, h), simple ? 0 : 8); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); heading(name, y + 17); ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(x + w / 2, y + 34); ctx.lineTo(x + w / 2, y + h); ctx.strokeStyle = palette.edge; ctx.stroke(); ctx.setLineDash([]); ctx.restore(); return; }
   if (kind === "uml-activation") { const activationWidth = Math.min(w, Math.max(10, w * .44)); roundRect(ctx, x + (w - activationWidth) / 2, y, activationWidth, h, 4); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); ctx.restore(); return; }
   if (kind.startsWith("sequence-") || kind.startsWith("uml-") && ["uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition", "uml-association", "uml-dependency", "uml-include", "uml-extend"].includes(kind) || kind.startsWith("er-one-") || kind === "er-many-one" || kind === "er-many-many" || kind === "data-flow") {
@@ -756,12 +1002,13 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   shell(12); centerHeading(name); ctx.restore();
 }
 
-function renderModelComponentSvg(group: GroupElement) {
+function renderModelComponentSvg(group: GroupElement): string {
   const guiSvg = guiComponentSvg(group);
   if (guiSvg) return guiSvg;
   const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return "";
   const { x, y, w, h } = bounds; const meta = group.libraryComponent!;
+  const field = (key: string) => componentFieldValue(group, key);
   const simple = true;
   const palette = paletteFor(false); const edge = meta.styleOverrides?.color ?? palette.edge;
   const fill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? group.container?.background ?? palette.fill;
@@ -782,6 +1029,9 @@ function renderModelComponentSvg(group: GroupElement) {
     const ink = meta.styleOverrides?.color ?? "#292929"; const cleanFill = fill; const soft = "#eeeeee";
     const t = (value: string, tx: number, ty: number, tw = w - 20, font = size, anchor = "start", weight = 600) => {
       const fittedFont = Math.min(maxLabelSize, Math.max(5, font));
+      const textAnchor = meta.textStyle?.textAlign === "center" ? "middle" : meta.textStyle?.textAlign === "right" ? "end" : meta.textStyle?.textAlign === "left" ? "start" : anchor;
+      const left = anchor === "middle" ? tx - tw / 2 : anchor === "end" ? tx - tw : tx;
+      const textX = textAnchor === "middle" ? left + tw / 2 : textAnchor === "end" ? left + tw : left;
       const maxChars = Math.max(1, Math.floor(Math.max(1, tw) / (fittedFont * .58)));
       const lines = value.split(/\r?\n/).flatMap(paragraph => {
         const result: string[] = []; let line = "";
@@ -796,7 +1046,7 @@ function renderModelComponentSvg(group: GroupElement) {
         if (line) result.push(line);
         return result.length ? result : [""];
       });
-      const lineHeight = fittedFont * 1.18; const maxLines = Math.max(1, Math.floor(Math.max(1, h - 4) / lineHeight));
+      const lineHeight = fittedFont * 1.18; const maxLines = 1;
       if (lines.length > maxLines) {
         lines.length = maxLines;
         let last = lines[maxLines - 1].slice(0, Math.max(0, maxChars - 1));
@@ -805,22 +1055,48 @@ function renderModelComponentSvg(group: GroupElement) {
       const stackHeight = lines.length * lineHeight;
       const centerY = Math.max(y + stackHeight / 2 + 2, Math.min(y + h - stackHeight / 2 - 2, ty));
       const firstY = centerY - stackHeight / 2 + lineHeight / 2;
-      const tspans = lines.map((line, index) => `<tspan x="${tx}" y="${firstY + index * lineHeight}">${xmlText(line)}</tspan>`).join("");
-      return `<text text-anchor="${anchor}" dominant-baseline="middle" fill="${ink}" font-family="sans-serif" font-size="${fittedFont}" font-weight="${weight}">${tspans}</text>`;
+      const tspans = lines.map((line, index) => `<tspan x="${textX}" y="${firstY + index * lineHeight}">${xmlText(line)}</tspan>`).join("");
+      return `<text text-anchor="${textAnchor}" dominant-baseline="middle" fill="${ink}" font-family="sans-serif" font-size="${fittedFont}" font-weight="${weight}">${tspans}</text>`;
     };
+    const block = (rows: [string, string][], left: number, top: number, width: number, font: number, height: number) => {
+      const fittedFont = Math.max(6, Math.min(8, font)); const lineHeight = fittedFont * 1.3; const maxLines = Math.max(1, Math.floor(height / lineHeight));
+      const lines = rows.flatMap(([label, value]) => wrapComponentApprox(`${label}: ${value.replace(/\s*\n\s*/g, " · ")}`, width, fittedFont));
+      const visible = lines.slice(0, maxLines);
+      if (lines.length > maxLines && visible.length) visible[visible.length - 1] = `${visible[visible.length - 1].slice(0, Math.max(0, Math.floor(width / (fittedFont * .58)) - 1)).trimEnd()}…`;
+      const tspans = visible.map((line, index) => `<tspan x="${left}" y="${top + fittedFont + index * lineHeight}">${xmlText(line)}</tspan>`).join("");
+      return `<text text-anchor="start" fill="${ink}" font-family="sans-serif" font-size="${fittedFont}" font-weight="400">${tspans}</text>`;
+    };
+    const field = (key: string) => componentFieldValue(group, key);
     const r = (rx = x, ry = y, rw = w, rh = h, color = cleanFill) => `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${color}" stroke="${ink}" stroke-width="1.3"/>`;
     const p = (d: string, dash = "") => `<path d="${d}" fill="none" stroke="${ink}" stroke-width="1.3"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
     if (["uml-state", "uml-initial-state", "uml-final-state", "uml-fork", "uml-join", "uml-component", "uml-node", "uml-artifact", "uml-enumeration"].includes(kind)) {
       if (kind === "uml-initial-state") return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .38}" fill="${ink}" stroke="${ink}"/>`;
       if (kind === "uml-final-state") return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .44}" fill="${cleanFill}" stroke="${ink}" stroke-width="2"/><circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .29}" fill="${ink}"/>`;
       if (kind === "uml-fork" || kind === "uml-join") return `<rect x="${x}" y="${y + h * .3}" width="${w}" height="${Math.max(6, h * .4)}" fill="${ink}"/>`;
-      if (kind === "uml-state") return `${r()}${t(rawTitle, x + w / 2, y + h * .4, w - 20, size, "middle")}${t("entry / exit / do", x + w / 2, y + h * .72, w - 20, Math.max(8, size * .65), "middle", 400)}`;
-      if (kind === "uml-component") return `${r()}${r(x + w - 25, y + 12, 14, 10, "none")}${r(x + w - 25, y + 28, 14, 10, "none")}${t(rawTitle, x + (w - 35) / 2, y + h / 2, w - 45, size, "middle")}`;
-      if (kind === "uml-node") { const dx = Math.min(18, w * .12); const dy = Math.min(15, h * .12); return `${r(x + dx, y + dy, w - dx, h - dy)}${p(`M ${x + dx} ${y + dy} L ${x + dx + 10} ${y} H ${x + w} V ${y + dy} M ${x + w - dx} ${y + dy} L ${x + w} ${y}`)}${t(rawTitle, x + w / 2 + dx / 2, y + h * .58, w - dx - 16, size, "middle")}`; }
-      if (kind === "uml-artifact") { const fold = Math.min(20, w * .18); return `${p(`M ${x} ${y} H ${x + w - fold} L ${x + w} ${y + fold} V ${y + h} H ${x} Z M ${x + w - fold} ${y} V ${y + fold} H ${x + w}`)}${t(rawTitle, x + w / 2, y + h * .57, w - 16, size, "middle")}`; }
+      if (kind === "uml-state") {
+        const actions = (["entry", "do", "exit"] as const).flatMap(key => {
+          const value = meta.componentFields?.find(field => field.key === key)?.value.trim();
+          return value ? [key + ": " + value] : [];
+        });
+        return `${r()}${t(rawTitle, x + w / 2, y + h * .4, w - 20, size, "middle")}${actions.map((action, index) => t(action, x + w / 2, y + h * (.62 + index * .12), w - 20, Math.max(7, size * .6), "middle", 400)).join("")}`;
+      }
+      if (kind === "uml-component") return `${r()}${r(x + w - 25, y + 12, 14, 10, "none")}${r(x + w - 25, y + 28, 14, 10, "none")}${t(rawTitle, x + (w - 35) / 2, y + h * .36, w - 45, size, "middle")}${field("provided") ? t(`Provides: ${field("provided")}`, x + w / 2, y + h * .65, w - 20, Math.max(7, size * .65), "middle", 400) : ""}${field("required") ? t(`Requires: ${field("required")}`, x + w / 2, y + h * .82, w - 20, Math.max(7, size * .62), "middle", 400) : ""}`;
+      if (kind === "uml-node") { const dx = Math.min(18, w * .12); const dy = Math.min(15, h * .12); return `${r(x + dx, y + dy, w - dx, h - dy)}${p(`M ${x + dx} ${y + dy} L ${x + dx + 10} ${y} H ${x + w} V ${y + dy} M ${x + w - dx} ${y + dy} L ${x + w} ${y}`)}${t(rawTitle, x + w / 2 + dx / 2, y + h * .43, w - dx - 16, size, "middle")}${field("execution-environment") ? t(field("execution-environment"), x + w / 2 + dx / 2, y + h * .64, w - dx - 16, Math.max(7, size * .65), "middle", 400) : ""}${field("location") ? t(field("location"), x + w / 2 + dx / 2, y + h * .82, w - dx - 16, Math.max(7, size * .6), "middle", 400) : ""}`; }
+      if (kind === "uml-artifact") { const fold = Math.min(20, w * .18); return `${p(`M ${x} ${y} H ${x + w - fold} L ${x + w} ${y + fold} V ${y + h} H ${x} Z M ${x + w - fold} ${y} V ${y + fold} H ${x + w}`)}${t(rawTitle, x + w / 2, y + h * .43, w - 16, size, "middle")}${field("version") ? t(`Version ${field("version")}`, x + w / 2, y + h * .65, w - 16, Math.max(7, size * .65), "middle", 400) : ""}${field("repository") ? t(field("repository"), x + w / 2, y + h * .82, w - 16, Math.max(7, size * .6), "middle", 400) : ""}`; }
       const header = Math.min(40, h * .3);
       return `${r()}${t("«enumeration»", x + w / 2, y + 14, w - 16, Math.max(8, size * .68), "middle", 400)}${t(rawTitle, x + w / 2, y + header, w - 16, size, "middle")}${p(`M ${x} ${y + header + 8} H ${x + w}`)}${t("«literal»", x + 12, y + header + 28, w - 24, Math.max(8, size * .68), "start", 400)}`;
     }
+    if (kind === "uml-package") {
+      const tabW = Math.min(w * .42, 86); const tabH = Math.min(22, h * .22);
+      const contents = field("contents"); const namespace = field("namespace");
+      return `<path d="M ${x} ${y + tabH} V ${y + 2} H ${x + tabW} L ${x + tabW + 12} ${y + tabH} H ${x + w - 2} V ${y + h - 2} H ${x + 2} Z" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3"/>${t(rawTitle, x + 12, y + tabH + h * .31, w - 24, size, "middle")}${namespace ? t(namespace, x + 12, y + tabH + h * .52, w - 24, Math.max(7, size * .7), "middle", 400) : ""}${contents ? t(contents, x + 12, y + tabH + h * .7, w - 24, Math.max(7, size * .64), "middle", 400) : ""}`;
+    }
+    if (kind === "uml-actor") {
+      const cx = x + w / 2; const figureWidth = Math.min(58, w * .72); const head = Math.min(12, h * .11); const role = field("role"); const goal = field("goal");
+      const figure = `<circle cx="${cx}" cy="${y + head + 3}" r="${head}" fill="${cleanFill}" stroke="${ink}"/><path d="M ${cx} ${y + head * 2 + 3} V ${y + h * .58} M ${cx - figureWidth * .38} ${y + h * .38} H ${cx + figureWidth * .38} M ${cx} ${y + h * .58} L ${cx - figureWidth * .3} ${y + h * .69} M ${cx} ${y + h * .58} L ${cx + figureWidth * .3} ${y + h * .69}" fill="none" stroke="${ink}"/>`;
+      return `${figure}${t(rawTitle, cx, y + h - (role && goal ? 42 : role || goal ? 30 : 20), w - 8, size, "middle")}${role ? t(role, cx, y + h - (goal ? 25 : 8), w - 8, Math.max(7, size * .64), "middle", 400) : ""}${goal ? t(goal, cx, y + h - 8, w - 8, Math.max(7, size * .58), "middle", 400) : ""}`;
+    }
+    if (kind === "uml-use-case") return `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46}" ry="${h * .4}" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3"/>${t(rawTitle, x + w / 2, y + h * .39, w * .72, size, "middle")}${field("outcome") ? t(field("outcome"), x + w / 2, y + h * .66, w * .64, Math.max(7, size * .62), "middle", 400) : ""}`;
     if (kind === "diagram-legend") {
       const rows = ["Component", "Decision", "Data store", "Relationship"];
       const rowMarkup = rows.map((row, index) => {
@@ -840,14 +1116,25 @@ function renderModelComponentSvg(group: GroupElement) {
       const icon = meta.iconSvg && meta.iconViewBox
         ? `<svg x="${iconX}" y="${iconY}" width="${iconSide}" height="${iconSide}" viewBox="${meta.iconViewBox}" preserveAspectRatio="xMidYMid meet">${meta.iconSvg}</svg>`
         : `<rect x="${iconX}" y="${iconY}" width="${iconSide}" height="${iconSide}" fill="${soft}" stroke="${provider.accent}" stroke-width="1.2"/><text x="${iconX + iconSide / 2}" y="${iconY + iconSide / 2}" text-anchor="middle" dominant-baseline="middle" fill="${provider.accent}" font-family="sans-serif" font-size="${provider.glyph.length > 2 ? 10 : 13}" font-weight="700">${xmlText(provider.glyph)}</text>`;
-      return `${outer}${icon}${t(rawTitle, copyX, y + h * .37, w - (copyX - x) - 9, size)}${t(provider.provider.toUpperCase(), copyX, y + h * .59, w - (copyX - x) - 9, 8, "start", 650)}${t(provider.description, x + 10, y + h - 9, w - 20, 8, "start", 400)}`;
+      const providerDetails = (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, 2);
+      const detailMarkup = providerDetails.map((item, index) => t(`${item.label}: ${item.value}`, copyX, y + h * (.76 + index * .13), w - (copyX - x) - 9, 7, "start", 400)).join("");
+      return `${outer}${icon}${t(rawTitle, copyX, y + h * .34, w - (copyX - x) - 9, size)}${t(provider.provider.toUpperCase(), copyX, y + h * .53, w - (copyX - x) - 9, 8, "start", 650)}${detailMarkup}`;
     }
-    if (kind === "c4-person") return `<circle cx="${x + w / 2}" cy="${y + 24}" r="10" fill="none" stroke="${ink}" stroke-width="1.5"/>${p(`M ${x + w / 2} ${y + 35} V ${y + 63} M ${x + w / 2 - 20} ${y + 42} H ${x + w / 2 + 20} M ${x + w / 2} ${y + 63} L ${x + w / 2 - 15} ${y + 82} M ${x + w / 2} ${y + 63} L ${x + w / 2 + 15} ${y + 82}`)}${t(rawTitle, x + w / 2, y + h - 8, w - 12, Math.min(size, 12), "middle")}`;
-    if (kind === "c4-software-system") return `${r()}${t("SOFTWARE SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), "start", 400)}${t(rawTitle, x + 10, y + h * .64, w - 20, size)}`;
-    if (kind === "c4-external-system") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t("EXTERNAL SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), "start", 400)}${t(rawTitle, x + 10, y + h * .62, w - 20, size)}`;
-    if (kind === "c4-deployment-node" || kind === "c4-infrastructure-node") return `${r()}${t(kind === "c4-deployment-node" ? "DEPLOYMENT NODE" : "INFRASTRUCTURE NODE", x + 10, y + 15, w - 20, Math.min(size, 12))}${p(`M ${x + 12} ${y + 27} H ${x + w - 12}`)}${[0, 1].map(index => `${r(x + 14, y + 40 + index * 34, w - 28, 28, "none")}<circle cx="${x + 24}" cy="${y + 54 + index * 34}" r="2" fill="${ink}"/>${p(`M ${x + 32} ${y + 54 + index * 34} H ${x + w - 14}`)}`).join("")}${t(rawTitle, x + 10, y + h - 6, w - 20, Math.max(8, size * .72), "start", 400)}`;
-    if (kind === "c4-code-element") return `${r()}${t("CODE ELEMENT", x + 10, y + 16, w - 20, Math.max(8, size * .7), "start", 400)}${p(`M ${x + 1} ${y + 27} H ${x + w - 1}`)}${t(rawTitle, x + 12, y + h * .47, w - 24, size)}${p(`M ${x + 1} ${y + h * .63} H ${x + w - 1}`)}${t("attributes / operations", x + 12, y + h * .82, w - 24, Math.max(8, size * .7), "start", 400)}`;
-    if (kind.startsWith("c4-") || kind === "network-zone" || kind === "network-subnet") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t(rawTitle.toUpperCase(), x + 12, y + 15, w - 24, Math.min(size, 14))}${t(kind === "network-subnet" ? "Subnet boundary" : kind.startsWith("c4-") ? "C4 boundary" : "Network boundary", x + 12, y + 34, w - 24, Math.max(8, size * .75), "start", 400)}`;
+    if (kind === "c4-person") {
+      const role = field("role"); const goal = field("goal");
+      return `<circle cx="${x + w / 2}" cy="${y + 24}" r="10" fill="none" stroke="${ink}" stroke-width="1.5"/>${p(`M ${x + w / 2} ${y + 35} V ${y + 63} M ${x + w / 2 - 20} ${y + 42} H ${x + w / 2 + 20} M ${x + w / 2} ${y + 63} L ${x + w / 2 - 15} ${y + 82} M ${x + w / 2} ${y + 63} L ${x + w / 2 + 15} ${y + 82}`)}${t(rawTitle, x + w / 2, y + h - (role || goal ? 31 : 8), w - 12, Math.min(size, 12), "middle")}${role ? t(role, x + w / 2, y + h - 19, w - 12, Math.max(7, size * .64), "middle", 400) : ""}${goal ? t(goal, x + w / 2, y + h - 7, w - 12, Math.max(7, size * .58), "middle", 400) : ""}`;
+    }
+    if (kind === "c4-software-system") return `${r()}${t("SOFTWARE SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), "start", 400)}${t(rawTitle, x + 10, y + h * .42, w - 20, size)}${field("description") ? t(field("description"), x + 10, y + h * .67, w - 20, Math.max(7, size * .68), "start", 400) : ""}${field("technology") ? t(field("technology"), x + 10, y + h - 8, w - 20, Math.max(7, size * .62), "start", 400) : ""}`;
+    if (kind === "c4-external-system") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t("EXTERNAL SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), "start", 400)}${t(rawTitle, x + 10, y + h * .4, w - 20, size)}${field("description") ? t(field("description"), x + 10, y + h * .65, w - 20, Math.max(7, size * .66), "start", 400) : ""}${field("interface") ? t(field("interface"), x + 10, y + h - 8, w - 20, Math.max(7, size * .6), "start", 400) : ""}`;
+    if (kind === "c4-deployment-node" || kind === "c4-infrastructure-node") {
+      const detailKeys = kind === "c4-deployment-node" ? ["environment", "instance", "technology"] : ["infrastructure-role", "technology", "location"];
+      const details = detailKeys.map(key => field(key)).filter(Boolean);
+      return `${r()}${t(kind === "c4-deployment-node" ? "DEPLOYMENT NODE" : "INFRASTRUCTURE NODE", x + 10, y + 15, w - 20, Math.min(size, 12))}${p(`M ${x + 12} ${y + 27} H ${x + w - 12}`)}${[0, 1].map(index => `${r(x + 14, y + 40 + index * 34, w - 28, 28, "none")}<circle cx="${x + 24}" cy="${y + 54 + index * 34}" r="2" fill="${ink}"/>${details[index] ? t(details[index], x + 32, y + 54 + index * 34, w - 50, 8, "start", 400) : ""}`).join("")}${t(rawTitle, x + 10, y + h - 6, w - 20, Math.max(8, size * .72), "start", 400)}`;
+    }
+    if (kind === "c4-code-element") return `${r()}${t("CODE ELEMENT", x + 10, y + 16, w - 20, Math.max(8, size * .7), "start", 400)}${p(`M ${x + 1} ${y + 27} H ${x + w - 1}`)}${t(rawTitle, x + 12, y + h * .39, w - 24, size)}${p(`M ${x + 1} ${y + h * .54} H ${x + w - 1}`)}${field("signature") ? t(field("signature"), x + 12, y + h * .68, w - 24, Math.max(7, size * .66), "start", 400) : ""}${field("responsibility") ? t(field("responsibility"), x + 12, y + h * .84, w - 24, Math.max(7, size * .62), "start", 400) : ""}`;
+    if (kind === "c4-system" || kind === "c4-container" || kind === "c4-component") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t(rawTitle.toUpperCase(), x + 12, y + 15, w - 24, Math.min(size, 14))}${t(kind === "c4-system" ? "System context" : kind === "c4-container" ? "Container boundary" : "Component boundary", x + 12, y + 34, w - 24, Math.max(8, size * .75), "start", 400)}${field(kind === "c4-system" ? "system-scope" : "description") ? t(field(kind === "c4-system" ? "system-scope" : "description"), x + 12, y + 56, w - 24, Math.max(8, size * .72), "start", 400) : ""}${field(kind === "c4-system" ? "context" : "technology") ? t(field(kind === "c4-system" ? "context" : "technology"), x + 12, y + 78, w - 24, Math.max(8, size * .66), "start", 400) : ""}`;
+    if (kind === "network-zone") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t(rawTitle.toUpperCase(), x + 12, y + 15, w - 24, Math.min(size, 14))}${t("Network trust zone", x + 12, y + 34, w - 24, Math.max(8, size * .75), "start", 400)}${field("trust-level") ? t(`Trust: ${field("trust-level")}`, x + 12, y + 56, w - 24, Math.max(9, size * .78)) : ""}${field("ingress-policy") ? t(`Ingress: ${field("ingress-policy")}`, x + 12, y + 78, w - 24, Math.max(8, size * .68), "start", 400) : ""}`;
+    if (kind === "network-subnet") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t(rawTitle.toUpperCase(), x + 12, y + 15, w - 24, Math.min(size, 14))}${t("IP subnet", x + 12, y + 34, w - 24, Math.max(8, size * .75), "start", 400)}${field("cidr") ? t(field("cidr"), x + 12, y + 56, w - 24, Math.max(9, size * .82)) : ""}${field("gateway") ? t(`Gateway: ${field("gateway")}`, x + 12, y + 78, w - 24, Math.max(8, size * .68), "start", 400) : ""}${field("vlan") ? t(`VLAN: ${field("vlan")}`, x + 12, y + 99, w - 24, Math.max(8, size * .64), "start", 400) : ""}`;
     if (kind === "cloud-boundary") {
       const d = `M ${x + w * .15} ${y + h * .8} C ${x + w * .04} ${y + h * .8}, ${x + w * .015} ${y + h * .66}, ${x + w * .05} ${y + h * .56} C ${x + w * .08} ${y + h * .45}, ${x + w * .17} ${y + h * .42}, ${x + w * .25} ${y + h * .44} C ${x + w * .25} ${y + h * .22}, ${x + w * .4} ${y + h * .12}, ${x + w * .53} ${y + h * .23} C ${x + w * .66} ${y + h * .05}, ${x + w * .85} ${y + h * .12}, ${x + w * .87} ${y + h * .36} C ${x + w * .97} ${y + h * .38}, ${x + w * .99} ${y + h * .49}, ${x + w * .96} ${y + h * .59} C ${x + w * .99} ${y + h * .72}, ${x + w * .9} ${y + h * .81}, ${x + w * .81} ${y + h * .8} Z`;
       return `<path d="${d}" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3" stroke-dasharray="6 4"/>${t(rawTitle.toUpperCase(), x + w / 2, y + h * .45, w * .5, size, "middle")}${t("Deployment boundary", x + w / 2, y + h * .58, w * .5, Math.max(8, size * .72), "middle", 400)}`;
@@ -862,11 +1149,26 @@ function renderModelComponentSvg(group: GroupElement) {
         : t(rawTitle.toUpperCase(), x + w / 2, y + h * .5, w - 16, Math.max(8, size * .78), "middle");
       return `${body}${top}${rim}${labels}`;
     }
-    if (kind === "software-queue" || kind === "cloud-queue") return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${[0, 1, 2].map(index => r(x + 10 + index * ((w - 32) / 3), y + h * .48, (w - 32) / 3 - 6, Math.min(24, h * .28), soft)).join("")}${p(`M ${x + 10} ${y + h - 14} H ${x + w - 10}`)}`;
-    if (kind === "cloud-function") return `${r()}${r(x + 10, y + 10, Math.min(32, h - 20), Math.min(32, h - 20), soft)}${t("fn", x + 10 + Math.min(16, (h - 20) / 2), y + 26, 32, 14, "middle")}${t(rawTitle.toUpperCase(), x + 50, y + 22, w - 60, Math.max(8, size * .8))}${t("On demand", x + 50, y + 43, w - 60, Math.max(8, size * .75), "start", 400)}`;
-    if (kind === "cloud-storage") return `${r()}${t(rawTitle.toUpperCase(), x + 12, y + 15)}${[0, 1, 2].map(index => p(`M ${x + 12} ${y + 42 + index * 14} H ${x + w - 12}`)).join("")}`;
+    if (kind === "software-queue" || kind === "cloud-queue") {
+      const address = field(kind === "cloud-queue" ? "queue-address" : "queue-name"); const contract = field(kind === "cloud-queue" ? "message-type" : "message-shape");
+      return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${address ? t(address, x + 8, y + h * .35, w - 16, Math.max(7, size * .62), "middle", 400) : ""}${[0, 1, 2].map(index => r(x + 10 + index * ((w - 32) / 3), y + h * .48, (w - 32) / 3 - 6, Math.min(24, h * .28), soft)).join("")}${p(`M ${x + 10} ${y + h - 14} H ${x + w - 10}`)}${contract ? t(contract, x + 8, y + h - 5, w - 16, Math.max(7, size * .56), "middle", 400) : ""}`;
+    }
+    if (kind === "cloud-function") return `${r()}${r(x + 10, y + 10, Math.min(32, h - 20), Math.min(32, h - 20), soft)}${t("fn", x + 10 + Math.min(16, (h - 20) / 2), y + 26, 32, 14, "middle")}${t(rawTitle.toUpperCase(), x + 50, y + 22, w - 60, Math.max(8, size * .8))}${t(field("runtime") || field("handler") || "Function runtime", x + 50, y + 43, w - 60, Math.max(8, size * .7), "start", 400)}${field("invocation") ? t(`Trigger: ${field("invocation")}`, x + 10, y + h - 9, w - 20, Math.max(7, size * .58), "start", 400) : ""}`;
+    if (kind === "cloud-storage") return `${r()}${t(rawTitle.toUpperCase(), x + 12, y + 15)}${field("bucket") ? t(field("bucket"), x + 12, y + 39, w - 24, Math.max(7, size * .66)) : ""}${p(`M ${x + 12} ${y + 48} H ${x + w - 12}`)}${field("stored-objects") ? t(field("stored-objects"), x + 12, y + 67, w - 24, Math.max(7, size * .62), "start", 400) : ""}${field("access-policy") ? t(field("access-policy"), x + 12, y + 88, w - 24, Math.max(7, size * .56), "start", 400) : ""}`;
     if (kind === "software-client") return `${r()}${t(rawTitle.toUpperCase(), x + 12, y + 14)}${p(`M ${x} ${y + 27} H ${x + w}`)}${r(x + 12, y + 38, w * .32, h - 52, soft)}${r(x + w * .42, y + 38, w * .48, 16, soft)}${r(x + w * .42, y + 62, w * .48, h - 76, soft)}`;
-    if (["software-api", "software-service", "tech-service", "software-cache"].includes(kind)) return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 17)}${kind === "software-cache" ? t("KEY / VALUE", x + 10, y + h * .68, w - 20, Math.max(8, size * .8), "start", 400) : p(`M ${x + 10} ${y + h * .48} H ${x + w - 10}`)}${kind === "software-cache" ? "" : t(kind === "software-api" ? "HTTP / RPC" : kind === "tech-service" ? "Technology" : "Module / worker", x + 10, y + h * .72, w - 20, Math.max(8, size * .8), "start", 400)}`;
+    if (kind === "software-api") {
+      const method = field("method").toUpperCase(); const path = field("path");
+      const methodWidth = Math.min(64, Math.max(44, w * .27));
+      const routeX = x + 12 + (method ? methodWidth + 8 : 0);
+      const route = `${method ? t(method, x + 12, y + 49, methodWidth, 9, "start", 650) : ""}${path ? t(path, routeX, y + 49, Math.max(1, x + w - 12 - routeX), Math.max(8, size * .78)) : ""}`;
+      const details = [
+        ["Summary", field("summary")], ["Request", field("request-body")], ["Response", field("responses")], ["Parameters", field("parameters")],
+        ["Server", field("server")], ["Auth", field("security")], ["Operation", field("operation-id")],
+      ].filter(([, value]) => value) as [string, string][];
+      return `${r()}${t(rawTitle, x + 12, y + 16, w - 24, Math.min(size, 13))}${p(`M ${x + 1} ${y + 29} H ${x + w - 1}`)}${route}${block(details, x + 12, y + 65, w - 24, Math.max(6, size * .58), h - 70)}`;
+    }
+    if (kind === "software-cache") return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 17)}${t(field("cached-values") || "KEY / VALUE", x + 10, y + h * .48, w - 20, Math.max(8, size * .72), "start", 400)}${field("expiration") ? t(`TTL: ${field("expiration")}`, x + 10, y + h * .67, w - 20, Math.max(7, size * .62), "start", 400) : ""}${field("eviction") ? t(`Eviction: ${field("eviction")}`, x + 10, y + h * .84, w - 20, Math.max(7, size * .58), "start", 400) : ""}`;
+    if (["software-service", "tech-service"].includes(kind)) return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 17)}${p(`M ${x + 10} ${y + h * .48} H ${x + w - 10}`)}${t(field(kind === "tech-service" ? "technology" : "responsibility") || (kind === "tech-service" ? "Technology" : "Module / worker"), x + 10, y + h * .72, w - 20, Math.max(8, size * .8), "start", 400)}`;
     if (kind === "software-event-bus") {
       const top = y + h * .33; const bottom = y + h * .67;
       const links = [.2, .5, .8].map(ratio => {
@@ -878,32 +1180,48 @@ function renderModelComponentSvg(group: GroupElement) {
     if (kind === "network-switch" || kind === "network-hub") {
       const count = Math.max(1, Math.min(32, Math.round(meta.portCount ?? (kind === "network-hub" ? 8 : 6)))); const columns = Math.min(8, count); const rows = Math.ceil(count / columns); const gapX = (w - 24) / columns; const rowGap = Math.max(10, (h - 42) / rows);
       const ports = Array.from({ length: count }, (_, index) => { const col = index % columns; const row = Math.floor(index / columns); const pw = Math.min(12, gapX - 2); return r(x + 12 + col * gapX + (gapX - pw) / 2, y + 32 + row * rowGap, pw, Math.min(7, rowGap - 2), "none"); }).join("");
-      return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${ports}`;
+      const networkNote = kind === "network-switch" ? field("vlans") : field("connected-devices");
+      return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${ports}${networkNote ? t(networkNote, x + 8, y + h - 5, w - 16, Math.max(6, size * .55), "middle", 400) : ""}`;
     }
-    if (kind === "network-server") return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${Array.from({ length: 3 }, (_, row) => r(x + 10, y + 28 + row * ((h - 36) / 3), w - 20, Math.max(8, (h - 48) / 3), soft)).join("")}`;
-    if (kind === "network-firewall") return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${Array.from({ length: 8 }, (_, index) => { const row = Math.floor(index / 4); const col = index % 4; const brickW = (w - 24) / 4; const brickH = (h - 40) / 2; return r(x + 8 + col * brickW + (row ? brickW / 2 : 0), y + 30 + row * brickH, brickW, brickH, "none"); }).join("")}`;
-    if (kind === "network-client") return `${r(x + 8, y + 4, w - 16, h * .68)}${p(`M ${x + w * .25} ${y + h * .82} H ${x + w * .75} M ${x + w * .5} ${y + h * .68} V ${y + h * .82}`)}${t(rawTitle.toUpperCase(), x + w / 2, y + h - 10, w - 8, Math.max(7, size * .72), "middle")}`;
-    if (kind === "network-router" || kind === "network-load-balancer") return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${p(`M ${x + w / 2} ${y + h * .61} L ${x + 8} ${y + h * .8} M ${x + w / 2} ${y + h * .61} L ${x + w - 8} ${y + h * .8} M ${x + w / 2} ${y + h * .61} V ${y + h - 8}`)}<circle cx="${x + w / 2}" cy="${y + h * .61}" r="${Math.min(w, h) * .1}" fill="${cleanFill}" stroke="${ink}"/>`;
-    if (kind === "network-access-point") { const cx = x + w / 2; const cy = y + h * .4; const radius = Math.min(w * .28, h * .34); return `${[1, .68, .32].map(scale => p(`M ${cx - radius * scale} ${cy} A ${radius * scale} ${radius * scale} 0 0 1 ${cx + radius * scale} ${cy}`)).join("")}<circle cx="${cx}" cy="${cy}" r="2" fill="${ink}"/>${t(rawTitle.toUpperCase(), cx, y + h - 10, w - 8, Math.max(7, size * .72), "middle")}`; }
+    if (kind === "network-server") {
+      const rows = Array.from({ length: 3 }, (_, row) => r(x + 10, y + 28 + row * ((h - 36) / 3), w - 20, Math.max(8, (h - 48) / 3), soft)).join("");
+      const details = [field("ip-addresses"), field("services")].filter(Boolean);
+      return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${rows}${details.map((detail, index) => t(detail, x + 24, y + 46 + index * 20, w - 34, Math.max(6, size * .48), "start", 400)).join("")}`;
+    }
+    if (kind === "network-firewall") {
+      const bricks = Array.from({ length: 8 }, (_, index) => { const row = Math.floor(index / 4); const col = index % 4; const brickW = (w - 24) / 4; const brickH = (h - 50) / 2; return r(x + 8 + col * brickW + (row ? brickW / 2 : 0), y + 38 + row * brickH, brickW, brickH, "none"); }).join("");
+      return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${field("default-action") ? t(`Default: ${field("default-action")}`, x + 8, y + 29, w - 16, Math.max(6, size * .5), "start", 400) : ""}${bricks}${field("rules") ? t(field("rules"), x + 8, y + h - 4, w - 16, Math.max(6, size * .48), "middle", 400) : ""}`;
+    }
+    if (kind === "network-client") return `${r(x + 8, y + 4, w - 16, h * .68)}${field("platform") ? t(field("platform"), x + 12, y + h * .39, w - 24, Math.max(7, size * .58), "middle", 400) : ""}${field("network") ? t(field("network"), x + 12, y + h * .55, w - 24, Math.max(6, size * .5), "middle", 400) : ""}${p(`M ${x + w * .25} ${y + h * .82} H ${x + w * .75} M ${x + w * .5} ${y + h * .68} V ${y + h * .82}`)}${t(rawTitle.toUpperCase(), x + w / 2, y + h - 10, w - 8, Math.max(7, size * .72), "middle")}`;
+    if (kind === "network-router" || kind === "network-load-balancer") {
+      const detail = field(kind === "network-router" ? "routing-protocol" : "listeners");
+      return `${r()}${t(rawTitle.toUpperCase(), x + 10, y + 15)}${detail ? t(detail, x + 8, y + 28, w - 16, Math.max(6, size * .5), "middle", 400) : ""}${p(`M ${x + w / 2} ${y + h * .61} L ${x + 8} ${y + h * .8} M ${x + w / 2} ${y + h * .61} L ${x + w - 8} ${y + h * .8} M ${x + w / 2} ${y + h * .61} V ${y + h - 8}`)}<circle cx="${x + w / 2}" cy="${y + h * .61}" r="${Math.min(w, h) * .1}" fill="${cleanFill}" stroke="${ink}"/>`;
+    }
+    if (kind === "network-access-point") { const cx = x + w / 2; const cy = y + h * .35; const radius = Math.min(w * .2, h * .25); return `${t(rawTitle.toUpperCase(), cx, y + 12, w - 8, Math.max(7, size * .68), "middle")}${[1, .68, .32].map(scale => p(`M ${cx - radius * scale} ${cy} A ${radius * scale} ${radius * scale} 0 0 1 ${cx + radius * scale} ${cy}`)).join("")}<circle cx="${cx}" cy="${cy}" r="2" fill="${ink}"/>${field("ssid") ? t(field("ssid"), cx, y + h * .72, w - 12, Math.max(7, size * .58), "middle", 650) : ""}${field("security-mode") || field("channel") ? t([field("security-mode"), field("channel")].filter(Boolean).join(" · "), cx, y + h * .88, w - 12, Math.max(6, size * .48), "middle", 400) : ""}`; }
     if (kind === "network-internet") {
       const d = `M ${x + w * .18} ${y + h * .76} C ${x + w * .04} ${y + h * .76} ${x + w * .04} ${y + h * .55} ${x + w * .19} ${y + h * .5} C ${x + w * .18} ${y + h * .24} ${x + w * .42} ${y + h * .18} ${x + w * .54} ${y + h * .34} C ${x + w * .72} ${y + h * .12} ${x + w * .94} ${y + h * .33} ${x + w * .85} ${y + h * .51} C ${x + w} ${y + h * .61} ${x + w * .9} ${y + h * .78} ${x + w * .76} ${y + h * .76} Z`;
-      return `<path d="${d}" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3"/>${t(rawTitle.toUpperCase(), x + w / 2, y + h * .59, w * .62, Math.min(size, 12), "middle")}`;
+      const prefix = field("public-prefix");
+      return `<path d="${d}" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3"/>${t(rawTitle.toUpperCase(), x + w / 2, y + h * (prefix ? .46 : .59), w * .62, Math.min(size, 12), "middle")}${prefix ? t(prefix, x + w / 2, y + h * .68, w * .68, Math.max(7, size * .58), "middle", 400) : ""}`;
     }
-    if (kind === "network-vpn") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 14, w - 16, Math.min(size, 12), "middle")}${p(`M ${x + 17} ${y + h * .63} H ${x + w - 17}`, "5 4")}<circle cx="${x + 17}" cy="${y + h * .63}" r="4" fill="${cleanFill}" stroke="${ink}"/><circle cx="${x + w - 17}" cy="${y + h * .63}" r="4" fill="${cleanFill}" stroke="${ink}"/>${t("ENCRYPTED TUNNEL", x + w / 2, y + h - 9, w - 16, Math.max(7, size * .58), "middle", 400)}`;
-    if (kind === "network-dns") { const cx = x + w / 2; const cy = y + h * .4; const radius = Math.min(w * .24, h * .24); return `${r()}<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${ink}"/><ellipse cx="${cx}" cy="${cy}" rx="${radius * .48}" ry="${radius}" fill="none" stroke="${ink}"/>${p(`M ${cx - radius} ${cy} H ${cx + radius}`)}${t(rawTitle.toUpperCase(), cx, y + h - 15, w - 16, Math.max(8, size * .72), "middle")}`; }
-    if (kind === "network-nat-gateway") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 14, w - 16, Math.min(size, 12), "middle")}${p(`M ${x + 24} ${y + h - 13} L ${x + w / 2} ${y + h * .55} L ${x + w - 24} ${y + h - 13} M ${x + w / 2} ${y + h * .55} V ${y + h * .31} l -4 6 m 4 -6 l 4 6`)}<circle cx="${x + 24}" cy="${y + h - 13}" r="3" fill="${cleanFill}" stroke="${ink}"/><circle cx="${x + w - 24}" cy="${y + h - 13}" r="3" fill="${cleanFill}" stroke="${ink}"/>`;
-    if (kind === "network-modem") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 13, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 10} ${y + h * .42} H ${x + w - 10}`)}${[0, 1, 2, 3].map(index => `<circle cx="${x + 15 + index * 11}" cy="${y + h * .67}" r="2" fill="${ink}"/>`).join("")}${p(`M ${x + w - 31} ${y + h * .74} A 8 8 0 0 1 ${x + w - 15} ${y + h * .74} M ${x + w - 28} ${y + h * .74} A 5 5 0 0 1 ${x + w - 18} ${y + h * .74}`)}${t("WAN", x + w - 23, y + h - 9, 30, 7, "middle", 400)}`;
+    if (kind === "network-vpn") {
+      const route = [field("local-prefixes"), field("remote-prefixes")].filter(Boolean).join(" → ");
+      const detail = route || field("vpn-type");
+      return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 14, w - 16, Math.min(size, 12), "middle")}${p(`M ${x + 17} ${y + h * .59} H ${x + w - 17}`, "5 4")}<circle cx="${x + 17}" cy="${y + h * .59}" r="4" fill="${cleanFill}" stroke="${ink}"/><circle cx="${x + w - 17}" cy="${y + h * .59}" r="4" fill="${cleanFill}" stroke="${ink}"/>${detail ? t(detail, x + w / 2, y + h - 8, w - 16, Math.max(7, size * .56), "middle", 400) : ""}`;
+    }
+    if (kind === "network-dns") { const cx = x + w / 2; const cy = y + h * .35; const radius = Math.min(w * .22, h * .22); return `${r()}<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${ink}"/><ellipse cx="${cx}" cy="${cy}" rx="${radius * .48}" ry="${radius}" fill="none" stroke="${ink}"/>${p(`M ${cx - radius} ${cy} H ${cx + radius}`)}${field("zone") ? t(field("zone"), cx, y + h * .71, w - 16, Math.max(7, size * .58), "middle", 400) : ""}${t(rawTitle.toUpperCase(), cx, y + h - 7, w - 16, Math.max(8, size * .68), "middle")}`; }
+    if (kind === "network-nat-gateway") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 14, w - 16, Math.min(size, 12), "middle")}${p(`M ${x + 24} ${y + h - 28} L ${x + w / 2} ${y + h * .55} L ${x + w - 24} ${y + h - 28} M ${x + w / 2} ${y + h * .55} V ${y + h * .31} l -4 6 m 4 -6 l 4 6`)}<circle cx="${x + 24}" cy="${y + h - 28}" r="3" fill="${cleanFill}" stroke="${ink}"/><circle cx="${x + w - 24}" cy="${y + h - 28}" r="3" fill="${cleanFill}" stroke="${ink}"/>${field("public-address") ? t(field("public-address"), x + 8, y + h - 5, w - 16, Math.max(7, size * .55), "middle", 400) : ""}`;
+    if (kind === "network-modem") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + 13, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 10} ${y + h * .42} H ${x + w - 10}`)}${[0, 1, 2, 3].map(index => `<circle cx="${x + 15 + index * 11}" cy="${y + h * .67}" r="2" fill="${ink}"/>`).join("")}${p(`M ${x + w - 31} ${y + h * .74} A 8 8 0 0 1 ${x + w - 15} ${y + h * .74} M ${x + w - 28} ${y + h * .74} A 5 5 0 0 1 ${x + w - 18} ${y + h * .74}`)}${field("access-technology") ? t(field("access-technology"), x + 6, y + h - 5, w - 12, Math.max(6, size * .5), "middle", 400) : ""}`;
     if (["network-proxy", "network-bridge", "network-bastion", "network-gateway", "network-printer", "network-workstation"].includes(kind)) {
       const cx = x + w / 2; const cy = y + h * .55;
-      if (kind === "network-workstation") return `${r(x + 10, y + 8, w - 20, h * .58, soft)}${p(`M ${x + w * .3} ${y + h * .72} H ${x + w * .7} M ${cx} ${y + h * .66} V ${y + h * .82} M ${x + w * .28} ${y + h * .82} H ${x + w * .72}`)}${t(rawTitle.toUpperCase(), cx, y + h - 8, w - 8, Math.max(7, size * .7), "middle")}`;
-      if (kind === "network-printer") return `${r(x + 12, y + h * .34, w - 24, h * .48, soft)}${r(x + 24, y + 5, w - 48, h * .34, cleanFill)}${p(`M ${x + 28} ${y + h * .7} H ${x + w - 28} M ${x + 30} ${y + h * .84} H ${x + w - 30}`)}<circle cx="${x + w - 22}" cy="${y + h * .48}" r="2" fill="${ink}"/>${t(rawTitle.toUpperCase(), cx, y + h - 7, w - 8, Math.max(7, size * .66), "middle")}`;
-      if (kind === "network-bridge") return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 16} ${cy} H ${x + w - 16} M ${x + w * .3} ${cy - 12} V ${cy + 12} M ${x + w * .7} ${cy - 12} V ${cy + 12}`)}${[.16, .5, .84].map(position => `<circle cx="${x + w * position}" cy="${cy}" r="4" fill="${cleanFill}" stroke="${ink}"/>`).join("")}`;
-      if (kind === "network-gateway") return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${cx} ${y + h * .35} V ${y + h * .72} M ${cx - 16} ${y + h * .72} H ${cx + 16} M ${cx - 12} ${y + h * .42} L ${cx} ${y + h * .32} L ${cx + 12} ${y + h * .42}`)}`;
-      if (kind === "network-bastion") return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${cx} ${y + h * .31} L ${cx + 18} ${y + h * .4} V ${y + h * .58} Q ${cx + 16} ${y + h * .76} ${cx} ${y + h * .84} Q ${cx - 16} ${y + h * .76} ${cx - 18} ${y + h * .58} V ${y + h * .4} Z M ${cx - 8} ${y + h * .56} L ${cx - 2} ${y + h * .63} L ${cx + 10} ${y + h * .48}`)}`;
-      return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 12} ${cy} H ${x + w - 12} M ${x + w * .32} ${cy - 7} l-7 7 7 7 M ${x + w * .68} ${cy - 7} l7 7-7 7`)}`;
+      if (kind === "network-workstation") return `${r(x + 10, y + 8, w - 20, h * .58, soft)}${field("platform") ? t(field("platform"), cx, y + h * .38, w - 24, Math.max(6, size * .5), "middle", 400) : ""}${p(`M ${x + w * .3} ${y + h * .72} H ${x + w * .7} M ${cx} ${y + h * .66} V ${y + h * .82} M ${x + w * .28} ${y + h * .82} H ${x + w * .72}`)}${t(rawTitle.toUpperCase(), cx, y + h - 8, w - 8, Math.max(7, size * .7), "middle")}`;
+      if (kind === "network-printer") return `${r(x + 12, y + h * .34, w - 24, h * .48, soft)}${r(x + 24, y + 5, w - 48, h * .34, cleanFill)}${field("model") ? t(field("model"), cx, y + h * .25, w - 52, Math.max(6, size * .48), "middle", 400) : ""}${p(`M ${x + 28} ${y + h * .7} H ${x + w - 28} M ${x + 30} ${y + h * .84} H ${x + w - 30}`)}<circle cx="${x + w - 22}" cy="${y + h * .48}" r="2" fill="${ink}"/>${t(rawTitle.toUpperCase(), cx, y + h - 7, w - 8, Math.max(7, size * .66), "middle")}`;
+      if (kind === "network-bridge") return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 16} ${cy} H ${x + w - 16} M ${x + w * .3} ${cy - 12} V ${cy + 12} M ${x + w * .7} ${cy - 12} V ${cy + 12}`)}${[.16, .5, .84].map(position => `<circle cx="${x + w * position}" cy="${cy}" r="4" fill="${cleanFill}" stroke="${ink}"/>`).join("")}${field("segments") ? t(field("segments"), cx, y + h - 5, w - 16, Math.max(6, size * .5), "middle", 400) : ""}`;
+      if (kind === "network-gateway") return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${cx} ${y + h * .35} V ${y + h * .65} M ${cx - 16} ${y + h * .65} H ${cx + 16} M ${cx - 12} ${y + h * .42} L ${cx} ${y + h * .32} L ${cx + 12} ${y + h * .42}`)}${field("gateway-type") ? t(field("gateway-type"), cx, y + h - 5, w - 16, Math.max(6, size * .5), "middle", 400) : ""}`;
+      if (kind === "network-bastion") return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${cx} ${y + h * .31} L ${cx + 18} ${y + h * .4} V ${y + h * .58} Q ${cx + 16} ${y + h * .76} ${cx} ${y + h * .84} Q ${cx - 16} ${y + h * .76} ${cx - 18} ${y + h * .58} V ${y + h * .4} Z M ${cx - 8} ${y + h * .56} L ${cx - 2} ${y + h * .63} L ${cx + 10} ${y + h * .48}`)}${field("allowed-sources") ? t(field("allowed-sources"), cx, y + h - 5, w - 16, Math.max(6, size * .5), "middle", 400) : ""}`;
+      return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 12} ${cy} H ${x + w - 12} M ${x + w * .32} ${cy - 7} l-7 7 7 7 M ${x + w * .68} ${cy - 7} l7 7-7 7`)}${field("upstream") ? t(field("upstream"), cx, y + h - 5, w - 16, Math.max(6, size * .5), "middle", 400) : ""}`;
     }
     if (["bpmn-start", "bpmn-event", "bpmn-end", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind)) {
-      const diameter = Math.min(w, h - 14); const cx = x + w / 2; const cy = diameter / 2 + y + 1;
+      const diameter = h >= 72 ? Math.min(58, w, h - 38) : Math.min(w, h - 14); const cx = x + w / 2; const cy = diameter / 2 + y + 1;
       const marked = !["bpmn-start", "bpmn-end"].includes(kind);
       const outer = `<circle cx="${cx}" cy="${cy}" r="${diameter * .43}" fill="${kind === "bpmn-terminate-event" ? ink : cleanFill}" stroke="${ink}" stroke-width="${kind === "bpmn-end" || kind === "bpmn-terminate-event" ? 2.5 : 1.3}"/>`;
       const inner = marked ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .34}" fill="none" stroke="${kind === "bpmn-terminate-event" ? cleanFill : ink}"${kind === "bpmn-boundary-event" ? " stroke-dasharray=\"3 2\"" : ""}/>` : "";
@@ -912,9 +1230,17 @@ function renderModelComponentSvg(group: GroupElement) {
           : kind === "bpmn-error-event" ? `<path d="M ${cx + 4} ${cy - 9} L ${cx - 4} ${cy} H ${cx + 2} L ${cx - 4} ${cy + 9}" stroke="${ink}"/>`
             : kind === "bpmn-signal-event" ? `<path d="M ${cx} ${cy - 9} L ${cx + 8} ${cy + 7} H ${cx - 8} Z" fill="none" stroke="${ink}"/>`
               : kind === "bpmn-terminate-event" ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .17}" fill="${cleanFill}"/>` : "";
-      return `${outer}${inner}${marker}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .64), "middle", 400)}`;
+      const eventDetail = kind === "bpmn-start" ? field("trigger-reference")
+        : kind === "bpmn-message-event" ? field("message-name")
+          : kind === "bpmn-timer-event" ? field("timer-expression")
+            : kind === "bpmn-error-event" ? field("error-code")
+              : kind === "bpmn-signal-event" ? field("signal")
+                : kind === "bpmn-boundary-event" ? field("event-definition")
+                  : kind === "bpmn-terminate-event" ? field("reason")
+                    : kind === "bpmn-end" ? field("outcome") : field("event-definition");
+      return `${outer}${inner}${marker}${eventDetail && h >= 72 ? t(eventDetail, cx, y + h - 24, w - 8, Math.max(7, size * .6), "middle", 400) : ""}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .64), "middle", 400)}`;
     }
-    if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) { const side = Math.min(w, h - 12); const cx = x + w / 2; const cy = side / 2; const marks = kind === "bpmn-parallel-gateway" ? `M ${cx} ${y + side * .28} V ${y + side * .72} M ${x + w * .28} ${y + cy} H ${x + w * .72}` : kind === "bpmn-inclusive-gateway" ? `M ${cx} ${cy - side * .18} A ${side * .18} ${side * .18} 0 1 0 ${cx} ${cy + side * .18} A ${side * .18} ${side * .18} 0 1 0 ${cx} ${cy - side * .18}` : kind === "bpmn-event-gateway" ? `M ${cx} ${cy - side * .2} A ${side * .2} ${side * .2} 0 1 0 ${cx} ${cy + side * .2} A ${side * .2} ${side * .2} 0 1 0 ${cx} ${cy - side * .2} M ${cx} ${cy - side * .14} A ${side * .14} ${side * .14} 0 1 0 ${cx} ${cy + side * .14} A ${side * .14} ${side * .14} 0 1 0 ${cx} ${cy - side * .14}` : `M ${x + w * .34} ${y + side * .34} L ${x + w * .66} ${y + side * .66} M ${x + w * .66} ${y + side * .34} L ${x + w * .34} ${y + side * .66}`; return `<path d="M ${cx} ${y} L ${x + w} ${y + cy} L ${cx} ${y + side} L ${x} ${y + cy} Z" fill="${cleanFill}" stroke="${ink}"/>${p(marks)}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .58), "middle", 400)}`; }
+    if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) { const side = Math.min(w, h - 12, 58); const cx = x + w / 2; const left = cx - side / 2; const cy = side / 2; const marks = kind === "bpmn-parallel-gateway" ? `M ${cx} ${y + side * .28} V ${y + side * .72} M ${cx - side * .22} ${y + cy} H ${cx + side * .22}` : kind === "bpmn-inclusive-gateway" ? `M ${cx} ${y + cy - side * .18} A ${side * .18} ${side * .18} 0 1 0 ${cx} ${y + cy + side * .18} A ${side * .18} ${side * .18} 0 1 0 ${cx} ${y + cy - side * .18}` : kind === "bpmn-event-gateway" ? `M ${cx} ${y + cy - side * .2} A ${side * .2} ${side * .2} 0 1 0 ${cx} ${y + cy + side * .2} A ${side * .2} ${side * .2} 0 1 0 ${cx} ${y + cy - side * .2} M ${cx} ${y + cy - side * .14} A ${side * .14} ${side * .14} 0 1 0 ${cx} ${y + cy + side * .14} A ${side * .14} ${side * .14} 0 1 0 ${cx} ${y + cy - side * .14}` : `M ${cx - side * .16} ${y + side * .34} L ${cx + side * .16} ${y + side * .66} M ${cx + side * .16} ${y + side * .34} L ${cx - side * .16} ${y + side * .66}`; return `<path d="M ${cx} ${y} L ${cx + side / 2} ${y + cy} L ${cx} ${y + side} L ${left} ${y + cy} Z" fill="${cleanFill}" stroke="${ink}"/>${p(marks)}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .58), "middle", 400)}`; }
     if (["bpmn-task", "bpmn-user-task", "bpmn-service-task", "bpmn-script-task", "bpmn-manual-task", "bpmn-business-rule-task", "bpmn-send-task", "bpmn-receive-task", "bpmn-call-activity"].includes(kind)) {
       const iconX = x + 14; const iconY = y + 14;
       const marker = kind === "bpmn-user-task" ? `<circle cx="${iconX + 5}" cy="${iconY + 4}" r="3" fill="none" stroke="${ink}"/><path d="M ${iconX} ${iconY + 16} H ${iconX + 10} M ${iconX + 5} ${iconY + 8} V ${iconY + 18}" stroke="${ink}"/>`
@@ -924,11 +1250,19 @@ function renderModelComponentSvg(group: GroupElement) {
               : kind === "bpmn-business-rule-task" ? `<rect x="${iconX}" y="${iconY + 2}" width="16" height="14" fill="none" stroke="${ink}"/><path d="M ${iconX} ${iconY + 7} H ${iconX + 16} M ${iconX} ${iconY + 12} H ${iconX + 16} M ${iconX + 6} ${iconY + 2} V ${iconY + 16}" stroke="${ink}"/>`
                 : kind === "bpmn-send-task" || kind === "bpmn-receive-task" ? `<rect x="${iconX}" y="${iconY + 3}" width="17" height="12" fill="none" stroke="${ink}"/><path d="M ${iconX} ${iconY + 3} L ${iconX + 8.5} ${iconY + 10} L ${iconX + 17} ${iconY + 3}" fill="none" stroke="${ink}"/>${kind === "bpmn-send-task" ? `<circle cx="${iconX + 8.5}" cy="${iconY + 9}" r="1.5" fill="${ink}"/>` : ""}` : "";
       const callBorder = kind === "bpmn-call-activity" ? r(x + 4, y + 4, w - 8, h - 8, "none") : "";
-      return `${r()}${callBorder}${marker}${t(rawTitle.toUpperCase(), x + w / 2, y + h / 2, w - 20, size, "middle")}`;
+      const taskDescription = kind === "bpmn-user-task" ? field("assignee")
+        : kind === "bpmn-service-task" ? field("operation")
+          : kind === "bpmn-script-task" ? field("script-language")
+            : kind === "bpmn-manual-task" ? field("instruction")
+              : kind === "bpmn-business-rule-task" ? field("decision")
+                : kind === "bpmn-send-task" || kind === "bpmn-receive-task" ? field("message")
+                  : kind === "bpmn-call-activity" ? field("called-process") : field("activity");
+      const taskPrefix = kind === "bpmn-user-task" ? "Assignee" : kind === "bpmn-service-task" ? "Operation" : kind === "bpmn-script-task" ? "Language" : kind === "bpmn-manual-task" ? "Instruction" : kind === "bpmn-business-rule-task" ? "Decision" : kind === "bpmn-send-task" ? "Send" : kind === "bpmn-receive-task" ? "Receive" : kind === "bpmn-call-activity" ? "Calls" : "Work";
+      return `${r()}${callBorder}${marker}${t(rawTitle.toUpperCase(), x + w / 2, y + h * .59, w - 20, size, "middle")}${taskDescription ? t(`${taskPrefix}: ${taskDescription}`, x + w / 2, y + h * .84, w - 24, Math.max(7, size * .62), "middle", 400) : ""}`;
     }
-    if (kind === "bpmn-subprocess") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + h * .42, w - 20, size, "middle")}${r(x + w / 2 - 6, y + h - 18, 12, 12, cleanFill)}${p(`M ${x + w / 2 - 3} ${y + h - 12} H ${x + w / 2 + 3} M ${x + w / 2} ${y + h - 15} V ${y + h - 9}`)}`;
-    if (kind === "bpmn-data") return `${r()}${p(`M ${x + w - 18} ${y} L ${x + w - 18} ${y + 18} H ${x + w}`)}${t(rawTitle.toUpperCase(), x + w / 2, y + h / 2, w - 10, Math.max(8, size * .8), "middle")}`;
-    if (kind === "bpmn-data-store") { const ry = Math.min(12, h * .16); return `<path d="M ${x} ${y + ry} C ${x} ${y - ry * .3} ${x + w} ${y - ry * .3} ${x + w} ${y + ry} V ${y + h - ry} C ${x + w} ${y + h + ry * .3} ${x} ${y + h + ry * .3} ${x} ${y + h - ry} Z" fill="${cleanFill}" stroke="${ink}"/><ellipse cx="${x + w / 2}" cy="${y + ry}" rx="${w / 2}" ry="${ry}" fill="${cleanFill}" stroke="${ink}"/>${t(rawTitle.toUpperCase(), x + w / 2, y + h / 2, w - 12, size, "middle")}`; }
+    if (kind === "bpmn-subprocess") return `${r()}${t(rawTitle.toUpperCase(), x + w / 2, y + h * .36, w - 20, size, "middle")}${field("purpose") ? t(field("purpose"), x + w / 2, y + h * .59, w - 20, Math.max(7, size * .64), "middle", 400) : ""}${field("entry-condition") ? t(`Starts when: ${field("entry-condition")}`, x + w / 2, y + h * .78, w - 20, Math.max(7, size * .58), "middle", 400) : ""}${r(x + w / 2 - 6, y + h - 18, 12, 12, cleanFill)}${p(`M ${x + w / 2 - 3} ${y + h - 12} H ${x + w / 2 + 3} M ${x + w / 2} ${y + h - 15} V ${y + h - 9}`)}`;
+    if (kind === "bpmn-data") return `${r()}${p(`M ${x + w - 18} ${y} L ${x + w - 18} ${y + 18} H ${x + w}`)}${t(rawTitle.toUpperCase(), x + w / 2, y + h * .38, w - 10, Math.max(8, size * .8), "middle")}${field("state") ? t(field("state"), x + w / 2, y + h * .59, w - 12, Math.max(7, size * .62), "middle", 400) : ""}${field("format") ? t(field("format"), x + w / 2, y + h * .75, w - 12, Math.max(7, size * .56), "middle", 400) : ""}`;
+    if (kind === "bpmn-data-store") { const ry = Math.min(12, h * .16); return `<path d="M ${x} ${y + ry} C ${x} ${y - ry * .3} ${x + w} ${y - ry * .3} ${x + w} ${y + ry} V ${y + h - ry} C ${x + w} ${y + h + ry * .3} ${x} ${y + h + ry * .3} ${x} ${y + h - ry} Z" fill="${cleanFill}" stroke="${ink}"/><ellipse cx="${x + w / 2}" cy="${y + ry}" rx="${w / 2}" ry="${ry}" fill="${cleanFill}" stroke="${ink}"/>${t(rawTitle.toUpperCase(), x + w / 2, y + h * .42, w - 12, size, "middle")}${field("store") ? t(field("store"), x + w / 2, y + h * .62, w - 14, Math.max(7, size * .62), "middle", 400) : ""}${field("retention") ? t(`Retention: ${field("retention")}`, x + w / 2, y + h * .8, w - 14, Math.max(7, size * .56), "middle", 400) : ""}`; }
     if (kind === "bpmn-text-annotation") return `${p(`M ${x + 14} ${y} H ${x + 4} V ${y + h} H ${x + 14}`)}${t(rawTitle, x + 22, y + h / 2, w - 28, size, "start", 400)}`;
     if (kind === "bpmn-pool") return `${r()}${r(x, y, Math.min(34, w / 3), h, soft)}${p(`M ${x + 34} ${y + h / 2} H ${x + w}`)}${t("POOL", x + 17, y + h / 2, 30, Math.max(8, size * .55), "middle")}`;
     if (kind === "data-flow") return `${t(rawTitle.toUpperCase(), x + w / 2, y + 9, w, Math.max(8, size * .72), "middle")}${p(`M ${x + 4} ${y + h * .72} H ${x + w - 10} l -8 -5 m 8 5 l -8 5`)}`;
@@ -938,7 +1272,12 @@ function renderModelComponentSvg(group: GroupElement) {
     const ink = meta.styleOverrides?.color ?? palette.ink;
     const iconSide = Math.max(24, Math.min(64, h - 32, w * .38)); const iconX = x + 12; const iconY = y + (h - iconSide) / 2 - 3; const copyX = iconX + iconSide + 10;
     const icon = meta.iconSvg && meta.iconViewBox ? `<svg x="${iconX}" y="${iconY}" width="${iconSide}" height="${iconSide}" viewBox="${meta.iconViewBox}" preserveAspectRatio="xMidYMid meet">${meta.iconSvg}</svg>` : `<rect x="${iconX}" y="${iconY}" width="${iconSide}" height="${iconSide}" fill="${palette.soft}" stroke="${edge}"/><text x="${iconX + iconSide / 2}" y="${iconY + iconSide / 2 + 4}" text-anchor="middle" fill="${ink}" font-family="sans-serif" font-size="12" font-weight="700">${xmlText(provider.glyph)}</text>`;
-    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${edge}" stroke-width="1.5"/>${icon}<text x="${copyX}" y="${y + h * .43}" fill="${ink}" font-family="sans-serif" font-size="${size}" font-weight="700"${fitTextAttribute(rawTitle, w - (copyX - x) - 10)}>${title}</text><text x="${copyX}" y="${y + h * .63}" fill="${palette.muted}" font-family="sans-serif" font-size="8"${fitTextAttribute(provider.provider.toUpperCase(), w - (copyX - x) - 10, 8)}>${xmlText(provider.provider.toUpperCase())}</text><text x="${x + 12}" y="${y + h - 6}" fill="${palette.muted}" font-family="sans-serif" font-size="8"${fitTextAttribute(provider.description, w - 24, 8)}>${xmlText(provider.description)}</text>`;
+    const providerDetails = (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, 2);
+    const detailMarkup = providerDetails.map((item, index) => {
+      const value = `${item.label}: ${item.value}`;
+      return `<text x="${copyX}" y="${y + h * (.78 + index * .12)}" fill="${palette.muted}" font-family="sans-serif" font-size="7"${fitTextAttribute(value, w - (copyX - x) - 10, 7)}>${xmlText(value)}</text>`;
+    }).join("");
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${edge}" stroke-width="1.5"/>${icon}<text x="${copyX}" y="${y + h * .34}" fill="${ink}" font-family="sans-serif" font-size="${size}" font-weight="700"${fitTextAttribute(rawTitle, w - (copyX - x) - 10)}>${title}</text><text x="${copyX}" y="${y + h * .53}" fill="${palette.muted}" font-family="sans-serif" font-size="8"${fitTextAttribute(provider.provider.toUpperCase(), w - (copyX - x) - 10, 8)}>${xmlText(provider.provider.toUpperCase())}</text>${detailMarkup}`;
   }
   if (kind === "cloud-boundary") {
     const d = `M ${x + w * .15} ${y + h * .8} C ${x + w * .04} ${y + h * .8}, ${x + w * .015} ${y + h * .66}, ${x + w * .05} ${y + h * .56} C ${x + w * .08} ${y + h * .45}, ${x + w * .17} ${y + h * .42}, ${x + w * .25} ${y + h * .44} C ${x + w * .25} ${y + h * .22}, ${x + w * .4} ${y + h * .12}, ${x + w * .53} ${y + h * .23} C ${x + w * .66} ${y + h * .05}, ${x + w * .85} ${y + h * .12}, ${x + w * .87} ${y + h * .36} C ${x + w * .97} ${y + h * .38}, ${x + w * .99} ${y + h * .49}, ${x + w * .96} ${y + h * .59} C ${x + w * .99} ${y + h * .72}, ${x + w * .9} ${y + h * .81}, ${x + w * .81} ${y + h * .8} Z`;
@@ -974,10 +1313,15 @@ function renderModelComponentSvg(group: GroupElement) {
     const cx = x + w / 2; const cy = y + h * .62;
     if (kind === "network-router") return `${box}${label}<path d="M ${x + w * .28} ${cy} H ${x + w * .72} M ${cx} ${cy - h * .16} V ${cy + h * .16} M ${cx - 5} ${cy + h * .1} L ${cx} ${cy + h * .16} L ${cx + 5} ${cy + h * .1}" fill="none" stroke="${edge}" stroke-width="1.5"/>`;
     if (kind === "network-access-point") {
-      const diameter = Math.min(w * .56, h * .64); const radius = diameter / 2; const cy = y + h * .38; const surface = fill === "transparent" ? palette.fill : fill;
+      const diameter = Math.min(w * .42, h * .46); const radius = diameter / 2; const cy = y + h * .34; const surface = fill === "transparent" ? palette.fill : fill;
       const glyph = `<path d="M ${cx - radius * .31} ${cy - radius * .03} Q ${cx} ${cy - radius * .56} ${cx + radius * .31} ${cy - radius * .03} M ${cx - radius * .17} ${cy + radius * .12} Q ${cx} ${cy - radius * .16} ${cx + radius * .17} ${cy + radius * .12}" fill="none" stroke="${palette.accent}" stroke-width="${Math.max(1.4, strokeWidth)}" stroke-linecap="round"/><circle cx="${cx}" cy="${cy + radius * .26}" r="${Math.max(1.5, radius * .06)}" fill="${palette.accent}"/>`;
       const leds = [-.18, 0, .18].map(offset => `<circle cx="${cx + radius * offset * 3}" cy="${cy + radius * .62}" r="${Math.max(1.2, radius * .045)}" fill="${palette.accent}"/>`).join("");
-      return `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${palette.soft}" stroke="${edge}" stroke-width="${strokeWidth}"/><circle cx="${cx}" cy="${cy}" r="${radius * .78}" fill="${surface}" stroke="${edge}" stroke-width="${Math.max(1, strokeWidth * .7)}"/>${glyph}${leds}<text x="${cx}" y="${y + h * .88}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700">ACCESS POINT</text>`;
+      const ssid = field("ssid"); const security = field("security-mode"); const channel = field("channel");
+      const identity = ssid ? `<text x="${cx}" y="${y + h * .72}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${Math.max(7, size * .58)}" font-weight="650"${fitTextAttribute(ssid, w - 12, Math.max(7, size * .58))}>${xmlText(ssid)}</text>` : "";
+      const radio = security || channel ? `${xmlText(security)}${security && channel ? " · " : ""}${xmlText(channel)}` : "";
+      const settings = radio ? `<text x="${cx}" y="${y + h * .88}" text-anchor="middle" dominant-baseline="middle" fill="${palette.muted}" font-family="sans-serif" font-size="${Math.max(6, size * .48)}"${fitTextAttribute([security, channel].filter(Boolean).join(" · "), w - 12, Math.max(6, size * .48))}>${radio}</text>` : "";
+      const heading = `<text x="${cx}" y="${y + 12}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${Math.max(7, size * .68)}" font-weight="700"${fitTextAttribute(rawTitle.toUpperCase(), w - 8, Math.max(7, size * .68))}>${xmlText(rawTitle.toUpperCase())}</text>`;
+      return `${heading}<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${palette.soft}" stroke="${edge}" stroke-width="${strokeWidth}"/><circle cx="${cx}" cy="${cy}" r="${radius * .78}" fill="${surface}" stroke="${edge}" stroke-width="${Math.max(1, strokeWidth * .7)}"/>${glyph}${leds}${identity}${settings}`;
     }
     return `${box}${label}<circle cx="${cx}" cy="${cy - 8}" r="10" fill="${palette.soft}" stroke="${edge}"/><path d="M ${cx} ${cy + 2} L ${x + w * .25} ${y + h * .83} M ${cx} ${cy + 2} L ${cx} ${y + h * .83} M ${cx} ${cy + 2} L ${x + w * .75} ${y + h * .83}" stroke="${edge}"/><circle cx="${x + w * .25}" cy="${y + h * .83}" r="4" fill="${palette.accent}"/><circle cx="${cx}" cy="${y + h * .83}" r="4" fill="${palette.accent}"/><circle cx="${x + w * .75}" cy="${y + h * .83}" r="4" fill="${palette.accent}"/>`;
   }
@@ -995,24 +1339,34 @@ function renderModelComponentSvg(group: GroupElement) {
   }
   if (kind.startsWith("er-") && kind !== "er-table") {
     const erEdge = meta.styleOverrides?.color ?? "#31877e"; const erFill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? "#eff9f6";
-    const text = (value: string, tx: number, ty: number, width = w - 14) => `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" fill="${erEdge}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(value, width)}>${xmlText(value)}</text>`;
+    const text = (value: string, tx: number, ty: number, width = w - 14, font = size) => `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" fill="${erEdge}" font-family="sans-serif" font-size="${font}"${fitTextAttribute(value, width, font)}>${xmlText(value)}</text>`;
     if (["er-entity", "er-weak-entity", "er-associative-entity"].includes(kind)) {
       const inset = kind === "er-weak-entity" ? 6 : 0; const outer = `<rect x="${x + inset}" y="${y + inset}" width="${w - inset * 2}" height="${h - inset * 2}" fill="${erFill}" stroke="${erEdge}"/>`;
       const inner = kind === "er-weak-entity" ? `<rect x="${x + 2}" y="${y + 2}" width="${w - 4}" height="${h - 4}" fill="none" stroke="${erEdge}"/>` : "";
       const badge = kind === "er-associative-entity" ? `<path d="M ${x + w / 2} ${y + 2} l10 10-10 10-10-10Z" fill="${erFill}" stroke="${erEdge}"/>` : "";
-      return `${outer}${inner}${badge}${text(rawTitle, x + w / 2, y + h / 2)}`;
+      const titleLine = text(rawTitle, x + w / 2, y + 17, w - 16);
+      if (kind === "er-weak-entity") return `${outer}${inner}${badge}${titleLine}${field("owner") ? text(`Owner: ${field("owner")}`, x + w / 2, y + 37, w - 18, Math.max(7, size * .62)) : ""}${field("partial-key") ? text(`Key: ${field("partial-key")}`, x + w / 2, y + 56, w - 18, Math.max(7, size * .62)) : ""}`;
+      if (kind === "er-associative-entity") {
+        const participants = [field("first-entity"), field("second-entity")].filter(Boolean).join(" / ");
+        return `${outer}${inner}${badge}${titleLine}${participants ? text(participants, x + w / 2, y + 42, w - 18, Math.max(7, size * .64)) : ""}${field("association-key") ? text(`Key: ${field("association-key")}`, x + w / 2, y + 65, w - 18, Math.max(7, size * .6)) : ""}`;
+      }
+      const attributes = field("attributes").split(/\r?\n/).filter(Boolean);
+      return `${outer}${inner}${badge}${titleLine}${field("identifier") ? text(`PK ${field("identifier")}`, x + w / 2, y + 38, w - 18, Math.max(7, size * .64)) : ""}${attributes.slice(0, 2).map((attribute, index) => text(attribute, x + w / 2, y + 56 + index * 14, w - 18, Math.max(7, size * .62))).join("")}`;
     }
     if (kind === "er-relationship" || kind === "er-identifying-relationship") {
       const diamond = `<path d="M ${x + w / 2} ${y} L ${x + w} ${y + h / 2} L ${x + w / 2} ${y + h} L ${x} ${y + h / 2} Z" fill="${erFill}" stroke="${erEdge}"/>`;
       const inner = kind === "er-identifying-relationship" ? `<path d="M ${x + w / 2} ${y + 7} L ${x + w - 8} ${y + h / 2} L ${x + w / 2} ${y + h - 7} L ${x + 8} ${y + h / 2} Z" fill="none" stroke="${erEdge}"/>` : "";
-      return `${diamond}${inner}${text(rawTitle, x + w / 2, y + h / 2)}`;
+      const sourceRole = field(kind === "er-identifying-relationship" ? "owner-role" : "source-role");
+      const targetRole = field(kind === "er-identifying-relationship" ? "dependent-role" : "target-role");
+      return `${diamond}${inner}${text(rawTitle, x + w / 2, y + h * .42, w * .62)}${sourceRole || targetRole ? text(`${sourceRole || "?"} - ${targetRole || "?"}`, x + w / 2, y + h * .66, w * .48, Math.max(6, size * .6)) : ""}`;
     }
     if (kind.includes("attribute")) {
       const inset = kind === "er-multivalued-attribute" ? 5 : 0; const dash = kind === "er-derived-attribute" || kind === "er-partial-key-attribute" ? ` stroke-dasharray="4 3"` : "";
       const ellipse = `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46 - inset}" ry="${h * .42 - inset}" fill="${erFill}" stroke="${erEdge}"${dash}/>`;
       const outer = kind === "er-multivalued-attribute" ? `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46}" ry="${h * .42}" fill="none" stroke="${erEdge}"/>` : "";
-      const label = text(rawTitle, x + w / 2, y + h / 2, w * .72); const underline = kind === "er-key-attribute" || kind === "er-partial-key-attribute" ? `<path d="M ${x + w * .28} ${y + h * .61} H ${x + w * .72}" stroke="${erEdge}"/>` : "";
-      return `${ellipse}${outer}${label}${underline}`;
+      const label = text(rawTitle, x + w / 2, y + h * .42, w * .72); const underline = kind === "er-key-attribute" || kind === "er-partial-key-attribute" ? `<path d="M ${x + w * .28} ${y + h * .51} H ${x + w * .72}" stroke="${erEdge}"/>` : "";
+      const type = field(kind === "er-multivalued-attribute" ? "element-type" : kind === "er-derived-attribute" ? "expression" : "data-type");
+      return `${ellipse}${outer}${label}${underline}${type ? text(type, x + w / 2, y + h * .7, w * .7, Math.max(7, size * .6)) : ""}`;
     }
     if (kind === "er-composite-attribute") {
       const parent = text(rawTitle, x + w / 2, y + h * .22); const first = meta.componentFields?.find(field => field.key === "sub-attribute-1")?.value ?? "Attribute 1"; const second = meta.componentFields?.find(field => field.key === "sub-attribute-2")?.value ?? "Attribute 2";
@@ -1020,7 +1374,7 @@ function renderModelComponentSvg(group: GroupElement) {
     }
   }
   if (kind === "uml-package") { const tabW = Math.min(w * .42, 86); const tabH = Math.min(22, h * .22); return `<path d="M ${x} ${y + tabH} V ${y + 2} H ${x + tabW} L ${x + tabW + 12} ${y + tabH} H ${x + w - 2} V ${y + h - 2} H ${x + 2} Z" fill="${fill}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + tabH + h * .35}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 24)}>${title}</text>`; }
-  if (kind === "uml-actor") { const cx = x + w / 2; const head = Math.min(w * .22, h * .11); return `<circle cx="${cx}" cy="${y + head + 3}" r="${head}" fill="${fill}" stroke="${edge}"/><path d="M ${cx} ${y + head * 2 + 3} V ${y + h * .62} M ${x + w * .2} ${y + h * .4} H ${x + w * .8} M ${cx} ${y + h * .62} L ${x + w * .25} ${y + h * .74} M ${cx} ${y + h * .62} L ${x + w * .75} ${y + h * .74}" fill="none" stroke="${edge}"/><text x="${cx}" y="${y + h * .9}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 8)}>${title}</text>`; }
+  if (kind === "uml-actor") { const cx = x + w / 2; const figureWidth = Math.min(58, w * .72); const head = Math.min(12, h * .11); return `<circle cx="${cx}" cy="${y + head + 3}" r="${head}" fill="${fill}" stroke="${edge}"/><path d="M ${cx} ${y + head * 2 + 3} V ${y + h * .62} M ${cx - figureWidth * .38} ${y + h * .4} H ${cx + figureWidth * .38} M ${cx} ${y + h * .62} L ${cx - figureWidth * .3} ${y + h * .74} M ${cx} ${y + h * .62} L ${cx + figureWidth * .3} ${y + h * .74}" fill="none" stroke="${edge}"/><text x="${cx}" y="${y + h * .9}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 8)}>${title}</text>`; }
   if (kind === "uml-use-case") return `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46}" ry="${h * .4}" fill="${fill}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w * .84)}>${title}</text>`;
   if (kind === "uml-lifeline") return `<rect x="${x}" y="${y}" width="${w}" height="${Math.min(34, h)}" rx="${simple ? 0 : 8}" fill="${fill}" fill-opacity="${meta.styleOverrides?.fillOpacity ?? 1}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + 17}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700">${title}</text><path d="M ${x + w / 2} ${y + 34} V ${y + h}" stroke="${edge}" stroke-dasharray="6 5"/>`;
   if (kind === "uml-activation") { const activationWidth = Math.min(w, Math.max(10, w * .44)); return `<rect x="${x + (w - activationWidth) / 2}" y="${y}" width="${activationWidth}" height="${h}" rx="4" fill="${palette.soft}" stroke="${edge}"/>`; }

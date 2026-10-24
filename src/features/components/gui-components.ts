@@ -1,4 +1,5 @@
-import type { GuiComponentProperties, GroupElement, Point, Theme } from "../../model";
+import type { GuiComponentProperties, GroupElement, Point, StrokeStyle, Theme } from "../../model";
+import { strokeDashPattern } from "../canvas/stroke-style";
 
 export type GuiComponentKind =
   | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle"
@@ -100,6 +101,48 @@ function styleFor(group: GroupElement, theme: Theme): Style {
 
 function escapeXml(value: string) {
   return value.replace(/[&<>\"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&apos;" })[char]!);
+}
+
+function primitivePath(ctx: CanvasRenderingContext2D, item: Primitive, offsetX = 0, offsetY = 0) {
+  ctx.beginPath();
+  if (item.type === "rect") {
+    const radius = Math.min(item.radius ?? 0, item.w / 2, item.h / 2);
+    if (ctx.roundRect) ctx.roundRect(item.x + offsetX, item.y + offsetY, item.w, item.h, radius);
+    else ctx.rect(item.x + offsetX, item.y + offsetY, item.w, item.h);
+  } else if (item.type === "circle") ctx.arc(item.x + offsetX, item.y + offsetY, item.r, 0, Math.PI * 2);
+  else if (item.type === "line") { ctx.moveTo(item.x1 + offsetX, item.y1 + offsetY); ctx.lineTo(item.x2 + offsetX, item.y2 + offsetY); }
+  else if (item.type === "path") {
+    item.points.forEach((point, index) => index ? ctx.lineTo(point.x + offsetX, point.y + offsetY) : ctx.moveTo(point.x + offsetX, point.y + offsetY));
+    if (item.closed) ctx.closePath();
+  }
+}
+
+function strokePrimitive(ctx: CanvasRenderingContext2D, item: Primitive, style: StrokeStyle, bounds: NonNullable<GroupElement["componentBounds"]>) {
+  if (item.type === "text") return;
+  const width = item.type === "line" || item.type === "path" ? item.width ?? 1 : 1;
+  const color = item.stroke ?? "transparent";
+  if (color === "transparent") return;
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  if (style === "double" && (item.type === "line" || item.type === "path" && !item.closed)) {
+    const points = item.type === "line" ? [{ x: item.x1, y: item.y1 }, { x: item.x2, y: item.y2 }] : item.points;
+    const first = points[0]; const last = points[points.length - 1];
+    if (first && last) {
+      const dx = last.x - first.x; const dy = last.y - first.y; const length = Math.max(1, Math.hypot(dx, dy)); const gap = Math.max(1.5, width * 1.25); const ox = -dy / length * gap; const oy = dx / length * gap;
+      ctx.setLineDash([]); primitivePath(ctx, item, ox, oy); ctx.stroke(); primitivePath(ctx, item, -ox, -oy); ctx.stroke();
+    }
+  } else {
+    ctx.setLineDash(strokeDashPattern(style, width)); primitivePath(ctx, item); ctx.stroke();
+    if (style === "double") {
+      ctx.setLineDash([]); ctx.translate(bounds.x + bounds.w / 2, bounds.y + bounds.h / 2); ctx.scale(.94, .94); ctx.translate(-(bounds.x + bounds.w / 2), -(bounds.y + bounds.h / 2));
+      primitivePath(ctx, item); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function svgPrimitiveStroke(style: StrokeStyle, width: number) {
+  const dash = strokeDashPattern(style, width);
+  return dash.length ? ` stroke-dasharray="${dash.join(" ")}"` : "";
 }
 
 function clampText(value: string, width: number, size: number) {
@@ -293,12 +336,12 @@ export function drawGuiComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   const bounds = group.componentBounds;
   const primitives = buildPrimitives(group, theme);
   if (!bounds || !primitives) return false;
+  const lineStyle = group.libraryComponent?.styleOverrides?.lineStyle ?? "solid";
   ctx.save(); ctx.beginPath(); ctx.rect(bounds.x - 1, bounds.y - 1, bounds.w + 2, bounds.h + 2); ctx.clip();
   for (const item of primitives) {
-    if (item.type === "rect") { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(item.x, item.y, item.w, item.h, Math.min(item.radius ?? 0, item.w / 2, item.h / 2)) : ctx.rect(item.x, item.y, item.w, item.h); ctx.fillStyle = item.fill; ctx.fill(); if (item.stroke && item.stroke !== "transparent") { ctx.strokeStyle = item.stroke; ctx.lineWidth = 1; ctx.stroke(); } }
-    else if (item.type === "circle") { ctx.beginPath(); ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2); ctx.fillStyle = item.fill; ctx.fill(); if (item.stroke && item.stroke !== "transparent") { ctx.strokeStyle = item.stroke; ctx.lineWidth = 1; ctx.stroke(); } }
-    else if (item.type === "line") { ctx.beginPath(); ctx.moveTo(item.x1, item.y1); ctx.lineTo(item.x2, item.y2); ctx.strokeStyle = item.stroke; ctx.lineWidth = item.width ?? 1; ctx.stroke(); }
-    else if (item.type === "path") { ctx.beginPath(); item.points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); if (item.closed) ctx.closePath(); if (item.fill) { ctx.fillStyle = item.fill; ctx.fill(); } if (item.stroke) { ctx.strokeStyle = item.stroke; ctx.lineWidth = item.width ?? 1; ctx.stroke(); } }
+    if (item.type === "rect" || item.type === "circle") { primitivePath(ctx, item); ctx.fillStyle = item.fill; ctx.fill(); strokePrimitive(ctx, item, lineStyle, bounds); }
+    else if (item.type === "line") strokePrimitive(ctx, item, lineStyle, bounds);
+    else if (item.type === "path") { primitivePath(ctx, item); if (item.fill) { ctx.fillStyle = item.fill; ctx.fill(); } if (item.stroke) strokePrimitive(ctx, item, lineStyle, bounds); }
     else {
       ctx.fillStyle = item.fill; ctx.font = `${item.italic ? "italic " : ""}${item.weight ?? 500} ${item.size}px ${item.family ?? "system-ui, sans-serif"}`; ctx.textAlign = item.anchor === "middle" ? "center" : item.anchor === "end" ? "right" : "left"; ctx.textBaseline = "middle"; ctx.fillText(item.value, item.x, item.y, item.width);
       if (item.underline) { const measured = Math.min(item.width, ctx.measureText(item.value).width); const start = item.anchor === "middle" ? item.x - measured / 2 : item.anchor === "end" ? item.x - measured : item.x; ctx.fillRect(start, item.y + item.size * .36, measured, Math.max(1, item.size / 14)); }
@@ -312,11 +355,38 @@ export function guiComponentSvg(group: GroupElement) {
   const primitives = buildPrimitives(group, "light");
   const meta = group.libraryComponent;
   if (!primitives || !meta) return undefined;
+  const bounds = group.componentBounds!;
+  const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2;
+  const doubleTransform = `translate(${centerX} ${centerY}) scale(.94) translate(${-centerX} ${-centerY})`;
   const content = primitives.map(item => {
-    if (item.type === "rect") return `<rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" rx="${Math.min(item.radius ?? 0, item.w / 2, item.h / 2)}" fill="${item.fill}"${item.stroke && item.stroke !== "transparent" ? ` stroke="${item.stroke}" stroke-width="1"` : ""}/>`;
-    if (item.type === "circle") return `<circle cx="${item.x}" cy="${item.y}" r="${item.r}" fill="${item.fill}"${item.stroke && item.stroke !== "transparent" ? ` stroke="${item.stroke}" stroke-width="1"` : ""}/>`;
-    if (item.type === "line") return `<path d="M ${item.x1} ${item.y1} L ${item.x2} ${item.y2}" fill="none" stroke="${item.stroke}" stroke-width="${item.width ?? 1}" stroke-linecap="round"/>`;
-    if (item.type === "path") { const d = item.points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ") + (item.closed ? " Z" : ""); return `<path d="${d}"${item.fill ? ` fill="${item.fill}"` : ` fill="none"`}${item.stroke ? ` stroke="${item.stroke}" stroke-width="${item.width ?? 1}"` : ""}/>`; }
+    const lineStyle = meta.styleOverrides?.lineStyle ?? "solid";
+    if (item.type === "rect") {
+      const stroke = item.stroke && item.stroke !== "transparent" ? ` stroke="${item.stroke}" stroke-width="1"${svgPrimitiveStroke(lineStyle, 1)}` : "";
+      const outer = `<rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" rx="${Math.min(item.radius ?? 0, item.w / 2, item.h / 2)}" fill="${item.fill}"${stroke}/>`;
+      return outer + (lineStyle === "double" && stroke ? `<rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" rx="${Math.min(item.radius ?? 0, item.w / 2, item.h / 2)}" transform="${doubleTransform}" fill="none" stroke="${item.stroke}" stroke-width="1"/>` : "");
+    }
+    if (item.type === "circle") {
+      const stroke = item.stroke && item.stroke !== "transparent" ? ` stroke="${item.stroke}" stroke-width="1"${svgPrimitiveStroke(lineStyle, 1)}` : "";
+      const outer = `<circle cx="${item.x}" cy="${item.y}" r="${item.r}" fill="${item.fill}"${stroke}/>`;
+      return outer + (lineStyle === "double" && stroke ? `<circle cx="${item.x}" cy="${item.y}" r="${item.r}" transform="${doubleTransform}" fill="none" stroke="${item.stroke}" stroke-width="1"/>` : "");
+    }
+    if (item.type === "line") {
+      const width = item.width ?? 1; const dx = item.x2 - item.x1; const dy = item.y2 - item.y1; const length = Math.max(1, Math.hypot(dx, dy)); const gap = Math.max(1.5, width * 1.25); const ox = -dy / length * gap; const oy = dx / length * gap;
+      const stroke = `fill="none" stroke="${item.stroke}" stroke-width="${width}" stroke-linecap="round"`;
+      return lineStyle === "double" ? `<path d="M ${item.x1 + ox} ${item.y1 + oy} L ${item.x2 + ox} ${item.y2 + oy}" ${stroke}/><path d="M ${item.x1 - ox} ${item.y1 - oy} L ${item.x2 - ox} ${item.y2 - oy}" ${stroke}/>` : `<path d="M ${item.x1} ${item.y1} L ${item.x2} ${item.y2}" ${stroke}${svgPrimitiveStroke(lineStyle, width)}/>`;
+    }
+    if (item.type === "path") {
+      const d = item.points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ") + (item.closed ? " Z" : "");
+      const width = item.width ?? 1; const stroke = item.stroke ? ` stroke="${item.stroke}" stroke-width="${width}"${svgPrimitiveStroke(lineStyle, width)}` : "";
+      const outer = `<path d="${d}"${item.fill ? ` fill="${item.fill}"` : ` fill="none"`}${stroke}/>`;
+      if (!item.stroke || lineStyle !== "double") return outer;
+      if (item.closed) return `${outer}<path d="${d}" transform="${doubleTransform}" fill="none" stroke="${item.stroke}" stroke-width="${width}"/>`;
+      const first = item.points[0]; const last = item.points[item.points.length - 1];
+      if (!first || !last) return outer;
+      const dx = last.x - first.x; const dy = last.y - first.y; const length = Math.max(1, Math.hypot(dx, dy)); const gap = Math.max(1.5, width * 1.25); const ox = -dy / length * gap; const oy = dx / length * gap;
+      const pathAt = (x: number, y: number) => item.points.map((point, index) => `${index ? "L" : "M"} ${point.x + x} ${point.y + y}`).join(" ");
+      return `<path d="${pathAt(ox, oy)}" fill="none" stroke="${item.stroke}" stroke-width="${width}"/><path d="${pathAt(-ox, -oy)}" fill="none" stroke="${item.stroke}" stroke-width="${width}"/>`;
+    }
     return `<text x="${item.x}" y="${item.y}" text-anchor="${item.anchor ?? "start"}" dominant-baseline="middle" fill="${item.fill}" font-family="${escapeXml(item.family ?? "system-ui, sans-serif")}" font-size="${item.size}" font-weight="${item.weight ?? 500}"${item.italic ? ` font-style="italic"` : ""}${item.underline ? ` text-decoration="underline"` : ""}>${escapeXml(item.value)}</text>`;
   }).join("");
   return `<g data-component="${meta.kind}" data-id="${escapeXml(group.id ?? "")}">${content}</g>`;

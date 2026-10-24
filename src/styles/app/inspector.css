@@ -327,6 +327,11 @@
 .relationship-properties > summary.pane-heading::-webkit-details-marker { display: none; }
 .relationship-properties > summary.pane-heading::after { content: "+"; color: var(--theme-text-secondary); font-size: 16px; }
 .relationship-properties[open] > summary.pane-heading::after { content: "−"; }
+.geometry-properties > summary.pane-heading { display: flex; min-height: 34px; align-items: center; justify-content: space-between; margin: 0; cursor: pointer; list-style: none; }
+.geometry-properties > summary.pane-heading::-webkit-details-marker { display: none; }
+.geometry-properties > summary.pane-heading::after { content: "+"; color: var(--theme-text-secondary); font-size: 16px; }
+.geometry-properties[open] > summary.pane-heading { margin-bottom: 10px; }
+.geometry-properties[open] > summary.pane-heading::after { content: "−"; }
 .page-link-empty p { margin: 0 0 7px; color: var(--theme-text-secondary); font-size: 11px; line-height: 1.4; }
 .nested-page-link { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
 .nested-page-link > span { min-width: 0; overflow-wrap: anywhere; color: var(--theme-text-secondary); font-size: 11px; }
