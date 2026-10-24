@@ -349,17 +349,33 @@
   .app-shell.theme-dark:not(.platform-windows) .touch-style-open,
   .app-shell.theme-dark:not(.platform-windows) .touch-layers-toggle { color: var(--theme-text-primary); }
   .app-shell.theme-dark:not(.platform-windows) .touch-tool-content .tool-family > .tool-options { border-color: var(--theme-border); }
+  .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-collapsed,
   .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded {
     position: fixed;
     z-index: 190;
     top: calc(var(--touch-header-height, 60px) + 10px + env(safe-area-inset-top));
-    right: max(10px, env(safe-area-inset-right));
-    bottom: max(10px, env(safe-area-inset-bottom));
-    left: max(65px, calc(env(safe-area-inset-left) + 60px));
-    width: auto;
+    right: auto;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 0;
+    display: flex;
+    width: min(300px, 100vw);
+    height: auto;
+    min-height: 0;
     max-height: none;
+    flex-direction: column;
+    overflow: hidden;
   }
-  .app-shell:not(.platform-windows) .style-pane.full-style-mode > .full-inspector { max-height: none; }
+  .app-shell:not(.platform-windows) .style-pane.full-style-mode > .full-inspector {
+    max-height: none;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .app-shell:not(.platform-windows) .style-pane.full-style-mode > .full-inspector::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  .app-shell:not(.platform-windows) .style-pane.full-style-mode .inspector-properties-content { min-width: 0; overflow-x: hidden; }
   .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-inspector button { min-height: 35px; touch-action: manipulation; }
   .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-inspector-header .full-inspector-close { width: 35px; min-width: 35px; height: 35px; }
 }

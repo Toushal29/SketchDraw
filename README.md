@@ -28,7 +28,7 @@ The launch and workspace SVGs are hand-drawn previews rather than runtime captur
 
 ![SketchDraw portrait mobile workspace with compact header, responsive top tool rail, and quick styles](docs/screenshots/mobile-portrait-preview.svg)
 
-*Mobile and tablet workspaces: toolbars and quick-style controls stay separate and adapt to the chosen toolbar position and screen orientation. Choose an orientation and toolbar location in App Settings on supported devices.*
+*Mobile and tablet workspaces: toolbars and quick-style controls stay separate and adapt to the chosen toolbar position and screen orientation. The full Properties pane stays attached to the left edge, sizes to the available screen height, and leaves a gap below it. Choose an orientation and toolbar location in App Settings on supported devices.*
 
 ![Project Home with prioritized tasks, recent notes, and project tool shortcuts](docs/screenshots/project-home-preview.svg)
 
