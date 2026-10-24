@@ -6,13 +6,13 @@
   place-items: center;
   padding: 20px;
   background: rgb(20 30 42 / 48%);
-  backdrop-filter: blur(5px);
 }
 
 .diagram-guides-dialog {
   box-sizing: border-box;
   display: grid;
   width: min(1100px, 100%);
+  max-height: min(90vh, 900px);
   max-height: min(90dvh, 900px);
   min-height: 0;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
@@ -21,7 +21,7 @@
   border-radius: 15px;
   color: var(--theme-text-primary);
   background: var(--theme-surface-elevated);
-  box-shadow: 0 25px 75px rgb(10 20 35 / 25%);
+  box-shadow: 0 16px 40px rgb(10 20 35 / 20%);
 }
 
 .diagram-guides-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 25px 30px 20px; background: linear-gradient(120deg, color-mix(in srgb, var(--ui-accent-soft) 70%, var(--theme-surface-elevated)), var(--theme-surface-elevated) 70%); }
@@ -66,7 +66,7 @@
 
 @media (max-width: 700px) {
   .diagram-guides-backdrop { padding: 10px; }
-  .diagram-guides-dialog { max-height: 95dvh; border-radius: 10px; }
+  .diagram-guides-dialog { max-height: 95vh; max-height: 95dvh; border-radius: 10px; }
   .diagram-guides-header { gap: 10px; padding: 20px; }
   .diagram-guides-header h2 { font-size: 20px; }
   .diagram-guides-filters { padding: 0 20px 10px; }

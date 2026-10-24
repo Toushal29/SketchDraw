@@ -40,7 +40,7 @@ export class SceneTileCache {
     drawElement: (context: CanvasRenderingContext2D, element: Element, viewport: Bounds, sourceItems: Element[]) => void,
   ): boolean {
     const physicalScale = zoom * devicePixelRatio;
-    if (!Number.isFinite(physicalScale) || physicalScale > MAX_CACHED_TILE_SCALE) return false;
+    if (!Number.isFinite(physicalScale) || physicalScale < 1 || physicalScale > MAX_CACHED_TILE_SCALE) return false;
     // Keep cached detail close to the screen's physical pixel scale to avoid
     // interpolation blur at 100% zoom and nearby zoom levels.
     const scale = Math.max(.75, Math.min(MAX_CACHED_TILE_SCALE, Math.round(physicalScale * 8) / 8));
@@ -63,7 +63,28 @@ export class SceneTileCache {
         visibleTiles.push(tile);
       }
     }
-    for (const tile of visibleTiles) context.drawImage(tile.canvas, tile.x - TILE_BLEED, tile.y - TILE_BLEED, TILE_SIZE + TILE_BLEED * 2, TILE_SIZE + TILE_BLEED * 2);
+    const transform = context.getTransform();
+    if (![transform.a, transform.b, transform.c, transform.d, transform.e, transform.f].every(Number.isFinite)
+      || Math.abs(transform.b) > 1e-8 || Math.abs(transform.c) > 1e-8 || !transform.a || !transform.d) return false;
+    for (const tile of visibleTiles) {
+      const x1 = transform.a * tile.x + transform.e;
+      const x2 = transform.a * (tile.x + TILE_SIZE) + transform.e;
+      const y1 = transform.d * tile.y + transform.f;
+      const y2 = transform.d * (tile.y + TILE_SIZE) + transform.f;
+      const left = Math.round(Math.min(x1, x2));
+      const top = Math.round(Math.min(y1, y2));
+      const right = Math.round(Math.max(x1, x2));
+      const bottom = Math.round(Math.max(y1, y2));
+      if (right <= left || bottom <= top) continue;
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.beginPath();
+      context.rect(left, top, right - left, bottom - top);
+      context.clip();
+      context.setTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
+      context.drawImage(tile.canvas, tile.x - TILE_BLEED, tile.y - TILE_BLEED, TILE_SIZE + TILE_BLEED * 2, TILE_SIZE + TILE_BLEED * 2);
+      context.restore();
+    }
     return true;
   }
 

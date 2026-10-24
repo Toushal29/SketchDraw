@@ -31,7 +31,7 @@
 }
 
 .paint-brush-options { width: 196px; flex-wrap: wrap; }
-.paint-brush-options > button { width: calc(50% - 3px); flex-direction: row !important; justify-content: flex-start; gap: 7px; }
+.tool-options.paint-brush-options > button { width: calc(50% - 3px); flex-direction: row; justify-content: flex-start; gap: 7px; }
 .paint-brush-options > button svg { width: 19px; height: 19px; flex: 0 0 19px; }
 
 /* Compact desktop rails keep their controls visible and scroll within the dock. */

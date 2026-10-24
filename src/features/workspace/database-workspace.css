@@ -175,7 +175,6 @@
 }
 .design-panel-toggle:hover { color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
 .design-panel-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.design-panel-toggle:focus-visible { outline: 2px solid var(--ui-accent-border); outline-offset: 1px; }
 
 .design-workspace-active .style-pane.schema-editor-active { box-sizing: border-box; position: fixed; top: 65px; bottom: max(12px, env(safe-area-inset-bottom)); display: flex; width: min(380px, calc(100% - 36px)); height: auto; min-height: 0; max-height: none; flex-direction: column; overflow: hidden; padding: 10px; border-radius: 12px; }
 .schema-editor-heading .design-library-back { flex: 0 0 auto; padding: 5px 8px; border: 1px solid var(--theme-border); border-radius: 6px; color: var(--theme-text-secondary); background: var(--theme-surface); cursor: pointer; font: inherit; font-size: 10px; }
@@ -192,7 +191,7 @@
 .design-panel-collapsed .schema-editor-heading > div,
 .design-panel-collapsed .schema-editor-heading > small,
 .design-panel-collapsed .design-library-back,
-.design-panel-collapsed .schema-editor-panel > :not(.schema-editor-heading) { display: none !important; }
+.design-panel-collapsed .schema-editor-panel > :not(.schema-editor-heading) { display: none; }
 .design-panel-collapsed .design-panel-toggle { width: 30px; height: 30px; flex-basis: 30px; font-size: 0; touch-action: manipulation; }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {

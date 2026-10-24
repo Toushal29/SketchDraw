@@ -99,7 +99,7 @@
   gap: 5px 10px;
 }
 
-.workspace-view-toggle {
+.workspace-view-panel button.workspace-view-toggle {
   display: flex;
   min-width: 0;
   min-height: 35px;
@@ -110,7 +110,7 @@
   border: 0;
   color: var(--theme-text-secondary);
   background: transparent;
-  font-size: 10px !important;
+  font-size: 10px;
   text-align: left;
 }
 
@@ -181,7 +181,7 @@
   text-align: left;
 }
 
-.workspace-view-action { justify-content: space-between !important; }
+.workspace-view-panel .workspace-view-action { justify-content: space-between; }
 .workspace-view-tools { gap: 10px; }
 .workspace-view-tools .workspace-view-action {
   width: 100%;
@@ -234,7 +234,7 @@
   border-radius: 50%;
   color: var(--theme-text-secondary);
   background: var(--theme-surface);
-  font-size: 10px !important;
+  font-size: 10px;
 }
 
 .workspace-view-color-row button:first-child { width: auto; padding: 0 10px; border-radius: 5px; }

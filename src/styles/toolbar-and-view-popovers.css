@@ -281,7 +281,6 @@
 .toolbar-order-editor .toolbar-organizer-zone li.toolbar-order-dragging { opacity: .5; }
 .toolbar-order-editor .toolbar-organizer-zone li.toolbar-order-drop-target { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
 .toolbar-organizer-grip { color: var(--theme-text-secondary); font-size: 16px; line-height: 1; text-align: center; }
-.toolbar-order-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toolbar-organizer-row-actions { display: flex; gap: 2px; }
 .toolbar-order-editor .toolbar-organizer-row-actions button { min-width: 26px; min-height: 25px; padding: 2px 4px; font-size: 11px; }
 .toolbar-order-editor .toolbar-organizer-row-actions .toolbar-organizer-transfer { min-width: 28px; color: var(--ui-accent-ink); font-size: 17px; font-weight: 700; }

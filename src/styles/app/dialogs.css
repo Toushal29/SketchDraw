@@ -248,28 +248,6 @@
     padding: 4px 7px;
 }
 
-/* The quick-style tools form a narrow vertical rail and remain visible beside the inspector. */
-.style-pane.quick-style-mode {
-    width: 45px;
-    max-height: calc(100% - 36px);
-    padding: 7px;
-    overflow: visible;
-}
-
-.quick-style-panel {
-    display: none;
-    width: 100%;
-    min-width: 0;
-}
-
-.quick-style-mode>.quick-style-panel {
-    display: block;
-}
-
-.quick-style-mode> :not(.quick-style-panel) {
-    display: none !important;
-}
-
 .quick-style-heading {
     height: 29px;
     justify-content: center;

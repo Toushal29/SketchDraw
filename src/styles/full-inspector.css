@@ -16,7 +16,8 @@
   background: var(--theme-surface-elevated);
 }
 
-.style-pane.full-style-mode > .quick-style-panel { display: none !important; }
+.app-shell:not(.platform-windows) .style-pane.full-style-mode > .quick-style-panel,
+.app-shell.platform-windows .style-pane.full-style-mode > .quick-style-panel { display: none; }
 
 .style-pane.full-style-mode > .full-inspector {
   box-sizing: border-box;

@@ -34,6 +34,7 @@
         box-sizing: border-box;
         width: min(540px, calc(100vw - 16px));
         max-width: calc(100vw - 16px);
+        max-height: calc(100vh - var(--touch-header-height) - 15px);
         max-height: calc(100dvh - var(--touch-header-height) - 15px);
         overflow: hidden;
         transform: translateX(-50%);
@@ -48,6 +49,7 @@
         right: auto;
         left: max(8px, env(safe-area-inset-left));
         width: min(280px, calc(100vw - 16px));
+        max-height: min(72vh, 460px);
         max-height: min(72dvh, 460px);
         overflow-x: hidden;
         overflow-y: auto;
@@ -116,7 +118,7 @@
     .app-shell:not(.platform-windows) .mobile-touch-tabs button { min-width: 0; min-height: 34px; padding: 5px 7px; border: 1px solid transparent; border-radius: 8px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 90%, transparent); background: transparent; font: 650 10px/1.2 var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-settings-tabs button.active,
     .app-shell:not(.platform-windows) .mobile-touch-tabs button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-    .app-shell:not(.platform-windows) .mobile-settings-content { max-height: calc(100dvh - var(--touch-header-height) - 126px); overflow: auto; padding: 2px 10px 8px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    .app-shell:not(.platform-windows) .mobile-settings-content { max-height: calc(100vh - var(--touch-header-height) - 126px); max-height: calc(100dvh - var(--touch-header-height) - 126px); overflow: auto; padding: 2px 10px 8px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
     .app-shell:not(.platform-windows) .mobile-settings-section { padding: 7px 0 5px; border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 11%, transparent); }
     .app-shell:not(.platform-windows) .mobile-settings-section:last-child { border-bottom: 0; }
     .app-shell:not(.platform-windows) .mobile-settings-section h3 { margin: 0 0 6px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-primary)) 88%, transparent); font: 750 9px/1.2 var(--font-ui); letter-spacing: .09em; text-transform: uppercase; }
@@ -171,15 +173,12 @@
     .app-shell:not(.platform-windows) .mobile-update-status.available { color: var(--theme-warning); }
     .app-shell:not(.platform-windows) .mobile-update-status.error { color: var(--theme-error); }
 
-    .app-shell:not(.platform-windows) .mobile-file-trigger { width: 100%; min-width: 34px; padding-inline: 3px; }
-    .app-shell:not(.platform-windows) .mobile-file-trigger span { display: inline; }
     .app-shell:not(.platform-windows) .mobile-settings-trigger svg { width: 18px; height: 18px; flex-basis: 18px; }
 }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-command-bar,
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-command-actions { display: contents; }
-    .app-shell:not(.platform-windows) .mobile-file-trigger { grid-area: file; }
     .app-shell:not(.platform-windows) .mobile-settings-trigger { grid-area: settings; width: 32px; min-width: 32px; padding: 0; }
     .app-shell:not(.platform-windows) .mobile-settings-trigger span { display: none; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-command-trigger { height: 24px; padding-inline: 5px; font-size: 9px; }

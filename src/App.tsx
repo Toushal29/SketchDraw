@@ -108,6 +108,7 @@ import { serializeSketchSnapshot } from "./features/files/document-codec";
 import { sketchFileStore } from "./features/files/sketch-file-store";
 import { sketchRecoveryStore } from "./features/files/sketch-recovery-store";
 const SHAPE_CATALOG_COUNT = 4 + FLOWCHART_SHAPES.length + GENERAL_SHAPES.length;
+const OPEN_POPOVER_DETAILS_SELECTOR = ".menu-dropdown[open], .touch-page-control[open], .touch-page-more[open], .page-menu[open], .project-dependency-picker[open]";
 
 type AndroidStylusSample = { clientX: number; clientY: number; pressure: number; tiltX: number; tiltY: number; orientation: number; time: number; phase: "start" | "move" | "end" };
 
@@ -3906,7 +3907,7 @@ function App() {
         if (openToolOptions()) { closeToolOptions(); return; }
         if (toolbarOrganizerOpen()) { event.preventDefault(); setToolbarOrganizerOpen(false); return; }
         if (measureMode()) { event.preventDefault(); toggleMeasureMode(); return; }
-        document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => detail.open = false);
+        document.querySelectorAll<HTMLDetailsElement>(OPEN_POPOVER_DETAILS_SELECTOR).forEach(detail => detail.open = false);
         if (showClearConfirm()) { event.preventDefault(); setShowClearConfirm(false); return; }
         if (exportOptionsOpen()) { event.preventDefault(); setExportOptionsOpen(false); return; }
         if (recoveryPrompt() || syncConflict()) return;
@@ -3992,7 +3993,7 @@ function App() {
       cancelCanvasInteraction();
     };
     const updateDisplayMetrics = () => setDisplayMetrics(readDisplayMetrics());
-    const outsideClick = (event: PointerEvent) => { document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => { if (!detail.contains(event.target as Node)) detail.open = false; }); if (!(event.target instanceof HTMLElement && event.target.closest(".tool-family"))) { closeToolOptions(); setStencilMenuOpen(false); } if (!(event.target instanceof HTMLElement && event.target.closest(".more-tools-family"))) setMoreToolsOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-options-family"))) setCanvasOptionsOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".quick-style-panel"))) setQuickStylePopover(undefined); if (!(event.target instanceof HTMLElement && event.target.closest(".touch-style-panel, .touch-style-open"))) setTouchStylePanel(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-context-menu"))) setContextMenu(undefined); if (textDraft() && event.target instanceof Element && !event.target.closest(".canvas-text-editor, .style-pane, .design-toolbar, .drawing-canvas")) commitTextDraft(); if (menu?.open && !menu.contains(event.target as Node)) menu.open = false; if (viewMenu?.open && !viewMenu.contains(event.target as Node)) viewMenu.open = false; if (gestureMenu?.open && !gestureMenu.contains(event.target as Node)) gestureMenu.open = false; };
+    const outsideClick = (event: PointerEvent) => { document.querySelectorAll<HTMLDetailsElement>(OPEN_POPOVER_DETAILS_SELECTOR).forEach(detail => { if (!detail.contains(event.target as Node)) detail.open = false; }); if (!(event.target instanceof HTMLElement && event.target.closest(".tool-family"))) { closeToolOptions(); setStencilMenuOpen(false); } if (!(event.target instanceof HTMLElement && event.target.closest(".more-tools-family"))) setMoreToolsOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-options-family"))) setCanvasOptionsOpen(false); if (!(event.target instanceof HTMLElement && event.target.closest(".quick-style-panel"))) setQuickStylePopover(undefined); if (!(event.target instanceof HTMLElement && event.target.closest(".touch-style-panel, .touch-style-open"))) setTouchStylePanel(false); if (!(event.target instanceof HTMLElement && event.target.closest(".canvas-context-menu"))) setContextMenu(undefined); if (textDraft() && event.target instanceof Element && !event.target.closest(".canvas-text-editor, .style-pane, .design-toolbar, .drawing-canvas")) commitTextDraft(); if (menu?.open && !menu.contains(event.target as Node)) menu.open = false; if (viewMenu?.open && !viewMenu.contains(event.target as Node)) viewMenu.open = false; if (gestureMenu?.open && !gestureMenu.contains(event.target as Node)) gestureMenu.open = false; };
     const closeMenuOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { setQuickStylePopover(undefined); setToolbarOrganizerOpen(false); setMoreToolsOpen(false); if (menu?.open) menu.open = false; if (viewMenu?.open) viewMenu.open = false; if (gestureMenu?.open) gestureMenu.open = false; if (helpMenu?.open) helpMenu.open = false; if (appSettingsMenu?.open) appSettingsMenu.open = false; } };
     const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
     const updateSystemTheme = (event: MediaQueryListEvent) => setSystemDark(event.matches);
@@ -4681,7 +4682,7 @@ function App() {
     if (enabled) {
       if (windowsFullscreenMode()) await toggleWindowsFullscreen(false);
       commitTextDraft();
-      document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => detail.open = false);
+      document.querySelectorAll<HTMLDetailsElement>(OPEN_POPOVER_DETAILS_SELECTOR).forEach(detail => detail.open = false);
       setCommandPaletteOpen(false); setPresentationTarget(currentFrameElements().length ? "frames" : "pages"); setPresentationFrameIndex(-1); setPresentationMode(true);
       try {
         if (isTauri()) {
@@ -5567,7 +5568,7 @@ function App() {
       return;
     }
     if (event.target === canvas && isCompactTouchLayout() && (event.pointerType !== "mouse" || !!touchStylePanel()) &&
-      (canvasOptionsOpen() || !!touchStylePanel() || !!openToolOptions() || stencilMenuOpen() || !!quickStylePopover() || !!contextMenu() || !!document.querySelector("details[open]") || !!noteEditor() || !!textDraft())) {
+      (canvasOptionsOpen() || !!touchStylePanel() || !!openToolOptions() || stencilMenuOpen() || !!quickStylePopover() || !!contextMenu() || !!document.querySelector(OPEN_POPOVER_DETAILS_SELECTOR) || !!noteEditor() || !!textDraft())) {
       if (noteEditor()) saveNoteEditor();
       if (textDraft()) commitTextDraft();
       event.preventDefault();
@@ -6383,7 +6384,7 @@ function App() {
       if (presentationMode()) await togglePresentationMode(false);
       commitTextDraft(); closeToolOptions(); setCanvasOptionsOpen(false); setLayerPanelOpen(false); setQuickStylePopover(undefined); setTouchStylePanel(false);
        setStencilMenuOpen(false); setCommandPaletteOpen(false); setShortcutDialogOpen(false);
-      document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => detail.open = false);
+      document.querySelectorAll<HTMLDetailsElement>(OPEN_POPOVER_DETAILS_SELECTOR).forEach(detail => detail.open = false);
       setWindowsFullscreenMode(true);
       if (isTauri()) {
         try {
@@ -6419,7 +6420,7 @@ function App() {
       setLayerPanelOpen(false);
       setQuickStylePopover(undefined);
       setTouchStylePanel(false);
-      document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach(detail => detail.open = false);
+      document.querySelectorAll<HTMLDetailsElement>(OPEN_POPOVER_DETAILS_SELECTOR).forEach(detail => detail.open = false);
       setTouchFocusMode(true);
       if (isTauri()) {
         try {

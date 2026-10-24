@@ -3,7 +3,7 @@
     box-sizing: border-box;
     width: min(380px, calc(100vw - 36px));
     min-width: 0;
-    top: 65px !important;
+    top: 65px;
 }
 
 .style-pane.quick-style-mode:not(.schema-editor-active):not(.mobile-properties-expanded):not(.mobile-properties-collapsed) {

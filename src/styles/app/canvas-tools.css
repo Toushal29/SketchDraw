@@ -1,10 +1,16 @@
 /* Compact quick-style panel with an explicit path to the full inspector. */
 .quick-style-panel {
     display: none;
+    width: 100%;
+    min-width: 0;
 }
 
 .quick-style-mode>.quick-style-panel {
     display: block;
+}
+
+.quick-style-mode > :not(.quick-style-panel) {
+    display: none;
 }
 
 .quick-style-heading {
@@ -182,7 +188,6 @@
 
 .quick-style-heading button:hover {
     border-color: var(--theme-border);
-    color: var(--theme-info);
     background: var(--theme-surface-hover);
 }
 
@@ -268,8 +273,6 @@
 }
 
 .quick-style-popover {
-    top: calc(100% + 5px);
-    left: 0;
     right: auto;
     min-width: 190px;
     padding: 8px;

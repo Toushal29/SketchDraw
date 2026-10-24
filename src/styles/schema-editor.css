@@ -2,7 +2,7 @@
 .style-pane.schema-editor-active {
   box-sizing: border-box;
   position: fixed;
-  top: 65px !important;
+  top: 65px;
   bottom: max(12px, env(safe-area-inset-bottom));
   display: flex;
   width: min(380px, calc(100vw - 36px));

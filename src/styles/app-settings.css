@@ -1,5 +1,6 @@
 .app-shell {
     width: calc(100vw / var(--app-ui-scale, 1));
+    height: calc(100vh / var(--app-ui-scale, 1));
     height: calc(100dvh / var(--app-ui-scale, 1));
     zoom: var(--app-ui-scale, 1);
 }
@@ -27,6 +28,7 @@
 .app-settings-popover {
     display: grid;
     width: min(330px, calc(100vw - 20px));
+    max-height: min(78vh, 680px);
     max-height: min(78dvh, 680px);
     gap: 10px;
     padding: 12px;
@@ -185,20 +187,20 @@
     width: 32px;
     min-width: 32px;
     height: 30px;
-    min-height: 30px !important;
+    min-height: 30px;
     align-content: center;
     justify-items: center;
     gap: 2px;
-    padding: 0 !important;
+    padding: 0;
     touch-action: none;
-    cursor: grab !important;
+    cursor: grab;
     user-select: none;
     -webkit-user-select: none;
 }
 
 .toolbar-order-grip:active,
 .toolbar-order-editor li.toolbar-order-dragging .toolbar-order-grip {
-    cursor: grabbing !important;
+    cursor: grabbing;
 }
 
 .toolbar-order-grip i {
