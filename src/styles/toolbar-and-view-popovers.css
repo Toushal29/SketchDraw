@@ -76,34 +76,6 @@
     box-shadow: 0 16px 42px rgb(16 25 40 / 20%);
 }
 
-.view-settings-heading {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 0 0 9px;
-    border-bottom: 1px solid var(--theme-border);
-}
-
-.view-settings-heading > div {
-    display: grid;
-    gap: 2px;
-}
-
-.view-settings-heading > div > span {
-    color: var(--theme-text-secondary);
-    font-size: 8px;
-    font-weight: 750;
-    letter-spacing: .11em;
-}
-
-.view-settings-heading strong {
-    font-size: 13px;
-    font-weight: 700;
-}
-
-.view-settings-heading button,
 .view-settings-action {
     display: flex;
     min-height: 32px;
@@ -119,7 +91,6 @@
     cursor: pointer;
 }
 
-.view-settings-heading button:hover,
 .view-settings-action:hover:not(:disabled) {
     border-color: var(--ui-accent-border);
     background: var(--ui-accent-soft);
@@ -371,8 +342,6 @@
     .view-menu-dropdown .view-settings-popover { width: min(390px, calc(100vw - 16px)); max-width: calc(100vw - 16px); padding: 10px; }
     .view-settings-row, .view-settings-patterns { grid-template-columns: 72px minmax(0, 1fr); }
     .view-settings-patterns > div { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .view-settings-heading { align-items: flex-start; }
-    .view-settings-heading button { max-width: 138px; font-size: 9px; }
     .toolbar-organizer-backdrop { padding: 8px; }
     .toolbar-order-editor { width: min(500px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); gap: 8px; padding: 10px; }
     .toolbar-organizer-columns { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }

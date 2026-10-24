@@ -42,7 +42,7 @@ export function AppSettingsMenu(props: Props) {
       </section>}
       <ButtonChoices label="Interface scale" value={props.interfaceScale} options={scales.map(scale => ({ value: scale, label: `${Math.round(scale * 100)}%` }))} onChange={props.onInterfaceScaleChange} />
       <ButtonChoices label="Autosave interval" value={props.autosaveSeconds} options={[{ value: 5, label: "5 sec" }, { value: 10, label: "10 sec" }]} onChange={props.onAutosaveChange} />
-      <ButtonChoices label="Pen thickness control" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} />
+      <ButtonChoices label="Pen and brush thickness control" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} />
       <button class="app-settings-reset" onClick={props.onRestoreDefaults}>Restore defaults</button>
     </div>
   </details>;

@@ -204,6 +204,17 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   ctx.beginPath(); ctx.rect(x - 1, y - 1, w + 2, h + 2); ctx.clip();
   ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.font = `${size}px system-ui, sans-serif`;
 
+  if (kind === "uml-enumeration") {
+    box(); const header = Math.min(40, h * .3);
+    label("<<enumeration>>", x + 8, y + 14, w - 16, Math.max(8, size * .68), false, "center");
+    label(name, x + 8, y + header, w - 16, size, true, "center");
+    rule(x, y + header + 8, x + w, y + header + 8);
+    label("<<literal>>", x + 12, y + header + 28, w - 24, Math.max(8, size * .68), false);
+    const literals = meta.componentFields?.find(field => field.key === "literals")?.value.trim();
+    if (literals) literals.split(/\r?\n/).slice(0, 8).forEach((literal, index) => label(literal, x + 12, y + header + 48 + index * Math.min(16, h * .1), w - 24, Math.max(8, size * .72), false));
+    ctx.restore(); return;
+  }
+
   if (kind === "diagram-frame") {
     ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.setLineDash([7, 4]); ctx.strokeRect(x + .7, y + .7, Math.max(0, w - 1.4), Math.max(0, h - 1.4)); ctx.setLineDash([]);
     label(name, x + 12, y + 13, w - 24, Math.min(size, 14));
@@ -264,10 +275,16 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     label(name, x + 10, y + h * .62, w - 20, size, true);
     ctx.restore(); return;
   }
-  if (kind === "c4-deployment-node") {
+  if (kind === "c4-code-element") {
+    box(); label("CODE ELEMENT", x + 10, y + 16, w - 20, Math.max(8, size * .7), false);
+    rule(x + 1, y + 27, x + w - 1, y + 27); label(name, x + 12, y + h * .47, w - 24, size, true);
+    rule(x + 1, y + h * .63, x + w - 1, y + h * .63); label("attributes / operations", x + 12, y + h * .82, w - 24, Math.max(8, size * .7), false);
+    ctx.restore(); return;
+  }
+  if (kind === "c4-deployment-node" || kind === "c4-infrastructure-node") {
     ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
     rule(x + 12, y + 27, x + w - 12, y + 27);
-    label("DEPLOYMENT NODE", x + 10, y + 15, w - 20, Math.min(size, 12));
+    label(kind === "c4-deployment-node" ? "DEPLOYMENT NODE" : "INFRASTRUCTURE NODE", x + 10, y + 15, w - 20, Math.min(size, 12));
     const rackTop = y + 40; const rackHeight = Math.min(28, (h - 54) / 2);
     for (let index = 0; index < 2; index++) {
       const rowY = rackTop + index * (rackHeight + 6);
@@ -279,7 +296,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     ctx.restore(); return;
   }
   if (kind.startsWith("c4-")) { dashedBoundary(name, kind === "c4-system" ? "C4 · system context" : kind === "c4-container" ? "C4 · container" : "C4 · component"); ctx.restore(); return; }
-  if (kind === "network-zone") { dashedBoundary(name, "Network boundary"); ctx.restore(); return; }
+  if (kind === "network-zone" || kind === "network-subnet") { dashedBoundary(name, kind === "network-subnet" ? "Subnet boundary" : "Network boundary"); ctx.restore(); return; }
   if (kind === "diagram-legend") {
     box();
     label(name, x + 12, y + 15, w - 24, Math.min(size, 14));
@@ -428,12 +445,15 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     else if (kind === "bpmn-event-gateway") { ctx.beginPath(); ctx.arc(cx, cy, side * .2, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, side * .14, 0, Math.PI * 2); ctx.stroke(); }
     else { rule(x + w * .34, y + side * .34, x + w * .66, y + side * .66); rule(x + w * .66, y + side * .34, x + w * .34, y + side * .66); }
     label(name, x, y + h - 8, w, Math.max(7, size * .58), false, "center");
-  } else if (["bpmn-task", "bpmn-user-task", "bpmn-service-task", "bpmn-script-task", "bpmn-call-activity"].includes(kind)) {
+  } else if (["bpmn-task", "bpmn-user-task", "bpmn-service-task", "bpmn-script-task", "bpmn-manual-task", "bpmn-business-rule-task", "bpmn-send-task", "bpmn-receive-task", "bpmn-call-activity"].includes(kind)) {
     box(); if (kind === "bpmn-call-activity") ctx.strokeRect(x + 4, y + 4, w - 8, h - 8);
     const gx = x + 15; const gy = y + 18;
     if (kind === "bpmn-user-task") { ctx.beginPath(); ctx.arc(gx + 5, gy + 4, 3, 0, Math.PI * 2); ctx.stroke(); rule(gx, gy + 16, gx + 10, gy + 16); rule(gx + 5, gy + 8, gx + 5, gy + 20); }
     else if (kind === "bpmn-service-task") { ctx.beginPath(); ctx.arc(gx + 5, gy + 8, 6, 0, Math.PI * 2); ctx.stroke(); rule(gx - 2, gy + 8, gx + 12, gy + 8); rule(gx + 5, gy + 1, gx + 5, gy + 15); }
     else if (kind === "bpmn-script-task") { ctx.strokeRect(gx, gy, 12, 16); rule(gx + 3, gy + 5, gx + 9, gy + 5); rule(gx + 3, gy + 9, gx + 9, gy + 9); rule(gx + 3, gy + 13, gx + 7, gy + 13); }
+    else if (kind === "bpmn-manual-task") { ctx.beginPath(); ctx.moveTo(gx + 2, gy + 18); ctx.lineTo(gx + 3, gy + 7); ctx.lineTo(gx + 5, gy + 7); ctx.lineTo(gx + 6, gy + 14); ctx.lineTo(gx + 7, gy + 4); ctx.lineTo(gx + 9, gy + 4); ctx.lineTo(gx + 10, gy + 14); ctx.lineTo(gx + 11, gy + 7); ctx.lineTo(gx + 13, gy + 7); ctx.lineTo(gx + 14, gy + 17); ctx.stroke(); }
+    else if (kind === "bpmn-business-rule-task") { ctx.strokeRect(gx, gy + 2, 16, 14); rule(gx, gy + 7, gx + 16, gy + 7); rule(gx, gy + 12, gx + 16, gy + 12); rule(gx + 6, gy + 2, gx + 6, gy + 16); }
+    else if (kind === "bpmn-send-task" || kind === "bpmn-receive-task") { ctx.strokeRect(gx, gy + 3, 17, 12); ctx.beginPath(); ctx.moveTo(gx, gy + 3); ctx.lineTo(gx + 8.5, gy + 10); ctx.lineTo(gx + 17, gy + 3); ctx.stroke(); if (kind === "bpmn-send-task") { ctx.beginPath(); ctx.arc(gx + 8.5, gy + 9, 1.5, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill(); } }
     label(name.toUpperCase(), x + 10, y + h * .7, w - 20, size, true, "center");
   } else if (kind === "bpmn-subprocess") {
     box(); label(name.toUpperCase(), x + 10, y + h * .42, w - 20, size, true, "center");
@@ -448,6 +468,8 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     box(); box(x, y, Math.min(34, w / 3), h, soft); rule(x + Math.min(34, w / 3), y + h / 2, x + w, y + h / 2); label(name.toUpperCase(), x + 2, y + h / 2, Math.min(30, w / 3), Math.max(8, size * .55), true, "center");
   } else if (kind === "data-flow") {
     label(name.toUpperCase(), x, y + 9, w, Math.max(8, size * .72), true, "center"); const yy = y + h * .72; rule(x + 4, yy, x + w - 10, yy); ctx.beginPath(); ctx.moveTo(x + w - 16, yy - 5); ctx.lineTo(x + w - 8, yy); ctx.lineTo(x + w - 16, yy + 5); ctx.strokeStyle = edge; ctx.stroke();
+  } else {
+    box(); label(name, x + 10, y + h * .42, w - 20, size, true, "center"); label(`Unsupported: ${kind}`, x + 10, y + h * .7, w - 20, Math.max(7, size * .65), false, "center");
   }
   ctx.restore();
 }
@@ -463,7 +485,10 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   if (meta.renderStyle === "clean") { drawCleanModelComponent(ctx, group, theme); return; }
   // Modeling components share one plain visual language.
   const simple = true;
-  const palette = paletteFor(theme === "dark");
+  const basePalette = paletteFor(theme === "dark");
+  const palette: Palette = kind.startsWith("er-")
+    ? { ...basePalette, edge: theme === "dark" ? "#88c7bb" : "#31877e", fill: theme === "dark" ? "#172b28" : "#eff9f6", soft: theme === "dark" ? "#29413c" : "#dcefe9", muted: theme === "dark" ? "#9ac9c0" : "#28675f" }
+    : basePalette;
   const ink = meta.styleOverrides?.color ?? palette.ink;
   const fill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? palette.fill;
   const fillOpacity = meta.styleOverrides?.fillOpacity ?? 1;
@@ -636,20 +661,70 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     else { heading(name, y + 15); roundRect(ctx, x + 12, y + 29, w - 24, h - 40, 6); ctx.fillStyle = palette.fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); }
     ctx.restore(); return;
   }
+  if (kind.startsWith("er-") && !["er-table", "er-one-one", "er-one-many", "er-many-one", "er-many-many"].includes(kind)) {
+    const erEdge = meta.styleOverrides?.color ?? (theme === "dark" ? "#88c7bb" : "#31877e");
+    const erFill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? (theme === "dark" ? "#172b28" : "#eff9f6");
+    const erName = meta.label ?? name;
+    const paintShape = () => { ctx.fillStyle = erFill === "transparent" ? "rgba(0,0,0,0)" : erFill; if (erFill !== "transparent") ctx.fill(); ctx.strokeStyle = erEdge; ctx.lineWidth = strokeWidth; ctx.stroke(); };
+    const erLabel = (value = erName, tx = x + w / 2, ty = y + h / 2, maxWidth = w - 14, underline = false) => {
+      componentSingleLine(value, tx, ty, maxWidth, size, erEdge, 500, "center");
+      if (underline && value) { const textWidth = Math.min(maxWidth, value.length * size * .56); ctx.beginPath(); ctx.moveTo(tx - textWidth / 2, ty + size * .42); ctx.lineTo(tx + textWidth / 2, ty + size * .42); ctx.strokeStyle = erEdge; ctx.lineWidth = 1; ctx.stroke(); }
+    };
+    if (["er-entity", "er-weak-entity", "er-associative-entity"].includes(kind)) {
+      const inset = kind === "er-weak-entity" ? 6 : 0;
+      ctx.beginPath(); ctx.rect(x + inset, y + inset, w - inset * 2, h - inset * 2); paintShape();
+      if (kind === "er-weak-entity") { ctx.beginPath(); ctx.rect(x, y, w, h); ctx.strokeStyle = erEdge; ctx.stroke(); }
+      if (kind === "er-associative-entity") { ctx.beginPath(); ctx.moveTo(x + w / 2, y + 2); ctx.lineTo(x + w / 2 + 10, y + 12); ctx.lineTo(x + w / 2, y + 22); ctx.lineTo(x + w / 2 - 10, y + 12); ctx.closePath(); paintShape(); }
+      erLabel();
+    } else if (kind === "er-relationship" || kind === "er-identifying-relationship") {
+      ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath(); paintShape();
+      if (kind === "er-identifying-relationship") { ctx.beginPath(); ctx.moveTo(x + w / 2, y + 7); ctx.lineTo(x + w - 8, y + h / 2); ctx.lineTo(x + w / 2, y + h - 7); ctx.lineTo(x + 8, y + h / 2); ctx.closePath(); ctx.strokeStyle = erEdge; ctx.stroke(); }
+      erLabel();
+    } else if (kind.includes("attribute")) {
+      const double = kind === "er-multivalued-attribute"; const inset = double ? 5 : 0;
+      ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * .46 - inset, h * .42 - inset, 0, 0, Math.PI * 2);
+      if (kind === "er-derived-attribute" || kind === "er-partial-key-attribute") ctx.setLineDash([4, 3]); paintShape(); ctx.setLineDash([]);
+      if (double) { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * .46, h * .42, 0, 0, Math.PI * 2); ctx.strokeStyle = erEdge; ctx.stroke(); }
+      erLabel(erName, x + w / 2, y + h / 2, w * .72, kind === "er-key-attribute" || kind === "er-partial-key-attribute");
+    } else if (kind === "er-composite-attribute") {
+      const parentX = x + w / 2; const parentY = y + h * .22; const childY = y + h * .77;
+      ctx.beginPath(); ctx.moveTo(parentX, parentY + h * .16); ctx.lineTo(x + w * .25, childY - h * .16); ctx.moveTo(parentX, parentY + h * .16); ctx.lineTo(x + w * .75, childY - h * .16); ctx.strokeStyle = erEdge; ctx.stroke();
+      for (const [cx, cy, rx] of [[parentX, parentY, w * .18], [x + w * .25, childY, w * .22], [x + w * .75, childY, w * .22]] as const) { ctx.beginPath(); ctx.ellipse(cx, cy, rx, h * .16, 0, 0, Math.PI * 2); paintShape(); }
+      erLabel(erName, parentX, parentY);
+      erLabel(meta.componentFields?.find(field => field.key === "sub-attribute-1")?.value ?? "Attribute 1", x + w * .25, childY, w * .34);
+      erLabel(meta.componentFields?.find(field => field.key === "sub-attribute-2")?.value ?? "Attribute 2", x + w * .75, childY, w * .34);
+    }
+    ctx.restore(); return;
+  }
+  if (kind === "uml-package") {
+    const tabW = Math.min(w * .42, 86); const tabH = Math.min(22, h * .22);
+    ctx.beginPath(); ctx.moveTo(x, y + tabH); ctx.lineTo(x, y + 2); ctx.lineTo(x + tabW, y + 2); ctx.lineTo(x + tabW + 12, y + tabH); ctx.lineTo(x + w - 2, y + tabH); ctx.lineTo(x + w - 2, y + h - 2); ctx.lineTo(x + 2, y + h - 2); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke();
+    componentText(name, x + 12, y + tabH + h * .35, w - 24, size, ink, 650, "center"); ctx.restore(); return;
+  }
   if (kind === "uml-actor") {
     const cx = x + w / 2; const head = Math.min(w * .22, h * .11); ctx.strokeStyle = ink; ctx.beginPath(); ctx.arc(cx, y + head + 3, head, 0, Math.PI * 2); ctx.moveTo(cx, y + head * 2 + 3); ctx.lineTo(cx, y + h * .62); ctx.moveTo(x + w * .2, y + h * .4); ctx.lineTo(x + w * .8, y + h * .4); ctx.moveTo(cx, y + h * .62); ctx.lineTo(x + w * .25, y + h * .74); ctx.moveTo(cx, y + h * .62); ctx.lineTo(x + w * .75, y + h * .74); ctx.stroke(); componentText( name, cx, y + h * .9, w - 8, size, ink, 500, "center"); ctx.restore(); return;
   }
   if (kind === "uml-use-case") { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w * .46, h * .4, 0, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); centerHeading(name); ctx.restore(); return; }
   if (kind === "uml-lifeline") { roundRect(ctx, x, y, w, Math.min(34, h), simple ? 0 : 8); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); heading(name, y + 17); ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(x + w / 2, y + 34); ctx.lineTo(x + w / 2, y + h); ctx.strokeStyle = palette.edge; ctx.stroke(); ctx.setLineDash([]); ctx.restore(); return; }
   if (kind === "uml-activation") { const activationWidth = Math.min(w, Math.max(10, w * .44)); roundRect(ctx, x + (w - activationWidth) / 2, y, activationWidth, h, 4); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); ctx.restore(); return; }
-  if (kind.startsWith("sequence-") || kind.startsWith("uml-") && ["uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition"].includes(kind) || kind.startsWith("er-one-") || kind === "er-many-many" || kind === "data-flow") {
+  if (kind.startsWith("sequence-") || kind.startsWith("uml-") && ["uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition", "uml-association", "uml-dependency", "uml-include", "uml-extend"].includes(kind) || kind.startsWith("er-one-") || kind === "er-many-one" || kind === "er-many-many" || kind === "data-flow") {
     const yy = y + h / 2; const relationshipDiamond = kind === "uml-aggregation" || kind === "uml-composition";
-    if (kind === "uml-realization") ctx.setLineDash([5, 4]);
+    if (kind === "uml-realization" || kind === "uml-dependency" || kind === "uml-include" || kind === "uml-extend") ctx.setLineDash([5, 4]);
     ctx.strokeStyle = ink; ctx.beginPath(); ctx.moveTo(x + (relationshipDiamond ? 25 : 6), yy); ctx.lineTo(x + w - 9, yy); ctx.stroke(); ctx.setLineDash([]);
     if (kind.startsWith("sequence-")) { ctx.beginPath(); ctx.moveTo(x + w - 18, yy - 6); ctx.lineTo(x + w - 8, yy); ctx.lineTo(x + w - 18, yy + 6); if (kind === "sequence-sync") { ctx.closePath(); ctx.fillStyle = ink; ctx.fill(); } else ctx.stroke(); }
-    else if (kind === "uml-inheritance" || kind === "uml-realization") { ctx.beginPath(); ctx.moveTo(x + w - 19, yy - 8); ctx.lineTo(x + w - 8, yy); ctx.lineTo(x + w - 19, yy + 8); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.stroke(); }
+    else if (kind === "uml-inheritance" || kind === "uml-realization" || kind === "uml-dependency" || kind === "uml-include" || kind === "uml-extend") { ctx.beginPath(); ctx.moveTo(x + w - 19, yy - 8); ctx.lineTo(x + w - 8, yy); ctx.lineTo(x + w - 19, yy + 8); if (kind === "uml-inheritance" || kind === "uml-realization") ctx.closePath(); ctx.fillStyle = fill; if (kind === "uml-inheritance" || kind === "uml-realization") ctx.fill(); ctx.stroke(); }
     if (kind === "uml-aggregation" || kind === "uml-composition") { ctx.beginPath(); ctx.moveTo(x + 7, yy); ctx.lineTo(x + 16, yy - 6); ctx.lineTo(x + 25, yy); ctx.lineTo(x + 16, yy + 6); ctx.closePath(); if (kind === "uml-composition") { ctx.fillStyle = ink; ctx.fill(); } else { ctx.fillStyle = fill; ctx.fill(); } ctx.stroke(); }
-    if (kind === "sequence-sync" || kind === "sequence-async") componentText( name, x + w / 2, y + 9, w - 20, Math.max(8, size * .7), palette.muted, 500, "center");
+    if (kind.startsWith("er-one-") || kind === "er-many-one" || kind === "er-many-many") {
+      const leftMany = kind === "er-many-one" || kind === "er-many-many"; const rightMany = kind === "er-one-many" || kind === "er-many-many";
+      const marker = (px: number, direction: number, many: boolean) => {
+        ctx.beginPath();
+        if (many) { ctx.moveTo(px, yy); ctx.lineTo(px + direction * 12, yy - 8); ctx.moveTo(px, yy); ctx.lineTo(px + direction * 12, yy); ctx.moveTo(px, yy); ctx.lineTo(px + direction * 12, yy + 8); }
+        else { ctx.moveTo(px, yy - 8); ctx.lineTo(px, yy + 8); }
+        ctx.stroke();
+      };
+      ctx.strokeStyle = ink; marker(x + 8, 1, leftMany); marker(x + w - 8, -1, rightMany);
+    }
+    if (kind === "sequence-sync" || kind === "sequence-async" || kind === "uml-include" || kind === "uml-extend") componentText(kind === "uml-include" ? "<<include>>" : kind === "uml-extend" ? "<<extend>>" : name, x + w / 2, y + 9, w - 20, Math.max(8, size * .7), palette.muted, 500, "center");
     ctx.restore(); return;
   }
   if (kind.startsWith("bpmn-")) {
@@ -659,8 +734,23 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     ctx.restore(); return;
   }
   if (kind === "uml-class" || kind === "uml-interface" || kind === "er-table") {
-    shell(9); const headerH = Math.min(36, h * .28); ctx.fillStyle = palette.soft; roundRect(ctx, x + 1, y + 1, w - 2, headerH, 8); ctx.fill(); ctx.strokeStyle = palette.edge; ctx.beginPath(); ctx.moveTo(x, y + headerH); ctx.lineTo(x + w, y + headerH); ctx.stroke(); heading(name, y + headerH / 2, x + 12, w - 24);
-    if (h > headerH + 24) { ctx.beginPath(); ctx.moveTo(x, y + headerH + (h - headerH) * .48); ctx.lineTo(x + w, y + headerH + (h - headerH) * .48); ctx.stroke(); }
+    shell(9); const headerH = kind === "er-table" ? Math.min(34, h * .23) : Math.min(36, h * .28); ctx.fillStyle = palette.soft; roundRect(ctx, x + 1, y + 1, w - 2, headerH, 8); ctx.fill(); ctx.strokeStyle = palette.edge; ctx.beginPath(); ctx.moveTo(x, y + headerH); ctx.lineTo(x + w, y + headerH); ctx.stroke();
+    if (kind === "uml-interface") componentSingleLine("<<interface>>", x + 12, y + 12, w - 24, Math.max(7, size * .66), palette.muted, 400);
+    heading(name, kind === "uml-interface" ? y + 31 : y + headerH / 2, x + 12, w - 24);
+    const field = (key: string) => meta.componentFields?.find(value => value.key === key)?.value.trim() ?? "";
+    const writeLines = (value: string, top: number, availableHeight: number) => {
+      const lines = value.split(/\r?\n/).filter(Boolean).slice(0, Math.max(1, Math.floor(availableHeight / 14)));
+      lines.forEach((line, index) => componentSingleLine(line, x + 12, top + 11 + index * 14, w - 24, Math.max(7, size * .72), palette.ink, 400));
+    };
+    if (kind === "uml-class") {
+      const divider = y + headerH + (h - headerH) * .49; ctx.beginPath(); ctx.moveTo(x, divider); ctx.lineTo(x + w, divider); ctx.stroke();
+      writeLines(field("attributes"), y + headerH + 5, divider - y - headerH - 8); writeLines(field("methods"), divider + 5, y + h - divider - 8);
+    } else if (kind === "uml-interface") {
+      ctx.beginPath(); ctx.moveTo(x, y + h * .46); ctx.lineTo(x + w, y + h * .46); ctx.stroke(); writeLines(field("operations"), y + h * .46 + 4, h * .54 - 8);
+    } else {
+      ctx.beginPath(); ctx.moveTo(x, y + headerH + (h - headerH) / 3); ctx.lineTo(x + w, y + headerH + (h - headerH) / 3); ctx.moveTo(x, y + headerH + (h - headerH) * 2 / 3); ctx.lineTo(x + w, y + headerH + (h - headerH) * 2 / 3); ctx.stroke();
+      ["column-1", "column-2", "column-3"].forEach((key, index) => writeLines(field(key), y + headerH + index * ((h - headerH) / 3) + 2, (h - headerH) / 3 - 4));
+    }
     ctx.restore(); return;
   }
   shell(12); centerHeading(name); ctx.restore();
@@ -755,8 +845,9 @@ function renderModelComponentSvg(group: GroupElement) {
     if (kind === "c4-person") return `<circle cx="${x + w / 2}" cy="${y + 24}" r="10" fill="none" stroke="${ink}" stroke-width="1.5"/>${p(`M ${x + w / 2} ${y + 35} V ${y + 63} M ${x + w / 2 - 20} ${y + 42} H ${x + w / 2 + 20} M ${x + w / 2} ${y + 63} L ${x + w / 2 - 15} ${y + 82} M ${x + w / 2} ${y + 63} L ${x + w / 2 + 15} ${y + 82}`)}${t(rawTitle, x + w / 2, y + h - 8, w - 12, Math.min(size, 12), "middle")}`;
     if (kind === "c4-software-system") return `${r()}${t("SOFTWARE SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), "start", 400)}${t(rawTitle, x + 10, y + h * .64, w - 20, size)}`;
     if (kind === "c4-external-system") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t("EXTERNAL SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), "start", 400)}${t(rawTitle, x + 10, y + h * .62, w - 20, size)}`;
-    if (kind === "c4-deployment-node") return `${r()}${t("DEPLOYMENT NODE", x + 10, y + 15, w - 20, Math.min(size, 12))}${p(`M ${x + 12} ${y + 27} H ${x + w - 12}`)}${[0, 1].map(index => `${r(x + 14, y + 40 + index * 34, w - 28, 28, "none")}<circle cx="${x + 24}" cy="${y + 54 + index * 34}" r="2" fill="${ink}"/>${p(`M ${x + 32} ${y + 54 + index * 34} H ${x + w - 14}`)}`).join("")}${t(rawTitle, x + 10, y + h - 6, w - 20, Math.max(8, size * .72), "start", 400)}`;
-    if (kind.startsWith("c4-") || kind === "network-zone") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t(rawTitle.toUpperCase(), x + 12, y + 15, w - 24, Math.min(size, 14))}${t(kind.startsWith("c4-") ? "C4 boundary" : "Network boundary", x + 12, y + 34, w - 24, Math.max(8, size * .75), "start", 400)}`;
+    if (kind === "c4-deployment-node" || kind === "c4-infrastructure-node") return `${r()}${t(kind === "c4-deployment-node" ? "DEPLOYMENT NODE" : "INFRASTRUCTURE NODE", x + 10, y + 15, w - 20, Math.min(size, 12))}${p(`M ${x + 12} ${y + 27} H ${x + w - 12}`)}${[0, 1].map(index => `${r(x + 14, y + 40 + index * 34, w - 28, 28, "none")}<circle cx="${x + 24}" cy="${y + 54 + index * 34}" r="2" fill="${ink}"/>${p(`M ${x + 32} ${y + 54 + index * 34} H ${x + w - 14}`)}`).join("")}${t(rawTitle, x + 10, y + h - 6, w - 20, Math.max(8, size * .72), "start", 400)}`;
+    if (kind === "c4-code-element") return `${r()}${t("CODE ELEMENT", x + 10, y + 16, w - 20, Math.max(8, size * .7), "start", 400)}${p(`M ${x + 1} ${y + 27} H ${x + w - 1}`)}${t(rawTitle, x + 12, y + h * .47, w - 24, size)}${p(`M ${x + 1} ${y + h * .63} H ${x + w - 1}`)}${t("attributes / operations", x + 12, y + h * .82, w - 24, Math.max(8, size * .7), "start", 400)}`;
+    if (kind.startsWith("c4-") || kind === "network-zone" || kind === "network-subnet") return `${r(x + 1, y + 1, w - 2, h - 2, "none").replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"")}${t(rawTitle.toUpperCase(), x + 12, y + 15, w - 24, Math.min(size, 14))}${t(kind === "network-subnet" ? "Subnet boundary" : kind.startsWith("c4-") ? "C4 boundary" : "Network boundary", x + 12, y + 34, w - 24, Math.max(8, size * .75), "start", 400)}`;
     if (kind === "cloud-boundary") {
       const d = `M ${x + w * .15} ${y + h * .8} C ${x + w * .04} ${y + h * .8}, ${x + w * .015} ${y + h * .66}, ${x + w * .05} ${y + h * .56} C ${x + w * .08} ${y + h * .45}, ${x + w * .17} ${y + h * .42}, ${x + w * .25} ${y + h * .44} C ${x + w * .25} ${y + h * .22}, ${x + w * .4} ${y + h * .12}, ${x + w * .53} ${y + h * .23} C ${x + w * .66} ${y + h * .05}, ${x + w * .85} ${y + h * .12}, ${x + w * .87} ${y + h * .36} C ${x + w * .97} ${y + h * .38}, ${x + w * .99} ${y + h * .49}, ${x + w * .96} ${y + h * .59} C ${x + w * .99} ${y + h * .72}, ${x + w * .9} ${y + h * .81}, ${x + w * .81} ${y + h * .8} Z`;
       return `<path d="${d}" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3" stroke-dasharray="6 4"/>${t(rawTitle.toUpperCase(), x + w / 2, y + h * .45, w * .5, size, "middle")}${t("Deployment boundary", x + w / 2, y + h * .58, w * .5, Math.max(8, size * .72), "middle", 400)}`;
@@ -824,11 +915,14 @@ function renderModelComponentSvg(group: GroupElement) {
       return `${outer}${inner}${marker}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .64), "middle", 400)}`;
     }
     if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) { const side = Math.min(w, h - 12); const cx = x + w / 2; const cy = side / 2; const marks = kind === "bpmn-parallel-gateway" ? `M ${cx} ${y + side * .28} V ${y + side * .72} M ${x + w * .28} ${y + cy} H ${x + w * .72}` : kind === "bpmn-inclusive-gateway" ? `M ${cx} ${cy - side * .18} A ${side * .18} ${side * .18} 0 1 0 ${cx} ${cy + side * .18} A ${side * .18} ${side * .18} 0 1 0 ${cx} ${cy - side * .18}` : kind === "bpmn-event-gateway" ? `M ${cx} ${cy - side * .2} A ${side * .2} ${side * .2} 0 1 0 ${cx} ${cy + side * .2} A ${side * .2} ${side * .2} 0 1 0 ${cx} ${cy - side * .2} M ${cx} ${cy - side * .14} A ${side * .14} ${side * .14} 0 1 0 ${cx} ${cy + side * .14} A ${side * .14} ${side * .14} 0 1 0 ${cx} ${cy - side * .14}` : `M ${x + w * .34} ${y + side * .34} L ${x + w * .66} ${y + side * .66} M ${x + w * .66} ${y + side * .34} L ${x + w * .34} ${y + side * .66}`; return `<path d="M ${cx} ${y} L ${x + w} ${y + cy} L ${cx} ${y + side} L ${x} ${y + cy} Z" fill="${cleanFill}" stroke="${ink}"/>${p(marks)}${t(rawTitle, cx, y + h - 8, w, Math.max(7, size * .58), "middle", 400)}`; }
-    if (["bpmn-task", "bpmn-user-task", "bpmn-service-task", "bpmn-script-task", "bpmn-call-activity"].includes(kind)) {
+    if (["bpmn-task", "bpmn-user-task", "bpmn-service-task", "bpmn-script-task", "bpmn-manual-task", "bpmn-business-rule-task", "bpmn-send-task", "bpmn-receive-task", "bpmn-call-activity"].includes(kind)) {
       const iconX = x + 14; const iconY = y + 14;
       const marker = kind === "bpmn-user-task" ? `<circle cx="${iconX + 5}" cy="${iconY + 4}" r="3" fill="none" stroke="${ink}"/><path d="M ${iconX} ${iconY + 16} H ${iconX + 10} M ${iconX + 5} ${iconY + 8} V ${iconY + 18}" stroke="${ink}"/>`
         : kind === "bpmn-service-task" ? `<circle cx="${iconX + 7}" cy="${iconY + 8}" r="6" fill="none" stroke="${ink}"/><path d="M ${iconX + 1} ${iconY + 8} H ${iconX + 13} M ${iconX + 7} ${iconY + 2} V ${iconY + 14}" stroke="${ink}"/>`
-          : kind === "bpmn-script-task" ? `<rect x="${iconX}" y="${iconY}" width="13" height="17" fill="none" stroke="${ink}"/><path d="M ${iconX + 3} ${iconY + 5} H ${iconX + 10} M ${iconX + 3} ${iconY + 9} H ${iconX + 10} M ${iconX + 3} ${iconY + 13} H ${iconX + 8}" stroke="${ink}"/>` : "";
+          : kind === "bpmn-script-task" ? `<rect x="${iconX}" y="${iconY}" width="13" height="17" fill="none" stroke="${ink}"/><path d="M ${iconX + 3} ${iconY + 5} H ${iconX + 10} M ${iconX + 3} ${iconY + 9} H ${iconX + 10} M ${iconX + 3} ${iconY + 13} H ${iconX + 8}" stroke="${ink}"/>`
+            : kind === "bpmn-manual-task" ? `<path d="M ${iconX + 2} ${iconY + 18} L ${iconX + 3} ${iconY + 7} H ${iconX + 5} L ${iconX + 6} ${iconY + 14} L ${iconX + 7} ${iconY + 4} H ${iconX + 9} L ${iconX + 10} ${iconY + 14} L ${iconX + 11} ${iconY + 7} H ${iconX + 13} L ${iconX + 14} ${iconY + 17}" fill="none" stroke="${ink}"/>`
+              : kind === "bpmn-business-rule-task" ? `<rect x="${iconX}" y="${iconY + 2}" width="16" height="14" fill="none" stroke="${ink}"/><path d="M ${iconX} ${iconY + 7} H ${iconX + 16} M ${iconX} ${iconY + 12} H ${iconX + 16} M ${iconX + 6} ${iconY + 2} V ${iconY + 16}" stroke="${ink}"/>`
+                : kind === "bpmn-send-task" || kind === "bpmn-receive-task" ? `<rect x="${iconX}" y="${iconY + 3}" width="17" height="12" fill="none" stroke="${ink}"/><path d="M ${iconX} ${iconY + 3} L ${iconX + 8.5} ${iconY + 10} L ${iconX + 17} ${iconY + 3}" fill="none" stroke="${ink}"/>${kind === "bpmn-send-task" ? `<circle cx="${iconX + 8.5}" cy="${iconY + 9}" r="1.5" fill="${ink}"/>` : ""}` : "";
       const callBorder = kind === "bpmn-call-activity" ? r(x + 4, y + 4, w - 8, h - 8, "none") : "";
       return `${r()}${callBorder}${marker}${t(rawTitle.toUpperCase(), x + w / 2, y + h / 2, w - 20, size, "middle")}`;
     }
@@ -899,21 +993,69 @@ function renderModelComponentSvg(group: GroupElement) {
     const rows = options.map((option, index) => { const cy = y + 30 + rowHeight * (index + .5); const active = kind === "form-checkbox" ? meta.formStates?.[index] ?? index === 0 : (meta.selectedOption ?? 0) === index; const marker = kind === "form-checkbox" ? `<rect x="${x + 13}" y="${cy - 6}" width="12" height="12" rx="3" fill="${palette.fill}" stroke="${edge}"/>${active ? `<path d="m${x + 16} ${cy} 2 3 4-6" fill="none" stroke="${palette.accent}" stroke-width="2"/>` : ""}` : `<circle cx="${x + 19}" cy="${cy}" r="6" fill="${palette.fill}" stroke="${edge}"/>${active ? `<circle cx="${x + 19}" cy="${cy}" r="3" fill="${palette.accent}"/>` : ""}`; return `${marker}<text x="${x + 34}" y="${cy}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${labelSize}">${fitXmlText(option, labelWidth, labelSize)}</text>`; }).join("");
     return `${box}${label}${rows}`;
   }
+  if (kind.startsWith("er-") && kind !== "er-table") {
+    const erEdge = meta.styleOverrides?.color ?? "#31877e"; const erFill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? "#eff9f6";
+    const text = (value: string, tx: number, ty: number, width = w - 14) => `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" fill="${erEdge}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(value, width)}>${xmlText(value)}</text>`;
+    if (["er-entity", "er-weak-entity", "er-associative-entity"].includes(kind)) {
+      const inset = kind === "er-weak-entity" ? 6 : 0; const outer = `<rect x="${x + inset}" y="${y + inset}" width="${w - inset * 2}" height="${h - inset * 2}" fill="${erFill}" stroke="${erEdge}"/>`;
+      const inner = kind === "er-weak-entity" ? `<rect x="${x + 2}" y="${y + 2}" width="${w - 4}" height="${h - 4}" fill="none" stroke="${erEdge}"/>` : "";
+      const badge = kind === "er-associative-entity" ? `<path d="M ${x + w / 2} ${y + 2} l10 10-10 10-10-10Z" fill="${erFill}" stroke="${erEdge}"/>` : "";
+      return `${outer}${inner}${badge}${text(rawTitle, x + w / 2, y + h / 2)}`;
+    }
+    if (kind === "er-relationship" || kind === "er-identifying-relationship") {
+      const diamond = `<path d="M ${x + w / 2} ${y} L ${x + w} ${y + h / 2} L ${x + w / 2} ${y + h} L ${x} ${y + h / 2} Z" fill="${erFill}" stroke="${erEdge}"/>`;
+      const inner = kind === "er-identifying-relationship" ? `<path d="M ${x + w / 2} ${y + 7} L ${x + w - 8} ${y + h / 2} L ${x + w / 2} ${y + h - 7} L ${x + 8} ${y + h / 2} Z" fill="none" stroke="${erEdge}"/>` : "";
+      return `${diamond}${inner}${text(rawTitle, x + w / 2, y + h / 2)}`;
+    }
+    if (kind.includes("attribute")) {
+      const inset = kind === "er-multivalued-attribute" ? 5 : 0; const dash = kind === "er-derived-attribute" || kind === "er-partial-key-attribute" ? ` stroke-dasharray="4 3"` : "";
+      const ellipse = `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46 - inset}" ry="${h * .42 - inset}" fill="${erFill}" stroke="${erEdge}"${dash}/>`;
+      const outer = kind === "er-multivalued-attribute" ? `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46}" ry="${h * .42}" fill="none" stroke="${erEdge}"/>` : "";
+      const label = text(rawTitle, x + w / 2, y + h / 2, w * .72); const underline = kind === "er-key-attribute" || kind === "er-partial-key-attribute" ? `<path d="M ${x + w * .28} ${y + h * .61} H ${x + w * .72}" stroke="${erEdge}"/>` : "";
+      return `${ellipse}${outer}${label}${underline}`;
+    }
+    if (kind === "er-composite-attribute") {
+      const parent = text(rawTitle, x + w / 2, y + h * .22); const first = meta.componentFields?.find(field => field.key === "sub-attribute-1")?.value ?? "Attribute 1"; const second = meta.componentFields?.find(field => field.key === "sub-attribute-2")?.value ?? "Attribute 2";
+      return `<path d="M ${x + w / 2} ${y + h * .38} L ${x + w * .25} ${y + h * .61} M ${x + w / 2} ${y + h * .38} L ${x + w * .75} ${y + h * .61}" stroke="${erEdge}"/><ellipse cx="${x + w / 2}" cy="${y + h * .22}" rx="${w * .18}" ry="${h * .16}" fill="${erFill}" stroke="${erEdge}"/><ellipse cx="${x + w * .25}" cy="${y + h * .77}" rx="${w * .22}" ry="${h * .16}" fill="${erFill}" stroke="${erEdge}"/><ellipse cx="${x + w * .75}" cy="${y + h * .77}" rx="${w * .22}" ry="${h * .16}" fill="${erFill}" stroke="${erEdge}"/>${parent}${text(first, x + w * .25, y + h * .77, w * .34)}${text(second, x + w * .75, y + h * .77, w * .34)}`;
+    }
+  }
+  if (kind === "uml-package") { const tabW = Math.min(w * .42, 86); const tabH = Math.min(22, h * .22); return `<path d="M ${x} ${y + tabH} V ${y + 2} H ${x + tabW} L ${x + tabW + 12} ${y + tabH} H ${x + w - 2} V ${y + h - 2} H ${x + 2} Z" fill="${fill}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + tabH + h * .35}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 24)}>${title}</text>`; }
   if (kind === "uml-actor") { const cx = x + w / 2; const head = Math.min(w * .22, h * .11); return `<circle cx="${cx}" cy="${y + head + 3}" r="${head}" fill="${fill}" stroke="${edge}"/><path d="M ${cx} ${y + head * 2 + 3} V ${y + h * .62} M ${x + w * .2} ${y + h * .4} H ${x + w * .8} M ${cx} ${y + h * .62} L ${x + w * .25} ${y + h * .74} M ${cx} ${y + h * .62} L ${x + w * .75} ${y + h * .74}" fill="none" stroke="${edge}"/><text x="${cx}" y="${y + h * .9}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 8)}>${title}</text>`; }
   if (kind === "uml-use-case") return `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w * .46}" ry="${h * .4}" fill="${fill}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w * .84)}>${title}</text>`;
   if (kind === "uml-lifeline") return `<rect x="${x}" y="${y}" width="${w}" height="${Math.min(34, h)}" rx="${simple ? 0 : 8}" fill="${fill}" fill-opacity="${meta.styleOverrides?.fillOpacity ?? 1}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + 17}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700">${title}</text><path d="M ${x + w / 2} ${y + 34} V ${y + h}" stroke="${edge}" stroke-dasharray="6 5"/>`;
   if (kind === "uml-activation") { const activationWidth = Math.min(w, Math.max(10, w * .44)); return `<rect x="${x + (w - activationWidth) / 2}" y="${y}" width="${activationWidth}" height="${h}" rx="4" fill="${palette.soft}" stroke="${edge}"/>`; }
-  if (kind === "sequence-sync" || kind === "sequence-async" || kind.startsWith("uml-") && ["uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition"].includes(kind) || kind.startsWith("er-one-") || kind === "er-many-many" || kind === "data-flow") {
-    const yy = y + h / 2; const diamond = kind === "uml-aggregation" || kind === "uml-composition"; const dashed = kind === "uml-realization" ? " stroke-dasharray=\"5 4\"" : "";
+  if (kind === "sequence-sync" || kind === "sequence-async" || kind.startsWith("uml-") && ["uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition", "uml-association", "uml-dependency", "uml-include", "uml-extend"].includes(kind) || kind.startsWith("er-one-") || kind === "er-many-one" || kind === "er-many-many" || kind === "data-flow") {
+    const yy = y + h / 2; const diamond = kind === "uml-aggregation" || kind === "uml-composition"; const dashed = ["uml-realization", "uml-dependency", "uml-include", "uml-extend"].includes(kind) ? " stroke-dasharray=\"5 4\"" : "";
     const relation = `<path d="M ${x + (diamond ? 25 : 6)} ${yy} H ${x + w - 9}" fill="none" stroke="${edge}"${dashed}/>`;
-    const head = kind.startsWith("sequence-") || kind === "uml-inheritance" || kind === "uml-realization" || kind === "data-flow" ? `<path d="M ${x + w - 19} ${yy - 8} L ${x + w - 8} ${yy} L ${x + w - 19} ${yy + 8} ${kind === "sequence-sync" ? "Z" : ""}" fill="${kind === "sequence-sync" ? edge : fill}" stroke="${edge}"/>` : "";
+    const head = kind.startsWith("sequence-") || kind === "uml-inheritance" || kind === "uml-realization" || kind === "uml-dependency" || kind === "uml-include" || kind === "uml-extend" || kind === "data-flow" ? `<path d="M ${x + w - 19} ${yy - 8} L ${x + w - 8} ${yy} L ${x + w - 19} ${yy + 8} ${kind === "sequence-sync" || kind === "uml-inheritance" || kind === "uml-realization" ? "Z" : ""}" fill="${kind === "sequence-sync" ? edge : kind === "uml-inheritance" || kind === "uml-realization" ? fill : "none"}" stroke="${edge}"/>` : "";
     const diamondMark = diamond ? `<path d="M ${x + 7} ${yy} l9-6 9 6-9 6 Z" fill="${kind === "uml-composition" ? edge : fill}" stroke="${edge}"/>` : "";
-    return `${relation}${head}${diamondMark}`;
+    const one = (px: number) => `<path d="M ${px} ${yy - 8} V ${yy + 8}" stroke="${edge}"/>`;
+    const crow = (px: number, direction: number) => `<path d="M ${px} ${yy} l${direction * 12} -8 M ${px} ${yy} h${direction * 12} M ${px} ${yy} l${direction * 12} 8" stroke="${edge}"/>`;
+    const cardinality = kind.startsWith("er-one-") || kind === "er-many-one" || kind === "er-many-many"
+      ? `${kind === "er-many-one" || kind === "er-many-many" ? crow(x + 8, 1) : one(x + 8)}${kind === "er-one-many" || kind === "er-many-many" ? crow(x + w - 8, -1) : one(x + w - 8)}` : "";
+    const stereotypeText = kind === "uml-include" ? "<<include>>" : "<<extend>>";
+    const stereotype = kind === "uml-include" || kind === "uml-extend" ? `<text x="${x + w / 2}" y="${y + 9}" text-anchor="middle" dominant-baseline="middle" fill="${palette.muted}" font-family="sans-serif" font-size="${Math.max(8, size * .7)}">${xmlText(stereotypeText)}</text>` : "";
+    return `${relation}${head}${diamondMark}${cardinality}${stereotype}`;
   }
   if (kind === "bpmn-start" || kind === "bpmn-event" || kind === "bpmn-end") return `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .44}" fill="${fill}" stroke="${edge}" stroke-width="${kind === "bpmn-end" ? 3 : 1.5}"/>${kind === "bpmn-event" ? `<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .34}" fill="none" stroke="${edge}"/>` : ""}`;
   if (kind === "bpmn-gateway" || kind === "bpmn-parallel-gateway") { const marks = kind === "bpmn-parallel-gateway" ? `M ${x + w / 2} ${y + h * .3} V ${y + h * .7} M ${x + w * .3} ${y + h / 2} H ${x + w * .7}` : `M ${x + w * .34} ${y + h * .34} L ${x + w * .66} ${y + h * .66} M ${x + w * .66} ${y + h * .34} L ${x + w * .34} ${y + h * .66}`; return `<path d="M ${x + w / 2} ${y} L ${x + w} ${y + h / 2} L ${x + w / 2} ${y + h} L ${x} ${y + h / 2} Z" fill="${fill}" stroke="${edge}"/><path d="${marks}" stroke="${edge}"/>`; }
   if (kind === "bpmn-task" || kind === "bpmn-pool" || kind === "bpmn-data") return `${box}${label}${kind === "bpmn-pool" ? `<path d="M ${x + 31} ${y} V ${y + h} M ${x + 31} ${y + h / 2} H ${x + w}" stroke="${edge}"/>` : ""}`;
-  if (kind === "uml-class" || kind === "uml-interface" || kind === "er-table") return `${box}<rect x="${x + 1}" y="${y + 1}" width="${w - 2}" height="${Math.min(36, h * .28)}" rx="8" fill="${palette.soft}"/><text x="${x + 12}" y="${y + Math.min(36, h * .28) / 2}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700"${fitTextAttribute(rawTitle, w - 24)}>${title}</text><path d="M ${x} ${y + Math.min(36, h * .28)} H ${x + w} M ${x} ${y + h * .66} H ${x + w}" stroke="${edge}"/>`;
+  if (kind === "uml-class" || kind === "uml-interface" || kind === "er-table") {
+    const headerH = kind === "er-table" ? Math.min(34, h * .23) : Math.min(36, h * .28);
+    const headingY = kind === "uml-interface" ? y + 31 : y + headerH / 2;
+    const headingText = `<text x="${x + 12}" y="${headingY}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700"${fitTextAttribute(rawTitle, w - 24)}>${title}</text>`;
+    const stereotype = kind === "uml-interface" ? `<text x="${x + 12}" y="${y + 12}" dominant-baseline="middle" fill="${palette.muted}" font-family="sans-serif" font-size="${Math.max(7, size * .66)}">&lt;&lt;interface&gt;&gt;</text>` : "";
+    const lines = (value: string, top: number, maxLines: number) => value.split(/\r?\n/).filter(Boolean).slice(0, maxLines).map((line, index) => `<text x="${x + 12}" y="${top + 11 + index * 14}" dominant-baseline="middle" fill="${palette.ink}" font-family="sans-serif" font-size="${Math.max(7, size * .72)}">${fitXmlText(line, w - 24)}</text>`).join("");
+    const field = (key: string) => meta.componentFields?.find(value => value.key === key)?.value ?? "";
+    const header = `<rect x="${x + 1}" y="${y + 1}" width="${w - 2}" height="${headerH}" rx="8" fill="${palette.soft}"/>`;
+    if (kind === "uml-class") {
+      const divider = y + headerH + (h - headerH) * .49;
+      return `${box}${header}${headingText}<path d="M ${x} ${y + headerH} H ${x + w} M ${x} ${divider} H ${x + w}" stroke="${edge}"/>${lines(field("attributes"), y + headerH + 5, Math.max(1, Math.floor((divider - y - headerH - 8) / 14)))}${lines(field("methods"), divider + 5, Math.max(1, Math.floor((y + h - divider - 8) / 14)))}`;
+    }
+    if (kind === "uml-interface") return `${box}${header}${stereotype}${headingText}<path d="M ${x} ${y + headerH} H ${x + w} M ${x} ${y + h * .46} H ${x + w}" stroke="${edge}"/>${lines(field("operations"), y + h * .46 + 4, Math.max(1, Math.floor((h * .54 - 8) / 14)))}`;
+    const rowHeight = (h - headerH) / 3;
+    return `${box}${header}${headingText}<path d="M ${x} ${y + headerH} H ${x + w} M ${x} ${y + headerH + rowHeight} H ${x + w} M ${x} ${y + headerH + rowHeight * 2} H ${x + w}" stroke="${edge}"/>${["column-1", "column-2", "column-3"].map((key, index) => lines(field(key), y + headerH + rowHeight * index + 2, Math.max(1, Math.floor((rowHeight - 4) / 14)))).join("")}`;
+  }
   return `${box}${label}`;
 }
 

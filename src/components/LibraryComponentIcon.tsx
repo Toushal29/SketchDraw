@@ -1,165 +1,60 @@
-import type { Component } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import {
-  IconAccessPoint,
-  IconAffiliate,
-  IconApi,
-  IconArrowsSplit,
-  IconArrowRight,
-  IconArrowRightDashed,
-  IconBolt,
-  IconBox,
-  IconBrowser,
   IconChartAreaLine,
   IconChartBar,
   IconChartDonut,
   IconChartLine,
   IconChartPie,
   IconChartScatter,
-  IconCheckbox,
-  IconCircle,
-  IconCircleCheck,
-  IconCircleDashed,
-  IconCircleDot,
-  IconClick,
-  IconCloud,
-  IconCloudCode,
-  IconCloudDataConnection,
-  IconColumns3,
   IconComponents,
-  IconCpu,
-  IconDatabase,
-  IconDeviceDesktop,
-  IconDiamond,
-  IconDiamondFilled,
-  IconFileText,
-  IconGitFork,
-  IconHierarchy2,
-  IconHierarchy3,
-  IconListCheck,
-  IconListDetails,
-  IconNetwork,
-  IconOval,
-  IconPackage,
-  IconRectangleVertical,
-  IconRelationManyToMany,
-  IconRelationOneToMany,
-  IconRouter,
-  IconSelect,
-  IconServer,
-  IconSettingsCode,
-  IconShield,
-  IconStack,
-  IconTable,
-  IconTextSize,
-  IconTimeline,
-  IconToggleRight,
-  IconTopologyBus,
-  IconTopologyStar,
-  IconUser,
   type IconProps,
 } from "@tabler/icons-solidjs";
-import type { LibraryComponentKind } from "../notes";
+import type { Component } from "solid-js";
+import { buildLibraryComponent, buildLibraryRelationship, LIBRARY_COMPONENTS, type LibraryComponentKind } from "../notes";
+import type { GroupElement } from "../model";
+import { modelComponentSvg } from "../features/components/model-component-renderer";
 
-const icons: Partial<Record<LibraryComponentKind, Component<IconProps>>> = {
-  "uml-class": IconListDetails,
-  "diagram-frame": IconBox,
-  "diagram-swimlane": IconColumns3,
-  "uml-lifeline": IconTimeline,
-  "uml-activation": IconRectangleVertical,
-  "sequence-sync": IconArrowRight,
-  "sequence-async": IconArrowRightDashed,
-  "uml-interface": IconApi,
-  "uml-inheritance": IconHierarchy3,
-  "uml-realization": IconHierarchy2,
-  "uml-aggregation": IconDiamond,
-  "uml-composition": IconDiamondFilled,
-  "uml-actor": IconUser,
-  "uml-use-case": IconOval,
-  "uml-package": IconPackage,
-  "er-table": IconTable,
-  "er-entity": IconBox,
-  "er-weak-entity": IconRectangleVertical,
-  "er-relationship": IconDiamond,
-  "er-identifying-relationship": IconDiamondFilled,
-  "er-attribute": IconOval,
-  "er-key-attribute": IconCircleDot,
-  "er-multivalued-attribute": IconCircle,
-  "er-derived-attribute": IconCircleDashed,
-  "er-one-one": IconRelationOneToMany,
-  "er-one-many": IconRelationOneToMany,
-  "er-many-one": IconRelationOneToMany,
-  "er-many-many": IconRelationManyToMany,
-  "c4-system": IconTopologyStar,
-  "c4-software-system": IconComponents,
-  "c4-container": IconBox,
-  "c4-component": IconComponents,
-  "c4-person": IconUser,
-  "c4-external-system": IconCloud,
-  "c4-deployment-node": IconServer,
-  "software-client": IconBrowser,
-  "software-api": IconApi,
-  "software-service": IconSettingsCode,
-  "software-database": IconDatabase,
-  "software-queue": IconStack,
-  "software-event-bus": IconAffiliate,
-  "software-cache": IconBolt,
-  "tech-service": IconCpu,
-  "data-flow": IconArrowRight,
-  "cloud-boundary": IconCloud,
-  "cloud-function": IconCloudCode,
-  "cloud-storage": IconCloudDataConnection,
-  "cloud-database": IconDatabase,
-  "cloud-queue": IconStack,
-  "network-zone": IconTopologyStar,
-  "network-router": IconRouter,
-  "network-server": IconServer,
-  "network-firewall": IconShield,
-  "network-client": IconDeviceDesktop,
-  "network-switch": IconNetwork,
-  "network-hub": IconTopologyBus,
-  "network-load-balancer": IconArrowsSplit,
-  "network-access-point": IconAccessPoint,
+const chartIcons: Partial<Record<LibraryComponentKind, Component<IconProps>>> = {
   "viz-bar": IconChartBar,
+  "viz-horizontal-bar": IconChartBar,
+  "viz-stacked-bar": IconChartBar,
   "viz-line": IconChartLine,
   "viz-area": IconChartAreaLine,
   "viz-scatter": IconChartScatter,
   "viz-pie": IconChartPie,
   "viz-donut": IconChartDonut,
+  "viz-radar": IconChartLine,
+  "viz-gauge": IconChartDonut,
+  "viz-funnel": IconChartBar,
+  "viz-heatmap": IconChartScatter,
+  "viz-treemap": IconChartBar,
   "viz-kpi": IconChartBar,
-  "form-button": IconClick,
-  "form-input": IconTextSize,
-  "form-select": IconSelect,
-  "form-checkbox": IconCheckbox,
-  "form-radio": IconCircleDot,
-  "form-toggle": IconToggleRight,
-  "gui-card": IconListDetails,
-  "gui-app-bar": IconBrowser,
-  "gui-navigation": IconColumns3,
-  "gui-tabs": IconComponents,
-  "gui-image": IconDeviceDesktop,
-  "bpmn-start": IconCircle,
-  "bpmn-event": IconCircleDashed,
-  "bpmn-end": IconCircleCheck,
-  "bpmn-gateway": IconDiamond,
-  "bpmn-parallel-gateway": IconGitFork,
-  "bpmn-task": IconListCheck,
-  "bpmn-data": IconFileText,
-  "bpmn-pool": IconColumns3,
 };
 
-type LibraryComponentIconProps = {
-  kind: LibraryComponentKind;
-};
+const renderedIcons = new Map<LibraryComponentKind, string>();
 
-export function LibraryComponentIcon(props: LibraryComponentIconProps) {
-  const providerIcon = props.kind.includes("lambda") || props.kind.includes("function") ? IconCloudCode
-    : props.kind.includes("storage") || props.kind.includes("s3") || props.kind.includes("blob") ? IconCloudDataConnection
-      : props.kind.includes("rds") || props.kind.includes("sql") ? IconDatabase
-        : props.kind.includes("gateway") || props.kind.includes("api-management") ? IconApi
-          : props.kind.includes("sqs") || props.kind.includes("bus") || props.kind.includes("pubsub") ? IconStack
-            : props.kind.includes("vpc") || props.kind.includes("vnet") ? IconNetwork
-              : props.kind.includes("front") || props.kind.includes("balancing") ? IconArrowsSplit
-                : IconServer;
-  return <Dynamic component={icons[props.kind] ?? providerIcon} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />;
+function componentIconSvg(kind: LibraryComponentKind): string {
+  const cached = renderedIcons.get(kind);
+  if (cached !== undefined) return cached;
+  const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind);
+  if (!definition) return "";
+  const relation = buildLibraryRelationship(kind, 0, 0);
+  const component: GroupElement = relation
+    ? { type: "group", elements: [], componentBounds: { x: 0, y: 0, w: definition.width, h: definition.height }, libraryComponent: { kind, label: definition.label } }
+    : buildLibraryComponent(kind, 0, 0);
+  const svg = modelComponentSvg(component);
+  renderedIcons.set(kind, svg);
+  return svg;
+}
+
+export function LibraryComponentIcon(props: { kind: LibraryComponentKind }) {
+  const definition = () => LIBRARY_COMPONENTS.find(item => item.kind === props.kind);
+  const svg = () => componentIconSvg(props.kind);
+  return <>
+    {chartIcons[props.kind]
+      ? <Dynamic component={chartIcons[props.kind]!} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />
+      : definition() && svg()
+        ? <svg class="stencil-component-icon stencil-component-rendered-icon" viewBox={`0 0 ${definition()!.width} ${definition()!.height}`} aria-hidden="true" innerHTML={svg()} />
+        : <Dynamic component={IconComponents} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />}
+  </>;
 }

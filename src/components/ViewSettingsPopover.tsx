@@ -24,15 +24,10 @@ type Props = {
   onBoardColorChange: (value: string) => void;
   onPaperPatternChange: (value: WhiteboardStyle) => void;
   onNamedVersions: () => void;
-  onCustomizeToolbar: () => void;
 };
 
 export function ViewSettingsPopover(props: Props) {
   return <div class="system-menu-popover view-popover view-settings-popover">
-    <header class="view-settings-heading">
-      <div><span>VIEW</span><strong>Appearance and canvas</strong></div>
-      <button type="button" class="view-settings-customize" onClick={props.onCustomizeToolbar}>Customize toolbar…</button>
-    </header>
     <button type="button" class="view-settings-action" disabled={props.namedVersionsDisabled} onClick={props.onNamedVersions}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v15H4zM8 9h8m-8 4h5"/><path d="M7 3v4m10-4v4"/></svg>
       <span>Named document versions</span><span aria-hidden="true">›</span>

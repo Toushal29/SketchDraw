@@ -1,4 +1,4 @@
-import type { Element, GroupElement, LibraryChartData, LibraryChartKind, NoteKind, ShapeElement, TextElement, Theme } from "./model";
+import type { Element, GroupElement, LibraryChartData, LibraryChartKind, NoteKind, RelationshipType, ShapeElement, TextElement, Theme } from "./model";
 export type { LibraryChartData } from "./model";
 import { CLOUD_PROVIDER_COMPONENTS, cloudProviderComponent, type CloudProviderComponentKind } from "./features/diagrams/cloud-providers";
 import { defaultGuiComponentProperties, GUI_COMPONENT_DEFINITIONS, isGuiComponentKind, type GuiComponentKind } from "./features/components/gui-components";
@@ -286,7 +286,7 @@ export function toggleChecklistContent(content: string, target: number): string 
   }).join("\n");
 }
 
-export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "uml-state" | "uml-initial-state" | "uml-final-state" | "uml-fork" | "uml-join" | "uml-component" | "uml-node" | "uml-artifact" | "uml-enumeration" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-associative-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-composite-attribute" | "er-key-attribute" | "er-partial-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-message-event" | "bpmn-timer-event" | "bpmn-error-event" | "bpmn-signal-event" | "bpmn-terminate-event" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-user-task" | "bpmn-service-task" | "bpmn-script-task" | "bpmn-call-activity" | "bpmn-subprocess" | "bpmn-data" | "bpmn-data-store" | "bpmn-text-annotation" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-proxy" | "network-bridge" | "network-bastion" | "network-gateway" | "network-printer" | "network-workstation" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | CloudProviderComponentKind;
+export type LibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "uml-state" | "uml-initial-state" | "uml-final-state" | "uml-fork" | "uml-join" | "uml-component" | "uml-node" | "uml-artifact" | "uml-enumeration" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-associative-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-composite-attribute" | "er-key-attribute" | "er-partial-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-message-event" | "bpmn-timer-event" | "bpmn-error-event" | "bpmn-signal-event" | "bpmn-terminate-event" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-user-task" | "bpmn-service-task" | "bpmn-script-task" | "bpmn-call-activity" | "bpmn-subprocess" | "bpmn-data" | "bpmn-data-store" | "bpmn-text-annotation" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-proxy" | "network-bridge" | "network-bastion" | "network-gateway" | "network-printer" | "network-workstation" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | "uml-association" | "uml-dependency" | "uml-include" | "uml-extend" | "c4-code-element" | "c4-infrastructure-node" | "bpmn-manual-task" | "bpmn-business-rule-task" | "bpmn-send-task" | "bpmn-receive-task" | "network-subnet" | CloudProviderComponentKind;
 export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
   { kind: "diagram-frame", section: "General | Layout", label: "Frame", description: "Resizable titled boundary for any diagram", width: 420, height: 280 },
   { kind: "diagram-swimlane", section: "General | Layout", label: "Swimlane", description: "Resizable lanes for organizing responsibilities or stages", width: 520, height: 320 },
@@ -309,6 +309,10 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "uml-realization", section: "UML | Relationships", label: "Realization", description: "Straight dashed connector with a hollow arrowhead", width: 184, height: 42 },
   { kind: "uml-aggregation", section: "UML | Relationships", label: "Aggregation", description: "Straight connector with an open diamond endpoint", width: 184, height: 42 },
   { kind: "uml-composition", section: "UML | Relationships", label: "Composition", description: "Straight connector with a filled diamond endpoint", width: 184, height: 42 },
+  { kind: "uml-association", section: "UML | Relationships", label: "Association", description: "Structural relationship between classifiers", width: 184, height: 42 },
+  { kind: "uml-dependency", section: "UML | Relationships", label: "Dependency", description: "Dashed dependency arrow between classifiers", width: 184, height: 42 },
+  { kind: "uml-include", section: "UML | Use cases", label: "Include", description: "Dashed include relationship between use cases", width: 184, height: 42 },
+  { kind: "uml-extend", section: "UML | Use cases", label: "Extend", description: "Dashed extension relationship between use cases", width: 184, height: 42 },
   { kind: "uml-actor", section: "UML | Use cases", label: "Actor", description: "Use case actor symbol", width: 64, height: 106 },
   { kind: "uml-use-case", section: "UML | Use cases", label: "Use case", description: "Use case ellipse with editable label", width: 174, height: 90 },
   { kind: "uml-package", section: "UML | Use cases", label: "Package", description: "Package boundary for grouped model elements", width: 190, height: 132 },
@@ -335,6 +339,8 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "c4-person", section: "Architecture | C4 people & systems", label: "Person", description: "Person or user interacting with a software system", width: 126, height: 100 },
   { kind: "c4-external-system", section: "Architecture | C4 people & systems", label: "External system", description: "External software system or integration", width: 190, height: 104 },
   { kind: "c4-deployment-node", section: "Architecture | Deployment", label: "Deployment node", description: "Host, virtual machine, or runtime that contains deployed software", width: 220, height: 144 },
+  { kind: "c4-infrastructure-node", section: "Architecture | Deployment", label: "Infrastructure node", description: "Infrastructure that hosts deployed software, such as a load balancer or DNS service", width: 220, height: 144 },
+  { kind: "c4-code-element", section: "Architecture | Code", label: "Code element", description: "Code-level class, interface, object, function, or database table", width: 210, height: 132 },
   { kind: "software-client", section: "Software | Application components", label: "Web client", description: "Browser client with editable interface panels", width: 176, height: 112 },
   { kind: "software-api", section: "Software | Application components", label: "API endpoint", description: "Service boundary for an HTTP or RPC API", width: 176, height: 88 },
   { kind: "software-service", section: "Software | Application components", label: "Application service", description: "Service node with a clear module badge", width: 176, height: 92 },
@@ -352,6 +358,7 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "cloud-queue", section: "Cloud | Services", label: "Cloud queue", description: "Managed asynchronous message queue", width: 156, height: 94 },
   ...CLOUD_PROVIDER_COMPONENTS.map(component => ({ kind: component.kind, section: `Cloud | ${component.provider}`, label: component.label, description: component.description, width: 176, height: 108 })),
   { kind: "network-zone", section: "Network | Devices & zones", label: "Network zone", description: "Infrastructure enclosure with connection points", width: 280, height: 168 },
+  { kind: "network-subnet", section: "Network | Devices & zones", label: "Subnet", description: "IP subnet boundary with room for member devices", width: 280, height: 168 },
   { kind: "network-router", section: "Network | Devices", label: "Router", description: "Network router with directional ports", width: 104, height: 86 },
   { kind: "network-switch", section: "Network | Devices", label: "Switch", description: "Ethernet switch with visible ports", width: 132, height: 78 },
   { kind: "network-hub", section: "Network | Devices", label: "Hub", description: "Central network hub with configurable connection ports", width: 144, height: 94 },
@@ -392,6 +399,10 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "bpmn-user-task", section: "BPMN | Tasks & data", label: "User task", description: "Human work completed with a task or form", width: 168, height: 82 },
   { kind: "bpmn-service-task", section: "BPMN | Tasks & data", label: "Service task", description: "Automated work performed by a service", width: 168, height: 82 },
   { kind: "bpmn-script-task", section: "BPMN | Tasks & data", label: "Script task", description: "Automated work performed by an embedded script", width: 168, height: 82 },
+  { kind: "bpmn-manual-task", section: "BPMN | Tasks & data", label: "Manual task", description: "Work performed by a person without a workflow engine", width: 168, height: 82 },
+  { kind: "bpmn-business-rule-task", section: "BPMN | Tasks & data", label: "Business rule task", description: "Task that evaluates a business rule or decision table", width: 168, height: 82 },
+  { kind: "bpmn-send-task", section: "BPMN | Tasks & data", label: "Send task", description: "Task that sends a message to another participant", width: 168, height: 82 },
+  { kind: "bpmn-receive-task", section: "BPMN | Tasks & data", label: "Receive task", description: "Task that waits for a message from another participant", width: 168, height: 82 },
   { kind: "bpmn-call-activity", section: "BPMN | Tasks & data", label: "Call activity", description: "Reusable called process or global task", width: 168, height: 82 },
   { kind: "bpmn-subprocess", section: "BPMN | Tasks & data", label: "Subprocess", description: "Collapsed BPMN subprocess with expand marker", width: 168, height: 90 },
   { kind: "bpmn-data", section: "BPMN | Tasks & data", label: "Data object", description: "BPMN document data object", width: 86, height: 112 },
@@ -421,6 +432,10 @@ export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, 
     "uml-realization": { color: "#7563ad", lineStyle: "dashed", startHead: "none", endHead: "hollow" },
     "uml-aggregation": { color: "#7563ad", lineStyle: "solid", startHead: "open-diamond", endHead: "none" },
     "uml-composition": { color: "#7563ad", lineStyle: "solid", startHead: "diamond", endHead: "none" },
+    "uml-association": { color: "#7563ad", lineStyle: "solid", startHead: "none", endHead: "none" },
+    "uml-dependency": { color: "#7563ad", lineStyle: "dashed", startHead: "none", endHead: "open" },
+    "uml-include": { color: "#7563ad", lineStyle: "dashed", startHead: "none", endHead: "open" },
+    "uml-extend": { color: "#7563ad", lineStyle: "dashed", startHead: "none", endHead: "open" },
     "er-one-many": { color: "#31877e", lineStyle: "solid", startHead: "bar", endHead: "crow" },
     "er-one-one": { color: "#31877e", lineStyle: "solid", startHead: "bar", endHead: "bar" },
     "er-many-one": { color: "#31877e", lineStyle: "solid", startHead: "crow", endHead: "bar" },
@@ -430,11 +445,13 @@ export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, 
     "data-flow": { color: "#333333", lineStyle: "solid", startHead: "none", endHead: "solid" },
   };
   const style = relationships[kind]; if (!style) return undefined;
+  const relationshipType: RelationshipType = kind === "uml-inheritance" ? "inheritance" : kind === "uml-aggregation" ? "aggregation" : kind === "uml-composition" ? "composition" : kind === "uml-association" ? "association" : kind === "uml-dependency" || kind === "uml-include" || kind === "uml-extend" ? "dependency" : kind.startsWith("er-") ? "association" : kind.startsWith("sequence-") ? "sequence" : "data-flow";
   const line: ShapeElement = {
-    type: "line", id: crypto.randomUUID(), x, y: y + height / 2, w: width, h: 0, thickness: 1.8, lineRoute: "straight", straightOnly: true,
+    type: "line", id: crypto.randomUUID(), componentRole: kind, relationshipType, x, y: y + height / 2, w: width, h: 0, thickness: 1.8, lineRoute: "straight", straightOnly: true,
     color: style.color, lineStyle: style.lineStyle, startHead: style.startHead, endHead: style.endHead,
   };
   if (kind === "sequence-sync" || kind === "sequence-async") line.label = { text: kind === "sequence-sync" ? "Sync message" : "Async message", color: style.color, fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" };
+  if (kind === "uml-include" || kind === "uml-extend") line.label = { text: kind === "uml-include" ? "<<include>>" : "<<extend>>", color: style.color, fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" };
   if (kind === "data-flow") line.label = { text: "DATA FLOW", color: "#333333", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "top" };
   return line;
 }
@@ -473,7 +490,50 @@ export function defaultLibraryChartData(kind: LibraryComponentKind): LibraryChar
 const cleanUmlKinds = new Set<LibraryComponentKind>(["uml-state", "uml-initial-state", "uml-final-state", "uml-fork", "uml-join", "uml-component", "uml-node", "uml-artifact", "uml-enumeration"]);
 const usesCleanModelRenderer = (kind: LibraryComponentKind) => kind.startsWith("diagram-") || kind.startsWith("software-") || kind.startsWith("c4-") || kind.startsWith("bpmn-") || kind.startsWith("network-") && kind !== "network-access-point" || kind.startsWith("cloud-") || !!cloudProviderComponent(kind) || kind === "tech-service" || kind === "data-flow" || cleanUmlKinds.has(kind);
 
-export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number, options?: { chartData?: LibraryChartData; formOptions?: string[]; selectedOption?: number; formStates?: boolean[]; formTitle?: string; formState?: boolean; portCount?: number }): GroupElement {
+function defaultLibraryComponentFields(kind: LibraryComponentKind) {
+  if (kind === "uml-class") return [
+    { key: "attributes", label: "Attributes", value: "" },
+    { key: "methods", label: "Methods", value: "" },
+  ];
+  if (kind === "uml-interface") return [{ key: "operations", label: "Operations", value: "" }];
+  if (kind === "uml-enumeration") return [{ key: "literals", label: "Literals", value: "" }];
+  if (kind === "er-table") return [1, 2, 3].map(index => ({ key: `column-${index}`, label: `Column ${index}`, value: "" }));
+  if (kind === "er-composite-attribute") return [
+    { key: "sub-attribute-1", label: "Child attribute 1", value: "Attribute 1" },
+    { key: "sub-attribute-2", label: "Child attribute 2", value: "Attribute 2" },
+  ];
+  return [];
+}
+
+export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number, options?: { chartData?: LibraryChartData; formOptions?: string[]; selectedOption?: number; formStates?: boolean[]; formTitle?: string; formState?: boolean; portCount?: number; forceLegacyGeometry?: boolean }): GroupElement {
+  const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind);
+  if (!definition) throw new Error(`Unknown library component: ${kind}`);
+  if (!options?.forceLegacyGeometry) {
+    const guiProperties = defaultGuiComponentProperties(kind);
+    const componentFields = defaultLibraryComponentFields(kind);
+    const chartData = options?.chartData ?? defaultLibraryChartData(kind);
+    const formOptions = options?.formOptions ?? defaultLibraryFormOptions(kind);
+    const formTitle = options?.formTitle ?? defaultLibraryFormTitle(kind);
+    return {
+      type: "group", id: crypto.randomUUID(), elements: [],
+      componentBounds: { x, y, w: definition.width, h: definition.height },
+      ...((kind === "diagram-frame" || kind === "diagram-swimlane") ? { container: { kind: kind === "diagram-frame" ? "frame" as const : "swimlane" as const, name: definition.label, clipChildren: false, autoResize: false, padding: 20 } } : {}),
+      libraryComponent: {
+        kind, label: definition.label,
+        ...(usesCleanModelRenderer(kind) ? { renderStyle: "clean" as const } : {}),
+        ...(componentFields.length ? { componentFields } : {}),
+        ...(guiProperties ? { guiProperties } : {}),
+        ...(chartData ? { chartData } : {}),
+        ...(formOptions ? { formOptions } : {}),
+        ...(formTitle ? { formTitle } : {}),
+        ...(options?.selectedOption === undefined ? {} : { selectedOption: options.selectedOption }),
+        ...(options?.formStates ? { formStates: options.formStates } : {}),
+        ...(options?.formState === undefined ? {} : { formState: options.formState }),
+        ...(kind === "diagram-swimlane" ? { laneCount: 3 } : {}),
+        ...(kind === "network-hub" ? { portCount: options?.portCount ?? 8 } : kind === "network-switch" ? { portCount: options?.portCount ?? 6 } : {}),
+      },
+    };
+  }
   if (isGuiComponentKind(kind)) {
     const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
     const guiProperties = defaultGuiComponentProperties(kind);

@@ -212,10 +212,10 @@
   .app-shell:not(.platform-windows) .touch-tool-content .flowchart-options .flowchart-shape-grid > button { grid-template-columns: 1fr; justify-items: center; min-height: 58px; padding: 5px 3px; text-align: center; }
   .app-shell:not(.platform-windows) .touch-tool-content .text-options { width: min(270px, calc(100vw - 16px)); grid-template-columns: 1fr; }
   .app-shell:not(.platform-windows) .touch-tool-content .text-options > button,
-  .app-shell:not(.platform-windows) .touch-tool-content .pen-options > button { grid-template-columns: 24px minmax(0, 1fr); justify-content: start; }
+  .app-shell:not(.platform-windows) .touch-tool-content .paint-brush-options > button { grid-template-columns: 24px minmax(0, 1fr); justify-content: start; }
   .app-shell:not(.platform-windows) .touch-tool-content .route-options { width: min(310px, calc(100vw - 16px)); grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .app-shell:not(.platform-windows) .touch-tool-content .route-options > button { grid-template-columns: 22px minmax(0, 1fr); padding: 5px; font-size: 10px; }
-  .app-shell:not(.platform-windows) .touch-tool-content .pen-options { width: min(205px, calc(100vw - 16px)); grid-template-columns: 1fr; gap: 2px; }
+  .app-shell:not(.platform-windows) .touch-tool-content .paint-brush-options { width: min(205px, calc(100vw - 16px)); grid-template-columns: 1fr; gap: 2px; }
   .app-shell:not(.platform-windows) .touch-tool-content .tool-family.options-open > .stencil-options {
     --touch-popup-width: 580px;
     width: min(580px, calc(100vw - 16px));
@@ -369,6 +369,7 @@
   .app-shell:not(.platform-windows) .style-pane.full-style-mode > .full-inspector { max-height: none; }
   .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-inspector-header button,
   .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-inspector button { min-height: 35px; touch-action: manipulation; }
+  .app-shell:not(.platform-windows) .style-pane.full-style-mode .full-inspector-header .full-inspector-close { width: 35px; min-width: 35px; height: 35px; }
 }
 
 @media (max-width: 480px) {

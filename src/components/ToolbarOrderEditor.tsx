@@ -46,7 +46,11 @@ export function ToolbarOrderEditor(props: Props) {
           else if (!destination.value) {
             props.onMove(current.value, current.source);
           }
-        } else props.onMove(current.value, destination.zone, destination.value);
+        } else {
+          const sourceItems = current.source === "toolbar" ? props.toolbarItems : props.moreItems;
+          const draggedItem = sourceItems.find(item => item.value === current.value);
+          if (draggedItem?.canTransfer !== false) props.onMove(current.value, destination.zone, destination.value);
+        }
       }
     }
     clearDrag();
@@ -82,7 +86,7 @@ export function ToolbarOrderEditor(props: Props) {
         <div class="toolbar-organizer-row-actions">
           <button type="button" aria-label={`Move ${item.label} up`} title="Move up" disabled={index() === 0} onClick={() => { const previous = items[index() - 1]; if (previous) props.onReorder(zone, item.value, previous.value); }}>↑</button>
           <button type="button" aria-label={`Move ${item.label} down`} title="Move down" disabled={index() === items.length - 1} onClick={() => { const next = items[index() + 1]; if (next) props.onReorder(zone, next.value, item.value); }}>↓</button>
-          <button type="button" class="toolbar-organizer-transfer" aria-label={item.canTransfer === false ? `${item.label} stays on the toolbar` : `Move ${item.label} to ${zone === "toolbar" ? "More Tools" : "toolbar"}`} title={item.canTransfer === false ? "The More Tools menu stays on the toolbar" : `Move to ${zone === "toolbar" ? "More Tools" : "toolbar"}`} disabled={item.canTransfer === false} onClick={() => props.onMove(item.value, zone === "toolbar" ? "more" : "toolbar")}>{zone === "toolbar" ? "›" : "‹"}</button>
+          <button type="button" class="toolbar-organizer-transfer" aria-label={item.canTransfer === false ? `${item.label} stays on the toolbar` : `Move ${item.label} to ${zone === "toolbar" ? "More Tools" : "toolbar"}`} title={item.canTransfer === false ? `${item.label} stays on the toolbar` : `Move to ${zone === "toolbar" ? "More Tools" : "toolbar"}`} disabled={item.canTransfer === false} onClick={() => props.onMove(item.value, zone === "toolbar" ? "more" : "toolbar")}>{zone === "toolbar" ? "›" : "‹"}</button>
         </div>
       </li>}</For>
       <Show when={!items.length}><li class="toolbar-organizer-empty">Empty</li></Show>

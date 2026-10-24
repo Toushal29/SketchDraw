@@ -57,7 +57,7 @@ function connectorIconPath(item: Extract<DesignPaletteItem, { type: "connector" 
 function createPaletteSections(stencils: CustomStencil[], masters: ComponentMaster[]): PaletteSection[] {
   const components = new Map<string, PaletteEntry[]>();
   for (const component of LIBRARY_COMPONENTS) {
-    const category = component.section.startsWith("ER") ? "Database" : component.section.startsWith("C4") || component.section.startsWith("Architecture") ? "Architecture" : component.section.split("|")[0].trim();
+    const category = component.section.startsWith("ER") ? "Entity relationship" : component.section.startsWith("C4") || component.section.startsWith("Architecture") ? "Architecture" : component.section.split("|")[0].trim();
     const entries = components.get(category) ?? [];
     entries.push({ item: { type: "component", kind: component.kind, label: component.label }, searchText: `${component.label} ${component.description} ${component.section}` });
     components.set(category, entries);
@@ -95,7 +95,7 @@ function PaletteIcon(props: { item: DesignPaletteItem }) {
   const item = props.item;
   if (item.type === "component") return <LibraryComponentIcon kind={item.kind} />;
   if (item.type === "flowchart") {
-    const shape = FLOWCHART_SHAPES.find(entry => entry.value === item.shape);
+    const shape = [...FLOWCHART_SHAPES, ...GENERAL_SHAPES].find(entry => entry.value === item.shape);
     return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={shape?.path ?? "M4 4h16v16H4z"} /></svg>;
   }
   if (item.type === "primitive") {

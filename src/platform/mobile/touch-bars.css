@@ -132,9 +132,9 @@
     }
     .app-shell:not(.platform-windows) .tool-family.options-open .tool-options:not(.stencil-options) > button:hover,
     .app-shell:not(.platform-windows) .tool-family.options-open .tool-options:not(.stencil-options) > button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-    .app-shell:not(.platform-windows) .pen-options { --touch-popup-width: 190px; display: grid; grid-template-columns: 1fr; gap: 2px; }
-    .app-shell:not(.platform-windows) .pen-options > button { justify-content: flex-start; gap: 8px; text-align: left; }
-    .app-shell:not(.platform-windows) .pen-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }
+    .app-shell:not(.platform-windows) .paint-brush-options { --touch-popup-width: 190px; display: grid; grid-template-columns: 1fr; gap: 2px; }
+    .app-shell:not(.platform-windows) .paint-brush-options > button { justify-content: flex-start; gap: 8px; text-align: left; }
+    .app-shell:not(.platform-windows) .paint-brush-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }
     .app-shell:not(.platform-windows) .tool-family.options-open .text-options { --touch-popup-width: 260px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .app-shell:not(.platform-windows) .text-options > button { justify-content: flex-start; gap: 6px; padding: 6px; text-align: left; }
     .app-shell:not(.platform-windows) .text-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }

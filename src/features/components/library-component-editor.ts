@@ -10,7 +10,10 @@ export function libraryComponentFields(group: GroupElement): LibraryComponentFie
   if (group.componentBounds) {
     const kind = group.libraryComponent?.kind ?? "";
     if (kind.startsWith("form-") || kind.startsWith("gui-")) return [];
-    return [{ key: "label", label: "Label", value: group.libraryComponent?.label ?? LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? kind }];
+    return [
+      { key: "label", label: "Label", value: group.libraryComponent?.label ?? LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? kind },
+      ...(group.libraryComponent?.componentFields ?? []).map(field => ({ key: `component:${field.key}`, label: field.label, value: field.value })),
+    ];
   }
   const fields: LibraryComponentField[] = []; let textIndex = 0; let labelIndex = 0;
   const roleLabels: Record<string, string> = { "class-name": "Class name", "class-attributes": "Attributes", "class-methods": "Methods" };
@@ -31,12 +34,66 @@ function mapDescendants(items: Element[], operation: (element: Element) => Eleme
 
 export function setLibraryComponentField(group: GroupElement, key: string, value: string): GroupElement {
   if (group.componentBounds && key === "label" && group.libraryComponent) return { ...group, libraryComponent: { ...group.libraryComponent, label: value.slice(0, 120) } };
+  if (group.componentBounds && key.startsWith("component:") && group.libraryComponent?.componentFields) {
+    const fieldKey = key.slice("component:".length);
+    return { ...group, libraryComponent: { ...group.libraryComponent, componentFields: group.libraryComponent.componentFields.map(field => field.key === fieldKey ? { ...field, value: value.slice(0, 2000) } : field) } };
+  }
   const elements = mapDescendants(group.elements, element => {
     if (element.id === key && element.type === "text") return { ...element, text: value };
     if (key.endsWith(":label") && element.id === key.slice(0, -6) && "label" in element && element.label) return { ...element, label: { ...element.label, text: value } } as Element;
     return element;
   });
   return { ...group, elements };
+}
+
+/** Upgrade child-drawn built-ins when loading a document so the current renderer owns their appearance. */
+export function upgradeLegacyLibraryComponent(group: GroupElement): GroupElement | undefined {
+  const kind = group.libraryComponent?.kind as LibraryComponentKind | undefined;
+  const definition = kind && LIBRARY_COMPONENTS.find(item => item.kind === kind);
+  if (!kind || !definition || group.componentBounds || group.container || !group.elements.length) return undefined;
+
+  const fields = libraryComponentFields(group);
+  const fieldValues = fields.filter(field => field.key !== "label");
+  let label = group.libraryComponent?.label ?? definition.label;
+  const legacyText: string[] = [];
+  const legacyShapeLabels: string[] = [];
+  const collectText = (items: Element[]) => items.forEach(element => {
+    if (element.type === "group") collectText(element.elements);
+    else if (element.type === "text") legacyText.push(element.text);
+    else if ("label" in element && element.label) legacyShapeLabels.push(element.label.text);
+  });
+  collectText(group.elements);
+  const titleField = kind === "uml-class" ? legacyText[0]
+    : kind === "uml-interface" ? legacyText[1]
+      : kind === "er-table" ? legacyText[0]
+        : fieldValues.find(field => field.key.endsWith(":label"))?.value ?? legacyText[0];
+  const customTitle = titleField?.trim() && titleField.trim() !== definition.label ? titleField.trim() : undefined;
+  if ((!group.libraryComponent?.label || group.libraryComponent.label === definition.label) && customTitle) label = customTitle.slice(0, 120);
+
+  let componentFields = group.libraryComponent?.componentFields;
+  if (!componentFields?.length) {
+    const defaults = kind === "uml-class"
+      ? [{ key: "attributes", label: "Attributes" }, { key: "methods", label: "Methods" }]
+      : kind === "uml-interface" ? [{ key: "operations", label: "Operations" }]
+        : kind === "uml-enumeration" ? [{ key: "literals", label: "Literals" }]
+          : kind === "er-table" ? [1, 2, 3].map(index => ({ key: `column-${index}`, label: `Column ${index}` }))
+          : kind === "er-composite-attribute" ? [{ key: "sub-attribute-1", label: "Child attribute 1" }, { key: "sub-attribute-2", label: "Child attribute 2" }]
+            : [];
+    const oldText = legacyText;
+    const values = kind === "uml-class" ? oldText.slice(1, 3)
+      : kind === "uml-interface" ? oldText.slice(-1)
+        : kind === "uml-enumeration" ? oldText.slice(-1)
+          : kind === "er-table" ? oldText.slice(1, 4)
+            : kind === "er-composite-attribute" ? legacyShapeLabels.slice(1, 3)
+            : [];
+    componentFields = defaults.map((field, index) => ({ ...field, value: values[index] ?? "" }));
+  }
+
+  return {
+    ...group,
+    componentBounds: elementBounds(group),
+    libraryComponent: { ...group.libraryComponent, kind, label, ...(componentFields.length ? { componentFields } : {}) },
+  };
 }
 
 export function resizeLibraryFont(group: GroupElement, requestedSize: number): GroupElement {
@@ -121,7 +178,12 @@ export function assignLibraryComponentIds(group: GroupElement, kind: LibraryComp
 /** Rebuilds a renderer-only library group as editable primitives for old-file compatibility. */
 export function restoreDirectLibraryComponent(group: GroupElement): Element[] | undefined {
   const bounds = group.componentBounds; const metadata = group.libraryComponent;
-  if (!bounds || !metadata || group.elements.length || !LIBRARY_COMPONENTS.some(item => item.kind === metadata.kind)) return undefined;
+  if (!bounds || !metadata || !LIBRARY_COMPONENTS.some(item => item.kind === metadata.kind)) return undefined;
+  if (group.elements.length && !group.container) {
+    const legacy = { ...group };
+    delete legacy.componentBounds;
+    return [legacy];
+  }
   const kind = metadata.kind as LibraryComponentKind;
   const relationship = buildLibraryRelationship(kind, bounds.x, bounds.y);
   if (relationship) {
@@ -142,6 +204,7 @@ export function restoreDirectLibraryComponent(group: GroupElement): Element[] | 
     formTitle: metadata.formTitle ?? defaultLibraryFormTitle(kind),
     formState: metadata.formState,
     portCount: metadata.portCount,
+    forceLegacyGeometry: true,
   });
   let component = assignLibraryComponentIds(restored, kind, group);
   const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;

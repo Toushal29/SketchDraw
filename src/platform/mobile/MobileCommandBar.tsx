@@ -244,7 +244,7 @@ export function MobileCommandBar(props: Props) {
             <section class="mobile-settings-section"><h3>Application</h3>
               <div class="mobile-settings-field"><span>Interface scale <strong>{Math.round(props.interfaceScale * 100)}%</strong></span><ChoiceRow label="Interface scale" value={props.interfaceScale} options={[0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4].map(scale => ({ value: scale, label: `${Math.round(scale * 100)}%` }))} onChange={props.onInterfaceScaleChange} /></div>
               <div class="mobile-settings-field"><span>Autosave interval</span><ChoiceRow label="Autosave interval" value={props.autosaveSeconds} options={[{ value: 5, label: "5 sec" }, { value: 10, label: "10 sec" }]} onChange={props.onAutosaveChange} /></div>
-              <div class="mobile-settings-field"><span>Pen thickness control</span><ChoiceRow label="Pen thickness control" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} /></div>
+              <div class="mobile-settings-field"><span>Pen and brush thickness control</span><ChoiceRow label="Pen and brush thickness control" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} /></div>
               <button class="mobile-settings-reset" onClick={props.onRestoreDefaults}>Restore defaults</button>
             </section>
           </Show>

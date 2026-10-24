@@ -36,7 +36,7 @@ import { d2ToDiagram } from "./features/diagrams/d2";
 import { svgPrimitivesToElements } from "./features/diagrams/svg-vectors";
 import { exportDiagramCode, plantUmlToDiagram, type DiagramCodeFormat } from "./features/diagrams/code-formats";
 import { makeWebPreviewCard, webEmbedUrl } from "./features/canvas/web-preview";
-import { assignLibraryComponentIds, libraryComponentFields, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryCheckboxOption, setLibraryFormState, setLibraryLifelineLength, setLibraryRadioOption } from "./features/components/library-component-editor";
+import { assignLibraryComponentIds, libraryComponentFields, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryCheckboxOption, setLibraryFormState, setLibraryLifelineLength, setLibraryRadioOption, upgradeLegacyLibraryComponent } from "./features/components/library-component-editor";
 import { guiOptionIndexAtPoint } from "./features/components/gui-components";
 import { layoutMermaidFlowchart, layoutMermaidSequence, parseMermaidFlowchart, parseMermaidSequence } from "./mermaid";
 import { GestureSettings, TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, readTouchGestureAction, readTouchTapAction, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./platform/mobile/GestureSettings";
@@ -120,9 +120,9 @@ type TouchGesture = { fingerCount: 2 | 3; action: TouchGestureAction; initialDis
 type TouchTapTracker = { startedAt: number; starts: Map<number, Point>; maxFingers: number; canceled: boolean; initialEvent: PointerEvent; deferredInteractionStarted?: boolean };
 type WhiteboardStyle = "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric";
 type DisplayMetrics = { physicalWidth: number; physicalHeight: number; viewportWidth: number; viewportHeight: number };
-const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "pan", "pen", "laser", "line", "arrow", "rectangle", "circle", "diamond", "triangle", "flowchart", "text", "bucket", "eraser", "crop", "measure", "codeData", "pathEdit", "frame", "moreTools"];
+const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "laser", "line", "arrow", "rectangle", "circle", "diamond", "triangle", "flowchart", "text", "bucket", "eraser", "crop", "measure", "codeData", "pathEdit", "frame", "moreTools"];
 const DEFAULT_MORE_TOOL_ORDER: ToolbarItem[] = ["bucket", "measure", "crop"];
-const MOBILE_DEFAULT_TOOLBAR_ORDER: ToolbarItem[] = ["select", "pan", "pen", "line", "arrow", "rectangle", "text", "eraser", "moreTools"];
+const MOBILE_DEFAULT_TOOLBAR_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "line", "arrow", "rectangle", "text", "eraser", "moreTools"];
 type ToolbarLayout = { toolbar: ToolbarItem[]; more: ToolbarItem[] };
 type OrderedToolbarEntry = { kind: "cluster"; id: string; label: string; tools: ToolbarItem[] } | { kind: "more-tools" };
 function toolbarItemsForCurrentPlatform(): ToolbarItem[] {
@@ -150,7 +150,12 @@ function readToolbarLayout(): ToolbarLayout {
     if (saved && typeof saved === "object" && !Array.isArray(saved)) {
       const source = saved as { toolbar?: unknown; more?: unknown };
       const toolbar = normalize(source.toolbar);
-      const more = normalize(source.more).filter(value => value !== "moreTools" && !toolbar.includes(value));
+      const more = normalize(source.more).filter(value => value !== "moreTools" && value !== "paintBrushes" && !toolbar.includes(value));
+      if (!toolbar.includes("paintBrushes")) {
+        const penIndex = toolbar.indexOf("pen");
+        if (penIndex >= 0) toolbar.splice(penIndex + 1, 0, "paintBrushes");
+        else toolbar.push("paintBrushes");
+      }
       for (const value of [...defaults.toolbar, ...defaults.more]) if (!toolbar.includes(value) && !more.includes(value)) (defaults.more.includes(value) ? more : toolbar).push(value);
       return { toolbar, more };
     }
@@ -158,7 +163,14 @@ function readToolbarLayout(): ToolbarLayout {
     if (Array.isArray(legacy)) {
       const oldToolbar = normalize(legacy).filter(value => !DEFAULT_MORE_TOOL_ORDER.includes(value));
       const more = defaults.more.filter(value => !oldToolbar.includes(value));
-      return { toolbar: [...oldToolbar, ...defaults.toolbar.filter(value => !oldToolbar.includes(value))], more };
+      const toolbar = [...oldToolbar, ...defaults.toolbar.filter(value => !oldToolbar.includes(value))];
+      const paintBrushesIndex = toolbar.indexOf("paintBrushes");
+      const penIndex = toolbar.indexOf("pen");
+      if (paintBrushesIndex >= 0 && penIndex >= 0 && paintBrushesIndex !== penIndex + 1) {
+        toolbar.splice(paintBrushesIndex, 1);
+        toolbar.splice(penIndex + 1, 0, "paintBrushes");
+      }
+      return { toolbar, more };
     }
     return defaults;
   } catch { return defaultToolbarLayout(); }
@@ -707,7 +719,7 @@ function App() {
   const planningSession = createPlanningSession({ busy: nativeBusy, setBusy: setNativeBusy, chooseDocument: choosePlanningDocument, createDocument: createPlanningDocument, activeSketchPath: activePath, displayNameForPath, setError });
   const { recentPlans, data: projectWorkspaceData, path: planningPath, dirty: planningDirty, saving: planningSaving, savedAt: planningSavedAt, legacyPending: legacyPlanningPending, needsExtraction: planningNeedsExtraction } = planningSession;
   const [documentBusy, setDocumentBusy] = createSignal(false);
-  const [openToolOptions, setOpenToolOptions] = createSignal<Tool>();
+  const [openToolOptions, setOpenToolOptions] = createSignal<Tool | "paintBrushes">();
   const [stencilMenuOpen, setStencilMenuOpen] = createSignal(false);
   const [stencilSearch, setStencilSearch] = createSignal("");
   const [stencilCategory, setStencilCategory] = createSignal("All");
@@ -2717,9 +2729,9 @@ function App() {
       ? assignLibraryComponentIds({ type: "group", id: crypto.randomUUID(), elements: [], componentBounds: { x, y, w: definition.width, h: definition.height }, libraryComponent: { kind, label: definition.label, ...(defaultLibraryChartData(kind) ? { chartData: defaultLibraryChartData(kind) } : {}), ...(defaultLibraryFormOptions(kind) ? { formOptions: defaultLibraryFormOptions(kind) } : {}), ...(defaultLibraryFormTitle(kind) ? { formTitle: defaultLibraryFormTitle(kind) } : {}), ...(kind === "form-toggle" ? { formState: true } : {}) } }, kind)
       : assignLibraryComponentIds(buildLibraryComponent(kind, x, y, { chartData: defaultLibraryChartData(kind), formOptions: defaultLibraryFormOptions(kind), formTitle: defaultLibraryFormTitle(kind), ...(kind === "network-hub" ? { portCount: 8 } : kind === "network-switch" ? { portCount: 6 } : {}) }), kind);
     if (cloudProviderComponent(kind)) {
-      const glyph = await loadCloudProviderGlyph(kind);
-      if (!glyph || !activePath() || boardLocked()) return;
-      builtGroup.libraryComponent = { ...builtGroup.libraryComponent!, iconSvg: glyph.svg, iconViewBox: glyph.viewBox };
+      const glyph = await loadCloudProviderGlyph(kind).catch(() => undefined);
+      if (!activePath() || boardLocked()) return;
+      if (glyph) builtGroup.libraryComponent = { ...builtGroup.libraryComponent!, iconSvg: glyph.svg, iconViewBox: glyph.viewBox };
     }
     const group = resizeLibraryFont(builtGroup, defaultFontSize());
     setStencilMenuOpen(false);
@@ -2734,12 +2746,14 @@ function App() {
     setComponentCatalogBusy(true);
     try {
       const catalogSections = [
+        { id: "general", title: "General & layout" },
         { id: "uml-er", title: "UML & ER" }, { id: "software", title: "Software architecture" },
         { id: "cloud", title: "Cloud platforms" }, { id: "network", title: "Network" },
         { id: "annotations", title: "Annotations" }, { id: "viz", title: "Data visualization" },
         { id: "forms", title: "Forms & UI" }, { id: "bpmn", title: "BPMN" },
+        { id: "other", title: "Other components" },
       ];
-      const catalogGroup = (section: string) => section.startsWith("UML") || section.startsWith("ER") ? "uml-er" : section.startsWith("Software") || section.startsWith("Architecture") ? "software" : section.startsWith("Cloud") ? "cloud" : section.startsWith("Network") ? "network" : section.startsWith("Data visualization") ? "viz" : section.startsWith("Forms") ? "forms" : section.startsWith("BPMN") ? "bpmn" : section.startsWith("Annotations") ? "annotations" : "other";
+      const catalogGroup = (section: string) => section.startsWith("General") ? "general" : section.startsWith("UML") || section.startsWith("ER") ? "uml-er" : section.startsWith("Software") || section.startsWith("Architecture") ? "software" : section.startsWith("Cloud") ? "cloud" : section.startsWith("Network") ? "network" : section.startsWith("Data visualization") ? "viz" : section.startsWith("Forms") ? "forms" : section.startsWith("BPMN") ? "bpmn" : section.startsWith("Annotations") ? "annotations" : "other";
       const cloudKinds = LIBRARY_COMPONENTS.filter(component => cloudProviderComponent(component.kind));
       const glyphPairs = await Promise.all(cloudKinds.map(async component => [component.kind, await loadCloudProviderGlyph(component.kind).catch(() => undefined)] as const));
       if (activePath() !== targetPath || activePageId() !== targetPage || !isCanvasWorkspace() || readOnlyView() || boardLocked() || !canvas) return;
@@ -4067,7 +4081,12 @@ function App() {
   function saveToolbarLayout(toolbar: ToolbarItem[], more: ToolbarItem[]) {
     const available = toolbarItemsForCurrentPlatform();
     const nextToolbar = [...new Set(toolbar.filter(value => available.includes(value)))];
-    const nextMore = [...new Set(more.filter(value => value !== "moreTools" && available.includes(value) && !nextToolbar.includes(value)))];
+    const nextMore = [...new Set(more.filter(value => value !== "moreTools" && value !== "paintBrushes" && available.includes(value) && !nextToolbar.includes(value)))];
+    if (available.includes("paintBrushes") && !nextToolbar.includes("paintBrushes")) {
+      const penIndex = nextToolbar.indexOf("pen");
+      if (penIndex >= 0) nextToolbar.splice(penIndex + 1, 0, "paintBrushes");
+      else nextToolbar.push("paintBrushes");
+    }
     for (const value of available) if (!nextToolbar.includes(value) && !nextMore.includes(value)) nextToolbar.push(value);
     setToolbarOrder(nextToolbar);
     setMoreToolsOrder(nextMore);
@@ -4086,7 +4105,7 @@ function App() {
     else saveToolbarLayout(toolbarOrder(), current);
   }
   function moveToolbarTool(value: ToolbarItem, destination: ToolbarZone, before?: ToolbarItem) {
-    if (value === "moreTools" && destination === "more") return;
+    if ((value === "moreTools" || value === "paintBrushes") && destination === "more") return;
     const currentToolbar = toolbarOrder().filter(item => item !== value);
     const currentMore = moreToolsOrder().filter(item => item !== value);
     const destinationList = destination === "toolbar" ? currentToolbar : currentMore;
@@ -4197,13 +4216,13 @@ function App() {
 
   function applySnapshot(snapshot: SketchFile, path: string, rawText: string, nextWorkspace: WorkspaceArea = "canvas") {
     canvasHistory.clearAll(); setTextDraft(undefined); setNoteEditor(undefined); setContextMenu(undefined); setLayerPanelOpen(false); setTouchStylePanel(false); setQuickStylePopover(undefined); setCanvasOptionsOpen(false);  setStencilMenuOpen(false); closeToolOptions(); setPreview(undefined); setMarquee(undefined); drawing = false; moveOrigin = undefined; resizeOrigin = undefined;
-    let restoredComponents = false;
-    const pages = snapshot.pages.map(page => ({ ...page, elements: page.elements.flatMap(element => {
-      if (element.type !== "group") return [element];
-      const restored = restoreDirectLibraryComponent(element);
-      if (!restored) return [element];
-      restoredComponents = true;
-      return restored;
+    let upgradedComponents = false;
+    const pages = snapshot.pages.map(page => ({ ...page, elements: page.elements.map(element => {
+      if (element.type !== "group") return element;
+      const upgraded = upgradeLegacyLibraryComponent(element);
+      if (!upgraded) return element;
+      upgradedComponents = true;
+      return upgraded;
     }) }));
     const migratedNotes = planningSession.importLegacyFromSketch({
       path,
@@ -4219,7 +4238,7 @@ function App() {
     setElements(currentPage.elements); setCanvasState({ ...currentPage.canvasState });
     setBoardColor(currentPage.canvasState.backgroundColor); setBoardColorFollowsTheme(currentPage.canvasState.boardColorFollowsTheme ?? false);
     documentSnapshotCoordinator.seed(preparedSnapshot);
-    rememberFile(path); setDirty(!snapshot.windowsSync || migratedNotes || restoredComponents || !!snapshot.project); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); docController.setBaselineRaw(rawText);
+    rememberFile(path); setDirty(!snapshot.windowsSync || migratedNotes || upgradedComponents || !!snapshot.project); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); docController.setBaselineRaw(rawText);
     setError("");
   }
 
@@ -6015,8 +6034,10 @@ function App() {
     { id: "laser", label: "Laser pointer", tools: ["laser"] },
   ] : isWindowsPlatform() ? [
     { id: "navigation", label: "Navigation", tools: ["select", "pan"] },
-    { id: "drawing", label: "Drawing", tools: ["pen", "eraser"] },
-    { id: "laser", label: "Laser", tools: ["laser"] },
+    { id: "pen", label: "Pen", tools: ["pen"] },
+    { id: "paint-brushes", label: "Paint brushes", tools: ["paintBrushes"] },
+    { id: "erase", label: "Erase", tools: ["eraser"] },
+    { id: "laser", label: "Laser pointer", tools: ["laser"] },
     { id: "connectors", label: "Connectors", tools: ["line", "arrow"] },
     { id: "shapes", label: "Shapes", tools: ["rectangle", "circle", "diamond", "triangle", "flowchart"] },
     { id: "content", label: "Text and image tools", tools: ["text", "bucket", "crop"] },
@@ -6024,14 +6045,16 @@ function App() {
     { id: "precision", label: "Precision tools", tools: ["measure", "pathEdit", "frame"] },
   ] : [
     { id: "navigation", label: "Navigation", tools: ["select", "pan"] },
-    { id: "drawing", label: "Drawing", tools: ["pen", "laser"] },
+    { id: "pen", label: "Pen", tools: ["pen"] },
+    { id: "paint-brushes", label: "Paint brushes", tools: ["paintBrushes"] },
+    { id: "laser", label: "Laser pointer", tools: ["laser"] },
     { id: "connectors", label: "Connectors", tools: ["line", "arrow"] },
     { id: "shapes", label: "Shapes", tools: ["rectangle", "circle", "diamond", "triangle", "flowchart"] },
     { id: "content", label: "Text and image tools", tools: ["text", "bucket", "eraser", "crop"] },
     { id: "code-data", label: "Code and data", tools: ["codeData"] },
     { id: "precision", label: "Precision tools", tools: ["measure", "pathEdit", "frame"] },
   ];
-  const organizerItems = (values: ToolbarItem[]) => values.map(value => ({ value, label: value === "moreTools" ? "More Tools menu" : tools.find(item => item.value === value)?.label ?? ({ measure: "Measure distance", pathEdit: "Edit selected path nodes", frame: "Create frame from selection", codeData: "Code & data" } as const)[value as "measure" | "pathEdit" | "frame" | "codeData"] ?? value, canTransfer: value !== "moreTools" }));
+  const organizerItems = (values: ToolbarItem[]) => values.map(value => ({ value, label: value === "moreTools" ? "More Tools menu" : value === "paintBrushes" ? "Paint brushes" : tools.find(item => item.value === value)?.label ?? ({ measure: "Measure distance", pathEdit: "Edit selected path nodes", frame: "Create frame from selection", codeData: "Code & data" } as const)[value as "measure" | "pathEdit" | "frame" | "codeData"] ?? value, canTransfer: value !== "moreTools" && value !== "paintBrushes" }));
   const orderedToolbarEntries = (): OrderedToolbarEntry[] => {
     const entries: OrderedToolbarEntry[] = [];
     for (const value of toolbarOrder()) {
@@ -6048,7 +6071,7 @@ function App() {
     return entries;
   };
   const mobileShapeTools = new Set<Tool>(["rectangle", "circle", "diamond", "triangle"]);
-  const mobileEssentialTools = new Set<ToolbarItem>(["select", "pan", "pen", "eraser", "laser", "line", "arrow", "rectangle", "text", "bucket"]);
+  const mobileEssentialTools = new Set<ToolbarItem>(["select", "pan", "pen", "paintBrushes", "eraser", "laser", "line", "arrow", "rectangle", "text", "bucket"]);
   const commonFlowchartShapes = new Set<FlowchartShape>(["process", "terminator", "decision", "data", "document", "database", "predefined-process", "preparation", "manual-input", "connector", "off-page", "delay", "manual-operation", "stored-data", "display"]);
   const visibleFlowchartShapes = () => FLOWCHART_MENU_SHAPES.filter(shape => {
     const category = flowchartPaletteCategory();
@@ -6231,7 +6254,7 @@ function App() {
     setTouchStylePanel(false);
     setMoreToolsOpen(false);
   };
-  const showToolOptions = (value: Tool) => { if (isCompactTouchLayout() && !isWindowsPlatform()) { closeTouchMenuBar(); setCanvasOptionsOpen(false); setStencilMenuOpen(false); } setMoreToolsOpen(false); setOpenToolOptions(value); scheduleTouchPopoverPlacement(); };
+  const showToolOptions = (value: Tool | "paintBrushes") => { if (isCompactTouchLayout() && !isWindowsPlatform()) { closeTouchMenuBar(); setCanvasOptionsOpen(false); setStencilMenuOpen(false); } setMoreToolsOpen(false); setOpenToolOptions(value); scheduleTouchPopoverPlacement(); };
   const closeToolOptions = () => setOpenToolOptions(undefined);
 
   createEffect(() => {
@@ -6423,6 +6446,16 @@ function App() {
     { value: "highlighter", label: "Highlighter", path: "M4 16 15 5l5 5-11 11H4zm4-2 5 5" },
     { value: "chalk", label: "Chalk", path: "M5 18 17 6m-8 12 2 2M4 21h16" },
   ];
+  const paintBrushChoices = penBrushChoices.filter(brush => brush.value !== "fine");
+  const renderPaintBrushesTool = () => {
+    const selectedBrush = paintBrushChoices.find(brush => brush.value === brushMode()) ?? paintBrushChoices[0];
+    const active = () => tool() === "pen" && brushMode() !== "fine";
+    const menuOpen = () => openToolOptions() === "paintBrushes";
+    return <div class="tool-family paint-brushes-family" data-touch-popover="paintBrushes" classList={{ "options-open": menuOpen(), "mobile-tool-essential-family": true, "mobile-tool-current-family": active() }} onPointerEnter={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) showToolOptions("paintBrushes"); }} onPointerLeave={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) closeToolOptions(); }} onFocusOut={event => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>
+      <button type="button" class={`tool-icon-button paint-brushes-button has-options ${active() ? "selected mobile-tool-current" : ""} mobile-tool-essential`} title={active() ? `Paint brushes: ${selectedBrush.label}` : "Paint brushes"} aria-label={active() ? `Paint brushes, ${selectedBrush.label} selected` : "Paint brushes"} aria-pressed={active()} aria-haspopup="menu" aria-expanded={menuOpen()} onFocus={() => { if (!isCompactTouchLayout()) showToolOptions("paintBrushes"); }} onClick={() => { if (menuOpen()) closeToolOptions(); else showToolOptions("paintBrushes"); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={selectedBrush.path} /></svg><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3" /></svg></button>
+      <div class="tool-options paint-brush-options" role="menu" aria-label="Paint brushes">{paintBrushChoices.map(brush => <button type="button" class={tool() === "pen" && brushMode() === brush.value ? "active" : ""} role="menuitemradio" aria-checked={tool() === "pen" && brushMode() === brush.value} title={brush.label} onClick={() => { commitTextDraft(); setQuickStylePopover(undefined); setTouchStylePanel(false); setBrushMode(brush.value); setTool("pen"); setSelectedIndices([]); setSidebarTab("properties"); closeToolOptions(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={brush.path} /></svg><span>{brush.label}</span></button>)}</div>
+    </div>;
+  };
   const openCodeDataTool = () => { setCodeDataOpen(true); setMoreToolsOpen(false); setCanvasOptionsOpen(false); closeToolOptions(); setStencilMenuOpen(false); };
   const renderToolbarTool = (definition: typeof tools[number]) => {
     const { value, label, key } = definition;
@@ -6437,19 +6470,7 @@ function App() {
     const bindings = shortcutId ? shortcuts()[shortcutId] : undefined;
     const displayedKey = displayShortcut(bindings?.find(Boolean) ?? key);
     const shortcutLabel = bindings ? formatShortcutBindings(bindings) || key : key;
-    if (value === "pen") {
-      const selectedBrush = penBrushChoices.find(item => item.value === brushMode()) ?? penBrushChoices[0];
-      const menuOpen = openToolOptions() === "pen";
-      const choosePen = () => {
-        commitTextDraft(); setQuickStylePopover(undefined); setTouchStylePanel(false);
-        if (tool() !== "pen") { setTool("pen"); setSelectedIndices([]); setSidebarTab("properties"); }
-      };
-      return <div class="tool-family pen-family" data-touch-popover="pen" classList={{ "options-open": menuOpen, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === "pen" }} onPointerEnter={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) showToolOptions("pen"); }} onPointerLeave={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) closeToolOptions(); }} onFocusOut={event => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>
-        <button type="button" class={`tool-icon-button pen-tool-button has-options ${tool() === "pen" ? "selected mobile-tool-current" : ""} ${mobileEssential ? "mobile-tool-essential" : ""}`} title={`${selectedBrush.label} (${shortcutLabel})`} aria-label={`Pen tool, ${selectedBrush.label} selected`} aria-pressed={tool() === "pen"} aria-haspopup="menu" aria-expanded={menuOpen} onFocus={() => { if (!isCompactTouchLayout()) showToolOptions("pen"); }} onClick={() => { choosePen(); if (isCompactTouchLayout() && openToolOptions() === "pen") closeToolOptions(); else showToolOptions("pen"); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={selectedBrush.path} /></svg><kbd>{displayedKey}</kbd><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3" /></svg></button>
-        <div class="tool-options pen-options" role="menu" aria-label="Pen and brush tools">{penBrushChoices.map(brush => <button type="button" class={brushMode() === brush.value ? "active" : ""} role="menuitemradio" aria-checked={brushMode() === brush.value} title={brush.label} onClick={() => { setBrushMode(brush.value); setTool("pen"); setSelectedIndices([]); closeToolOptions(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={brush.path} /></svg><span>{brush.label}</span></button>)}</div>
-      </div>;
-    }
-    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${tool() === value || mobileShapeFamily && mobileShapeTools.has(tool()) ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${displayLabel} (${shortcutLabel})`} aria-label={mobileShapeFamily ? `Shapes: ${displayLabel}` : displayLabel} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (mobileShapeFamily) { commitTextDraft(); setQuickStylePopover(undefined); if (openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } if (hasOptions) { if (!isWindowsPlatform() && isCompactTouchLayout()) { if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{mobileShapeFamily || windowsShapeFamily ? <><rect x="3.25" y="3.25" width="7.5" height="7.5" rx="1.2"/><circle cx="17" cy="7" r="3.75"/><path d="m7 13.25 4.25 4.25L7 21.75l-4.25-4.25zM17 13.5l4.5 7.5h-9z"/></> : value === "flowchart" ? <><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></> : <path d={path} />}</svg><kbd>{displayedKey}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
+    const button = <button class={`tool-icon-button ${active ? "selected" : ""} ${mobileEssential ? "mobile-tool-essential" : ""} ${active ? "mobile-tool-current" : ""} ${hasOptions ? "has-options" : ""}`} title={`${displayLabel} (${shortcutLabel})`} aria-label={mobileShapeFamily ? `Shapes: ${displayLabel}` : displayLabel} aria-haspopup={hasOptions ? "menu" : undefined} aria-pressed={active} aria-expanded={hasOptions ? openToolOptions() === value : undefined} onFocus={() => { if (hasOptions && !isCompactTouchLayout()) showToolOptions(value); }} onClick={() => { if (mobileShapeFamily) { commitTextDraft(); setQuickStylePopover(undefined); if (openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } if (hasOptions) { if (!isWindowsPlatform() && isCompactTouchLayout()) { if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } if (!isWindowsPlatform() && tool() === value) { activateTool(value); closeToolOptions(); return; } if (tool() !== value) activateTool(value); else { commitTextDraft(); setQuickStylePopover(undefined); } if (isCompactTouchLayout() && openToolOptions() === value) closeToolOptions(); else showToolOptions(value); return; } closeToolOptions(); activateTool(value); }}><svg viewBox="0 0 24 24" aria-hidden="true">{mobileShapeFamily || windowsShapeFamily ? <><rect x="3.25" y="3.25" width="7.5" height="7.5" rx="1.2"/><circle cx="17" cy="7" r="3.75"/><path d="m7 13.25 4.25 4.25L7 21.75l-4.25-4.25zM17 13.5l4.5 7.5h-9z"/></> : value === "flowchart" ? <><path d="M12 6.5v3M6 10h12M6 10v3m12-3v3"/><rect x="9" y="2.5" width="6" height="4" rx="1"/><rect x="3.5" y="13" width="5" height="6" rx="1"/><rect x="15.5" y="13" width="5" height="6" rx="1"/></> : <path d={path} />}</svg><kbd>{displayedKey}</kbd>{hasOptions && <svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg>}</button>;
     if (mobileShapeFamily) return <div class="tool-family shape-family" data-touch-popover={value} classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": true, "mobile-tool-current-family": mobileShapeTools.has(tool()) }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}<div class="tool-options shape-options" role="menu" aria-label="Basic shapes">{tools.filter(item => mobileShapeTools.has(item.value)).map(shape => <button class={tool() === shape.value ? "active" : ""} role="menuitemradio" aria-checked={tool() === shape.value} title={shape.label} aria-label={shape.label} onClick={() => { closeToolOptions(); setTool(shape.value); setSidebarTab("properties"); setSelectedIndices([]); }}><svg viewBox="0 0 24 24"><path d={shape.path} /></svg><span>{shape.label}</span></button>)}<button type="button" class="palette-spawn-all" role="menuitem" disabled={!activePath() || readOnlyView() || boardLocked() || shapeCatalogBusy()} onClick={spawnAllShapes}>{shapeCatalogBusy() ? "Preparing shape catalog…" : `Spawn all ${SHAPE_CATALOG_COUNT} shapes`}</button></div></div>;
     if (value === "flowchart") return <div class="tool-family flowchart-family" data-touch-popover={value} classList={{ "options-open": openToolOptions() === value, "mobile-tool-essential-family": mobileEssential, "mobile-tool-current-family": tool() === value }} onPointerEnter={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) showToolOptions(value); }} onPointerLeave={event => { if (event.pointerType === "mouse" && !isCompactTouchLayout()) closeToolOptions(); }} onFocusOut={(event) => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) closeToolOptions(); }}>{button}{isWindowsPlatform()
       ? <WindowsShapePalette activeTool={tool()} activeFlowchartShape={flowchartShape()} onSpawnAll={spawnAllShapes} spawnAllDisabled={!activePath() || readOnlyView() || boardLocked() || shapeCatalogBusy()} spawnAllLabel={shapeCatalogBusy() ? "Preparing shape catalog…" : `Spawn all ${SHAPE_CATALOG_COUNT} shapes`} onSelect={(choice: WindowsShapeChoice) => { closeToolOptions(); if (choice.kind === "flowchart") { setFlowchartShape(choice.shape); setTool("flowchart"); } else setTool(choice.tool); setSidebarTab("properties"); setSelectedIndices([]); }} />
@@ -6477,6 +6498,7 @@ function App() {
     return button;
   };
   const renderToolbarItem = (value: ToolbarItem) => {
+    if (value === "paintBrushes") return renderPaintBrushesTool();
     if (value === "codeData") return <button type="button" class="tool-icon-button code-data-tool" aria-label="Code and data tools" title="Code & data" onClick={openCodeDataTool}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8" height="7" rx="1"/><rect x="13" y="4" width="8" height="7" rx="1"/><rect x="3" y="13" width="8" height="7" rx="1"/><rect x="13" y="13" width="8" height="7" rx="1"/><path d="M5 8h4m6-1h4m-4 3h4M5 16h4m6 0h4"/></svg></button>;
     if (value === "measure") return <button type="button" class={`tool-icon-button ${measureMode() ? "selected" : ""}`} aria-label={measureMode() ? "Exit measure tool" : "Measure distance"} aria-pressed={measureMode()} title="Measure distance (M)" onClick={toggleMeasureMode}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19 19 4l2 2L6 21H4zM8 15l2 2m1-5 2 2m1-5 2 2" /></svg></button>;
     if (value === "pathEdit") {
@@ -6495,7 +6517,7 @@ function App() {
     : tools.find(item => item.value === value)?.path ?? "M4 4h16v16H4z";
   const runMoreTool = (value: ToolbarItem) => {
     setMoreToolsOpen(false);
-    if (value === "moreTools") return;
+    if (value === "moreTools" || value === "paintBrushes") return;
     if (value === "codeData") { openCodeDataTool(); return; }
     if (value === "measure") { toggleMeasureMode(); return; }
     if (value === "pathEdit") { setPathNodeEditMode(mode => !mode); setSelectedPathNodeIndex(undefined); return; }
@@ -6781,7 +6803,6 @@ function App() {
                 onBoardColorChange={value => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } }}
                 onPaperPatternChange={setWhiteboardStylePreference}
                 onNamedVersions={openNamedSnapshots}
-                onCustomizeToolbar={() => { if (viewMenu) viewMenu.open = false; setToolbarOrganizerOpen(true); }}
               />
             </details>
           <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
@@ -7165,7 +7186,7 @@ function App() {
                       </div>
                     </Show>
                     <Show when={quickStylePopover() === "brushes" && tool() === "pen"}>
-                      <div class="quick-style-popover quick-brush-picker" role="group" aria-label="Pen and brush styles">{([ ["fine", "Pen"], ["pencil", "Pencil"], ["brush", "Soft brush"], ["marker", "Marker"], ["highlighter", "Highlighter"], ["chalk", "Chalk"] ] as const).map(([mode, label]) => <button class={brushMode() === mode ? "active" : ""} aria-pressed={brushMode() === mode} title={label} onClick={() => { setBrushMode(mode); setTool("pen"); setQuickStylePopover(undefined); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={mode === "fine" ? "m5 19 13-14M4 21h16" : mode === "pencil" ? "m5 19 11-11 3 3L8 22H5zm10-13 2-2 4 4-2 2" : mode === "brush" ? "M5 18c4 0 3-8 8-8 4 0 4 4 7 4m-15 4h14M15 5l3 3" : mode === "marker" ? "M5 18 17 6l3 3L8 21H5zm9-9 3 3" : mode === "highlighter" ? "M4 16 15 5l5 5-11 11H4zm4-2 5 5" : "M5 18 17 6m-8 12 2 2M4 21h16"}/></svg><span>{label}</span></button>)}</div>
+                      <div class="quick-style-popover quick-brush-picker" role="group" aria-label="Paint brushes">{paintBrushChoices.map(brush => <button class={tool() === "pen" && brushMode() === brush.value ? "active" : ""} aria-pressed={tool() === "pen" && brushMode() === brush.value} title={brush.label} onClick={() => { setBrushMode(brush.value); setTool("pen"); setQuickStylePopover(undefined); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={brush.path} /></svg><span>{brush.label}</span></button>)}</div>
                     </Show>
                     <Show when={quickStylePopover() === "thickness"}>
                       <div class="quick-style-popover thickness-popover" aria-label={tool() === "eraser" ? "Eraser size" : "Stroke width"}>
@@ -7206,7 +7227,7 @@ function App() {
               {/* Full mode replaces the quick-style rail; its controls live in this inspector. */}
               <Show when={workspaceArea() !== "design"}>
               <div class="full-inspector" classList={{ "connector-properties": selectedIndices().length === 1 && !!focusedElement() && isConnector(focusedElement()!) }}>
-                <header class="full-inspector-header"><strong>Properties</strong><button type="button" onClick={toggleQuickProperties} aria-label="Return to quick style" title="Return to quick style">Quick style</button></header>
+                <header class="full-inspector-header"><strong>Properties</strong><button type="button" class="full-inspector-close" onClick={toggleQuickProperties} aria-label="Close properties panel" title="Close properties panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
 
                 <Show when={sidebarTab() === "properties"}>
                   <div class="inspector-properties-content" id="inspector-properties-content">
@@ -7216,9 +7237,6 @@ function App() {
                       <Show when={tool() === "bucket"}>
                         <label class="property-label">Bucket fill color<input type="color" value={fillColor()} disabled={boardLocked()} onInput={event => setFillColor(event.currentTarget.value)} /></label>
                         <div class="fill-palette">{["#ffffff", "#dbeafe", "#dcfce7", "#fef3c7", "#fee2e2", "#e9d5ff"].map(swatch => <button class={`color-swatch ${fillColor() === swatch ? "active" : ""}`} type="button" style={{ background: swatch }} aria-label={`Bucket color ${swatch}`} title={`Use ${swatch}`} disabled={boardLocked()} onClick={() => setFillColor(swatch)} />)}</div>
-                      </Show>
-                      <Show when={tool() === "pen"}>
-                        <label class="property-label">Brush style<select value={brushMode()} disabled={boardLocked()} onChange={event => setBrushMode(event.currentTarget.value as BrushMode)}><option value="fine">Pen</option><option value="pencil">Pencil</option><option value="brush">Soft brush</option><option value="marker">Marker</option><option value="highlighter">Highlighter</option><option value="chalk">Chalk</option></select></label>
                       </Show>
                       <Show when={tool() === "laser"}>
                         <label class="property-label">Laser color<input type="color" value={laserColor()} disabled={boardLocked()} onInput={event => { setLaserPreference("rainbow", "false"); setLaserPreference("color", event.currentTarget.value); }} /></label>
@@ -7231,7 +7249,16 @@ function App() {
                         <label class="property-label">Stroke and text color<input type="color" value={selectedColor()} disabled={boardLocked()} onInput={event => updateStrokeColor(event.currentTarget.value)} /></label>
                       </Show>
                       <Show when={tool() !== "bucket" && showThicknessControls()}>
-                        <label class="property-label">{tool() === "eraser" ? "Eraser size" : "Stroke width"}<input type="range" min="1" max="20" step="1" value={selectedThickness()} disabled={boardLocked()} onInput={event => updateThickness(Number(event.currentTarget.value))} /><span>{selectedThickness()} px</span></label>
+                        <Show when={isPenBrushThicknessTarget()} fallback={<label class="property-label">{tool() === "eraser" ? "Eraser size" : "Stroke width"}<input type="range" min="1" max="20" step="1" value={selectedThickness()} disabled={boardLocked()} onInput={event => updateThickness(Number(event.currentTarget.value))} /><span>{selectedThickness()} px</span></label>}>
+                          <div class="property-label full-inspector-thickness-control"><span>Stroke width</span>
+                            <Show when={thicknessPickerMode() === "presets"}>
+                              <div class="quick-thickness-presets">{THICKNESS_PRESETS.map(([value, label]) => <button type="button" class={selectedThickness() === value ? "active" : ""} aria-label={`${label} ${value} pixels`} aria-pressed={selectedThickness() === value} title={`${label}, ${value}px`} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateThickness(value)}><i style={{ height: `${value}px` }} /><small>{value}</small></button>)}</div>
+                            </Show>
+                            <Show when={thicknessPickerMode() === "stepper"}>
+                              <ThicknessTuner value={selectedThickness()} color={themeInk(selectedColor(), theme())} disabled={boardLocked() || !!focusedElement()?.locked} onChange={updateThickness} />
+                            </Show>
+                          </div>
+                        </Show>
                       </Show>
                       <Show when={tool() === "line" || tool() === "arrow" || focusedElement()?.type === "line" || focusedElement()?.type === "arrow" || focusedElement()?.type === "rectangle" || focusedElement()?.type === "circle" || focusedElement()?.type === "diamond" || focusedElement()?.type === "triangle" || focusedElement()?.type === "flowchart"}>
                         <div class="property-label">Line style<div class="choice-deck line-choices">

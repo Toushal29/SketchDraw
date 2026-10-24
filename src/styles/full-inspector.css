@@ -48,14 +48,32 @@
 }
 
 .full-inspector-header strong { font-size: 13px; font-weight: 700; }
-.full-inspector-header button {
-  min-height: 30px;
-  padding: 5px 10px;
+.full-inspector-header .full-inspector-close {
+  display: grid;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  place-items: center;
+  padding: 5px;
   border: 1px solid var(--theme-border);
-  border-radius: 5px;
+  border-radius: 7px;
   color: var(--theme-text-secondary);
   background: var(--theme-surface);
-  font: inherit;
+}
+.full-inspector-header .full-inspector-close:hover {
+  border-color: var(--ui-accent-border);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+}
+.full-inspector-header .full-inspector-close svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .full-inspector > .inspector-properties-content { display: flex; min-width: 0; flex-direction: column; }
