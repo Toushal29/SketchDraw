@@ -1,7 +1,10 @@
 /* Touch workspace surfaces. Menu and toolbar geometry lives in touch-bars.css. */
-.app-shell:not(.platform-windows) .touch-focus-entry { display: none; }
+.app-shell:not(.platform-windows) .touch-focus-entry {
+    display: none;
+}
 
-@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+@media (max-width: 900px),
+(max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) {
         --touch-line: color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 13%, transparent);
         --touch-muted: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 88%, transparent);
@@ -18,7 +21,7 @@
     }
 
     /* The canvas gets a quiet frame; all controls sit in predictable edge lanes. */
-    .app-shell:not(.platform-windows) > .canvas-wrap {
+    .app-shell:not(.platform-windows)>.canvas-wrap {
         min-width: 0;
         min-height: 0;
         flex: 1 1 auto;
@@ -26,8 +29,13 @@
         isolation: isolate;
     }
 
-    .app-shell:not(.platform-windows) .drawing-canvas { -webkit-tap-highlight-color: transparent; }
-    .app-shell:not(.platform-windows) .canvas-help { display: none; }
+    .app-shell:not(.platform-windows) .drawing-canvas {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .app-shell:not(.platform-windows) .canvas-help {
+        display: none;
+    }
 
     .app-shell:not(.platform-windows) .canvas-zoom-reset {
         z-index: 14;
@@ -46,7 +54,9 @@
         transform: none;
     }
 
-    .app-shell:not(.platform-windows) .canvas-zoom-reset kbd { color: var(--ui-accent-ink); }
+    .app-shell:not(.platform-windows) .canvas-zoom-reset kbd {
+        color: var(--ui-accent-ink);
+    }
 
     /* Properties start as a one-tap button; full properties become a real sheet. */
     .app-shell:not(.platform-windows) .style-pane.quick-style-mode {
@@ -69,9 +79,11 @@
     }
 
     .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-collapsed .quick-style-heading,
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading { margin: 0; }
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading {
+        margin: 0;
+    }
 
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode .quick-style-heading > button {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode .quick-style-heading>button {
         width: 38px;
         min-width: 38px;
         max-width: 38px;
@@ -95,7 +107,7 @@
         overflow: visible;
     }
 
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded > .quick-style-panel {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded>.quick-style-panel {
         align-items: flex-start;
         gap: 5px;
     }
@@ -106,8 +118,8 @@
         gap: 3px;
     }
 
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > button,
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading>button,
+    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading>.mobile-advanced-properties {
         width: 38px;
         min-width: 38px;
         max-width: 38px;
@@ -186,30 +198,41 @@
         border-radius: 21px;
     }
 
-    .app-shell:not(.platform-windows) .help-dialog { width: min(760px, 100%); }
-    .app-shell:not(.platform-windows) .canvas-note-editor { max-width: calc(100vw - 24px); }
+    .app-shell:not(.platform-windows) .help-dialog {
+        width: min(760px, 100%);
+    }
+
+    .app-shell:not(.platform-windows) .canvas-note-editor {
+        max-width: calc(100vw - 24px);
+    }
 
     /* Respect safe areas and leave a full-height canvas in narrow landscape. */
-    @media (min-width: 700px) and (orientation: landscape) {
-    }
+    @media (min-width: 700px) and (orientation: landscape) {}
 
     @media (max-width: 560px) {
-        .app-shell:not(.platform-windows) .gesture-action-card { grid-template-columns: 34px minmax(64px, .55fr) minmax(0, 1fr); gap: 5px; padding: 6px; }
+        .app-shell:not(.platform-windows) .gesture-action-card {
+            grid-template-columns: 34px minmax(64px, .55fr) minmax(0, 1fr);
+            gap: 5px;
+            padding: 6px;
+        }
     }
 
-    .app-shell:not(.platform-windows) .settings-menu-dropdown > summary:focus-visible,
-    .app-shell:not(.platform-windows) .app-menu-items > .menu-dropdown > summary:focus-visible {
+    .app-shell:not(.platform-windows) .settings-menu-dropdown>summary:focus-visible,
+    .app-shell:not(.platform-windows) .app-menu-items>.menu-dropdown>summary:focus-visible {
         outline: 2px solid var(--ui-accent);
         outline-offset: 2px;
     }
 
-    .app-shell:not(.platform-windows) .touch-focus-entry { display: flex; }
+    .app-shell:not(.platform-windows) .touch-focus-entry {
+        display: flex;
+    }
 
     .app-shell:not(.platform-windows) .quick-brush-picker {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 5px;
     }
+
     .app-shell:not(.platform-windows) .quick-brush-picker button {
         display: grid;
         min-width: 0;
@@ -221,14 +244,36 @@
         border-radius: 11px;
         color: var(--toolbar-ink, var(--theme-text-primary));
         background: transparent;
-        font: 600 10px var(--font-ui);
+        font: var(--font-weight-semibold) var(--type-micro) var(--font-ui);
     }
-    .app-shell:not(.platform-windows) .quick-brush-picker button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-    .app-shell:not(.platform-windows) .quick-brush-picker svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+    .app-shell:not(.platform-windows) .quick-brush-picker button.active {
+        border-color: var(--ui-accent-border);
+        color: var(--ui-accent-ink);
+        background: var(--ui-accent-soft);
+    }
+
+    .app-shell:not(.platform-windows) .quick-brush-picker svg {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
 
     /* Full-screen touch focus keeps the canvas and only three drawing tools visible. */
-    .app-shell:not(.platform-windows).touch-focus-mode { position: fixed; inset: 0; z-index: 10000; min-height: 0; overflow: hidden; background: var(--toolbar-surface, var(--theme-background)); }
-    .app-shell:not(.platform-windows).touch-focus-mode > .mobile-workspace-header,
+    .app-shell:not(.platform-windows).touch-focus-mode {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        min-height: 0;
+        overflow: hidden;
+        background: var(--toolbar-surface, var(--theme-background));
+    }
+
+    .app-shell:not(.platform-windows).touch-focus-mode>.mobile-workspace-header,
     .app-shell:not(.platform-windows).touch-focus-mode .touch-tool-bar,
     .app-shell:not(.platform-windows).touch-focus-mode .touch-tool-reopen,
     .app-shell:not(.platform-windows).touch-focus-mode .canvas-options-family,
@@ -237,9 +282,26 @@
     .app-shell:not(.platform-windows).touch-focus-mode .desktop-page-tabs,
     .app-shell:not(.platform-windows).touch-focus-mode .style-pane,
     .app-shell:not(.platform-windows).touch-focus-mode .floating-layer-panel,
-    .app-shell:not(.platform-windows).touch-focus-mode .canvas-help { display: none; }
-    .app-shell:not(.platform-windows).touch-focus-mode > .canvas-wrap { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; background: var(--toolbar-surface, var(--theme-background)); }
-    .app-shell:not(.platform-windows).touch-focus-mode .drawing-canvas { width: 100%; height: 100%; touch-action: none; }
+    .app-shell:not(.platform-windows).touch-focus-mode .canvas-help {
+        display: none;
+    }
+
+    .app-shell:not(.platform-windows).touch-focus-mode>.canvas-wrap {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        padding: 0;
+        background: var(--toolbar-surface, var(--theme-background));
+    }
+
+    .app-shell:not(.platform-windows).touch-focus-mode .drawing-canvas {
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+    }
+
     .app-shell:not(.platform-windows) .touch-focus-tools {
         position: fixed;
         z-index: 10020;
@@ -254,27 +316,92 @@
         color: var(--toolbar-ink, var(--theme-text-primary));
         background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 94%, transparent);
     }
-    .app-shell:not(.platform-windows) .touch-focus-tools button { display: grid; width: 44px; min-width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 12px; color: inherit; background: transparent; }
-    .app-shell:not(.platform-windows) .touch-focus-tools button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-    .app-shell:not(.platform-windows) .touch-focus-tools svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .app-shell:not(.platform-windows) .touch-focus-tools .focus-tool-divider { width: 1px; height: 27px; margin: 0 1px; background: var(--touch-line); }
-    .app-shell:not(.platform-windows) .touch-focus-tools .focus-exit { color: var(--touch-muted); }
+
+    .app-shell:not(.platform-windows) .touch-focus-tools button {
+        display: grid;
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
+        min-height: 44px;
+        place-items: center;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: 12px;
+        color: inherit;
+        background: transparent;
+    }
+
+    .app-shell:not(.platform-windows) .touch-focus-tools button.active {
+        border-color: var(--ui-accent-border);
+        color: var(--ui-accent-ink);
+        background: var(--ui-accent-soft);
+    }
+
+    .app-shell:not(.platform-windows) .touch-focus-tools svg {
+        width: 23px;
+        height: 23px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .app-shell:not(.platform-windows) .touch-focus-tools .focus-tool-divider {
+        width: 1px;
+        height: 27px;
+        margin: 0 1px;
+        background: var(--touch-line);
+    }
+
+    .app-shell:not(.platform-windows) .touch-focus-tools .focus-exit {
+        color: var(--touch-muted);
+    }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 560px) {}
+
+@media (min-width: 561px) and (max-width: 900px) and (orientation: landscape),
+(min-width: 700px) and (max-width: 1600px) and (pointer: coarse) and (orientation: landscape) {
+    .app-shell:not(.platform-windows) .touch-focus-tools {
+        top: max(6px, env(safe-area-inset-top));
+        left: max(6px, env(safe-area-inset-left));
+        gap: 3px;
+        padding: 4px;
+    }
+
+    .app-shell:not(.platform-windows) .touch-focus-tools button {
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+    }
 }
 
-@media (min-width: 561px) and (max-width: 900px) and (orientation: landscape), (min-width: 700px) and (max-width: 1600px) and (pointer: coarse) and (orientation: landscape) {
-    .app-shell:not(.platform-windows) .touch-focus-tools { top: max(6px, env(safe-area-inset-top)); left: max(6px, env(safe-area-inset-left)); gap: 3px; padding: 4px; }
-    .app-shell:not(.platform-windows) .touch-focus-tools button { width: 40px; min-width: 40px; height: 40px; min-height: 40px; }
-}
+@media (max-width: 900px),
+(max-width: 1600px) and (pointer: coarse) {
 
-@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell.theme-dark:not(.platform-windows) .canvas-zoom-reset,
     .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode,
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode { border-color: var(--theme-border); color: var(--theme-text-primary); }
+    .app-shell.theme-dark:not(.platform-windows) .style-pane.full-style-mode {
+        border-color: var(--theme-border);
+        color: var(--theme-text-primary);
+    }
+
     .app-shell.theme-dark:not(.platform-windows) .style-pane .quick-style-popover,
-.app-shell.theme-dark:not(.platform-windows) .floating-layer-panel { border-color: var(--theme-border); color: var(--theme-text-primary); }
-    .app-shell.theme-dark:not(.platform-windows) .gesture-action-card { border-color: var(--theme-border); background: var(--theme-background); }
-    .app-shell.theme-dark:not(.platform-windows) .gesture-action-card select { border-color: var(--theme-border); color: var(--theme-text-primary); background: var(--theme-background); }
+    .app-shell.theme-dark:not(.platform-windows) .floating-layer-panel {
+        border-color: var(--theme-border);
+        color: var(--theme-text-primary);
+    }
+
+    .app-shell.theme-dark:not(.platform-windows) .gesture-action-card {
+        border-color: var(--theme-border);
+        background: var(--theme-background);
+    }
+
+    .app-shell.theme-dark:not(.platform-windows) .gesture-action-card select {
+        border-color: var(--theme-border);
+        color: var(--theme-text-primary);
+        background: var(--theme-background);
+    }
 }

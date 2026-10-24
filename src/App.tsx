@@ -1532,7 +1532,7 @@ function App() {
   function connectorTouchesBpmn(item: Element | undefined) {
     if (!item || !isConnector(item)) return false;
     const ids = new Set([item.startBinding?.elementId, item.endBinding?.elementId].filter((id): id is string => !!id));
-    return flatten(elements()).some(target => target.type === "group" && !!target.id && ids.has(target.id) && !!target.libraryComponent?.kind.startsWith("bpmn-"));
+    return flatten(elements()).some(target => target.type === "group" && !!target.id && ids.has(target.id) && !!target.libraryComponent?.kind?.startsWith("bpmn-"));
   }
   function updateBpmnSequenceField(key: "sequenceCondition" | "sequenceDefault", value: string | boolean) {
     changeSelected(item => isConnector(item) ? { ...item, [key]: key === "sequenceDefault" ? value === true : String(value).trim().slice(0, 500) || undefined } as ShapeElement : item);
@@ -1755,7 +1755,7 @@ function App() {
     const target = styleTargetElement();
     if (tool() === "text" && textMode() === "text" || !!textDraft() || !!selectedTextValue().trim()) return true;
     if (target?.type === "schemaTable") return !!target.name.trim() || target.columns.length > 0;
-    if (target?.type === "group" && target.libraryComponent) return libraryComponentFields(target).some(field => field.value.trim()) || target.libraryComponent.kind.startsWith("viz-") || target.libraryComponent.kind.startsWith("form-");
+    if (target?.type === "group" && target.libraryComponent) return libraryComponentFields(target).some(field => field.value.trim()) || target.libraryComponent.kind?.startsWith("viz-") || target.libraryComponent.kind?.startsWith("form-");
     if (target && isLabelShape(target)) return !!target.label?.text.trim() || !!textDraft()?.shapeLabel;
     if (target?.componentId) return true;
     return false;
@@ -2544,7 +2544,7 @@ function App() {
     event.preventDefault();
     // Selecting a schema card already opens its source editor in the left dock.
     if (target?.type === "schemaTable") return;
-    if (target?.type === "group" && target.libraryComponent?.kind.startsWith("viz-")) { openCsvChartDialog(target.id); return; }
+    if (target?.type === "group" && target.libraryComponent?.kind?.startsWith("viz-")) { openCsvChartDialog(target.id); return; }
     if (target?.type === "group" && target.mermaid) { openMermaidDialog(target.id); return; }
     if (target?.type === "group" && !target.note && !target.mermaid && hit !== undefined) {
       const nearestEditableChild = (group: GroupElement) => flatten(group.elements)
@@ -2723,30 +2723,34 @@ function App() {
   async function insertLibraryComponent(kind: LibraryComponentKind) {
     if (!activePath() || boardLocked() || !canvas) return;
     const item = LIBRARY_COMPONENTS.find(component => component.kind === kind); if (!item) return;
-    const rect = canvas.getBoundingClientRect(); const view = canvasState();
-    const x = (rect.width / 2 - view.panX) / view.zoom - item.width / 2;
-    const y = (rect.height / 2 - view.panY) / view.zoom - item.height / 2;
-    const relationship = buildLibraryRelationship(kind, x, y);
-    if (relationship) {
-      if (relationship.label) relationship.label = { ...relationship.label, fontSize: defaultFontSize() };
-      const index = elements().length; pushUndo(cloneElements(elements())); setElements(items => [...items, relationship]);
-      setSelectedIndices([index]); setTool("select"); setSidebarTab("properties"); setStencilMenuOpen(false); setDirty(true); return;
+    try {
+      const rect = canvas.getBoundingClientRect(); const view = canvasState();
+      const x = (rect.width / 2 - view.panX) / view.zoom - item.width / 2;
+      const y = (rect.height / 2 - view.panY) / view.zoom - item.height / 2;
+      const relationship = buildLibraryRelationship(kind, x, y);
+      if (relationship) {
+        if (relationship.label) relationship.label = { ...relationship.label, fontSize: defaultFontSize() };
+        const index = elements().length; pushUndo(cloneElements(elements())); setElements(items => [...items, relationship]);
+        setSelectedIndices([index]); setTool("select"); setSidebarTab("properties"); setStencilMenuOpen(false); setDirty(true); return;
+      }
+      const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind);
+      if (!definition) return;
+      const builtGroup = kind.startsWith("form-") || kind.startsWith("viz-")
+        ? assignLibraryComponentIds({ type: "group", id: crypto.randomUUID(), elements: [], componentBounds: { x, y, w: definition.width, h: definition.height }, libraryComponent: { kind, label: definition.label, ...(defaultLibraryChartData(kind) ? { chartData: defaultLibraryChartData(kind) } : {}), ...(defaultLibraryFormOptions(kind) ? { formOptions: defaultLibraryFormOptions(kind) } : {}), ...(defaultLibraryFormTitle(kind) ? { formTitle: defaultLibraryFormTitle(kind) } : {}), ...(kind === "form-toggle" ? { formState: true } : {}) } }, kind)
+        : assignLibraryComponentIds(buildLibraryComponent(kind, x, y, { chartData: defaultLibraryChartData(kind), formOptions: defaultLibraryFormOptions(kind), formTitle: defaultLibraryFormTitle(kind), ...(kind === "network-hub" ? { portCount: 8 } : kind === "network-switch" ? { portCount: 6 } : {}) }), kind);
+      if (cloudProviderComponent(kind)) {
+        const glyph = await loadCloudProviderGlyph(kind).catch(() => undefined);
+        if (!activePath() || boardLocked()) return;
+        if (glyph) builtGroup.libraryComponent = { ...builtGroup.libraryComponent!, iconSvg: glyph.svg, iconViewBox: glyph.viewBox };
+      }
+      const group = resizeLibraryFont(builtGroup, defaultFontSize());
+      setStencilMenuOpen(false);
+      if (kind.startsWith("form-") || kind.startsWith("viz-")) { setComponentEditorCollapsed(false); setLibraryComponentDraft(group); return; }
+      const index = elements().length;
+      pushUndo(cloneElements(elements())); setElements(items => [...items, group]); setSelectedIndices([index]); setTool("select"); setDirty(true);
+    } catch (cause) {
+      setError(`Could not add ${item.label}: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
-    const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind);
-    if (!definition) return;
-    const builtGroup = kind.startsWith("form-") || kind.startsWith("viz-")
-      ? assignLibraryComponentIds({ type: "group", id: crypto.randomUUID(), elements: [], componentBounds: { x, y, w: definition.width, h: definition.height }, libraryComponent: { kind, label: definition.label, ...(defaultLibraryChartData(kind) ? { chartData: defaultLibraryChartData(kind) } : {}), ...(defaultLibraryFormOptions(kind) ? { formOptions: defaultLibraryFormOptions(kind) } : {}), ...(defaultLibraryFormTitle(kind) ? { formTitle: defaultLibraryFormTitle(kind) } : {}), ...(kind === "form-toggle" ? { formState: true } : {}) } }, kind)
-      : assignLibraryComponentIds(buildLibraryComponent(kind, x, y, { chartData: defaultLibraryChartData(kind), formOptions: defaultLibraryFormOptions(kind), formTitle: defaultLibraryFormTitle(kind), ...(kind === "network-hub" ? { portCount: 8 } : kind === "network-switch" ? { portCount: 6 } : {}) }), kind);
-    if (cloudProviderComponent(kind)) {
-      const glyph = await loadCloudProviderGlyph(kind).catch(() => undefined);
-      if (!activePath() || boardLocked()) return;
-      if (glyph) builtGroup.libraryComponent = { ...builtGroup.libraryComponent!, iconSvg: glyph.svg, iconViewBox: glyph.viewBox };
-    }
-    const group = resizeLibraryFont(builtGroup, defaultFontSize());
-    setStencilMenuOpen(false);
-    if (kind.startsWith("form-") || kind.startsWith("viz-")) { setComponentEditorCollapsed(false); setLibraryComponentDraft(group); return; }
-    const index = elements().length;
-    pushUndo(cloneElements(elements())); setElements(items => [...items, group]); setSelectedIndices([index]); setTool("select"); setDirty(true);
   }
 
   async function spawnAllModelingComponents() {
@@ -3076,7 +3080,7 @@ function App() {
       if (!editingId) { insertChart(data); return; }
       const index = elements().findIndex(item => item.id === editingId);
       const existing = elements()[index];
-      if (index < 0 || existing?.type !== "group" || !existing.libraryComponent?.kind.startsWith("viz-")) throw new Error("This chart is no longer available to edit.");
+      if (index < 0 || existing?.type !== "group" || !existing.libraryComponent?.kind?.startsWith("viz-")) throw new Error("This chart is no longer available to edit.");
       const previous = existing.componentOverrides?.chartData ?? existing.libraryComponent.chartData;
       const priorByName = new Map(previous?.series?.map(series => [series.name, series]));
       const series = (data.series ?? []).map(item => { const prior = priorByName.get(item.name); return { ...item, ...(prior?.chartType ? { chartType: prior.chartType } : {}), ...(prior?.axis ? { axis: prior.axis } : {}) }; });
@@ -3372,7 +3376,7 @@ function App() {
 
   const componentViewCache = new WeakMap<Element, { key: string; element: Element }>();
   function simpleComponentElement(element: Element): Element {
-    const isGraph = element.type === "group" && !!element.libraryComponent?.kind.startsWith("viz-");
+    const isGraph = element.type === "group" && !!element.libraryComponent?.kind?.startsWith("viz-");
     const appearance = isGraph ? "modern" : "simple";
     const librarySimple = element.type === "group" && !!element.libraryComponent && !isGraph;
     const classSimple = !!element.componentId?.startsWith("uml-class:");
@@ -3431,7 +3435,7 @@ function App() {
       if (element.note) { drawNoteCard(ctx, element, theme(), "simple"); return; }
       if (element.componentBounds && element.libraryComponent) {
         if (element.rotation) { const bounds = element.componentBounds; const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
-        if (element.libraryComponent.kind.startsWith("viz-")) drawLibraryChart(ctx, element, theme());
+        if (element.libraryComponent.kind?.startsWith("viz-")) drawLibraryChart(ctx, element, theme());
         else drawModelComponent(ctx, element, theme());
         if (element.container) {
           if (element.container.clipChildren) { ctx.save(); ctx.beginPath(); ctx.rect(element.componentBounds.x, element.componentBounds.y, element.componentBounds.w, element.componentBounds.h); ctx.clip(); }
@@ -3464,7 +3468,7 @@ function App() {
         ctx.restore(); return;
       }
       if (element.rotation && element.libraryComponent) { const bounds = elementBounds(element); const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
-      if (element.libraryComponent?.kind.startsWith("viz-")) { drawLibraryChart(ctx, element, theme()); if (element.rotation) ctx.restore(); return; }
+      if (element.libraryComponent?.kind?.startsWith("viz-")) { drawLibraryChart(ctx, element, theme()); if (element.rotation) ctx.restore(); return; }
       for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems);
       if (element.rotation && element.libraryComponent) ctx.restore(); return;
     }
@@ -3702,13 +3706,14 @@ function App() {
     const edgeX = handle.includes("w") ? resizeBounds.x + dx : resizeBounds.x + resizeBounds.w + dx;
     const edgeY = handle.includes("n") ? resizeBounds.y + dy : resizeBounds.y + resizeBounds.h + dy;
     const threshold = 8 / canvasState().zoom;
+    const gridEnabled = snapToGrid();
+    const gridStyle = whiteboardStyle();
+    const gridCoordinate = (position: number, axis: "x" | "y") => axis === "x"
+      ? snapCanvasPoint({ x: position, y: 0 }, true, gridStyle, GRID_SIZE).x
+      : snapCanvasPoint({ x: 0, y: position }, true, gridStyle, GRID_SIZE).y;
     const nearest = (position: number, axis: "x" | "y") => {
-      const candidates: { target: number; correction: number }[] = [];
-      if (snapToGrid()) {
-        const probe = axis === "x" ? snapCanvasPoint({ x: position, y: 0 }, true, whiteboardStyle(), GRID_SIZE).x : snapCanvasPoint({ x: 0, y: position }, true, whiteboardStyle(), GRID_SIZE).y;
-        if (Math.abs(probe - position) <= threshold) candidates.push({ target: probe, correction: probe - position });
-      }
-      if (!rotation) {
+      const alignments: { target: number; correction: number }[] = [];
+      if (!rotation && snapToObjects()) {
         const margin = 32 / Math.max(.02, canvasState().zoom);
         const nearby = activeElementSpatialIndex.query({ x: resizeBounds.x - margin, y: resizeBounds.y - margin, w: resizeBounds.w + margin * 2, h: resizeBounds.h + margin * 2 });
         for (const index of nearby) {
@@ -3716,10 +3721,16 @@ function App() {
           const target = elements()[index]; if (!target || isElementHidden(target)) continue;
           const bounds = elementBounds(target);
           const values = axis === "x" ? [bounds.x, bounds.x + bounds.w / 2, bounds.x + bounds.w] : [bounds.y, bounds.y + bounds.h / 2, bounds.y + bounds.h];
-          for (const value of values) if (Math.abs(value - position) <= threshold) candidates.push({ target: value, correction: value - position });
+          for (const value of values) {
+            const landsOnGrid = !gridEnabled || Math.abs(gridCoordinate(value, axis) - value) < 1e-7;
+            if (landsOnGrid && Math.abs(value - position) <= threshold) alignments.push({ target: value, correction: value - position });
+          }
         }
       }
-      return candidates.sort((a, b) => Math.abs(a.correction) - Math.abs(b.correction))[0];
+      const aligned = alignments.sort((a, b) => Math.abs(a.correction) - Math.abs(b.correction))[0];
+      if (aligned) return aligned;
+      const target = gridEnabled ? gridCoordinate(position, axis) : Math.round(position / 10) * 10;
+      return { target, correction: target - position };
     };
     const correctionX = movesX ? nearest(edgeX, "x") : undefined;
     const correctionY = movesY ? nearest(edgeY, "y") : undefined;
@@ -4914,9 +4925,21 @@ function App() {
     return imported.map(convert);
   }
 
+  function addMissingImportedIds(value: unknown): unknown {
+    if (!isRecord(value)) return value;
+    const id = typeof value.id === "string" && value.id ? value.id : crypto.randomUUID();
+    return {
+      ...value,
+      id,
+      ...(value.type === "group" && Array.isArray(value.elements) ? { elements: value.elements.map(addMissingImportedIds) } : {}),
+    };
+  }
+
   function placeImportedElements(source: Element[]) {
     if (!source.length) throw new Error("No editable objects were found in this file.");
-    const unique = remapImportedElementIds(source);
+    const normalized = source.map(item => normalizeElement(addMissingImportedIds(item)));
+    if (normalized.some(item => !item)) throw new Error("One or more objects contain incomplete or unsupported data.");
+    const unique = remapImportedElementIds(normalized as Element[]);
     const bounds = unionBounds(unique.map(elementBounds));
     if (!bounds) throw new Error("The imported diagram has no drawable objects.");
     const view = canvasState(); const rect = canvas.getBoundingClientRect();
@@ -5585,7 +5608,7 @@ function App() {
       }
       if (startTouchGesture(event)) return;
       const touchHit = hitTest(toWorld(event)); const touchTarget = touchHit === undefined ? undefined : elements()[touchHit];
-      const directLibraryControl = touchTarget?.type === "group" && !!touchTarget.libraryComponent?.kind.startsWith("form-");
+      const directLibraryControl = touchTarget?.type === "group" && !!touchTarget.libraryComponent?.kind?.startsWith("form-");
       if (touchPointers.size === 1 && !readOnlyView() && !directLibraryControl && (oneFingerTapAction() !== "none" || oneFingerDragAction() === "pan")) {
         event.preventDefault();
         try { canvas.setPointerCapture(event.pointerId); } catch { /* The pointer can be canceled before capture. */ }
@@ -5664,8 +5687,9 @@ function App() {
     }
     if (resizeOrigin) {
       const pointerPoint = toWorld(event); if (Math.hypot(pointerPoint.x - resizeOrigin.start.x, pointerPoint.y - resizeOrigin.start.y) > 0.5) resizeOrigin.moved = true;
-      const snapped = isConnector(resizeOrigin.original) ? { point: pointerPoint } : snapResizePoint(resizeOrigin.original, resizeOrigin.handle, resizeOrigin.start, pointerPoint, event.ctrlKey || event.metaKey);
-      const resized = resizeElement(resizeOrigin.original, resizeOrigin.handle, resizeOrigin.start, snapped.point, event.shiftKey || !!resizeOrigin.original.aspectLocked);
+      const freeResize = event.ctrlKey || event.metaKey || event.shiftKey;
+      const snapped = isConnector(resizeOrigin.original) ? { point: pointerPoint } : snapResizePoint(resizeOrigin.original, resizeOrigin.handle, resizeOrigin.start, pointerPoint, freeResize);
+      const resized = resizeElement(resizeOrigin.original, resizeOrigin.handle, resizeOrigin.start, snapped.point, !freeResize && !!resizeOrigin.original.aspectLocked);
       setElementsTransient(resizeOrigin.before.map((element, index) => index === resizeOrigin!.index ? resized : element), [resizeOrigin.index]); setDirty(true); return;
     }
     if (moveOrigin) {
@@ -7465,7 +7489,7 @@ function App() {
                       </section>
                     </Show>
                   </details>
-                  <Show when={selectedRootElement()?.type === "group" && !!(selectedRootElement() as GroupElement).libraryComponent?.kind.startsWith("viz-")}><section class="component-editor-content chart-data-actions"><div class="pane-heading">Chart data</div><button class="quiet-button" type="button" disabled={boardLocked()} onClick={() => { const chart = selectedRootElement(); if (chart?.type === "group" && chart.id) openCsvChartDialog(chart.id); }}>Edit chart from CSV…</button></section></Show>
+                  <Show when={selectedRootElement()?.type === "group" && !!(selectedRootElement() as GroupElement).libraryComponent?.kind?.startsWith("viz-")}><section class="component-editor-content chart-data-actions"><div class="pane-heading">Chart data</div><button class="quiet-button" type="button" disabled={boardLocked()} onClick={() => { const chart = selectedRootElement(); if (chart?.type === "group" && chart.id) openCsvChartDialog(chart.id); }}>Edit chart from CSV…</button></section></Show>
 
                 <Show when={selectedDiagramCodeGroup()}>{group => <details class="pane-section component-navigation-details inspector-advanced-section diagram-source-disclosure" open={componentDisclosureOpen("diagram-source")} onToggle={componentDisclosureToggle("diagram-source")}>
                   <summary><span>Diagram as code</span></summary>
@@ -7522,9 +7546,9 @@ function App() {
           <h3>Files</h3>
           <button type="button" onClick={() => { setCodeDataOpen(false); void importDiagramFile(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M12 15V3m-5 5 5-5 5 5M4 14v6h16v-6"/></svg></i><span><strong>Import code or data</strong><small>Open Mermaid, PlantUML, CSV, DOT, D2, or schema files</small></span></button>
           <button type="button" onClick={() => { setCodeDataOpen(false); setDiagramCodeExportOpen(true); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></i><span><strong>Export diagram code</strong><small>Write Mermaid, DOT, D2, CSV, PlantUML, SQL, or JSON Schema</small></span></button>
-          <Show when={selectedRootElement()?.type === "schemaTable" || selectedRootElement()?.type === "group" && (!!(selectedRootElement() as GroupElement).note || !!(selectedRootElement() as GroupElement).libraryComponent?.kind.startsWith("viz-")) || !!selectedDiagramCodeGroup()}><h3>Selected content</h3></Show>
+          <Show when={selectedRootElement()?.type === "schemaTable" || selectedRootElement()?.type === "group" && (!!(selectedRootElement() as GroupElement).note || !!(selectedRootElement() as GroupElement).libraryComponent?.kind?.startsWith("viz-")) || !!selectedDiagramCodeGroup()}><h3>Selected content</h3></Show>
           <Show when={selectedRootElement()?.type === "schemaTable" || selectedRootElement()?.type === "group" && !!(selectedRootElement() as GroupElement).note}><button type="button" disabled={boardLocked()} onClick={() => { setCodeDataOpen(false); createChartFromSelectedTable(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M4 20V11m5 9V5m5 15v-7m5 7V8M2 20h20"/></svg></i><span><strong>Chart selected table</strong><small>Turn selected table data into an editable chart</small></span></button></Show>
-          <Show when={selectedRootElement()?.type === "group" && !!(selectedRootElement() as GroupElement).libraryComponent?.kind.startsWith("viz-")}><button type="button" disabled={boardLocked()} onClick={() => { const chart = selectedRootElement(); if (chart?.type === "group" && chart.id) { setCodeDataOpen(false); openCsvChartDialog(chart.id); } }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M4 20V11m5 9V5m5 15v-7m5 7V8M2 20h20"/><path d="M16 4h5v5"/></svg></i><span><strong>Edit selected chart data</strong><small>Update its CSV while keeping the chart object</small></span></button></Show>
+          <Show when={selectedRootElement()?.type === "group" && !!(selectedRootElement() as GroupElement).libraryComponent?.kind?.startsWith("viz-")}><button type="button" disabled={boardLocked()} onClick={() => { const chart = selectedRootElement(); if (chart?.type === "group" && chart.id) { setCodeDataOpen(false); openCsvChartDialog(chart.id); } }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M4 20V11m5 9V5m5 15v-7m5 7V8M2 20h20"/><path d="M16 4h5v5"/></svg></i><span><strong>Edit selected chart data</strong><small>Update its CSV while keeping the chart object</small></span></button></Show>
           <Show when={selectedDiagramCodeGroup()}><button type="button" disabled={boardLocked()} onClick={() => { const group = selectedDiagramCodeGroup(); if (group) { setCodeDataOpen(false); openMermaidDialog(group.id); } }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="m8 5-6 7 6 7m8-14 6 7-6 7M14 3l-4 18"/></svg></i><span><strong>Edit selected diagram source</strong><small>Reopen its saved Mermaid or PlantUML source</small></span></button></Show>
       <Show when={selectedRootElement()?.type === "schemaTable"}><button type="button" onClick={() => { setCodeDataOpen(false); schemaPanelTextarea?.focus(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M9 3v18m6-12v12"/></svg></i><span><strong>Focus schema editor</strong><small>Edit source in the left panel and see the canvas update</small></span></button></Show>
         </div>

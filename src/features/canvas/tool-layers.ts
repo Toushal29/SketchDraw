@@ -1,5 +1,4 @@
 import type { CanvasLayer, Element } from "../../model";
-import { flatten } from "../../operations";
 import { orderCanvasLayers } from "./structure";
 
 export type ToolLayerKind = Element["type"] | `named:${string}` | `layer:${string}`;
@@ -23,12 +22,31 @@ const TOOL_LAYER_LABELS: Record<Element["type"], string> = {
   schemaTable: "Schema tables", group: "Groups and cards",
 };
 
+const ELEMENT_TYPES = new Set(Object.keys(TOOL_LAYER_LABELS));
+
+function isToolLayerElement(value: unknown): value is Element {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Partial<Element>;
+  return typeof item.type === "string" && ELEMENT_TYPES.has(item.type)
+    && (item.type !== "group" || Array.isArray((item as Extract<Element, { type: "group" }>).elements));
+}
+
+function collectToolLayerElements(values: readonly unknown[], result: Element[] = []): Element[] {
+  for (const value of values) {
+    if (!isToolLayerElement(value)) continue;
+    result.push(value);
+    if (value.type === "group") collectToolLayerElements(value.elements, result);
+  }
+  return result;
+}
+
 export function getToolLayers(elements: Element[], layers: CanvasLayer[] = []): ToolLayer[] {
   const orderedLayers = orderCanvasLayers(layers);
   const layersById = new Map(layers.map(layer => [layer.id, layer]));
   const indicesByLayer = new Map<string, Set<number>>();
-  const visitLayered = (item: Element, rootIndex: number) => {
-    let layer = item.layerId ? layersById.get(item.layerId) : undefined;
+  const visitLayered = (item: unknown, rootIndex: number) => {
+    if (!isToolLayerElement(item)) return;
+    let layer = typeof item.layerId === "string" ? layersById.get(item.layerId) : undefined;
     const visited = new Set<string>();
     while (layer && !visited.has(layer.id) && visited.size < 32) {
       visited.add(layer.id);
@@ -50,9 +68,12 @@ export function getToolLayers(elements: Element[], layers: CanvasLayer[] = []): 
 
   const groups = new Map<ToolLayerKind, Set<number>>();
   elements.forEach((element, index) => {
-    const collect = (item: Element) => {
-      if (!item.layerId) {
-        const key: ToolLayerKind = item.layerName ? `named:${item.layerName}` : item.type;
+    const collect = (value: unknown) => {
+      if (!isToolLayerElement(value)) return;
+      const item = value;
+      if (typeof item.layerId !== "string" || !item.layerId) {
+        const layerName = typeof item.layerName === "string" ? item.layerName : "";
+        const key: ToolLayerKind = layerName ? `named:${layerName}` : item.type;
         const indices = groups.get(key) ?? new Set<number>(); indices.add(index); groups.set(key, indices);
       }
       if (item.type === "group") item.elements.forEach(collect);
@@ -71,12 +92,16 @@ export function getToolLayers(elements: Element[], layers: CanvasLayer[] = []): 
 }
 
 export function toggleToolLayer(elements: Element[], key: ToolLayerKind, property: "hidden" | "locked"): Element[] {
+  if (typeof key !== "string") return elements;
   if (key.startsWith("layer:")) return elements;
-  const matches = (element: Element) => key.startsWith("named:") ? element.layerName === key.slice(6) : !element.layerName && !element.layerId && element.type === key;
-  const layer = flatten(elements).filter(matches);
+  const matches = (element: unknown): element is Element => isToolLayerElement(element)
+    && (key.startsWith("named:") ? element.layerName === key.slice(6) : !element.layerName && !element.layerId && element.type === key);
+  const layer = collectToolLayerElements(elements).filter(matches);
   if (!layer.length) return elements;
   const nextValue = layer.some(element => !element[property]);
-  const update = (items: Element[]): Element[] => items.map(element => {
+  const update = (items: readonly unknown[]): Element[] => items.map(value => {
+    if (!isToolLayerElement(value)) return value as Element;
+    const element = value;
     const updated = matches(element) ? { ...element, [property]: nextValue } as Element : element;
     return updated.type === "group" ? { ...updated, elements: update(updated.elements) } : updated;
   });
@@ -88,8 +113,9 @@ export function reorderToolLayer(elements: Element[], sourceKey: ToolLayerKind, 
 }
 
 export function reorderToolLayers(elements: Element[], sourceKeys: ToolLayerKind[], targetRow: number): Element[] {
+  if (!Array.isArray(sourceKeys) || !elements.every(isToolLayerElement)) return elements;
   const orderedKeys = getToolLayers(elements).filter(layer => !layer.persistent).map(layer => layer.key);
-  const selected = new Set(sourceKeys.filter(key => !key.startsWith("layer:")));
+  const selected = new Set(sourceKeys.filter((key): key is ToolLayerKind => typeof key === "string" && !key.startsWith("layer:")));
   const moving = orderedKeys.filter(key => selected.has(key));
   if (!moving.length || targetRow < 0 || targetRow >= orderedKeys.length) return elements;
   const remaining = orderedKeys.filter(key => !selected.has(key));

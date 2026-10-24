@@ -6,7 +6,7 @@ import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartDat
 export type LibraryComponentField = { key: string; label: string; value: string; hint?: string };
 
 export function libraryComponentFields(group: GroupElement): LibraryComponentField[] {
-  if (group.libraryComponent?.kind.startsWith("viz-")) return [];
+  if (group.libraryComponent?.kind?.startsWith("viz-")) return [];
   if (group.componentBounds) {
     const kind = group.libraryComponent?.kind ?? "";
     if (kind.startsWith("form-") || kind.startsWith("gui-")) return [];
@@ -316,7 +316,7 @@ export function setLibraryPortCount(group: GroupElement, requestedCount: number)
 export function resizeLibraryGroup(group: GroupElement, bounds: { x: number; y: number; w: number; h: number }): GroupElement {
   if (group.componentBounds) return { ...group, componentBounds: { x: bounds.x, y: bounds.y, w: Math.max(.1, bounds.w), h: Math.max(.1, bounds.h) } };
   const source = elementBounds(group.libraryComponent ? { ...group, rotation: 0 } : group); const sx = Math.max(.1, bounds.w) / Math.max(1, source.w); const sy = Math.max(.1, bounds.h) / Math.max(1, source.h);
-  const formFontScale = group.libraryComponent?.kind.startsWith("form-") ? Math.min(sx, sy) : 1;
+  const formFontScale = group.libraryComponent?.kind?.startsWith("form-") ? Math.min(sx, sy) : 1;
   const tx = (x: number) => bounds.x + (x - source.x) * sx; const ty = (y: number) => bounds.y + (y - source.y) * sy;
   const scalePoint = (point: Point) => ({ x: tx(point.x), y: ty(point.y) });
   const scale = (element: Element): Element => {

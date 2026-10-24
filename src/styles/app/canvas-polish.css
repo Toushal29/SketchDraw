@@ -23,15 +23,11 @@
 }
 
 .tool-deck {
-    gap: 7px;
-    padding: 7px;
     border-color: var(--theme-border);
     background: color-mix(in srgb, var(--theme-surface) 96.00%, transparent);
 }
 
 .tool-cluster {
-    gap: 3px;
-    padding: 3px;
     border-color: var(--theme-border);
     background: var(--theme-surface-elevated);
 }
@@ -42,7 +38,6 @@
 
 .tool-icon-button {
     border: 1px solid transparent;
-    border-radius: 10px;
 }
 
 .tool-icon-button.selected {

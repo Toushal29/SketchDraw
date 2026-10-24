@@ -47,7 +47,7 @@ type Token = { nodeId: string; elapsed: number; branch: number; visits: Map<stri
 /** Simulate exclusive decisions and parallel splits/joins with deterministic token scheduling. */
 export function simulateBpmn(elements: Element[], context: BpmnContext = {}): BpmnSimulationStep[] {
   const all = flatten(elements);
-  const nodes = all.filter((item): item is Extract<Element, { type: "group" }> => item.type === "group" && !!item.id && !!item.libraryComponent?.kind.startsWith("bpmn-"));
+  const nodes = all.filter((item): item is Extract<Element, { type: "group" }> => item.type === "group" && !!item.id && !!item.libraryComponent?.kind?.startsWith("bpmn-"));
   const byId = new Map(nodes.map(node => [node.id!, node]));
   const flows = all.filter((item): item is ShapeElement => isConnector(item) && !!item.id
     && !!item.startBinding && !!item.endBinding && byId.has(item.startBinding.elementId) && byId.has(item.endBinding.elementId)

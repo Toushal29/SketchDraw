@@ -648,7 +648,7 @@
     margin: 14px 0;
 }
 
-.export-padding-control { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(70px, 100px); align-items: center; gap: 8px; margin: 8px 0; color: var(--theme-text-secondary); font-size: 11px; }
+.export-padding-control { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(70px, 100px); align-items: center; gap: 8px; margin: 8px 0; color: var(--theme-text-secondary); font-size: var(--type-caption); }
 .export-padding-control input { min-width: 0; }
 
 .export-scope button.active {
@@ -837,8 +837,7 @@ summary:focus-visible {
 
 .choice-deck {
     display: flex;
-    gap: 7px;
-    margin-top: 2px;
+    gap: 5px;
 }
 
 .choice-deck button {
@@ -850,7 +849,6 @@ summary:focus-visible {
     justify-content: center;
     gap: 5px;
     min-height: 53px;
-    padding: 6px 5px;
     border: 1px solid var(--theme-border);
     border-radius: 7px;
     color: var(--theme-text-secondary);

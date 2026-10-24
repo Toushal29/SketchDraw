@@ -18,9 +18,8 @@
 }
 
 .property-label {
-    font-size: 13px;
-    gap: 7px;
-    margin-top: 12px;
+    font-size: var(--type-body-compact);
+    gap: 0px;
 }
 
 .property-label input,
@@ -299,20 +298,20 @@
 }
 
 .component-navigation-details > summary::-webkit-details-marker { display: none; }
-.component-navigation-details > summary::after { content: "+"; color: var(--theme-text-secondary); font-size: 16px; }
+.component-navigation-details > summary::after { content: "+"; color: var(--theme-text-secondary); font-size: var(--type-heading-small); }
 .component-navigation-details[open] > summary::after { content: "−"; }
 .component-navigation-details > .pane-section { margin: 0; padding: 6px 0; }
 .relationship-properties > summary.inspector-disclosure-summary,
-.geometry-properties > summary.inspector-disclosure-summary { display: flex; min-height: 34px; align-items: center; justify-content: space-between; color: var(--theme-text-secondary); font-size: 10px; font-weight: 600; cursor: pointer; list-style: none; }
+.geometry-properties > summary.inspector-disclosure-summary { display: flex; min-height: 34px; align-items: center; justify-content: space-between; color: var(--theme-text-secondary); font-size: var(--type-micro); font-weight: var(--font-weight-semibold); cursor: pointer; list-style: none; }
 .relationship-properties > summary.inspector-disclosure-summary::-webkit-details-marker,
 .geometry-properties > summary.inspector-disclosure-summary::-webkit-details-marker { display: none; }
 .relationship-properties > summary.inspector-disclosure-summary::after,
-.geometry-properties > summary.inspector-disclosure-summary::after { content: "+"; color: var(--theme-text-secondary); font-size: 16px; }
+.geometry-properties > summary.inspector-disclosure-summary::after { content: "+"; color: var(--theme-text-secondary); font-size: var(--type-heading-small); }
 .relationship-properties[open] > summary.inspector-disclosure-summary::after,
 .geometry-properties[open] > summary.inspector-disclosure-summary::after { content: "−"; }
 .geometry-properties > summary.inspector-disclosure-summary { margin: 0; }
 .geometry-properties[open] > summary.inspector-disclosure-summary { margin-bottom: 10px; }
-.page-link-empty p { margin: 0 0 7px; color: var(--theme-text-secondary); font-size: 11px; line-height: 1.4; }
+.page-link-empty p { margin: 0 0 7px; color: var(--theme-text-secondary); font-size: var(--type-caption); line-height: var(--leading-normal); }
 .nested-page-link { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
-.nested-page-link > span { min-width: 0; overflow-wrap: anywhere; color: var(--theme-text-secondary); font-size: 11px; }
+.nested-page-link > span { min-width: 0; overflow-wrap: anywhere; color: var(--theme-text-secondary); font-size: var(--type-caption); }
 .nested-page-link > .quiet-button { flex: 0 0 auto; }

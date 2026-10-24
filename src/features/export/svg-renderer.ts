@@ -72,7 +72,7 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
       if (element.note) return noteCardSvg(element);
       if (element.componentBounds) {
         const bounds = element.componentBounds; const cx = bounds.x + bounds.w / 2; const cy = bounds.y + bounds.h / 2;
-        const component = element.libraryComponent?.kind.startsWith("viz-")
+        const component = element.libraryComponent?.kind?.startsWith("viz-")
           ? renderLibraryChartSvg(element, theme())
           : element.libraryComponent ? modelComponentSvg(element) : "";
         const clipId = `model-${(element.id ?? "component").replace(/[^a-zA-Z0-9_-]/g, "")}-${++modelClipSequence}`;

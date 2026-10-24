@@ -16,9 +16,7 @@
 .quick-style-heading {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
-    margin-bottom: 13px;
     border-radius: 8px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
@@ -26,9 +24,6 @@
 }
 
 .quick-style-heading button {
-    border: 0;
-    padding: 5px 0;
-    color: var(--theme-info);
     background: transparent;
     font-size: var(--type-control);
     font-weight: var(--font-weight-semibold);
@@ -41,8 +36,6 @@
 
 .quick-style-controls {
     position: relative;
-    display: grid;
-    gap: 8px;
 }
 
 .quick-style-popover {
@@ -50,8 +43,6 @@
     z-index: 40;
     top: calc(100% + 5px);
     left: 0;
-    right: 0;
-    padding: 12px;
     border: 1px solid var(--theme-border);
     border-radius: 10px;
     background: var(--theme-surface-elevated);
@@ -60,20 +51,18 @@
 .quick-style-swatches {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 5px;
 }
 
 .quick-style-swatches .color-swatch {
-    width: 24px;
-    height: 24px;
-    flex: 0 0 24px;
+    width: 23px;
+    height: 23px;
+    flex: 0 0 23px;
 }
 
 .quick-style-swatches .custom-color-swatch {
-    width: 27px;
-    height: 27px;
-    flex: 0 0 27px;
+    width: 25px;
+    height: 25px;
+    flex: 0 0 25px;
 }
 
 .quick-thickness-presets {
@@ -173,6 +162,11 @@
     height: 24px;
     justify-content: flex-end;
     margin: 0 0 5px;
+}
+
+.style-pane.quick-style-mode .quick-style-controls {
+    flex-direction: column;
+    flex-wrap: nowrap;
 }
 
 .quick-style-heading button {
@@ -276,23 +270,6 @@
     right: auto;
     min-width: 190px;
     padding: 8px;
-}
-
-.quick-style-swatches {
-    justify-content: flex-start;
-    gap: 6px;
-}
-
-.quick-style-swatches .color-swatch {
-    width: 23px;
-    height: 23px;
-    flex-basis: 23px;
-}
-
-.quick-style-swatches .custom-color-swatch {
-    width: 25px;
-    height: 25px;
-    flex-basis: 25px;
 }
 
 .quick-fill-toggle {

@@ -1,11 +1,3 @@
-/* Compact header and clear, local save-state feedback. */
-.topbar {
-    height: 54px;
-    flex-basis: 54px;
-    gap: 8px;
-    padding: 0 16px;
-}
-
 .app-menus {
     gap: 1px;
     margin-left: 4px;
@@ -65,9 +57,6 @@
 .help-dialog {
     display: flex;
     flex-direction: column;
-    width: min(820px, calc(100vw - 48px));
-    max-height: min(84vh, 820px);
-    padding: 22px 24px 16px;
 }
 
 .help-dialog>header,
@@ -79,7 +68,6 @@
 }
 
 .help-dialog>header {
-    padding-bottom: 14px;
     border-bottom: 1px solid var(--theme-border);
 }
 
@@ -132,45 +120,6 @@
     outline-offset: 2px;
 }
 
-.help-content {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px 24px;
-    overflow-y: auto;
-    padding: 16px 2px;
-}
-
-.help-content>section:last-child {
-    grid-column: 1 / -1;
-}
-
-.help-shortcuts {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 5px 12px;
-}
-
-.help-shortcuts>div {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    padding: 3px 0;
-    color: var(--theme-text-secondary);
-    font-size: var(--type-caption);
-}
-
-.help-shortcuts kbd {
-    flex: 0 0 auto;
-    padding: 3px 5px;
-    border: 1px solid var(--theme-border);
-    border-radius: 5px;
-    color: var(--theme-text-primary);
-    background: var(--theme-surface);
-    font: var(--type-micro) var(--font-mono);
-    white-space: nowrap;
-}
-
 .help-dialog>footer {
     padding-top: 12px;
     border-top: 1px solid var(--theme-border);
@@ -193,10 +142,6 @@
     border-color: var(--theme-border);
 }
 
-.theme-dark .help-shortcuts kbd {
-    border-color: var(--theme-border);
-}
-
 @media (max-width: 1150px) {
     .topbar {
         padding-right: 10px;
@@ -208,17 +153,6 @@
         padding: 5px 6px;
     }
 
-    .help-content {
-        grid-template-columns: 1fr;
-    }
-
-    .help-content>section:last-child {
-        grid-column: auto;
-    }
-
-    .help-shortcuts {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
 }
 
 /* Refined help, export review, and canvas command menus. */
@@ -259,13 +193,6 @@
     height: 28px;
 }
 
-.quick-style-controls {
-    display: flex;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: center;
-}
-
 .quick-style-icon {
     width: 36px;
     height: 36px;
@@ -288,13 +215,11 @@
 .quick-text-size button,
 .quick-text-format button {
     width: 29px;
-    height: 27px;
 }
 
 .quick-style-popover {
     top: 0;
     left: calc(100% + 9px);
-    right: auto;
 }
 
 .quick-style-popover.quick-color-popover,
@@ -661,7 +586,6 @@
     width: 45px;
     max-height: calc(100% - 36px);
     padding: 5px 0px;
-    overflow: visible;
     border: 1px solid var(--theme-border);
     border-radius: 17px;
 }

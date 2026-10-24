@@ -89,9 +89,9 @@
 }
 
 .platform-windows .tool-deck .tool-family .tool-icon-button {
-    width: 38px;
-    min-width: 38px;
-    height: 36px;
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
 }
 
 .platform-windows .tool-deck .tool-family .tool-family-caret {
@@ -290,7 +290,7 @@
     top: 65px;
     right: auto;
     bottom: auto;
-    left: 15px;
+    left: 15 px;
     max-height: 42;
 }
 

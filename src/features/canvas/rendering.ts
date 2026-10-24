@@ -51,8 +51,11 @@ export type CanvasRendererPorts = {
 };
 
 export function canvasPixelRatio(width: number, height: number, devicePixelRatio = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1): number {
-  if (width <= 0 || height <= 0) return 1;
-  return Math.min(devicePixelRatio, 8192 / width, 8192 / height, Math.sqrt(16_000_000 / (width * height)));
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return 1;
+  const requestedRatio = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  // Preserve native display detail on high-DPI 4K and 8K workspaces while
+  // keeping the drawing surface within a predictable backing-store budget.
+  return Math.min(requestedRatio, 16_384 / width, 16_384 / height, Math.sqrt(36_000_000 / (width * height)));
 }
 
 /** Owns the canvas paint frame sizing and animation-frame scheduling. */

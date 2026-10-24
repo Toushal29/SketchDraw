@@ -4,22 +4,23 @@
   display: flex;
   width: min(300px, calc(100vw - 70px));
   height: auto;
-  max-height: min(75vh, 650px);
+  max-height: 85vh;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
-  overflow: hidden;
-  padding: 10px;
+  overflow-x: hidden;
+  padding: 10px 0px 10px 10px;
   border: 1px solid var(--theme-border);
-  border-radius: 10px;
   color: var(--theme-text-primary);
   background: var(--theme-surface-elevated);
 }
 
-.app-shell:not(.platform-windows) .style-pane.full-style-mode > .quick-style-panel,
-.app-shell.platform-windows .style-pane.full-style-mode > .quick-style-panel { display: none; }
+.app-shell:not(.platform-windows) .style-pane.full-style-mode>.quick-style-panel,
+.app-shell.platform-windows .style-pane.full-style-mode>.quick-style-panel {
+  display: none;
+}
 
-.style-pane.full-style-mode > .full-inspector {
+.style-pane.full-style-mode>.full-inspector {
   box-sizing: border-box;
   position: static;
   z-index: auto;
@@ -41,14 +42,15 @@
 
 .full-inspector-header {
   display: flex;
-  min-height: 35px;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 0 0 10px;
 }
 
-.full-inspector-header strong { font-size: 13px; font-weight: 700; }
+.full-inspector-header strong {
+  font-size: var(--type-body-compact);
+  font-weight: var(--font-weight-bold);
+}
+
 .full-inspector-header .full-inspector-close {
   display: grid;
   width: 32px;
@@ -62,11 +64,13 @@
   color: var(--theme-text-secondary);
   background: var(--theme-surface);
 }
+
 .full-inspector-header .full-inspector-close:hover {
   border-color: var(--ui-accent-border);
   color: var(--ui-accent-ink);
   background: var(--ui-accent-soft);
 }
+
 .full-inspector-header .full-inspector-close svg {
   width: 16px;
   height: 16px;
@@ -77,16 +81,66 @@
   stroke-linejoin: round;
 }
 
-.full-inspector > .inspector-properties-content { display: flex; min-width: 0; flex-direction: column; }
-.full-inspector .pane-section { min-width: 0; padding: 10px 0; border-bottom: 1px solid var(--theme-border); }
-.full-inspector .pane-section:last-child { border-bottom: 0; }
-.full-inspector .inspector-section-heading { margin: 0 0 4px; color: var(--theme-text-secondary); font-size: 11px; font-weight: 600; }
-.full-inspector .property-label { min-width: 0; }
+.full-inspector>.inspector-properties-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.full-inspector .pane-section {
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.full-inspector .pane-section:last-child {
+  border-bottom: 0;
+}
+
+.full-inspector .inspector-section-heading {
+  margin: 0 0 4px;
+  color: var(--theme-text-secondary);
+  font-size: var(--type-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.full-inspector .property-label {
+  min-width: 0;
+}
+
 .full-inspector select,
 .full-inspector input,
-.full-inspector textarea { max-width: 100%; }
-.full-inspector .inspector-color-control { gap: 6px; }
-.full-inspector .inspector-inline-color-popover { position: static; z-index: auto; inset: auto; width: 100%; min-width: 0; padding: 6px; }
-.full-inspector .inspector-inline-color-popover .quick-style-swatches { flex-wrap: wrap; justify-content: flex-start; }
-.full-inspector .inspector-fill-properties { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--theme-border); }
-.full-inspector .inspector-fill-properties > .property-label { margin-top: 0; }
+.full-inspector textarea {
+  max-width: 100%;
+}
+
+.full-inspector .inspector-color-control {
+  gap: 6px;
+}
+
+.full-inspector .inspector-inline-color-popover {
+  position: static;
+  z-index: auto;
+  inset: auto;
+  width: 100%;
+  min-width: 0;
+  padding: 6px;
+}
+
+.full-inspector .inspector-inline-color-popover .quick-style-swatches {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.full-inspector .inspector-fill-properties {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--theme-border);
+}
+
+.full-inspector .inspector-fill-properties>.property-label {
+  margin-top: 0;
+}
