@@ -16,8 +16,8 @@
     min-width: 0;
     margin-top: 0;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 11px;
-    font-weight: 650;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-semibold);
 }
 
 .component-editor-content .property-label input,
@@ -33,7 +33,7 @@
     border-radius: 5px;
     color: var(--workspace-ink, var(--theme-text-secondary));
     background: var(--workspace-surface, var(--theme-surface-input));
-    font: 12px/1.4 var(--font-ui);
+    font: var(--type-control)/var(--leading-normal) var(--font-ui);
 }
 
 .component-editor-content .property-label textarea {
@@ -91,12 +91,12 @@
 }
 
 .component-options-editor>header strong {
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .component-options-editor>header span {
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 10px;
+    font-size: var(--type-micro);
     font-variant-numeric: tabular-nums;
 }
 
@@ -117,7 +117,7 @@
     width: 22px;
     flex: 0 0 22px;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 10px;
+    font-size: var(--type-micro);
     text-align: center;
 }
 
@@ -168,8 +168,8 @@
     min-width: 48px;
     margin-right: 2px;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 10px;
-    font-weight: 650;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
 }
 
 .component-chart-palette button,
@@ -180,7 +180,7 @@
     border-radius: 5px;
     color: var(--workspace-ink, var(--theme-text-primary));
     background: var(--workspace-surface, var(--theme-surface-input));
-    font: 10px/1.2 var(--font-ui);
+    font: var(--type-micro)/var(--leading-tight) var(--font-ui);
 }
 
 .component-chart-palette button.active,
@@ -201,8 +201,8 @@
     align-items: center;
     gap: 8px;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 10px;
-    font-weight: 600;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
 }
 
 .component-chart-slider input {
@@ -229,7 +229,7 @@
     border-radius: 5px;
     color: var(--workspace-ink, var(--theme-text-primary));
     background: var(--workspace-surface, var(--theme-surface-input));
-    font: 11px/1.3 var(--font-ui);
+    font: var(--type-caption)/var(--leading-compact) var(--font-ui);
 }
 
 .component-chart-series-row>button {
@@ -239,7 +239,7 @@
     border: 0;
     color: var(--workspace-muted, var(--theme-text-secondary));
     background: transparent;
-    font-size: 17px;
+    font-size: var(--type-heading);
 }
 
 .component-chart-series-options {
@@ -254,14 +254,14 @@
     gap: 3px;
     min-width: 0;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 10px;
-    font-weight: 650;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
 }
 
 .component-chart-choice-setting .component-editor-choice-group button {
     min-height: 25px;
     padding-inline: 5px;
-    font-size: 9px;
+    font-size: var(--type-micro);
 }
 
 .component-chart-series-row.chart-annotation-row {
@@ -294,12 +294,12 @@
     align-items: center;
     justify-content: space-between;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .component-chart-data-heading strong {
     color: var(--workspace-ink, var(--theme-text-primary));
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .component-chart-row {
@@ -312,7 +312,7 @@
 .component-chart-row>span {
     overflow: hidden;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 10px;
+    font-size: var(--type-micro);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -327,7 +327,7 @@
     border-radius: 5px;
     color: var(--workspace-ink, var(--theme-text-primary));
     background: var(--workspace-surface, var(--theme-surface-input));
-    font: 12px/1.4 var(--font-ui);
+    font: var(--type-control)/var(--leading-normal) var(--font-ui);
 }
 
 .component-chart-row-heading {
@@ -350,7 +350,7 @@
     border-radius: 5px;
     color: var(--workspace-muted, var(--theme-text-secondary));
     background: transparent;
-    font-size: 17px;
+    font-size: var(--type-heading);
 }
 
 .component-chart-remove:hover:not(:disabled) {
@@ -366,8 +366,8 @@
     display: grid;
     gap: 5px;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 10px;
-    font-weight: 650;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
 }
 
 .component-trend-control>div {
@@ -383,8 +383,8 @@
     border-radius: 6px;
     color: var(--workspace-ink, var(--theme-text-primary));
     background: var(--workspace-surface, var(--theme-surface-input));
-    font-size: 10px;
-    font-weight: 650;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
 }
 
 .component-trend-control button.active {
@@ -400,8 +400,8 @@
     border-radius: 8px;
     color: var(--workspace-ink, var(--theme-text-primary));
     background: var(--workspace-surface, var(--theme-surface-input));
-    font-size: 11px;
-    font-weight: 650;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-semibold);
 }
 
 .component-option-actions button:last-child {
@@ -419,8 +419,8 @@
     gap: 5px;
     min-width: 0;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 11px;
-    font-weight: 650;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-semibold);
 }
 
 .component-editor-choice-group {
@@ -443,7 +443,7 @@
     border-radius: 6px;
     color: var(--workspace-ink, var(--theme-text-primary));
     background: var(--workspace-surface, var(--theme-surface-input));
-    font: 600 10px/1.2 var(--font-ui);
+    font: var(--font-weight-semibold) var(--type-micro)/var(--leading-tight) var(--font-ui);
     cursor: pointer;
 }
 
@@ -486,8 +486,8 @@
     gap: 4px;
     min-width: 0;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 10px;
-    font-weight: 650;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
 }
 
 .component-option-gap-control > span {
@@ -498,7 +498,7 @@
     width: 26px;
     min-width: 26px;
     padding: 3px;
-    font-size: 13px;
+    font-size: var(--type-body-compact);
 }
 
 .component-option-gap-control output {
@@ -573,8 +573,8 @@
     border: 1px solid transparent;
     border-radius: 8px;
     color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: 11px;
-    font-weight: 700;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-bold);
 }
 
 .app-shell.platform-windows .app-menu-items>.menu-dropdown>summary:hover,
@@ -621,7 +621,7 @@
 .app-shell.platform-windows>.topbar>:is(.document-workspace-tabs, .workspace-viewport-tabs) button {
     min-height: 32px;
     padding-inline: 11px;
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .app-shell.platform-windows>.topbar>.windows-document-tabs {

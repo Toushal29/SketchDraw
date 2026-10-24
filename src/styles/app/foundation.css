@@ -36,6 +36,37 @@ button {
     cursor: pointer;
 }
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: var(--font-ui);
+    line-height: var(--leading-tight);
+}
+
+h2 {
+    font-size: var(--type-heading);
+    font-weight: var(--font-weight-bold);
+}
+
+h3 {
+    font-size: var(--type-body);
+    font-weight: var(--font-weight-semibold);
+}
+
+h4,
+h5,
+h6 {
+    font-size: var(--type-control);
+    font-weight: var(--font-weight-semibold);
+}
+
+.app-shell :where(strong, b) {
+    font-weight: var(--font-weight-bold);
+}
+
 .app-shell {
     width: 100%;
     height: 100%;
@@ -45,6 +76,10 @@ button {
     flex-direction: column;
     overflow: hidden;
     background: var(--theme-background);
+    font-family: var(--font-ui);
+    font-size: var(--type-body-compact);
+    font-weight: var(--font-weight-regular);
+    line-height: var(--leading-normal);
 }
 
 .topbar {
@@ -69,8 +104,8 @@ button {
 
 .brand {
     gap: 11px;
-    font-size: 14px;
-    font-weight: 700;
+    font-size: var(--type-body);
+    font-weight: var(--font-weight-bold);
     letter-spacing: -.3px;
 }
 
@@ -84,7 +119,7 @@ button {
     background: var(--theme-primary);
     font-family: var(--font-serif);
     font-style: italic;
-    font-size: 17px;
+    font-size: var(--type-heading);
 }
 
 .brand-mark-image {
@@ -99,8 +134,8 @@ button {
     padding-left: 14px;
     margin-left: 4px;
     color: var(--theme-text-secondary);
-    font-size: 12px;
-    font-weight: 400;
+    font-size: var(--type-control);
+    font-weight: var(--font-weight-regular);
 }
 
 .top-actions {
@@ -146,7 +181,7 @@ button {
     background: transparent;
     color: var(--theme-text-primary);
     text-align: left;
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .system-menu-popover button:hover {
@@ -160,7 +195,7 @@ button {
 
 .system-menu-popover kbd {
     color: var(--theme-text-secondary);
-    font: 9px var(--font-mono);
+    font: var(--type-micro) var(--font-mono);
 }
 
 .menu-file-label {
@@ -170,7 +205,7 @@ button {
     color: var(--theme-text-secondary);
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .menu-separator {
@@ -184,7 +219,7 @@ button {
     align-items: center;
     gap: 7px;
     margin-right: 7px;
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .save-status i {
@@ -205,8 +240,8 @@ button {
     background: var(--theme-primary);
     color: var(--theme-primary-contrast);
     padding: 8px 14px;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: var(--type-control);
+    font-weight: var(--font-weight-semibold);
 }
 
 .quiet-button:hover {
@@ -230,31 +265,31 @@ button {
     color: var(--theme-text-secondary);
     text-transform: uppercase;
     letter-spacing: 1.5px;
-    font: 10px var(--font-mono);
+    font: var(--type-micro) var(--font-mono);
 }
 
 h1 {
     margin: 0;
     font-size: clamp(42px, 5vw, 62px);
-    line-height: 1.04;
-    font-weight: 500;
+    line-height: var(--leading-display);
+    font-weight: var(--font-weight-medium);
     letter-spacing: -3.1px;
 }
 
 h1 em {
     color: var(--theme-text-secondary);
     font-family: var(--font-serif);
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
 }
 
 .save-button span {
     padding-left: 15px;
-    font-size: 16px;
-    line-height: 10px;
+    font-size: var(--type-heading-small);
+    line-height: var(--leading-compact);
 }
 
 .zoom-reset {
-    font-size: 20px;
+    font-size: var(--type-title);
 }
 
 .canvas-wrap {
@@ -388,7 +423,7 @@ h1 em {
 }
 
 .tool-options:not(.stencil-options) button>span {
-    font-size: 10px;
+    font-size: var(--type-micro);
     white-space: nowrap;
 }
 
@@ -418,7 +453,7 @@ h1 em {
     gap: 5px;
     margin-top: 9px;
     color: var(--theme-text-secondary);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .property-label input,
@@ -427,7 +462,7 @@ h1 em {
     height: 31px;
     padding: 0 8px;
     border-radius: 6px;
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .pane-group-button {
@@ -440,12 +475,12 @@ h1 em {
     border-radius: 7px;
     background: var(--theme-surface-input);
     color: var(--theme-info);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .pane-group-button kbd {
     color: var(--theme-text-secondary);
-    font: 9px var(--font-mono);
+    font: var(--type-micro) var(--font-mono);
 }
 
 .pane-section {
@@ -463,20 +498,20 @@ h1 em {
     justify-content: space-between;
     margin-bottom: 10px;
     color: var(--theme-text-secondary);
-    font-size: 10px;
-    font-weight: 600;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
 }
 
 .pane-heading span {
     color: var(--theme-text-secondary);
-    font: 9px var(--font-mono);
+    font: var(--type-micro) var(--font-mono);
 }
 
 .bucket-help {
     margin: -4px 0 12px;
     color: var(--theme-text-secondary);
-    font-size: 13px;
-    line-height: 1.45;
+    font-size: var(--type-body-compact);
+    line-height: var(--leading-normal);
 }
 
 .fill-palette {
@@ -530,7 +565,7 @@ h1 em {
     border-radius: 6px;
     background: var(--theme-surface-input);
     color: var(--theme-text-secondary);
-    font-size: 9px;
+    font-size: var(--type-micro);
 }
 
 .preset-button small {
@@ -549,7 +584,7 @@ h1 em {
     min-height: 18px;
     color: var(--theme-text-secondary);
     font-size: var(--font-size-micro);
-    line-height: 9px;
+    line-height: var(--leading-tight);
 }
 
 .preset-button.active {
@@ -568,7 +603,7 @@ h1 em {
     color: var(--theme-text-secondary);
     background: transparent;
     text-align: left;
-    font-size: 9px;
+    font-size: var(--type-micro);
 }
 
 .pane-slider {
@@ -592,7 +627,7 @@ h1 em {
     border-radius: 5px;
     color: var(--theme-text-secondary);
     background: transparent;
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .fill-options button.active {
@@ -614,7 +649,7 @@ h1 em {
     color: var(--theme-text-primary);
     background: transparent;
     font-family: var(--font-ui);
-    line-height: 1.25;
+    line-height: var(--leading-compact);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     transform-origin: top left;
@@ -632,7 +667,7 @@ h1 em {
     right: 20px;
     pointer-events: none;
     color: var(--theme-text-secondary);
-    font: 10px var(--font-mono);
+    font: var(--type-micro) var(--font-mono);
 }
 
 .canvas-help span {
@@ -654,15 +689,15 @@ h1 em {
     border-radius: 8px;
     background: var(--theme-error-muted);
     color: var(--theme-error);
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .error-toast button {
     border: 0;
     background: transparent;
     color: var(--theme-error);
-    font-size: 11px;
-    font-weight: 700;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-bold);
 }
 
 @media (max-width: 800px) {

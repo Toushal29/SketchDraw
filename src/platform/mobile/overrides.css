@@ -9,7 +9,7 @@
         gap: 1px;
         padding: 2px;
     }
-    .app-shell:not(.platform-windows) .page-tab { max-width: min(92px, 21vw); height: 27px; padding: 0 5px; font-size: 9px; }
+    .app-shell:not(.platform-windows) .page-tab { max-width: min(92px, 21vw); height: 27px; padding: 0 5px; font-size: var(--type-micro); }
     .app-shell:not(.platform-windows) .page-tabs > button,
     .app-shell:not(.platform-windows) .page-menu > summary { min-width: 26px; min-height: 27px; padding: 2px 4px; }
 

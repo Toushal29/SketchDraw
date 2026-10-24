@@ -101,7 +101,7 @@
 
 .tool-icon-button kbd {
     font-size: var(--font-size-micro);
-    line-height: 8px;
+    line-height: var(--leading-icon);
 }
 
 .tool-family {
@@ -162,4 +162,4 @@
 .canvas-measurement { pointer-events: none; }
 .canvas-measurement line { stroke: #ec8d16; stroke-width: 1.5; stroke-dasharray: 5 3; }
 .canvas-measurement circle { fill: #fff; stroke: #ec8d16; stroke-width: 1.5; }
-.canvas-measurement text { paint-order: stroke; stroke: var(--theme-surface-elevated, #fff); stroke-width: 4px; stroke-linejoin: round; fill: var(--theme-text-primary, #202124); font: 600 12px var(--font-ui, system-ui); }
+.canvas-measurement text { paint-order: stroke; stroke: var(--theme-surface-elevated, #fff); stroke-width: 4px; stroke-linejoin: round; fill: var(--theme-text-primary, #202124); font: var(--font-weight-semibold) var(--type-control) var(--font-ui, system-ui); }

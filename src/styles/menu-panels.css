@@ -21,8 +21,8 @@
 .app-settings-heading strong,
 .gesture-menu-heading strong {
     color: var(--panel-ink);
-    font-size: 16px;
-    font-weight: 720;
+    font-size: var(--type-heading-small);
+    font-weight: var(--font-weight-bold);
     letter-spacing: -.02em;
 }
 
@@ -30,8 +30,8 @@
 .gesture-menu-heading p {
     margin: 0;
     color: var(--panel-muted);
-    font-size: 10px;
-    line-height: 1.4;
+    font-size: var(--type-micro);
+    line-height: var(--leading-normal);
 }
 
 .app-setting-field {
@@ -42,26 +42,26 @@
     border-radius: 13px;
     color: var(--panel-ink);
     background: var(--panel-surface);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .app-setting-field>span {
     align-items: baseline;
     color: var(--panel-ink);
-    font-size: 11px;
-    font-weight: 650;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-semibold);
 }
 
 .app-setting-field>span>strong {
     color: var(--ui-accent-ink);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .app-setting-field>small,
 .app-display-info small {
     color: var(--panel-muted);
-    font-size: 9px;
-    line-height: 1.4;
+    font-size: var(--type-micro);
+    line-height: var(--leading-normal);
 }
 
 .app-setting-field select {
@@ -74,7 +74,7 @@
     border-radius: 10px;
     color: var(--panel-ink);
     background: var(--panel-surface);
-    font: 550 10px var(--font-ui);
+    font: var(--font-weight-medium) var(--type-micro) var(--font-ui);
 }
 
 .app-setting-choices {
@@ -101,7 +101,7 @@
     border-radius: 9px;
     color: var(--panel-muted);
     background: var(--panel-surface);
-    font: 600 10px/1.1 var(--font-ui);
+    font: var(--font-weight-semibold) var(--type-micro)/var(--leading-tight) var(--font-ui);
     cursor: pointer;
 }
 
@@ -139,7 +139,7 @@
     border-radius: 8px;
     color: var(--panel-ink, var(--theme-text-primary));
     background: transparent;
-    font: 550 10px/1.1 var(--font-ui);
+    font: var(--font-weight-medium) var(--type-micro)/var(--leading-tight) var(--font-ui);
     text-align: left;
     cursor: pointer;
 }
@@ -211,14 +211,14 @@
 
 .app-display-info>strong {
     color: var(--panel-muted);
-    font-size: 9px;
+    font-size: var(--type-micro);
     text-transform: uppercase;
     letter-spacing: .08em;
 }
 
 .app-display-info>span {
     color: var(--panel-ink);
-    font: 600 11px var(--font-mono);
+    font: var(--font-weight-semibold) var(--type-caption) var(--font-mono);
 }
 
 .app-settings-reset {
@@ -228,7 +228,7 @@
     border-radius: 10px;
     color: var(--ui-accent-ink);
     background: var(--ui-accent-soft);
-    font: 650 10px var(--font-ui);
+    font: var(--font-weight-semibold) var(--type-micro) var(--font-ui);
     cursor: pointer;
 }
 
@@ -257,8 +257,8 @@
 
 .gesture-menu-heading .eyebrow {
     color: var(--ui-accent);
-    font-size: 9px;
-    font-weight: 750;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-bold);
     letter-spacing: .1em;
 }
 
@@ -281,7 +281,7 @@
     border-radius: 9px;
     color: var(--panel-muted);
     background: transparent;
-    font: 650 10px var(--font-ui);
+    font: var(--font-weight-semibold) var(--type-micro) var(--font-ui);
     cursor: pointer;
 }
 
@@ -325,8 +325,8 @@
     border-radius: 11px;
     color: var(--ui-accent-ink);
     background: var(--ui-accent-soft);
-    font-size: 14px;
-    font-weight: 750;
+    font-size: var(--type-body);
+    font-weight: var(--font-weight-bold);
 }
 
 .gesture-card-copy {
@@ -337,17 +337,17 @@
 
 .gesture-card-copy strong {
     color: var(--panel-ink);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .gesture-card-copy small {
     color: var(--panel-muted);
-    font-size: 9px;
-    line-height: 1.3;
+    font-size: var(--type-micro);
+    line-height: var(--leading-compact);
 }
 
 .gesture-action-choices { display: grid; min-width: 0; grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); gap: 4px; }
-.gesture-action-choices button { min-width: 0; min-height: 30px; padding: 4px 6px; border: 1px solid var(--panel-line); border-radius: 7px; color: var(--panel-ink); background: var(--panel-surface); font: 500 9px/1.2 var(--font-ui); cursor: pointer; }
+.gesture-action-choices button { min-width: 0; min-height: 30px; padding: 4px 6px; border: 1px solid var(--panel-line); border-radius: 7px; color: var(--panel-ink); background: var(--panel-surface); font: var(--font-weight-medium) var(--type-micro)/var(--leading-tight) var(--font-ui); cursor: pointer; }
 .gesture-action-choices button:hover { background: var(--panel-hover); }
 .gesture-action-choices button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
 .gesture-action-choices button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
@@ -356,8 +356,8 @@
     margin: 0;
     padding: 0 3px;
     color: var(--panel-muted);
-    font-size: 9px;
-    line-height: 1.4;
+    font-size: var(--type-micro);
+    line-height: var(--leading-normal);
 }
 
 .app-shell.theme-dark .app-settings-popover,
@@ -436,6 +436,6 @@
         min-height: 38px;
         padding-right: 1px;
         padding-left: 1px;
-        font-size: 9px;
+        font-size: var(--type-micro);
     }
 }

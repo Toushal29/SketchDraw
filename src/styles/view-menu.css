@@ -37,7 +37,7 @@
     border-radius: 9px;
     color: var(--view-muted);
     background: transparent;
-    font: 650 11px/1.2 var(--font-ui);
+    font: var(--font-weight-semibold) var(--type-caption)/var(--leading-tight) var(--font-ui);
     cursor: pointer;
 }
 
@@ -119,8 +119,8 @@
 
 .view-appearance-control>span {
     color: var(--view-muted);
-    font-size: 10px;
-    font-weight: 650;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
 }
 
 .view-theme-options,
@@ -146,7 +146,7 @@
     color: var(--view-ink);
     background: transparent;
     text-align: left;
-    font: 550 10px/1.1 var(--font-ui);
+    font: var(--font-weight-medium) var(--type-micro)/var(--leading-tight) var(--font-ui);
     cursor: pointer;
 }
 
@@ -214,8 +214,8 @@
     display: block;
     padding: 0;
     color: var(--view-ink);
-    font-size: 11px;
-    font-weight: 700;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-bold);
     letter-spacing: .01em;
 }
 
@@ -229,7 +229,7 @@
 .view-section-heading>span:last-child {
     overflow: hidden;
     color: var(--view-muted);
-    font-size: 10px;
+    font-size: var(--type-micro);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -254,8 +254,8 @@
 
 .mobile-layout-control>span {
     color: var(--view-muted);
-    font-size: 10px;
-    font-weight: 650;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
 }
 
 .view-choice-group {
@@ -276,7 +276,7 @@
     border-radius: 10px;
     color: var(--view-ink);
     background: var(--view-panel);
-    font: 600 10px/1.15 var(--font-ui);
+    font: var(--font-weight-semibold) var(--type-micro)/var(--leading-tight) var(--font-ui);
     cursor: pointer;
 }
 
@@ -320,8 +320,8 @@
 
 .mobile-layout-control>small {
     color: var(--view-muted);
-    font-size: 9px;
-    line-height: 1.35;
+    font-size: var(--type-micro);
+    line-height: var(--leading-compact);
 }
 
 .orientation-setting-message {
@@ -346,7 +346,7 @@
     border-radius: 10px;
     color: var(--view-muted);
     background: var(--view-panel);
-    font: 600 10px/1.1 var(--font-ui);
+    font: var(--font-weight-semibold) var(--type-micro)/var(--leading-tight) var(--font-ui);
     cursor: pointer;
 }
 
@@ -394,7 +394,7 @@
     color: var(--view-ink);
     background: transparent;
     text-align: left;
-    font: 550 10px/1.1 var(--font-ui);
+    font: var(--font-weight-medium) var(--type-micro)/var(--leading-tight) var(--font-ui);
     cursor: pointer;
 }
 
@@ -471,7 +471,7 @@
     border-radius: 9px;
     color: var(--view-ink);
     background: var(--view-panel);
-    font: 600 10px var(--font-ui);
+    font: var(--font-weight-semibold) var(--type-micro) var(--font-ui);
     cursor: pointer;
 }
 
@@ -507,7 +507,7 @@
     gap: 8px;
     padding: 8px 3px 0;
     color: var(--view-muted);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .board-custom-choice .custom-color-swatch {
@@ -548,7 +548,7 @@
     border-radius: 9px;
     color: var(--view-muted);
     background: transparent;
-    font: 550 9px/1.1 var(--font-ui);
+    font: var(--font-weight-medium) var(--type-micro)/var(--leading-tight) var(--font-ui);
     cursor: pointer;
 }
 
@@ -687,7 +687,7 @@
         gap: 5px;
         padding: 6px 3px;
         border: 1px solid transparent;
-        font-size: 9px;
+        font-size: var(--type-micro);
     }
 
     .app-shell:not(.platform-windows) .pattern-setting-section .paper-pattern-swatch {

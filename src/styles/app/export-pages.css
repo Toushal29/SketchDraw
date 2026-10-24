@@ -22,8 +22,8 @@
 .pdf-setting-heading {
     margin-top: 2px;
     color: var(--theme-text-secondary);
-    font-size: 11px;
-    font-weight: 700;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-bold);
 }
 
 .pdf-paper-grid {
@@ -44,7 +44,7 @@
     border-radius: 7px;
     color: var(--theme-text-secondary);
     background: var(--theme-surface-input);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .pdf-paper-grid button:hover,
@@ -80,7 +80,7 @@
     display: grid;
     gap: 4px;
     color: var(--theme-text-secondary);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .pdf-custom-size input,
@@ -93,7 +93,7 @@
     border-radius: 6px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .pdf-output-settings {
@@ -106,7 +106,7 @@
     align-items: center;
     gap: 6px;
     color: var(--theme-text-secondary);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .pdf-overlap-control input {
@@ -125,13 +125,13 @@
 }
 
 .pdf-page-count strong {
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .pdf-page-count span {
     color: var(--theme-text-secondary);
-    font-size: 10px;
-    line-height: 1.4;
+    font-size: var(--type-micro);
+    line-height: var(--leading-normal);
 }
 
 .pdf-preview-pages {
@@ -149,7 +149,7 @@
     border-radius: 6px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
-    font-size: 14px;
+    font-size: var(--type-body);
 }
 
 .pdf-preview-pages button:disabled {
@@ -200,8 +200,8 @@
     display: block;
     padding: 6px 10px;
     color: var(--muted);
-    font-size: 11px;
-    line-height: 1.4;
+    font-size: var(--type-caption);
+    line-height: var(--leading-normal);
     overflow-wrap: anywhere;
 }
 
@@ -209,7 +209,7 @@
     display: block;
     padding: 4px 10px 6px;
     color: var(--muted);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .update-menu-status.current,
@@ -218,7 +218,7 @@
     margin: 4px 7px;
     padding: 7px 9px;
     border-radius: 7px;
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
 }
 
 .update-menu-status.current {
@@ -265,8 +265,8 @@
     display: block;
     margin-top: 18px;
     color: var(--muted);
-    font-size: 11px;
-    line-height: 1.45;
+    font-size: var(--type-caption);
+    line-height: var(--leading-normal);
 }
 
 @media (max-width: 760px) {

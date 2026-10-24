@@ -39,7 +39,7 @@
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro { min-width: 0; }
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-kicker { margin-bottom: 7px; }
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-title { max-width: 520px; font-size: clamp(29px, 7vw, 40px); }
-    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-copy { margin: 8px 0 0; font-size: 11px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-copy { margin: 8px 0 0; font-size: var(--type-caption); }
 
     .app-shell.home-screen-active:not(.platform-windows) .home-actions-mobile {
         display: grid;
@@ -52,7 +52,7 @@
         justify-content: space-between;
         gap: 5px;
         padding-inline: 10px;
-        font-size: 10px;
+        font-size: var(--type-micro);
     }
 
     .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile {
@@ -64,12 +64,12 @@
     }
 
     .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile .home-library-heading { padding-bottom: 9px; }
-    .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile .home-library-heading h2 { font-size: 16px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile .home-library-heading h2 { font-size: var(--type-heading-small); }
     .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile .home-recent-list { flex: 0 1 auto; max-height: 34dvh; gap: 4px; }
     .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile { min-height: 48px; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 6px 8px; border-radius: 9px; }
-    .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile .home-file-copy strong { font-size: 11px; }
-    .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile .home-file-copy small { font-size: 9px; }
-    .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile .home-file-open { font-size: 15px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile .home-file-copy strong { font-size: var(--type-caption); }
+    .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile .home-file-copy small { font-size: var(--type-micro); }
+    .app-shell.home-screen-active:not(.platform-windows) .home-file-mobile .home-file-open { font-size: var(--type-heading-small); }
     .app-shell.home-screen-active:not(.platform-windows) .home-empty-mobile { min-height: 70px; flex: 0 0 auto; align-items: flex-start; padding: 8px 2px; text-align: left; }
     .app-shell.home-screen-active:not(.platform-windows) .home-empty-mobile p { margin: 0; }
 
@@ -80,7 +80,7 @@
         gap: 8px;
         padding: 2px 3px;
         color: var(--theme-text-tertiary);
-        font-size: 9px;
+        font-size: var(--type-micro);
     }
 
     .app-shell.home-screen-active:not(.platform-windows) .home-screen-mobile button:focus-visible {
@@ -127,7 +127,7 @@
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-layout { gap: 7px 12px; }
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-hero { gap: 10px; padding: 12px; }
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-kicker { margin-bottom: 4px; }
-    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-title { font-size: 25px; }
+    .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-title { font-size: var(--type-display); }
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-intro .home-copy { display: none; }
     .app-shell.home-screen-active:not(.platform-windows) .home-library-mobile { padding: 10px; }
 }

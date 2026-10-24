@@ -19,8 +19,8 @@
 }
 
 .tool-options:not(.stencil-options) button>span {
-    font-size: 9px;
-    line-height: 1.1;
+    font-size: var(--type-micro);
+    line-height: var(--leading-tight);
 }
 
 /* .tool-family.options-open .text-options {
@@ -120,14 +120,14 @@
 
 .floating-layer-panel .layer-panel-heading strong {
     display: block;
-    font-size: 14px;
-    font-weight: 700;
+    font-size: var(--type-body);
+    font-weight: var(--font-weight-bold);
 }
 
 .floating-layer-panel .layer-panel-heading p {
     margin: 4px 0 0;
     color: var(--layer-muted, var(--theme-text-secondary));
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .floating-layer-panel .layer-count-badge {
@@ -140,8 +140,8 @@
     border-radius: 9px;
     color: var(--layer-muted, var(--theme-text-secondary));
     background: var(--layer-inset, var(--theme-surface-elevated));
-    font-size: 11px;
-    font-weight: 650;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-semibold);
 }
 
 .floating-layer-panel .layer-panel-heading .pane-close-icon {
@@ -153,7 +153,7 @@
     border-radius: 8px;
     background: transparent;
     color: inherit;
-    font-size: 20px;
+    font-size: var(--type-title);
     cursor: pointer;
 }
 
@@ -241,11 +241,11 @@
 
 .layer-empty-state strong {
     color: var(--layer-ink, var(--theme-text-tertiary));
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .layer-empty-state small {
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .app-shell.theme-dark .floating-layer-panel .layer-row {
@@ -288,8 +288,8 @@
     gap: 6px;
     margin-top: 13px;
     color: var(--theme-text-secondary);
-    font-size: 12px;
-    font-weight: 600;
+    font-size: var(--type-control);
+    font-weight: var(--font-weight-semibold);
 }
 
 .class-card-dialog input,
@@ -301,7 +301,7 @@
     border-radius: 8px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
-    font: 13px/1.5 var(--font-ui);
+    font: var(--type-body-compact)/var(--leading-normal) var(--font-ui);
 }
 
 .class-card-dialog textarea {
@@ -341,8 +341,8 @@
     height: 28px;
     padding: 0;
     border-radius: 8px;
-    font-size: 19px;
-    line-height: 1;
+    font-size: var(--type-title);
+    line-height: var(--leading-icon);
 }
 
 .board-theme-options {
@@ -360,7 +360,7 @@
     min-height: 26px;
     padding: 3px 7px;
     border-radius: 7px;
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .board-theme-options .board-auto-choice i {
@@ -389,7 +389,7 @@
 }
 
 .laser-settings-popover>strong {
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .laser-settings-popover>label {
@@ -397,7 +397,7 @@
     grid-template-columns: 1fr auto;
     gap: 4px 8px;
     align-items: center;
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .laser-settings-popover>label input[type="range"] {
@@ -437,7 +437,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .laser-rainbow input {
@@ -457,7 +457,7 @@
     padding: 5px 8px;
     border: 1px solid var(--theme-border);
     border-radius: 7px;
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .autosave-choices button.active {
@@ -481,7 +481,7 @@
     border: 1px solid transparent;
     border-radius: 7px;
     text-align: left;
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .toolbar-color-options .named-color-choice i {
@@ -536,7 +536,7 @@
 
 .view-section-heading>span:last-child {
     color: var(--theme-text-secondary);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .view-menu-section {
@@ -551,7 +551,7 @@
 
 .view-menu-section .menu-section-title {
     padding: 4px 7px 5px;
-    font: 600 9px/1.3 var(--font-ui);
+    font: var(--font-weight-semibold) var(--type-micro)/var(--leading-compact) var(--font-ui);
     letter-spacing: .07em;
 }
 
@@ -602,7 +602,7 @@
     border-radius: 7px;
     color: var(--theme-text-secondary);
     background: var(--theme-surface-input);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .view-menu-section .component-style-options button.active {
@@ -668,7 +668,7 @@
     justify-content: space-between;
     padding: 4px 7px 1px;
     color: var(--theme-text-secondary);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .theme-dark .view-settings-popover {
@@ -747,7 +747,7 @@
     outline: none;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
-    font: 12px/1.6 var(--font-mono);
+    font: var(--type-control)/var(--leading-relaxed) var(--font-mono);
     tab-size: 2;
 }
 
@@ -768,7 +768,7 @@
     justify-items: start;
     border: 0;
     background: transparent;
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .mermaid-preview-panel {
@@ -790,15 +790,15 @@
     padding: 9px 11px;
     border-bottom: 1px solid var(--theme-border);
     color: var(--theme-text-secondary);
-    font-size: 9px;
-    font-weight: 750;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-bold);
     letter-spacing: .1em;
 }
 
 .mermaid-preview-heading small {
     color: var(--theme-text-secondary);
-    font-size: 9px;
-    font-weight: 500;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-medium);
     letter-spacing: 0;
 }
 
@@ -819,7 +819,7 @@
     place-items: center;
     padding: 18px;
     color: var(--theme-error);
-    font-size: 12px;
+    font-size: var(--type-control);
     text-align: center;
 }
 
@@ -832,7 +832,7 @@
 
 .mermaid-dialog-footer>span {
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .mermaid-dialog-footer>div {
@@ -899,8 +899,8 @@
     border-radius: 20px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
-    font-size: 18px;
-    line-height: 1;
+    font-size: var(--type-heading);
+    line-height: var(--leading-icon);
 }
 
 .thickness-tuner>button:hover:not(:disabled) {
@@ -936,7 +936,7 @@
 
 .thickness-preview strong {
     color: var(--theme-text-secondary);
-    font: 9px var(--font-mono);
+    font: var(--type-micro) var(--font-mono);
 }
 
 .thickness-fine-slider {
@@ -945,7 +945,7 @@
     gap: 7px;
     margin: 10px 0 0;
     color: var(--theme-text-secondary);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .thickness-fine-slider input {
@@ -956,7 +956,7 @@
 
 .quick-thickness-presets button small {
     color: var(--theme-text-secondary);
-    font: 9px var(--font-mono);
+    font: var(--type-micro) var(--font-mono);
 }
 
 .theme-dark .thickness-tuner>button {
@@ -974,8 +974,8 @@
     border-radius: 999px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-hover);
-    font-size: 9px;
-    font-weight: 750;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-bold);
     letter-spacing: .08em;
 }
 
@@ -1013,8 +1013,8 @@
 .component-appearance-choice>span {
     margin-right: auto;
     color: var(--pane-muted, var(--theme-text-secondary));
-    font-size: 12px;
-    font-weight: 650;
+    font-size: var(--type-control);
+    font-weight: var(--font-weight-semibold);
 }
 
 .component-appearance-choice button {
@@ -1052,14 +1052,14 @@
     border-radius: 7px;
     background: var(--pane-surface, var(--theme-surface-input));
     color: var(--pane-ink, var(--theme-text-primary));
-    font: 12px/1.45 var(--font-mono);
+    font: var(--type-control)/var(--leading-normal) var(--font-mono);
 }
 
 .component-data-editor small {
     color: var(--pane-muted, var(--theme-text-secondary));
-    font-size: 11px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-regular);
+    line-height: var(--leading-normal);
 }
 
 .component-text-fields {
@@ -1070,8 +1070,8 @@
     padding: 8px 0;
     color: var(--pane-ink, var(--theme-text-secondary));
     cursor: pointer;
-    font-size: 12px;
-    font-weight: 700;
+    font-size: var(--type-control);
+    font-weight: var(--font-weight-bold);
 }
 
 .component-field-list {
@@ -1090,7 +1090,7 @@
 .component-field-list .property-label>span {
     overflow: hidden;
     color: var(--pane-muted, var(--theme-text-secondary));
-    font-size: 11px;
+    font-size: var(--type-caption);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1104,7 +1104,7 @@
     margin: 8px 0;
     cursor: pointer;
     color: var(--pane-ink, var(--theme-text-primary));
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .component-state-control input {
@@ -1215,8 +1215,8 @@
 
 .schema-dialog-title-row h2 {
     min-width: 0;
-    font-size: 18px;
-    line-height: 1.25;
+    font-size: var(--type-heading);
+    line-height: var(--leading-compact);
 }
 
 .database-schema-dialog .code-data-load-file {
@@ -1261,9 +1261,9 @@
     color: var(--theme-text-secondary);
     background: var(--theme-surface-input);
     cursor: help;
-    font-size: 13px;
-    font-weight: 700;
-    line-height: 1;
+    font-size: var(--type-body-compact);
+    font-weight: var(--font-weight-bold);
+    line-height: var(--leading-icon);
     list-style: none;
 }
 
@@ -1306,11 +1306,11 @@
 .dialog-info-content p {
     margin: 0;
     color: var(--theme-text-secondary);
-    font-size: 11px;
-    line-height: 1.5;
+    font-size: var(--type-caption);
+    line-height: var(--leading-normal);
 }
 
 .dialog-info-content code {
     color: var(--theme-diagram-data);
-    font: 10px var(--font-mono);
+    font: var(--type-micro) var(--font-mono);
 }

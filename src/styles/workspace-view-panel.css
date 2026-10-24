@@ -27,8 +27,8 @@
 .workspace-view-header {
   padding: 0 0 10px;
   color: var(--theme-text-primary);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--type-body);
+  font-weight: var(--font-weight-bold);
 }
 
 .workspace-view-fit-row,
@@ -51,7 +51,7 @@
   border-radius: 5px;
   color: var(--theme-text-secondary);
   background: var(--theme-surface);
-  font-size: 10px;
+  font-size: var(--type-micro);
   text-align: left;
 }
 
@@ -70,7 +70,7 @@
 
 .workspace-view-panel kbd {
   color: var(--theme-text-tertiary);
-  font: 10px var(--font-mono);
+  font: var(--type-micro) var(--font-mono);
   white-space: nowrap;
 }
 
@@ -82,8 +82,8 @@
 .workspace-view-section h2 {
   margin: 0 0 10px;
   color: var(--theme-text-primary);
-  font-size: 12px;
-  font-weight: 650;
+  font-size: var(--type-control);
+  font-weight: var(--font-weight-semibold);
 }
 
 .workspace-view-panel button:focus-visible,
@@ -110,7 +110,7 @@
   border: 0;
   color: var(--theme-text-secondary);
   background: transparent;
-  font-size: 10px;
+  font-size: var(--type-micro);
   text-align: left;
 }
 
@@ -144,8 +144,8 @@
 .workspace-view-note {
   margin: 0;
   color: var(--theme-text-tertiary);
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: var(--type-micro);
+  line-height: var(--leading-normal);
 }
 
 .workspace-view-gui h2 { color: var(--ui-accent-ink); }
@@ -159,12 +159,12 @@
   border-radius: 5px;
   color: var(--ui-accent-ink);
   background: var(--ui-accent-soft);
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--type-caption);
+  font-weight: var(--font-weight-semibold);
   text-align: left;
 }
 
-.workspace-view-primary span { color: var(--theme-text-tertiary); font-size: 10px; font-weight: 450; }
+.workspace-view-primary span { color: var(--theme-text-tertiary); font-size: var(--type-micro); font-weight: var(--font-weight-regular); }
 .workspace-view-action-grid > button {
   display: flex;
   min-width: 0;
@@ -177,7 +177,7 @@
   border-radius: 5px;
   color: var(--theme-text-secondary);
   background: var(--theme-surface);
-  font-size: 10px;
+  font-size: var(--type-micro);
   text-align: left;
 }
 
@@ -191,7 +191,7 @@
   border-radius: 5px;
   color: var(--theme-text-secondary);
   background: var(--theme-surface);
-  font-size: 10px;
+  font-size: var(--type-micro);
   text-align: left;
 }
 
@@ -200,7 +200,7 @@
   gap: 10px;
   padding: 5px 0;
   color: var(--theme-text-secondary);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .workspace-view-fields > label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(110px, 1fr); align-items: center; gap: 10px; }
@@ -212,7 +212,7 @@
   border-radius: 5px;
   color: var(--theme-text-primary);
   background: var(--theme-surface);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .workspace-view-range output { justify-self: end; color: var(--theme-text-tertiary); font-variant-numeric: tabular-nums; }
@@ -234,7 +234,7 @@
   border-radius: 50%;
   color: var(--theme-text-secondary);
   background: var(--theme-surface);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .workspace-view-color-row button:first-child { width: auto; padding: 0 10px; border-radius: 5px; }

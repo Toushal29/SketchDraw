@@ -45,7 +45,7 @@
 }
 
 .app-settings-heading strong {
-    font-size: 14px;
+    font-size: var(--type-body);
 }
 
 .app-settings-section {
@@ -56,14 +56,14 @@
 }
 
 .app-settings-section>strong {
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .app-settings-choice {
     display: grid;
     gap: 4px;
     color: var(--theme-text-secondary);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .app-settings-choice>div {
@@ -106,8 +106,8 @@
 
 .app-settings-popover small {
     color: var(--theme-text-secondary);
-    font-size: 10px;
-    line-height: 1.4;
+    font-size: var(--type-micro);
+    line-height: var(--leading-normal);
 }
 
 .toolbar-order-editor {
@@ -130,12 +130,12 @@
 
 .toolbar-order-editor>header strong {
     color: var(--theme-text-primary);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .toolbar-order-editor>header small {
     color: var(--theme-text-secondary);
-    font-size: 9px;
+    font-size: var(--type-micro);
 }
 
 .toolbar-order-editor>header button {
@@ -164,7 +164,7 @@
     border-bottom: 1px solid var(--theme-border);
     border-radius: 4px;
     color: var(--theme-text-primary);
-    font-size: 11px;
+    font-size: var(--type-caption);
     touch-action: auto;
 }
 
@@ -225,7 +225,7 @@
     min-width: 38px;
     min-height: 26px;
     padding: 3px 5px;
-    font-size: 9px;
+    font-size: var(--type-micro);
 }
 
 .toolbar-order-editor button:disabled {
@@ -235,7 +235,7 @@
 
 .app-settings-reset {
     min-height: 32px;
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 @media (max-width: 480px) {

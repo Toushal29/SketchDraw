@@ -36,7 +36,7 @@
   color: inherit;
   background: transparent;
   box-shadow: none;
-  font: 12px/1.4 var(--font-ui);
+  font: var(--type-control)/var(--leading-normal) var(--font-ui);
 }
 
 .full-inspector-header {

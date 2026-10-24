@@ -19,7 +19,7 @@
     color: var(--theme-text-primary);
     background: transparent;
     text-align: left;
-    font: 11px/1.25 var(--font-ui);
+    font: var(--type-caption)/var(--leading-compact) var(--font-ui);
 }
 
 .view-settings-popover>.view-utility-action:hover:not(:disabled) {
@@ -59,8 +59,8 @@
 .app-appearance-section .menu-section-title {
     padding: 0;
     color: var(--theme-text-primary);
-    font-size: 11px;
-    font-weight: 650;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-semibold);
 }
 
 .app-appearance-controls {
@@ -76,8 +76,8 @@
 
 .app-appearance-section .view-appearance-control>span {
     color: var(--theme-text-secondary);
-    font-size: 10px;
-    font-weight: 550;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-medium);
 }
 
 .app-appearance-section .view-theme-options,
@@ -98,7 +98,7 @@
     border-radius: 4px;
     color: var(--theme-text-primary);
     background: transparent;
-    font: 10px/1.15 var(--font-ui);
+    font: var(--type-micro)/var(--leading-tight) var(--font-ui);
 }
 
 .app-appearance-section .view-theme-options button {

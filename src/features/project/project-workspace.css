@@ -50,14 +50,14 @@
 .project-file-toolbar strong {
   overflow: hidden;
   color: var(--project-ink);
-  font-size: 12px;
+  font-size: var(--type-control);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .project-file-toolbar small {
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-file-toolbar nav,
@@ -89,8 +89,8 @@
   background: var(--project-surface);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: var(--type-caption);
+  font-weight: var(--font-weight-semibold);
 }
 
 .project-file-toolbar nav button.primary,
@@ -146,7 +146,7 @@
 .project-workspace-nav button span {
   margin-left: 3px;
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-workspace-content {
@@ -176,7 +176,7 @@
   margin: 6px 0 5px;
   color: var(--project-ink);
   font-size: clamp(26px, 3vw, 36px);
-  line-height: 1.1;
+  line-height: var(--leading-tight);
   letter-spacing: -.035em;
 }
 
@@ -184,14 +184,14 @@
   max-width: 720px;
   margin: 0;
   color: var(--project-muted);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--type-body-compact);
+  line-height: var(--leading-relaxed);
 }
 
 .project-eyebrow {
   color: var(--project-accent);
-  font-size: 9px;
-  font-weight: 750;
+  font-size: var(--type-micro);
+  font-weight: var(--font-weight-bold);
   letter-spacing: .13em;
   text-transform: uppercase;
 }
@@ -212,7 +212,7 @@
   border-top: 1px solid var(--project-line);
   color: var(--project-muted);
   background: var(--project-surface);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 /* Home */
@@ -244,7 +244,7 @@
 
 .project-page label {
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-summary-card label,
@@ -269,7 +269,7 @@
   color: var(--project-ink);
   background: var(--project-raised);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--type-caption);
 }
 
 .project-page input:focus,
@@ -322,12 +322,12 @@
 }
 
 .project-metrics strong {
-  font-size: 18px;
+  font-size: var(--type-heading);
 }
 
 .project-metrics small {
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-metric-icon {
@@ -339,8 +339,8 @@
   border-radius: 9px;
   color: var(--project-accent);
   background: var(--theme-primary-muted);
-  font-size: 12px;
-  font-weight: 750;
+  font-size: var(--type-control);
+  font-weight: var(--font-weight-bold);
 }
 
 .project-home-columns {
@@ -364,7 +364,7 @@
 
 .project-home-card h2 {
   margin: 4px 0 0;
-  font-size: 15px;
+  font-size: var(--type-heading-small);
 }
 
 .project-home-card>header>button {
@@ -373,8 +373,8 @@
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
-  font-weight: 650;
+  font-size: var(--type-micro);
+  font-weight: var(--font-weight-semibold);
 }
 
 .project-home-task-list,
@@ -399,14 +399,14 @@
 
 .project-home-task>span:nth-child(2) {
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--type-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .project-home-task small {
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-task-priority {
@@ -449,12 +449,12 @@
 }
 
 .project-home-note-list strong {
-  font-size: 11px;
+  font-size: var(--type-caption);
 }
 
 .project-home-note-list span {
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-home-shortcuts {
@@ -485,12 +485,12 @@
 }
 
 .project-home-shortcuts strong {
-  font-size: 11px;
+  font-size: var(--type-caption);
 }
 
 .project-home-shortcuts span {
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 /* Notes and task lists */
@@ -527,14 +527,14 @@
 }
 
 .project-notes-list strong {
-  font-size: 11px;
+  font-size: var(--type-caption);
 }
 
 .project-notes-list span,
 .project-notes-list small {
   overflow: hidden;
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -552,7 +552,7 @@
   justify-content: space-between;
   align-items: center;
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-note-editor-heading button,
@@ -566,8 +566,8 @@
 }
 
 .project-page input.project-note-title {
-  font-size: 17px;
-  font-weight: 700;
+  font-size: var(--type-heading);
+  font-weight: var(--font-weight-bold);
 }
 
 .project-note-editor textarea {
@@ -578,7 +578,7 @@
 
 .project-note-editor>small {
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-add-task {
@@ -617,7 +617,7 @@
 .project-task-filters>span {
   padding: 0 4px 9px;
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-task-list {
@@ -637,8 +637,8 @@
   background: var(--project-surface);
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
-  font-weight: 650;
+  font-size: var(--type-micro);
+  font-weight: var(--font-weight-semibold);
 }
 
 .project-task-row {
@@ -689,7 +689,7 @@
   width: 100%;
   border-color: transparent;
   background: transparent;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .project-task-row.is-done .project-task-main input {
@@ -741,7 +741,7 @@
 }
 
 .project-task-row-bottom>small {
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-task-warning,
@@ -752,7 +752,7 @@
   border-radius: 6px;
   color: var(--theme-warning);
   background: var(--theme-warning-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-task-delete {
@@ -763,7 +763,7 @@
   color: var(--theme-error);
   background: transparent;
   cursor: pointer;
-  font-size: 18px;
+  font-size: var(--type-heading);
 }
 
 .project-task-delete:hover {
@@ -772,7 +772,7 @@
 
 .project-dependency-picker {
   position: relative;
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-dependency-picker summary {
@@ -852,17 +852,17 @@
   background: var(--project-surface);
   cursor: pointer;
   font: inherit;
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-overdue-label {
   color: var(--theme-error);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-checklist-progress {
   color: var(--project-muted);
-  font-size: 11px;
+  font-size: var(--type-caption);
 }
 
 .project-checklist-list {
@@ -909,7 +909,7 @@
   color: var(--project-muted);
   background: transparent;
   cursor: pointer;
-  font-size: 18px;
+  font-size: var(--type-heading);
 }
 
 /* Workflow board */
@@ -927,7 +927,7 @@
 
 .project-workflow-settings>strong {
   color: var(--project-ink);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-workflow-settings>label {
@@ -946,7 +946,7 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 9px;
+  font-size: var(--type-micro);
   white-space: nowrap;
 }
 
@@ -957,7 +957,7 @@
   color: var(--theme-error);
   background: transparent;
   cursor: pointer;
-  font-size: 17px;
+  font-size: var(--type-heading);
 }
 
 .project-add-column {
@@ -1000,8 +1000,8 @@
   gap: 8px;
   padding: 3px 2px 9px;
   color: var(--project-ink);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--type-caption);
+  font-weight: var(--font-weight-bold);
 }
 
 .project-kanban-column>header span {
@@ -1019,7 +1019,7 @@
 
 .project-kanban-column>header small {
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-kanban-cards {
@@ -1065,14 +1065,14 @@
   align-items: center;
   gap: 7px;
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-priority-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   text-transform: capitalize;
 }
 
@@ -1101,26 +1101,26 @@
 
 .project-kanban-card time.is-overdue {
   color: var(--theme-error);
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
 }
 
 .project-kanban-card>strong {
   overflow-wrap: anywhere;
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: var(--type-caption);
+  line-height: var(--leading-normal);
 }
 
 .project-kanban-card>p {
   margin: 0;
   color: var(--project-muted);
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: var(--type-micro);
+  line-height: var(--leading-normal);
   overflow-wrap: anywhere;
 }
 
 .project-dependency-count {
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-kanban-card footer {
@@ -1163,7 +1163,7 @@
   border: 1px dashed var(--project-line);
   border-radius: 8px;
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-kanban-empty.is-drop-target {
@@ -1193,14 +1193,14 @@
 .project-schedule-settings>strong {
   margin-right: 3px;
   color: var(--project-ink);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-schedule-settings label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-schedule-settings input {
@@ -1213,7 +1213,7 @@
 .project-schedule-settings>span {
   margin-left: auto;
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-milestone-form,
@@ -1251,7 +1251,7 @@
   grid-template-columns: 250px minmax(0, 1fr);
   gap: 12px;
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-timeline-scale {
@@ -1265,7 +1265,7 @@
   margin-left: 262px;
   border-bottom: 1px solid var(--project-line);
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-timeline-ticks span {
@@ -1325,7 +1325,7 @@
 .project-timeline-label strong {
   overflow: hidden;
   color: var(--project-ink);
-  font-size: 10px;
+  font-size: var(--type-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1333,7 +1333,7 @@
 .project-timeline-label small {
   overflow: hidden;
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1460,7 +1460,7 @@
 .project-timeline-unscheduled,
 .project-calendar-empty-hint {
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 /* Calendar */
@@ -1482,7 +1482,7 @@
 .project-calendar-nav strong {
   min-width: 180px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--type-control);
 }
 
 .project-calendar-nav button,
@@ -1495,7 +1495,7 @@
   background: var(--project-surface);
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-calendar-modes button.active {
@@ -1511,7 +1511,7 @@
 
 .project-calendar-weekdays {
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
   text-align: center;
 }
 
@@ -1558,7 +1558,7 @@
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-calendar-day.is-today .project-calendar-day-number {
@@ -1588,7 +1588,7 @@
   white-space: nowrap;
   cursor: pointer;
   font: inherit;
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-calendar-event i {
@@ -1624,7 +1624,7 @@
 .project-calendar-no-events {
   padding: 5px;
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-calendar-legend {
@@ -1633,7 +1633,7 @@
   gap: 12px;
   margin-top: 10px;
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-calendar-legend span {
@@ -1732,13 +1732,13 @@
 .project-log-entry>header time {
   margin-left: auto;
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-log-kind {
   color: var(--project-accent);
-  font-size: 9px;
-  font-weight: 750;
+  font-size: var(--type-micro);
+  font-weight: var(--font-weight-bold);
   letter-spacing: .06em;
   text-transform: uppercase;
 }
@@ -1749,7 +1749,7 @@
   border-radius: 5px;
   color: var(--project-muted);
   background: var(--project-raised);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-risk-level.priority-high {
@@ -1767,14 +1767,14 @@
 }
 
 .project-page input.project-log-entry-title {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--type-body-compact);
+  font-weight: var(--font-weight-bold);
 }
 
 .project-page textarea.project-log-entry-details {
   min-height: 48px;
   resize: vertical;
-  line-height: 1.5;
+  line-height: var(--leading-normal);
 }
 
 .project-log-meta {
@@ -1796,7 +1796,7 @@
   background: var(--project-surface);
   cursor: pointer;
   font: inherit;
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-file-grid {
@@ -1837,7 +1837,7 @@
   color: var(--project-accent);
   background: var(--project-raised);
   font-size: var(--font-size-micro);
-  font-weight: 750;
+  font-weight: var(--font-weight-bold);
 }
 
 .project-file-name,
@@ -1850,13 +1850,13 @@
 }
 
 .project-file-name {
-  font-size: 11px;
+  font-size: var(--type-caption);
 }
 
 .project-page input.project-file-name-input {
   border-color: transparent;
   background: transparent;
-  font-weight: 650;
+  font-weight: var(--font-weight-semibold);
 }
 
 .project-file-card>small,
@@ -1864,7 +1864,7 @@
   max-width: 100%;
   overflow-wrap: anywhere;
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-file-actions {
@@ -1878,14 +1878,14 @@
 
 .project-file-actions a {
   color: var(--project-accent);
-  font-size: 10px;
-  font-weight: 650;
+  font-size: var(--type-micro);
+  font-weight: var(--font-weight-semibold);
   text-decoration: none;
 }
 
 .project-file-error {
   color: var(--theme-error);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 /* Plan index, exchange, and report */
@@ -1922,7 +1922,7 @@
 .project-plan-library-toolbar small {
   align-self: center;
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-plan-library-grid {
@@ -1960,13 +1960,13 @@
   color: var(--project-accent);
   background: var(--project-surface);
   cursor: pointer;
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-plan-library-card h2 {
   overflow: hidden;
   margin: 0;
-  font-size: 15px;
+  font-size: var(--type-heading-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1977,8 +1977,8 @@
   overflow: hidden;
   margin: 0;
   color: var(--project-muted);
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: var(--type-micro);
+  line-height: var(--leading-normal);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -1987,7 +1987,7 @@
   display: flex;
   gap: 12px;
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-plan-library-card>div strong {
@@ -2013,7 +2013,7 @@
   border: 1px dashed var(--project-line);
   border-radius: 8px;
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-exchange-grid {
@@ -2028,14 +2028,14 @@
 
 .project-exchange-grid h2 {
   margin: 7px 0;
-  font-size: 17px;
+  font-size: var(--type-heading);
 }
 
 .project-exchange-grid p {
   min-height: 48px;
   color: var(--project-muted);
-  font-size: 11px;
-  line-height: 1.55;
+  font-size: var(--type-caption);
+  line-height: var(--leading-relaxed);
 }
 
 .project-hidden-input {
@@ -2047,7 +2047,7 @@
   border-radius: 7px;
   color: var(--project-ink);
   background: var(--project-raised);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-report-summary {
@@ -2067,12 +2067,12 @@
 }
 
 .project-report-summary strong {
-  font-size: 18px;
+  font-size: var(--type-heading);
 }
 
 .project-report-summary span {
   color: var(--project-muted);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .project-report-section {
@@ -2082,7 +2082,7 @@
 
 .project-report-section h2 {
   margin: 0 0 9px;
-  font-size: 14px;
+  font-size: var(--type-body);
 }
 
 .project-report-table-wrap {
@@ -2092,7 +2092,7 @@
 .project-report-section table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-report-section th,
@@ -2105,7 +2105,7 @@
 
 .project-report-section th {
   color: var(--project-muted);
-  font-weight: 650;
+  font-weight: var(--font-weight-semibold);
 }
 
 .project-report-section>article {
@@ -2114,7 +2114,7 @@
   gap: 4px 10px;
   padding: 9px 0;
   border-bottom: 1px solid var(--project-line);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .project-report-section>article:last-child {
@@ -2141,17 +2141,17 @@
   border: 1px dashed var(--project-line);
   border-radius: 10px;
   color: var(--project-muted);
-  font-size: 11px;
+  font-size: var(--type-caption);
 }
 
 .project-empty-state strong {
   color: var(--project-ink);
-  font-size: 13px;
+  font-size: var(--type-body-compact);
 }
 
 .project-empty-state p {
   margin: 0;
-  line-height: 1.5;
+  line-height: var(--leading-normal);
 }
 
 .project-empty-inline {
@@ -2161,7 +2161,7 @@
   gap: 8px;
   padding: 10px;
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 @media (max-width: 800px) {
@@ -2178,7 +2178,7 @@
 
   .project-workspace-nav button {
     padding: 0 9px;
-    font-size: 10px;
+    font-size: var(--type-micro);
   }
 
   .project-page {
@@ -2403,7 +2403,7 @@
   min-width: min(280px, 34vw);
   gap: 5px;
   color: var(--project-muted);
-  font-size: 10px;
+  font-size: var(--type-micro);
 }
 
 .modeling-guide-search input {
@@ -2417,14 +2417,14 @@
 }
 
 .modeling-guide-groups { display: grid; gap: 22px; }
-.modeling-guide-group h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
-.modeling-guide-group h2 span { color: var(--project-muted); font-size: 10px; font-weight: 500; }
+.modeling-guide-group h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: var(--type-heading-small); }
+.modeling-guide-group h2 span { color: var(--project-muted); font-size: var(--type-micro); font-weight: var(--font-weight-medium); }
 .modeling-guide-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
 .modeling-guide-item { display: flex; min-width: 0; align-items: flex-start; gap: 10px; padding: 11px; border: 1px solid var(--project-line); border-radius: 7px; background: var(--project-surface); }
 .modeling-guide-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; color: var(--project-accent); }
 .modeling-guide-icon svg { width: 28px; height: 28px; }
-.modeling-guide-item h3 { margin: 1px 0 4px; font-size: 12px; }
-.modeling-guide-item p { margin: 0; color: var(--project-muted); font-size: 11px; line-height: 1.4; }
+.modeling-guide-item h3 { margin: 1px 0 4px; font-size: var(--type-control); }
+.modeling-guide-item p { margin: 0; color: var(--project-muted); font-size: var(--type-caption); line-height: var(--leading-normal); }
 
 @media (max-width: 640px) {
   .modeling-guide-page .project-page-heading { align-items: stretch; flex-direction: column; }

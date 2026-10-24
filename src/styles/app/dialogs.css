@@ -14,7 +14,7 @@
 .menu-dropdown>summary {
     gap: 5px;
     padding: 6px 8px;
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .menu-dropdown .system-menu-popover {
@@ -35,7 +35,7 @@
 }
 
 .save-status time {
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .save-status.is-dirty {
@@ -85,20 +85,20 @@
 
 .help-dialog h2 {
     margin: 4px 0 0;
-    font-size: 22px;
+    font-size: var(--type-display);
 }
 
 .help-dialog h3 {
     margin: 0 0 6px;
     color: var(--theme-text-primary);
-    font-size: 14px;
+    font-size: var(--type-body);
 }
 
 .help-dialog p {
     margin: 0;
     color: var(--theme-text-secondary);
-    font-size: 12px;
-    line-height: 1.55;
+    font-size: var(--type-control);
+    line-height: var(--leading-relaxed);
 }
 
 .help-dialog p+p {
@@ -118,8 +118,8 @@
     border-radius: 50%;
     color: var(--theme-text-secondary);
     background: transparent;
-    font-size: 22px;
-    line-height: 1;
+    font-size: var(--type-display);
+    line-height: var(--leading-icon);
 }
 
 .confirm-dialog .help-close:hover {
@@ -157,7 +157,7 @@
     min-width: 0;
     padding: 3px 0;
     color: var(--theme-text-secondary);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .help-shortcuts kbd {
@@ -167,7 +167,7 @@
     border-radius: 5px;
     color: var(--theme-text-primary);
     background: var(--theme-surface);
-    font: 9px var(--font-mono);
+    font: var(--type-micro) var(--font-mono);
     white-space: nowrap;
 }
 
@@ -175,7 +175,7 @@
     padding-top: 12px;
     border-top: 1px solid var(--theme-border);
     color: var(--theme-text-secondary);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .help-dialog>footer .save-button {
@@ -236,12 +236,12 @@
 }
 
 .topbar .brand>span {
-    font-size: 13px;
+    font-size: var(--type-body-compact);
 }
 
 .topbar .menu-dropdown>summary {
     padding: 5px 7px;
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .topbar .save-status {
@@ -340,8 +340,8 @@
 .export-controls>p {
     margin: 0 0 13px;
     color: var(--theme-text-secondary);
-    font-size: 12px;
-    line-height: 1.5;
+    font-size: var(--type-control);
+    line-height: var(--leading-normal);
 }
 
 .export-actions {
@@ -364,13 +364,13 @@
     justify-content: space-between;
     gap: 10px;
     color: var(--theme-text-secondary);
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .export-preview-label span,
 .export-preview-panel>small {
     color: var(--theme-text-secondary);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .export-preview-frame {
@@ -427,7 +427,7 @@
     border-radius: 7px 7px 0 0;
     color: var(--theme-text-secondary);
     background: transparent;
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .help-tabs button:hover,
@@ -484,14 +484,14 @@
 .help-feature-grid strong,
 .help-use-case-grid strong {
     color: var(--theme-text-primary);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .help-feature-grid p {
     margin: 0;
     color: var(--theme-text-secondary);
-    font-size: 11px;
-    line-height: 1.5;
+    font-size: var(--type-caption);
+    line-height: var(--leading-normal);
 }
 
 .help-guide-use-cases>p {
@@ -520,19 +520,19 @@
 
 .help-use-case-grid span {
     color: var(--theme-text-secondary);
-    font-size: 10px;
-    line-height: 1.45;
+    font-size: var(--type-micro);
+    line-height: var(--leading-normal);
 }
 
 .help-guide h3,
 .help-shortcuts-section h3 {
     margin: 0 0 6px;
-    font-size: 13px;
+    font-size: var(--type-body-compact);
 }
 
 .help-guide p,
 .help-shortcuts-section>p {
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .help-shortcuts-section {
@@ -551,7 +551,7 @@
     padding: 8px 10px;
     border-bottom: 1px solid var(--theme-border);
     color: var(--theme-text-secondary);
-    font-size: 10px;
+    font-size: var(--type-micro);
     letter-spacing: .07em;
     text-align: left;
     text-transform: uppercase;
@@ -575,12 +575,12 @@
 }
 
 .shortcut-table tbody th {
-    font-weight: 400;
+    font-weight: var(--font-weight-regular);
 }
 
 .shortcut-table tbody td {
     color: var(--theme-text-secondary);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .shortcut-table kbd {
@@ -591,7 +591,7 @@
     border-radius: 5px;
     color: var(--theme-text-primary);
     background: var(--theme-surface);
-    font: 9px var(--font-mono);
+    font: var(--type-micro) var(--font-mono);
     white-space: normal;
 }
 
@@ -711,15 +711,15 @@
 
 .rename-file-dialog>p {
     color: var(--text-secondary, var(--theme-text-secondary));
-    font-size: 12px;
-    line-height: 1.5;
+    font-size: var(--type-control);
+    line-height: var(--leading-normal);
 }
 
 .rename-file-dialog>label {
     display: grid;
     gap: 6px;
     color: var(--text-secondary, var(--theme-text-secondary));
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .rename-file-dialog input {
@@ -735,7 +735,7 @@
 .rename-file-error {
     margin: 0;
     color: var(--theme-error);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .legacy-refactor-error {
@@ -745,8 +745,8 @@
     border-radius: 8px;
     color: var(--theme-error);
     background: var(--theme-error-muted);
-    font-size: 11px;
-    line-height: 1.4;
+    font-size: var(--type-caption);
+    line-height: var(--leading-normal);
 }
 
 .theme-dark .rename-file-dialog input {
@@ -757,19 +757,19 @@
 .named-snapshot-portability { display: flex; justify-content: flex-end; gap: 6px; margin: 8px 0; }
 .named-snapshot-visual-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
 .named-snapshot-visual-compare figure { min-width: 0; margin: 0; padding: 6px; border: 1px solid var(--panel-border, #d8dde4); border-radius: 7px; }
-.named-snapshot-visual-compare figcaption { margin-bottom: 5px; font-size: 11px; font-weight: 600; }
+.named-snapshot-visual-compare figcaption { margin-bottom: 5px; font-size: var(--type-caption); font-weight: var(--font-weight-semibold); }
 .named-snapshot-visual-compare img { display: block; width: 100%; aspect-ratio: 24 / 13; object-fit: contain; background: var(--theme-surface); }
 .named-snapshot-list { display: grid; gap: 6px; max-height: 240px; overflow: auto; padding: 0; list-style: none; }
 .named-snapshot-list li { display: flex; align-items: center; gap: 6px; border: 1px solid var(--panel-border, #d8dde4); border-radius: 8px; padding: 7px; }
 .named-snapshot-list li > div { display: grid; flex: 1; min-width: 0; gap: 3px; }
 .named-snapshot-list small { opacity: .68; }
-.validation-optional-checks { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; color: var(--theme-text-secondary); font-size: 11px; }
+.validation-optional-checks { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; color: var(--theme-text-secondary); font-size: var(--type-caption); }
 .validation-optional-checks label { display: inline-flex; align-items: center; gap: 5px; }
 .validation-optional-checks input { accent-color: var(--theme-primary); }
 .import-fidelity-dialog dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 18px 0; }
 .import-fidelity-dialog dl > div { padding: 12px; border: 1px solid var(--theme-border); border-radius: 8px; background: var(--theme-surface); }
-.import-fidelity-dialog dt { color: var(--theme-text-secondary); font-size: 10px; text-transform: uppercase; }
-.import-fidelity-dialog dd { margin: 3px 0 0; font-size: 22px; font-weight: 700; }
+.import-fidelity-dialog dt { color: var(--theme-text-secondary); font-size: var(--type-micro); text-transform: uppercase; }
+.import-fidelity-dialog dd { margin: 3px 0 0; font-size: var(--type-display); font-weight: var(--font-weight-bold); }
 .import-fidelity-dialog footer { display: flex; justify-content: flex-end; }
 .named-snapshot-diff { max-height: 150px; overflow: auto; padding: 8px 10px; border: 1px solid var(--panel-border, #d8dde4); border-radius: 8px; }
 .named-snapshot-diff ul { margin: 6px 0 0; padding-left: 18px; }
@@ -782,7 +782,7 @@
 .bpmn-simulation-steps small { opacity: .7; }
 .layer-create-button { margin: 8px; }
 .layer-structure-actions { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 8px 8px; }
-.layer-structure-actions .quiet-button { min-height: 27px; margin: 0; padding: 4px 7px; font-size: 10px; }
+.layer-structure-actions .quiet-button { min-height: 27px; margin: 0; padding: 4px 7px; font-size: var(--type-micro); }
 .layer-row.hidden { opacity: .66; }
 .layer-row.locked .layer-name { color: var(--theme-text-secondary); }
 
@@ -791,13 +791,13 @@
   .named-snapshot-create { align-items: stretch; flex-direction: column; }
 }
 
-.diagram-source-editor > small { color: var(--theme-text-secondary); font-size: 10px; }
+.diagram-source-editor > small { color: var(--theme-text-secondary); font-size: var(--type-micro); }
 .diagram-source-editor textarea,
-.csv-chart-dialog textarea { width: 100%; min-height: 130px; resize: vertical; padding: 10px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface); color: var(--theme-text); font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.csv-chart-dialog textarea { width: 100%; min-height: 130px; resize: vertical; padding: 10px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface); color: var(--theme-text); font: var(--type-caption)/var(--leading-normal) ui-monospace, SFMono-Regular, Consolas, monospace; }
 .diagram-source-editor .mermaid-preview-panel { max-height: 250px; overflow: hidden; }
-.diagram-source-preview { max-height: 220px; overflow: auto; margin: 5px 0; padding: 10px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface); color: var(--theme-text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.diagram-code-limitations { color: var(--theme-text-secondary); font-size: 11px; line-height: 1.45; }
+.diagram-source-preview { max-height: 220px; overflow: auto; margin: 5px 0; padding: 10px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface); color: var(--theme-text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; font: var(--type-micro)/var(--leading-normal) ui-monospace, SFMono-Regular, Consolas, monospace; }
+.diagram-code-limitations { color: var(--theme-text-secondary); font-size: var(--type-caption); line-height: var(--leading-normal); }
 .csv-chart-dialog { width: min(620px, calc(100vw - 30px)); max-height: min(90vh, 820px); overflow: auto; }
 .csv-chart-mapping { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(190px, 1.2fr); gap: 10px; align-items: start; }
 .csv-chart-mapping fieldset { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 5px; min-width: 0; margin: 0; padding: 10px; border: 1px solid var(--theme-border); border-radius: 5px; }
-.csv-chart-series { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+.csv-chart-series { display: flex; align-items: center; gap: 5px; font-size: var(--type-caption); }

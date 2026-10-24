@@ -48,7 +48,7 @@
     border-radius: 6px;
     color: var(--theme-text-secondary);
     background: var(--theme-surface);
-    font-size: 10px;
+    font-size: var(--type-micro);
 }
 
 .stencil-catalog-action {
@@ -72,8 +72,8 @@
 
 .stencil-picker-heading strong {
     color: var(--theme-text-primary);
-    font-size: 14px;
-    font-weight: 700;
+    font-size: var(--type-body);
+    font-weight: var(--font-weight-bold);
 }
 
 .stencil-picker-heading small,
@@ -111,7 +111,7 @@
     color: var(--theme-text-primary);
     background: transparent;
     font: inherit;
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .stencil-search input::placeholder {
@@ -134,8 +134,8 @@
     border-radius: 999px;
     color: var(--theme-text-secondary);
     background: transparent;
-    font-size: 10px;
-    font-weight: 650;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
 }
 
 .stencil-category-filter button:hover,
@@ -150,7 +150,7 @@
     padding: 7px 2px 2px;
     border-top: 1px solid var(--theme-border);
     color: var(--theme-text-secondary);
-    font-size: 9px;
+    font-size: var(--type-micro);
 }
 
 .stencil-template {
@@ -186,9 +186,9 @@
 
 .stencil-template-copy strong {
     overflow: hidden;
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 1.25;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-bold);
+    line-height: var(--leading-compact);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -196,8 +196,8 @@
 .stencil-template-copy small {
     display: -webkit-box;
     overflow: hidden;
-    font-size: 9px;
-    line-height: 1.3;
+    font-size: var(--type-micro);
+    line-height: var(--leading-compact);
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
 }
@@ -254,12 +254,12 @@
 }
 
 .stencil-save-action strong {
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .stencil-save-action small {
     color: var(--theme-text-secondary);
-    font-size: 9px;
+    font-size: var(--type-micro);
 }
 
 .custom-stencil-list {
@@ -312,13 +312,13 @@
 }
 
 .custom-stencil-insert span {
-    font-size: 10px;
-    font-weight: 700;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-bold);
 }
 
 .custom-stencil-insert small {
     color: var(--theme-text-secondary);
-    font-size: 9px;
+    font-size: var(--type-micro);
 }
 
 .custom-stencil-remove {
@@ -328,7 +328,7 @@
     border-radius: 0 7px 7px 0;
     color: var(--theme-text-secondary);
     background: transparent;
-    font-size: 17px;
+    font-size: var(--type-heading);
 }
 
 .custom-stencil-remove:hover {
@@ -346,12 +346,12 @@
 }
 
 .stencil-schema-action strong {
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .stencil-schema-action small {
     color: var(--theme-text-secondary);
-    font-size: 9px;
+    font-size: var(--type-micro);
 }
 
 .stencil-schema-action kbd {
@@ -361,13 +361,13 @@
     border-radius: 5px;
     color: var(--theme-text-secondary);
     background: var(--theme-surface);
-    font-size: 9px;
+    font-size: var(--type-micro);
 }
 
 .stencil-empty {
     margin: 8px 2px;
     color: var(--theme-text-secondary);
-    font-size: 11px;
+    font-size: var(--type-caption);
     text-align: center;
 }
 
@@ -408,8 +408,8 @@
     grid-column: 1 / -1;
     padding: 3px 6px 0;
     color: var(--theme-text-secondary);
-    font-size: 9px;
-    font-weight: 750;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-bold);
     letter-spacing: .1em;
     text-transform: uppercase;
 }
@@ -439,8 +439,8 @@
     display: grid;
     gap: 6px;
     color: var(--theme-text-secondary);
-    font-size: 11px;
-    font-weight: 650;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-semibold);
 }
 
 .object-search-input {
@@ -453,7 +453,7 @@
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
     font: inherit;
-    font-size: 13px;
+    font-size: var(--type-body-compact);
 }
 
 .object-search-results {
@@ -485,7 +485,7 @@
     color: var(--theme-text-primary);
     background: var(--theme-surface);
     text-align: left;
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .object-search-results .object-search-select { min-width: 0; }
@@ -513,7 +513,7 @@
 .object-search-empty {
     margin: 8px 0;
     color: var(--theme-text-secondary);
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .validation-issue-list {
@@ -538,7 +538,7 @@
     color: var(--theme-text-primary);
     background: var(--theme-surface);
     text-align: left;
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .validation-issue-list button:hover:not(:disabled) {
@@ -552,8 +552,8 @@
 
 .validation-severity {
     text-transform: uppercase;
-    font-size: 9px;
-    font-weight: 750;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-bold);
     letter-spacing: .05em;
 }
 
@@ -592,7 +592,7 @@
     outline: none;
     color: var(--theme-diagram-data);
     background: var(--theme-diagram-data-muted);
-    font: 12px/1.6 var(--font-mono);
+    font: var(--type-control)/var(--leading-relaxed) var(--font-mono);
     tab-size: 2;
     white-space: pre;
     overflow: auto;
@@ -604,7 +604,7 @@
 
 .schema-dialog-footer>span {
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--type-caption);
 }
 
 .schema-dialog-footer>div {
@@ -615,7 +615,7 @@
 .schema-error {
     margin: 0;
     color: var(--theme-error);
-    font-size: 12px;
+    font-size: var(--type-control);
 }
 
 .theme-dark .schema-input {
