@@ -15,7 +15,7 @@
 
 .quick-style-heading {
     display: flex;
-    height: 24px;
+    height: 25px;
     align-items: center;
     justify-content: flex-end;
     gap: 10px;
@@ -28,8 +28,8 @@
 
 .quick-style-heading button {
     display: grid;
-    width: 26px;
-    height: 24px;
+    width: 25px;
+    height: 25px;
     place-items: center;
     padding: 0;
     border: 1px solid transparent;
@@ -64,7 +64,7 @@
     min-width: 190px;
     padding: 8px;
     border: 1px solid var(--theme-border);
-    border-radius: 10px;
+    border-radius: 14px;
     background: var(--theme-surface-elevated);
 }
 
@@ -171,21 +171,60 @@
     border-color: var(--theme-border);
 }
 
-/* A compact icon row for each active tool; labels are available as tooltips. */
+/* A compact, opaque rail for each active tool; labels are available as tooltips. */
 .style-pane.quick-style-mode {
-    width: 210px;
-    padding: 8px;
+    box-sizing: border-box;
+    z-index: 7;
+    display: block;
+    width: 54px;
+    max-height: calc(100% - 36px);
+    padding: 6px 4px;
+    border: 1px solid var(--theme-border);
+    border-radius: 19px;
+    background: var(--theme-surface-elevated);
+    box-shadow: var(--theme-elevation-popover);
     overflow: visible;
 }
 
 .style-pane.quick-style-mode .quick-style-controls {
     flex-direction: column;
     flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.style-pane.quick-style-mode .quick-style-heading {
+    height: 34px;
+    justify-content: center;
+    margin-bottom: 2px;
+}
+
+.style-pane.quick-style-mode .quick-style-heading button {
+    width: 34px;
+    height: 34px;
+}
+
+.style-pane.quick-style-mode .quick-style-heading svg {
+    width: 18px;
+    height: 18px;
+}
+
+.style-pane.quick-style-mode .quick-style-icon {
+    box-sizing: border-box;
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+    padding: 4px;
+}
+
+.style-pane.quick-style-mode .quick-style-popover {
+    top: 0;
+    left: calc(100% + 9px);
 }
 
 .quick-style-heading svg {
-    width: 17px;
-    height: 17px;
+    width: 20px;
+    height: 20px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.6;
@@ -196,12 +235,12 @@
     position: relative;
     display: grid;
     place-items: center;
-    width: 31px;
-    height: 31px;
-    flex: 0 0 31px;
-    padding: 4px;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    padding: 5px;
     border: 1px solid var(--theme-border);
-    border-radius: 7px;
+    border-radius: 50%;
     color: var(--theme-text-secondary);
     background: var(--theme-surface-input);
 }
@@ -215,8 +254,8 @@
 }
 
 .quick-style-icon svg {
-    width: 19px;
-    height: 19px;
+    width: 20px;
+    height: 20px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -233,8 +272,8 @@
 }
 
 .quick-style-icon .quick-color-mark {
-    width: 19px;
-    height: 19px;
+    width: 20px;
+    height: 20px;
     border: 1px solid var(--theme-border);
     border-radius: 50%;
 }
@@ -319,7 +358,7 @@
 }
 
 .quick-arrow-heads>div>span {
-    width: 34px;
+    width: 42px;
     color: var(--theme-text-secondary);
     font-size: var(--type-micro);
     text-transform: capitalize;
@@ -327,17 +366,18 @@
 
 .quick-arrow-heads>div>div {
     display: flex;
-    gap: 2px;
+    gap: 3px;
 }
 
 .quick-arrow-heads button {
     display: grid;
     place-items: center;
-    width: 25px;
-    height: 25px;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
     padding: 3px;
     border: 1px solid transparent;
-    border-radius: 5px;
+    border-radius: 9px;
     color: var(--theme-text-secondary);
     background: transparent;
 }
@@ -350,8 +390,8 @@
 }
 
 .quick-arrow-heads svg {
-    width: 18px;
-    height: 18px;
+    width: 22px;
+    height: 22px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.6;
@@ -438,17 +478,133 @@
 }
 
 .quick-text-size button:hover,
-.quick-text-format button:hover,
+.quick-text-format button:not(:disabled):hover,
 .quick-text-format button.active {
     color: var(--theme-primary);
     background: var(--theme-primary-muted);
 }
 
-.quick-text-format button.quick-font-toggle {
-    width: 30px;
-    font-family: cursive;
-    font-style: italic;
+.quick-text-format button.quick-text-style-trigger {
+    width: 35px;
     font-size: var(--type-caption);
+}
+
+.quick-text-format button:disabled,
+.quick-text-format-popover button:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+}
+
+.quick-text-format-popover {
+    display: grid;
+    width: 204px;
+    min-width: 204px;
+    gap: 7px;
+}
+
+.quick-text-style-actions {
+    display: flex;
+    gap: 4px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.quick-text-style-actions button {
+    display: grid;
+    width: 38px;
+    min-width: 38px;
+    min-height: 36px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--theme-border);
+    border-radius: 7px;
+    color: var(--theme-text-secondary);
+    background: var(--theme-surface-input);
+}
+
+.quick-font-family-choices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.quick-font-family-choices button {
+    display: flex;
+    min-width: 0;
+    min-height: 48px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 3px 2px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: var(--theme-text-secondary);
+    background: var(--theme-surface-input);
+}
+
+.quick-font-family-choices button.active,
+.quick-text-style-actions button.active {
+    border-color: var(--theme-primary-border);
+    color: var(--theme-primary);
+    background: var(--theme-primary-muted);
+}
+
+.quick-font-family-choices button > span {
+    font-size: 17px;
+    line-height: 1.1;
+}
+
+.quick-font-family-choices button > small {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: var(--type-micro);
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.style-pane.quick-style-mode .quick-text-size,
+.style-pane.quick-style-mode .quick-text-format {
+    box-sizing: border-box;
+    width: 44px;
+    min-width: 44px;
+    padding: 3px;
+    border-radius: 14px;
+}
+
+.style-pane.quick-style-mode .quick-text-size button,
+.style-pane.quick-style-mode .quick-text-format button {
+    width: 34px;
+    min-width: 34px;
+    height: 30px;
+    min-height: 30px;
+}
+
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-text-size,
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-text-format {
+    height: auto;
+    flex-direction: column;
+    gap: 1px;
+    padding: 3px;
+}
+
+.style-pane.quick-style-mode:not(.schema-editor-active) .quick-text-size output {
+    display: grid;
+    width: 34px;
+    min-width: 0;
+    min-height: 18px;
+    place-items: center;
+    line-height: 1.1;
+}
+
+.style-pane.quick-style-mode .quick-width-icon {
+    grid-template-columns: 15px auto;
+    gap: 5px;
+}
+
+.style-pane.quick-style-mode .quick-width-icon > i {
+    width: 15px;
 }
 
 .canvas-zoom-reset {

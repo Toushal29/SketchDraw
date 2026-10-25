@@ -121,6 +121,14 @@ declare global {
 type TouchGesture = { fingerCount: 2 | 3; action: TouchGestureAction; initialDistance: number; initialZoom: number; initialPanX: number; initialPanY: number; initialMidpoint: Point; worldAnchor: Point };
 type TouchTapTracker = { startedAt: number; starts: Map<number, Point>; maxFingers: number; canceled: boolean; initialEvent: PointerEvent; deferredInteractionStarted?: boolean };
 type WhiteboardStyle = "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric";
+const FONT_FAMILY_CHOICES: ReadonlyArray<{ value: FontFamily; label: string }> = [
+  { value: "sans", label: "Sans" },
+  { value: "hand", label: "Handwritten" },
+  { value: "serif", label: "Serif" },
+  { value: "mono", label: "Monospace" },
+  { value: "rounded", label: "Rounded" },
+  { value: "display", label: "Display" },
+];
 type DisplayMetrics = { physicalWidth: number; physicalHeight: number; viewportWidth: number; viewportHeight: number };
 const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "laser", "line", "arrow", "rectangle", "circle", "diamond", "flowchart", "text", "bucket", "eraser", "crop", "measure", "codeData", "pathEdit", "frame", "moreTools"];
 const DEFAULT_MORE_TOOL_ORDER: ToolbarItem[] = ["bucket", "measure", "crop"];
@@ -515,7 +523,7 @@ function App() {
     try { localStorage.setItem("sketchdraw-component-editor-collapsed", String(collapsed)); } catch { /* Preference storage can be unavailable in embedded contexts. */ }
   };
   const [styleMenuMode, setStyleMenuMode] = createSignal<"quick" | "full">("quick");
-  const [quickStylePopover, setQuickStylePopover] = createSignal<"color" | "thickness" | "fill" | "route" | "lineStyle" | "heads" | "laser" | "brushes">();
+  const [quickStylePopover, setQuickStylePopover] = createSignal<"color" | "thickness" | "fill" | "route" | "lineStyle" | "heads" | "laser" | "brushes" | "text">();
   const [autosaveSeconds, setAutosaveSeconds] = createSignal<5 | 10>(readPreference("sketchdraw-autosave-seconds", "10") === "5" ? 5 : 10);
   const [interfaceScale, setInterfaceScale] = createSignal((() => { const value = Number(readPreference("sketchdraw-interface-scale", "1")); return [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4].includes(value) ? value : 1; })());
   const initialToolbarLayout = readToolbarLayout();
@@ -1761,6 +1769,9 @@ function App() {
     if (target?.componentId) return true;
     return false;
   };
+  const quickSupportsTextFormatting = () => (tool() === "text" && textMode() === "text" || !!textDraft() || !!selectedText()) && styleTargetElement()?.type !== "schemaTable";
+  const quickTextFontFamily = () => selectedText()?.fontFamily ?? defaultFontFamily();
+  const quickTextControlsDisabled = () => boardLocked() || readOnlyView() || !!focusedElement()?.locked;
   // Component selections expose formatting as soon as they contain visible text or a label.
   const designTextStyleAvailable = () => (tool() === "text" && textMode() === "text") || !!textDraft() || selectedIndices().some(index => !!firstElementText(elements()[index]) || !!metadataComponentText(elements()[index]));
   const designParagraphStyleAvailable = () => (tool() === "text" && textMode() === "text") || !!textDraft() || selectedIndices().some(index => !!firstElementText(elements()[index]));
@@ -6187,7 +6198,7 @@ function App() {
     setTextFormat("fontSize", Math.max(8, Math.min(160, (selectedText()?.fontSize ?? defaultFontSize()) + delta)));
   };
   const setTextFormat = (property: "bold" | "italic" | "underline" | "textAlign" | "listType" | "fontSize" | "fontFamily" | "color", value: boolean | string | number) => {
-    if (boardLocked() || focusedElement()?.locked) return;
+    if (boardLocked() || readOnlyView() || focusedElement()?.locked) return;
     if (property === "fontSize" && (!Number.isFinite(Number(value)) || Number(value) < 8 || Number(value) > 160)) return;
     if (property === "fontSize") value = Math.round(Number(value));
     if (property === "fontSize" && (noteEditor() || selectedNoteCard())) { setSelectedNoteFontSize(Number(value)); return; }
@@ -7258,10 +7269,22 @@ function App() {
                       <button class="quick-style-icon" onClick={() => setQuickStylePopover(quickStylePopover() === "heads" ? undefined : "heads")} aria-label="Connector arrowheads" title="Connector arrowheads" aria-expanded={quickStylePopover() === "heads"}><ArrowHeadIcon kind={quickArrowHead("end")} /></button>
                     </Show>
                     <Show when={quickHasText()}>
-                      <div class="quick-text-size"><button aria-label="Decrease font size" title="Decrease font size" onClick={() => adjustQuickFont(-1)}>-</button><span>{quickCardFontSize()}</span><button aria-label="Increase font size" title="Increase font size" onClick={() => adjustQuickFont(1)}>+</button></div>
-                      <Show when={quickHasText()}>
-                      <div class="quick-text-format"><button class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" title="Bold" onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button><button class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" title="Italic" onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button><button class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" title="Underline" onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button><button class={`quick-font-toggle ${(selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "active" : ""}`} aria-label="Toggle text font family" title="Toggle text font family" onClick={() => setTextFormat("fontFamily", (selectedText()?.fontFamily ?? defaultFontFamily()) === "hand" ? "sans" : "hand")}>Aa</button></div>
-                      </Show>
+                      <div class="quick-text-size" role="group" aria-label="Font size"><button type="button" aria-label="Decrease font size" title="Decrease font size" disabled={quickTextControlsDisabled()} onClick={() => adjustQuickFont(-1)}>−</button><output aria-label="Font size">{quickCardFontSize()}</output><button type="button" aria-label="Increase font size" title="Increase font size" disabled={quickTextControlsDisabled()} onClick={() => adjustQuickFont(1)}>+</button></div>
+                    </Show>
+                    <Show when={quickSupportsTextFormatting()}>
+                      <div class="quick-text-format"><button type="button" class={`quick-text-style-trigger ${quickStylePopover() === "text" ? "active" : ""}`} aria-label={`Text style, ${FONT_FAMILY_CHOICES.find(choice => choice.value === quickTextFontFamily())?.label ?? "Sans"} font`} title="Text style and font family" aria-expanded={quickStylePopover() === "text"} disabled={quickTextControlsDisabled()} style={{ "font-family": fontCss(quickTextFontFamily()) }} onClick={() => setQuickStylePopover(quickStylePopover() === "text" ? undefined : "text")}>Aa</button></div>
+                    </Show>
+                    <Show when={quickStylePopover() === "text" && quickSupportsTextFormatting()}>
+                      <div class="quick-style-popover quick-text-format-popover" role="group" aria-label="Text style">
+                        <div class="quick-text-style-actions" role="group" aria-label="Text formatting">
+                          <button type="button" class={(selectedText()?.bold ?? defaultBold()) ? "active" : ""} aria-label="Bold" aria-pressed={selectedText()?.bold ?? defaultBold()} title="Bold" disabled={quickTextControlsDisabled()} onClick={() => setTextFormat("bold", !(selectedText()?.bold ?? defaultBold()))}><b>B</b></button>
+                          <button type="button" class={(selectedText()?.italic ?? defaultItalic()) ? "active" : ""} aria-label="Italic" aria-pressed={selectedText()?.italic ?? defaultItalic()} title="Italic" disabled={quickTextControlsDisabled()} onClick={() => setTextFormat("italic", !(selectedText()?.italic ?? defaultItalic()))}><i>I</i></button>
+                          <button type="button" class={(selectedText()?.underline ?? defaultUnderline()) ? "active" : ""} aria-label="Underline" aria-pressed={selectedText()?.underline ?? defaultUnderline()} title="Underline" disabled={quickTextControlsDisabled()} onClick={() => setTextFormat("underline", !(selectedText()?.underline ?? defaultUnderline()))}><u>U</u></button>
+                        </div>
+                        <div class="quick-font-family-choices" role="group" aria-label="Font family">
+                          <For each={FONT_FAMILY_CHOICES}>{choice => <button type="button" class={quickTextFontFamily() === choice.value ? "active" : ""} aria-pressed={quickTextFontFamily() === choice.value} aria-label={`${choice.label} font`} title={choice.label} disabled={quickTextControlsDisabled()} onClick={() => setTextFormat("fontFamily", choice.value)}><span style={{ "font-family": fontCss(choice.value) }}>Aa</span><small>{choice.label}</small></button>}</For>
+                        </div>
+                      </div>
                     </Show>
                     <Show when={quickStylePopover() === "color" || quickStylePopover() === "fill"}>
                       <div class="quick-style-popover quick-color-popover" aria-label={quickStylePopover() === "fill" ? "Fill colors" : "Stroke colors"}>
