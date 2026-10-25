@@ -49,7 +49,13 @@
 .diagram-guide-category { justify-self: start; padding: 5px 10px; border-radius: 20px; color: var(--ui-accent-ink); background: var(--ui-accent-soft); font-size: var(--type-micro); font-weight: var(--font-weight-bold); }
 .guide-category-bpmn { color: #844e00; background: #fff1cf; }
 .guide-category-database { color: #087c69; background: #dff7f1; }
+.guide-category-data-flow { color: #087c69; background: #dff7f1; }
+.guide-category-api { color: #146b86; background: #ddf5fb; }
 .guide-category-network { color: #5e4bad; background: #eeeaff; }
+.guide-category-brainstorming { color: #8c4b05; background: #fff0dc; }
+.guide-category-ux { color: #5745a8; background: #eeeaff; }
+.guide-category-devops { color: #146b86; background: #ddf5fb; }
+.guide-category-security { color: #9a3440; background: #ffe9ec; }
 .diagram-guide-copy h3 { margin: 5px 0 0; font-size: var(--type-heading-small); }
 .diagram-guide-copy > p { min-height: 35px; margin: 0; color: var(--theme-text-secondary); font-size: var(--type-control); line-height: var(--leading-normal); }
 .diagram-guide-copy dl { display: grid; gap: 10px; margin: 5px 0; }

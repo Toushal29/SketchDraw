@@ -36,9 +36,19 @@ const VIEWS: { value: ProjectWorkspaceView; label: string }[] = [
   { value: "log", label: "Decision log" }, { value: "files", label: "Files" },
 ];
 
+type ProjectNoteTemplate = { id: string; title: string; content: string };
+const PROJECT_NOTE_TEMPLATES: ProjectNoteTemplate[] = [
+  { id: "design-brief", title: "Design brief", content: "# Design brief\n\n## Problem and context\n\n## Users and needs\n\n## Goals\n\n## Out of scope\n\n## Constraints\n\n## Options considered\n\n## Success measures\n\n## Open questions\n" },
+  { id: "requirements", title: "Requirements", content: "# Requirements\n\n## Goal\n\n## Functional requirements\n\n- \n\n## Quality and accessibility requirements\n\n- \n\n## Acceptance criteria\n\n- Given ... when ... then ...\n\n## Dependencies and constraints\n\n## Open questions\n" },
+  { id: "interview", title: "User interview", content: "# User interview\n\n## Participant context\n\n## Goal or task\n\n## Observed behavior\n\n## Useful quotes\n\n## Friction points\n\n## Needs and opportunities\n\n## Follow-up questions\n\n> Record only information needed for the project. Avoid sensitive personal details.\n" },
+  { id: "meeting", title: "Meeting notes", content: "# Meeting notes\n\nDate:\nAttendees:\n\n## Purpose\n\n## Discussion\n\n## Decisions\n\n## Actions\n\n- [ ] Owner — action — due date\n\n## Questions to resolve\n" },
+  { id: "adr", title: "Architecture decision", content: "# Architecture decision\n\nStatus: Proposed\nDate:\nOwner:\n\n## Context\n\n## Decision\n\n## Alternatives considered\n\n## Consequences\n\n## Follow-up work\n" },
+];
+
 export function ProjectWorkspace(props: Props) {
   const [view, setView] = createSignal<ProjectWorkspaceView>("home");
   const [selectedNoteId, setSelectedNoteId] = createSignal(props.data.notes[0]?.id ?? "");
+  const [noteTemplateId, setNoteTemplateId] = createSignal("");
   const [taskDraft, setTaskDraft] = createSignal("");
   const [taskQuery, setTaskQuery] = createSignal("");
   const [taskStatusFilter, setTaskStatusFilter] = createSignal("all");
@@ -104,13 +114,19 @@ export function ProjectWorkspace(props: Props) {
     update({ checklist: [...props.data.checklist, item] });
     setChecklistDraft("");
   };
-  const createNote = () => {
+  const createNote = (template?: ProjectNoteTemplate) => {
     if (!props.editable) return;
     const now = Date.now();
-    const note: ProjectNote = { id: crypto.randomUUID(), title: "Untitled note", content: "", createdAt: now, updatedAt: now };
+    const note: ProjectNote = { id: crypto.randomUUID(), title: template?.title ?? "Untitled note", content: template?.content ?? "", createdAt: now, updatedAt: now };
     update({ notes: [note, ...props.data.notes] });
     setSelectedNoteId(note.id);
     setView("notes");
+  };
+  const createNoteFromTemplate = () => {
+    const template = PROJECT_NOTE_TEMPLATES.find(item => item.id === noteTemplateId());
+    if (!template) return;
+    createNote(template);
+    setNoteTemplateId("");
   };
   const createTask = (event: SubmitEvent) => {
     event.preventDefault();
@@ -291,7 +307,7 @@ export function ProjectWorkspace(props: Props) {
       <main class="project-workspace-content">
         <Show when={view() === "home"}>
           <div class="project-page project-home-page">
-            <div class="project-page-heading"><div><span class="project-eyebrow">PLANNING HOME</span><h1>{props.data.name}</h1><p>Your .sdplan file holds notes, tasks, milestones, and reference files.</p></div><div class="project-home-actions"><button disabled={!props.editable} onClick={createNote}>New note</button><button disabled={!props.editable} onClick={() => setView("tasks")}>Add task</button><button disabled={!props.editable} onClick={() => setView("files")}>Add plan file</button></div></div>
+            <div class="project-page-heading"><div><span class="project-eyebrow">PLANNING HOME</span><h1>{props.data.name}</h1><p>Your .sdplan file holds notes, tasks, milestones, and reference files.</p></div><div class="project-home-actions"><button disabled={!props.editable} onClick={() => createNote()}>New note</button><button disabled={!props.editable} onClick={() => setView("tasks")}>Add task</button><button disabled={!props.editable} onClick={() => setView("files")}>Add plan file</button></div></div>
             <section class="project-summary-card"><label><span>Project name</span><input disabled={!props.editable} maxlength="120" value={props.data.name} onInput={event => update({ name: event.currentTarget.value.slice(0, 120) })} /></label><label><span>What is this project about?</span><textarea disabled={!props.editable} maxlength="4000" rows="3" value={props.data.description} placeholder="Add a short project overview..." onInput={event => update({ description: event.currentTarget.value })} /></label></section>
             <div class="project-metrics" aria-label="Project summary">
               <button onClick={() => setView("notes")}><span class="project-metric-icon notes-icon">N</span><span><strong>{props.data.notes.length}</strong><small>Project notes</small></span></button>
@@ -306,7 +322,7 @@ export function ProjectWorkspace(props: Props) {
                 </Show>
               </section>
               <section class="project-home-card"><header><div><span class="project-eyebrow">IDEAS &amp; DETAILS</span><h2>Recent notes</h2></div><button onClick={() => setView("notes")}>All notes &rarr;</button></header>
-                <Show when={props.data.notes.length} fallback={<div class="project-empty-inline"><span>Keep decisions and context with your tasks.</span><button disabled={!props.editable} onClick={createNote}>Create a note</button></div>}>
+                <Show when={props.data.notes.length} fallback={<div class="project-empty-inline"><span>Keep decisions and context with your tasks.</span><button disabled={!props.editable} onClick={() => createNote()}>Create a note</button></div>}>
                   <div class="project-home-note-list"><For each={props.data.notes.slice(0, 3).map(note => note.id)}>{id => { const note = () => props.data.notes.find(item => item.id === id)!; return <button onClick={() => { setSelectedNoteId(id); setView("notes"); }}><strong>{note().title || "Untitled note"}</strong><span>{note().content || "No note text yet"}</span></button>; }}</For></div>
                 </Show>
               </section>
@@ -328,9 +344,9 @@ export function ProjectWorkspace(props: Props) {
 
         <Show when={view() === "notes"}>
           <div class="project-page project-notes-page">
-            <div class="project-page-heading"><div><span class="project-eyebrow">PROJECT NOTES</span><h1>Notes</h1><p>Keep decisions, context, and ideas with this project.</p></div><button disabled={!props.editable} class="project-primary-action" onClick={createNote}>New note</button></div>
+            <div class="project-page-heading"><div><span class="project-eyebrow">PROJECT NOTES</span><h1>Notes</h1><p>Keep decisions, context, and ideas with this project.</p></div><div class="project-page-actions project-note-actions"><label><span class="project-note-template-label">Start from template</span><select aria-label="Choose a project note template" value={noteTemplateId()} disabled={!props.editable} onChange={event => setNoteTemplateId(event.currentTarget.value)}><option value="">Choose template…</option><For each={PROJECT_NOTE_TEMPLATES}>{template => <option value={template.id}>{template.title}</option>}</For></select></label><button disabled={!props.editable || !noteTemplateId()} onClick={createNoteFromTemplate}>Use template</button><button disabled={!props.editable} class="project-primary-action" onClick={() => createNote()}>New note</button></div></div>
             <div class="project-notes-layout">
-              <aside class="project-notes-list" aria-label="Notes list"><Show when={props.data.notes.length} fallback={<div class="project-empty-state"><strong>No notes yet</strong><p>Create a note to keep project context here.</p><button disabled={!props.editable} onClick={createNote}>Create a note</button></div>}>
+              <aside class="project-notes-list" aria-label="Notes list"><Show when={props.data.notes.length} fallback={<div class="project-empty-state"><strong>No notes yet</strong><p>Create a note to keep project context here.</p><button disabled={!props.editable} onClick={() => createNote()}>Create a note</button></div>}>
                 <For each={props.data.notes.map(note => note.id)}>{id => { const note = () => props.data.notes.find(item => item.id === id)!; return <button class={selectedNote()?.id === id ? "active" : ""} onClick={() => setSelectedNoteId(id)}><strong>{note().title || "Untitled note"}</strong><span>{note().content.split("\n").find(line => line.trim()) || "No text yet"}</span><small>{new Date(note().updatedAt).toLocaleDateString()}</small></button>; }}</For>
               </Show></aside>
               <Show when={selectedNote()} fallback={<div class="project-note-editor project-empty-state"><strong>Select a note</strong><p>Choose a note or create one to get started.</p></div>}>

@@ -114,6 +114,35 @@
   opacity: .55;
 }
 
+.project-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 7px;
+}
+
+.project-note-actions label {
+  display: grid;
+  gap: 3px;
+}
+
+.project-note-template-label {
+  color: var(--project-muted);
+  font-size: var(--type-micro);
+}
+
+.project-note-actions select {
+  min-height: 36px;
+  max-width: 210px;
+  padding: 0 10px;
+  border: 1px solid var(--project-line);
+  border-radius: 8px;
+  color: var(--project-ink);
+  background: var(--project-surface);
+  font: inherit;
+  font-size: var(--type-caption);
+}
+
 .project-workspace-nav {
   display: flex;
   gap: 4px;
