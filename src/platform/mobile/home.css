@@ -15,7 +15,7 @@
 
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-layout {
         display: grid;
-        grid-template-areas: "hero" "library" "footer";
+        grid-template-areas: "hero" "library" "viewport" "footer";
         grid-template-columns: minmax(0, 1fr);
         align-content: start;
         gap: 12px;
@@ -97,9 +97,9 @@
 
     .app-shell.home-screen-active:not(.platform-windows) .home-mobile-layout {
         box-sizing: border-box;
-        grid-template-areas: "hero library" "footer footer";
+        grid-template-areas: "hero library" "viewport viewport" "footer footer";
         grid-template-columns: minmax(240px, .82fr) minmax(0, 1.18fr);
-        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-rows: minmax(0, 1fr) auto auto;
         align-content: stretch;
         gap: 10px 16px;
         width: min(1120px, 100%);

@@ -1,5 +1,7 @@
 import { For, Show } from "solid-js";
 import { displayPathLocation } from "../../features/files/paths";
+import type { DocumentWorkspaceArea } from "../../features/workspace/workspace-types";
+import { WorkspaceAreaTabs } from "../../features/workspace/WorkspaceAreaTabs";
 
 type Props = {
   planningViewport: boolean;
@@ -12,6 +14,7 @@ type Props = {
   onOpen: () => void | Promise<void>;
   onOpenRecent: (path: string) => void | Promise<void>;
   onOpenRecentPlan: (path: string) => void | Promise<void>;
+  onSelectWorkspace: (area: DocumentWorkspaceArea) => void;
 };
 
 const Mark = () => <span class="home-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg></span>;
@@ -31,6 +34,7 @@ export function MobileHomeScreen(props: Props) {
             <div class="home-recent-list" aria-label="Recent sketches"><For each={props.recentFiles}>{path => <button type="button" class="home-file home-file-mobile" onClick={() => void props.onOpenRecent(path)}><span class="home-file-copy"><strong>{props.displayPathName(path)}</strong><small>{displayPathLocation(path)}</small></span><span class="home-file-open" aria-hidden="true">&rarr;</span></button>}</For></div>
           </Show>
         </section>
+        <WorkspaceAreaTabs active="canvas" documentTabs={false} onSelect={props.onSelectWorkspace} />
         <footer class="home-mobile-footer"><span class="home-status-dot"></span> Sketch files stay on your device.</footer>
       </div>
     </section>
@@ -48,6 +52,7 @@ export function MobileHomeScreen(props: Props) {
             <div class="home-recent-list" aria-label="Recent Planning files"><For each={props.recentPlans}>{path => <button type="button" class="home-file home-file-mobile" onClick={() => void props.onOpenRecentPlan(path)}><span class="home-file-copy"><strong>{props.displayPathName(path)}</strong><small>{displayPathLocation(path)}</small></span><span class="home-file-open" aria-hidden="true">&rarr;</span></button>}</For></div>
           </Show>
         </section>
+        <WorkspaceAreaTabs active="planning" documentTabs={false} onSelect={props.onSelectWorkspace} />
         <footer class="home-mobile-footer"><span class="home-status-dot"></span> Planning files stay separate in .sdplan files.</footer>
       </div>
     </section>

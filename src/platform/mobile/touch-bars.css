@@ -56,6 +56,7 @@
     .app-shell:not(.platform-windows) .mobile-header-canvas { grid-template-columns: 34px minmax(0, 1fr) 32px 52px minmax(86px, 104px) 24px; grid-template-areas: "file brand settings pages project status"; }
     .app-shell:not(.platform-windows) .mobile-header-planning { grid-template-columns: 34px minmax(0, 1fr) 32px minmax(86px, 104px) 24px; grid-template-areas: "file brand settings project status"; }
     .app-shell:not(.platform-windows) .mobile-header-home { grid-template-columns: 34px minmax(0, 1fr) 32px minmax(104px, 128px); grid-template-areas: "file brand settings project"; }
+    .app-shell.home-screen-active:not(.platform-windows) > .mobile-workspace-header.mobile-header-home { grid-template-columns: 34px minmax(0, 1fr) 32px; grid-template-areas: "file brand settings"; }
     .app-shell:not(.platform-windows) .mobile-header-canvas > .touch-page-control { grid-area: pages; box-sizing: border-box; width: 100%; min-width: 0; max-width: none; margin: 0; }
     .app-shell:not(.platform-windows) .mobile-header-home > :is(.document-workspace-tabs, .workspace-viewport-tabs),
     .app-shell:not(.platform-windows) .mobile-header-canvas > :is(.document-workspace-tabs, .workspace-viewport-tabs),
@@ -72,6 +73,7 @@
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header { grid-template-columns: 32px minmax(0, 1fr) 30px 46px minmax(84px, 96px) 20px; gap: 2px; grid-template-areas: "file brand settings pages project status"; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header.mobile-header-planning { grid-template-columns: 32px minmax(0, 1fr) 30px minmax(84px, 96px) 20px; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header.mobile-header-home { grid-template-columns: 32px minmax(0, 1fr) 30px minmax(104px, 128px); }
+    .app-shell.home-screen-active.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header.mobile-header-home { grid-template-columns: 32px minmax(0, 1fr) 30px; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-workspace-header :is(.document-workspace-tabs, .workspace-viewport-tabs) button { height: 30px; min-height: 30px; padding-inline: 2px; font-size: var(--font-size-micro); }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-brand { font-size: var(--type-micro); }
 

@@ -2,6 +2,10 @@ name: Build
 
 on:
   push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
   pull_request:
   release:
     types: [published]
@@ -28,8 +32,12 @@ jobs:
           CANVAS_TEST_BROWSER: /usr/bin/google-chrome
 
   windows-release:
-    if: github.event_name == 'release'
+    if: >-
+      (github.event_name == 'release' && !contains(github.event.release.body, 'Created automatically by the release tag workflow.')) ||
+      (github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))
     runs-on: windows-latest
+    outputs:
+      release_id: ${{ steps.build-release.outputs.releaseId }}
     permissions:
       contents: write
     steps:
@@ -52,6 +60,7 @@ jobs:
       - run: npm ci
         if: steps.signing.outputs.configured == 'true'
       - name: Build signed Windows release and updater manifest
+        id: build-release
         if: steps.signing.outputs.configured == 'true'
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         env:
@@ -61,13 +70,19 @@ jobs:
         with:
           projectPath: .
           tauriScript: npm run tauri
-          tagName: ${{ github.event.release.tag_name }}
-          releaseId: ${{ github.event.release.id }}
+          tagName: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+          releaseId: ${{ github.event_name == 'release' && github.event.release.id || '' }}
+          releaseName: ${{ github.event_name == 'push' && format('SketchDraw {0}', github.ref_name) || github.event.release.name || '' }}
+          releaseBody: ${{ github.event_name == 'push' && format('Created automatically by the release tag workflow. See [release notes]({0}/{1}/blob/{2}/docs/release-notes-{2}.md).', github.server_url, github.repository, github.ref_name) || github.event.release.body || '' }}
+          releaseCommitish: ${{ github.sha }}
           args: --target x86_64-pc-windows-msvc
           uploadUpdaterJson: true
 
   android-release:
-    if: github.event_name == 'release'
+    needs: windows-release
+    if: >-
+      (github.event_name == 'release' && !contains(github.event.release.body, 'Created automatically by the release tag workflow.')) ||
+      (github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -137,8 +152,8 @@ jobs:
         with:
           projectPath: .
           tauriScript: npm run tauri
-          tagName: ${{ github.event.release.tag_name }}
-          releaseId: ${{ github.event.release.id }}
+          tagName: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+          releaseId: ${{ needs.windows-release.outputs.release_id || github.event.release.id }}
           mobile: android
           args: --apk --split-per-abi --target aarch64
           releaseAssetNamePattern: SketchDraw-Android-v${{ steps.android_version.outputs.version }}-arm64.apk

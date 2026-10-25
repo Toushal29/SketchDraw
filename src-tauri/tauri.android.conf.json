@@ -1,8 +1,8 @@
 {
-  "version": "10.0.0",
+  "version": "11.0.0",
   "bundle": {
     "android": {
-      "versionCode": 10000000
+      "versionCode": 11000000
     }
   }
 }

@@ -31,7 +31,7 @@ function send(method, params = {}, sessionId) {
   });
 }
 try {
-  const bundle = await build({ configFile: false, root, plugins: [solid()], logLevel: "error", build: { write: false, minify: false, lib: { entry: path.join(root, "scripts/canvas-performance.browser.ts"), name: "CanvasAudit", formats: ["iife"] } } });
+  const bundle = await build({ configFile: false, root, plugins: [solid()], define: { "process.env.NODE_ENV": JSON.stringify("production") }, logLevel: "error", build: { write: false, minify: false, lib: { entry: path.join(root, "scripts/canvas-performance.browser.ts"), name: "CanvasAudit", formats: ["iife"] } } });
   const outputFiles = (Array.isArray(bundle) ? bundle[0] : bundle).output;
   const code = outputFiles.find(item => item.type === "chunk").code;
   const assets = outputFiles.filter(item => item.type === "asset");

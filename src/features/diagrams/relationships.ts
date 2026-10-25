@@ -22,9 +22,11 @@ export function relationshipDirectionHeads(direction: RelationshipDirection) {
 /** Adds semantic relationship details to the visible connector caption. */
 export function relationshipDisplayElement(element: ShapeElement): ShapeElement {
   const explicit = element.label?.text.trim();
+  const componentStereotype = element.componentRole === "uml-include" ? "<<include>>" : element.componentRole === "uml-extend" ? "<<extend>>" : "";
+  const useCaseStereotype = componentStereotype || (explicit === "<<include>>" || explicit === "<<extend>>" ? explicit : "");
   const semantic = element.relationshipType ? relationshipNames[element.relationshipType] : "";
   const cardinality = element.cardinality?.trim();
-  const text = [explicit, semantic, cardinality].filter(Boolean).join(" · ");
+  const text = useCaseStereotype || [explicit, semantic, cardinality].filter(Boolean).join(" · ");
   if (!text) return element;
   const label: ShapeLabel = {
     text,

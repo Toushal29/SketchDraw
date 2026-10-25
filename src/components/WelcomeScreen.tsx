@@ -1,5 +1,7 @@
 import { Show } from "solid-js";
 import { displayPathLocation } from "../features/files/paths";
+import type { DocumentWorkspaceArea } from "../features/workspace/workspace-types";
+import { WorkspaceAreaTabs } from "../features/workspace/WorkspaceAreaTabs";
 
 type Props = {
   planningViewport: boolean;
@@ -12,6 +14,7 @@ type Props = {
   onOpenPlan: () => unknown;
   onOpenRecentPlan: (path: string) => unknown;
   onOpenRecentFile: (path: string) => unknown;
+  onSelectWorkspace: (area: DocumentWorkspaceArea) => void;
 };
 
 const Mark = () => <span class="home-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" /></svg></span>;
@@ -55,6 +58,7 @@ export function WelcomeScreen(props: Props) {
             <div class="home-recent-list" aria-label="Recent sketches">{props.recentFiles().map(path => <button type="button" class="home-file" onClick={() => void props.onOpenRecentFile(path)}><FileMark /><span class="home-file-copy"><strong>{props.displayNameForPath(path)}</strong><small>{displayPathLocation(path)}</small></span><span class="home-file-open">Open <span aria-hidden="true">&rarr;</span></span></button>)}</div>
           </Show>
         </section>
+        <WorkspaceAreaTabs active="canvas" documentTabs={false} onSelect={props.onSelectWorkspace} />
       </div>
     </section>
   }>
@@ -85,6 +89,7 @@ export function WelcomeScreen(props: Props) {
             <div class="home-recent-list" aria-label="Recent Planning files">{props.recentPlans().map(path => <button type="button" class="home-file" onClick={() => void props.onOpenRecentPlan(path)}><FileMark /><span class="home-file-copy"><strong>{props.displayNameForPath(path)}</strong><small>{displayPathLocation(path)}</small></span><span class="home-file-open">Open <span aria-hidden="true">&rarr;</span></span></button>)}</div>
           </Show>
         </section>
+        <WorkspaceAreaTabs active="planning" documentTabs={false} onSelect={props.onSelectWorkspace} />
       </div>
     </section>
   </Show>;

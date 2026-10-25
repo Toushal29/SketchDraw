@@ -30,7 +30,7 @@
 .home-desktop-layout {
     display: grid;
     grid-template-columns: minmax(0, 1.12fr) minmax(290px, .78fr);
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
     gap: 15px;
     width: min(1400px, 100%);
     min-height: 540px;
@@ -93,6 +93,26 @@
     align-items: center;
     gap: 10px;
 }
+
+.home-desktop-layout > .workspace-viewport-tabs,
+.home-mobile-layout > .workspace-viewport-tabs {
+    justify-self: center;
+    max-width: 100%;
+    margin: 0;
+    border-color: color-mix(in srgb, var(--theme-primary) 24%, var(--theme-border));
+    background: var(--theme-surface-elevated);
+    box-shadow: none;
+}
+
+.home-desktop-layout > .workspace-viewport-tabs {
+    grid-column: 1 / -1;
+    align-self: center;
+}
+
+.home-mobile-layout > .workspace-viewport-tabs { grid-area: viewport; align-self: center; }
+
+.home-desktop-layout > .workspace-viewport-tabs button,
+.home-mobile-layout > .workspace-viewport-tabs button { min-height: 34px; padding-inline: 14px; }
 
 .home-brand-mark {
     display: grid;
@@ -644,7 +664,7 @@
 
     .home-desktop-layout {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto minmax(340px, 1fr);
+        grid-template-rows: auto minmax(340px, 1fr) auto;
         min-height: 0;
         max-height: none;
         height: auto;
