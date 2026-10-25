@@ -44,6 +44,11 @@ export function filePathIdentity(path: string): string {
   return normalized.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
+export function isMissingFileError(cause: unknown): boolean {
+  const message = cause instanceof Error ? `${cause.name} ${cause.message}` : String(cause);
+  return /\b(?:enoent|os error 2|no such file(?: or directory)?|file not found|cannot find (?:the )?(?:file|path)|(?:file|path|document|entry) (?:was )?not found|does not exist)\b/i.test(message);
+}
+
 /** Return a safe, readable parent path for recent-file cards. */
 export function displayPathLocation(path: string): string {
   if (/^content:\/\//i.test(path)) return "Cloud drive or device folder";

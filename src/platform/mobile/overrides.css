@@ -130,15 +130,15 @@
     right: max(8px, env(safe-area-inset-right));
     left: auto;
     bottom: max(8px, env(safe-area-inset-bottom));
-    width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 76px));
-    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 76px));
+    width: min(var(--component-editor-width, 320px), calc(var(--app-shell-width, 100vw) - 24px));
+    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 24px));
   }
   .app-shell.mobile-toolbar-right:not(.platform-windows) .component-editor-dock:not(.collapsed) {
     top: calc(var(--touch-header-height, 48px) + 8px);
     right: auto;
     bottom: max(8px, env(safe-area-inset-bottom));
     left: max(8px, env(safe-area-inset-left));
-    width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 76px));
-    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 76px));
+    width: min(var(--component-editor-width, 320px), calc(var(--app-shell-width, 100vw) - 24px));
+    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 24px));
   }
 }

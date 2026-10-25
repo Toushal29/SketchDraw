@@ -65,6 +65,7 @@ function flowchartOutline(shape: FlowchartShape, { x, y, w, h }: Box): string {
       return `${outer} ${inner}`;
     }
     case "hexagon": { const cut = Math.min(w * .2, h * .28); return `M ${x + cut} ${y} H ${right - cut} L ${right} ${y + h / 2} L ${right - cut} ${bottom} H ${x + cut} L ${x} ${y + h / 2} Z`; }
+    case "preparation": { const cut = Math.min(w * .25, h * .35); return `M ${x + cut} ${y} H ${right - cut} L ${right} ${y + h / 2} L ${right - cut} ${bottom} H ${x + cut} L ${x} ${y + h / 2} Z`; }
     case "trapezoid": { const inset = Math.min(w * .2, h * .35); return `M ${x + inset} ${y} H ${right - inset} L ${right} ${bottom} H ${x} Z`; }
     case "pentagon": return polygon(Array.from({ length: 5 }, (_, index) => { const angle = -Math.PI / 2 + index * Math.PI * 2 / 5; return { x: middle + Math.cos(angle) * w * .48, y: y + h / 2 + Math.sin(angle) * h * .48 }; }));
     case "octagon": { const cut = Math.min(w * .2, h * .2); return `M ${x + cut} ${y} H ${right - cut} L ${right} ${y + cut} V ${bottom - cut} L ${right - cut} ${bottom} H ${x + cut} L ${x} ${bottom - cut} V ${y + cut} Z`; }

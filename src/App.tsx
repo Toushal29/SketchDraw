@@ -89,7 +89,7 @@ import { appendSimplifiedStrokePoint } from "./features/canvas/stroke-simplifica
 import { MAX_STROKE_POINTS } from "./features/canvas/stroke-limits";
 import { isLibraryChartData, isRecord, normalizeElement, parseSketchFile } from "./features/files/parse-sketch";
 import { compareNamedDocumentSnapshot, parsePortableNamedSnapshots, readNamedDocumentSnapshots, serializePortableNamedSnapshots, writeNamedDocumentSnapshots, type NamedDocumentSnapshot } from "./features/document/named-snapshots";
-import { withSketchExtension, normalizeFileUri, isSketchPath, displayPathName, filePathIdentity } from "./features/files/paths";
+import { withSketchExtension, normalizeFileUri, isSketchPath, isMissingFileError, displayPathName, filePathIdentity } from "./features/files/paths";
 import { indentTextarea } from "./components/textarea-indent";
 import { ThicknessTuner } from "./components/ThicknessTuner";
 import { isWindowsPlatform } from "./platform/runtime";
@@ -421,6 +421,19 @@ function App() {
       return updated;
     });
   }
+  function setElementTransientAt(index: number, operation: (element: Element) => Element) {
+    advanceDocumentRevision();
+    return setElementsSignal(previous => {
+      const current = previous[index];
+      if (!current) return previous;
+      const updatedElement = operation(current);
+      if (updatedElement === current) return previous;
+      const updated = [...previous];
+      updated[index] = updatedElement;
+      activeElementSpatialIndex.updateChanged(updated, [index]);
+      return updated;
+    });
+  }
   const [canvasState, setCanvasStateSignal] = createSignal<CanvasState>(emptyCanvas());
   const setCanvasState: typeof setCanvasStateSignal = next => { advanceDocumentRevision(); return setCanvasStateSignal(next); };
   const documentSession = createDocumentSession();
@@ -478,6 +491,8 @@ function App() {
   const [presentationMode, setPresentationMode] = createSignal(false);
   const [canvasRunMode, setCanvasRunMode] = createSignal(false);
   const prototypeRuntimePages = new Map<string, { before: Element[]; runtime: Element[] }>();
+  let prototypeStartPageId: string | undefined;
+  let prototypeStartCanvasState: CanvasState | undefined;
   let prototypePriorDirty = false;
   const [notebookSplitOpen, setNotebookSplitOpen] = createSignal(false);
   const [layerPresetName, setLayerPresetName] = createSignal("");
@@ -529,8 +544,8 @@ function App() {
   const [classCardDraft, setClassCardDraft] = createSignal<{ x: number; y: number; name: string; attributes: string; methods: string; fontSize: number; width?: number; height?: number; componentId?: string }>();
   const [libraryComponentDraft, setLibraryComponentDraft] = createSignal<GroupElement>();
   const [componentEditorCollapsed, setComponentEditorCollapsedValue] = createSignal(readPreference("sketchdraw-component-editor-collapsed", "true") === "true");
-  const savedComponentEditorWidth = Number(readPreference("sketchdraw-component-editor-width", "260"));
-  const [componentEditorWidth, setComponentEditorWidth] = createSignal(Math.max(190, Math.min(640, Number.isFinite(savedComponentEditorWidth) ? savedComponentEditorWidth : 260)));
+  const savedComponentEditorWidth = Number(readPreference("sketchdraw-component-editor-width", "320"));
+  const [componentEditorWidth, setComponentEditorWidth] = createSignal(Math.max(190, Math.min(640, Number.isFinite(savedComponentEditorWidth) ? savedComponentEditorWidth : 320)));
   let componentDockResize: { pointerId: number; startX: number; startWidth: number; edge: "left" | "right" } | undefined;
   const componentDockResizeEdge = () => !isWindowsPlatform() && toolbarPosition() === "right" ? "right" as const : "left" as const;
   const resizeComponentEditor = (width: number, persist = true) => {
@@ -747,6 +762,7 @@ function App() {
     try { const value: unknown = JSON.parse(localStorage.getItem("sketchdraw-v8-recent-files") ?? localStorage.getItem("sketchdraw-v6-recent-files") ?? "[]"); if (!Array.isArray(value)) return []; const seen = new Set<string>(); return value.flatMap((path): string[] => { if (typeof path !== "string" || !isSketchPath(path)) return []; const key = filePathIdentity(path); if (seen.has(key)) return []; seen.add(key); return [path]; }).slice(0, 8); }
     catch { return []; }
   })());
+  const ignoredRecentFileIdentities = new Set<string>();
   const [providerDocumentNames, setProviderDocumentNames] = createSignal<Record<string, string>>({});
   const providerNameRequests = new Map<string, Promise<string | undefined>>();
   createEffect(() => {
@@ -1807,7 +1823,7 @@ function App() {
     if (!target || target.locked) return;
     const pageId = crypto.randomUUID(); const before = cloneElements(elements());
     const addLink = (item: Element): Element => {
-      if (item.id === target.id) return { ...item, pageLinkId: pageId } as Element;
+      if (item.id === target.id) return { ...item, pageLinkId: pageId, prototypeTargetId: undefined } as Element;
       return item.type === "group" ? { ...item, elements: item.elements.map(addLink) } : item;
     };
     setElements(items => items.map((item, current) => current === index ? addLink(item) : item));
@@ -1844,7 +1860,14 @@ function App() {
     if (boardLocked() || readOnlyView()) return;
     const index = primarySelection(); if (index === undefined || !elements()[index]) return;
     const before = cloneElements(elements());
-    setElements(items => items.map((item, current) => current !== index ? item : { ...item, pageLinkId } as Element));
+    setElements(items => items.map((item, current) => current !== index ? item : { ...item, pageLinkId, prototypeTargetId: undefined } as Element));
+    pushUndo(before); setDirty(true);
+  }
+  function setSelectedPrototypeTarget(prototypeTargetId?: string) {
+    if (boardLocked() || readOnlyView()) return;
+    const index = primarySelection(); if (index === undefined || !elements()[index]) return;
+    const before = cloneElements(elements());
+    setElements(items => items.map((item, current) => current !== index ? item : { ...item, prototypeTargetId, pageLinkId: undefined } as Element));
     pushUndo(before); setDirty(true);
   }
   function setSelectedPageLinkTransition(pageLinkTransition: PageLinkTransition) {
@@ -1861,7 +1884,7 @@ function App() {
     const pageId = crypto.randomUUID();
     const name = `${elementNavigationLabel(selected)} details`.slice(0, 80);
     const before = cloneElements(elements());
-    setElements(items => items.map((item, current) => current === index ? { ...item, pageLinkId: pageId } as Element : item));
+    setElements(items => items.map((item, current) => current === index ? { ...item, pageLinkId: pageId, prototypeTargetId: undefined } as Element : item));
     pushUndo(before); setDirty(true); storeCurrentPage();
     setPages(items => [...items, { id: pageId, name, canvasState: emptyCanvas(), elements: [] }]);
   }
@@ -1881,6 +1904,25 @@ function App() {
       if (hasFrames) requestAnimationFrame(() => focusPresentationFrame(0));
     }, reduceMotion ? 0 : 160);
     presentationTransitionClearTimer = window.setTimeout(() => { presentationTransitionClearTimer = undefined; setPresentationTransition(undefined); }, reduceMotion ? 0 : 340);
+  }
+  function focusPrototypeTarget(targetId?: string) {
+    if (!targetId || !canvas) return;
+    const find = (items: Element[]): Element | undefined => {
+      for (const item of items) {
+        if (item.id === targetId) return item;
+        if (item.type === "group") { const nested = find(item.elements); if (nested) return nested; }
+      }
+      return undefined;
+    };
+    const target = find(elements());
+    if (!target || target.hidden) return;
+    const bounds = elementBounds(target);
+    const view = canvasState();
+    const rect = canvas.getBoundingClientRect();
+    const centerX = bounds.x + bounds.w / 2;
+    const centerY = bounds.y + bounds.h / 2;
+    setCanvasState({ ...view, panX: rect.width / 2 - centerX * view.zoom, panY: rect.height / 2 - centerY * view.zoom });
+    scheduleCanvasRender();
   }
   function selectValidationIssue(issue: DiagramIssue) {
     if (!issue.elementId) return;
@@ -2203,6 +2245,7 @@ function App() {
     if (id === activePageId()) return;
     const target = pages().find((page) => page.id === id);
     if (!target) return;
+    finishLibraryTextEdit();
     if (canvasRunMode()) {
       const currentId = activePageId();
       const current = currentId ? prototypeRuntimePages.get(currentId) : undefined;
@@ -2223,6 +2266,8 @@ function App() {
       syncObservationTimer = undefined;
       prototypeRuntimePages.clear();
       const pageId = activePageId();
+      prototypeStartPageId = pageId;
+      prototypeStartCanvasState = { ...canvasState() };
       if (pageId) {
         const before = cloneElements(elements());
         prototypeRuntimePages.set(pageId, { before, runtime: cloneElements(before) });
@@ -2235,6 +2280,9 @@ function App() {
       const current = prototypeRuntimePages.get(activePageId());
       if (current) setElements(current.before);
       prototypeRuntimePages.clear();
+      if (activePageId() === prototypeStartPageId && prototypeStartCanvasState) setCanvasState(prototypeStartCanvasState);
+      prototypeStartPageId = undefined;
+      prototypeStartCanvasState = undefined;
       setCanvasRunMode(false);
       prototypeRuntimeActive = false;
       setDirty(prototypePriorDirty || prototypeEditDuringRun);
@@ -2387,8 +2435,8 @@ function App() {
     const converted = convertedData as unknown as ShapeElement;
     const before = cloneElements(elements()); setElements(items => items.map((element, current) => current === index ? converted : element)); pushUndo(before); setDirty(true);
   }
-  const undo = canvasHistory.undo;
-  const redo = canvasHistory.redo;
+  const undo = () => { finishLibraryTextEdit(); canvasHistory.undo(); };
+  const redo = () => { finishLibraryTextEdit(); canvasHistory.redo(); };
   function deleteSelected() {
     if (boardLocked()) return;
     const indices = selectedIndices().filter((index) => { const element = elements()[index]; return !!element && canMoveElement(element); });
@@ -2972,8 +3020,29 @@ function App() {
 
   function classCardSize(draft: NonNullable<ReturnType<typeof classCardDraft>>) { const { width, height } = classCardLayout(draft); return { width, height }; }
 
-  function updateSelectedLibraryComponent(operation: (group: GroupElement) => GroupElement) {
+  let libraryTextEdit: { componentId: string; before: Element[]; changed: boolean } | undefined;
+  function finishLibraryTextEdit(componentId?: string) {
+    const edit = libraryTextEdit;
+    if (!edit || componentId && componentId !== edit.componentId) return;
+    libraryTextEdit = undefined;
+    if (edit.changed) pushUndo(edit.before);
+  }
+
+  function updateSelectedLibraryComponent(operation: (group: GroupElement) => GroupElement, componentId?: string, transient = false) {
     if (boardLocked()) return;
+    if (transient && componentId) {
+      if (libraryTextEdit && libraryTextEdit.componentId !== componentId) finishLibraryTextEdit();
+      const current = elements();
+      const index = current.findIndex(item => item.type === "group" && (item.id === componentId || item.componentId === componentId));
+      const group = index < 0 ? undefined : current[index];
+      if (!group || group.type !== "group" || !group.libraryComponent || group.locked) return;
+      const updated = operation(group);
+      if (!libraryTextEdit) libraryTextEdit = { componentId, before: current, changed: false };
+      setElementTransientAt(index, () => updated);
+      if (!libraryTextEdit.changed) { libraryTextEdit.changed = true; setDirty(true); }
+      return;
+    }
+    finishLibraryTextEdit();
     const index = primarySelection(); const group = index === undefined ? undefined : elements()[index];
     if (index === undefined || group?.type !== "group" || !group.libraryComponent || group.locked) return;
     const before = cloneElements(elements()); setElements(items => items.map((item, current) => current === index ? operation(item as GroupElement) : item)); pushUndo(before); setDirty(true);
@@ -4209,7 +4278,7 @@ function App() {
       void invoke("set_mobile_orientation", { orientation: mobileOrientation() }).catch(() => setOrientationMessage("Rotate the device manually if its saved orientation is not applied."));
     }
     if (isTauri()) void invoke<string[]>("load_recent_sketches").then(paths => {
-      const seen = new Set<string>(); const combined = [...recentFiles(), ...paths].flatMap((path): string[] => { if (typeof path !== "string" || !isSketchPath(path)) return []; const key = filePathIdentity(path); if (seen.has(key)) return []; seen.add(key); return [path]; }).slice(0, 8);
+      const seen = new Set<string>(); const combined = [...recentFiles(), ...paths].flatMap((path): string[] => { if (typeof path !== "string" || !isSketchPath(path)) return []; const key = filePathIdentity(path); if (ignoredRecentFileIdentities.has(key) || seen.has(key)) return []; seen.add(key); return [path]; }).slice(0, 8);
       setRecentFiles(combined);
       try { localStorage.setItem("sketchdraw-v8-recent-files", JSON.stringify(combined)); } catch { /* Native storage remains the durable copy. */ }
       if (combined.length) void invoke("save_recent_sketches", { paths: combined }).catch(() => undefined);
@@ -4578,6 +4647,7 @@ function App() {
   }
 
   function applySnapshot(snapshot: SketchFile, path: string, rawText: string, nextWorkspace: WorkspaceArea = "canvas") {
+    finishLibraryTextEdit();
     canvasHistory.clearAll(); setTextDraft(undefined); setNoteEditor(undefined); setContextMenu(undefined); setLayerPanelOpen(false); setTouchStylePanel(false); setQuickStylePopover(undefined); setCanvasOptionsOpen(false);  setStencilMenuOpen(false); closeToolOptions(); setPreview(undefined); setMarquee(undefined); drawing = false; moveOrigin = undefined; resizeOrigin = undefined;
     let upgradedComponents = false;
     const pages = snapshot.pages.map(page => ({ ...page, elements: page.elements.map(element => {
@@ -4627,6 +4697,7 @@ function App() {
     await docController.reloadConflict();
   }
   async function saveToPath(path: string, duringDocumentTransition = false) {
+    finishLibraryTextEdit();
     if (canvasRunMode()) return;
     if (legacyMigrationPath()) return;
     if (documentBusy() && !duringDocumentTransition) return;
@@ -4736,9 +4807,21 @@ function App() {
 
   function rememberFile(path: string) {
     path = normalizeFileUri(path);
-    const identity = filePathIdentity(path); const updated = [path, ...recentFiles().filter(recent => filePathIdentity(recent) !== identity)].slice(0, 8);
+    const identity = filePathIdentity(path); ignoredRecentFileIdentities.delete(identity); const updated = [path, ...recentFiles().filter(recent => filePathIdentity(recent) !== identity)].slice(0, 8);
     setRecentFiles(updated);
     try { localStorage.setItem("sketchdraw-v8-recent-files", JSON.stringify(updated)); } catch { /* Native storage remains the durable copy. */ }
+    if (isTauri()) void invoke("save_recent_sketches", { paths: updated }).catch(() => undefined);
+  }
+
+  function forgetRecentFile(path: string) {
+    const identity = filePathIdentity(path);
+    ignoredRecentFileIdentities.add(identity);
+    const current = recentFiles();
+    const updated = current.filter(recent => filePathIdentity(recent) !== identity);
+    if (updated.length !== current.length) {
+      setRecentFiles(updated);
+      try { localStorage.setItem("sketchdraw-v8-recent-files", JSON.stringify(updated)); } catch { /* Keep the current session list clean if browser storage is unavailable. */ }
+    }
     if (isTauri()) void invoke("save_recent_sketches", { paths: updated }).catch(() => undefined);
   }
 
@@ -4905,6 +4988,7 @@ function App() {
 
   async function closeFile() {
     if (!activePath() || documentBusy()) return;
+    finishLibraryTextEdit();
     if (isWindowsPlatform() && openSketchPaths().length > 1) { await closeSketchTab(activePath()!); return; }
     await docController.close();
   }
@@ -4922,6 +5006,7 @@ function App() {
 
   async function loadFile(path: string, viewOnly = false) {
     if (legacyMigrationPath()) return;
+    finishLibraryTextEdit();
     if (/^content:\/\//i.test(path)) await resolveAndroidDocumentName(path);
     let openReadOnly = viewOnly;
     if (!openReadOnly && isAndroidPlatform() && /^content:\/\//i.test(path)) {
@@ -4936,7 +5021,9 @@ function App() {
         setError("Could not confirm write access from Android's document provider. The sketch is open read-only; use Save as to create an editable copy.");
       }
     }
-    await docController.open(path, openReadOnly);
+    setError("");
+    const opened = await docController.open(path, openReadOnly);
+    if (!opened && isMissingFileError(error())) forgetRecentFile(path);
   }
 
   async function pollSharedSketch() {
@@ -5940,7 +6027,16 @@ function App() {
       const point = toWorld(event); const hit = hitTest(point); const target = hit === undefined ? undefined : elements()[hit];
       setSelectedIndices([]);
       if (hit !== undefined && target?.type === "group" && target.libraryComponent) activateLibraryControl(hit, point);
-      if (target?.pageLinkId) openLinkedPage(target.pageLinkId, target.pageLinkTransition);
+      const findLinkedTarget = (item: Element): Element | undefined => {
+        if (item.type === "group") for (let index = item.elements.length - 1; index >= 0; index--) {
+          const child = item.elements[index];
+          if (hitElement(child, point, canvasState().zoom)) { const nested = findLinkedTarget(child); if (nested) return nested; }
+        }
+        return item.prototypeTargetId || item.pageLinkId ? item : undefined;
+      };
+      const linked = target && findLinkedTarget(target);
+      if (linked?.prototypeTargetId) focusPrototypeTarget(linked.prototypeTargetId);
+      else if (linked?.pageLinkId) openLinkedPage(linked.pageLinkId, linked.pageLinkTransition);
       return;
     }
     if (event.target === canvas && measureMode() && event.button === 0) {
@@ -7794,9 +7890,9 @@ function App() {
               </div></Show>
             </aside></Show>
             <Show when={noteEditor() || selectedNoteCard() || libraryComponentDraft() || selectedLibraryComponent() || selectedClassComponentId() || classCardDraft() || primarySelection() !== undefined}>
-              <aside class="component-editor-dock" classList={{ collapsed: componentEditorCollapsed(), "note-editor-dock": !!(noteEditor() || selectedNoteCard()) }} style={`--component-editor-width: ${componentEditorWidth()}px;`} aria-label={noteEditor() || selectedNoteCard() ? "Note editor" : primarySelection() !== undefined && !selectedLibraryComponent() && !selectedClassComponentId() && !libraryComponentDraft() && !classCardDraft() ? "Object details" : "Component editor"}>
+              <aside class="component-editor-dock" classList={{ collapsed: componentEditorCollapsed(), "resize-edge-right": componentDockResizeEdge() === "right", "note-editor-dock": !!(noteEditor() || selectedNoteCard()) }} style={`--component-editor-width: ${componentEditorWidth()}px;`} aria-label={noteEditor() || selectedNoteCard() ? "Note editor" : primarySelection() !== undefined && !selectedLibraryComponent() && !selectedClassComponentId() && !libraryComponentDraft() && !classCardDraft() ? "Object details" : "Component editor"} data-collapsed={componentEditorCollapsed() ? "true" : "false"}>
                 <Show when={componentEditorCollapsed()} fallback={<>
-                  <div class="component-editor-resize-handle" classList={{ "component-editor-resize-right": componentDockResizeEdge() === "right" }} role="separator" aria-orientation="vertical" aria-label="Resize editor panel" aria-valuemin="190" aria-valuemax="640" aria-valuenow={Math.round(componentEditorWidth())} tabindex="0" onPointerDown={beginComponentEditorResize} onPointerMove={moveComponentEditorResize} onPointerUp={finishComponentEditorResize} onPointerCancel={finishComponentEditorResize} onKeyDown={keyComponentEditorResize} />
+                  <div class="component-editor-resize-handle" classList={{ "component-editor-resize-right": componentDockResizeEdge() === "right" }} role="separator" aria-orientation="vertical" aria-label="Resize editor panel" aria-valuemin="190" aria-valuemax="640" aria-valuenow={Math.round(componentEditorWidth())} aria-valuetext={`${Math.round(componentEditorWidth())} pixels`} tabindex="0" onPointerDown={beginComponentEditorResize} onPointerMove={moveComponentEditorResize} onPointerUp={finishComponentEditorResize} onPointerCancel={finishComponentEditorResize} onKeyDown={keyComponentEditorResize} />
                   <header class="component-editor-heading" classList={{ "note-editor-heading": !!(noteEditor() || selectedNoteCard()) }}>
                     <strong>{noteEditor() || selectedNoteCard() ? notePanelTitle() : componentEditorTitle()}</strong>
                     <Show when={noteEditor()}><button type="button" class="note-editor-action" title="Discard note" aria-label="Discard note" onClick={() => setNoteEditor(undefined)}>&times;</button></Show>
@@ -7804,7 +7900,7 @@ function App() {
                     <Show when={!noteEditor() && selectedNoteCard()}>{card => <button type="button" class="note-editor-action" title={card().note?.collapsed ? "Expand card" : "Collapse card"} aria-label={card().note?.collapsed ? "Expand card" : "Collapse card"} disabled={boardLocked() || card().locked} onClick={() => { const index = primarySelection(); if (index !== undefined) toggleNoteCollapsed(index); }}><svg viewBox="0 0 16 16" aria-hidden="true"><path d={card().note?.collapsed ? "m3 6 5 5 5-5" : "m3 10 5-5 5 5"} /></svg></button>}</Show>
                     <button type="button" class="note-editor-action dock-collapse-action" aria-label="Collapse editor panel" title="Collapse panel" aria-expanded="true" onClick={() => setComponentEditorCollapsed(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg></button>
                   </header>
-                  <div class="component-editor-scroll">
+                  <div class="component-editor-scroll" id="component-editor-scroll">
 
                 <Show when={selectedGeometryBounds() || selectedIndices().length === 1 && !!focusedElement() && isConnector(focusedElement()!)}>
                   <details class="pane-section geometry-properties" open={componentDisclosureOpen("geometry-properties", true)} onToggle={componentDisclosureToggle("geometry-properties", true)}>
@@ -7868,8 +7964,8 @@ function App() {
                         <Show when={note().kind === "note" && !tableBlock()}><button type="button" class="note-editor-inline-action note-editor-convert" disabled={boardLocked() || card().locked} onClick={convertSelectedMarkdownToText}>Convert to plain text</button></Show>
                       </section>;
                     }}</Show>
-                    <Show when={libraryComponentDraft()}>{draft => <Suspense fallback={null}><LibraryComponentEditor group={() => libraryComponentDraft() ?? draft()} isDraft boardLocked={boardLocked} onChangeGroup={operation => setLibraryComponentDraft(current => current ? operation(current) : current)} onRememberFontSize={rememberFontSize} onCancelDraft={() => setLibraryComponentDraft(undefined)} onCommitDraft={commitLibraryComponentDraft} disclosureOpen={componentDisclosureOpen} onDisclosureToggle={componentDisclosureToggle} /></Suspense>}</Show>
-                    <Show when={!libraryComponentDraft() && selectedLibraryComponent()}>{component => <Suspense fallback={null}><LibraryComponentEditor group={() => selectedLibraryComponent() ?? component()} isDraft={false} boardLocked={boardLocked} onChangeGroup={updateSelectedLibraryComponent} onRememberFontSize={rememberFontSize} onCancelDraft={() => setLibraryComponentDraft(undefined)} onCommitDraft={commitLibraryComponentDraft} disclosureOpen={componentDisclosureOpen} onDisclosureToggle={componentDisclosureToggle} /></Suspense>}</Show>
+                    <Show when={libraryComponentDraft()}>{draft => <Suspense fallback={null}><LibraryComponentEditor group={() => libraryComponentDraft() ?? draft()} isDraft boardLocked={boardLocked} onChangeGroup={operation => setLibraryComponentDraft(current => current ? operation(current) : current)} onCommitTextEdit={finishLibraryTextEdit} onRememberFontSize={rememberFontSize} onCancelDraft={() => setLibraryComponentDraft(undefined)} onCommitDraft={commitLibraryComponentDraft} disclosureOpen={componentDisclosureOpen} onDisclosureToggle={componentDisclosureToggle} /></Suspense>}</Show>
+                    <Show when={!libraryComponentDraft() && selectedLibraryComponent()}>{component => <Suspense fallback={null}><LibraryComponentEditor group={() => selectedLibraryComponent() ?? component()} isDraft={false} boardLocked={boardLocked} onChangeGroup={updateSelectedLibraryComponent} onCommitTextEdit={finishLibraryTextEdit} onRememberFontSize={rememberFontSize} onCancelDraft={() => setLibraryComponentDraft(undefined)} onCommitDraft={commitLibraryComponentDraft} disclosureOpen={componentDisclosureOpen} onDisclosureToggle={componentDisclosureToggle} /></Suspense>}</Show>
                     <Show when={selectedClassComponentId() && !selectedLibraryComponent() && !classCardDraft() ? selectedClassComponentId() : undefined}>{componentId => <section class="component-editor-content class-component-properties"><label class="property-label">Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={quickCardFontSize()} disabled={boardLocked()} onChange={event => resizeClassCardFont(componentId(), Number(event.currentTarget.value))} /></label></section>}</Show>
                     <Show when={classCardDraft()}>{draft => <div class="component-editor-content class-card-editor"><label class="property-label">Class name<input value={draft().name} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label class="property-label">Attributes<textarea rows="5" value={draft().attributes} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label class="property-label">Methods<textarea rows="5" value={draft().methods} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(classCardSize(draft()).width)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, width: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(classCardSize(draft()).height)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, height: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={draft().fontSize} disabled={boardLocked()} onChange={event => updateClassCardDraftFont(Number(event.currentTarget.value))} /></label></div><div class="component-draft-actions"><button type="button" class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button type="button" class="save-button" disabled={boardLocked()} onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></div>}</Show>
                   <Show when={connectionTargetSupported()}><details class="pane-section component-navigation-details inspector-advanced-section" open={componentDisclosureOpen("connection-points")} onToggle={componentDisclosureToggle("connection-points")}><summary><span>Connection points</span><small>{connectionPointsFor(focusedElement()).length}/32</small></summary><section class="pane-section connection-point-editor"><p>Connectors can snap to these named positions on the shape.</p><For each={connectionPointsFor(focusedElement()).map((_, index) => index)}>{index => { const point = () => connectionPointsFor(focusedElement())[index]; return <div class="connection-point-row"><input aria-label={`Connection point ${index + 1} name`} maxlength="80" value={point()?.name ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onInput={event => updateFocusedConnectionPoints(points => points.map((item, current) => current === index ? { ...item, name: event.currentTarget.value } : item))} /><label>X<input aria-label={`Connection point ${index + 1} horizontal position`} type="number" min="0" max="1" step="0.05" value={point()?.anchor.x ?? 0.5} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateFocusedConnectionPoints(points => points.map((item, current) => current === index ? { ...item, anchor: { ...item.anchor, x: Number(event.currentTarget.value) } } : item))} /></label><label>Y<input aria-label={`Connection point ${index + 1} vertical position`} type="number" min="0" max="1" step="0.05" value={point()?.anchor.y ?? 0.5} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateFocusedConnectionPoints(points => points.map((item, current) => current === index ? { ...item, anchor: { ...item.anchor, y: Number(event.currentTarget.value) } } : item))} /></label><button type="button" aria-label={`Remove connection point ${index + 1}`} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateFocusedConnectionPoints(points => points.filter((_, current) => current !== index))}>×</button></div>; }}</For><button class="quiet-button" type="button" disabled={boardLocked() || !!focusedElement()?.locked || connectionPointsFor(focusedElement()).length >= 32} onClick={() => updateFocusedConnectionPoints(points => [...points, { id: crypto.randomUUID(), name: `Port ${points.length + 1}`, anchor: { x: 0.5, y: 0.5 } }])}>Add connection point</button></section></details></Show>
@@ -7878,15 +7974,17 @@ function App() {
                     <summary><span>Page links and nested diagrams</span></summary>
                     <Show when={primarySelection() !== undefined}>
                       <section class="pane-section page-link-properties">
-                        <div class="pane-heading">Page link</div>
-                        <Show when={pages().length > 1} fallback={<div class="page-link-empty"><p>Create another page to link this object to a separate view.</p><button type="button" class="quiet-button" disabled={boardLocked() || readOnlyView() || pages().length >= 100} onClick={createLinkedPageFromSelection}>Create linked page</button></div>}>
-                          <label class="property-label">Link this object to a page<select aria-label="Link selected object to page" value={selectedRootElement()?.pageLinkId ?? ""} disabled={boardLocked() || !!selectedRootElement()?.locked} onChange={event => setSelectedPageLink(event.currentTarget.value || undefined)}><option value="">No link</option>{pages().filter(page => page.id !== activePageId()).map(page => <option value={page.id}>{page.name}</option>)}</select></label>
-                          <Show when={selectedRootElement()?.pageLinkId}><div class="property-label">Prototype transition<div class="choice-deck compact">{([{ value: "instant", label: "Instant" }, { value: "fade", label: "Fade" }, { value: "slide", label: "Slide" }] as const).map(option => <button type="button" class={(!selectedRootElement()?.pageLinkTransition && option.value === "instant" || selectedRootElement()?.pageLinkTransition === option.value) ? "active" : ""} aria-pressed={!selectedRootElement()?.pageLinkTransition && option.value === "instant" || selectedRootElement()?.pageLinkTransition === option.value} disabled={boardLocked() || !!selectedRootElement()?.locked} onClick={() => setSelectedPageLinkTransition(option.value)}>{option.label}</button>)}</div></div></Show>
+                        <div class="pane-heading">Prototype links</div>
+                        <label class="property-label">Navigate to an object on this page<select aria-label="Link selected object to another object on this page" value={selectedRootElement()?.prototypeTargetId ?? ""} disabled={boardLocked() || !!selectedRootElement()?.locked} onChange={event => setSelectedPrototypeTarget(event.currentTarget.value || undefined)}><option value="">No object link</option>{elements().map((item, index) => ({ item, index })).filter(({ item }) => !!item.id && item.id !== selectedRootElement()?.id && !item.hidden).map(({ item, index }) => <option value={item.id}>{elementNavigationLabel(item)} · {index + 1}</option>)}</select></label>
+                        <Show when={pages().length > 1}>
+                          <label class="property-label">Or navigate to a page<select aria-label="Link selected object to page" value={selectedRootElement()?.pageLinkId ?? ""} disabled={boardLocked() || !!selectedRootElement()?.locked} onChange={event => setSelectedPageLink(event.currentTarget.value || undefined)}><option value="">No page link</option>{pages().filter(page => page.id !== activePageId()).map(page => <option value={page.id}>{page.name}</option>)}</select></label>
+                          <Show when={selectedRootElement()?.pageLinkId}><div class="property-label">Page transition<div class="choice-deck compact">{([{ value: "instant", label: "Instant" }, { value: "fade", label: "Fade" }, { value: "slide", label: "Slide" }] as const).map(option => <button type="button" class={(!selectedRootElement()?.pageLinkTransition && option.value === "instant" || selectedRootElement()?.pageLinkTransition === option.value) ? "active" : ""} aria-pressed={!selectedRootElement()?.pageLinkTransition && option.value === "instant" || selectedRootElement()?.pageLinkTransition === option.value} disabled={boardLocked() || !!selectedRootElement()?.locked} onClick={() => setSelectedPageLinkTransition(option.value)}>{option.label}</button>)}</div></div></Show>
                           <Show when={selectedRootElement()?.pageLinkId && pages().some(page => page.id === selectedRootElement()?.pageLinkId)}>
                             <button type="button" class="quiet-button" onClick={() => openLinkedPage(selectedRootElement()?.pageLinkId)}>Open linked page</button>
                           </Show>
-                          <For each={selectedLinkedPages()}>{target => <div class="nested-page-link"><span>{elementNavigationLabel(target.item)} → {target.page.name}</span><button type="button" class="quiet-button" onClick={() => openLinkedPage(target.page.id)}>Open</button></div>}</For>
                         </Show>
+                        <Show when={pages().length === 1}><button type="button" class="quiet-button" disabled={boardLocked() || readOnlyView() || pages().length >= 100} onClick={createLinkedPageFromSelection}>Create a page link</button></Show>
+                        <For each={selectedLinkedPages()}>{target => <div class="nested-page-link"><span>{elementNavigationLabel(target.item)} → {target.page.name}</span><button type="button" class="quiet-button" onClick={() => openLinkedPage(target.page.id)}>Open</button></div>}</For>
                       </section>
                     </Show>
                     <Show when={selectedLibraryComponent() || selectedNestedComponents().length > 0}>
@@ -7902,7 +8000,6 @@ function App() {
                       </section>
                     </Show>
                   </details>
-                  <Show when={selectedRootElement()?.type === "group" && !!(selectedRootElement() as GroupElement).libraryComponent?.kind?.startsWith("viz-")}><section class="component-editor-content chart-data-actions"><div class="pane-heading">Chart data</div><button class="quiet-button" type="button" disabled={boardLocked()} onClick={() => { const chart = selectedRootElement(); if (chart?.type === "group" && chart.id) openCsvChartDialog(chart.id); }}>Edit chart from CSV…</button></section></Show>
 
                 <Show when={selectedDiagramCodeGroup()}>{group => <details class="pane-section component-navigation-details inspector-advanced-section diagram-source-disclosure" open={componentDisclosureOpen("diagram-source")} onToggle={componentDisclosureToggle("diagram-source")}>
                   <summary><span>Diagram as code</span></summary>

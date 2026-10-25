@@ -3,7 +3,9 @@ import { createCanvasRenderScheduler } from "../src/features/canvas/rendering";
 import { createStrokeSampleGate } from "../src/features/canvas/stroke-input";
 import { appendSimplifiedStrokePoint } from "../src/features/canvas/stroke-simplification";
 import { canvasStateForTouchGesture, gridStepForStyle, gridSvgPattern, pointerToWorld, snapCanvasPoint, strokePointFromPointer, zoomCanvasStateAt } from "../src/features/canvas/input";
-import { alignedTextStartX, flatten, isConnectable, labelBox, textLayout, validReferences } from "../src/operations";
+import { alignedTextStartX, anchorPoint, connectionAnchorsFor, flatten, isConnectable, labelBox, textLayout, validReferences } from "../src/operations";
+import { ALL_FLOWCHART_SHAPES } from "../src/features/diagrams/config";
+import { shapePathData } from "../src/features/shapes/geometry";
 import { drawShapeLabel } from "../src/features/canvas/rendering";
 import { elementBounds, lockAspectResizeBounds } from "../src/features/canvas/bounds";
 import { parseEditablePath, updateEditablePath } from "../src/features/canvas/path-editing";
@@ -469,6 +471,36 @@ spec:
     check(withinBounds && outside === 0, `${type} labels wrap and remain inside their shape after drawing`);
   }
 
+  const connectorShapeSet: ShapeElement[] = [
+    { type: "rectangle", x: 32, y: 25, w: 112, h: 66, color: "#26313b", thickness: 1, edgeStyle: "rounded" },
+    { type: "circle", x: 32, y: 25, w: 112, h: 66, color: "#26313b", thickness: 1 },
+    { type: "diamond", x: 32, y: 25, w: 112, h: 66, color: "#26313b", thickness: 1 },
+    { type: "triangle", x: 32, y: 25, w: 112, h: 66, color: "#26313b", thickness: 1 },
+    ...ALL_FLOWCHART_SHAPES.map(shape => ({ type: "flowchart" as const, x: 32, y: 25, w: 112, h: 66, color: "#26313b", thickness: 1, flowchartShape: shape.value })),
+    { type: "svgPath", x: 32, y: 25, w: 112, h: 66, color: "#26313b", thickness: 1, pathData: "M 0 0 L 100 0 L 50 100 Z", pathWidth: 100, pathHeight: 100 },
+  ];
+  const connectorOutlinesFollowEveryShape = connectorShapeSet.every(shape => {
+    const data = shape.type === "svgPath" ? shape.pathData : shapePathData(shape);
+    if (!data) return false;
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path"); path.setAttribute("d", data);
+    const length = path.getTotalLength(); const anchors = connectionAnchorsFor(shape);
+    if (!Number.isFinite(length) || length <= 0 || anchors.length < 6) return false;
+    const outlinePoints = Array.from({ length: 257 }, (_, index) => {
+      const point = path.getPointAtLength(length * index / 256);
+      return { x: shape.type === "svgPath" ? shape.x + point.x / (shape.pathWidth ?? shape.w) * shape.w : point.x, y: shape.type === "svgPath" ? shape.y + point.y / (shape.pathHeight ?? shape.h) * shape.h : point.y };
+    });
+    return anchors.every(anchor => {
+      const world = anchorPoint(shape, anchor);
+      const nearest = outlinePoints.reduce((distance, point) => Math.min(distance, Math.hypot(world.x - point.x, world.y - point.y)), Infinity);
+      return nearest <= Math.max(1.5, length / 180);
+    });
+  });
+  const diamondAnchors = connectionAnchorsFor(connectorShapeSet[2]);
+  const diamondVerticesAndEdges = [{ x: .5, y: 0 }, { x: .75, y: .25 }, { x: 1, y: .5 }, { x: .75, y: .75 }, { x: .5, y: 1 }, { x: .25, y: .75 }, { x: 0, y: .5 }, { x: .25, y: .25 }].every(expected => diamondAnchors.some(anchor => Math.abs(anchor.x - expected.x) < .002 && Math.abs(anchor.y - expected.y) < .002));
+  const gear = connectorShapeSet.find(shape => shape.type === "flowchart" && shape.flowchartShape === "gear");
+  const gearIgnoresInnerCutout = !!gear && connectionAnchorsFor(gear).every(anchor => Math.hypot(anchor.x - .5, anchor.y - .5) > .25);
+  check(connectorOutlinesFollowEveryShape && diamondVerticesAndEdges && gearIgnoresInnerCutout, "Connector snap points follow built-in and SVG outlines, include diamond vertices and edge centers, and avoid shape cutouts");
+
   await importCheck("Connector routing clears intervening nodes with orthogonal bends", () => {
     const source: ShapeElement = { type: "rectangle", id: "route-source", x: 0, y: 45, w: 60, h: 70, color: "#333", thickness: 1 };
     const obstacle: ShapeElement = { type: "rectangle", id: "route-obstacle", x: 150, y: 40, w: 60, h: 80, color: "#333", thickness: 1 };
@@ -575,9 +607,9 @@ spec:
   const quickStyleButton = quickStyleFixture.querySelector<HTMLElement>(".quick-style-icon")!;
   const quickStyleGlyph = quickStyleButton.querySelector<SVGElement>("svg")!;
   const quickStyleDimensions = { pane: getComputedStyle(quickStyleFixture).width, button: getComputedStyle(quickStyleButton).width, glyph: getComputedStyle(quickStyleGlyph).width };
-  const quickStyleSizePass = quickStyleDimensions.pane === "45px" && quickStyleDimensions.button === "30px" && quickStyleDimensions.glyph === "20px";
+  const quickStyleSizePass = quickStyleDimensions.pane === "54px" && quickStyleDimensions.button === "38px" && quickStyleDimensions.glyph === "20px";
   if (!quickStyleSizePass) console.info("Quick-style size diagnostic:", JSON.stringify(quickStyleDimensions));
-  check(quickStyleSizePass, "Quick-style controls render 25% larger hit targets and legible icons");
+  check(quickStyleSizePass, "Quick-style rail preserves its current touch target and icon dimensions");
   const welcomeFixture = document.createElement("section");
   welcomeFixture.className = "home-screen home-screen-desktop";
   welcomeFixture.innerHTML = `<div class="home-desktop-layout"><section class="home-hero"></section><section class="home-library"></section></div>`;

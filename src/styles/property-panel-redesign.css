@@ -1,32 +1,35 @@
 .component-editor-dock {
     position: absolute;
     z-index: 6;
-    top: 60px;
-    right: 8px;
-    bottom: 52px;
-    display: flex;
+    top: 62px;
+    right: 12px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
+    display: grid;
     box-sizing: border-box;
-    width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 72px));
-    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 72px));
-    flex-direction: column;
+    width: min(var(--component-editor-width, 320px), calc(var(--app-shell-width, 100vw) - 40px));
+    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 40px));
+    max-width: min(640px, calc(var(--app-shell-width, 100vw) - 40px));
+    grid-template-rows: 46px minmax(0, 1fr);
     overflow: hidden;
-    border: 1px solid var(--theme-border);
-    border-radius: 4px;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 84%, var(--theme-text-secondary));
+    border-radius: 12px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
-    box-shadow: none;
+    box-shadow: 0 12px 32px rgb(18 28 42 / 12%);
+    contain: layout paint;
 }
 
 .component-editor-resize-handle {
     position: absolute;
-    z-index: 2;
-    top: 8px;
-    bottom: 8px;
+    z-index: 3;
+    top: 10px;
+    bottom: 10px;
     left: 0;
-    width: 18px;
+    width: 14px;
     padding: 0;
     border: 0;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 13%, transparent), transparent);
+    border-radius: 8px 0 0 8px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 25%, var(--theme-surface-elevated)), color-mix(in srgb, var(--ui-accent) 8%, transparent));
     cursor: ew-resize;
     touch-action: none;
 }
@@ -34,13 +37,12 @@
 .component-editor-resize-handle::after {
     position: absolute;
     top: 50%;
-    left: 7px;
-    width: 4px;
-    height: 42px;
-    border: 1px solid color-mix(in srgb, var(--theme-text-secondary) 38%, var(--theme-border));
+    left: 4px;
+    width: 3px;
+    height: 48px;
+    border: 1px solid color-mix(in srgb, var(--theme-text-secondary) 44%, var(--theme-border));
     border-radius: 4px;
-    background: var(--theme-surface-elevated);
-    box-shadow: 0 1px 3px rgb(20 30 45 / 18%);
+    background: color-mix(in srgb, var(--theme-text-secondary) 25%, var(--theme-surface-elevated));
     content: "";
     transform: translateY(-50%);
 }
@@ -49,13 +51,13 @@
     position: absolute;
     z-index: 1;
     top: 50%;
-    left: 5px;
-    width: 8px;
-    height: 14px;
+    left: 2px;
+    width: 7px;
+    height: 16px;
     border-radius: 3px;
-    background: radial-gradient(circle, var(--theme-text-secondary) 1px, transparent 1.4px) 0 0 / 4px 4px;
+    background: radial-gradient(circle, var(--theme-text-secondary) 1px, transparent 1.4px) 0 0 / 4px 5px;
     content: "";
-    opacity: .8;
+    opacity: .9;
     transform: translateY(-50%);
 }
 
@@ -63,7 +65,7 @@
 .component-editor-resize-handle:focus-visible::after {
     border-color: var(--ui-accent);
     background: var(--ui-accent-soft);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent) 16%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 20%, transparent);
 }
 
 .component-editor-resize-handle:hover::before,
@@ -74,7 +76,7 @@
 
 .component-editor-resize-handle:hover,
 .component-editor-resize-handle:focus-visible {
-    background: linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 22%, transparent), transparent);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 38%, var(--theme-surface-elevated)), color-mix(in srgb, var(--ui-accent) 12%, transparent));
 }
 
 .component-editor-resize-handle:focus-visible {
@@ -85,42 +87,48 @@
 .component-editor-resize-handle.component-editor-resize-right {
     right: 0;
     left: auto;
-    background: linear-gradient(270deg, color-mix(in srgb, var(--ui-accent) 13%, transparent), transparent);
+    border-radius: 0 8px 8px 0;
+    background: linear-gradient(270deg, color-mix(in srgb, var(--ui-accent) 25%, var(--theme-surface-elevated)), color-mix(in srgb, var(--ui-accent) 8%, transparent));
 }
 
 .component-editor-resize-handle.component-editor-resize-right::after {
-    right: 7px;
+    right: 4px;
     left: auto;
 }
 
 .component-editor-resize-handle.component-editor-resize-right::before {
-    right: 5px;
+    right: 2px;
     left: auto;
 }
 
 .component-editor-resize-handle.component-editor-resize-right:hover,
 .component-editor-resize-handle.component-editor-resize-right:focus-visible {
-    background: linear-gradient(270deg, color-mix(in srgb, var(--ui-accent) 22%, transparent), transparent);
+    background: linear-gradient(270deg, color-mix(in srgb, var(--ui-accent) 38%, var(--theme-surface-elevated)), color-mix(in srgb, var(--ui-accent) 12%, transparent));
 }
 
 .component-editor-dock.collapsed {
     top: 50%;
     right: 0;
     bottom: auto;
-    width: 30px;
-    min-width: 30px;
-    height: 34px;
+    width: 42px;
+    min-width: 42px;
+    max-width: 42px;
+    height: 44px;
+    grid-template-rows: minmax(0, 1fr);
+    border-radius: 12px 0 0 12px;
+    transform: translateY(-50%);
 }
 
 .component-editor-heading {
     display: flex;
-    min-height: 30px;
+    min-width: 0;
+    min-height: 45px;
     align-items: center;
     justify-content: space-between;
-    gap: 5px;
+    gap: 8px;
     margin-left: 15px;
-    padding: 2px 0;
-    border: 0;
+    padding: 0 10px 0 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--theme-border) 75%, transparent);
     background: transparent;
 }
 
@@ -142,7 +150,7 @@
     place-items: center;
     padding: 0;
     border: 0;
-    border-radius: 0;
+    border-radius: 7px;
     color: var(--theme-text-secondary);
     background: transparent;
 }
@@ -150,7 +158,7 @@
 .component-editor-heading>button:hover,
 .component-editor-expand:hover {
     color: var(--theme-text-primary);
-    background: transparent;
+    background: var(--theme-surface-hover);
 }
 
 .component-editor-heading svg,
@@ -168,6 +176,15 @@
     width: 100%;
     height: 100%;
     flex: 1;
+    color: var(--theme-text-secondary);
+}
+
+.component-editor-dock.collapsed .component-editor-expand {
+    border-radius: inherit;
+}
+
+.component-editor-dock.collapsed .component-editor-expand:hover {
+    background: var(--theme-surface-hover);
 }
 
 .component-editor-scroll {
@@ -177,12 +194,58 @@
     flex: 1;
     flex-direction: column;
     gap: 5px;
-    overflow: auto;
-    padding: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 6px 8px 9px 16px;
     border: 0;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+.component-editor-dock.resize-edge-right .component-editor-scroll {
+    padding-right: 16px;
+    padding-left: 8px;
+}
+
+.component-editor-scroll,
+.component-editor-scroll :where(*) { box-sizing: border-box; min-width: 0; max-width: 100%; }
+
+@media (max-width: 980px) {
+    .app-shell:not(.platform-windows) .component-editor-dock:not(.collapsed) {
+        top: 58px;
+        right: 8px;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 58px);
+        width: min(var(--component-editor-width, 320px), calc(var(--app-shell-width, 100vw) - 24px));
+        min-width: min(190px, calc(var(--app-shell-width, 100vw) - 24px));
+        max-width: calc(var(--app-shell-width, 100vw) - 24px);
+    }
+
+    .app-shell:not(.platform-windows) .component-editor-dock.collapsed {
+        top: 50%;
+        right: 0;
+        bottom: auto;
+        width: 42px;
+        min-width: 42px;
+        max-width: 42px;
+        height: 44px;
+    }
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+    .component-editor-dock:not(.collapsed) {
+        top: auto;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 120px);
+        max-height: min(42dvh, 250px);
+    }
+
+    .component-editor-dock.collapsed {
+        top: auto;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 120px);
+        transform: none;
+    }
 }
 
 .component-editor-scroll > * { order: 20; }
@@ -190,7 +253,6 @@
 .component-editor-scroll > .geometry-properties { order: 30; }
 .component-editor-scroll > .component-structure-actions { order: 40; }
 .component-editor-scroll > :is(.relationship-properties, .component-navigation-details) { order: 60; }
-.component-editor-scroll > .chart-data-actions { order: 70; }
 .component-editor-scroll > .diagram-source-editor { order: 80; }
 
 .component-editor-scroll .connection-point-editor>p {
@@ -289,7 +351,7 @@
 }
 
 .component-editor-content {
-    gap: 7px;
+    gap: 5px;
 }
 
 .component-editor-content .property-label {
@@ -406,8 +468,7 @@
     flex-wrap: wrap;
 }
 
-.component-editor-content .component-options-editor,
-.component-editor-content .component-chart-data {
+.component-editor-content .component-options-editor {
     min-width: 0;
 }
 
@@ -417,31 +478,6 @@
 
 .component-editor-content .component-option-row {
     min-width: 0;
-}
-
-.component-editor-content .component-chart-row {
-    grid-template-columns: minmax(0, 1fr) 62px 24px;
-    gap: 4px;
-}
-
-.component-editor-content .component-chart-row>input {
-    min-width: 0;
-    padding-inline: 4px;
-}
-
-.component-editor-content .component-chart-axis-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-}
-
-.component-editor-content .component-trend-control>div {
-    gap: 3px;
-}
-
-.component-editor-content .component-trend-control button {
-    min-width: 0;
-    padding-inline: 3px;
-    font-size: var(--type-micro);
 }
 
 .style-pane .quick-style-popover.quick-color-popover {
@@ -476,34 +512,11 @@
     font-size: var(--type-micro);
 }
 
-@media (max-width: 900px) {
-    .app-shell:not(.platform-windows) .component-editor-dock {
-        top: 58px;
-        right: 8px;
-        bottom: calc(env(safe-area-inset-bottom) + 58px);
-        width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 76px));
-        min-width: min(190px, calc(var(--app-shell-width, 100vw) - 76px));
-    }
-
-    .app-shell:not(.platform-windows) .component-editor-dock.collapsed {
-        top: 50%;
-        right: 0;
-        bottom: auto;
-        width: 30px;
-        min-width: 30px;
-    }
-}
-
 /* Note and text cards use the same right dock as modelling components. */
-.component-editor-dock.note-editor-dock {
-    width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 72px));
-    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 72px));
-}
-
 .note-editor-heading {
-    min-height: 30px;
-    gap: 3px;
-    padding: 3px 4px 3px 7px;
+    min-height: 45px;
+    gap: 6px;
+    padding: 0 10px 0 0;
 }
 
 .note-editor-heading strong {
@@ -546,10 +559,6 @@
 
 .note-editor-heading>button.dock-collapse-action {
     margin-left: 2px;
-}
-
-.component-editor-dock.note-editor-dock .component-editor-scroll {
-    padding: 5px 7px 8px;
 }
 
 .note-editor-fields {
@@ -664,11 +673,6 @@
 }
 
 @media (max-width: 900px) {
-    .component-editor-dock.note-editor-dock {
-        width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 76px));
-        min-width: min(190px, calc(var(--app-shell-width, 100vw) - 76px));
-    }
-
     .note-editor-heading>button.note-editor-action {
         width: 28px;
         height: 28px;
@@ -757,7 +761,7 @@
     padding: 5px 0 8px;
 }
 
-.component-editor-dock .component-editor-content :is(section, .component-options-editor, .component-option-list, .component-chart-data, .component-chart-customize, .component-chart-series-list, .component-field-list) {
+.component-editor-dock .component-editor-content :is(section, .component-options-editor, .component-option-list, .component-field-list) {
     border: 0;
     border-radius: 0;
     background: transparent;

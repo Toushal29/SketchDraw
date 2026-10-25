@@ -1,5 +1,5 @@
 import type { ArrowHead, Bounds, CanvasState, EdgeStyle, Element, FreehandElement, Point, Preview, ShapeElement, StrokePoint, StrokeStyle, Tool } from "../../model";
-import { BOX_ANCHORS, anchorPoint, isConnectable, isConnector } from "../../operations";
+import { anchorPoint, connectionAnchorsFor, isConnectable, isConnector } from "../../operations";
 import { elementBounds } from "./bounds";
 import { traceConnector } from "../connectors/geometry";
 import { ElementSpatialIndex, elementSpatialIndex } from "./spatial-index";
@@ -225,10 +225,10 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         const visibleBounds = moved ? { ...bounds, x: bounds.x + drag!.dx, y: bounds.y + drag!.dy } : bounds;
         if (ports.isHidden(item) || ports.isLocked(item) || !ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, visibleBounds)) continue;
         if (item.type === "group") {
-          if (item.componentBounds && (item.libraryComponent || item.container)) {
+          if (item.componentBounds && (item.libraryComponent || item.container || item.masterId)) {
             if (moved) { ctx.save(); ctx.translate(drag!.dx, drag!.dy); }
-            for (const anchor of BOX_ANCHORS) { const point = anchorPoint(item, anchor); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
-            for (const port of item.libraryComponent?.connectionPoints ?? item.container?.connectionPoints ?? []) { const point = anchorPoint(item, port.anchor, undefined, port.id); ctx.beginPath(); ctx.arc(point.x, point.y, 5 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
+            for (const anchor of connectionAnchorsFor(item)) { const point = anchorPoint(item, anchor); ctx.beginPath(); ctx.arc(point.x, point.y, 4 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
+            for (const port of item.connectionPoints ?? item.libraryComponent?.connectionPoints ?? item.container?.connectionPoints ?? []) { const point = anchorPoint(item, port.anchor, undefined, port.id); ctx.beginPath(); ctx.arc(point.x, point.y, 5 / state.zoom, 0, Math.PI * 2); ctx.fill(); }
             if (moved) ctx.restore();
           }
           drawPorts(item.elements); continue;
@@ -236,7 +236,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         if (!isConnectable(item)) continue;
         if (moved) { ctx.save(); ctx.translate(drag!.dx, drag!.dy); }
         const anchors: { anchor: Point; rowId?: string; portId?: string }[] = [
-          ...BOX_ANCHORS.map(anchor => ({ anchor })),
+          ...connectionAnchorsFor(item).map(anchor => ({ anchor })),
           ...(("connectionPoints" in item ? item.connectionPoints : undefined) ?? []).map(port => ({ anchor: port.anchor, portId: port.id })),
           ...(item.type === "schemaTable" ? item.columns.flatMap(column => [{ anchor: { x: 0, y: .5 }, rowId: column.id }, { anchor: { x: 1, y: .5 }, rowId: column.id }]) : []),
         ];

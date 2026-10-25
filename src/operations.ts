@@ -1,5 +1,6 @@
 import type { Binding, ConnectionPoint, Element, GroupElement, ShapeElement, SchemaTableElement, TextElement, Point, Bounds, RelationshipType } from "./model";
 import { schemaTableMetrics } from "./features/diagrams/schema-table-layout";
+import { shapePathData } from "./features/shapes/geometry";
 
 export const isConnector = (element: Element): element is ShapeElement => element.type === "line" || element.type === "arrow";
 export const isLabelShape = (element: Element): element is ShapeElement => element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "svgPath";
@@ -17,6 +18,82 @@ export const DEFAULT_CONNECTION_POINTS: readonly ConnectionPoint[] = [
   { id: "south", name: "South", anchor: { x: .5, y: 1 } },
   { id: "west", name: "West", anchor: { x: 0, y: .5 } },
 ];
+
+const outlineAnchorCache = new WeakMap<ShapeElement, Point[]>();
+const pathTokens = /[A-Za-z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/gi;
+
+function pathEndpoints(path: string): Point[] {
+  const tokens = path.match(pathTokens) ?? [];
+  const endpoints: Point[] = [];
+  let command = ""; let x = 0; let y = 0; let startX = 0; let startY = 0;
+  const parameterCount: Record<string, number> = { M: 2, L: 2, T: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, A: 7 };
+  for (let index = 0; index < tokens.length;) {
+    if (/^[a-z]$/i.test(tokens[index])) {
+      command = tokens[index++];
+      if (command.toUpperCase() === "Z") { x = startX; y = startY; endpoints.push({ x, y }); command = ""; continue; }
+    }
+    if (!command) break;
+    const upper = command.toUpperCase(); const count = parameterCount[upper];
+    if (!count || index + count > tokens.length || tokens.slice(index, index + count).some(token => /^[a-z]$/i.test(token))) break;
+    const values = tokens.slice(index, index + count).map(Number); index += count;
+    if (upper === "H") x = (command === "h" ? x : 0) + values[0];
+    else if (upper === "V") y = (command === "v" ? y : 0) + values[0];
+    else {
+      const offset = command === command.toLowerCase() ? 1 : 0;
+      x = values[count - 2] + (offset ? x : 0); y = values[count - 1] + (offset ? y : 0);
+    }
+    if (upper === "M") { startX = x; startY = y; command = command === "m" ? "l" : "L"; }
+    endpoints.push({ x, y });
+  }
+  return endpoints;
+}
+
+function shapeOutlineAnchors(shape: ShapeElement): Point[] {
+  const cached = outlineAnchorCache.get(shape); if (cached) return cached;
+  const rawPath = shape.type === "svgPath" ? shape.pathData : shapePathData(shape);
+  const path = shape.type === "flowchart" && shape.flowchartShape === "gear" ? rawPath?.split(/\sM\s/, 1)[0] : rawPath;
+  const boxX = Math.min(shape.x, shape.x + shape.w); const boxY = Math.min(shape.y, shape.y + shape.h);
+  const boxW = Math.abs(shape.w); const boxH = Math.abs(shape.h);
+  if (!path || boxW < .001 || boxH < .001) return [...BOX_ANCHORS];
+  const customPath = shape.type === "svgPath";
+  const pathW = customPath ? Math.max(.001, shape.pathWidth ?? boxW) : boxW;
+  const pathH = customPath ? Math.max(.001, shape.pathHeight ?? boxH) : boxH;
+  const normalize = (point: Point): Point => ({
+    x: Math.max(0, Math.min(1, (point.x - (customPath ? 0 : boxX)) / pathW)),
+    y: Math.max(0, Math.min(1, (point.y - (customPath ? 0 : boxY)) / pathH)),
+  });
+  let length = 0;
+  let sampled: Point[] = [];
+  if (typeof document !== "undefined") {
+    try {
+      const svgPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      svgPath.setAttribute("d", path);
+      length = svgPath.getTotalLength();
+      if (Number.isFinite(length) && length > 0) sampled = Array.from({ length: 16 }, (_, index) => {
+        const point = svgPath.getPointAtLength(length * index / 16);
+        return normalize({ x: point.x, y: point.y });
+      });
+    } catch { /* Use the path's command vertices when SVG measurement is unavailable. */ }
+  }
+  const points = [...sampled, ...pathEndpoints(path).map(normalize)];
+  const anchors: Point[] = [];
+  for (const point of points) if (!anchors.some(anchor => Math.abs(anchor.x - point.x) < .002 && Math.abs(anchor.y - point.y) < .002)) anchors.push(point);
+  const result = anchors.length >= 3 ? anchors : [...BOX_ANCHORS];
+  outlineAnchorCache.set(shape, result);
+  return result;
+}
+
+/** Default connector handles follow the visible perimeter of each shape. */
+export function connectionAnchorsFor(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement): Point[] {
+  return shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath"
+    ? shapeOutlineAnchors(shape)
+    : [...BOX_ANCHORS];
+}
+
+function closestOutlineAnchor(shape: ShapeElement, anchor: Point): Point {
+  const outline = shapeOutlineAnchors(shape);
+  return outline.reduce((nearest, point) => Math.hypot(point.x - anchor.x, point.y - anchor.y) < Math.hypot(nearest.x - anchor.x, nearest.y - anchor.y) ? point : nearest, outline[0] ?? anchor);
+}
 
 let textBoundsContext: CanvasRenderingContext2D | null | undefined;
 const textBoxCache = new WeakMap<TextElement, Bounds>();
@@ -65,13 +142,20 @@ export function validReferences(items: Element[]): boolean {
 
 export function connectionPointsFor(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement): ConnectionPoint[] {
   const custom = shape.type === "group" ? shape.connectionPoints ?? shape.libraryComponent?.connectionPoints ?? shape.container?.connectionPoints ?? [] : "connectionPoints" in shape ? shape.connectionPoints ?? [] : [];
-  return [...DEFAULT_CONNECTION_POINTS, ...custom.filter(point => !DEFAULT_CONNECTION_POINTS.some(defaultPort => defaultPort.id === point.id))];
+  const defaults = shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath"
+    ? DEFAULT_CONNECTION_POINTS.map(port => ({ ...port, anchor: closestOutlineAnchor(shape, port.anchor) }))
+    : [...DEFAULT_CONNECTION_POINTS];
+  return [...defaults, ...custom.filter(point => !DEFAULT_CONNECTION_POINTS.some(defaultPort => defaultPort.id === point.id))];
 }
 
 export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement, anchor: Point, rowId?: string, portId?: string): Point {
   const box = shape.type === "group" ? shape.componentBounds! : shape.type === "text" ? textElementBox(shape) : { x: shape.x, y: shape.y, w: shape.w, h: shape.h };
   const cx = box.x + box.w / 2; const cy = box.y + box.h / 2;
-  const normalized = (portId ? connectionPointsFor(shape).find(port => port.id === portId)?.anchor : undefined) ?? anchor;
+  let normalized = (portId ? connectionPointsFor(shape).find(port => port.id === portId)?.anchor : undefined) ?? anchor;
+  if (!portId && (shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath")) {
+    const outline = connectionAnchorsFor(shape);
+    normalized = outline.reduce((nearest, point) => Math.hypot(point.x - anchor.x, point.y - anchor.y) < Math.hypot(nearest.x - anchor.x, nearest.y - anchor.y) ? point : nearest, outline[0] ?? anchor);
+  }
   let x = Math.min(box.x, box.x + box.w) + Math.abs(box.w) * normalized.x;
   const rowIndex = shape.type === "schemaTable" && rowId ? shape.columns.findIndex(column => column.id === rowId) : -1;
   // Use the card's shared metrics so row-bound connectors meet the rendered field center.
@@ -88,7 +172,7 @@ export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextEleme
   return { x: cx + (x - cx) * Math.cos(angle) - (y - cy) * Math.sin(angle), y: cy + (x - cx) * Math.sin(angle) + (y - cy) * Math.cos(angle) };
 }
 
-/** Box corners and edge midpoints keep attachments predictable, including rotated elements. */
+/** Snap to visible outline points and project each stored anchor onto its current target. */
 export function nearestBinding(items: Element[], point: Point, threshold: number, eligible: (item: Element) => boolean = () => true, relationshipType?: RelationshipType): { binding: Binding; point: Point } | undefined {
   let best: { binding: Binding; point: Point; distance: number } | undefined;
   const blockedByTypedPort = (item: ShapeElement | SchemaTableElement | TextElement | GroupElement, anchor: Point) => !!relationshipType && connectionPointsFor(item).some(port => port.accepts?.length && Math.abs(port.anchor.x - anchor.x) < .0001 && Math.abs(port.anchor.y - anchor.y) < .0001 && !port.accepts.includes(relationshipType));
@@ -97,7 +181,7 @@ export function nearestBinding(items: Element[], point: Point, threshold: number
       const item = children[index];
       if (item.hidden || item.locked || !eligible(item)) continue;
       if (item.type === "group") {
-        if (item.componentBounds && (item.libraryComponent || item.masterId) && item.id) for (const anchor of BOX_ANCHORS) {
+        if (item.componentBounds && (item.libraryComponent || item.masterId) && item.id) for (const anchor of connectionAnchorsFor(item)) {
           if (blockedByTypedPort(item, anchor)) continue;
           const port = anchorPoint(item, anchor); const distance = Math.hypot(point.x - port.x, point.y - port.y);
           if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id, anchor }, point: port, distance };
@@ -115,7 +199,7 @@ export function nearestBinding(items: Element[], point: Point, threshold: number
           if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id, anchor, rowId: column.id }, point: port, distance };
         }
       }
-      for (const anchor of BOX_ANCHORS) {
+      for (const anchor of connectionAnchorsFor(item)) {
         if (blockedByTypedPort(item, anchor)) continue;
         const port = anchorPoint(item, anchor); const distance = Math.hypot(point.x - port.x, point.y - port.y);
         if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id, anchor }, point: port, distance };
@@ -246,7 +330,7 @@ export function labelBox(shape: ShapeElement) {
     const centerY = shape.y + shape.h / 2 - fontSize * 1.75 + (shape.label?.offsetY ?? 0);
     return { x: centerX - labelWidth / 2, y: centerY, w: labelWidth, h: Math.max(fontSize * 1.25, lineCount * fontSize * 1.25) };
   }
-  const tapered = shape.type === "diamond" || ["decision", "data", "hexagon", "parallelogram", "trapezoid", "pentagon", "octagon", "chevron", "shield"].includes(shape.flowchartShape ?? "");
+  const tapered = shape.type === "diamond" || ["decision", "data", "preparation", "hexagon", "parallelogram", "trapezoid", "pentagon", "octagon", "chevron", "shield"].includes(shape.flowchartShape ?? "");
   const insetX = Math.min(width / 2, tapered ? Math.min(12, width * .2) : Math.min(12, Math.max(1, width * .08)));
   const insetY = Math.min(height / 2, shape.flowchartShape === "database" ? Math.min(12, height * .22) : Math.min(12, Math.max(1, height * .1)));
   return { x: Math.min(shape.x, shape.x + shape.w) + insetX, y: Math.min(shape.y, shape.y + shape.h) + insetY, w: Math.max(1, Math.abs(shape.w) - insetX * 2), h: Math.max(1, Math.abs(shape.h) - insetY * 2) };

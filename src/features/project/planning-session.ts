@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import type { ProjectWorkspaceData, WindowsSyncMetadata } from "../../model";
-import { displayPathName, isPlanningPath, normalizeFileUri, withPlanningExtension } from "../files/paths";
+import { displayPathName, filePathIdentity, isMissingFileError, isPlanningPath, normalizeFileUri, withPlanningExtension } from "../files/paths";
 import { createProjectWorkspace } from "./project-data";
 import { hasPlanningContent, parsePlanningFile, serializePlanningFile } from "./planning-file";
 import { planningFileStore } from "./planning-file-store";
@@ -34,9 +34,18 @@ export function createPlanningSession(ports: PlanningSessionPorts) {
 
   function remember(filePath: string) {
     filePath = normalizeFileUri(filePath);
-    const updated = [filePath, ...recentPlans().filter(item => normalizeFileUri(item) !== filePath)].slice(0, 100);
+    const identity = filePathIdentity(filePath);
+    const updated = [filePath, ...recentPlans().filter(item => filePathIdentity(item) !== identity)].slice(0, 100);
     setRecentPlans(updated);
     try { localStorage.setItem("sketchdraw-recent-plans", JSON.stringify(updated)); } catch { /* Keep recent plans for this session if browser storage is unavailable. */ }
+  }
+
+  function forget(filePath: string) {
+    const identity = filePathIdentity(filePath);
+    const updated = recentPlans().filter(item => filePathIdentity(item) !== identity);
+    if (updated.length === recentPlans().length) return;
+    setRecentPlans(updated);
+    try { localStorage.setItem("sketchdraw-recent-plans", JSON.stringify(updated)); } catch { /* Keep the current session list clean if browser storage is unavailable. */ }
   }
 
   async function write(filePath: string, project: ProjectWorkspaceData, updateCurrent: boolean): Promise<boolean> {
@@ -126,6 +135,7 @@ export function createPlanningSession(ports: PlanningSessionPorts) {
       ports.setError("");
       return true;
     } catch (cause) {
+      if (isMissingFileError(cause)) forget(filePath);
       ports.setError(`Could not open Planning file: ${String(cause)}`);
       return false;
     } finally { ports.setBusy(false); }

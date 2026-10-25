@@ -7,7 +7,7 @@ export type LineRoute = "straight" | "elbow" | "curve";
 export type StrokeStyle = "solid" | "dashed" | "dotted" | "double";
 export type StrideThreatCategory = "spoofing" | "tampering" | "repudiation" | "information-disclosure" | "denial-of-service" | "elevation-of-privilege";
 export type ArchitectureMetadata = { serviceKey?: string; owner?: string; criticality?: "low" | "medium" | "high" | "critical"; slo?: string; runbook?: string; environment?: string; region?: string; availabilityZone?: string; subnet?: string; cidr?: string; ipAddress?: string };
-export type LayerFlags = { id?: string; hidden?: boolean; locked?: boolean; rotation?: number; aspectLocked?: boolean; layerId?: string; layerName?: string; componentId?: string; componentRole?: string; catalogId?: string; pageLinkId?: string; pageLinkTransition?: PageLinkTransition; projectTaskId?: string; dataBinding?: CanvasDataBinding; masterElementId?: string; strideThreats?: StrideThreatCategory[]; architecture?: ArchitectureMetadata };
+export type LayerFlags = { id?: string; hidden?: boolean; locked?: boolean; rotation?: number; aspectLocked?: boolean; layerId?: string; layerName?: string; componentId?: string; componentRole?: string; catalogId?: string; pageLinkId?: string; prototypeTargetId?: string; pageLinkTransition?: PageLinkTransition; projectTaskId?: string; dataBinding?: CanvasDataBinding; masterElementId?: string; strideThreats?: StrideThreatCategory[]; architecture?: ArchitectureMetadata };
 export type FontFamily = "sans" | "hand" | "serif" | "mono" | "rounded" | "display";
 export type PageLinkTransition = "instant" | "fade" | "slide";
 export type EdgeStyle = "sharp" | "rounded" | "pill" | "cut";
@@ -33,13 +33,26 @@ export type NoteKind = "note" | "sticky" | "checklist";
 export type NoteMetadata = { kind: NoteKind; content: string; title?: string; width?: number; height?: number; fontSize?: number; collapsed?: boolean };
 export type MermaidMetadata = { source: string; format?: "mermaid" | "plantuml" };
 export type LibraryChartKind = "viz-bar" | "viz-horizontal-bar" | "viz-stacked-bar" | "viz-line" | "viz-area" | "viz-scatter" | "viz-pie" | "viz-donut" | "viz-radar" | "viz-gauge" | "viz-funnel" | "viz-heatmap" | "viz-treemap" | "viz-kpi";
-export type LibraryChartSeries = { name: string; values: number[]; chartType?: "bar" | "line" | "area" | "scatter"; axis?: "primary" | "secondary" };
+export type LibraryChartSeries = { name: string; values: number[]; chartType?: "bar" | "line" | "area" | "scatter"; axis?: "primary" | "secondary"; color?: string };
 export type LibraryChartAnnotation = { index: number; label: string; value?: number; axis?: "primary" | "secondary" };
+export type LibraryChartOptions = {
+  palette?: "blue" | "ocean" | "warm" | "violet" | "mono";
+  legend?: "right" | "bottom" | "hidden";
+  showGrid?: boolean;
+  showValues?: boolean;
+  showPoints?: boolean;
+  smooth?: boolean;
+  sort?: "original" | "ascending" | "descending";
+  maxValue?: number;
+  pointSize?: number;
+  lineWidth?: number;
+  categoryColors?: Record<string, string>;
+};
 export type LibraryChartData = {
   labels: string[]; values: number[]; title?: string; xAxisLabel?: string; yAxisLabel?: string; secondaryYAxisLabel?: string;
   series?: LibraryChartSeries[];
   annotations?: LibraryChartAnnotation[];
-  options?: { palette?: "blue" | "ocean" | "warm" | "violet" | "mono"; legend?: "right" | "bottom" | "hidden"; showGrid?: boolean; showValues?: boolean; smooth?: boolean; maxValue?: number; pointSize?: number; lineWidth?: number };
+  options?: LibraryChartOptions;
 };
 export type GuiComponentProperties = {
   title?: string;

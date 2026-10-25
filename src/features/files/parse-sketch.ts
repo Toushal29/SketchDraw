@@ -35,7 +35,7 @@ export function isLibraryChartData(value: unknown): value is LibraryChartData {
   const series = value.series;
   if (series !== undefined && (!Array.isArray(series) || series.length > 8 || !series.every(item => {
     if (!isRecord(item) || typeof item.name !== "string" || item.name.length > 60 || !Array.isArray(item.values) || item.values.length !== labels.length || !item.values.every(number => finite(number) && Math.abs(number) <= 1_000_000_000)) return false;
-    return (item.chartType === undefined || ["bar", "line", "area", "scatter"].includes(String(item.chartType))) && (item.axis === undefined || item.axis === "primary" || item.axis === "secondary");
+    return (item.chartType === undefined || ["bar", "line", "area", "scatter"].includes(String(item.chartType))) && (item.axis === undefined || item.axis === "primary" || item.axis === "secondary") && (item.color === undefined || isColor(item.color));
   }))) return false;
   const annotations = value.annotations;
   if (annotations !== undefined && (!Array.isArray(annotations) || annotations.length > 32 || !annotations.every(item => {
@@ -47,8 +47,10 @@ export function isLibraryChartData(value: unknown): value is LibraryChartData {
     if (!isRecord(options)) return false;
     if (options.palette !== undefined && !["blue", "ocean", "warm", "violet", "mono"].includes(String(options.palette))) return false;
     if (options.legend !== undefined && !["right", "bottom", "hidden"].includes(String(options.legend))) return false;
-    if (!["showGrid", "showValues", "smooth"].every(key => options[key] === undefined || typeof options[key] === "boolean")) return false;
+    if (options.sort !== undefined && !["original", "ascending", "descending"].includes(String(options.sort))) return false;
+    if (!["showGrid", "showValues", "showPoints", "smooth"].every(key => options[key] === undefined || typeof options[key] === "boolean")) return false;
     if (!["maxValue", "pointSize", "lineWidth"].every(key => options[key] === undefined || finite(options[key]) && (key === "maxValue" ? options[key] > 0 && options[key] <= 1_000_000_000 : options[key] >= 1 && options[key] <= 32))) return false;
+    if (options.categoryColors !== undefined && (!isRecord(options.categoryColors) || Object.keys(options.categoryColors).length > 20 || !Object.entries(options.categoryColors).every(([label, color]) => label.length <= 60 && isColor(color)))) return false;
   }
   return true;
 }
@@ -103,6 +105,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     ...(typeof value.componentRole === "string" ? { componentRole: value.componentRole } : {}),
     ...(typeof value.catalogId === "string" && value.catalogId.length <= 100 ? { catalogId: value.catalogId } : {}),
     ...(typeof value.pageLinkId === "string" && value.pageLinkId.length <= 100 ? { pageLinkId: value.pageLinkId } : {}),
+    ...(typeof value.prototypeTargetId === "string" && value.prototypeTargetId.length <= 100 ? { prototypeTargetId: value.prototypeTargetId } : {}),
     ...(typeof value.projectTaskId === "string" && /^[\w.-]{1,100}$/.test(value.projectTaskId) ? { projectTaskId: value.projectTaskId } : {}),
     ...(dataBinding ? { dataBinding } : {}),
     ...(typeof value.masterElementId === "string" && value.masterElementId.length <= 100 ? { masterElementId: value.masterElementId } : {}),
@@ -130,7 +133,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const rawChartData = rawComponent && isRecord(rawComponent.chartData) ? rawComponent.chartData : undefined;
     const chartLabelsValid = rawChartData && Array.isArray(rawChartData.labels) && rawChartData.labels.length > 0 && rawChartData.labels.length <= 20 && rawChartData.labels.every(label => typeof label === "string" && label.length <= 60);
     const chartSeries = rawChartData && Array.isArray(rawChartData.series) && rawChartData.series.length <= 8 && rawChartData.series.every(series => isRecord(series) && typeof series.name === "string" && series.name.length <= 60 && Array.isArray(series.values) && series.values.length === (Array.isArray(rawChartData.labels) ? rawChartData.labels.length : -1) && series.values.every(number => finite(number) && Math.abs(number) <= 1_000_000_000)
-      && (series.chartType === undefined || ["bar", "line", "area", "scatter"].includes(String(series.chartType))) && (series.axis === undefined || series.axis === "primary" || series.axis === "secondary"))
+      && (series.chartType === undefined || ["bar", "line", "area", "scatter"].includes(String(series.chartType))) && (series.axis === undefined || series.axis === "primary" || series.axis === "secondary") && (series.color === undefined || isColor(series.color)))
       ? rawChartData.series as LibraryChartData["series"] : undefined;
     const chartAnnotations = rawChartData && Array.isArray(rawChartData.annotations) && rawChartData.annotations.length <= 32 && rawChartData.annotations.every(annotation => isRecord(annotation) && finite(annotation.index) && Number.isInteger(annotation.index) && annotation.index >= 0 && annotation.index < (Array.isArray(rawChartData.labels) ? rawChartData.labels.length : 0) && typeof annotation.label === "string" && annotation.label.length <= 80 && (annotation.value === undefined || finite(annotation.value) && Math.abs(annotation.value) <= 1_000_000_000) && (annotation.axis === undefined || annotation.axis === "primary" || annotation.axis === "secondary"))
       ? rawChartData.annotations as LibraryChartData["annotations"] : undefined;
@@ -138,9 +141,11 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const chartOptions: LibraryChartData["options"] | undefined = rawChartOptions
       && (rawChartOptions.palette === undefined || ["blue", "ocean", "warm", "violet", "mono"].includes(String(rawChartOptions.palette)))
       && (rawChartOptions.legend === undefined || ["right", "bottom", "hidden"].includes(String(rawChartOptions.legend)))
-      && ["showGrid", "showValues", "smooth"].every(key => rawChartOptions[key] === undefined || typeof rawChartOptions[key] === "boolean")
+      && (rawChartOptions.sort === undefined || ["original", "ascending", "descending"].includes(String(rawChartOptions.sort)))
+      && ["showGrid", "showValues", "showPoints", "smooth"].every(key => rawChartOptions[key] === undefined || typeof rawChartOptions[key] === "boolean")
       && ["maxValue", "pointSize", "lineWidth"].every(key => rawChartOptions[key] === undefined || finite(rawChartOptions[key]) && (key === "maxValue" ? rawChartOptions[key] > 0 && rawChartOptions[key] <= 1_000_000_000 : rawChartOptions[key] >= 1 && rawChartOptions[key] <= 32))
-      ? { ...(rawChartOptions.palette ? { palette: rawChartOptions.palette as NonNullable<LibraryChartData["options"]>["palette"] } : {}), ...(rawChartOptions.legend ? { legend: rawChartOptions.legend as NonNullable<LibraryChartData["options"]>["legend"] } : {}), ...(typeof rawChartOptions.showGrid === "boolean" ? { showGrid: rawChartOptions.showGrid } : {}), ...(typeof rawChartOptions.showValues === "boolean" ? { showValues: rawChartOptions.showValues } : {}), ...(typeof rawChartOptions.smooth === "boolean" ? { smooth: rawChartOptions.smooth } : {}), ...(finite(rawChartOptions.maxValue) ? { maxValue: rawChartOptions.maxValue } : {}), ...(finite(rawChartOptions.pointSize) ? { pointSize: rawChartOptions.pointSize } : {}), ...(finite(rawChartOptions.lineWidth) ? { lineWidth: rawChartOptions.lineWidth } : {}) } : undefined;
+      && (rawChartOptions.categoryColors === undefined || isRecord(rawChartOptions.categoryColors) && Object.keys(rawChartOptions.categoryColors).length <= 20 && Object.entries(rawChartOptions.categoryColors).every(([label, color]) => label.length <= 60 && isColor(color)))
+      ? { ...(rawChartOptions.palette ? { palette: rawChartOptions.palette as NonNullable<LibraryChartData["options"]>["palette"] } : {}), ...(rawChartOptions.legend ? { legend: rawChartOptions.legend as NonNullable<LibraryChartData["options"]>["legend"] } : {}), ...(rawChartOptions.sort ? { sort: rawChartOptions.sort as NonNullable<LibraryChartData["options"]>["sort"] } : {}), ...(typeof rawChartOptions.showGrid === "boolean" ? { showGrid: rawChartOptions.showGrid } : {}), ...(typeof rawChartOptions.showValues === "boolean" ? { showValues: rawChartOptions.showValues } : {}), ...(typeof rawChartOptions.showPoints === "boolean" ? { showPoints: rawChartOptions.showPoints } : {}), ...(typeof rawChartOptions.smooth === "boolean" ? { smooth: rawChartOptions.smooth } : {}), ...(finite(rawChartOptions.maxValue) ? { maxValue: rawChartOptions.maxValue } : {}), ...(finite(rawChartOptions.pointSize) ? { pointSize: rawChartOptions.pointSize } : {}), ...(finite(rawChartOptions.lineWidth) ? { lineWidth: rawChartOptions.lineWidth } : {}), ...(isRecord(rawChartOptions.categoryColors) ? { categoryColors: rawChartOptions.categoryColors as Record<string, string> } : {}) } : undefined;
     const chartData: LibraryChartData | undefined = rawChartData && chartLabelsValid && Array.isArray(rawChartData.values)
       && (rawChartData.labels as string[]).length > 0 && (rawChartData.labels as string[]).length <= 20 && rawChartData.values.length === (rawChartData.labels as string[]).length
       && rawChartData.values.every(number => finite(number) && Math.abs(number) <= 1_000_000_000)

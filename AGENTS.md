@@ -2,7 +2,7 @@
 
 This file is the project-specific working guide for AI coding agents. Read it before changing source files. Keep it current when the project's purpose or working rules change.
 
-- SketchDraw is a local-first canvas drawing and diagramming app. Keep drawing and simple diagrams approachable; mobile keeps advanced tools collapsed. Live collaboration is out of scope.
+- SketchDraw is a local-first, desktop-first canvas app for Windows, macOS, and Linux. The Android APK is a lightweight companion: preserve compatible files and similar core workflows across platforms, while prioritizing responsive canvas drawing, note-taking, and simple diagrams on Android. Keep advanced mobile tools collapsed. Live collaboration is out of scope.
 - Preserve unrelated work and existing `.sketch` data. Inspect shared geometry, rendering, input, and export paths together before changing canvas behavior.
 - Prefer small fixes and existing helpers. Keep platform styles in their owning folders and follow `src/platform/AGENTS.md` for platform-specific code.
 - Keep README.md current when user-visible behavior changes.
@@ -12,9 +12,9 @@ This file is the project-specific working guide for AI coding agents. Read it be
 
 ## Project scope
 
-SketchDraw is a local-first drawing and diagramming application. Its primary work happens on a canvas: sketching, general diagrams, software and cloud architecture, network diagrams, BPMN, and related modeling. Sketch files should remain portable and backward-compatible where practical.
+SketchDraw is a local-first, desktop-first drawing and design application for Windows, macOS, and Linux. Its primary work happens on a canvas: sketching, general diagrams, software and cloud architecture, network diagrams, BPMN, and related modeling. The Android APK is a lightweight side app that should still support similar core workflows and compatible documents, while focusing on responsive, approachable canvas drawing, note-taking, and simple diagrams. Keep sketch files portable and backward-compatible where practical.
 
-Keep the everyday interface approachable for drawing and simple diagramming. Mobile and tablet layouts should show basic tools first and keep advanced controls collapsed. There is no live collaboration feature or planned live-collaboration scope.
+Keep the desktop products as the primary platforms across Windows, macOS, and Linux. Keep the Android APK lightweight and optimized for simple canvas drawing, note-taking, and approachable diagramming. Android should continue to open and save compatible documents and support similar core work, with advanced controls available but collapsed so they do not crowd the everyday touch interface. There is no live collaboration feature or planned live-collaboration scope.
 
 ## Working rules
 
@@ -64,7 +64,7 @@ This guide is the short map for coding agents working in SketchDraw. Read it wit
 
 ## Product scope
 
-SketchDraw is a local-first drawing and diagramming app for Windows and Android. Its canvas supports freehand sketching, general diagrams, software and cloud architecture, network diagrams, BPMN, and related modeling. Canvas documents use the portable `.sketch` format; separate Planning files use `.sdplan`. Keep the everyday interface simple, keep advanced mobile tools collapsed, and preserve compatibility with existing files. Live collaboration is out of scope.
+SketchDraw is a local-first, desktop-first drawing and design app for Windows, macOS, and Linux, with a lightweight Android APK companion. Its canvas supports freehand sketching, general diagrams, software and cloud architecture, network diagrams, BPMN, and related modeling. Canvas documents use the portable `.sketch` format; separate Planning files use `.sdplan`. Android should keep compatible files and similar core workflows while prioritizing responsive drawing, note-taking, and simple diagrams; keep advanced mobile tools available but collapsed. Live collaboration is out of scope.
 
 ## Issue labels
 
