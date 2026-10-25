@@ -44,6 +44,17 @@ export class SceneTileCache {
     // Keep cached detail close to the screen's physical pixel scale to avoid
     // interpolation blur at 100% zoom and nearby zoom levels.
     const scale = Math.max(.75, Math.min(MAX_CACHED_TILE_SCALE, Math.round(physicalScale * 8) / 8));
+    // At exact canvas zoom, redraw vectors when a raster tile would need any
+    // fractional scaling or translation on the device pixel grid.
+    if (Math.abs(zoom - 1) < 1e-8) {
+      const transform = context.getTransform();
+      const aligned = Math.abs(transform.a - scale) < 1e-6 && Math.abs(transform.d - scale) < 1e-6
+        && Math.abs(transform.b) < 1e-8 && Math.abs(transform.c) < 1e-8
+        && Math.abs(transform.e - Math.round(transform.e)) < 1e-6 && Math.abs(transform.f - Math.round(transform.f)) < 1e-6
+        && Math.abs(physicalScale - scale) < 1e-6
+        && Math.abs((TILE_SIZE + TILE_BLEED * 2) * scale - Math.round((TILE_SIZE + TILE_BLEED * 2) * scale)) < 1e-6;
+      if (!aligned) return false;
+    }
     this.sync(elements, spatialIndex, renderKey);
 
     const left = Math.floor(viewport.x / TILE_SIZE);

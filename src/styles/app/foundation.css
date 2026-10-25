@@ -4,7 +4,6 @@
     background: var(--theme-surface);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
 }
 
 * {
