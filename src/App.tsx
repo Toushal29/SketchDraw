@@ -11,7 +11,7 @@ import "/src/styles/app/web-preview.css";
 import type { PdfRasterPage } from "./features/export/pdf-renderer";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
-import { SKETCH_FORMAT_VERSION } from "./model";
+import { SKETCH_CLIPBOARD_VERSION, SKETCH_FORMAT_VERSION } from "./model";
 import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, ToolbarItem, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipType, RelationshipDirection, ConnectionPoint, CanvasLayer, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition } from "./model";
 import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox, alignedTextStartX, reattachDanglingConnectors } from "./operations";
 import type { NoteKind } from "./model";
@@ -958,12 +958,12 @@ function App() {
       setError(`Could not optimize connector routes: ${String(cause)}`);
     }
   }
-  function clipboardPayload() { return JSON.stringify({ format: "SketchDrawClipboard", version: SKETCH_FORMAT_VERSION, elements: copyElements(selectedElements(), 0, 0) }); }
+  function clipboardPayload() { return JSON.stringify({ format: "SketchDrawClipboard", version: SKETCH_CLIPBOARD_VERSION, elements: copyElements(selectedElements(), 0, 0) }); }
   function pastePayload(raw: string, at?: Point) {
     if (!activePath() || boardLocked()) return;
     try {
       const payload: unknown = JSON.parse(raw);
-      if (!isRecord(payload) || payload.format !== "SketchDrawClipboard" || ![6, SKETCH_FORMAT_VERSION].includes(Number(payload.version)) || !Array.isArray(payload.elements)) throw new Error("Copy objects from this version of SketchDraw first.");
+      if (!isRecord(payload) || payload.format !== "SketchDrawClipboard" || ![6, SKETCH_CLIPBOARD_VERSION].includes(Number(payload.version)) || !Array.isArray(payload.elements)) throw new Error("Copy objects from this version of SketchDraw first.");
       const items = payload.elements.map(normalizeElement);
       if (!items.length || items.some(item => !item) || !validReferences(items as Element[])) throw new Error("The clipboard objects are invalid.");
       insertCopies(items as Element[], at);
@@ -4266,19 +4266,18 @@ function App() {
     }) }));
     const migratedNotes = planningSession.importLegacyFromSketch({
       path,
-      project: snapshot.project,
       quickNotes: snapshot.library?.quickNotes ?? [],
     });
     const planningCleanSync = planningSession.removeLegacySyncMetadata(snapshot.windowsSync);
     const library = snapshot.library ? { ...snapshot.library, quickNotes: [] } : snapshot.library;
-    const migratedSnapshot = { ...snapshot, pages, project: undefined, windowsSync: planningCleanSync, ...(library ? { library } : {}) };
+    const migratedSnapshot = { ...snapshot, pages, windowsSync: planningCleanSync, ...(library ? { library } : {}) };
     const syncMeta = documentSnapshotCoordinator.initializeMetadata(migratedSnapshot, planningCleanSync ?? createWindowsSyncMetadata());
     const preparedSnapshot = { ...migratedSnapshot, windowsSync: syncMeta };
     const currentPage = documentSession.activate(preparedSnapshot, path, nextWorkspace);
     setElements(currentPage.elements); setCanvasState({ ...currentPage.canvasState });
     setBoardColor(currentPage.canvasState.backgroundColor); setBoardColorFollowsTheme(currentPage.canvasState.boardColorFollowsTheme ?? false);
     documentSnapshotCoordinator.seed(preparedSnapshot);
-    rememberFile(path); setDirty(!snapshot.windowsSync || migratedNotes || upgradedComponents || !!snapshot.project); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); docController.setBaselineRaw(rawText);
+    rememberFile(path); setDirty(!snapshot.windowsSync || migratedNotes || upgradedComponents); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false); docController.setBaselineRaw(rawText);
     setError("");
   }
 

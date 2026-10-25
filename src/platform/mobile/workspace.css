@@ -35,12 +35,13 @@
         right: max(8px, env(safe-area-inset-right));
         bottom: auto;
         left: max(56px, calc(env(safe-area-inset-left) + 50px));
-        width: auto;
-        max-width: none;
+        box-sizing: border-box;
+        width: min(280px, calc(100vw - 122px));
+        max-width: min(280px, calc(100vw - 122px));
         min-width: 0;
-        min-height: 40px;
-        gap: 3px;
-        padding: 3px 4px;
+        min-height: 32px;
+        gap: 1px;
+        padding: 2px;
         overflow: hidden;
         border-radius: 12px;
     }
@@ -54,9 +55,9 @@
         touch-action: pan-x;
     }
     .app-shell:not(.platform-windows) .page-tab-list::-webkit-scrollbar { display: none; }
-    .app-shell:not(.platform-windows) .page-tab { max-width: min(148px, 27vw); height: 32px; padding: 0 7px; font-size: var(--type-micro); }
+    .app-shell:not(.platform-windows) .page-tab { max-width: min(92px, 21vw); height: 27px; padding: 0 5px; font-size: var(--type-micro); }
     .app-shell:not(.platform-windows) .page-tabs > button,
-    .app-shell:not(.platform-windows) .page-menu > summary { box-sizing: border-box; min-width: 32px; min-height: 32px; padding: 4px 7px; }
+    .app-shell:not(.platform-windows) .page-menu > summary { box-sizing: border-box; min-width: 26px; min-height: 27px; padding: 2px 4px; }
     .app-shell:not(.platform-windows) .page-actions {
         position: fixed;
         z-index: 70;
@@ -68,38 +69,8 @@
         overflow-y: auto;
     }
 
-    .app-shell:not(.platform-windows) .canvas-zoom-reset {
-        z-index: 13;
-        top: 54px;
-        right: max(8px, env(safe-area-inset-right));
-        bottom: auto;
-        left: auto;
-        min-height: 34px;
-        height: 34px;
-        padding: 0 9px;
-        transform: none;
-        border-radius: 10px;
-    }
     .app-shell:not(.platform-windows) .canvas-zoom-reset svg { width: 14px; height: 14px; }
 
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode {
-        z-index: 28;
-        top: auto;
-        right: max(8px, env(safe-area-inset-right));
-        bottom: max(8px, env(safe-area-inset-bottom));
-        left: max(56px, calc(env(safe-area-inset-left) + 50px));
-        box-sizing: border-box;
-        display: block;
-        width: auto;
-        height: 52px;
-        min-height: 52px;
-        max-height: 52px;
-        padding: 5px 7px;
-        overflow: visible;
-        border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 13%, transparent);
-        border-radius: 14px;
-        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-surface-elevated)) 96%, transparent);
-    }
     .app-shell:not(.platform-windows) .style-pane.quick-style-mode > .quick-style-panel {
         display: flex;
         width: 100%;
@@ -174,76 +145,20 @@
         gap: 3px;
         padding: 2px;
     }
-    .app-shell:not(.platform-windows) .style-pane .quick-style-popover {
-        position: fixed;
-        z-index: 50;
-        top: auto;
-        right: max(8px, env(safe-area-inset-right));
-        bottom: calc(max(8px, env(safe-area-inset-bottom)) + 60px);
-        left: max(56px, calc(env(safe-area-inset-left) + 50px));
-        width: auto;
-        max-width: none;
-        max-height: min(48dvh, 390px);
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        -webkit-overflow-scrolling: touch;
-        transform: none;
-    }
     .app-shell:not(.platform-windows) .floating-layer-panel {
-        z-index: 30;
-        right: max(8px, env(safe-area-inset-right));
-        bottom: calc(max(8px, env(safe-area-inset-bottom)) + 60px);
-        left: max(56px, calc(env(safe-area-inset-left) + 50px));
-        width: auto;
-        max-height: min(52dvh, 440px);
         overflow-y: auto;
         overscroll-behavior: contain;
     }
 
-    .app-shell:not(.platform-windows) .help-backdrop { padding: 8px; }
-    .app-shell:not(.platform-windows) .help-dialog {
-        box-sizing: border-box;
-        width: min(760px, calc(100vw - 16px));
-        max-width: none;
-        max-height: calc(100dvh - 16px);
-        padding: 13px 14px 10px;
-        overflow: hidden;
-    }
-    .app-shell:not(.platform-windows) .help-dialog > header { flex: 0 0 auto; gap: 8px; padding-bottom: 9px; }
-    .app-shell:not(.platform-windows) .help-dialog h2 { font-size: var(--type-title); }
-    .app-shell:not(.platform-windows) .help-content {
-        display: block;
-        min-height: 0;
-        flex: 1 1 auto;
-        padding: 9px 1px;
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        -webkit-overflow-scrolling: touch;
-    }
-    .app-shell:not(.platform-windows) .help-guide { grid-template-columns: minmax(0, 1fr); gap: 7px; }
-    .app-shell:not(.platform-windows) .help-guide > section { padding: 10px; }
-    .app-shell:not(.platform-windows) .help-guide h3,
-    .app-shell:not(.platform-windows) .help-shortcuts-section h3 { font-size: var(--type-control); }
-    .app-shell:not(.platform-windows) .help-guide p,
-    .app-shell:not(.platform-windows) .help-shortcuts-section > p { font-size: var(--type-caption); }
     .app-shell:not(.platform-windows) .touch-guide-section { display: block; }
-    .app-shell:not(.platform-windows) .shortcut-table {
-        display: block;
-        width: max-content;
-        min-width: 100%;
-        max-width: 100%;
-        overflow-x: auto;
-        white-space: nowrap;
-    }
-    .app-shell:not(.platform-windows) .help-dialog > footer { flex: 0 0 auto; gap: 8px; padding-top: 8px; font-size: var(--type-micro); }
-    .app-shell:not(.platform-windows) .help-dialog > footer .save-button { min-height: 34px; padding: 6px 12px; }
-    .app-shell.theme-dark:not(.platform-windows) .style-pane .quick-style-heading button { border-color: var(--theme-border); }
+}
+
+@media (max-width: 560px) {
+    .app-shell:not(.platform-windows) .page-tabs { width: min(236px, calc(100vw - 122px)); max-width: min(236px, calc(100vw - 122px)); }
+    .app-shell:not(.platform-windows) .page-tab { max-width: min(78px, 22vw); }
 }
 
 @media (max-height: 540px) and (max-width: 900px), (max-height: 540px) and (max-width: 1600px) and (pointer: coarse) {
-    .app-shell:not(.platform-windows) .style-pane .quick-style-popover { max-height: calc(100dvh - 112px); }
     .app-shell:not(.platform-windows) .help-dialog { max-height: calc(100dvh - 12px); padding-top: 8px; }
     .app-shell:not(.platform-windows) .help-guide > section { padding: 8px 9px; }
 }

@@ -38,8 +38,8 @@ export function clearRetiredLibraryData(library: PersonalLibraryData): PersonalL
   return { ...library, studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] };
 }
 
-export function normalizeLegacyLibraryData(value: unknown, legacyProject?: unknown): PersonalLibraryData | undefined {
-  const source = isRecord(value) ? value : isRecord(legacyProject) ? legacyProject : undefined;
+export function normalizeLegacyLibraryData(value: unknown): PersonalLibraryData | undefined {
+  const source = isRecord(value) ? value : undefined;
   if (!source) return value === undefined ? createLegacyLibraryData() : undefined;
   const records = (key: string) => source[key] ?? [];
   const quickNoteValues = records("quickNotes");

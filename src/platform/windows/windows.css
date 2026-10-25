@@ -20,7 +20,7 @@
 }
 
 .platform-windows .tool-deck .tool-cluster+.tool-cluster,
-.platform-windows .tool-deck .paint-brush-family,
+.platform-windows .tool-deck .paint-brushes-family,
 .platform-windows .tool-deck .stencil-family,
 .platform-windows .tool-deck .touch-style-open {
     margin-left: 3px;
@@ -111,7 +111,7 @@
     order: 1;
 }
 
-.platform-windows .paint-brush-family {
+.platform-windows .paint-brushes-family {
     order: 2;
 }
 

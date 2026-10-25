@@ -1,18 +1,6 @@
 /* Mobile-only page and property panel adjustments. */
 .app-shell:not(.platform-windows) .mobile-advanced-properties { display: none; }
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell:not(.platform-windows) .page-tabs {
-        box-sizing: border-box;
-        width: min(280px, calc(100vw - 122px));
-        max-width: min(280px, calc(100vw - 122px));
-        min-height: 32px;
-        gap: 1px;
-        padding: 2px;
-    }
-    .app-shell:not(.platform-windows) .page-tab { max-width: min(92px, 21vw); height: 27px; padding: 0 5px; font-size: var(--type-micro); }
-    .app-shell:not(.platform-windows) .page-tabs > button,
-    .app-shell:not(.platform-windows) .page-menu > summary { min-width: 26px; min-height: 27px; padding: 2px 4px; }
-
     .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-collapsed {
         top: 8px;
         right: 8px;
@@ -101,10 +89,8 @@
     .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-controls {
         display: flex;
         min-width: 0;
-        max-height: calc(min(46dvh, 300px) - 12px);
         flex: 1 1 auto;
         flex-wrap: wrap;
-        align-content: flex-start;
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior: contain;
@@ -128,11 +114,6 @@
         background: var(--theme-surface-elevated);
     }
 }
-@media (max-width: 560px) {
-    .app-shell:not(.platform-windows) .page-tabs { width: min(236px, calc(100vw - 122px)); max-width: min(236px, calc(100vw - 122px)); }
-    .app-shell:not(.platform-windows) .page-tab { max-width: min(78px, 22vw); }
-}
-
 .app-shell .style-pane.quick-style-idle-hidden { display: none !important; visibility: hidden; pointer-events: none; }
 
 /* Keep the component editor dock out of the touch header and tool rail lanes. */

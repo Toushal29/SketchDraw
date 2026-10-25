@@ -373,7 +373,9 @@
     align-items: center;
     gap: 6px;
     padding: 3px 7px;
+    border: 1px solid var(--theme-border);
     border-radius: 11px;
+    background-color: var(--toolbar-surface, var(--theme-surface-elevated));
   }
 
   .app-shell:not(.platform-windows) .touch-quick-style-dock .touch-quick-style-controls {
@@ -543,10 +545,6 @@
     max-width: calc(100vw - 64px);
   }
 
-  .app-shell:not(.platform-windows) .touch-style-panel {
-    z-index: 2000;
-  }
-
   .app-shell:not(.platform-windows) .style-pane:not(.full-style-mode) {
     display: none;
   }
@@ -555,8 +553,7 @@
 @media (max-width: 900px),
 (max-width: 1600px) and (pointer: coarse) {
 
-  .app-shell.theme-dark:not(.platform-windows) .touch-tool-bar,
-  .app-shell.theme-dark:not(.platform-windows) .touch-quick-style-dock {
+  .app-shell.theme-dark:not(.platform-windows) .touch-tool-bar {
     border-color: var(--theme-border);
   }
 

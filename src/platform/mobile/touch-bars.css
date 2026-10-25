@@ -48,7 +48,6 @@
     .app-shell:not(.platform-windows) .mobile-command-actions { display: contents; }
     .app-shell:not(.platform-windows) .mobile-file-trigger { grid-area: file; }
     .app-shell:not(.platform-windows) .mobile-settings-trigger { grid-area: settings; }
-    .app-shell:not(.platform-windows) .mobile-command-trigger { width: 32px; min-width: 32px; height: 32px; padding: 0; }
     .app-shell:not(.platform-windows) .mobile-command-trigger span { display: none; }
     .app-shell:not(.platform-windows) .mobile-header-status { grid-area: status; display: flex; min-width: 0; align-items: center; justify-content: center; }
     .app-shell:not(.platform-windows) .mobile-header-status .save-status { box-sizing: border-box; display: grid; width: 22px; min-width: 22px; height: 22px; min-height: 22px; place-items: center; padding: 2px; }
@@ -153,17 +152,6 @@
         max-height: calc(100dvh - 16px);
     }
 
-    .app-shell:not(.platform-windows) .touch-tool-reopen {
-        position: fixed;
-        z-index: 1400;
-        display: grid;
-        width: 34px;
-        height: 34px;
-        place-items: center;
-        padding: 0;
-        border-radius: 9px;
-    }
-    .app-shell:not(.platform-windows) .touch-tool-reopen svg { width: 18px; height: 18px; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .canvas-zoom-reset { top: auto; right: max(10px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); left: auto; transform: none; }
     .app-shell.mobile-toolbar-top:not(.mobile-orientation-portrait):not(.platform-windows) .canvas-zoom-reset { top: calc(var(--touch-header-height) + var(--touch-toolbar-top-offset) + var(--mobile-horizontal-toolbar-height) + 8px); right: max(10px, env(safe-area-inset-right)); bottom: auto; left: auto; transform: none; }
     .app-shell.mobile-toolbar-bottom:not(.platform-windows) .canvas-zoom-reset { top: auto; right: max(10px, env(safe-area-inset-right)); bottom: calc(var(--mobile-horizontal-toolbar-height) + max(12px, env(safe-area-inset-bottom))); left: auto; transform: none; }

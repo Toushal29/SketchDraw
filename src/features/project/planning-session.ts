@@ -204,26 +204,16 @@ export function createPlanningSession(ports: PlanningSessionPorts) {
     setNeedsExtraction(true);
   }
 
-  function importLegacyFromSketch({ path: sketchPath, project, quickNotes }: {
+  function importLegacyFromSketch({ path: sketchPath, quickNotes }: {
     path: string;
-    project?: ProjectWorkspaceData;
     quickNotes: ProjectWorkspaceData["notes"];
   }): boolean {
     const sketchName = ports.displayNameForPath(sketchPath).replace(/\.sketch$/i, "");
-    const existingProject = project ?? (quickNotes.length
-      ? createProjectWorkspace(sketchName)
-      : undefined);
-    const mergedNotes = existingProject ? [...existingProject.notes] : [];
-    const knownNoteIds = new Set(mergedNotes.map(note => note.id));
-    for (const note of quickNotes) {
-      if (knownNoteIds.has(note.id)) continue;
-      mergedNotes.push(note);
-      knownNoteIds.add(note.id);
-    }
-    const migratedNotes = mergedNotes.length !== (project?.notes.length ?? 0);
-    if (existingProject && hasPlanningContent(existingProject, [sketchName, "Untitled project"])) legacySourcePath = normalizeFileUri(sketchPath);
-    importLegacy(existingProject && migratedNotes ? { ...existingProject, notes: mergedNotes } : existingProject, [sketchName, "Untitled project"]);
-    return migratedNotes;
+    if (!quickNotes.length) return false;
+    const project = { ...createProjectWorkspace(sketchName), notes: quickNotes };
+    if (hasPlanningContent(project, [sketchName, "Untitled project"])) legacySourcePath = normalizeFileUri(sketchPath);
+    importLegacy(project, [sketchName, "Untitled project"]);
+    return true;
   }
 
   function discardLegacyFromSketch(sketchPath: string) {

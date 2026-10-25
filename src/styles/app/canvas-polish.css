@@ -17,9 +17,7 @@
 
 .menu-dropdown>summary:hover,
 .menu-dropdown[open]>summary {
-    border-color: var(--theme-border);
     color: var(--theme-text-secondary);
-    background: var(--theme-surface-elevated);
 }
 
 .tool-deck {
@@ -68,17 +66,6 @@
     outline-offset: 2px;
 }
 
-.style-pane.quick-style-mode {
-    border-color: var(--theme-border);
-    background-color: var(--theme-surface-elevated);
-    background: color-mix(in srgb, var(--theme-surface-elevated) 96.50%, transparent);
-}
-
-.style-pane .quick-style-icon {
-    border-radius: 100%;
-    background: var(--theme-surface-input);
-}
-
 /* Keep toolbar sizing beside the chrome it belongs to. */
 .tool-icon-button svg:not(.tool-family-caret) {
     width: 19px;
@@ -87,7 +74,6 @@
 
 .tool-icon-button kbd {
     font-size: var(--font-size-micro);
-    line-height: var(--leading-icon);
 }
 
 .tool-family {
@@ -97,12 +83,6 @@
 .canvas-utility-button {
     width: 38px;
     min-width: 38px;
-}
-
-.canvas-options-trigger {
-    width: 36px;
-    height: 36px;
-    border-radius: 9px;
 }
 
 .tool-collapse,

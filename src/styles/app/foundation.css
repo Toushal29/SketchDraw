@@ -68,8 +68,6 @@ h6 {
 }
 
 .app-shell {
-    width: 100%;
-    height: 100%;
     min-width: 0;
     min-height: 0;
     display: flex;
@@ -86,14 +84,15 @@ h6 {
     position: relative;
     z-index: 1300;
     min-width: 0;
-    gap: 10px;
-    height: 66px;
-    flex: 0 0 66px;
+    gap: 6px;
+    height: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
     border-bottom: 1px solid var(--theme-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 34px;
+    padding: 0 12px;
 }
 
 .brand,
@@ -215,16 +214,10 @@ h6 {
 }
 
 .save-status {
-    display: flex;
-    align-items: center;
-    gap: 7px;
     margin-right: 7px;
-    font-size: var(--type-caption);
 }
 
 .save-status i {
-    width: 6px;
-    height: 6px;
     border-radius: 50%;
     background: var(--theme-success-muted);
 }
@@ -323,30 +316,19 @@ h1 em {
 
 .tool-deck {
     position: absolute;
-    z-index: 4;
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 4px;
-    padding: 6px;
-    border-radius: 12px;
 }
 
 .tool-icon-button {
     position: relative;
-    display: grid;
-    place-items: center;
-    width: 39px;
-    height: 38px;
     padding: 0;
-    border-radius: 8px;
     background: transparent;
 }
 
 .tool-icon-button svg {
-    width: 20px;
-    height: 20px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -361,11 +343,6 @@ h1 em {
 
 .tool-icon-button .tool-family-caret {
     position: absolute;
-    right: 3px;
-    top: 17px;
-    width: 9px;
-    height: 9px;
-    padding: 1px;
     border-radius: 50%;
     fill: none;
     stroke-width: 2.4;
@@ -388,33 +365,22 @@ h1 em {
 
 .tool-options {
     position: absolute;
-    z-index: 20;
     top: 100%;
     left: 50%;
     display: none;
-    gap: 5px;
-    padding: 8px;
     border: 1px solid var(--theme-border);
-    border-radius: 11px;
     transform: translateX(-50%);
 }
 
 .tool-options:not(.stencil-options) button {
     display: flex;
-    min-width: 40px;
-    min-height: 40px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 5px 7px;
-    border-radius: 7px;
     cursor: pointer;
 }
 
 .tool-options:not(.stencil-options) button>svg {
-    width: 25px;
-    height: 25px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -422,20 +388,13 @@ h1 em {
     stroke-linejoin: round;
 }
 
-.tool-options:not(.stencil-options) button>span {
-    font-size: var(--type-micro);
-    white-space: nowrap;
-}
-
 .style-pane {
     position: absolute;
     z-index: 3;
     top: 18px;
     left: 18px;
-    width: 286px;
     max-height: calc(100% - 36px);
     overflow-y: auto;
-    padding: 10px 18px;
     border: 1px solid var(--theme-border);
     border-radius: 12px;
     background: var(--theme-surface-elevated);
@@ -450,19 +409,13 @@ h1 em {
 .property-label {
     display: flex;
     flex-direction: column;
-    gap: 5px;
     margin-top: 9px;
     color: var(--theme-text-secondary);
-    font-size: var(--type-micro);
 }
 
 .property-label input,
 .property-label select {
     width: 100%;
-    height: 31px;
-    padding: 0 8px;
-    border-radius: 6px;
-    font-size: var(--type-caption);
 }
 
 .pane-group-button {
@@ -470,12 +423,10 @@ h1 em {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 9px 10px;
     border: 1px solid var(--theme-border);
     border-radius: 7px;
     background: var(--theme-surface-input);
     color: var(--theme-info);
-    font-size: var(--type-micro);
 }
 
 .pane-group-button kbd {
@@ -484,7 +435,6 @@ h1 em {
 }
 
 .pane-section {
-    padding: 13px 0;
     border-bottom: 1px solid var(--theme-border);
 }
 
@@ -496,9 +446,7 @@ h1 em {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
     color: var(--theme-text-secondary);
-    font-size: var(--type-micro);
     font-weight: var(--font-weight-semibold);
 }
 
@@ -527,8 +475,6 @@ h1 em {
 }
 
 .color-swatch {
-    width: 20px;
-    height: 20px;
     padding: 0;
     border: 2px solid var(--theme-border);
     border-radius: 50%;
@@ -544,12 +490,10 @@ h1 em {
 
 .fill-options button {
     flex: 1;
-    padding: 6px;
     border: 0;
     border-radius: 5px;
     color: var(--theme-text-secondary);
     background: transparent;
-    font-size: var(--type-micro);
 }
 
 .fill-options button.active {
@@ -585,7 +529,6 @@ h1 em {
 
 .canvas-help {
     position: absolute;
-    bottom: 16px;
     right: 20px;
     pointer-events: none;
     color: var(--theme-text-secondary);
@@ -622,17 +565,10 @@ h1 em {
     font-weight: var(--font-weight-bold);
 }
 
-@media (max-width: 800px) {
-    .topbar {
-        padding: 0 18px;
-    }
-}
-
 @media (max-width: 760px) {
     .style-pane {
         left: 10px;
         top: 70px;
-        width: min(340px, calc(100vw - 30px));
         max-height: calc(100% - 82px);
     }
 
@@ -641,10 +577,6 @@ h1 em {
         left: auto;
         right: 12px;
         transform: none;
-    }
-
-    .tool-icon-button {
-        width: 34px;
     }
 
     .file-name {
@@ -675,17 +607,4 @@ h1 em {
 .theme-dark .style-pane {
     border-color: var(--theme-border);
     background-color: color-mix(in srgb, var(--theme-surface) 96.00%, transparent);
-}
-
-.theme-dark .pane-section {
-    border-color: var(--theme-border);
-}
-
-.theme-dark .property-label input,
-.theme-dark .property-label select {
-    border-color: var(--theme-border);
-}
-
-.theme-dark .fill-options {
-    border-color: var(--theme-border);
 }

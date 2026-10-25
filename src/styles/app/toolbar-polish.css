@@ -11,26 +11,6 @@
     pointer-events: auto;
 }
 
-.quick-arrow-heads>div>span {
-    width: 42px;
-}
-
-.quick-arrow-heads>div>div {
-    gap: 3px;
-}
-
-.quick-arrow-heads button {
-    width: 40px;
-    height: 40px;
-    flex: 0 0 40px;
-    border-radius: 9px;
-}
-
-.quick-arrow-heads svg {
-    width: 22px;
-    height: 22px;
-}
-
 .choice-deck.arrow-head-choices {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -53,10 +33,8 @@
 .tool-deck {
     z-index: 12;
     align-items: center;
-    gap: 6px;
     width: max-content;
     max-width: calc(100vw - 24px);
-    padding: 7px;
     border: 1px solid var(--theme-border);
     border-radius: 20px;
 }
@@ -65,10 +43,7 @@
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    gap: 2px;
-    padding: 3px;
     border: 1px solid var(--theme-border);
-    border-radius: 14px;
 }
 
 .tool-cluster-canvas {
@@ -89,10 +64,7 @@
 }
 
 .tool-icon-button {
-    width: 42px;
-    height: 50px;
     gap: 2px;
-    border-radius: 11px;
     color: var(--theme-text-secondary);
 }
 
@@ -111,15 +83,9 @@
     background: var(--theme-primary-muted);
 }
 
-.tool-icon-button svg:not(.tool-family-caret) {
-    width: 21px;
-    height: 21px;
-}
-
 .tool-icon-button kbd {
     color: var(--theme-text-secondary);
     font: var(--font-size-micro) var(--font-mono);
-    line-height: var(--leading-icon);
 }
 
 .tool-icon-button.selected kbd {
@@ -137,13 +103,8 @@
     height: 11px;
     padding: 2px;
     border: 1px solid var(--theme-border);
-    border-radius: 50%;
     color: var(--theme-text-secondary);
     background: var(--theme-surface-input);
-}
-
-.tool-family {
-    height: 50px;
 }
 
 .tool-family.options-open>.tool-icon-button,
@@ -155,42 +116,26 @@
 
 .tool-options {
     z-index: 30;
-    top: 100%;
-    gap: 6px;
-    padding: 9px;
-    border-radius: 15px;
     color: var(--theme-text-primary);
 }
 
 .tool-options:not(.stencil-options) button {
-    min-width: 40px;
-    min-height: 40px;
-    gap: 7px;
-    padding: 8px 7px;
     border: 1px solid transparent;
-    border-radius: 11px;
     color: var(--theme-text-secondary);
     background: transparent;
 }
 
 .tool-options:not(.stencil-options) button>svg {
-    width: 27px;
-    height: 27px;
     color: inherit;
 }
 
 .tool-options:not(.stencil-options) button>span {
     color: inherit;
-    font-size: var(--type-micro);
-    line-height: var(--leading-compact);
     text-align: center;
 }
 
 .tool-collapse,
 .tool-deck-reopen {
-    width: 32px;
-    height: 42px;
-    border-radius: 11px;
     color: var(--theme-text-secondary);
 }
 
@@ -200,19 +145,8 @@
 
 @media (max-width: 760px) {
     .tool-deck {
-        gap: 4px;
         max-width: calc(100vw - 16px);
-        padding: 5px;
         overflow-x: auto;
-    }
-
-    .tool-cluster {
-        gap: 1px;
-        padding: 2px;
-    }
-
-    .tool-icon-button {
-        width: 39px;
     }
 }
 
@@ -226,11 +160,4 @@
 .canvas-utility-button:disabled {
     opacity: .35;
     cursor: default;
-}
-
-@media (max-width: 760px) {
-    .canvas-utility-button {
-        width: 37px;
-        min-width: 37px;
-    }
 }

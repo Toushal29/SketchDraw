@@ -1,4 +1,5 @@
-import type { Element, PersonalLibraryData, ProjectWorkspaceData, SketchFile, SketchPage, WindowsSyncMetadata } from "../../model";
+import { SKETCH_FORMAT_VERSION } from "../../model";
+import type { Element, PersonalLibraryData, SketchFile, SketchPage, WindowsSyncMetadata } from "../../model";
 
 const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 const pageFields = (page: SketchPage) => ({ name: page.name, canvasState: page.canvasState, ...(page.layers?.length ? { layers: page.layers } : {}), ...(page.componentMasters?.length ? { componentMasters: page.componentMasters } : {}) });
@@ -43,10 +44,6 @@ function latestMap(left: Record<string, number>, right: Record<string, number>) 
 
 function emptyLibrary(): PersonalLibraryData {
   return { quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] };
-}
-
-function emptyLegacyProject(): ProjectWorkspaceData {
-  return { name: "Untitled project", description: "", notes: [], tasks: [], checklist: [], milestones: [], logEntries: [], files: [] };
 }
 
 /** Merges document records using their edit clocks and tombstones. */
@@ -124,22 +121,6 @@ export function mergeLatestSnapshots(left: SketchFile, right: SketchFile): Sketc
     researchSources: mergeWorkspaceItems("research", leftLibrary.researchSources, rightLibrary.researchSources),
     mediaEntries: mergeWorkspaceItems("media", leftLibrary.mediaEntries, rightLibrary.mediaEntries),
   };
-  let legacyProject: ProjectWorkspaceData | undefined;
-  if (left.project || right.project) {
-    const leftProject = left.project ?? emptyLegacyProject();
-    const rightProject = right.project ?? emptyLegacyProject();
-    const projectMetadata = chooseEntity(left, right, "w:meta", { name: leftProject.name, description: leftProject.description }, { name: rightProject.name, description: rightProject.description })
-      ?? { name: "Untitled project", description: "" };
-    legacyProject = {
-      ...projectMetadata,
-      notes: mergeWorkspaceItems("n", leftProject.notes, rightProject.notes),
-      tasks: mergeWorkspaceItems("t", leftProject.tasks, rightProject.tasks),
-      checklist: mergeWorkspaceItems("c", leftProject.checklist, rightProject.checklist),
-      milestones: mergeWorkspaceItems("m", leftProject.milestones, rightProject.milestones),
-      logEntries: mergeWorkspaceItems("l", leftProject.logEntries, rightProject.logEntries),
-      files: mergeWorkspaceItems("f", leftProject.files, rightProject.files),
-    };
-  }
   const windowsSync: WindowsSyncMetadata = {
     version: 1,
     updatedAt: Math.max(leftMeta.updatedAt, rightMeta.updatedAt),
@@ -147,5 +128,5 @@ export function mergeLatestSnapshots(left: SketchFile, right: SketchFile): Sketc
     clocks,
     tombstones,
   };
-  return { format: "SketchDraw", version: Math.max(left.version, right.version) as SketchFile["version"], activePageId, pages, ...(legacyProject ? { project: legacyProject } : {}), library, windowsSync };
+  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages, library, windowsSync };
 }

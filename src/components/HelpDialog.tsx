@@ -29,7 +29,7 @@ export function HelpDialog(props: Props) {
             </div>
           </Show>
         </div>
-        <footer><span>&copy; 2026 Toushal Sampat. See the README and version 10 file format guide for details.</span><button type="button" class="save-button" onClick={props.onClose}>Close</button></footer>
+        <footer><span>&copy; 2026 Toushal Sampat. See the README and version 2 file format guide for details.</span><button type="button" class="save-button" onClick={props.onClose}>Close</button></footer>
       </section>
     </div>
   </Show>;

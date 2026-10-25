@@ -3,7 +3,7 @@
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell:not(.platform-windows) .touch-style-panel {
         position: fixed;
-        z-index: 220;
+        z-index: 2000;
         top: 50%;
         left: max(64px, calc(env(safe-area-inset-left) + 58px));
         display: flex;
@@ -14,10 +14,10 @@
         flex-direction: column;
         overflow: hidden;
         transform: translateY(-50%);
-        border: 1px solid color-mix(in srgb, var(--touch-line) 82%, transparent);
+        border: 1px solid var(--theme-border);
         border-radius: 20px;
         color: var(--toolbar-ink, var(--theme-text-primary));
-        background: color-mix(in srgb, var(--toolbar-surface, var(--theme-background)) 97%, transparent);
+        background-color: var(--toolbar-surface, var(--theme-surface-elevated));
     }
     .app-shell:not(.platform-windows) .touch-style-header {
         display: flex;
@@ -121,7 +121,6 @@
     .app-shell:not(.platform-windows) .touch-style-range-label > input { grid-column: 1 / -1; }
     .app-shell:not(.platform-windows) .touch-style-panel button:disabled,
     .app-shell:not(.platform-windows) .touch-style-panel input:disabled { opacity: .48; }
-    .app-shell.theme-dark:not(.platform-windows) .touch-style-panel { border-color: var(--theme-border); }
 }
 
 @media (max-width: 480px) {

@@ -1,12 +1,14 @@
-import type { CanvasState, Element, PersonalLibraryData, SketchFile, SketchFileDocumentV10, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
+import type { CanvasState, ComponentMaster, Element, PersonalLibraryData, SketchFile, SketchFileDocumentV2, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
 import { SKETCH_FORMAT_VERSION } from "../../model";
 import { normalizeElement } from "./parse-sketch";
 
-const pageListMarker = "__SKETCHDRAW_PAGE_CHUNKS_V10__";
-const elementListMarker = "__SKETCHDRAW_ELEMENT_CHUNK_V10__";
+const pageListMarker = "__SKETCHDRAW_PAGE_CHUNKS_V2__";
+const elementListMarker = "__SKETCHDRAW_ELEMENT_CHUNK_V2__";
+const componentMasterListMarker = "__SKETCHDRAW_COMPONENT_MASTER_CHUNKS_V2__";
 const NORMALIZED_PAGE_CACHE_BYTES = 4 * 1024 * 1024;
 const SERIALIZED_PAGE_CACHE_BYTES = 4 * 1024 * 1024;
 const normalizedElementCache = new WeakMap<Element, Element | null>();
+const serializedComponentMasterCache = new WeakMap<ComponentMaster, string>();
 
 type NormalizedPageCacheEntry = { elements: Element[]; bytes: number };
 type SerializedPageCacheEntry = { metadataKey: string; block: string; elementsJson: string; bytes: number };
@@ -80,11 +82,11 @@ function serializedPage(page: SketchPage): string {
     serializedPageCache.set(page.elements, cached);
     return cached.block;
   }
-  // Reuse the element array encoding when only page metadata (such as pan or
-  // zoom) changed. The v10 document still stores ordinary JSON page objects.
+  // Reuse element JSON when page metadata changes. The v2 file stays compact,
+  // ordinary JSON, so saved documents remain portable and inspectable.
   const elementsJson = cached?.elementsJson ?? JSON.stringify(page.elements);
   const pageShell = JSON.stringify({ id: page.id, name: page.name, canvasState: page.canvasState, ...(page.layers?.length ? { layers: page.layers } : {}), elements: elementListMarker });
-  const block = `        ${pageShell.replace(`"elements":"${elementListMarker}"`, `"elements":${elementsJson}`)}`;
+  const block = pageShell.replace(`"elements":"${elementListMarker}"`, `"elements":${elementsJson}`);
   const bytes = (block.length + elementsJson.length) * 2;
   if (cached) {
     serializedPageCache.delete(page.elements);
@@ -102,6 +104,14 @@ function serializedPage(page: SketchPage): string {
     serializedPageCacheBytes += bytes;
   }
   return block;
+}
+
+function serializedComponentMaster(master: ComponentMaster): string {
+  const cached = serializedComponentMasterCache.get(master);
+  if (cached) return cached;
+  const encoded = JSON.stringify(master);
+  serializedComponentMasterCache.set(master, encoded);
+  return encoded;
 }
 
 type CreateSnapshotOptions = {
@@ -151,16 +161,22 @@ export function createSketchSnapshot(options: CreateSnapshotOptions): SketchFile
 
 export function serializeSketchSnapshot(snapshot: SketchFile): string {
   const componentMasters = [...new Map(snapshot.pages.flatMap(page => page.componentMasters ?? []).map(master => [master.id, master] as const)).values()];
-  const document: SketchFileDocumentV10 = {
+  const document: SketchFileDocumentV2 = {
     format: "SketchDraw",
     version: SKETCH_FORMAT_VERSION,
-    sections: {
-      canvas: { activePageId: snapshot.activePageId, pages: pageListMarker as unknown as SketchFileDocumentV10["sections"]["canvas"]["pages"], ...(componentMasters.length ? { componentMasters } : {}) },
+    canvas: {
+      activePageId: snapshot.activePageId,
+      pages: pageListMarker as unknown as SketchFileDocumentV2["canvas"]["pages"],
+      ...(componentMasters.length ? { componentMasters: componentMasterListMarker as unknown as ComponentMaster[] } : {}),
     },
     ...(snapshot.windowsSync ? { windowsSync: snapshot.windowsSync } : {}),
   };
-  const documentJson = JSON.stringify(document, null, 2);
-  const pageBlocks = snapshot.pages.map(serializedPage).join(",\n");
-  const pageArray = `"pages": [\n${pageBlocks}\n      ]`;
-  return documentJson.replace(`"pages": "${pageListMarker}"`, pageArray);
+  let documentJson = JSON.stringify(document);
+  if (componentMasters.length) {
+    const masterChunks = componentMasters.map(serializedComponentMaster).join(",");
+    documentJson = documentJson.replace(`"componentMasters":"${componentMasterListMarker}"`, `"componentMasters":[${masterChunks}]`);
+  }
+  const pageBlocks = snapshot.pages.map(serializedPage).join(",");
+  const pageArray = `"pages":[${pageBlocks}]`;
+  return documentJson.replace(`"pages":"${pageListMarker}"`, pageArray);
 }

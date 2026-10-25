@@ -167,7 +167,7 @@
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-command-bar,
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-command-actions { display: contents; }
-    .app-shell:not(.platform-windows) .mobile-settings-trigger { grid-area: settings; width: 32px; min-width: 32px; padding: 0; }
+    .app-shell:not(.platform-windows) .mobile-settings-trigger { width: 32px; min-width: 32px; padding: 0; }
     .app-shell:not(.platform-windows) .mobile-settings-trigger span { display: none; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-command-trigger { height: 24px; padding-inline: 5px; font-size: var(--type-micro); }
 }

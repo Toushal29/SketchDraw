@@ -19,7 +19,7 @@ import { renderLibraryChartSvg } from "../src/features/components/chart-engine";
 import { loadCloudProviderGlyph } from "../src/features/diagrams/cloud-providers";
 import { normalizeElement } from "../src/features/files/parse-sketch";
 import mobileToolbarCss from "../src/platform/mobile/touch-toolbar.css?inline";
-import quickStyleSizeCss from "../src/styles/quick-style-size.css?inline";
+import canvasToolsCss from "../src/styles/app/canvas-tools.css?inline";
 import homeCss from "../src/styles/app/home.css?inline";
 import popoverCss from "../src/styles/toolbar-and-view-popovers.css?inline";
 import { createComponent } from "solid-js";
@@ -563,7 +563,7 @@ spec:
     return passed;
   });
   console.info("Audit: mobile controls and performance workloads");
-  const style = document.createElement("style"); style.textContent = `${mobileToolbarCss}\n${quickStyleSizeCss}\n${homeCss}\n${popoverCss}`; document.head.append(style);
+  const style = document.createElement("style"); style.textContent = `${mobileToolbarCss}\n${canvasToolsCss}\n${homeCss}\n${popoverCss}`; document.head.append(style);
   const styleFixtureHost = document.createElement("div");
   styleFixtureHost.className = "app-shell platform-windows";
   styleFixtureHost.style.cssText = "--theme-primary:rgb(30,90,200);--theme-primary-border:rgb(60,110,200);--theme-primary-muted:rgb(220,230,255);--theme-info:rgb(20,140,200);--theme-warning:rgb(210,150,30);--theme-background:rgb(245,247,250);--theme-surface:rgb(250,250,252);--theme-surface-elevated:rgb(255,255,255);--theme-border:rgb(200,210,220);--theme-shadow:rgb(0 0 0 / 0.2);--theme-text-primary:rgb(20,25,35);--theme-text-secondary:rgb(70,80,90);--theme-text-tertiary:rgb(100,110,120)";

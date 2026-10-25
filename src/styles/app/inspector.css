@@ -163,10 +163,6 @@
     font-size: var(--type-micro);
 }
 
-.save-status {
-    font-size: var(--type-control);
-}
-
 .save-status i {
     width: 8px;
     height: 8px;

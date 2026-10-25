@@ -23,9 +23,9 @@
 .app-menus {
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 1px;
     margin-right: auto;
-    margin-left: 10px;
+    margin-left: 4px;
 }
 
 .menu-dropdown {
@@ -35,14 +35,14 @@
 .menu-dropdown>summary {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
     list-style: none;
-    padding: 9px 11px;
+    padding: 6px 8px;
     border: 1px solid transparent;
     border-radius: 7px;
     color: var(--theme-text-secondary);
     cursor: pointer;
-    font-size: var(--type-body-compact);
+    font-size: var(--type-control);
     font-weight: var(--font-weight-semibold);
 }
 
@@ -68,7 +68,7 @@
 
 .menu-dropdown .system-menu-popover {
     left: 0;
-    top: 39px;
+    top: 33px;
 }
 
 .menu-dropdown .view-popover {
@@ -109,18 +109,14 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1px;
 }
 
 .tool-collapse,
 .tool-deck-reopen {
     display: grid;
     place-items: center;
-    width: 27px;
-    height: 39px;
     padding: 0;
     border: 1px solid transparent;
-    border-radius: 7px;
     background: transparent;
 }
 
@@ -141,8 +137,6 @@
     top: 18px;
     left: 50%;
     transform: translateX(-50%);
-    width: 43px;
-    height: 31px;
     border: 1px solid var(--theme-border);
     border-radius: 9px;
     background: color-mix(in srgb, var(--theme-surface) 94.00%, transparent);
@@ -165,11 +159,6 @@
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 3px;
     margin: 0 0 5px;
-}
-
-.choice-deck.arrow-head-choices button {
-    min-height: 33px;
-    padding: 4px 1px;
 }
 
 .arrow-head-choices button svg {
@@ -557,16 +546,11 @@
 }
 
 .tool-options:not(.stencil-options) button>span {
-    font-size: var(--type-caption);
     white-space: normal;
 }
 
 .tool-icon-button .tool-family-caret {
     display: block;
-}
-
-.style-pane {
-    width: 300px;
 }
 
 .style-pane .pane-heading {
@@ -629,12 +613,6 @@ summary:focus-visible {
 }
 
 @media (max-width: 1150px) {
-    .topbar {
-        gap: 6px;
-        padding-left: 12px;
-        padding-right: 12px;
-    }
-
     .header-leading {
         min-width: 100px;
         max-width: 170px;

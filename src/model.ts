@@ -113,21 +113,13 @@ export type ProjectWorkspaceData = {
   files: ProjectFileEntry[];
 };
 export type SketchDrawPlanningFile = { format: "SketchDrawPlanning"; version: 1; project: ProjectWorkspaceData };
-/** V8 library records remain in memory for round-trip compatibility. */
-export type SketchDocumentSectionsV8 = { canvas: { activePageId: string; pages: SketchPage[] }; planning: ProjectWorkspaceData; library: PersonalLibraryData };
 export type WindowsSyncMetadata = { version: 1; updatedAt: number; deviceId: string; clocks: Record<string, number>; tombstones: Record<string, number> };
-export type SketchFileDocumentV8 = { format: "SketchDraw"; version: 8; sections: SketchDocumentSectionsV8; windowsSync?: WindowsSyncMetadata };
-export type SketchDocumentSectionsV9 = {
-  canvas: { activePageId: string; pages: SketchPage[] };
-  notebook: { notes: ProjectNote[] };
-  retiredLibraryArchive: Omit<PersonalLibraryData, "quickNotes">;
-};
-export type SketchDocumentSectionsV10 = { canvas: { activePageId: string; pages: SketchPage[]; componentMasters?: ComponentMaster[] } };
-export const SKETCH_FORMAT_VERSION = 10 as const;
-export type SketchFileDocumentV9 = { format: "SketchDraw"; version: 9; sections: SketchDocumentSectionsV9; windowsSync?: WindowsSyncMetadata };
-export type SketchFileDocumentV10 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; sections: SketchDocumentSectionsV10; windowsSync?: WindowsSyncMetadata };
-/** In-memory shape. `project` is read only from older sketch files for migration. */
-export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; project?: ProjectWorkspaceData; library?: PersonalLibraryData; windowsSync?: WindowsSyncMetadata };
+export const SKETCH_FORMAT_VERSION = 2 as const;
+/** Clipboard payloads retain their separate v10 protocol while files move to v2. */
+export const SKETCH_CLIPBOARD_VERSION = 10 as const;
+export type SketchFileDocumentV2 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; canvas: { activePageId: string; pages: SketchPage[]; componentMasters?: ComponentMaster[] }; windowsSync?: WindowsSyncMetadata };
+/** In-memory snapshot. `library` is retained only while importing legacy v9 data. */
+export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; library?: PersonalLibraryData; windowsSync?: WindowsSyncMetadata };
 export type Preview = { type: Exclude<Tool, "select" | "pan" | "laser" | "text" | "bucket" | "eraser" | "crop">; start: Point; end: Point; color: string; thickness: number; opacity?: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute };
 export type Bounds = { x: number; y: number; w: number; h: number };
 export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; editingChildId?: string; shapeLabel?: boolean; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };

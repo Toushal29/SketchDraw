@@ -72,9 +72,9 @@
         max-height: 46px;
         padding: 4px;
         overflow: visible;
-        border: 1px solid var(--touch-line);
+        border: 1px solid var(--theme-border);
         border-radius: 15px;
-        background: var(--touch-glass);
+        background-color: var(--toolbar-surface, var(--theme-surface-elevated));
         /* The advanced inspector is fixed to the screen from inside this pane. */
     }
 
@@ -112,12 +112,6 @@
         gap: 5px;
     }
 
-    .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading {
-        flex: 0 0 auto;
-        align-items: center;
-        gap: 3px;
-    }
-
     .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading>button,
     .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading>.mobile-advanced-properties {
         width: 38px;
@@ -130,7 +124,6 @@
 
     .app-shell:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-controls {
         max-height: min(38dvh, 280px);
-        align-content: flex-start;
         gap: 4px;
         padding: 1px;
     }
@@ -196,10 +189,6 @@
         overflow-y: auto;
         border: 1px solid var(--touch-line);
         border-radius: 21px;
-    }
-
-    .app-shell:not(.platform-windows) .help-dialog {
-        width: min(760px, 100%);
     }
 
     @media (max-width: 560px) {
@@ -352,6 +341,12 @@
     }
 }
 
+@media (max-height: 540px) and (max-width: 900px), (max-height: 540px) and (max-width: 1600px) and (pointer: coarse) {
+    .app-shell:not(.platform-windows) .style-pane .quick-style-popover {
+        max-height: calc(100dvh - 112px);
+    }
+}
+
 @media (min-width: 561px) and (max-width: 900px) and (orientation: landscape),
 (min-width: 700px) and (max-width: 1600px) and (pointer: coarse) and (orientation: landscape) {
     .app-shell:not(.platform-windows) .touch-focus-tools {
@@ -372,8 +367,7 @@
 @media (max-width: 900px),
 (max-width: 1600px) and (pointer: coarse) {
 
-    .app-shell.theme-dark:not(.platform-windows) .canvas-zoom-reset,
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode {
+    .app-shell.theme-dark:not(.platform-windows) .canvas-zoom-reset {
         border-color: var(--theme-border);
         color: var(--theme-text-primary);
     }

@@ -1,12 +1,11 @@
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, ConnectionPoint, ContainerMetadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, RelationshipDirection, RelationshipType, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
+import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, ComponentMaster, ConnectionPoint, ContainerMetadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, RelationshipDirection, RelationshipType, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
 import { ensureCanvasLayerPath, normalizeCanvasLayers } from "../canvas/structure";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { validReferences } from "../../operations";
 import { defaultCurveControlPoints } from "../connectors/geometry";
 import { ALL_FLOWCHART_SHAPES } from "../diagrams/config";
 import { schemaTableMinimumHeight, schemaTableResizeMinimumWidth } from "../diagrams/schema-table-layout";
-import { normalizeProjectWorkspace } from "../project/project-data";
 import { normalizeLegacyLibraryData } from "./legacy-library-data";
 import { MAX_DOCUMENT_STROKE_POINTS, MAX_STROKE_POINTS } from "../canvas/stroke-limits";
 
@@ -81,7 +80,6 @@ const MAX_ELEMENTS_PER_PAGE = 20_000;
 const MAX_DOCUMENT_ELEMENT_NODES = 100_000;
 export const MAX_CANVAS_TEXT_LENGTH = 100_000;
 type ElementParseBudget = { remaining: number; remainingStrokePoints: number };
-type ElementNodeBudget = { remaining: number };
 
 export function normalizeElement(value: unknown): Element | undefined {
   return normalizeElementWithinBudget(value, 0, { remaining: MAX_DOCUMENT_ELEMENT_NODES, remainingStrokePoints: MAX_DOCUMENT_STROKE_POINTS });
@@ -358,31 +356,39 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
   return undefined;
 }
 
+type SupportedSketchEnvelope = { kind: "remastered-v2" | "legacy-v10"; canvas: Record<string, unknown>; legacyLibrary?: never }
+  | { kind: "legacy-v9"; canvas: Record<string, unknown>; legacyLibrary: unknown };
+
+/** Keep accepted file versions and their envelope migrations explicit. */
+function supportedSketchEnvelope(value: Record<string, unknown>): SupportedSketchEnvelope | undefined {
+  if (value.format !== "SketchDraw") return undefined;
+  if (value.version === SKETCH_FORMAT_VERSION && isRecord(value.canvas) && !("sections" in value) && !("project" in value) && !("library" in value)) {
+    return { kind: "remastered-v2", canvas: value.canvas };
+  }
+  if ((value.version !== 9 && value.version !== 10) || !isRecord(value.sections)) return undefined;
+  const sections = value.sections;
+  if (!isRecord(sections.canvas)) return undefined;
+  const canvas = sections.canvas;
+  if (value.version === 9) {
+    const notebook = sections.notebook;
+    const retiredLibraryArchive = sections.retiredLibraryArchive;
+    if (!isRecord(notebook) || !Array.isArray(notebook.notes) || !isRecord(retiredLibraryArchive)) return undefined;
+    return {
+      kind: "legacy-v9",
+      canvas,
+      legacyLibrary: { ...retiredLibraryArchive, quickNotes: notebook.notes },
+    };
+  }
+  return { kind: "legacy-v10", canvas };
+}
+
 export function parseSketchFile(value: unknown): SketchFile | undefined {
-  if (!isRecord(value) || value.format !== "SketchDraw") return undefined;
-  const version = Number(value.version);
-  if (!Number.isInteger(version) || version < 1 || version > SKETCH_FORMAT_VERSION) return undefined;
-  const sections = isRecord(value.sections) ? value.sections : undefined;
-  if (sections && !isRecord(sections.canvas)) return undefined;
-  if (sections && version === 8 && (!isRecord(sections.planning) || !isRecord(sections.library))) return undefined;
-  if (sections && version === 9 && (!isRecord(sections.notebook) || !Array.isArray(sections.notebook.notes) || !isRecord(sections.retiredLibraryArchive))) return undefined;
-  if (sections && version < 8) return undefined;
-  const canvasSection = sections ? sections.canvas as Record<string, unknown> : value;
-  const planningValue = sections ? sections.planning : value.project;
-  const libraryValue = sections && version === 9
-    ? { ...(sections.retiredLibraryArchive as Record<string, unknown>), quickNotes: (sections.notebook as Record<string, unknown>).notes }
-    : sections && version === 8 ? sections.library : sections ? undefined : value.library;
-  const addLegacyElementIds = (item: unknown, depth = 0, budget: ElementNodeBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES }): unknown => {
-    if (!isRecord(item)) return item;
-    if (depth > MAX_ELEMENT_DEPTH || budget.remaining <= 0) return {};
-    budget.remaining -= 1;
-    const next: Record<string, unknown> = { ...item, id: typeof item.id === "string" && item.id ? item.id : crypto.randomUUID() };
-    if (Array.isArray(item.elements)) {
-      if (item.elements.length > MAX_ELEMENTS_PER_PAGE) return {};
-      next.elements = item.elements.map(child => addLegacyElementIds(child, depth + 1, budget));
-    }
-    return next;
-  };
+  if (!isRecord(value)) return undefined;
+  const envelope = supportedSketchEnvelope(value);
+  if (!envelope) return undefined;
+  const isLegacyV9 = envelope.kind === "legacy-v9";
+  const canvasSection = envelope.canvas;
+  const libraryValue = envelope.kind === "legacy-v9" ? envelope.legacyLibrary : undefined;
   const groupLegacyClassCards = (items: Element[]): Element[] => {
     const classRoles = new Set(["class-shell", "class-header", "class-divider-name", "class-divider-attributes", "class-name", "class-attributes", "class-methods"]);
     const partsById = new Map<string, Element[]>();
@@ -401,12 +407,11 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
       return [group];
     });
   };
-  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, legacy: boolean, budget: ElementParseBudget, rawLayers?: unknown, rawMasters?: unknown): SketchPage | undefined => {
+  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, budget: ElementParseBudget, rawLayers?: unknown, rawMasters?: unknown): SketchPage | undefined => {
     if (typeof id !== "string" || typeof name !== "string" || !isRecord(stateValue) || !Array.isArray(elementsValue) || elementsValue.length > MAX_ELEMENTS_PER_PAGE) return undefined;
     const state = stateValue;
     if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !isColor(state.backgroundColor)) return undefined;
-    const legacyBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES };
-    const elements = elementsValue.map(element => normalizeElementWithinBudget(legacy ? addLegacyElementIds(element, 0, legacyBudget) : element, 0, budget));
+    const elements = elementsValue.map(element => normalizeElementWithinBudget(element, 0, budget));
     if (elements.some((element) => !element)) return undefined;
     let normalizedElements = groupLegacyClassCards(elements as Element[]);
     if (!validReferences(normalizedElements)) return undefined;
@@ -444,14 +449,14 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
     }) : [];
     return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff", ...(guides?.length ? { guides } : {}) }, elements: normalizedElements, ...(layers.length ? { layers } : {}), ...(componentMasters.length ? { componentMasters } : {}) };
   };
-  const sourcePages = Array.isArray(canvasSection.pages) ? canvasSection.pages : Array.isArray(canvasSection.elements) ? [{ id: crypto.randomUUID(), name: "Page 1", canvasState: canvasSection.canvasState, elements: canvasSection.elements }] : undefined;
+  const sourcePages = Array.isArray(canvasSection.pages) ? canvasSection.pages : undefined;
   if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100) return undefined;
   const elementBudget = { remaining: MAX_DOCUMENT_ELEMENT_NODES, remainingStrokePoints: MAX_DOCUMENT_STROKE_POINTS };
   const pages = sourcePages.map((page, index) => {
     if (!isRecord(page)) return undefined;
     const state = isRecord(page.canvasState) ? page.canvasState : {};
-    const migratedState = version < SKETCH_FORMAT_VERSION ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
-    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, version < 6, elementBudget, page.layers, page.componentMasters ?? (index === 0 ? canvasSection.componentMasters : undefined));
+    const migratedState = isLegacyV9 ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
+    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, elementBudget, page.layers, page.componentMasters ?? (index === 0 ? canvasSection.componentMasters : undefined));
   });
   if (pages.some((page) => !page)) return undefined;
   const normalized = pages as SketchPage[];
@@ -466,17 +471,16 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
   const windowsSync = sync?.version === 1 && finite(sync.updatedAt) && sync.updatedAt >= 0 && typeof sync.deviceId === "string" && sync.deviceId.length <= 100
     ? { version: 1 as const, updatedAt: sync.updatedAt, deviceId: sync.deviceId, clocks: validClockMap(sync.clocks), tombstones: validClockMap(sync.tombstones) }
     : undefined;
-  const project = planningValue === undefined ? undefined : normalizeProjectWorkspace(planningValue);
-  if (planningValue !== undefined && !project) return undefined;
-  const library = normalizeLegacyLibraryData(libraryValue, sections ? undefined : value.project);
+  const library = normalizeLegacyLibraryData(libraryValue);
   if (!library) return undefined;
-  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized, ...(project ? { project } : {}), library, ...(windowsSync ? { windowsSync } : {}) };
+  return { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId, pages: normalized, library, ...(windowsSync ? { windowsSync } : {}) };
 }
 
 /** Keeps files written by the app inside the same resource limits as files it can reopen. */
 export function sketchFileResourceError(file: SketchFile): string | undefined {
   let nodeCount = 0;
   let strokePointCount = 0;
+  const componentMasters = new Map<string, ComponentMaster>();
   const visit = (elements: Element[], depth: number): string | undefined => {
     if (depth > MAX_ELEMENT_DEPTH) return "This sketch contains groups nested too deeply to save safely.";
     for (const element of elements) {
@@ -512,13 +516,26 @@ export function sketchFileResourceError(file: SketchFile): string | undefined {
     const error = visit(page.elements, 0);
     if (error) return error;
     for (const master of page.componentMasters ?? []) {
-      const masterError = visit(master.template, 0);
-      if (masterError) return masterError;
-      for (const variant of Object.values(master.variants ?? {})) {
-        const variantError = visit(variant, 0);
-        if (variantError) return variantError;
-      }
+      const existing = componentMasters.get(master.id);
+      if (existing && existing !== master && JSON.stringify(existing) !== JSON.stringify(master)) return `Component master “${master.name}” has a conflicting duplicate ID and cannot be saved safely.`;
+      componentMasters.set(master.id, master);
     }
+  }
+  if (componentMasters.size > 100) return "A sketch can contain up to 100 component masters.";
+  for (const master of componentMasters.values()) {
+    if (!master.id || master.id.length > 80 || !master.name.trim() || master.name.length > 80) return "A component master has invalid identifying details and cannot be saved safely.";
+    if (!finite(master.bounds.x) || !finite(master.bounds.y) || !finite(master.bounds.w) || !finite(master.bounds.h) || master.bounds.w <= 0 || master.bounds.h <= 0) return `Component master “${master.name}” has invalid bounds and cannot be saved safely.`;
+    if (!master.template.length || master.template.length > MAX_ELEMENTS_PER_PAGE) return `Component master “${master.name}” has an invalid template size.`;
+    const masterError = visit(master.template, 0);
+    if (masterError) return masterError;
+    const variants = Object.entries(master.variants ?? {});
+    if (variants.length > 24) return `Component master “${master.name}” has too many variants to save safely.`;
+    for (const [key, variant] of variants) {
+      if (!/^[\p{L}\p{N}_.=-]{1,80}$/u.test(key) || !variant.length || variant.length > MAX_ELEMENTS_PER_PAGE) return `Component master “${master.name}” has an invalid variant.`;
+      const variantError = visit(variant, 0);
+      if (variantError) return variantError;
+    }
+    if ((master.connectionPoints?.length ?? 0) > 32) return `Component master “${master.name}” has too many connection points to save safely.`;
   }
   return undefined;
 }
