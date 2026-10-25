@@ -13,6 +13,16 @@ body,
 }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
+    .canvas-notebook-toggle,
+    .canvas-notebook-split {
+        display: none;
+    }
+
+    .canvas-wrap.canvas-notebook-split-open .drawing-canvas {
+        right: 0;
+        width: 100%;
+    }
+
     .topbar {
         flex: 0 0 auto;
         min-height: 50px;

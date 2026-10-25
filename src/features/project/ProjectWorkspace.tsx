@@ -9,6 +9,7 @@ import { DEFAULT_WORKFLOW_COLUMNS } from "./project-data";
 import { advanceRecurringDate, formatProjectDate, isProjectTaskComplete, isProjectTaskOverdue, projectTaskWarnings, TASK_PRIORITY_LABELS } from "./project-utils";
 import { buildProjectReportHtml, exportPlanningCalendar, exportPlanningCsv, importPlanningCalendar, importPlanningCsv } from "./planning-exchange";
 import { ModelingGuide } from "./ModelingGuide";
+import { ProjectBurndownChart } from "./ProjectBurndownChart";
 
 export type ProjectWorkspaceView = "home" | "plans" | "modeling-guide" | "notes" | "tasks" | "checklist" | "kanban" | "timeline" | "calendar" | "log" | "files" | "exchange" | "report";
 type Props = {
@@ -88,7 +89,7 @@ export function ProjectWorkspace(props: Props) {
   const visibleTasksByColumn = createMemo(() => new Map<ProjectTaskStatus, ProjectTask[]>(workflowColumns().map(column => [column.id, visibleTasks().filter(task => task.status === column.id)] as const)));
   const tasksForColumn = (id: ProjectTaskStatus) => visibleTasksByColumn().get(id) ?? [];
   const shownTasksForColumn = (id: ProjectTaskStatus) => tasksForColumn(id).slice(0, kanbanLimits()[id] ?? 40);
-  const nextRecurringTask = (task: ProjectTask, now = Date.now()): ProjectTask => ({ ...task, id: crypto.randomUUID(), status: workflowColumns().find(column => !column.completed)?.id ?? workflowColumns()[0].id, startDate: advanceRecurringDate(task.startDate, task.recurrence), dueDate: advanceRecurringDate(task.dueDate, task.recurrence), createdAt: now, updatedAt: now, dependsOn: [], checklist: task.checklist?.map(item => ({ ...item, id: crypto.randomUUID(), done: false })) });
+  const nextRecurringTask = (task: ProjectTask, now = Date.now()): ProjectTask => ({ ...task, id: crypto.randomUUID(), status: workflowColumns().find(column => !column.completed)?.id ?? workflowColumns()[0].id, startDate: advanceRecurringDate(task.startDate, task.recurrence), dueDate: advanceRecurringDate(task.dueDate, task.recurrence), completedAt: undefined, createdAt: now, updatedAt: now, dependsOn: [], checklist: task.checklist?.map(item => ({ ...item, id: crypto.randomUUID(), done: false })) });
   const selectedNote = () => props.data.notes.find(note => note.id === selectedNoteId()) ?? props.data.notes[0];
   const updateNote = (id: string, patch: Partial<ProjectNote>) => {
     const now = Date.now();
@@ -97,7 +98,13 @@ export function ProjectWorkspace(props: Props) {
   const updateTask = (id: string, patch: Partial<ProjectTask>) => {
     const now = Date.now();
     const before = props.data.tasks.find(task => task.id === id);
-    const changed = props.data.tasks.map(task => task.id === id ? { ...task, ...patch, updatedAt: now } : task);
+    const changed = props.data.tasks.map(task => {
+      if (task.id !== id) return task;
+      const updated = { ...task, ...patch, updatedAt: now };
+      if (before && !isComplete(before) && isComplete(updated)) updated.completedAt = now;
+      else if (before && isComplete(before) && !isComplete(updated)) updated.completedAt = undefined;
+      return updated;
+    });
     const after = changed.find(task => task.id === id);
     if (before && after && !isComplete(before) && isComplete(after) && after.recurrence) changed.push(nextRecurringTask(after, now));
     update({ tasks: changed });
@@ -218,7 +225,8 @@ export function ProjectWorkspace(props: Props) {
     const sourceIndex = tasks.findIndex(task => task.id === id);
     if (sourceIndex < 0) return;
     const [source] = tasks.splice(sourceIndex, 1);
-    const moved = source.status === status ? source : { ...source, status, updatedAt: Date.now() };
+    const now = Date.now();
+    const moved = source.status === status ? source : { ...source, status, updatedAt: now, ...(!isComplete(source) && workflowColumns().find(column => column.id === status)?.completed ? { completedAt: now } : isComplete(source) && !workflowColumns().find(column => column.id === status)?.completed ? { completedAt: undefined } : {}) };
     let targetIndex = -1;
     if (targetId && targetId !== id) {
       targetIndex = tasks.findIndex(task => task.id === targetId);
@@ -327,6 +335,7 @@ export function ProjectWorkspace(props: Props) {
                 </Show>
               </section>
             </div>
+            <ProjectBurndownChart tasks={props.data.tasks} />
             <nav class="project-home-shortcuts" aria-label="Project tools">
               <button onClick={() => setView("timeline")}><strong>Timeline</strong><span>{props.data.milestones.length} milestones</span></button>
               <button onClick={() => setView("calendar")}><strong>Calendar</strong><span>Deadlines &amp; dates</span></button>

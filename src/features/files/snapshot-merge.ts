@@ -2,7 +2,7 @@ import { SKETCH_FORMAT_VERSION } from "../../model";
 import type { Element, PersonalLibraryData, SketchFile, SketchPage, WindowsSyncMetadata } from "../../model";
 
 const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
-const pageFields = (page: SketchPage) => ({ name: page.name, canvasState: page.canvasState, ...(page.layers?.length ? { layers: page.layers } : {}), ...(page.componentMasters?.length ? { componentMasters: page.componentMasters } : {}) });
+const pageFields = (page: SketchPage) => ({ name: page.name, canvasState: page.canvasState, ...(page.layers?.length ? { layers: page.layers } : {}), ...(page.visibilityPresets?.length ? { visibilityPresets: page.visibilityPresets } : {}), ...(page.dataSources?.length ? { dataSources: page.dataSources } : {}), ...(page.componentMasters?.length ? { componentMasters: page.componentMasters } : {}) });
 const emptySyncMetadata = (): WindowsSyncMetadata => ({ version: 1, updatedAt: 0, deviceId: "", clocks: {}, tombstones: {} });
 
 function liveStamp(document: SketchFile, key: string): number {

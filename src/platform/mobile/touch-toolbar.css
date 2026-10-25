@@ -501,6 +501,14 @@
     flex-direction: column;
   }
 
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-content>.tool-cluster:not(.tool-cluster-canvas)::before,
+  .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-content>.tool-family.tool-extra-family::before {
+    width: 22px;
+    height: 1px;
+    flex-basis: 1px;
+    margin: 4px 0;
+  }
+
   .app-shell.mobile-toolbar-vertical:not(.platform-windows) .touch-tool-content {
     flex: 1 1 auto;
     min-height: 0;
@@ -584,8 +592,6 @@
     min-width: 0;
     max-height: none;
     min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: none;
     -ms-overflow-style: none;

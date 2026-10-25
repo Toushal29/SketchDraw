@@ -1,4 +1,4 @@
-import type { CanvasState, ComponentMaster, Element, PersonalLibraryData, SketchFile, SketchFileDocumentV2, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
+import type { CanvasDataSource, CanvasState, ComponentMaster, Element, PersonalLibraryData, SketchFile, SketchFileDocumentV2, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
 import { SKETCH_FORMAT_VERSION } from "../../model";
 import { normalizeElement } from "./parse-sketch";
 
@@ -11,7 +11,7 @@ const normalizedElementCache = new WeakMap<Element, Element | null>();
 const serializedComponentMasterCache = new WeakMap<ComponentMaster, string>();
 
 type NormalizedPageCacheEntry = { elements: Element[]; bytes: number };
-type SerializedPageCacheEntry = { metadataKey: string; block: string; elementsJson: string; bytes: number };
+type SerializedPageCacheEntry = { metadataKey: string; dataSources?: CanvasDataSource[]; block: string; elementsJson: string; bytes: number };
 const normalizedPageCache = new Map<Element[], NormalizedPageCacheEntry>();
 const serializedPageCache = new Map<Element[], SerializedPageCacheEntry>();
 let normalizedPageCacheBytes = 0;
@@ -75,9 +75,9 @@ function normalizedElements(source: Element[]): Element[] {
 }
 
 function serializedPage(page: SketchPage): string {
-  const metadataKey = JSON.stringify([page.id, page.name, page.canvasState, page.layers]);
+  const metadataKey = JSON.stringify([page.id, page.name, page.canvasState, page.layers, page.visibilityPresets, page.dataSources?.map(source => [source.id, source.name, source.updatedAt, source.sourceUrl])]);
   const cached = serializedPageCache.get(page.elements);
-  if (cached?.metadataKey === metadataKey) {
+  if (cached?.metadataKey === metadataKey && cached.dataSources === page.dataSources) {
     serializedPageCache.delete(page.elements);
     serializedPageCache.set(page.elements, cached);
     return cached.block;
@@ -85,7 +85,7 @@ function serializedPage(page: SketchPage): string {
   // Reuse element JSON when page metadata changes. The v2 file stays compact,
   // ordinary JSON, so saved documents remain portable and inspectable.
   const elementsJson = cached?.elementsJson ?? JSON.stringify(page.elements);
-  const pageShell = JSON.stringify({ id: page.id, name: page.name, canvasState: page.canvasState, ...(page.layers?.length ? { layers: page.layers } : {}), elements: elementListMarker });
+  const pageShell = JSON.stringify({ id: page.id, name: page.name, canvasState: page.canvasState, ...(page.layers?.length ? { layers: page.layers } : {}), ...(page.visibilityPresets?.length ? { visibilityPresets: page.visibilityPresets } : {}), ...(page.dataSources?.length ? { dataSources: page.dataSources } : {}), elements: elementListMarker });
   const block = pageShell.replace(`"elements":"${elementListMarker}"`, `"elements":${elementsJson}`);
   const bytes = (block.length + elementsJson.length) * 2;
   if (cached) {
@@ -100,7 +100,7 @@ function serializedPage(page: SketchPage): string {
       if (removed) serializedPageCacheBytes -= removed.bytes;
       serializedPageCache.delete(oldest);
     }
-    serializedPageCache.set(page.elements, { metadataKey, block, elementsJson, bytes });
+    serializedPageCache.set(page.elements, { metadataKey, dataSources: page.dataSources, block, elementsJson, bytes });
     serializedPageCacheBytes += bytes;
   }
   return block;
@@ -146,6 +146,8 @@ export function createSketchSnapshot(options: CreateSnapshotOptions): SketchFile
       canvasState: { ...state, backgroundColor, boardColorFollowsTheme: state.boardColorFollowsTheme ?? true },
       elements: normalized as Element[],
       ...(page.layers?.length ? { layers: page.layers } : {}),
+      ...(page.visibilityPresets?.length ? { visibilityPresets: page.visibilityPresets } : {}),
+      ...(page.dataSources?.length ? { dataSources: page.dataSources } : {}),
       ...(page.componentMasters?.length ? { componentMasters: page.componentMasters } : {}),
     };
   });

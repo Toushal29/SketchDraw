@@ -6,8 +6,8 @@
     bottom: 52px;
     display: flex;
     box-sizing: border-box;
-    width: min(260px, calc(100vw - 72px));
-    min-width: 190px;
+    width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 72px));
+    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 72px));
     flex-direction: column;
     overflow: hidden;
     border: 1px solid var(--theme-border);
@@ -15,6 +15,92 @@
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
     box-shadow: none;
+}
+
+.component-editor-resize-handle {
+    position: absolute;
+    z-index: 2;
+    top: 8px;
+    bottom: 8px;
+    left: 0;
+    width: 18px;
+    padding: 0;
+    border: 0;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 13%, transparent), transparent);
+    cursor: ew-resize;
+    touch-action: none;
+}
+
+.component-editor-resize-handle::after {
+    position: absolute;
+    top: 50%;
+    left: 7px;
+    width: 4px;
+    height: 42px;
+    border: 1px solid color-mix(in srgb, var(--theme-text-secondary) 38%, var(--theme-border));
+    border-radius: 4px;
+    background: var(--theme-surface-elevated);
+    box-shadow: 0 1px 3px rgb(20 30 45 / 18%);
+    content: "";
+    transform: translateY(-50%);
+}
+
+.component-editor-resize-handle::before {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 5px;
+    width: 8px;
+    height: 14px;
+    border-radius: 3px;
+    background: radial-gradient(circle, var(--theme-text-secondary) 1px, transparent 1.4px) 0 0 / 4px 4px;
+    content: "";
+    opacity: .8;
+    transform: translateY(-50%);
+}
+
+.component-editor-resize-handle:hover::after,
+.component-editor-resize-handle:focus-visible::after {
+    border-color: var(--ui-accent);
+    background: var(--ui-accent-soft);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent) 16%, transparent);
+}
+
+.component-editor-resize-handle:hover::before,
+.component-editor-resize-handle:focus-visible::before {
+    background: radial-gradient(circle, var(--ui-accent-ink) 1px, transparent 1.4px) 0 0 / 4px 4px;
+    opacity: 1;
+}
+
+.component-editor-resize-handle:hover,
+.component-editor-resize-handle:focus-visible {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 22%, transparent), transparent);
+}
+
+.component-editor-resize-handle:focus-visible {
+    outline: 2px solid var(--ui-accent);
+    outline-offset: -2px;
+}
+
+.component-editor-resize-handle.component-editor-resize-right {
+    right: 0;
+    left: auto;
+    background: linear-gradient(270deg, color-mix(in srgb, var(--ui-accent) 13%, transparent), transparent);
+}
+
+.component-editor-resize-handle.component-editor-resize-right::after {
+    right: 7px;
+    left: auto;
+}
+
+.component-editor-resize-handle.component-editor-resize-right::before {
+    right: 5px;
+    left: auto;
+}
+
+.component-editor-resize-handle.component-editor-resize-right:hover,
+.component-editor-resize-handle.component-editor-resize-right:focus-visible {
+    background: linear-gradient(270deg, color-mix(in srgb, var(--ui-accent) 22%, transparent), transparent);
 }
 
 .component-editor-dock.collapsed {
@@ -32,6 +118,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 5px;
+    margin-left: 15px;
     padding: 2px 0;
     border: 0;
     background: transparent;
@@ -394,8 +481,8 @@
         top: 58px;
         right: 8px;
         bottom: calc(env(safe-area-inset-bottom) + 58px);
-        width: min(260px, calc(100vw - 76px));
-        min-width: min(190px, calc(100vw - 76px));
+        width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 76px));
+        min-width: min(190px, calc(var(--app-shell-width, 100vw) - 76px));
     }
 
     .app-shell:not(.platform-windows) .component-editor-dock.collapsed {
@@ -409,8 +496,8 @@
 
 /* Note and text cards use the same right dock as modelling components. */
 .component-editor-dock.note-editor-dock {
-    width: min(258px, calc(100vw - 72px));
-    min-width: 190px;
+    width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 72px));
+    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 72px));
 }
 
 .note-editor-heading {
@@ -578,8 +665,8 @@
 
 @media (max-width: 900px) {
     .component-editor-dock.note-editor-dock {
-        width: min(258px, calc(100vw - 76px));
-        min-width: min(190px, calc(100vw - 76px));
+        width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 76px));
+        min-width: min(190px, calc(var(--app-shell-width, 100vw) - 76px));
     }
 
     .note-editor-heading>button.note-editor-action {

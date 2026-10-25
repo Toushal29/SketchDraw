@@ -46,6 +46,19 @@
     border: 1px solid var(--theme-border);
 }
 
+/* One quiet divider marks each tool family boundary. */
+.tool-deck .touch-tool-content > .tool-cluster:not(.tool-cluster-canvas)::before,
+.tool-deck .touch-tool-content > .tool-family.tool-extra-family::before {
+    width: 1px;
+    height: 22px;
+    flex: 0 0 1px;
+    align-self: center;
+    margin: 0 4px;
+    border-radius: 1px;
+    background: color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 18%, transparent);
+    content: "";
+}
+
 .tool-cluster-canvas {
     border-color: transparent;
 }

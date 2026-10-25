@@ -7,6 +7,8 @@ export type ToolbarZone = "toolbar" | "more";
 type Props = {
   toolbarItems: ToolbarOrderItem[];
   moreItems: ToolbarOrderItem[];
+  historyActionsVisible: boolean;
+  onHistoryActionsVisibleChange: (visible: boolean) => void;
   onMove: (tool: ToolbarItem, zone: ToolbarZone, before?: ToolbarItem) => void;
   onReorder: (zone: ToolbarZone, from: ToolbarItem, to: ToolbarItem) => void;
   onReset: () => void;
@@ -96,6 +98,7 @@ export function ToolbarOrderEditor(props: Props) {
   return <div class="toolbar-organizer-backdrop" role="presentation" onPointerDown={event => { if (event.target === event.currentTarget) props.onClose(); }}>
     <section class="toolbar-order-editor" role="dialog" aria-modal="true" aria-labelledby="toolbar-organizer-title">
       <header class="toolbar-organizer-heading"><strong id="toolbar-organizer-title">Customize tools</strong><button type="button" aria-label="Close toolbar organizer" onClick={props.onClose}>×</button></header>
+      <label class="toolbar-organizer-history-option"><input type="checkbox" checked={props.historyActionsVisible} onChange={event => props.onHistoryActionsVisibleChange(event.currentTarget.checked)} /><span><strong>Show Undo and Redo</strong><small>Keep both history buttons in the toolbar.</small></span></label>
       <div class="toolbar-organizer-columns">{renderZone("toolbar", "Toolbar", props.toolbarItems)}{renderZone("more", "More Tools", props.moreItems)}</div>
       <footer><button type="button" class="toolbar-organizer-reset" onClick={props.onReset}>Restore defaults</button><button type="button" class="toolbar-organizer-done" onClick={props.onClose}>Done</button></footer>
     </section>

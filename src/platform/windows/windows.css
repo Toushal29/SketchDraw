@@ -19,9 +19,6 @@
     background: transparent;
 }
 
-.platform-windows .tool-deck .tool-cluster+.tool-cluster,
-.platform-windows .tool-deck .paint-brushes-family,
-.platform-windows .tool-deck .stencil-family,
 .platform-windows .tool-deck .touch-style-open {
     margin-left: 3px;
     padding-left: 7px;
@@ -101,46 +98,6 @@
 
 .platform-windows .tool-deck .tool-cluster-canvas {
     background: transparent;
-}
-
-.platform-windows .tool-cluster-navigation {
-    order: 0;
-}
-
-.platform-windows .tool-cluster-drawing {
-    order: 1;
-}
-
-.platform-windows .paint-brushes-family {
-    order: 2;
-}
-
-.platform-windows .tool-cluster-laser {
-    order: 3;
-}
-
-.platform-windows .tool-cluster-connectors {
-    order: 4;
-}
-
-.platform-windows .tool-cluster-shapes {
-    order: 5;
-}
-
-.platform-windows .tool-cluster-content {
-    order: 6;
-}
-
-.platform-windows .stencil-family {
-    order: 7;
-}
-
-.platform-windows .tool-cluster-history {
-    order: 8;
-}
-
-.platform-windows .touch-tool-actions {
-    order: 9;
 }
 
 /* The page strip stays compact and expands only when the user has many pages. */

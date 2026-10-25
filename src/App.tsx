@@ -12,7 +12,7 @@ import type { PdfRasterPage } from "./features/export/pdf-renderer";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_CLIPBOARD_VERSION, SKETCH_FORMAT_VERSION } from "./model";
-import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, ToolbarItem, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipType, RelationshipDirection, ConnectionPoint, CanvasLayer, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition } from "./model";
+import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, ProjectTask, ProjectNote, CanvasDataSource, Tool, ToolbarItem, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipType, RelationshipDirection, ConnectionPoint, CanvasLayer, CanvasLayerVisibilityPreset, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition } from "./model";
 import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox, alignedTextStartX, reattachDanglingConnectors } from "./operations";
 import type { NoteKind } from "./model";
 import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, defaultNoteTitle, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryComponentKind } from "./notes";
@@ -35,6 +35,8 @@ import { dotToDiagram } from "./features/diagrams/dot";
 import { d2ToDiagram } from "./features/diagrams/d2";
 import { svgPrimitivesToElements } from "./features/diagrams/svg-vectors";
 import { exportDiagramCode, plantUmlToDiagram, type DiagramCodeFormat } from "./features/diagrams/code-formats";
+import { blueprintZip, buildBlueprintFiles, type BlueprintFormat } from "./features/diagrams/blueprint-export";
+import { fetchCanvasJsonDataSource, resolveCanvasDataBinding } from "./features/diagrams/canvas-data";
 import { makeWebPreviewCard, webEmbedUrl } from "./features/canvas/web-preview";
 import { assignLibraryComponentIds, libraryComponentFields, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryCheckboxOption, setLibraryFormState, setLibraryLifelineLength, setLibraryRadioOption, upgradeLegacyLibraryComponent } from "./features/components/library-component-editor";
 import { guiOptionIndexAtPoint } from "./features/components/gui-components";
@@ -96,6 +98,8 @@ import { createWindowsSyncMetadata } from "./platform/windows/sync";
 import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, displayShortcut, formatShortcutBindings, loadWindowsShortcuts, matchesWindowsMouseShortcut, matchesWindowsShortcut, normalizeShortcut, shortcutFromMouseEvent, type WindowsShortcutId, type WindowsShortcutMap, type WindowsShortcutSlot } from "./platform/windows/shortcuts";
 import { autoRouteConnectorSet, autoRoutePoints, createAutoRouteContext, type AutoRouteContext } from "./features/diagrams/connector-routing";
 import { createPlanningSession } from "./features/project/planning-session";
+import { isProjectTaskComplete } from "./features/project/project-utils";
+import { ProjectNotebookSplit } from "./features/project/ProjectNotebookSplit";
 import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableMinimumHeight, schemaTableMinimumWidth, schemaTableResizeMinimumWidth, schemaTableRowLayout } from "./features/diagrams/schema-table-layout";
 import { clearRetiredLibraryData, createLegacyLibraryData, createRetiredLibraryArchive, hasRetiredLibraryData } from "./features/files/legacy-library-data";
 import { WorkspaceAreaTabs } from "./features/workspace/WorkspaceAreaTabs";
@@ -107,6 +111,7 @@ import type { DocumentControllerStatus } from "./features/document/document-type
 import { serializeSketchSnapshot } from "./features/files/document-codec";
 import { sketchFileStore } from "./features/files/sketch-file-store";
 import { sketchRecoveryStore } from "./features/files/sketch-recovery-store";
+import { createLocalDocumentArchive } from "./features/files/local-archive";
 const SHAPE_CATALOG_COUNT = 4 + FLOWCHART_SHAPES.length + GENERAL_SHAPES.length;
 const OPEN_POPOVER_DETAILS_SELECTOR = ".menu-dropdown[open], .touch-page-control[open], .touch-page-more[open], .page-menu[open], .project-dependency-picker[open]";
 
@@ -130,11 +135,23 @@ const FONT_FAMILY_CHOICES: ReadonlyArray<{ value: FontFamily; label: string }> =
   { value: "display", label: "Display" },
 ];
 type DisplayMetrics = { physicalWidth: number; physicalHeight: number; viewportWidth: number; viewportHeight: number };
-const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "laser", "line", "arrow", "rectangle", "circle", "diamond", "flowchart", "text", "bucket", "eraser", "crop", "measure", "codeData", "pathEdit", "frame", "moreTools"];
+const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "eraser", "laser", "line", "arrow", "rectangle", "circle", "diamond", "flowchart", "text", "bucket", "crop", "measure", "codeData", "pathEdit", "frame"];
 const DEFAULT_MORE_TOOL_ORDER: ToolbarItem[] = ["bucket", "measure", "crop"];
-const MOBILE_DEFAULT_TOOLBAR_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "line", "arrow", "rectangle", "text", "eraser", "moreTools"];
+const MOBILE_DEFAULT_TOOLBAR_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "eraser", "line", "arrow", "rectangle", "text"];
 type ToolbarLayout = { toolbar: ToolbarItem[]; more: ToolbarItem[] };
-type OrderedToolbarEntry = { kind: "cluster"; id: string; label: string; tools: ToolbarItem[] } | { kind: "more-tools" };
+type OrderedToolbarEntry = { id: string; label: string; tools: ToolbarItem[] };
+function normalizePaintToolOrder(toolbar: ToolbarItem[]) {
+  const moveAfter = (item: ToolbarItem, anchor: ToolbarItem) => {
+    const itemIndex = toolbar.indexOf(item);
+    const anchorIndex = toolbar.indexOf(anchor);
+    if (itemIndex >= 0 && anchorIndex >= 0 && itemIndex !== anchorIndex + 1) {
+      toolbar.splice(itemIndex, 1);
+      toolbar.splice(toolbar.indexOf(anchor) + 1, 0, item);
+    }
+  };
+  if (toolbar.includes("paintBrushes")) moveAfter("paintBrushes", "pen");
+  moveAfter("eraser", toolbar.includes("paintBrushes") ? "paintBrushes" : "pen");
+}
 function toolbarItemsForCurrentPlatform(): ToolbarItem[] {
   return [...DEFAULT_TOOL_ORDER];
 }
@@ -156,17 +173,13 @@ function readToolbarLayout(): ToolbarLayout {
     const available = toolbarItemsForCurrentPlatform();
     const defaults = defaultToolbarLayout();
     const saved: unknown = JSON.parse(localStorage.getItem("sketchdraw-toolbar-layout") ?? "null");
-    const normalize = (values: unknown) => Array.isArray(values) ? [...new Set(values.filter((value): value is ToolbarItem => available.includes(value as ToolbarItem)))] : [];
+    const normalize = (values: unknown) => Array.isArray(values) ? [...new Set(values.filter((value): value is ToolbarItem => value !== "moreTools" && available.includes(value as ToolbarItem)))] : [];
     if (saved && typeof saved === "object" && !Array.isArray(saved)) {
       const source = saved as { toolbar?: unknown; more?: unknown };
       const toolbar = normalize(source.toolbar);
-      const more = normalize(source.more).filter(value => value !== "moreTools" && value !== "paintBrushes" && !toolbar.includes(value));
-      if (!toolbar.includes("paintBrushes")) {
-        const penIndex = toolbar.indexOf("pen");
-        if (penIndex >= 0) toolbar.splice(penIndex + 1, 0, "paintBrushes");
-        else toolbar.push("paintBrushes");
-      }
+      const more = normalize(source.more).filter(value => value !== "eraser" && !toolbar.includes(value));
       for (const value of [...defaults.toolbar, ...defaults.more]) if (!toolbar.includes(value) && !more.includes(value)) (defaults.more.includes(value) ? more : toolbar).push(value);
+      normalizePaintToolOrder(toolbar);
       return { toolbar, more };
     }
     const legacy = JSON.parse(localStorage.getItem("sketchdraw-toolbar-order") ?? "null") as unknown;
@@ -174,12 +187,7 @@ function readToolbarLayout(): ToolbarLayout {
       const oldToolbar = normalize(legacy).filter(value => !DEFAULT_MORE_TOOL_ORDER.includes(value));
       const more = defaults.more.filter(value => !oldToolbar.includes(value));
       const toolbar = [...oldToolbar, ...defaults.toolbar.filter(value => !oldToolbar.includes(value))];
-      const paintBrushesIndex = toolbar.indexOf("paintBrushes");
-      const penIndex = toolbar.indexOf("pen");
-      if (paintBrushesIndex >= 0 && penIndex >= 0 && paintBrushesIndex !== penIndex + 1) {
-        toolbar.splice(paintBrushesIndex, 1);
-        toolbar.splice(penIndex + 1, 0, "paintBrushes");
-      }
+      normalizePaintToolOrder(toolbar);
       return { toolbar, more };
     }
     return defaults;
@@ -376,7 +384,9 @@ function App() {
     }
   }
   const [documentRevision, setDocumentRevision] = createSignal(0);
-  const advanceDocumentRevision = () => setDocumentRevision(revision => revision + 1);
+  let prototypeRuntimeActive = false;
+  let prototypeEditDuringRun = false;
+  const advanceDocumentRevision = () => { if (!prototypeRuntimeActive) setDocumentRevision(revision => revision + 1); };
   const [elements, setElementsSignal] = createSignal<Element[]>([]);
   const activeElementSpatialIndex = new ElementSpatialIndex();
   function withWindowsRouteSnapshots(items: Element[]): Element[] {
@@ -430,6 +440,7 @@ function App() {
   const setActivePageId: typeof setActivePageIdSignal = next => { advanceDocumentRevision(); return setActivePageIdSignal(next); };
   const setLegacyLibraryData: typeof setLegacyLibraryDataSignal = next => { advanceDocumentRevision(); return setLegacyLibraryDataSignal(next); };
   const setDirty = (value: boolean) => {
+    if (prototypeRuntimeActive && value) prototypeEditDuringRun = true;
     if (value) advanceDocumentRevision();
     setDirtySignal(value);
   };
@@ -465,6 +476,12 @@ function App() {
   const [shortcutDialogOpen, setShortcutDialogOpen] = createSignal(false);
   const [shortcuts, setShortcuts] = createSignal<WindowsShortcutMap>(isWindowsPlatform() ? loadWindowsShortcuts() : { ...DEFAULT_WINDOWS_SHORTCUTS });
   const [presentationMode, setPresentationMode] = createSignal(false);
+  const [canvasRunMode, setCanvasRunMode] = createSignal(false);
+  const prototypeRuntimePages = new Map<string, { before: Element[]; runtime: Element[] }>();
+  let prototypePriorDirty = false;
+  const [notebookSplitOpen, setNotebookSplitOpen] = createSignal(false);
+  const [layerPresetName, setLayerPresetName] = createSignal("");
+  const [selectedLayerPresetId, setSelectedLayerPresetId] = createSignal("");
   const [presentationTarget, setPresentationTarget] = createSignal<"pages" | "frames">("pages");
   const [presentationTransition, setPresentationTransition] = createSignal<PageLinkTransition>();
   let presentationTransitionOutTimer: number | undefined;
@@ -512,6 +529,45 @@ function App() {
   const [classCardDraft, setClassCardDraft] = createSignal<{ x: number; y: number; name: string; attributes: string; methods: string; fontSize: number; width?: number; height?: number; componentId?: string }>();
   const [libraryComponentDraft, setLibraryComponentDraft] = createSignal<GroupElement>();
   const [componentEditorCollapsed, setComponentEditorCollapsedValue] = createSignal(readPreference("sketchdraw-component-editor-collapsed", "true") === "true");
+  const savedComponentEditorWidth = Number(readPreference("sketchdraw-component-editor-width", "260"));
+  const [componentEditorWidth, setComponentEditorWidth] = createSignal(Math.max(190, Math.min(640, Number.isFinite(savedComponentEditorWidth) ? savedComponentEditorWidth : 260)));
+  let componentDockResize: { pointerId: number; startX: number; startWidth: number; edge: "left" | "right" } | undefined;
+  const componentDockResizeEdge = () => !isWindowsPlatform() && toolbarPosition() === "right" ? "right" as const : "left" as const;
+  const resizeComponentEditor = (width: number, persist = true) => {
+    const maxWidth = Math.max(190, Math.min(640, window.innerWidth / interfaceScale() - 76));
+    const nextWidth = Math.round(Math.max(190, Math.min(maxWidth, width)));
+    setComponentEditorWidth(nextWidth);
+    if (persist) try { localStorage.setItem("sketchdraw-component-editor-width", String(nextWidth)); } catch { /* The width still applies for this session. */ }
+  };
+  const beginComponentEditorResize = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    componentDockResize = { pointerId: event.pointerId, startX: event.clientX, startWidth: componentEditorWidth(), edge: componentDockResizeEdge() };
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Pointer capture may be unavailable in a webview. */ }
+  };
+  const moveComponentEditorResize = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+    const current = componentDockResize;
+    if (!current || current.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const delta = (current.edge === "left" ? current.startX - event.clientX : event.clientX - current.startX) / interfaceScale();
+    resizeComponentEditor(current.startWidth + delta, false);
+  };
+  const finishComponentEditorResize = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+    const current = componentDockResize;
+    if (!current || current.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    componentDockResize = undefined;
+    resizeComponentEditor(componentEditorWidth());
+    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* The pointer may already have been released. */ }
+  };
+  const keyComponentEditorResize = (event: KeyboardEvent & { currentTarget: HTMLDivElement }) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const increasesWidth = componentDockResizeEdge() === "left" ? event.key === "ArrowLeft" : event.key === "ArrowRight";
+    resizeComponentEditor(componentEditorWidth() + (increasesWidth ? 12 : -12));
+  };
   const [componentDisclosureState, setComponentDisclosureState] = createSignal<Record<string, boolean>>({});
   const componentDisclosureOpen = (key: string, defaultOpen = false) => componentDisclosureState()[key] ?? defaultOpen;
   const componentDisclosureToggle = (key: string, defaultOpen = false) => (event: Event) => {
@@ -529,6 +585,7 @@ function App() {
   const initialToolbarLayout = readToolbarLayout();
   const [toolbarOrder, setToolbarOrder] = createSignal<ToolbarItem[]>(initialToolbarLayout.toolbar);
   const [moreToolsOrder, setMoreToolsOrder] = createSignal<ToolbarItem[]>(initialToolbarLayout.more);
+  const [historyActionsVisible, setHistoryActionsVisible] = createSignal(readPreference("sketchdraw-history-actions-visible", "true") !== "false");
   const [mobileOrientation, setMobileOrientation] = createSignal(readPreference("sketchdraw-mobile-orientation", "landscape") === "portrait" ? "portrait" as const : "landscape" as const);
   const [orientationMessage, setOrientationMessage] = createSignal("");
   const [toolbarPosition, setToolbarPosition] = createSignal<"top" | "bottom" | "left" | "right">((() => {
@@ -584,6 +641,7 @@ function App() {
   const [canvasOptionsOpen, setCanvasOptionsOpen] = createSignal(false);
   const [toolbarOrganizerOpen, setToolbarOrganizerOpen] = createSignal(false);
   const [moreToolsOpen, setMoreToolsOpen] = createSignal(false);
+  const [moreBrushPickerOpen, setMoreBrushPickerOpen] = createSignal(false);
   const [exportFormat, setExportFormat] = createSignal<"png" | "svg" | "pdf">("png");
   const [exportWidth, setExportWidth] = createSignal(1600);
   const [exportHeight, setExportHeight] = createSignal(1000);
@@ -652,6 +710,16 @@ function App() {
   const [diagramCodeExportOpen, setDiagramCodeExportOpen] = createSignal(false);
   const [diagramCodeFormat, setDiagramCodeFormat] = createSignal<DiagramCodeFormat>("mmd");
   const [diagramCodeScope, setDiagramCodeScope] = createSignal<"page" | "selection">("page");
+  const [blueprintExportOpen, setBlueprintExportOpen] = createSignal(false);
+  const [blueprintFormat, setBlueprintFormat] = createSignal<BlueprintFormat>("java");
+  const [csvDataLinkDraft, setCsvDataLinkDraft] = createSignal<CanvasDataSource>();
+  const [apiDataSourceOpen, setApiDataSourceOpen] = createSignal(false);
+  const [apiDataSourceUrl, setApiDataSourceUrl] = createSignal("");
+  const [apiDataSourceBusy, setApiDataSourceBusy] = createSignal(false);
+  const [apiDataSourceError, setApiDataSourceError] = createSignal("");
+  const [csvDataKeyColumn, setCsvDataKeyColumn] = createSignal(0);
+  const [csvDataValueColumn, setCsvDataValueColumn] = createSignal(1);
+  const [csvDataRowIndex, setCsvDataRowIndex] = createSignal(0);
   const [webEmbedDialog, setWebEmbedDialog] = createSignal(false);
   const [webEmbedInput, setWebEmbedInput] = createSignal("");
   const [webEmbedError, setWebEmbedError] = createSignal("");
@@ -735,6 +803,42 @@ function App() {
   const [nativeBusy, setNativeBusy] = createSignal(false);
   const planningSession = createPlanningSession({ busy: nativeBusy, setBusy: setNativeBusy, chooseDocument: choosePlanningDocument, createDocument: createPlanningDocument, activeSketchPath: activePath, displayNameForPath, setError });
   const { recentPlans, data: projectWorkspaceData, path: planningPath, dirty: planningDirty, saving: planningSaving, savedAt: planningSavedAt, legacyPending: legacyPlanningPending, needsExtraction: planningNeedsExtraction } = planningSession;
+  const projectTasksById = createMemo(() => new Map(projectWorkspaceData().tasks.map(task => [task.id, task] as const)));
+  const [localArchiveRevision, setLocalArchiveRevision] = createSignal(0);
+  let localArchiveInProgress = false;
+  let lastLocalArchiveFailureKey = "";
+  const completedLocalArchives = new Map<string, number>();
+  createEffect(() => {
+    localArchiveRevision();
+    const sketchPath = activePath(); const planPath = planningPath();
+    const hasOpenDocument = !!sketchPath || !!planPath;
+    const stable = (!sketchPath || !dirty()) && (!planPath || !planningDirty()) && !saving() && !planningSaving() && !nativeBusy();
+    if (!isTauri() || isAndroidPlatform() || !hasOpenDocument || !stable || localArchiveInProgress) return;
+    const keySource = `${normalizeFileUri(sketchPath ?? "")}\n${normalizeFileUri(planPath ?? "")}`;
+    if (lastLocalArchiveFailureKey && lastLocalArchiveFailureKey !== keySource) lastLocalArchiveFailureKey = "";
+    if (lastLocalArchiveFailureKey === keySource) return;
+    let hash = 2166136261;
+    for (const char of keySource) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+    const preferenceKey = `sketchdraw-local-archive-${(hash >>> 0).toString(36)}`;
+    let previousAt = 0;
+    try { previousAt = Number(localStorage.getItem(preferenceKey)) || 0; } catch { /* Continue with this session's local archive check. */ }
+    previousAt = Math.max(previousAt, completedLocalArchives.get(keySource) ?? 0);
+    if (previousAt > 0 && Date.now() - previousAt < 7 * 86_400_000) return;
+    localArchiveInProgress = true;
+    void (async () => {
+      try {
+        const documents = [] as { name: string; contents: string }[];
+        if (sketchPath) documents.push({ name: displayNameForPath(sketchPath), contents: await readTextFile(sketchPath) });
+        if (planPath) documents.push({ name: displayNameForPath(planPath), contents: await readTextFile(planPath) });
+        if (activePath() !== sketchPath || planningPath() !== planPath || dirty() || planningDirty() || saving() || planningSaving()) return;
+        const archivedAt = Date.now();
+        await createLocalDocumentArchive(documents, archivedAt);
+        completedLocalArchives.set(keySource, archivedAt);
+        try { localStorage.setItem(preferenceKey, String(archivedAt)); } catch { /* The file archive still protects this session when storage is unavailable. */ }
+      } catch (cause) { lastLocalArchiveFailureKey = keySource; setError(`Could not create the local .sdbackup archive: ${String(cause)}`); }
+      finally { localArchiveInProgress = false; setLocalArchiveRevision(value => value + 1); }
+    })();
+  });
   const [documentBusy, setDocumentBusy] = createSignal(false);
   const [openToolOptions, setOpenToolOptions] = createSignal<Tool | "paintBrushes">();
   const [stencilMenuOpen, setStencilMenuOpen] = createSignal(false);
@@ -1018,6 +1122,125 @@ function App() {
     if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false;
     setContextMenu({ x: Math.max(8, Math.min(event.clientX, window.innerWidth - 252)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - 510)), world: point });
   }
+  const selectedProjectTaskId = () => {
+    const ids = [...new Set(selectedIndices().flatMap(index => elements()[index]?.projectTaskId ? [elements()[index].projectTaskId!] : []))];
+    return ids.length === 1 ? ids[0] : undefined;
+  };
+  async function convertSelectionToProjectTask() {
+    if (!selectedIndices().length || boardLocked() || readOnlyView()) return;
+    if (!planningPath()) {
+      if (!await planningSession.openPicker()) return;
+      trackOpenPlanningPath();
+    }
+    const workspace = projectWorkspaceData();
+    if (workspace.tasks.length >= 2000) { setError("This Planning file has reached the 2,000 task limit."); return; }
+    const selected = selectedIndices().map(index => elements()[index]).filter((item): item is Element => !!item);
+    if (!selected.length) return;
+    const titleOf = (item: Element) => item.type === "schemaTable" ? item.name : item.type === "group" ? item.note?.title || item.libraryComponent?.label || "Canvas component" : item.type === "text" ? item.text : "label" in item ? item.label?.text || item.type : item.type;
+    const firstTitle = titleOf(selected[0]).trim().replace(/\s+/g, " ").slice(0, 240);
+    const now = Date.now();
+    const columns = workspace.workflowColumns ?? [];
+    const task: ProjectTask = { id: crypto.randomUUID(), title: firstTitle || "Canvas task", description: selected.length > 1 ? `Linked to ${selected.length} canvas objects in ${fileName()}.` : `Linked to a canvas object in ${fileName()}.`, status: columns.find(column => !column.completed)?.id ?? columns[0]?.id ?? "backlog", priority: "medium", createdAt: now, updatedAt: now };
+    planningSession.update({ ...workspace, tasks: [...workspace.tasks, task] });
+    const selectedSet = new Set(selectedIndices());
+    pushUndo(cloneElements(elements()));
+    setElements(items => items.map((item, index) => selectedSet.has(index) ? { ...item, projectTaskId: task.id } as Element : item));
+    setDirty(true);
+    setError("");
+  }
+  function removeSelectionProjectTaskLink() {
+    const selectedSet = new Set(selectedIndices());
+    if (!selectedSet.size || boardLocked() || readOnlyView()) return;
+    pushUndo(cloneElements(elements()));
+    setElements(items => items.map((item, index) => selectedSet.has(index) ? (({ projectTaskId: _projectTaskId, ...rest }) => rest)(item) as Element : item));
+    setDirty(true);
+  }
+  function createNotebookNote() {
+    const workspace = projectWorkspaceData();
+    if (!planningPath() || workspace.notes.length >= 12_000) return;
+    const now = Date.now();
+    const note: ProjectNote = { id: crypto.randomUUID(), title: "Canvas notes", content: "", createdAt: now, updatedAt: now };
+    planningSession.update({ ...workspace, notes: [note, ...workspace.notes] });
+  }
+  function highlightNotebookReference(line: string) {
+    const bracketed = /\[\[([^\]]+)\]\]/.exec(line)?.[1];
+    const reference = (bracketed ?? line.replace(/^\s*(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+)?/, "").replace(/[*`_]/g, "")).trim().toLocaleLowerCase();
+    if (!reference) return;
+    const titleOf = (item: Element) => item.type === "schemaTable" ? item.name : item.type === "group" ? item.note?.title || item.libraryComponent?.label || "" : item.type === "text" ? item.text : "label" in item ? item.label?.text ?? "" : "";
+    const matches = elements().flatMap((item, index) => titleOf(item).trim().replace(/\s+/g, " ").toLocaleLowerCase() === reference ? [index] : []);
+    if (matches.length) { setSelectedIndices(matches); setTool("select"); }
+  }
+  function openNotebookPlanning() {
+    if (planningPath()) setWorkspaceArea("planning");
+    else void openPlanningFile();
+  }
+  async function openCsvDataLinkDialog() {
+    if (!selectedIndices().length || !activePath() || boardLocked() || readOnlyView()) return;
+    try {
+      const sourceText = await readSourceTextFile("Link canvas objects to CSV data", "CSV data", ["csv", "txt"]);
+      if (sourceText === undefined) return;
+      const parsed = parseCsv(sourceText);
+      if (parsed.headers.length < 2) throw new Error("CSV data links need at least two columns: one record key and one value to display.");
+      const source: CanvasDataSource = { id: crypto.randomUUID(), name: "Linked CSV data", headers: parsed.headers, rows: parsed.rows, updatedAt: Date.now() };
+      setCsvDataKeyColumn(0); setCsvDataValueColumn(1); setCsvDataRowIndex(0); setCsvDataRowQuery(""); setCsvDataLinkDraft(source);
+    } catch (cause) { setError(`Could not load CSV data: ${cause instanceof Error ? cause.message : String(cause)}`); }
+  }
+  function openApiDataSourceDialog() {
+    if (!selectedIndices().length || !activePath() || boardLocked() || readOnlyView()) return;
+    setApiDataSourceUrl(""); setApiDataSourceError(""); setApiDataSourceOpen(true);
+  }
+  async function connectApiDataSource() {
+    if (apiDataSourceBusy()) return;
+    setApiDataSourceBusy(true); setApiDataSourceError("");
+    try {
+      const source = await fetchCanvasJsonDataSource(apiDataSourceUrl());
+      setCsvDataKeyColumn(0); setCsvDataValueColumn(1); setCsvDataRowIndex(0); setCsvDataRowQuery("");
+      setCsvDataLinkDraft(source); setApiDataSourceOpen(false);
+    } catch (cause) {
+      setApiDataSourceError(cause instanceof Error ? cause.message : String(cause));
+    } finally { setApiDataSourceBusy(false); }
+  }
+  const [csvDataRowQuery, setCsvDataRowQuery] = createSignal("");
+  const csvDataLinkMatches = () => {
+    const source = csvDataLinkDraft(); if (!source) return [];
+    const query = csvDataRowQuery().trim().toLocaleLowerCase(); const keyColumn = csvDataKeyColumn(); const valueColumn = csvDataValueColumn();
+    return source.rows.flatMap((row, index) => {
+      const label = row[keyColumn] || `Row ${index + 1}`;
+      const value = row[valueColumn] ?? "";
+      return !query || `${label} ${value}`.toLocaleLowerCase().includes(query) ? [{ index, label, value }] : [];
+    }).slice(0, 100);
+  };
+  function applyCsvDataLink() {
+    const source = csvDataLinkDraft(); const page = currentPage();
+    const row = source?.rows[csvDataRowIndex()]; const selected = new Set(selectedIndices());
+    if (!source || !page || !row || !selected.size || boardLocked() || readOnlyView()) return;
+    if (source.id !== page.dataSources?.find(item => item.id === source.id)?.id && (page.dataSources?.length ?? 0) >= 24) { setError("A sketch page can contain at most 24 linked data sources."); return; }
+    const binding = { sourceId: source.id, keyColumn: csvDataKeyColumn(), keyValue: row[csvDataKeyColumn()], valueColumn: csvDataValueColumn() };
+    pushUndo(cloneElements(elements()));
+    setElements(items => items.map((item, index) => selected.has(index) ? { ...item, dataBinding: binding } as Element : item));
+    const updatedSource = { ...source, updatedAt: Date.now() };
+    setPages(items => items.map(item => item.id === page.id ? { ...item, dataSources: [...(item.dataSources ?? []).filter(existing => existing.id !== updatedSource.id), updatedSource] } : item));
+    setDirty(true); setCsvDataLinkDraft(undefined); setError("");
+  }
+  async function refreshSelectedCsvData() {
+    const binding = selectedRootElement()?.dataBinding; const source = binding ? currentPage()?.dataSources?.find(item => item.id === binding.sourceId) : undefined;
+    if (!binding || !source || !activePath() || boardLocked() || readOnlyView()) return;
+    try {
+      let refreshed: CanvasDataSource;
+      if (source.sourceUrl) refreshed = await fetchCanvasJsonDataSource(source.sourceUrl, source.id);
+      else {
+        const sourceText = await readSourceTextFile("Refresh linked CSV data", "CSV data", ["csv", "txt"]);
+        if (sourceText === undefined) return;
+        const parsed = parseCsv(sourceText);
+        refreshed = { ...source, headers: parsed.headers, rows: parsed.rows, updatedAt: Date.now() };
+      }
+      if (binding.keyColumn >= refreshed.headers.length || binding.valueColumn >= refreshed.headers.length
+        || refreshed.headers[binding.keyColumn] !== source.headers[binding.keyColumn]
+        || refreshed.headers[binding.valueColumn] !== source.headers[binding.valueColumn]) throw new Error("The refreshed data changed or removed a column used by this link. Re-link the object to choose the new columns.");
+      setPages(items => items.map(page => page.id !== currentPage()?.id ? page : { ...page, dataSources: (page.dataSources ?? []).map(item => item.id === source.id ? refreshed : item) }));
+      setDirty(true); setError("");
+    } catch (cause) { setError(`Could not refresh linked data: ${cause instanceof Error ? cause.message : String(cause)}`); }
+  }
   function connectorForView(item: ShapeElement, sourceItems = elements()): ShapeElement {
     if (item.straightOnly || !item.autoRoute || (item.type !== "line" && item.type !== "arrow")) return item;
     return { ...item, lineRoute: item.type === "line" ? "straight" : undefined, arrowRoute: item.type === "arrow" ? "straight" : undefined, routePoints: autoRoutePoints(item, autoRouteContextFor(sourceItems)) };
@@ -1277,6 +1500,7 @@ function App() {
   });
   const fileName = () => activePath() ? displayNameForPath(activePath()!) : "Untitled sketch";
   const currentPage = () => pages().find((page) => page.id === activePageId());
+  const canvasDataSourcesById = createMemo(() => new Map((currentPage()?.dataSources ?? []).map(source => [source.id, source] as const)));
   const currentLayers = () => currentPage()?.layers ?? [];
   const isElementHidden = (item: Element) => item.hidden || layerHidden(currentLayers(), item.layerId);
   const isElementHiddenOnPage = (item: Element, page: SketchPage) => item.hidden || layerHidden(page.layers ?? [], item.layerId);
@@ -1305,6 +1529,34 @@ function App() {
       const layers = operation([...(page.layers ?? [])]);
       return { ...page, ...(layers.length ? { layers } : { layers: undefined }) };
     }));
+    setDirty(true);
+  }
+  const currentVisibilityPresets = () => currentPage()?.visibilityPresets ?? [];
+  function saveLayerVisibilityPreset(event?: SubmitEvent) {
+    event?.preventDefault();
+    const name = layerPresetName().trim().slice(0, 80);
+    const pageId = activePageId();
+    if (!name || boardLocked() || readOnlyView() || !pageId || currentVisibilityPresets().length >= 24) return;
+    const preset: CanvasLayerVisibilityPreset = { id: crypto.randomUUID(), name, hiddenLayerIds: currentLayers().filter(layer => layer.hidden).map(layer => layer.id) };
+    setPages(items => items.map(page => page.id === pageId ? { ...page, visibilityPresets: [...(page.visibilityPresets ?? []), preset] } : page));
+    setSelectedLayerPresetId(preset.id);
+    setLayerPresetName("");
+    setDirty(true);
+  }
+  function applyLayerVisibilityPreset(id: string) {
+    const preset = currentVisibilityPresets().find(item => item.id === id);
+    if (!preset) return;
+    setSelectedLayerPresetId(id);
+    updateCurrentLayers(layers => {
+      const hidden = new Set(preset.hiddenLayerIds);
+      return layers.map(layer => ({ ...layer, hidden: hidden.has(layer.id) }));
+    });
+  }
+  function deleteLayerVisibilityPreset() {
+    const pageId = activePageId(); const id = selectedLayerPresetId();
+    if (!pageId || !id || boardLocked() || readOnlyView()) return;
+    setPages(items => items.map(page => page.id === pageId ? { ...page, visibilityPresets: (page.visibilityPresets ?? []).filter(preset => preset.id !== id) } : page));
+    setSelectedLayerPresetId("");
     setDirty(true);
   }
   const theme = (): Theme => themeMode() === "system" ? systemDark() ? "dark" : "light" : themeMode() as Theme;
@@ -1951,10 +2203,47 @@ function App() {
     if (id === activePageId()) return;
     const target = pages().find((page) => page.id === id);
     if (!target) return;
-    commitTextDraft(); rememberPageHistory(); storeCurrentPage();
-    setElements(target.elements); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false);
+    if (canvasRunMode()) {
+      const currentId = activePageId();
+      const current = currentId ? prototypeRuntimePages.get(currentId) : undefined;
+      if (current) current.runtime = cloneElements(elements());
+      if (!prototypeRuntimePages.has(id)) prototypeRuntimePages.set(id, { before: cloneElements(target.elements), runtime: cloneElements(target.elements) });
+    } else {
+      commitTextDraft(); rememberPageHistory(); storeCurrentPage();
+    }
+    const nextElements = canvasRunMode() ? prototypeRuntimePages.get(id)?.runtime ?? target.elements : target.elements;
+    setElements(nextElements); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false);
     setActivePageId(id); setSelectedIndices([]); setHoveredIndex(undefined); setTextDraft(undefined); setMarquee(undefined);
-    restorePageHistory(); setDirty(!readOnlyView());
+    if (!canvasRunMode()) { restorePageHistory(); setDirty(!readOnlyView()); }
+  }
+
+  function toggleCanvasRunMode() {
+    if (!canvasRunMode()) {
+      if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer);
+      syncObservationTimer = undefined;
+      prototypeRuntimePages.clear();
+      const pageId = activePageId();
+      if (pageId) {
+        const before = cloneElements(elements());
+        prototypeRuntimePages.set(pageId, { before, runtime: cloneElements(before) });
+      }
+      prototypePriorDirty = dirty();
+      prototypeEditDuringRun = false;
+      prototypeRuntimeActive = true;
+      setCanvasRunMode(true);
+    } else {
+      const current = prototypeRuntimePages.get(activePageId());
+      if (current) setElements(current.before);
+      prototypeRuntimePages.clear();
+      setCanvasRunMode(false);
+      prototypeRuntimeActive = false;
+      setDirty(prototypePriorDirty || prototypeEditDuringRun);
+      prototypeEditDuringRun = false;
+      restorePageHistory();
+    }
+    setSelectedIndices([]);
+    setTool("select");
+    scheduleCanvasRender();
   }
   function addPage() {
     if (boardLocked()) return;
@@ -2722,7 +3011,10 @@ function App() {
       if (!options.length) return false;
       change = currentGroup => rebuildLibraryFormOptions(currentGroup, options, ((currentGroup.libraryComponent?.selectedOption ?? 0) + 1) % options.length);
     } else return false;
-    const before = cloneElements(elements()); setElements(items => items.map((item, currentIndex) => currentIndex === index ? change!(item as GroupElement) : item)); pushUndo(before); setDirty(true);
+    const before = cloneElements(elements());
+    const updated = before.map((item, currentIndex) => currentIndex === index ? change!(item as GroupElement) : item);
+    setElements(updated);
+    if (!canvasRunMode()) { pushUndo(before); setDirty(true); }
     return true;
   }
 
@@ -3442,6 +3734,35 @@ function App() {
 
   function drawElement(ctx: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems = elements()) {
     if (isElementHidden(element)) return;
+    drawElementBase(ctx, element, viewport, sourceItems);
+    const task = element.projectTaskId ? projectTasksById().get(element.projectTaskId) : undefined;
+    const bounds = elementBounds(element);
+    if (task && isProjectTaskComplete(task, projectWorkspaceData().workflowColumns ?? [])) {
+      const x = bounds.x + Math.max(8, bounds.w - 9); const y = bounds.y + 9;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fillStyle = "#15803d"; ctx.fill();
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.8; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.beginPath(); ctx.moveTo(x - 3.2, y); ctx.lineTo(x - .7, y + 2.5); ctx.lineTo(x + 3.7, y - 2.8); ctx.stroke();
+      ctx.restore();
+    }
+    if (element.dataBinding) {
+      const source = canvasDataSourcesById().get(element.dataBinding.sourceId);
+      const value = source ? resolveCanvasDataBinding([source], element.dataBinding) : undefined;
+      const fieldName = source?.headers[element.dataBinding.valueColumn] ?? "Linked data";
+      const text = `${fieldName}: ${value ?? "No matching row"}`.replace(/\s+/g, " ");
+      ctx.save(); ctx.font = `600 10px ${fontCss("sans")}`;
+      const width = Math.min(240, Math.max(58, ctx.measureText(text).width + 14));
+      const x = Math.max(bounds.x, bounds.x + bounds.w - width - 4); const y = Math.max(bounds.y, bounds.y + bounds.h - 24);
+      ctx.fillStyle = theme() === "dark" ? "rgba(25, 30, 36, .96)" : "rgba(255, 255, 255, .96)";
+      ctx.strokeStyle = theme() === "dark" ? "rgba(255,255,255,.24)" : "rgba(20,30,45,.18)";
+      ctx.beginPath(); ctx.roundRect(x, y, width, 19, 6); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = theme() === "dark" ? "#e5e7eb" : "#26313d"; ctx.textBaseline = "middle"; ctx.fillText(text, x + 7, y + 9.5, width - 14);
+      ctx.restore();
+    }
+  }
+
+  function drawElementBase(ctx: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems = elements()) {
+    if (isElementHidden(element)) return;
     element = simpleComponentElement(element);
     if (element.type === "group") {
       if (element.note) { drawNoteCard(ctx, element, theme(), "simple"); return; }
@@ -3773,7 +4094,7 @@ function App() {
   const scheduleCanvasRender = canvasRenderScheduler.schedule;
   onCleanup(canvasRenderScheduler.dispose);
   onCleanup(stopBpmnSimulation);
-  createEffect(() => { workspaceArea(); activePath(); elements(); canvasState(); preview(); bpmnSimulationIndex(); bpmnSimulationSteps(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
+  createEffect(() => { workspaceArea(); activePath(); elements(); pages(); projectWorkspaceData(); canvasState(); preview(); bpmnSimulationIndex(); bpmnSimulationSteps(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
   let lastAndroidStylusConfig = "";
   createEffect(() => {
     if (!isAndroidPlatform()) return;
@@ -4027,6 +4348,7 @@ function App() {
       try {
         const nativeWindow = getCurrentWindow();
         void nativeWindow.onCloseRequested(async (event) => {
+          if (canvasRunMode()) toggleCanvasRunMode();
           if (readOnlyView() || (!dirty() && !textDraft() && !saving())) return;
           event.preventDefault();
           if (closeInProgress) return;
@@ -4058,8 +4380,8 @@ function App() {
     let autosaveTimer: number | undefined;
     const scheduleAutosave = () => {
       autosaveTimer = window.setTimeout(() => {
-        if (textDraft() && !recoveryPrompt() && !syncConflict()) persistRecovery();
-        if (activePath() && dirty() && !documentBusy() && !recoveryPrompt() && !textDraft() && !drawing && !panOrigin && !resizeOrigin && !moveOrigin && !labelMoveOrigin) {
+        if (!canvasRunMode() && textDraft() && !recoveryPrompt() && !syncConflict()) persistRecovery();
+        if (!canvasRunMode() && activePath() && dirty() && !documentBusy() && !recoveryPrompt() && !textDraft() && !drawing && !panOrigin && !resizeOrigin && !moveOrigin && !labelMoveOrigin) {
           persistRecovery();
           if (!syncConflict() && !docController.isSaveInFlight()) void saveToPath(activePath()!);
         }
@@ -4117,19 +4439,19 @@ function App() {
   function saveToolbarLayout(toolbar: ToolbarItem[], more: ToolbarItem[]) {
     const available = toolbarItemsForCurrentPlatform();
     const nextToolbar = [...new Set(toolbar.filter(value => available.includes(value)))];
-    const nextMore = [...new Set(more.filter(value => value !== "moreTools" && value !== "paintBrushes" && available.includes(value) && !nextToolbar.includes(value)))];
-    if (available.includes("paintBrushes") && !nextToolbar.includes("paintBrushes")) {
-      const penIndex = nextToolbar.indexOf("pen");
-      if (penIndex >= 0) nextToolbar.splice(penIndex + 1, 0, "paintBrushes");
-      else nextToolbar.push("paintBrushes");
-    }
+    const nextMore = [...new Set(more.filter(value => value !== "eraser" && available.includes(value) && !nextToolbar.includes(value)))];
     for (const value of available) if (!nextToolbar.includes(value) && !nextMore.includes(value)) nextToolbar.push(value);
+    if (available.includes("paintBrushes")) normalizePaintToolOrder(nextToolbar);
     setToolbarOrder(nextToolbar);
     setMoreToolsOrder(nextMore);
     try {
       localStorage.setItem("sketchdraw-toolbar-layout", JSON.stringify({ toolbar: nextToolbar, more: nextMore }));
       localStorage.removeItem("sketchdraw-toolbar-order");
     } catch { /* The selected layout remains active for this session. */ }
+  }
+  function setHistoryActionsVisiblePreference(visible: boolean) {
+    setHistoryActionsVisible(visible);
+    try { localStorage.setItem("sketchdraw-history-actions-visible", String(visible)); } catch { /* The setting still applies for this session. */ }
   }
   function reorderToolbarTool(zone: ToolbarZone, from: ToolbarItem, to: ToolbarItem) {
     const current = [...(zone === "toolbar" ? toolbarOrder() : moreToolsOrder())];
@@ -4141,7 +4463,7 @@ function App() {
     else saveToolbarLayout(toolbarOrder(), current);
   }
   function moveToolbarTool(value: ToolbarItem, destination: ToolbarZone, before?: ToolbarItem) {
-    if ((value === "moreTools" || value === "paintBrushes") && destination === "more") return;
+    if (value === "eraser" && destination === "more") return;
     const currentToolbar = toolbarOrder().filter(item => item !== value);
     const currentMore = moreToolsOrder().filter(item => item !== value);
     const destinationList = destination === "toolbar" ? currentToolbar : currentMore;
@@ -4153,7 +4475,8 @@ function App() {
     const defaults = defaultToolbarLayout();
     setToolbarOrder(defaults.toolbar);
     setMoreToolsOrder(defaults.more);
-    try { localStorage.removeItem("sketchdraw-toolbar-layout"); localStorage.removeItem("sketchdraw-toolbar-order"); } catch { /* The default order remains active for this session. */ }
+    setHistoryActionsVisible(true);
+    try { localStorage.removeItem("sketchdraw-toolbar-layout"); localStorage.removeItem("sketchdraw-toolbar-order"); localStorage.removeItem("sketchdraw-history-actions-visible"); } catch { /* The default toolbar remains active for this session. */ }
   }
   function restoreAppSettings() {
     setThemePreference("system");
@@ -4304,6 +4627,7 @@ function App() {
     await docController.reloadConflict();
   }
   async function saveToPath(path: string, duringDocumentTransition = false) {
+    if (canvasRunMode()) return;
     if (legacyMigrationPath()) return;
     if (documentBusy() && !duringDocumentTransition) return;
     if (planningNeedsExtraction()) {
@@ -4347,6 +4671,7 @@ function App() {
   }
   async function savePlanningDocument() { return planningSession.save(); }
   async function saveCurrentWorkspace() {
+    if (canvasRunMode()) return;
     if (workspaceArea() === "planning") return savePlanningDocument();
     if (activePath()) return saveToPath(activePath()!);
     return saveAs();
@@ -4500,6 +4825,7 @@ function App() {
   }
 
   function resetDocumentSession() {
+    if (canvasRunMode()) toggleCanvasRunMode();
     canvasHistory.clearAll();
     setElements([]); setCanvasState(emptyCanvas());
     documentSession.reset();
@@ -4511,7 +4837,7 @@ function App() {
 
   const docController = createDocumentController({
     activePath, setActivePath,
-    dirty, setDirty,
+    dirty: () => dirty() && !canvasRunMode(), setDirty,
     readOnly: readOnlyView, setReadOnly: setReadOnlyView,
     documentBusy, setDocumentBusy, setSaving, setSavedAt, setError,
     recoveryPrompt, setRecoveryPrompt, syncConflict, setSyncConflict,
@@ -5041,6 +5367,30 @@ function App() {
       setDiagramCodeExportOpen(false);
     } catch (cause) {
       setError(`Could not export diagram code: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } finally { setNativeBusy(false); }
+  }
+
+  async function exportFrameworkBlueprint() {
+    if (!activePath() || readOnlyView() || nativeBusy() || documentBusy()) return;
+    setNativeBusy(true);
+    try {
+      const exportItems = diagramCodeScope() === "selection" ? selectedElements() : elements();
+      if (!exportItems.length) throw new Error("Select one or more objects to export, or switch to the current page.");
+      const archive = blueprintZip(buildBlueprintFiles(blueprintFormat(), exportItems));
+      const baseName = displayNameForPath(activePath()!).replace(/\.sketch$/i, "") || "SketchDraw";
+      const fileName = `${baseName}-${blueprintFormat()}-blueprint.zip`;
+      if (isAndroidPlatform()) {
+        const url = URL.createObjectURL(new Blob([archive.buffer as ArrayBuffer], { type: "application/zip" }));
+        const link = document.createElement("a"); link.href = url; link.download = fileName; link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } else {
+        const selected = await save({ title: "Export code blueprint", defaultPath: fileName, filters: [{ name: "ZIP blueprint", extensions: ["zip"] }] });
+        if (!selected) return;
+        await writeFile(selected.toLowerCase().endsWith(".zip") ? selected : `${selected}.zip`, archive);
+      }
+      setError(""); setBlueprintExportOpen(false);
+    } catch (cause) {
+      setError(`Could not export framework blueprint: ${cause instanceof Error ? cause.message : String(cause)}`);
     } finally { setNativeBusy(false); }
   }
 
@@ -5585,6 +5935,14 @@ function App() {
 
   function pointerDown(event: PointerEvent) {
     if (!activePath()) return;
+    if (canvasRunMode() && event.button === 0) {
+      event.preventDefault();
+      const point = toWorld(event); const hit = hitTest(point); const target = hit === undefined ? undefined : elements()[hit];
+      setSelectedIndices([]);
+      if (hit !== undefined && target?.type === "group" && target.libraryComponent) activateLibraryControl(hit, point);
+      if (target?.pageLinkId) openLinkedPage(target.pageLinkId, target.pageLinkTransition);
+      return;
+    }
     if (event.target === canvas && measureMode() && event.button === 0) {
       event.preventDefault(); measureOrigin = toWorld(event); setMeasurement({ start: measureOrigin, end: measureOrigin });
       try { canvas.setPointerCapture(event.pointerId); } catch { /* The pointer can be canceled before capture. */ }
@@ -6103,26 +6461,23 @@ function App() {
     { id: "navigation", label: "Navigation", tools: ["select", "pan"] },
     { id: "pen", label: "Pen", tools: ["pen"] },
     { id: "paint-brushes", label: "Paint brushes", tools: ["paintBrushes"] },
+    { id: "erase", label: "Erase", tools: ["eraser"] },
     { id: "laser", label: "Laser pointer", tools: ["laser"] },
     { id: "connectors", label: "Connectors", tools: ["line", "arrow"] },
     { id: "shapes", label: "Shapes", tools: ["rectangle", "circle", "diamond", "flowchart"] },
-    { id: "content", label: "Text and image tools", tools: ["text", "bucket", "eraser", "crop"] },
+    { id: "content", label: "Text and image tools", tools: ["text", "bucket", "crop"] },
     { id: "code-data", label: "Code and data", tools: ["codeData"] },
     { id: "precision", label: "Precision tools", tools: ["measure", "pathEdit", "frame"] },
   ];
-  const organizerItems = (values: ToolbarItem[]) => values.map(value => ({ value, label: value === "moreTools" ? "More Tools menu" : value === "paintBrushes" ? "Paint brushes" : tools.find(item => item.value === value)?.label ?? ({ measure: "Measure distance", pathEdit: "Edit selected path nodes", frame: "Create frame from selection", codeData: "Code & data" } as const)[value as "measure" | "pathEdit" | "frame" | "codeData"] ?? value, canTransfer: value !== "moreTools" && value !== "paintBrushes" }));
+  const organizerItems = (values: ToolbarItem[]) => values.map(value => ({ value, label: value === "paintBrushes" ? "Paint brushes" : tools.find(item => item.value === value)?.label ?? ({ measure: "Measure distance", pathEdit: "Edit selected path nodes", frame: "Create frame from selection", codeData: "Code & data" } as const)[value as "measure" | "pathEdit" | "frame" | "codeData"] ?? value, canTransfer: value !== "eraser" }));
   const orderedToolbarEntries = (): OrderedToolbarEntry[] => {
     const entries: OrderedToolbarEntry[] = [];
     for (const value of toolbarOrder()) {
-      if (value === "moreTools") {
-        if (!readOnlyView()) entries.push({ kind: "more-tools" });
-        continue;
-      }
       const definition = toolGroups.find(group => group.tools.includes(value));
       if (!definition) continue;
       const previous = entries[entries.length - 1];
-      if (previous?.kind === "cluster" && previous.id === definition.id) previous.tools.push(value);
-      else entries.push({ kind: "cluster", ...definition, tools: [value] });
+      if (previous?.id === definition.id) previous.tools.push(value);
+      else entries.push({ ...definition, tools: [value] });
     }
     return entries;
   };
@@ -6321,6 +6676,7 @@ function App() {
     setQuickStylePopover(undefined);
     setTouchStylePanel(false);
     setMoreToolsOpen(false);
+    setMoreBrushPickerOpen(false);
   };
   const showToolOptions = (value: Tool | "paintBrushes") => { if (isCompactTouchLayout() && !isWindowsPlatform()) { closeTouchMenuBar(); setCanvasOptionsOpen(false); setStencilMenuOpen(false); } setMoreToolsOpen(false); setOpenToolOptions(value); scheduleTouchPopoverPlacement(); };
   const closeToolOptions = () => setOpenToolOptions(undefined);
@@ -6586,7 +6942,8 @@ function App() {
     : tools.find(item => item.value === value)?.path ?? "M4 4h16v16H4z";
   const runMoreTool = (value: ToolbarItem) => {
     setMoreToolsOpen(false);
-    if (value === "moreTools" || value === "paintBrushes") return;
+    setMoreBrushPickerOpen(false);
+    if (value === "paintBrushes") return;
     if (value === "codeData") { openCodeDataTool(); return; }
     if (value === "measure") { toggleMeasureMode(); return; }
     if (value === "pathEdit") { setPathNodeEditMode(mode => !mode); setSelectedPathNodeIndex(undefined); return; }
@@ -6605,10 +6962,18 @@ function App() {
       : value === "measure" ? readOnlyView() : !definition || readOnlyView();
     return <button type="button" role="menuitem" class={active ? "active" : ""} aria-pressed={active} disabled={disabled} title={item.label} onClick={() => runMoreTool(value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={moreToolPath(value)} /></svg><span>{item.label}</span><Show when={definition?.key}><kbd>{definition?.key}</kbd></Show></button>;
   };
-  const renderMoreToolsFamily = () => <Show when={!readOnlyView()}><div class="tool-family more-tools-family tool-extra-family" classList={{ "options-open": moreToolsOpen() }} onFocusOut={event => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) setMoreToolsOpen(false); }}>
-    <button type="button" class="tool-icon-button has-options mobile-tool-essential" title="More Tools" aria-label="More Tools" aria-haspopup="menu" aria-expanded={moreToolsOpen()} onClick={() => { const opening = !moreToolsOpen(); if (!isWindowsPlatform() && isCompactTouchLayout()) closeTouchMenuBar(); setMoreToolsOpen(opening); setCanvasOptionsOpen(false); closeToolOptions(); setStencilMenuOpen(false); scheduleTouchPopoverPlacement(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button>
+  const renderMoreToolEntry = (value: ToolbarItem) => {
+    if (value !== "paintBrushes") return renderMoreToolChoice(value);
+    const selectedBrush = () => paintBrushChoices.find(brush => brush.value === brushMode()) ?? paintBrushChoices[0];
+    return <div class="more-tools-paint-entry">
+      <button type="button" role="menuitem" class={tool() === "pen" && brushMode() !== "fine" ? "active" : ""} aria-haspopup="true" aria-expanded={moreBrushPickerOpen()} onClick={() => setMoreBrushPickerOpen(open => !open)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={selectedBrush().path} /></svg><span>Paint brushes · {selectedBrush().label}</span><svg class="more-tools-submenu-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m4 2.5 3.5 3.5L4 9.5" /></svg></button>
+      <Show when={moreBrushPickerOpen()}><div class="more-tools-brush-options" role="group" aria-label="Choose a paint brush">{paintBrushChoices.map(brush => <button type="button" class={tool() === "pen" && brushMode() === brush.value ? "active" : ""} aria-label={brush.label} aria-pressed={tool() === "pen" && brushMode() === brush.value} title={brush.label} onClick={() => { commitTextDraft(); setQuickStylePopover(undefined); setTouchStylePanel(false); setBrushMode(brush.value); setTool("pen"); setSelectedIndices([]); setSidebarTab("properties"); setMoreBrushPickerOpen(false); setMoreToolsOpen(false); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={brush.path} /></svg><span>{brush.label}</span></button>)}</div></Show>
+    </div>;
+  };
+  const renderMoreToolsFamily = () => <Show when={!readOnlyView()}><div class="tool-family more-tools-family tool-extra-family" classList={{ "options-open": moreToolsOpen() }} onFocusOut={event => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) { setMoreToolsOpen(false); setMoreBrushPickerOpen(false); } }}>
+    <button type="button" class="tool-icon-button has-options mobile-tool-essential" title="More Tools" aria-label="More Tools" aria-haspopup="menu" aria-expanded={moreToolsOpen()} onClick={() => { const opening = !moreToolsOpen(); if (!isWindowsPlatform() && isCompactTouchLayout()) closeTouchMenuBar(); setMoreToolsOpen(opening); setMoreBrushPickerOpen(false); setCanvasOptionsOpen(false); closeToolOptions(); setStencilMenuOpen(false); scheduleTouchPopoverPlacement(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button>
     <div class="tool-options more-tools-options" role="menu" aria-label="More Tools">
-      <For each={moreToolsOrder()}>{renderMoreToolChoice}</For>
+      <For each={moreToolsOrder()}>{renderMoreToolEntry}</For>
       <div class="more-tools-divider" />
       <button type="button" role="menuitem" class="more-tools-customize" onClick={() => { setMoreToolsOpen(false); setToolbarOrganizerOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h7v14H4zM13 5h7v14h-7zM7 9h1m-1 4h1m8-4h2m-2 4h2"/></svg><span>Customize toolbar…</span></button>
     </div>
@@ -6797,8 +7162,8 @@ function App() {
   /></Suspense>;
 
   return (
-    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": showWelcomeScreen(), "design-workspace-active": workspaceArea() === "design", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() === "planning", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family, .stencil-options")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 88%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-topbar-height: ${topbarHeight()}px;`}>
-      <Show when={toolbarOrganizerOpen()}><ToolbarOrderEditor toolbarItems={organizerItems(toolbarOrder())} moreItems={organizerItems(moreToolsOrder())} onMove={moveToolbarTool} onReorder={reorderToolbarTool} onReset={resetToolbarOrder} onClose={() => setToolbarOrganizerOpen(false)} /></Show>
+    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": showWelcomeScreen(), "design-workspace-active": workspaceArea() === "design", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() === "planning", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "prototype-run-mode": canvasRunMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} onPointerDown={event => { const target = event.target as HTMLElement | null; if (stencilMenuOpen() && !target?.closest(".stencil-family, .stencil-options")) setStencilMenuOpen(false); }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 88%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-shell-width: ${displayMetrics().viewportWidth / interfaceScale()}px; --app-shell-height-vh: ${100 / interfaceScale()}vh; --app-shell-height-dvh: ${100 / interfaceScale()}dvh; --app-topbar-height: ${topbarHeight()}px;`}>
+      <Show when={toolbarOrganizerOpen()}><ToolbarOrderEditor toolbarItems={organizerItems(toolbarOrder())} moreItems={organizerItems(moreToolsOrder())} historyActionsVisible={historyActionsVisible()} onHistoryActionsVisibleChange={setHistoryActionsVisiblePreference} onMove={moveToolbarTool} onReorder={reorderToolbarTool} onReset={resetToolbarOrder} onClose={() => setToolbarOrganizerOpen(false)} /></Show>
       <Show when={legacyMigrationPath() && !recoveryPrompt() && !syncConflict()}>
         <div class="confirm-backdrop legacy-refactor-backdrop"><section class="confirm-dialog legacy-refactor-dialog" role="alertdialog" aria-modal="true" aria-labelledby="legacy-refactor-title">
           <span class="eyebrow">OLDER SKETCH FORMAT</span><h2 id="legacy-refactor-title">Refactor this sketch?</h2>
@@ -6911,7 +7276,7 @@ function App() {
       <Show when={isCanvasWorkspace()}>
       <Show when={activePath()}>
         <>
-          <section class="canvas-wrap" ref={canvasWrap} classList={{ "canvas-minimap-visible": showMinimap() }}>
+          <section class="canvas-wrap" ref={canvasWrap} classList={{ "canvas-minimap-visible": showMinimap(), "canvas-notebook-split-open": notebookSplitOpen() }}>
             <Show when={touchFocusMode()}><TouchFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={chooseFocusTool} onExit={() => void toggleTouchFocusMode(false)} /></Show>
             <Show when={isWindowsPlatform() && windowsFullscreenMode()}><WindowsFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={selectedTool => { if (readOnlyView() && selectedTool !== "select" && selectedTool !== "laser") { setTool("laser"); return; } if (selectedTool === "select") { setTool("select"); setStyleMenuMode("quick"); } else activateTool(selectedTool); }} onExit={() => void toggleWindowsFullscreen(false)} /></Show>
             <Show when={touchStylePanel() && !isWindowsPlatform() && isCompactTouchLayout()}><TouchStylePanel
@@ -7007,6 +7372,8 @@ function App() {
             <button class="canvas-zoom-reset" title="Center view and reset zoom to 100% (0)" aria-label={`Center view and reset zoom, currently ${Math.round(canvasState().zoom * 100)} percent`} onClick={resetZoomAndCenter}><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M10.5 7v7m-3.5-3.5h7"/></svg><kbd>{Math.round(canvasState().zoom * 100)}%</kbd></button>
             <Show when={showMinimap()}><Suspense fallback={null}><CanvasMinimap elements={elements()} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} viewportWidth={canvas.clientWidth} viewportHeight={canvas.clientHeight} onNavigate={center => setCanvasState(current => ({ ...current, panX: canvas.clientWidth / 2 - center.x * current.zoom, panY: canvas.clientHeight / 2 - center.y * current.zoom }))} onClose={() => { setShowMinimap(false); try { localStorage.setItem("sketchdraw-canvas-minimap", "false"); } catch { /* The current view still updates. */ } }} /></Suspense></Show>
             <Show when={presentationMode()}><div class="canvas-presentation-controls"><button title="Previous frame or page" aria-label="Previous frame or page" onClick={() => changePresentationPage(-1)}>‹</button><span>{presentationTarget() === "frames" && presentationFrameIndex() >= 0 ? (currentFrameElements()[presentationFrameIndex()]?.container?.name ?? "Frame") + " · " + (presentationFrameIndex() + 1) + "/" + currentFrameElements().length : currentPage()?.name ?? "Sketch"}</span><button title="Next frame or page" aria-label="Next frame or page" onClick={() => changePresentationPage(1)}>›</button><button class={presentationTarget() === "pages" ? "active" : ""} title="Present pages" onClick={() => setPresentationModeTarget("pages")}>Pages</button><button class={presentationTarget() === "frames" ? "active" : ""} disabled={!currentFrameElements().length} title="Present frames on this page" onClick={() => setPresentationModeTarget("frames")}>Frames</button><button title="Exit presentation mode" onClick={() => void togglePresentationMode(false)}>Exit</button></div></Show>
+            <button type="button" class="canvas-notebook-toggle" classList={{ active: notebookSplitOpen() }} aria-pressed={notebookSplitOpen()} onClick={() => setNotebookSplitOpen(value => !value)}>{notebookSplitOpen() ? "Close notes" : "Project notes"}</button>
+            <Show when={notebookSplitOpen()}><ProjectNotebookSplit data={projectWorkspaceData()} editable={!!planningPath() && !planningSaving() && !boardLocked() && !readOnlyView()} onChange={planningSession.update} onOpen={openNotebookPlanning} onCreate={createNotebookNote} onHighlight={highlightNotebookReference} /></Show>
             <DesktopPageTabs pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} />
             <TouchToolBar mobile={!isWindowsPlatform() && isCompactTouchLayout()} open={toolBarOpen()} styleOpen={touchStylePanel()} label={workspaceArea() === "design" ? "Design tools" : "Canvas tools"} showStyleToggle={workspaceArea() !== "design"} quickStyles={workspaceArea() === "design" ? undefined : <Show when={!isWindowsPlatform() && isCompactTouchLayout()}><TouchQuickStyleControls
               showColor={showStrokeControls() || tool() === "bucket" || tool() === "laser"}
@@ -7120,7 +7487,7 @@ function App() {
               />
               <button class="tool-icon-button mobile-tool-essential touch-focus-entry" aria-label={isWindowsPlatform() && windowsFullscreenMode() ? "Exit full screen focus mode" : "Enter full screen focus mode"} title={isWindowsPlatform() && windowsFullscreenMode() ? "Exit full screen focus mode" : "Full screen focus mode"} onClick={() => isWindowsPlatform() ? void toggleWindowsFullscreen() : void toggleTouchFocusMode(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button>
               </div>
-              {orderedToolbarEntries().map(entry => entry.kind === "more-tools" ? renderMoreToolsFamily() : <div class={`tool-cluster tool-cluster-${entry.id}`} classList={{ "mobile-cluster-has-essential": entry.tools.some(value => mobileEssentialTools.has(value)), "mobile-cluster-has-current": entry.tools.includes(tool()) }} role="group" aria-label={entry.label}>{entry.tools.map(renderToolbarItem)}</div>)}
+              {orderedToolbarEntries().map(entry => <div class={`tool-cluster tool-cluster-${entry.id}`} classList={{ "mobile-cluster-has-essential": entry.tools.some(value => mobileEssentialTools.has(value)), "mobile-cluster-has-current": entry.tools.includes(tool()) }} role="group" aria-label={entry.label}>{entry.tools.map(renderToolbarItem)}</div>)}
 
               <div class="tool-family tool-extra-family stencil-family" classList={{ "options-open": stencilMenuOpen() }} onFocusOut={event => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) setStencilMenuOpen(false); }}>
                 <button class="tool-icon-button has-options" title="GUI design and diagram components" aria-label="GUI design and diagram components" aria-haspopup="menu" aria-expanded={stencilMenuOpen()} onClick={() => { closeTouchMenuBar(); setStencilMenuOpen(value => !value); setCanvasOptionsOpen(false); closeToolOptions(); scheduleTouchPopoverPlacement(); }}><svg viewBox="0 0 24 24"><path d="M3 5h7v7H3zM14 4l7 4-4 7-7-4zM4 16h7v5H4zM15 17h6v4h-6z"/></svg><kbd>MOD</kbd><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button>
@@ -7134,11 +7501,16 @@ function App() {
                   {visibleStencilSections().map(section => <><strong class="tool-options-heading stencil-heading">{section}</strong>{visibleStencilComponents().filter(component => component.section === section).map(component => <button type="button" class="stencil-template" title={component.description} aria-label={component.label + ". " + component.description} onClick={() => component.kind === "er-table" ? openSchemaDialog(undefined, "CREATE TABLE table_name (\n  id INTEGER PRIMARY KEY,\n  name TEXT\n);") : component.kind === "uml-class" ? (() => { const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; const rect = canvas!.getBoundingClientRect(); const view = canvasState(); openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind)}><LibraryComponentIcon kind={component.kind} /><span class="stencil-template-copy"><strong>{component.label}</strong><small>{component.description}</small></span></button>)}</>)}
                   {stencilCategory() !== "custom" && visibleStencilComponents().length === 0 && <p class="stencil-empty">No matches. Try another search or category.</p>}
                   <div class="palette-spawn-footer"><button type="button" class="palette-spawn-all stencil-catalog-action" disabled={!activePath() || readOnlyView() || boardLocked() || componentCatalogBusy()} title={`Add all ${LIBRARY_COMPONENTS.length} built-in modeling components to the current canvas`} onClick={() => void spawnAllModelingComponents()}>{componentCatalogBusy() ? "Preparing component catalog…" : `Spawn all ${LIBRARY_COMPONENTS.length} components`}<small>Add all modeling symbols to the canvas in category order.</small></button></div>
-                </div></div>              <div class="tool-cluster tool-cluster-history mobile-cluster-has-essential" role="group" aria-label="History, selection, and canvas state">
+                </div></div>
+              {renderMoreToolsFamily()}
+              <div class="tool-cluster tool-cluster-history mobile-cluster-has-essential" role="group" aria-label="History, selection, and canvas state">
                 <button class={layerPanelOpen() ? "tool-icon-button canvas-utility-button selected" : "tool-icon-button canvas-utility-button"} title="Layers" aria-label="Open layers panel" aria-pressed={layerPanelOpen()} onClick={() => setLayerPanelOpen(value => !value)}><svg viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Zm0 5 8 4 8-4M4 17l8 4 8-4"/></svg></button>
+                <button type="button" class="tool-icon-button canvas-utility-button canvas-run-toggle mobile-tool-essential" classList={{ selected: canvasRunMode() }} aria-pressed={canvasRunMode()} disabled={readOnlyView()} title={canvasRunMode() ? "Exit prototype run mode" : "Run prototype"} aria-label={canvasRunMode() ? "Stop prototype" : "Run prototype"} onClick={toggleCanvasRunMode}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={canvasRunMode() ? "M7 7h10v10H7z" : "M8 5v14l11-7-11-7z"}/></svg></button>
                 <Show when={deletableSelectionCount() > 0}><button class="tool-icon-button mobile-tool-essential touch-selection-delete" disabled={boardLocked()} title={`Erase ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} aria-label={`Erase ${deletableSelectionCount()} selected element${deletableSelectionCount() === 1 ? "" : "s"}`} onClick={deleteSelected}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v6m4-6v6" /></svg><small class="touch-selection-count">{deletableSelectionCount()}</small></button></Show>
-                <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canUndo() || boardLocked()} title={`Undo (${formatShortcutBindings(shortcuts().undo)})`} aria-label="Undo" onClick={undo}><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg><kbd>{displayShortcut(shortcuts().undo.find(Boolean) || "Ctrl+Z")}</kbd></button>
-                <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canRedo() || boardLocked()} title={`Redo (${formatShortcutBindings(shortcuts().redo)})`} aria-label="Redo" onClick={redo}><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5m4-5h-8a6 6 0 0 0-6 6"/></svg><kbd>{displayShortcut(shortcuts().redo.find(Boolean) || "Ctrl+Y")}</kbd></button>
+                <Show when={historyActionsVisible()}>
+                  <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canUndo() || boardLocked()} title={`Undo (${formatShortcutBindings(shortcuts().undo)})`} aria-label="Undo" onClick={undo}><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h8a6 6 0 0 1 6 6"/></svg><kbd>{displayShortcut(shortcuts().undo.find(Boolean) || "Ctrl+Z")}</kbd></button>
+                  <button class="tool-icon-button canvas-utility-button mobile-tool-essential" disabled={!canRedo() || boardLocked()} title={`Redo (${formatShortcutBindings(shortcuts().redo)})`} aria-label="Redo" onClick={redo}><svg viewBox="0 0 24 24"><path d="m15 7 5 5-5 5m4-5h-8a6 6 0 0 0-6 6"/></svg><kbd>{displayShortcut(shortcuts().redo.find(Boolean) || "Ctrl+Y")}</kbd></button>
+                </Show>
                 <button class={`tool-icon-button canvas-utility-button mobile-tool-essential ${boardLocked() ? "selected" : ""}`} title={`Canvas ${boardLocked() ? "locked" : "unlocked"} (K)`} aria-label={boardLocked() ? "Unlock canvas" : "Lock canvas"} aria-pressed={boardLocked()} onClick={() => setBoardLocked(value => !value)}><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d={boardLocked() ? "M8 10V7a4 4 0 1 1 8 0v3" : "M8 10V7a4 4 0 0 1 8 0"}/></svg><kbd>K</kbd></button>
               </div>
               </>}>
@@ -7194,6 +7566,11 @@ function App() {
                   <span class="layer-count-badge" aria-label={`${toolLayers().length} tool layers`}>{toolLayers().length}</span>
                   <button class="pane-close-icon" aria-label="Close layers" title="Close layers" onClick={() => setLayerPanelOpen(false)}>&times;</button>
                 </header>
+                <section class="layer-visibility-presets" aria-label="Layer visibility states">
+                  <label>Saved views<select aria-label="Apply a saved layer visibility state" value={currentVisibilityPresets().some(preset => preset.id === selectedLayerPresetId()) ? selectedLayerPresetId() : ""} onChange={event => { if (event.currentTarget.value) applyLayerVisibilityPreset(event.currentTarget.value); }}><option value="">Current visibility</option><For each={currentVisibilityPresets()}>{preset => <option value={preset.id}>{preset.name}</option>}</For></select></label>
+                  <form onSubmit={saveLayerVisibilityPreset}><input aria-label="Name this visibility state" maxlength="80" placeholder="Current or future state" value={layerPresetName()} onInput={event => setLayerPresetName(event.currentTarget.value)} /><button type="submit" disabled={boardLocked() || readOnlyView() || !layerPresetName().trim() || currentVisibilityPresets().length >= 24}>Save</button></form>
+                  <Show when={selectedLayerPresetId() && currentVisibilityPresets().some(preset => preset.id === selectedLayerPresetId())}><button class="layer-preset-delete" type="button" disabled={boardLocked() || readOnlyView()} onClick={deleteLayerVisibilityPreset}>Delete selected view</button></Show>
+                </section>
                 <div class="layer-list" aria-label="Tool layers">
                   <For each={toolLayers()}>{(layer, rowIndex) => {
                     const count = () => layer.indices.length;
@@ -7417,8 +7794,9 @@ function App() {
               </div></Show>
             </aside></Show>
             <Show when={noteEditor() || selectedNoteCard() || libraryComponentDraft() || selectedLibraryComponent() || selectedClassComponentId() || classCardDraft() || primarySelection() !== undefined}>
-              <aside class="component-editor-dock" classList={{ collapsed: componentEditorCollapsed(), "note-editor-dock": !!(noteEditor() || selectedNoteCard()) }} aria-label={noteEditor() || selectedNoteCard() ? "Note editor" : primarySelection() !== undefined && !selectedLibraryComponent() && !selectedClassComponentId() && !libraryComponentDraft() && !classCardDraft() ? "Object details" : "Component editor"}>
+              <aside class="component-editor-dock" classList={{ collapsed: componentEditorCollapsed(), "note-editor-dock": !!(noteEditor() || selectedNoteCard()) }} style={`--component-editor-width: ${componentEditorWidth()}px;`} aria-label={noteEditor() || selectedNoteCard() ? "Note editor" : primarySelection() !== undefined && !selectedLibraryComponent() && !selectedClassComponentId() && !libraryComponentDraft() && !classCardDraft() ? "Object details" : "Component editor"}>
                 <Show when={componentEditorCollapsed()} fallback={<>
+                  <div class="component-editor-resize-handle" classList={{ "component-editor-resize-right": componentDockResizeEdge() === "right" }} role="separator" aria-orientation="vertical" aria-label="Resize editor panel" aria-valuemin="190" aria-valuemax="640" aria-valuenow={Math.round(componentEditorWidth())} tabindex="0" onPointerDown={beginComponentEditorResize} onPointerMove={moveComponentEditorResize} onPointerUp={finishComponentEditorResize} onPointerCancel={finishComponentEditorResize} onKeyDown={keyComponentEditorResize} />
                   <header class="component-editor-heading" classList={{ "note-editor-heading": !!(noteEditor() || selectedNoteCard()) }}>
                     <strong>{noteEditor() || selectedNoteCard() ? notePanelTitle() : componentEditorTitle()}</strong>
                     <Show when={noteEditor()}><button type="button" class="note-editor-action" title="Discard note" aria-label="Discard note" onClick={() => setNoteEditor(undefined)}>&times;</button></Show>
@@ -7557,6 +7935,11 @@ function App() {
         </>
       </Show>
       <Show when={contextMenu()}>{position => <div class="canvas-context-menu" role="menu" aria-label="Canvas context menu" style={{ left: `${position().x}px`, top: `${position().y}px` }} onClick={() => setContextMenu(undefined)} onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")]; const index = buttons.indexOf(document.activeElement as HTMLButtonElement); buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus(); } }} ref={element => requestAnimationFrame(() => element.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus())}>
+        <button role="menuitem" disabled={!selectedIndices().length || boardLocked()} onClick={() => void convertSelectionToProjectTask()}>{selectedProjectTaskId() ? "Create another linked task" : "Convert selection to task…"}</button>
+        <Show when={selectedIndices().some(index => !!elements()[index]?.projectTaskId)}><button role="menuitem" disabled={boardLocked()} onClick={removeSelectionProjectTaskLink}>Remove task link</button></Show>
+        <button role="menuitem" disabled={!selectedIndices().length || boardLocked()} onClick={() => void openCsvDataLinkDialog()}>Link local CSV data…</button>
+        <button role="menuitem" disabled={!selectedIndices().length || boardLocked()} onClick={openApiDataSourceDialog}>Link JSON API…</button>
+        <Show when={!!selectedRootElement()?.dataBinding}><button role="menuitem" disabled={boardLocked()} onClick={() => void refreshSelectedCsvData()}>Refresh linked data</button></Show>
         <button role="menuitem" disabled={!selectedIndices().length} onClick={() => void copySelection()}>Copy <kbd>Ctrl C</kbd></button>
         <button role="menuitem" disabled={boardLocked()} onClick={() => void pasteSelection(position().world)}>Paste here <kbd>Ctrl V</kbd></button>
         <button role="menuitem" disabled={boardLocked() || !selectedIndices().length} onClick={() => insertCopies(selectedElements())}>Duplicate <kbd>Ctrl D</kbd></button>
@@ -7574,10 +7957,13 @@ function App() {
         <header><div><span class="eyebrow">TOOLS</span><h2 id="code-data-title">Code & data</h2></div><button class="help-close" aria-label="Close Code and data tools" onClick={() => setCodeDataOpen(false)}>&times;</button></header>
         <div class="code-data-actions">
           <h3>Create</h3>
+          <Show when={selectedIndices().length}><button type="button" onClick={() => { setCodeDataOpen(false); void openCsvDataLinkDialog(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 10h16M9 5v14M14 5v14"/><path d="m16 16 2 2 3-4"/></svg></i><span><strong>Link selected objects to CSV</strong><small>Embed a local data snapshot and show a linked value</small></span></button><button type="button" onClick={() => { setCodeDataOpen(false); openApiDataSourceDialog(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></i><span><strong>Link selected objects to JSON API</strong><small>Load a public HTTPS endpoint snapshot with manual refresh</small></span></button></Show>
+          <Show when={!!selectedRootElement()?.dataBinding}><button type="button" disabled={boardLocked()} onClick={() => { setCodeDataOpen(false); void refreshSelectedCsvData(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.2 9a7 7 0 0 1 11.4-2L20 9M4 15l2.4 2a7 7 0 0 0 11.4-2"/></svg></i><span><strong>Refresh linked data</strong><small>Reload the selected object’s saved data source</small></span></button></Show>
           <button type="button" onClick={() => { setCodeDataOpen(false); openMermaidDialog(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="m8 5-6 7 6 7m8-14 6 7-6 7M14 3l-4 18"/></svg></i><span><strong>Diagram as code</strong><small>Generate editable shapes from Mermaid</small></span></button>
           <button type="button" onClick={() => { setCodeDataOpen(false); openMermaidDialog(undefined, "plantuml"); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1"/><rect x="14" y="15" width="7" height="6" rx="1"/><path d="M10 6h4a2 2 0 0 1 2 2v7M7 9v6a2 2 0 0 0 2 2h5"/></svg></i><span><strong>PlantUML source</strong><small>Generate editable UML diagrams</small></span></button>
           <button type="button" onClick={() => { setCodeDataOpen(false); openCsvChartDialog(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M4 20V11m5 9V5m5 15v-7m5 7V8"/><path d="M2 20h20"/></svg></i><span><strong>Chart from CSV</strong><small>Map columns to labels and data series</small></span></button>
           <button type="button" onClick={() => { setCodeDataOpen(false); openSchemaDialog(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M9 3v18m6-12v12"/></svg></i><span><strong>Database schema visualizer</strong><small>Generate linked cards from SQL or JSON</small></span></button>
+          <button type="button" onClick={() => { setCodeDataOpen(false); setBlueprintExportOpen(true); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h4"/><path d="m16 17 2 2 4-5"/></svg></i><span><strong>Export framework blueprint</strong><small>UML class stubs or a Prisma schema in a ZIP</small></span></button>
           <h3>Files</h3>
           <button type="button" onClick={() => { setCodeDataOpen(false); void importDiagramFile(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M12 15V3m-5 5 5-5 5 5M4 14v6h16v-6"/></svg></i><span><strong>Import code or data</strong><small>Open Mermaid, PlantUML, CSV, DOT, D2, or schema files</small></span></button>
           <button type="button" onClick={() => { setCodeDataOpen(false); setDiagramCodeExportOpen(true); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></i><span><strong>Export diagram code</strong><small>Write Mermaid, DOT, D2, CSV, PlantUML, SQL, or JSON Schema</small></span></button>
@@ -7588,6 +7974,9 @@ function App() {
       <Show when={selectedRootElement()?.type === "schemaTable"}><button type="button" onClick={() => { setCodeDataOpen(false); schemaPanelTextarea?.focus(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M9 3v18m6-12v12"/></svg></i><span><strong>Focus schema editor</strong><small>Edit source in the left panel and see the canvas update</small></span></button></Show>
         </div>
       </section></div></Show>
+      <Show when={blueprintExportOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setBlueprintExportOpen(false); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="blueprint-export-title"><header><div><span class="eyebrow">CODE BLUEPRINT</span><h2 id="blueprint-export-title">Export framework scaffold</h2></div><button class="help-close" aria-label="Close framework export" onClick={() => setBlueprintExportOpen(false)}>&times;</button></header><p>Generate editable starter files from UML class cards or database schema cards. The ZIP is built locally and does not connect to a database.</p><div class="export-scope"><button class={diagramCodeScope() === "page" ? "active" : ""} onClick={() => setDiagramCodeScope("page")}>Current page</button><button class={diagramCodeScope() === "selection" ? "active" : ""} disabled={!selectedIndices().length} onClick={() => setDiagramCodeScope("selection")}>Selection</button></div><label>Blueprint<select value={blueprintFormat()} onChange={event => setBlueprintFormat(event.currentTarget.value as BlueprintFormat)}><option value="java">Java classes from UML cards</option><option value="python">Python classes from UML cards</option><option value="prisma">Prisma schema from database cards</option></select></label><p class="diagram-code-limitations">Java and Python output one starter class per UML class card. Prisma targets PostgreSQL; inspect relations and provider-specific types before use.</p><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setBlueprintExportOpen(false)}>Cancel</button><button class="save-button" disabled={nativeBusy() || documentBusy() || !elements().length} onClick={() => void exportFrameworkBlueprint()}>{nativeBusy() ? "Building…" : "Export ZIP"}</button></div></section></div></Show>
+      <Show when={apiDataSourceOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget && !apiDataSourceBusy()) setApiDataSourceOpen(false); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="api-data-source-title"><header><div><span class="eyebrow">REMOTE SNAPSHOT</span><h2 id="api-data-source-title">Link a JSON API</h2></div><button class="help-close" aria-label="Close JSON API link" disabled={apiDataSourceBusy()} onClick={() => setApiDataSourceOpen(false)}>&times;</button></header><p>Connect to a public HTTPS endpoint that returns a JSON array of flat records (or an object with a records, data, or results array). The endpoint must allow this app through CORS.</p><label>JSON API URL<input type="url" inputmode="url" autocomplete="url" placeholder="https://example.com/api/records" value={apiDataSourceUrl()} onInput={event => setApiDataSourceUrl(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter") void connectApiDataSource(); }} /></label><small>Read-only GET, no credentials or polling. A snapshot and endpoint URL are embedded in the .sketch file. Refresh manually; do not include secrets in the URL.</small><Show when={apiDataSourceError()}><p role="alert" class="mermaid-preview-error">{apiDataSourceError()}</p></Show><div><button class="quiet-button" disabled={apiDataSourceBusy()} onClick={() => setApiDataSourceOpen(false)}>Cancel</button><button class="save-button" disabled={apiDataSourceBusy() || !apiDataSourceUrl().trim()} onClick={() => void connectApiDataSource()}>{apiDataSourceBusy() ? "Connecting…" : "Connect & choose record"}</button></div></section></div></Show>
+      <Show when={csvDataLinkDraft()}>{draft => <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setCsvDataLinkDraft(undefined); }}><section class="confirm-dialog csv-data-link-dialog" role="dialog" aria-modal="true" aria-labelledby="csv-data-link-title"><header><div><span class="eyebrow">{draft().sourceUrl ? "JSON API SNAPSHOT" : "LOCAL DATA LINK"}</span><h2 id="csv-data-link-title">Link values to canvas objects</h2></div><button class="help-close" aria-label="Close data link" onClick={() => setCsvDataLinkDraft(undefined)}>&times;</button></header><p>{draft().sourceUrl ? "The selected record and JSON snapshot are copied into this .sketch file. The public HTTPS endpoint is saved for manual refresh; requests do not include credentials." : "The selected record and its CSV snapshot are copied into this .sketch file so the link stays portable. Refresh it later by selecting an updated CSV file."}</p><label>Record key column<select value={csvDataKeyColumn()} onChange={event => { setCsvDataKeyColumn(Number(event.currentTarget.value)); setCsvDataRowIndex(0); }}>{draft().headers.map((header, index) => <option value={index}>{header}</option>)}</select></label><label>Value to show on the canvas<select value={csvDataValueColumn()} onChange={event => setCsvDataValueColumn(Number(event.currentTarget.value))}>{draft().headers.map((header, index) => <option value={index}>{header}</option>)}</select></label><label>Find a record<input type="search" value={csvDataRowQuery()} placeholder="Filter by key or value" onInput={event => setCsvDataRowQuery(event.currentTarget.value)} /></label><label>Record<select value={csvDataRowIndex()} onChange={event => setCsvDataRowIndex(Number(event.currentTarget.value))}><For each={csvDataLinkMatches()}>{row => <option value={row.index}>{row.label} — {row.value}</option>}</For></select></label><small>{draft().rows.length.toLocaleString()} rows · {draft().headers.length} columns · snapshot stored in this sketch{draft().sourceUrl ? " · manual refresh available" : ""}.</small><div><button class="quiet-button" onClick={() => setCsvDataLinkDraft(undefined)}>Cancel</button><button class="save-button" disabled={!selectedIndices().length || !csvDataLinkMatches().length} onClick={applyCsvDataLink}>Apply link</button></div></section></div>}</Show>
       <Show when={csvChartOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) closeCsvChartDialog(); }}><section class="confirm-dialog csv-chart-dialog" role="dialog" aria-modal="true" aria-labelledby="csv-chart-title">
         <header><div><span class="eyebrow">DATA TO VISUAL</span><h2 id="csv-chart-title">{csvEditingChartId() ? "Edit chart from CSV" : "Create chart from CSV"}</h2></div><button class="help-close" aria-label="Close CSV chart wizard" onClick={closeCsvChartDialog}>&times;</button></header>
         <p>Paste or load a header row with up to 20 data rows. Choose one label column and up to eight numeric series.</p>

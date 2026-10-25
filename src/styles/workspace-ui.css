@@ -683,8 +683,8 @@
         top: 62px;
         right: 6px;
         bottom: calc(env(safe-area-inset-bottom) + 64px);
-        width: min(270px, calc(100vw - 16px));
-        min-width: min(210px, calc(100vw - 16px));
+        width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 16px));
+        min-width: min(190px, calc(var(--app-shell-width, 100vw) - 16px));
         max-height: calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 130px);
     }
 

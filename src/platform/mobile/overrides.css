@@ -128,17 +128,17 @@
   .app-shell.mobile-toolbar-left:not(.platform-windows) .component-editor-dock:not(.collapsed) {
     top: calc(var(--touch-header-height, 48px) + 8px);
     right: max(8px, env(safe-area-inset-right));
+    left: auto;
     bottom: max(8px, env(safe-area-inset-bottom));
-    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
-    width: auto;
-    min-width: 0;
+    width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 76px));
+    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 76px));
   }
   .app-shell.mobile-toolbar-right:not(.platform-windows) .component-editor-dock:not(.collapsed) {
     top: calc(var(--touch-header-height, 48px) + 8px);
-    right: calc(max(8px, env(safe-area-inset-right)) + 52px);
+    right: auto;
     bottom: max(8px, env(safe-area-inset-bottom));
     left: max(8px, env(safe-area-inset-left));
-    width: auto;
-    min-width: 0;
+    width: min(var(--component-editor-width, 260px), calc(var(--app-shell-width, 100vw) - 76px));
+    min-width: min(190px, calc(var(--app-shell-width, 100vw) - 76px));
   }
 }

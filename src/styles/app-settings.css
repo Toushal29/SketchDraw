@@ -1,7 +1,7 @@
 .app-shell {
-    width: calc(100vw / var(--app-ui-scale, 1));
-    height: calc(100vh / var(--app-ui-scale, 1));
-    height: calc(100dvh / var(--app-ui-scale, 1));
+    width: var(--app-shell-width, 100vw);
+    height: var(--app-shell-height-vh, 100vh);
+    height: var(--app-shell-height-dvh, 100dvh);
     zoom: var(--app-ui-scale, 1);
 }
 
