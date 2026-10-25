@@ -253,14 +253,6 @@
     flex: 0 0 auto;
 }
 
-.copyright-notice {
-    display: block;
-    margin-top: 18px;
-    color: var(--muted);
-    font-size: var(--type-caption);
-    line-height: var(--leading-normal);
-}
-
 @media (max-width: 760px) {
     .export-preview-frame {
         height: min(48vh, 400px);

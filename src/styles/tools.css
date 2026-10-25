@@ -276,24 +276,6 @@
         flex: 1 1 0;
     }
 
-    .pane-delete-button {
-        min-height: 36px;
-        padding: 7px 10px;
-        border: 1px solid var(--theme-error-border);
-        border-radius: 8px;
-        color: var(--theme-error);
-        background: var(--theme-error-muted);
-        font-size: var(--type-caption);
-        font-weight: var(--font-weight-semibold);
-    }
-
-    .pane-delete-button:disabled {
-        opacity: .45;
-    }
-
-    .theme-dark .pane-delete-button {
-        border-color: var(--theme-error-border);
-    }
 }
 
 /* The home screen menu sheet always opens fully inside the phone viewport. */
@@ -311,23 +293,4 @@
 .multi-selection-actions>button {
     min-width: 0;
     flex: 1 1 0;
-}
-
-.pane-delete-button {
-    min-height: 36px;
-    padding: 7px 10px;
-    border: 1px solid var(--theme-error-border);
-    border-radius: 8px;
-    color: var(--theme-error);
-    background: var(--theme-error-muted);
-    font-size: var(--type-caption);
-    font-weight: var(--font-weight-semibold);
-}
-
-.pane-delete-button:disabled {
-    opacity: .45;
-}
-
-.theme-dark .pane-delete-button {
-    border-color: var(--theme-error-border);
 }

@@ -1,5 +1,3 @@
-.workspace-area-layer { display: none; }
-.workspace-area-layer.active { display: contents; }
 .document-workspace-tabs,
 .workspace-viewport-tabs {
     display: flex;

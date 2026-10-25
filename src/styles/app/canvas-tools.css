@@ -15,8 +15,11 @@
 
 .quick-style-heading {
     display: flex;
+    height: 24px;
     align-items: center;
+    justify-content: flex-end;
     gap: 10px;
+    margin: 0 0 5px;
     border-radius: 8px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
@@ -24,6 +27,14 @@
 }
 
 .quick-style-heading button {
+    display: grid;
+    width: 26px;
+    height: 24px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--theme-text-secondary);
     background: transparent;
     font-size: var(--type-control);
     font-weight: var(--font-weight-semibold);
@@ -31,18 +42,27 @@
 }
 
 .quick-style-heading button:hover {
+    border-color: var(--theme-border);
+    background: var(--theme-surface-hover);
     color: var(--theme-info);
 }
 
 .quick-style-controls {
     position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
 }
 
 .quick-style-popover {
     position: absolute;
     z-index: 40;
     top: calc(100% + 5px);
+    right: auto;
     left: 0;
+    min-width: 190px;
+    padding: 8px;
     border: 1px solid var(--theme-border);
     border-radius: 10px;
     background: var(--theme-surface-elevated);
@@ -158,31 +178,9 @@
     overflow: visible;
 }
 
-.quick-style-heading {
-    height: 24px;
-    justify-content: flex-end;
-    margin: 0 0 5px;
-}
-
 .style-pane.quick-style-mode .quick-style-controls {
     flex-direction: column;
     flex-wrap: nowrap;
-}
-
-.quick-style-heading button {
-    display: grid;
-    place-items: center;
-    width: 26px;
-    height: 24px;
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    color: var(--theme-text-secondary);
-}
-
-.quick-style-heading button:hover {
-    border-color: var(--theme-border);
-    background: var(--theme-surface-hover);
 }
 
 .quick-style-heading svg {
@@ -192,13 +190,6 @@
     stroke: currentColor;
     stroke-width: 1.6;
     stroke-linecap: round;
-}
-
-.quick-style-controls {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 5px;
 }
 
 .quick-style-icon {
@@ -264,12 +255,6 @@
 .quick-width-icon small {
     color: var(--theme-text-secondary);
     font: var(--type-micro) var(--font-mono);
-}
-
-.quick-style-popover {
-    right: auto;
-    min-width: 190px;
-    padding: 8px;
 }
 
 .quick-fill-toggle {

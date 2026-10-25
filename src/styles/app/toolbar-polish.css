@@ -201,7 +201,9 @@
 @media (max-width: 760px) {
     .tool-deck {
         gap: 4px;
+        max-width: calc(100vw - 16px);
         padding: 5px;
+        overflow-x: auto;
     }
 
     .tool-cluster {
@@ -227,11 +229,6 @@
 }
 
 @media (max-width: 760px) {
-    .tool-deck {
-        max-width: calc(100vw - 16px);
-        overflow-x: auto;
-    }
-
     .canvas-utility-button {
         width: 37px;
         min-width: 37px;

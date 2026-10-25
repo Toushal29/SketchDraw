@@ -1,6 +1,5 @@
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-  .app-shell:not(.platform-windows) > .mobile-workspace-header,
-  .app-shell:not(.platform-windows) > .workspace-area-layer {
+  .app-shell:not(.platform-windows) > .mobile-workspace-header {
     min-width: 0;
     max-width: 100%;
   }

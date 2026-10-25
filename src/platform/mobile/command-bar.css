@@ -95,7 +95,7 @@
     .app-shell:not(.platform-windows) .mobile-help-action {
         display: flex;
         width: 100%;
-        min-height: 40px;
+        min-height: 42px;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
@@ -139,17 +139,6 @@
     .app-shell:not(.platform-windows) .mobile-command-choice { display: grid; min-width: 0; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 3px; }
     .app-shell:not(.platform-windows) .mobile-command-choice button { min-width: 0; min-height: 31px; padding: 4px 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 14%, transparent); border-radius: 7px; color: inherit; background: transparent; font: var(--font-weight-medium) var(--type-micro)/var(--leading-tight) var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-command-choice button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
-    .app-shell:not(.platform-windows) .mobile-color-options { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-    .app-shell:not(.platform-windows) .mobile-color-options > button,
-    .app-shell:not(.platform-windows) .mobile-custom-color { position: relative; display: grid; width: 25px; height: 25px; flex: 0 0 25px; place-items: center; padding: 0; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 20%, transparent); border-radius: 50%; background: transparent; }
-    .app-shell:not(.platform-windows) .mobile-color-options > button.active { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
-    .app-shell:not(.platform-windows) .mobile-color-options i { width: 20px; height: 20px; border: 1px solid color-mix(in srgb, var(--theme-border) 13.33%, transparent); border-radius: 50%; }
-    .app-shell:not(.platform-windows) .mobile-color-options .mobile-color-auto { background: conic-gradient(var(--theme-background) 0 25%, var(--theme-background) 0 50%, var(--theme-background) 0 75%, var(--theme-background) 0); }
-    .app-shell:not(.platform-windows) .mobile-custom-color { overflow: hidden; }
-    .app-shell:not(.platform-windows) .mobile-custom-color input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
-    .app-shell:not(.platform-windows) .mobile-custom-color i { pointer-events: none; }
-    .app-shell:not(.platform-windows) .mobile-display-info { display: grid; gap: 3px; margin: 6px 0; padding: 9px; border-radius: 8px; background: color-mix(in srgb, var(--toolbar-ink, var(--theme-info-muted)) 5%, transparent); font: var(--type-micro) var(--font-ui); }
-    .app-shell:not(.platform-windows) .mobile-display-info small { color: color-mix(in srgb, var(--toolbar-ink, var(--theme-info)) 88%, transparent); font-size: var(--type-micro); }
     .app-shell:not(.platform-windows) .mobile-app-version { display: flex; justify-content: space-between; gap: 8px; padding: 7px 2px; color: color-mix(in srgb, var(--toolbar-ink, var(--theme-text-secondary)) 88%, transparent); font: var(--type-micro) var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-settings-reset,
     .app-shell:not(.platform-windows) .mobile-update-check,
@@ -167,7 +156,6 @@
     .app-shell:not(.platform-windows) .mobile-settings-panel .toolbar-order-editor li { border-color: color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 18%, transparent); color: var(--toolbar-ink, var(--theme-text-primary)); }
     .app-shell:not(.platform-windows) .mobile-settings-panel .toolbar-order-editor button { border-color: color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 26%, transparent); color: var(--toolbar-ink, var(--theme-text-primary)); background: transparent; }
     .app-shell:not(.platform-windows) .mobile-settings-panel .toolbar-order-editor button:disabled { opacity: .55; }
-    .app-shell:not(.platform-windows) .mobile-help-action { min-height: 42px; }
     .app-shell:not(.platform-windows) .mobile-update-status { margin: 8px 0 3px; font: var(--type-micro)/var(--leading-normal) var(--font-ui); }
     .app-shell:not(.platform-windows) .mobile-update-status.current { color: var(--theme-success); }
     .app-shell:not(.platform-windows) .mobile-update-status.available { color: var(--theme-warning); }
@@ -189,5 +177,4 @@
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-settings-trigger { width: 30px; }
     .app-shell:not(.platform-windows) .mobile-settings-content { padding-inline: 9px; }
     .app-shell:not(.platform-windows) .mobile-settings-field { grid-template-columns: minmax(82px, .65fr) minmax(0, 1.35fr); gap: 6px; }
-    .app-shell:not(.platform-windows) .canvas-appearance-colors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

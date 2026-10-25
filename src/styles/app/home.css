@@ -652,14 +652,12 @@
 
     .home-hero {
         min-height: 390px;
+        padding: 20px;
     }
 
     .home-library {
         min-height: 340px;
-    }
-
-    .home-hero {
-        padding: 20px;
+        padding: 15px;
     }
 
     .home-hero-main {
@@ -675,9 +673,6 @@
         font-size: clamp(36px, 8vw, 48px);
     }
 
-    .home-library {
-        padding: 15px;
-    }
 }
 
 @media (max-height: 620px) and (min-width: 761px) {

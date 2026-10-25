@@ -56,7 +56,10 @@
 
 .help-dialog {
     display: flex;
+    width: min(760px, calc(100vw - 36px));
+    max-height: min(86vh, 800px);
     flex-direction: column;
+    padding: 20px 22px 14px;
 }
 
 .help-dialog>header,
@@ -68,6 +71,7 @@
 }
 
 .help-dialog>header {
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--theme-border);
 }
 
@@ -121,6 +125,7 @@
 }
 
 .help-dialog>footer {
+    gap: 12px;
     padding-top: 12px;
     border-top: 1px solid var(--theme-border);
     color: var(--theme-text-secondary);
@@ -327,42 +332,6 @@
     background-position: 0 0, 0 8px, 8px -8px, -8px 0;
 }
 
-/* Help content is divided into stable, individually scrollable sections. */
-.help-dialog {
-    width: min(760px, calc(100vw - 36px));
-    max-height: min(86vh, 800px);
-    padding: 20px 22px 14px;
-}
-
-.help-dialog>header {
-    padding-bottom: 12px;
-}
-
-.help-tabs {
-    display: flex;
-    gap: 6px;
-    padding: 11px 0 0;
-    border-bottom: 1px solid var(--theme-border);
-}
-
-.help-tabs button {
-    padding: 8px 12px;
-    border: 1px solid transparent;
-    border-bottom: 2px solid transparent;
-    border-radius: 7px 7px 0 0;
-    color: var(--theme-text-secondary);
-    background: transparent;
-    font-size: var(--type-control);
-}
-
-.help-tabs button:hover,
-.help-tabs button.active {
-    border-color: var(--theme-primary-border);
-    border-bottom-color: var(--theme-primary-border);
-    color: var(--theme-primary);
-    background: var(--theme-primary-muted);
-}
-
 .help-content {
     display: block;
     min-height: 0;
@@ -520,17 +489,9 @@
     white-space: normal;
 }
 
-.help-dialog>footer {
-    gap: 12px;
-}
-
 .theme-dark .export-preview-frame {
     border-color: var(--theme-border);
     background-color: var(--theme-surface);
-}
-
-.theme-dark .help-tabs {
-    border-color: var(--theme-border);
 }
 
 .theme-dark .help-guide>section {
@@ -607,6 +568,7 @@
 .style-pane .quick-style-popover {
     border: 1px solid var(--theme-border);
     border-radius: 14px;
+    background-color: var(--theme-surface-elevated);
     background: color-mix(in srgb, var(--theme-surface-elevated) 98.00%, transparent);
 }
 

@@ -311,14 +311,6 @@
     background: var(--theme-surface-hover);
 }
 
-.pane-hint {
-    display: block;
-    margin: 5px 0 0;
-    color: var(--theme-text-secondary);
-    font-size: var(--type-micro);
-    line-height: var(--leading-normal);
-}
-
 .relationship-properties .property-label {
     margin-block: 6px;
 }
@@ -712,7 +704,7 @@
     padding: 5px 0 8px;
 }
 
-.component-editor-dock .component-editor-content :is(section, .component-data-editor, .component-options-editor, .component-option-list, .component-chart-data, .component-chart-customize, .component-chart-series-list, .component-field-list, .component-appearance-choice, .component-text-fields) {
+.component-editor-dock .component-editor-content :is(section, .component-options-editor, .component-option-list, .component-chart-data, .component-chart-customize, .component-chart-series-list, .component-field-list) {
     border: 0;
     border-radius: 0;
     background: transparent;

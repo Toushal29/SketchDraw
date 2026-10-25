@@ -290,8 +290,8 @@
     top: 65px;
     right: auto;
     bottom: auto;
-    left: 15 px;
-    max-height: 42;
+    left: 15px;
+    max-height: calc(100% - 36px);
 }
 
 .platform-windows .style-pane.quick-style-mode.mobile-properties-collapsed {
@@ -659,9 +659,7 @@
 /* Windows settings use direct choices and inherit the current toolbar theme. */
 .app-shell.platform-windows .app-settings-popover {
     --setting-ink: var(--toolbar-ink);
-    --setting-muted: color-mix(in srgb, var(--toolbar-ink) 62%, transparent);
     --setting-line: color-mix(in srgb, var(--toolbar-ink) 14%, transparent);
-    --setting-well: color-mix(in srgb, var(--toolbar-ink) 5%, var(--toolbar-surface));
     width: min(380px, calc(100vw - 24px));
     gap: 8px;
     padding: 12px;
@@ -675,49 +673,7 @@
     border-color: var(--setting-line);
 }
 
-.app-shell.platform-windows .app-settings-heading strong,
-.app-shell.platform-windows .app-display-info>strong {
-    color: var(--setting-ink);
-}
-
-.app-shell.platform-windows .app-settings-heading small,
-.app-shell.platform-windows .app-setting-field,
-.app-shell.platform-windows .app-setting-field>small,
-.app-shell.platform-windows .app-display-info small {
-    color: var(--setting-muted);
-}
-
-.app-shell.platform-windows .app-setting-choices {
-    gap: 4px;
-}
-
-.app-shell.platform-windows .app-setting-choices button {
-    min-height: 32px;
-    padding: 4px;
-    border-color: var(--setting-line);
-    border-radius: 7px;
-    color: var(--setting-ink);
-    background: var(--setting-well);
-    font-size: var(--type-micro);
-    cursor: pointer;
-}
-
-.app-shell.platform-windows .app-setting-choices button:hover {
-    border-color: color-mix(in srgb, var(--ui-accent) 35%, var(--setting-line));
-}
-
-.app-shell.platform-windows .app-setting-choices button.active {
-    border-color: var(--ui-accent-border);
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
-}
-
-.app-shell.platform-windows .app-display-info {
-    border-color: var(--setting-line);
-    background: var(--setting-well);
-}
-
-.app-shell.platform-windows .app-display-info>span {
+.app-shell.platform-windows .app-settings-heading strong {
     color: var(--setting-ink);
 }
 
@@ -745,137 +701,9 @@
     border-radius: 15px;
 }
 
-.app-shell.platform-windows .windows-view-sheet {
-    display: grid;
-    min-height: 0;
-    max-height: min(620px, calc(100dvh - 142px));
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-content: start;
-    gap: 6px;
-    margin-top: 8px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-color: var(--theme-text-secondary) transparent;
-    scrollbar-width: thin;
-}
-
-.app-shell.platform-windows .windows-view-sheet>.view-panel-page {
-    display: contents;
-}
-
-.app-shell.platform-windows .windows-view-sheet .view-menu-section {
-    min-width: 0;
-    padding: 9px;
-    border-color: color-mix(in srgb, var(--view-line) 88%, transparent);
-    border-radius: 11px;
-    background: var(--view-panel);
-}
-
-.app-shell.platform-windows .windows-view-sheet .theme-setting-section {
-    order: 1;
-}
-
-.app-shell.platform-windows .windows-view-sheet .board-view-section {
-    order: 2;
-}
-
-.app-shell.platform-windows .windows-view-sheet .accent-setting-section {
-    order: 3;
-}
-
-.app-shell.platform-windows .windows-view-sheet .pattern-setting-section {
-    order: 4;
-}
-
-.app-shell.platform-windows .windows-view-sheet .toolbar-setting-section {
-    order: 5;
-}
-
-.app-shell.platform-windows .windows-view-sheet .component-setting-section {
-    order: 6;
-}
-
-.app-shell.platform-windows .windows-view-sheet .view-section-heading {
-    padding-bottom: 5px;
-}
-
-.app-shell.platform-windows .windows-view-sheet .view-section-heading>span:last-child {
-    font-size: var(--type-micro);
-}
-
-.app-shell.platform-windows .windows-view-sheet .theme-options button {
-    min-height: 42px;
-    gap: 3px;
-    padding: 4px;
-    font-size: var(--type-micro);
-}
-
-.app-shell.platform-windows .windows-view-sheet .theme-options svg {
-    width: 15px;
-    height: 15px;
-}
-
-.app-shell.platform-windows .windows-view-sheet .accent-choice,
-.app-shell.platform-windows .windows-view-sheet .named-color-choice,
-.app-shell.platform-windows .windows-view-sheet .board-color-choice {
-    min-height: 28px;
-    gap: 5px;
-    padding: 4px 5px;
-    font-size: var(--type-micro);
-}
-
-.app-shell.platform-windows .windows-view-sheet .accent-choice>i,
-.app-shell.platform-windows .windows-view-sheet .named-color-choice>i,
-.app-shell.platform-windows .windows-view-sheet .board-color-choice>i {
-    width: 13px;
-    height: 13px;
-    flex-basis: 13px;
-}
-
-.app-shell.platform-windows .windows-view-sheet .toolbar-setting-section .toolbar-color-options .named-color-choice {
-    min-height: 27px;
-}
-
-.app-shell.platform-windows .windows-view-sheet .board-custom-choice {
-    padding-top: 5px;
-    font-size: var(--type-micro);
-}
-
-.app-shell.platform-windows .windows-view-sheet .whiteboard-style-options {
-    gap: 2px;
-}
-
-.app-shell.platform-windows .windows-view-sheet .whiteboard-style-choice {
-    min-height: 46px;
-    gap: 3px;
-    padding: 3px 1px;
-    font-size: var(--font-size-micro);
-}
-
-.app-shell.platform-windows .windows-view-sheet .paper-pattern-swatch {
-    width: 36px;
-    height: 20px;
-}
-
-.app-shell.platform-windows .windows-view-sheet .component-style-options {
-    gap: 3px;
-}
-
-.app-shell.platform-windows .windows-view-sheet .component-style-options button {
-    min-height: 30px;
-    font-size: var(--type-micro);
-}
-
 @media (max-width: 900px) {
     .app-shell.platform-windows .view-menu-dropdown .view-settings-popover {
         width: min(700px, calc(100vw - 24px));
-    }
-}
-
-@media (max-width: 700px) {
-    .app-shell.platform-windows .windows-view-sheet {
-        grid-template-columns: minmax(0, 1fr);
     }
 }
 

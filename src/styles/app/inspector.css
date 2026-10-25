@@ -43,28 +43,6 @@
     height: 25px;
 }
 
-.swatch-list {
-    gap: 10px;
-}
-
-.preset-button {
-    padding: 9px 4px;
-    font-size: var(--type-control);
-}
-
-.preset-button small {
-    font-size: var(--type-control);
-}
-
-.advanced-toggle {
-    font-size: var(--type-body-compact);
-    padding: 8px 2px;
-}
-
-.pane-slider {
-    margin: 14px 0 4px;
-}
-
 .fill-options button {
     padding: 9px 6px;
     font-size: var(--type-body-compact);
@@ -257,25 +235,9 @@
 }
 
 @media (max-width: 760px) {
-}
-
-@media (max-width: 760px) {
     .style-pane {
         width: min(300px, calc(100vw - 30px));
     }
-}
-
-.object-style-transfer {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
-}
-
-.object-style-transfer button {
-    min-height: 34px;
-    padding: 5px 10px;
-    font-size: var(--type-caption);
 }
 
 .component-navigation-details {

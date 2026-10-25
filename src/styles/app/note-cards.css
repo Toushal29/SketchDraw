@@ -63,8 +63,7 @@
 }
 
 .stencil-picker-heading>div,
-.stencil-template-copy,
-.stencil-schema-action>span {
+.stencil-template-copy {
     display: grid;
     gap: 3px;
 }
@@ -201,20 +200,6 @@
     -webkit-line-clamp: 2;
 }
 
-.stencil-schema-action {
-    display: flex;
-    width: 100%;
-    min-height: 52px;
-    align-items: center;
-    gap: 9px;
-    padding: 8px 10px;
-    border: 1px solid var(--theme-diagram-data);
-    border-radius: 9px;
-    color: var(--theme-diagram-data);
-    background: var(--theme-diagram-data-muted);
-    text-align: left;
-}
-
 .stencil-save-action {
     display: flex;
     width: 100%;
@@ -333,34 +318,6 @@
 .custom-stencil-remove:hover {
     color: #b32835;
     background: color-mix(in srgb, #b32835 12%, var(--theme-surface));
-}
-
-.stencil-schema-action>svg {
-    width: 24px;
-    height: 24px;
-    flex: 0 0 24px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-}
-
-.stencil-schema-action strong {
-    font-size: var(--type-caption);
-}
-
-.stencil-schema-action small {
-    color: var(--theme-text-secondary);
-    font-size: var(--type-micro);
-}
-
-.stencil-schema-action kbd {
-    margin-left: auto;
-    padding: 3px 6px;
-    border: 1px solid var(--theme-border);
-    border-radius: 5px;
-    color: var(--theme-text-secondary);
-    background: var(--theme-surface);
-    font-size: var(--type-micro);
 }
 
 .stencil-empty {

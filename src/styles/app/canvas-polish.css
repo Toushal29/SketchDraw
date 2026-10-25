@@ -23,11 +23,16 @@
 }
 
 .tool-deck {
+    gap: 0px;
+    padding: 0px;
     border-color: var(--theme-border);
     background: color-mix(in srgb, var(--theme-surface) 96.00%, transparent);
 }
 
 .tool-cluster {
+    gap: 2px;
+    padding: 2px;
+    border-radius: 12px;
     border-color: var(--theme-border);
     background: var(--theme-surface-elevated);
 }
@@ -37,6 +42,9 @@
 }
 
 .tool-icon-button {
+    width: 38px;
+    height: 44px;
+    border-radius: 9px;
     border: 1px solid transparent;
 }
 
@@ -62,32 +70,16 @@
 
 .style-pane.quick-style-mode {
     border-color: var(--theme-border);
+    background-color: var(--theme-surface-elevated);
     background: color-mix(in srgb, var(--theme-surface-elevated) 96.50%, transparent);
 }
 
 .style-pane .quick-style-icon {
     border-radius: 100%;
-    background: linear-gradient(180deg, var(--theme-surface-input), var(--theme-surface-input));
+    background: var(--theme-surface-input);
 }
 
-/* Keep the canvas toolbar compact after all base and theme styles. */
-.tool-deck {
-    gap: 0px;
-    padding: 0px;
-}
-
-.tool-cluster {
-    gap: 2px;
-    padding: 2px;
-    border-radius: 12px;
-}
-
-.tool-icon-button {
-    width: 38px;
-    height: 44px;
-    border-radius: 9px;
-}
-
+/* Keep toolbar sizing beside the chrome it belongs to. */
 .tool-icon-button svg:not(.tool-family-caret) {
     width: 19px;
     height: 19px;

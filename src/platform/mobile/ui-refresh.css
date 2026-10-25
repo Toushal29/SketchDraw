@@ -202,13 +202,6 @@
         width: min(760px, 100%);
     }
 
-    .app-shell:not(.platform-windows) .canvas-note-editor {
-        max-width: calc(100vw - 24px);
-    }
-
-    /* Respect safe areas and leave a full-height canvas in narrow landscape. */
-    @media (min-width: 700px) and (orientation: landscape) {}
-
     @media (max-width: 560px) {
         .app-shell:not(.platform-windows) .gesture-action-card {
             grid-template-columns: 34px minmax(64px, .55fr) minmax(0, 1fr);
@@ -358,8 +351,6 @@
         color: var(--touch-muted);
     }
 }
-
-@media (max-width: 560px) {}
 
 @media (min-width: 561px) and (max-width: 900px) and (orientation: landscape),
 (min-width: 700px) and (max-width: 1600px) and (pointer: coarse) and (orientation: landscape) {

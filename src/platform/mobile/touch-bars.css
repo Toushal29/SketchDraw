@@ -189,6 +189,3 @@
     .app-shell.mobile-orientation-portrait:not(.platform-windows) > .mobile-workspace-header.mobile-header-home { grid-template-columns: 32px minmax(36px, 1fr) 28px minmax(78px, 88px); gap: 2px; grid-template-areas: "file brand settings project"; }
     .app-shell.mobile-orientation-portrait:not(.platform-windows) .mobile-brand { font-size: var(--font-size-micro); }
 }
-
-@media (max-width: 480px) {
-}

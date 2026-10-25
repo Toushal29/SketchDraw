@@ -5,9 +5,6 @@
 
 .component-editor-content .component-size-grid {
     margin: 0;
-}
-
-.component-editor-content .component-size-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
 }
@@ -38,24 +35,6 @@
 
 .component-editor-content .property-label textarea {
     resize: vertical;
-}
-
-.component-editor-content .component-data-editor {
-    display: grid;
-    gap: 5px;
-}
-
-.component-editor-content .component-data-editor textarea {
-    min-height: 92px;
-    font-family: var(--font-mono);
-}
-
-.component-editor-content .component-appearance-choice {
-    margin: 0;
-}
-
-.component-editor-content .component-text-fields {
-    margin: 0;
 }
 
 .component-editor-content .component-field-list {

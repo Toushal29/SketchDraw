@@ -21,7 +21,6 @@
 @import "./platform/mobile/home.css";
 @import "./platform/mobile/touch-style.css";
 @import "./platform/mobile/quick-style.css";
-@import "./styles/view-menu.css";
 @import "./styles/menu-panels.css";
 @import "./platform/windows/windows.css";
 @import "./features/workspace/workspace-shell.css";
@@ -33,7 +32,6 @@
 @import "./platform/mobile/touch-toolbar.css";
 @import "./styles/property-panel-redesign.css";
 @import "./styles/full-inspector.css";
-@import "./styles/view-panel.css";
 @import "./styles/app-settings.css";
 @import "./styles/toolbar-and-view-popovers.css";
 @import "./styles/workspace-view-panel.css";

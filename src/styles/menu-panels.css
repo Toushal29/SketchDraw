@@ -1,11 +1,21 @@
-/* Shared panel language for Settings and touch-gesture preferences. */
-.app-settings-popover,
+/* Shared base surface for touch-gesture preferences. */
 .gesture-settings-popover {
     box-sizing: border-box;
+    display: flex;
+    width: min(560px, calc(100vw - 24px));
+    max-height: min(720px, calc(100dvh - 24px));
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     border: 1px solid var(--panel-line);
     border-radius: 20px;
     color: var(--panel-ink);
     background: var(--panel-surface);
+    scrollbar-color: var(--theme-text-secondary) transparent;
+    scrollbar-width: thin;
 }
 
 .app-settings-heading,
@@ -32,227 +42,6 @@
     color: var(--panel-muted);
     font-size: var(--type-micro);
     line-height: var(--leading-normal);
-}
-
-.app-setting-field {
-    display: grid;
-    gap: 5px;
-    padding: 8px;
-    border: 1px solid var(--panel-line);
-    border-radius: 13px;
-    color: var(--panel-ink);
-    background: var(--panel-surface);
-    font-size: var(--type-micro);
-}
-
-.app-setting-field>span {
-    align-items: baseline;
-    color: var(--panel-ink);
-    font-size: var(--type-caption);
-    font-weight: var(--font-weight-semibold);
-}
-
-.app-setting-field>span>strong {
-    color: var(--ui-accent-ink);
-    font-size: var(--type-micro);
-}
-
-.app-setting-field>small,
-.app-display-info small {
-    color: var(--panel-muted);
-    font-size: var(--type-micro);
-    line-height: var(--leading-normal);
-}
-
-.app-setting-field select {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    min-height: 40px;
-    padding: 7px 10px;
-    border: 1px solid var(--panel-line);
-    border-radius: 10px;
-    color: var(--panel-ink);
-    background: var(--panel-surface);
-    font: var(--font-weight-medium) var(--type-micro) var(--font-ui);
-}
-
-.app-setting-choices {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
-}
-
-.app-setting-choices-three {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.app-setting-choices-scale {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
-}
-
-.app-setting-choices button {
-    box-sizing: border-box;
-    min-width: 0;
-    min-height: 38px;
-    padding: 5px 4px;
-    border: 1px solid var(--panel-line);
-    border-radius: 9px;
-    color: var(--panel-muted);
-    background: var(--panel-surface);
-    font: var(--font-weight-semibold) var(--type-micro)/var(--leading-tight) var(--font-ui);
-    cursor: pointer;
-}
-
-.app-setting-choices button:hover {
-    color: var(--panel-ink);
-    background: var(--panel-hover);
-}
-
-.app-setting-choices button.active {
-    border-color: var(--ui-accent-border);
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
-}
-
-.app-accent-choices,
-.app-toolbar-choices {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 2px;
-}
-
-.app-accent-choices button,
-.app-toolbar-choices button,
-.app-accent-custom,
-.app-toolbar-custom {
-    position: relative;
-    box-sizing: border-box;
-    display: flex;
-    min-width: 0;
-    min-height: 25px;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 4px;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    color: var(--panel-ink, var(--theme-text-primary));
-    background: transparent;
-    font: var(--font-weight-medium) var(--type-micro)/var(--leading-tight) var(--font-ui);
-    text-align: left;
-    cursor: pointer;
-}
-
-.app-accent-choices button:hover,
-.app-toolbar-choices button:hover,
-.app-accent-custom:hover,
-.app-toolbar-custom:hover {
-    background: var(--panel-hover, var(--theme-surface-hover));
-}
-
-.app-accent-choices button.active,
-.app-toolbar-choices button.active {
-    border-color: var(--ui-accent-border);
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
-}
-
-.app-accent-choices i,
-.app-toolbar-choices i,
-.app-accent-custom i,
-.app-toolbar-custom i {
-    box-sizing: border-box;
-    width: 20px;
-    height: 20px;
-    flex: 0 0 20px;
-    border: 1px solid color-mix(in srgb, var(--theme-border) 13.33%, transparent);
-    border-radius: 50%;
-}
-
-.app-accent-choices span,
-.app-toolbar-choices span,
-.app-accent-custom span,
-.app-toolbar-custom span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.app-accent-custom input,
-.app-toolbar-custom input {
-    position: absolute;
-    z-index: 1;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    padding: 0;
-    opacity: 0;
-    cursor: pointer;
-}
-
-.app-accent-custom i {
-    border-style: dashed;
-    background: conic-gradient(var(--theme-error-muted) 0 15%, var(--theme-warning-muted) 15% 30%, var(--theme-success-muted) 30% 45%, var(--theme-info-muted) 45% 60%, var(--theme-info-muted) 60% 75%, var(--theme-primary-muted) 75% 90%, var(--theme-error-muted) 90%);
-}
-
-.app-toolbar-auto {
-    background: linear-gradient(135deg, var(--theme-surface) 0 47%, var(--theme-surface) 51% 100%);
-}
-
-.app-display-info {
-    display: grid;
-    gap: 4px;
-    padding: 10px;
-    border: 1px solid var(--panel-line);
-    border-radius: 13px;
-    background: var(--panel-well);
-}
-
-.app-display-info>strong {
-    color: var(--panel-muted);
-    font-size: var(--type-micro);
-    text-transform: uppercase;
-    letter-spacing: .08em;
-}
-
-.app-display-info>span {
-    color: var(--panel-ink);
-    font: var(--font-weight-semibold) var(--type-caption) var(--font-mono);
-}
-
-.app-settings-reset {
-    min-height: 40px;
-    padding: 8px 11px;
-    border: 1px solid var(--ui-accent-border);
-    border-radius: 10px;
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
-    font: var(--font-weight-semibold) var(--type-micro) var(--font-ui);
-    cursor: pointer;
-}
-
-.app-settings-reset:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--ui-accent-soft) 72%, var(--ui-accent) 12%);
-}
-
-.app-settings-reset:disabled {
-    opacity: .45;
-    cursor: not-allowed;
-}
-
-.gesture-settings-popover {
-    display: flex;
-    width: min(560px, calc(100vw - 24px));
-    max-height: min(720px, calc(100dvh - 24px));
-    flex-direction: column;
-    gap: 10px;
-    padding: 14px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-color: var(--theme-text-secondary) transparent;
-    scrollbar-width: thin;
 }
 
 .gesture-menu-heading .eyebrow {
@@ -360,24 +149,7 @@
     line-height: var(--leading-normal);
 }
 
-.app-shell.theme-dark .app-settings-popover,
 .app-shell.theme-dark .gesture-settings-popover {
-    border-color: var(--panel-line);
-}
-
-.app-shell.theme-dark .app-setting-field {
-    border-color: var(--panel-line);
-}
-
-.app-shell.theme-dark .app-setting-field select {
-    border-color: var(--panel-line);
-}
-
-.app-shell.theme-dark .app-setting-choices button {
-    border-color: var(--panel-line);
-}
-
-.app-shell.theme-dark .app-display-info {
     border-color: var(--panel-line);
 }
 
@@ -393,16 +165,8 @@
     border-color: var(--panel-line);
 }
 
-.app-shell.theme-dark .app-settings-reset {
-    border-color: var(--ui-accent-border);
-}
-
 @media (max-width: 900px),
 (max-width: 1600px) and (pointer: coarse) {
-    .app-shell:not(.platform-windows) .app-setting-field {
-        padding: 7px;
-    }
-
     .app-shell:not(.platform-windows) .gesture-settings-popover {
         gap: 9px;
     }
@@ -428,14 +192,4 @@
 
     .app-shell:not(.platform-windows) .gesture-action-choices { grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); }
 
-    .app-shell:not(.platform-windows) .app-setting-choices-scale {
-        gap: 3px;
-    }
-
-    .app-shell:not(.platform-windows) .app-setting-choices-scale button {
-        min-height: 38px;
-        padding-right: 1px;
-        padding-left: 1px;
-        font-size: var(--type-micro);
-    }
 }
