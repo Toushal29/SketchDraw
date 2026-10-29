@@ -1,5 +1,5 @@
 import type { FontFamily, GroupElement, Theme } from "../../model";
-import { cloudProviderComponent } from "../diagrams/cloud-providers";
+import { cloudNeutralComponent, cloudProviderComponent } from "../diagrams/cloud-providers";
 import { drawGuiComponent, guiComponentSvg } from "./gui-components";
 
 type Palette = { ink: string; edge: string; fill: string; soft: string; muted: string; accent: string };
@@ -226,6 +226,26 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   ctx.save();
   ctx.beginPath(); ctx.rect(x - 1, y - 1, w + 2, h + 2); ctx.clip();
   ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.font = `${size}px system-ui, sans-serif`;
+
+  const neutralCloud = cloudNeutralComponent(kind);
+  if (neutralCloud) {
+    ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill;
+    if (fill !== "transparent") roundRect(ctx, x, y, w, h, 8);
+    if (fill !== "transparent") ctx.fill();
+    ctx.strokeStyle = neutralCloud.accent; ctx.lineWidth = 1.4; roundRect(ctx, x, y, w, h, 8); ctx.stroke();
+    const iconSide = Math.max(30, Math.min(46, h - 50, w * .27)); const iconX = x + 12; const iconY = y + 12;
+    ctx.fillStyle = theme === "dark" ? "#263a3d" : "#e8f3f2"; roundRect(ctx, iconX, iconY, iconSide, iconSide, 7); ctx.fill();
+    ctx.strokeStyle = neutralCloud.accent; ctx.lineWidth = 1; roundRect(ctx, iconX, iconY, iconSide, iconSide, 7); ctx.stroke();
+    fittedComponentSingleLine(ctx, neutralCloud.glyph, bounds, iconX + iconSide / 2, iconY + iconSide / 2, iconSide - 4, neutralCloud.glyph.length > 3 ? 9 : 11, neutralCloud.accent, 700, "center", textStyle);
+    const copyX = iconX + iconSide + 10; const copyWidth = Math.max(20, w - (copyX - x) - 10);
+    const align = componentTextAlign(textStyle?.textAlign, "left"); const anchor = () => componentTextAnchor(copyX, copyWidth, "left", align);
+    fittedComponentSingleLine(ctx, name, bounds, anchor(), y + 28, copyWidth, Math.min(size, 12), textInk, 700, align, textStyle);
+    fittedComponentSingleLine(ctx, neutralCloud.category, bounds, anchor(), y + 47, copyWidth, 7, neutralCloud.accent, 650, align, textStyle);
+    ctx.strokeStyle = theme === "dark" ? "#475457" : "#d8e3e2"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + 10, y + 64); ctx.lineTo(x + w - 10, y + 64); ctx.stroke();
+    const details = (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, 2);
+    details.forEach((item, index) => fittedComponentSingleLine(ctx, `${item.label}: ${item.value.replace(/\s*\n\s*/g, " · ")}`, bounds, x + 11, y + 79 + index * 13, w - 22, 7, textInk, 400, "left", textStyle));
+    ctx.restore(); return;
+  }
 
   if (kind === "uml-use-case") {
     ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2 - .65, h / 2 - .65, 0, 0, Math.PI * 2);
@@ -1150,6 +1170,12 @@ function renderModelComponentSvg(group: GroupElement): string {
     const field = (key: string) => componentFieldValue(group, key);
     const r = (rx = x, ry = y, rw = w, rh = h, color = cleanFill) => `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${color}" stroke="${ink}" stroke-width="1.3"/>`;
     const p = (d: string, dash = "") => `<path d="${d}" fill="none" stroke="${ink}" stroke-width="1.3"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
+    const neutralCloud = cloudNeutralComponent(kind);
+    if (neutralCloud) {
+      const iconSide = Math.max(30, Math.min(46, h - 50, w * .27)); const iconX = x + 12; const iconY = y + 12; const copyX = iconX + iconSide + 10; const copyWidth = Math.max(20, w - (copyX - x) - 10);
+      const details = (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, 2);
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${cleanFill}" stroke="${neutralCloud.accent}" stroke-width="1.4"/><rect x="${iconX}" y="${iconY}" width="${iconSide}" height="${iconSide}" rx="7" fill="#e8f3f2" stroke="${neutralCloud.accent}"/><text x="${iconX + iconSide / 2}" y="${iconY + iconSide / 2}" text-anchor="middle" dominant-baseline="middle" fill="${neutralCloud.accent}" font-family="sans-serif" font-size="${neutralCloud.glyph.length > 3 ? 9 : 11}" font-weight="700">${xmlText(neutralCloud.glyph)}</text>${t(rawTitle, copyX, y + 28, copyWidth, Math.min(size, 12))}<text x="${copyX}" y="${y + 47}" dominant-baseline="middle" fill="${neutralCloud.accent}" font-family="sans-serif" font-size="7" font-weight="650">${xmlText(neutralCloud.category)}</text><path d="M ${x + 10} ${y + 64} H ${x + w - 10}" stroke="${neutralCloud.accent}" stroke-opacity=".28"/>${details.map((item, index) => t(`${item.label}: ${item.value}`, x + 11, y + 79 + index * 13, w - 22, 7, "start", 400)).join("")}`;
+    }
     if (kind === "db-view") {
       const fold = Math.min(22, w * .14); const sources = field("sources"); const query = field("query"); const refresh = field("refresh");
       return `${p(`M ${x} ${y} H ${x + w - fold} L ${x + w} ${y + fold} V ${y + h} H ${x} Z M ${x + w - fold} ${y} V ${y + fold} H ${x + w}`)}${t(rawTitle.toUpperCase(), x + 10, y + 18, w - 30, Math.min(size, 12))}${p(`M ${x + 10} ${y + 31} H ${x + w - 10}`)}${sources ? t(`Sources: ${sources}`, x + 10, y + 49, w - 20, Math.max(7, size * .62), "start", 400) : ""}${query ? t(`Query: ${query}`, x + 10, y + 75, w - 20, Math.max(7, size * .58), "start", 400) : ""}${refresh ? t(`Refresh: ${refresh}`, x + 10, y + h - 9, w - 20, Math.max(7, size * .56), "start", 400) : ""}`;

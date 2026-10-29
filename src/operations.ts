@@ -19,6 +19,8 @@ export const DEFAULT_CONNECTION_POINTS: readonly ConnectionPoint[] = [
   { id: "west", name: "West", anchor: { x: 0, y: .5 } },
 ];
 
+type ShapeOutlineGeometry = { path?: SVGPathElement; length: number; samples: Point[] };
+const outlineGeometryCache = new WeakMap<ShapeElement, ShapeOutlineGeometry>();
 const outlineAnchorCache = new WeakMap<ShapeElement, Point[]>();
 const pathTokens = /[A-Za-z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/gi;
 
@@ -48,13 +50,13 @@ function pathEndpoints(path: string): Point[] {
   return endpoints;
 }
 
-function shapeOutlineAnchors(shape: ShapeElement): Point[] {
-  const cached = outlineAnchorCache.get(shape); if (cached) return cached;
+function shapeOutlineGeometry(shape: ShapeElement): ShapeOutlineGeometry | undefined {
+  const cached = outlineGeometryCache.get(shape); if (cached) return cached;
   const rawPath = shape.type === "svgPath" ? shape.pathData : shapePathData(shape);
   const path = shape.type === "flowchart" && shape.flowchartShape === "gear" ? rawPath?.split(/\sM\s/, 1)[0] : rawPath;
   const boxX = Math.min(shape.x, shape.x + shape.w); const boxY = Math.min(shape.y, shape.y + shape.h);
   const boxW = Math.abs(shape.w); const boxH = Math.abs(shape.h);
-  if (!path || boxW < .001 || boxH < .001) return [...BOX_ANCHORS];
+  if (!path || boxW < .001 || boxH < .001) return undefined;
   const customPath = shape.type === "svgPath";
   const pathW = customPath ? Math.max(.001, shape.pathWidth ?? boxW) : boxW;
   const pathH = customPath ? Math.max(.001, shape.pathHeight ?? boxH) : boxH;
@@ -63,27 +65,32 @@ function shapeOutlineAnchors(shape: ShapeElement): Point[] {
     y: Math.max(0, Math.min(1, (point.y - (customPath ? 0 : boxY)) / pathH)),
   });
   let length = 0;
-  let sampled: Point[] = [];
+  let svgPath: SVGPathElement | undefined;
   if (typeof document !== "undefined") {
     try {
-      const svgPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      svgPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
       svgPath.setAttribute("d", path);
       length = svgPath.getTotalLength();
-      if (Number.isFinite(length) && length > 0) sampled = Array.from({ length: 16 }, (_, index) => {
-        const point = svgPath.getPointAtLength(length * index / 16);
+      if (!Number.isFinite(length) || length <= 0) svgPath = undefined;
+    } catch { svgPath = undefined; /* Use the path's command vertices when SVG measurement is unavailable. */ }
+  }
+  const sampleCount = 96;
+  let samples: Point[];
+  if (svgPath) {
+    try {
+      samples = Array.from({ length: sampleCount }, (_, index) => {
+        const point = svgPath!.getPointAtLength(length * index / sampleCount);
         return normalize({ x: point.x, y: point.y });
       });
-    } catch { /* Use the path's command vertices when SVG measurement is unavailable. */ }
-  }
-  const points = [...sampled, ...pathEndpoints(path).map(normalize)];
-  const anchors: Point[] = [];
-  for (const point of points) if (!anchors.some(anchor => Math.abs(anchor.x - point.x) < .002 && Math.abs(anchor.y - point.y) < .002)) anchors.push(point);
-  const result = anchors.length >= 3 ? anchors : [...BOX_ANCHORS];
-  outlineAnchorCache.set(shape, result);
+    } catch { svgPath = undefined; samples = pathEndpoints(path).map(normalize); }
+  } else samples = pathEndpoints(path).map(normalize);
+  if (!samples.length) return undefined;
+  const result = { path: svgPath, length, samples };
+  outlineGeometryCache.set(shape, result);
   return result;
 }
 
-/** Default connector handles follow the visible perimeter of each shape. */
+/** Default connector handles retain box-side spacing while following each shape's visible outline. */
 export function connectionAnchorsFor(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement): Point[] {
   return shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath"
     ? shapeOutlineAnchors(shape)
@@ -91,8 +98,65 @@ export function connectionAnchorsFor(shape: ShapeElement | SchemaTableElement | 
 }
 
 function closestOutlineAnchor(shape: ShapeElement, anchor: Point): Point {
-  const outline = shapeOutlineAnchors(shape);
-  return outline.reduce((nearest, point) => Math.hypot(point.x - anchor.x, point.y - anchor.y) < Math.hypot(nearest.x - anchor.x, nearest.y - anchor.y) ? point : nearest, outline[0] ?? anchor);
+  const outline = shapeOutlineGeometry(shape);
+  if (!outline) return anchor;
+  const width = Math.max(.001, Math.abs(shape.w)); const height = Math.max(.001, Math.abs(shape.h));
+  const distance = (point: Point) => (point.x - anchor.x) ** 2 * width ** 2 + (point.y - anchor.y) ** 2 * height ** 2;
+  let nearestIndex = 0;
+  for (let index = 1; index < outline.samples.length; index++) if (distance(outline.samples[index]) < distance(outline.samples[nearestIndex])) nearestIndex = index;
+  if (!outline.path || outline.samples.length < 3 || outline.length <= 0) {
+    let nearest = outline.samples[nearestIndex]; let bestDistance = distance(nearest);
+    for (let index = 1; index < outline.samples.length; index++) {
+      const start = outline.samples[index - 1]; const end = outline.samples[index];
+      const dx = (end.x - start.x) * width; const dy = (end.y - start.y) * height;
+      const span = dx * dx + dy * dy;
+      const ratio = span > 0 ? Math.max(0, Math.min(1, ((anchor.x - start.x) * width * dx + (anchor.y - start.y) * height * dy) / span)) : 0;
+      const candidate = { x: start.x + (end.x - start.x) * ratio, y: start.y + (end.y - start.y) * ratio };
+      const candidateDistance = distance(candidate);
+      if (candidateDistance < bestDistance) { nearest = candidate; bestDistance = candidateDistance; }
+    }
+    return nearest;
+  }
+  const count = outline.samples.length; const step = outline.length / count;
+  const intervals: [number, number][] = [[Math.max(0, nearestIndex - 1) * step, Math.min(outline.length, (nearestIndex + 1) * step)]];
+  if (nearestIndex === 0) intervals.push([Math.max(0, outline.length - step), outline.length]);
+  else if (nearestIndex === count - 1) intervals.push([0, step]);
+  const pointAt = (distanceAlong: number): Point => {
+    const point = outline.path!.getPointAtLength(Math.max(0, Math.min(outline.length, distanceAlong)));
+    return shape.type === "svgPath"
+      ? { x: Math.max(0, Math.min(1, point.x / Math.max(.001, shape.pathWidth ?? width))), y: Math.max(0, Math.min(1, point.y / Math.max(.001, shape.pathHeight ?? height))) }
+      : { x: Math.max(0, Math.min(1, (point.x - Math.min(shape.x, shape.x + shape.w)) / width)), y: Math.max(0, Math.min(1, (point.y - Math.min(shape.y, shape.y + shape.h)) / height)) };
+  };
+  let nearest = outline.samples[nearestIndex]; let bestDistance = distance(nearest);
+  for (const [start, finish] of intervals) {
+    let low = start; let high = finish;
+    for (let iteration = 0; iteration < 12; iteration++) {
+      const first = low + (high - low) / 3; const second = high - (high - low) / 3;
+      if (distance(pointAt(first)) <= distance(pointAt(second))) high = second;
+      else low = first;
+    }
+    const candidate = pointAt((low + high) / 2); const candidateDistance = distance(candidate);
+    if (candidateDistance < bestDistance) { nearest = candidate; bestDistance = candidateDistance; }
+  }
+  return nearest;
+}
+
+/** Projects stable box-side and corner positions onto the actual contour. */
+function shapeOutlineAnchors(shape: ShapeElement): Point[] {
+  const cached = outlineAnchorCache.get(shape); if (cached) return cached;
+  const geometry = shapeOutlineGeometry(shape);
+  if (!geometry) return [...BOX_ANCHORS];
+  const result: Point[] = [];
+  for (const target of BOX_ANCHORS) {
+    const point = closestOutlineAnchor(shape, target);
+    if (!result.some(anchor => Math.abs(anchor.x - point.x) < .002 && Math.abs(anchor.y - point.y) < .002)) result.push(point);
+  }
+  if (result.length < 6) {
+    const uniform = geometry.samples.filter((_, index) => index % Math.max(1, Math.floor(geometry.samples.length / 16)) === 0).slice(0, 16);
+    for (const point of uniform) if (!result.some(anchor => Math.abs(anchor.x - point.x) < .002 && Math.abs(anchor.y - point.y) < .002)) result.push(point);
+  }
+  outlineAnchorCache.set(shape, result);
+  return result;
 }
 
 let textBoundsContext: CanvasRenderingContext2D | null | undefined;
@@ -153,8 +217,10 @@ export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextEleme
   const cx = box.x + box.w / 2; const cy = box.y + box.h / 2;
   let normalized = (portId ? connectionPointsFor(shape).find(port => port.id === portId)?.anchor : undefined) ?? anchor;
   if (!portId && (shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath")) {
-    const outline = connectionAnchorsFor(shape);
-    normalized = outline.reduce((nearest, point) => Math.hypot(point.x - anchor.x, point.y - anchor.y) < Math.hypot(nearest.x - anchor.x, nearest.y - anchor.y) ? point : nearest, outline[0] ?? anchor);
+    const currentAnchors = connectionAnchorsFor(shape);
+    normalized = currentAnchors.some(point => Math.abs(point.x - anchor.x) < .000001 && Math.abs(point.y - anchor.y) < .000001)
+      ? anchor
+      : closestOutlineAnchor(shape, anchor);
   }
   let x = Math.min(box.x, box.x + box.w) + Math.abs(box.w) * normalized.x;
   const rowIndex = shape.type === "schemaTable" && rowId ? shape.columns.findIndex(column => column.id === rowId) : -1;

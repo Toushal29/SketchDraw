@@ -166,6 +166,10 @@
     text-align: left;
 }
 
+.stencil-template-model-component {
+    grid-template-columns: 44px minmax(0, 1fr);
+}
+
 .stencil-template:hover {
     border-color: var(--theme-primary-border);
     background: var(--theme-primary-muted);
@@ -175,6 +179,13 @@
     width: 22px;
     height: 22px;
     color: var(--theme-primary);
+}
+
+.stencil-template-model-component>.stencil-component-model-preview {
+    width: 42px;
+    height: 26px;
+    fill: none;
+    stroke: none;
 }
 
 .stencil-template-copy {

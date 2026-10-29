@@ -1,6 +1,6 @@
 import type { Element, GroupElement, LibraryChartData, LibraryChartKind, LibraryComponentFieldValue, NoteKind, RelationshipType, ShapeElement, TextElement, Theme } from "./model";
 export type { LibraryChartData } from "./model";
-import { CLOUD_PROVIDER_COMPONENTS, cloudProviderComponent, type CloudProviderComponentKind } from "./features/diagrams/cloud-providers";
+import { CLOUD_NEUTRAL_COMPONENTS, CLOUD_PROVIDER_COMPONENTS, cloudProviderComponent, type CloudNeutralComponentKind, type CloudProviderComponentKind } from "./features/diagrams/cloud-providers";
 import { defaultGuiComponentProperties, GUI_COMPONENT_DEFINITIONS, isGuiComponentKind, type GuiComponentKind } from "./features/components/gui-components";
 
 const text = (x: number, y: number, value: string, color = "#303638", size = 14, family: TextElement["fontFamily"] = "sans", bold = false): TextElement => ({
@@ -286,7 +286,7 @@ export function toggleChecklistContent(content: string, target: number): string 
   }).join("\n");
 }
 
-type BaseLibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "uml-state" | "uml-initial-state" | "uml-final-state" | "uml-fork" | "uml-join" | "uml-component" | "uml-node" | "uml-artifact" | "uml-enumeration" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-associative-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-composite-attribute" | "er-key-attribute" | "er-partial-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-message-event" | "bpmn-timer-event" | "bpmn-error-event" | "bpmn-signal-event" | "bpmn-terminate-event" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-user-task" | "bpmn-service-task" | "bpmn-script-task" | "bpmn-call-activity" | "bpmn-subprocess" | "bpmn-data" | "bpmn-data-store" | "bpmn-text-annotation" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-proxy" | "network-bridge" | "network-bastion" | "network-gateway" | "network-printer" | "network-workstation" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | "uml-association" | "uml-dependency" | "uml-include" | "uml-extend" | "c4-code-element" | "c4-infrastructure-node" | "bpmn-manual-task" | "bpmn-business-rule-task" | "bpmn-send-task" | "bpmn-receive-task" | "network-subnet" | CloudProviderComponentKind;
+type BaseLibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "uml-state" | "uml-initial-state" | "uml-final-state" | "uml-fork" | "uml-join" | "uml-component" | "uml-node" | "uml-artifact" | "uml-enumeration" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-associative-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-composite-attribute" | "er-key-attribute" | "er-partial-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-message-event" | "bpmn-timer-event" | "bpmn-error-event" | "bpmn-signal-event" | "bpmn-terminate-event" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-user-task" | "bpmn-service-task" | "bpmn-script-task" | "bpmn-call-activity" | "bpmn-subprocess" | "bpmn-data" | "bpmn-data-store" | "bpmn-text-annotation" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-proxy" | "network-bridge" | "network-bastion" | "network-gateway" | "network-printer" | "network-workstation" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | "uml-association" | "uml-dependency" | "uml-include" | "uml-extend" | "c4-code-element" | "c4-infrastructure-node" | "bpmn-manual-task" | "bpmn-business-rule-task" | "bpmn-send-task" | "bpmn-receive-task" | "network-subnet" | CloudProviderComponentKind | CloudNeutralComponentKind;
 export type LibraryComponentKind = BaseLibraryComponentKind | "db-view" | "db-index" | "db-procedure" | "uml-object" | "uml-activity-action" | "uml-activity-decision" | "uml-activity-initial" | "uml-activity-final" | "c4-container-instance" | "c4-component-instance" | "bpmn-group";
 export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
   { kind: "diagram-frame", section: "General | Layout", label: "Frame", description: "Resizable titled boundary for any diagram", width: 420, height: 280 },
@@ -367,6 +367,7 @@ export const LIBRARY_COMPONENTS: { kind: LibraryComponentKind; section: string; 
   { kind: "cloud-storage", section: "Cloud | Services", label: "Object storage", description: "Provider-neutral object storage component", width: 156, height: 104 },
   { kind: "cloud-database", section: "Cloud | Services", label: "Managed database", description: "Managed relational database component", width: 156, height: 108 },
   { kind: "cloud-queue", section: "Cloud | Services", label: "Cloud queue", description: "Managed asynchronous message queue", width: 156, height: 94 },
+  ...CLOUD_NEUTRAL_COMPONENTS.map(component => ({ kind: component.kind, section: component.section, label: component.label, description: component.description, width: 176, height: 108 })),
   ...CLOUD_PROVIDER_COMPONENTS.map(component => ({ kind: component.kind, section: `Cloud | ${component.provider}`, label: component.label, description: component.description, width: 176, height: 108 })),
   { kind: "network-zone", section: "Network | Devices & zones", label: "Network zone", description: "Infrastructure enclosure with connection points", width: 280, height: 168 },
   { kind: "network-subnet", section: "Network | Devices & zones", label: "Subnet", description: "IP subnet boundary with room for member devices", width: 280, height: 168 },
@@ -661,6 +662,23 @@ Object.assign(MODEL_COMPONENT_FIELDS, {
   "gcp-cloud-dns": componentFields(["managed-zone", "Managed zone", "Zone name and DNS suffix"], ["records", "DNS records", "Record name, type, and target per line"], ["visibility", "Visibility", "Public or private zone and associated VPCs"], ["dnssec", "DNSSEC", "DNSSEC signing configuration"]),
   "gcp-firewall": componentFields(["direction-priority", "Direction / priority", "Ingress or egress and rule priority"], ["source-target", "Source / target", "CIDR ranges, tags, or service accounts"], ["protocol-ports", "Protocols / ports", "Allowed or denied protocol and port ranges"], ["network", "VPC network", "Network where the rule applies"]),
 });
+
+for (const component of CLOUD_PROVIDER_COMPONENTS) {
+  if (MODEL_COMPONENT_FIELDS[component.kind]) continue;
+  MODEL_COMPONENT_FIELDS[component.kind] = componentFields(
+    ["resource-name", "Resource name", "Service, instance, or resource identifier"],
+    ["region", "Region / location", "Region, zone, or deployment location"],
+    ["configuration", "Configuration", "Important settings, policy, or dependencies"],
+  );
+}
+
+for (const component of CLOUD_NEUTRAL_COMPONENTS) {
+  MODEL_COMPONENT_FIELDS[component.kind] = componentFields(
+    ["resource-name", "Resource name", "Service, instance, or resource identifier"],
+    ["region", "Region / location", "Region, zone, or deployment location"],
+    ["configuration", "Configuration", "Important settings, policy, or dependencies"],
+  );
+}
 
 export function defaultLibraryComponentFields(kind: LibraryComponentKind): LibraryComponentFieldValue[] {
   return MODEL_COMPONENT_FIELDS[kind]?.map(field => ({ ...field })) ?? [];

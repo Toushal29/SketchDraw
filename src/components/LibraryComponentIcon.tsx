@@ -1,4 +1,4 @@
-import type { Component } from "solid-js";
+import { createResource, Show, type Component } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import {
   IconAccessPoint,
@@ -65,6 +65,9 @@ import {
   type IconProps,
 } from "@tabler/icons-solidjs";
 import { type LibraryComponentKind } from "../notes";
+import type { GroupElement } from "../model";
+import { modelComponentSvg } from "../features/components/model-component-renderer";
+import { cloudNeutralComponent, cloudProviderComponent, loadCloudProviderGlyph } from "../features/diagrams/cloud-providers";
 
 const icons: Partial<Record<LibraryComponentKind, Component<IconProps>>> = {
   "diagram-frame": IconBox,
@@ -221,23 +224,42 @@ const icons: Partial<Record<LibraryComponentKind, Component<IconProps>>> = {
   "bpmn-group": IconBox,
 };
 
-function providerIcon(kind: string): Component<IconProps> {
-  if (/lambda|function/i.test(kind)) return IconCloudCode;
-  if (/storage|bucket|blob|s3/i.test(kind)) return IconCloudDataConnection;
-  if (/database|\bsql\b|rds|cosmos|spanner|firestore/i.test(kind)) return IconDatabase;
-  if (/api|gateway/i.test(kind)) return IconApi;
-  if (/queue|bus|pub.?sub|event.?hub|sqs/i.test(kind)) return IconStack;
-  if (/network|vpc|vnet|subnet|dns/i.test(kind)) return IconNetwork;
-  if (/load.?balanc|front.?door|application.?gateway/i.test(kind)) return IconArrowsSplit;
-  if (/firewall|security|vault|secret|key/i.test(kind)) return IconShield;
-  if (/monitor|insight|metric|logging/i.test(kind)) return IconChartLine;
-  if (/container|kubernetes|cluster|aks|eks|gke/i.test(kind)) return IconBox;
-  if (/user|identity|account/i.test(kind)) return IconUser;
-  if (/compute|server|instance|machine|vm|ec2/i.test(kind)) return IconServer;
-  return IconCloud;
+function CloudProviderModelIcon(props: { kind: LibraryComponentKind; loadArtwork?: boolean }) {
+  const provider = cloudProviderComponent(props.kind)!;
+  const [glyph] = createResource(() => props.loadArtwork === false ? undefined : props.kind, kind => kind ? loadCloudProviderGlyph(kind) : Promise.resolve(undefined));
+  const markup = () => {
+    const group: GroupElement = {
+      type: "group",
+      elements: [],
+      componentBounds: { x: 0, y: 0, w: 176, h: 108 },
+      libraryComponent: {
+        kind: provider.kind,
+        label: provider.label,
+        renderStyle: "clean",
+        ...(glyph() ? { iconSvg: glyph()!.svg, iconViewBox: glyph()!.viewBox } : {}),
+      },
+    };
+    return modelComponentSvg(group);
+  };
+  return <svg viewBox="0 0 176 108" class="stencil-component-icon stencil-component-model-preview" aria-hidden="true" innerHTML={markup()} />;
 }
 
-export function LibraryComponentIcon(props: { kind: LibraryComponentKind }) {
-  const icon = () => icons[props.kind] ?? providerIcon(props.kind);
-  return <Dynamic component={icon()} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />;
+function CloudNeutralModelIcon(props: { kind: LibraryComponentKind }) {
+  const component = cloudNeutralComponent(props.kind)!;
+  const group: GroupElement = {
+    type: "group",
+    elements: [],
+    componentBounds: { x: 0, y: 0, w: 176, h: 108 },
+    libraryComponent: { kind: component.kind, label: component.label, renderStyle: "clean" },
+  };
+  return <svg viewBox="0 0 176 108" class="stencil-component-icon stencil-component-model-preview" aria-hidden="true" innerHTML={modelComponentSvg(group)} />;
+}
+
+export function LibraryComponentIcon(props: { kind: LibraryComponentKind; loadProviderArtwork?: boolean }) {
+  const icon = () => icons[props.kind] ?? IconCloud;
+  return <Show when={cloudNeutralComponent(props.kind)} fallback={<Show when={cloudProviderComponent(props.kind)} fallback={<Dynamic component={icon()} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />} keyed>
+    {provider => <CloudProviderModelIcon kind={provider.kind} loadArtwork={props.loadProviderArtwork} />}
+  </Show>} keyed>
+    {component => <CloudNeutralModelIcon kind={component.kind} />}
+  </Show>;
 }

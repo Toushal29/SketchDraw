@@ -1,4 +1,4 @@
-import type { ArrowHead, Bounds, CanvasState, EdgeStyle, Element, FreehandElement, Point, Preview, ShapeElement, StrokePoint, StrokeStyle, Tool } from "../../model";
+import type { ArrowHead, Bounds, CanvasSnapGuides, CanvasSnapTarget, CanvasState, EdgeStyle, Element, FreehandElement, Point, Preview, ShapeElement, StrokePoint, StrokeStyle, Tool } from "../../model";
 import { anchorPoint, connectionAnchorsFor, isConnectable, isConnector } from "../../operations";
 import { elementBounds } from "./bounds";
 import { traceConnector } from "../connectors/geometry";
@@ -6,7 +6,7 @@ import { ElementSpatialIndex, elementSpatialIndex } from "./spatial-index";
 import { SceneTileCache } from "./scene-tile-cache";
 import { gridStepForStyle, isometricRowHeight, isometricRowOffset, type CanvasGridStyle } from "./input";
 
-type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; guides?: { x?: number; y?: number }; snapTargets: { x: number[]; y: number[] }; targets: Map<string, Element> };
+type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; guides?: CanvasSnapGuides; snapTargets: { x: CanvasSnapTarget[]; y: CanvasSnapTarget[] }; targets: Map<string, Element> };
 export type CanvasSceneRendererPorts = {
   elements: () => Element[];
   isHidden: (element: Element) => boolean;
@@ -204,11 +204,36 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       }
       ctx.restore();
     }
-    if (drag?.guides && (Number.isFinite(drag.guides.x) || Number.isFinite(drag.guides.y))) {
-      ctx.save(); ctx.strokeStyle = "#e24978"; ctx.globalAlpha = .92; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([6 / state.zoom, 4 / state.zoom]); ctx.beginPath();
-      if (Number.isFinite(drag.guides.x)) { ctx.moveTo(drag.guides.x!, viewport.y); ctx.lineTo(drag.guides.x!, viewport.y + viewport.h); }
-      if (Number.isFinite(drag.guides.y)) { ctx.moveTo(viewport.x, drag.guides.y!); ctx.lineTo(viewport.x + viewport.w, drag.guides.y!); }
-      ctx.stroke(); ctx.restore();
+    if (drag?.guides && (drag.guides.x || drag.guides.y)) {
+      const alignedSegment = (movingStart: number, movingLength: number, referenceStart: number, referenceLength: number) => {
+        const movingEnd = movingStart + movingLength; const referenceEnd = referenceStart + referenceLength;
+        const overlapStart = Math.max(movingStart, referenceStart); const overlapEnd = Math.min(movingEnd, referenceEnd);
+        if (overlapEnd > overlapStart) {
+          const center = overlapStart + (overlapEnd - overlapStart) / 2;
+          const half = Math.min(7 / state.zoom, (overlapEnd - overlapStart) / 2);
+          return [center - half, center + half] as const;
+        }
+        if (movingEnd <= referenceStart) return [movingEnd, referenceStart] as const;
+        return [referenceEnd, movingStart] as const;
+      };
+      ctx.save(); ctx.strokeStyle = "#e24978"; ctx.fillStyle = "#e24978"; ctx.globalAlpha = .95; ctx.lineWidth = 1.5 / state.zoom; ctx.setLineDash([5 / state.zoom, 3 / state.zoom]);
+      const drawGuide = (axis: "x" | "y", guide: NonNullable<CanvasSnapGuides[typeof axis]>) => {
+        const [start, end] = axis === "x"
+          ? alignedSegment(guide.moving.y, guide.moving.h, guide.reference.y, guide.reference.h)
+          : alignedSegment(guide.moving.x, guide.moving.w, guide.reference.x, guide.reference.w);
+        const a = Math.min(start, end); const b = Math.max(start, end); const half = 6 / state.zoom;
+        ctx.beginPath();
+        if (axis === "x") { ctx.moveTo(guide.coordinate, a); ctx.lineTo(guide.coordinate, b > a ? b : a + half * 2); }
+        else { ctx.moveTo(a, guide.coordinate); ctx.lineTo(b > a ? b : a + half * 2, guide.coordinate); }
+        ctx.stroke(); ctx.setLineDash([]);
+        for (const point of [a, b > a ? b : a + half * 2]) {
+          ctx.beginPath(); ctx.arc(axis === "x" ? guide.coordinate : point, axis === "x" ? point : guide.coordinate, 2.2 / state.zoom, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.setLineDash([5 / state.zoom, 3 / state.zoom]);
+      };
+      if (drag.guides.x) drawGuide("x", drag.guides.x);
+      if (drag.guides.y) drawGuide("y", drag.guides.y);
+      ctx.restore();
     }
     const tokenId = ports.simulationTokenId?.();
     const token = tokenId ? sourceItems.find(item => item.id === tokenId && !ports.isHidden(item)) : undefined;

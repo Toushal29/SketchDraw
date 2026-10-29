@@ -12,7 +12,7 @@ import type { PdfRasterPage } from "./features/export/pdf-renderer";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_CLIPBOARD_VERSION, SKETCH_FORMAT_VERSION } from "./model";
-import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, ProjectTask, ProjectNote, CanvasDataSource, Tool, ToolbarItem, CanvasState, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipType, RelationshipDirection, ConnectionPoint, CanvasLayer, CanvasLayerVisibilityPreset, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition } from "./model";
+import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, ProjectTask, ProjectNote, CanvasDataSource, Tool, ToolbarItem, CanvasState, CanvasSnapGuides, CanvasSnapTarget, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipDirection, ConnectionPoint, CanvasLayer, CanvasLayerVisibilityPreset, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition } from "./model";
 import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox, alignedTextStartX, reattachDanglingConnectors } from "./operations";
 import type { NoteKind } from "./model";
 import { buildLibraryComponent, buildLibraryRelationship, buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, defaultNoteTitle, LIBRARY_COMPONENTS, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, toggleChecklistContent, type LibraryComponentKind } from "./notes";
@@ -75,7 +75,7 @@ import { canGroupSelection, deletableSelectionCount as countDeletableSelection, 
 import { createCanvasRenderScheduler, drawShapeLabel, fontCss, shapeLabelSvg, themeInk } from "./features/canvas/rendering";
 import { strokeDashPattern, strokeStyleLineGap } from "./features/canvas/stroke-style";
 import { createCanvasSceneRenderer, transformHandlePoints } from "./features/canvas/scene-renderer";
-import { drawLibraryChart } from "./features/components/chart-engine";
+import { drawLibraryChartLazy } from "./features/components/chart-loader";
 import { fitComponentSpecimen } from "./features/components/component-specimen-sheet";
 import { cacheComponentIconImage, drawModelComponent } from "./features/components/model-component-renderer";
 import { createFreehandRenderer } from "./features/canvas/freehand-rendering";
@@ -112,6 +112,12 @@ import { serializeSketchSnapshot } from "./features/files/document-codec";
 import { sketchFileStore } from "./features/files/sketch-file-store";
 import { sketchRecoveryStore } from "./features/files/sketch-recovery-store";
 import { createLocalDocumentArchive } from "./features/files/local-archive";
+import { type OrderedToolbarEntry, normalizePaintToolOrder, toolbarItemsForCurrentPlatform, defaultToolbarLayout, readToolbarLayout } from "./app/toolbar-layout";
+import { findMarkdownTableBlock, replaceMarkdownTableBlock } from "./app/markdown-table";
+import { RELEASES_API, compareReleaseVersions, androidReleaseApk } from "./app/release-check";
+import { FONT_FAMILY_CHOICES, type WhiteboardStyle, type DisplayMetrics, readDisplayMetrics, GRID_SIZE, TOUCH_DRAG_THRESHOLD, DEFAULT_UI_ACCENT, BOARD_COLORS, UI_ACCENTS, TOOLBAR_COLORS, BOARD_COLOR_NAMES, readPreference, readWhiteboardStyle, THICKNESS_PRESETS, ORIGINAL_INSPECTOR_THICKNESS_PRESETS, ERASER_SIZE_PRESETS, ARROW_ROUTES, LINE_ROUTES, ARROW_HEADS, RELATIONSHIP_TYPES } from "./app/canvas-options";
+import { rotateCanvasPoint, emptyCanvas, cloneElements, sameCanvasPoints, isShapeLike, isShapeLikeType } from "./app/canvas-helpers";
+import { ArrowHeadIcon } from "./components/ArrowHeadIcon";
 const SHAPE_CATALOG_COUNT = 4 + FLOWCHART_SHAPES.length + GENERAL_SHAPES.length;
 const OPEN_POPOVER_DETAILS_SELECTOR = ".menu-dropdown[open], .touch-page-control[open], .touch-page-more[open], .page-menu[open], .project-dependency-picker[open]";
 
@@ -125,188 +131,10 @@ declare global {
 
 type TouchGesture = { fingerCount: 2 | 3; action: TouchGestureAction; initialDistance: number; initialZoom: number; initialPanX: number; initialPanY: number; initialMidpoint: Point; worldAnchor: Point };
 type TouchTapTracker = { startedAt: number; starts: Map<number, Point>; maxFingers: number; canceled: boolean; initialEvent: PointerEvent; deferredInteractionStarted?: boolean };
-type WhiteboardStyle = "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric";
-const FONT_FAMILY_CHOICES: ReadonlyArray<{ value: FontFamily; label: string }> = [
-  { value: "sans", label: "Sans" },
-  { value: "hand", label: "Handwritten" },
-  { value: "serif", label: "Serif" },
-  { value: "mono", label: "Monospace" },
-  { value: "rounded", label: "Rounded" },
-  { value: "display", label: "Display" },
-];
-type DisplayMetrics = { physicalWidth: number; physicalHeight: number; viewportWidth: number; viewportHeight: number };
-const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "eraser", "laser", "line", "arrow", "rectangle", "circle", "diamond", "flowchart", "text", "bucket", "crop", "measure", "codeData", "pathEdit", "frame"];
-const DEFAULT_MORE_TOOL_ORDER: ToolbarItem[] = ["bucket", "measure", "crop"];
-const MOBILE_DEFAULT_TOOLBAR_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "eraser", "line", "arrow", "rectangle", "text"];
-type ToolbarLayout = { toolbar: ToolbarItem[]; more: ToolbarItem[] };
-type OrderedToolbarEntry = { id: string; label: string; tools: ToolbarItem[] };
-function normalizePaintToolOrder(toolbar: ToolbarItem[]) {
-  const moveAfter = (item: ToolbarItem, anchor: ToolbarItem) => {
-    const itemIndex = toolbar.indexOf(item);
-    const anchorIndex = toolbar.indexOf(anchor);
-    if (itemIndex >= 0 && anchorIndex >= 0 && itemIndex !== anchorIndex + 1) {
-      toolbar.splice(itemIndex, 1);
-      toolbar.splice(toolbar.indexOf(anchor) + 1, 0, item);
-    }
-  };
-  if (toolbar.includes("paintBrushes")) moveAfter("paintBrushes", "pen");
-  moveAfter("eraser", toolbar.includes("paintBrushes") ? "paintBrushes" : "pen");
-}
-function toolbarItemsForCurrentPlatform(): ToolbarItem[] {
-  return [...DEFAULT_TOOL_ORDER];
-}
-function defaultToolbarLayout(): ToolbarLayout {
-  const available = toolbarItemsForCurrentPlatform();
-  if (!isWindowsPlatform()) {
-    const toolbar = MOBILE_DEFAULT_TOOLBAR_ORDER.filter(value => available.includes(value));
-    const more = [
-      ...DEFAULT_MORE_TOOL_ORDER.filter(value => available.includes(value)),
-      ...available.filter(value => !toolbar.includes(value) && !DEFAULT_MORE_TOOL_ORDER.includes(value)),
-    ];
-    return { toolbar, more };
-  }
-  const more = DEFAULT_MORE_TOOL_ORDER.filter(value => available.includes(value));
-  return { toolbar: available.filter(value => !more.includes(value)), more };
-}
-function readToolbarLayout(): ToolbarLayout {
-  try {
-    const available = toolbarItemsForCurrentPlatform();
-    const defaults = defaultToolbarLayout();
-    const saved: unknown = JSON.parse(localStorage.getItem("sketchdraw-toolbar-layout") ?? "null");
-    const normalize = (values: unknown) => Array.isArray(values) ? [...new Set(values.filter((value): value is ToolbarItem => value !== "moreTools" && available.includes(value as ToolbarItem)))] : [];
-    if (saved && typeof saved === "object" && !Array.isArray(saved)) {
-      const source = saved as { toolbar?: unknown; more?: unknown };
-      const toolbar = normalize(source.toolbar);
-      const more = normalize(source.more).filter(value => value !== "eraser" && !toolbar.includes(value));
-      for (const value of [...defaults.toolbar, ...defaults.more]) if (!toolbar.includes(value) && !more.includes(value)) (defaults.more.includes(value) ? more : toolbar).push(value);
-      normalizePaintToolOrder(toolbar);
-      return { toolbar, more };
-    }
-    const legacy = JSON.parse(localStorage.getItem("sketchdraw-toolbar-order") ?? "null") as unknown;
-    if (Array.isArray(legacy)) {
-      const oldToolbar = normalize(legacy).filter(value => !DEFAULT_MORE_TOOL_ORDER.includes(value));
-      const more = defaults.more.filter(value => !oldToolbar.includes(value));
-      const toolbar = [...oldToolbar, ...defaults.toolbar.filter(value => !oldToolbar.includes(value))];
-      normalizePaintToolOrder(toolbar);
-      return { toolbar, more };
-    }
-    return defaults;
-  } catch { return defaultToolbarLayout(); }
-}
-type MarkdownTableBlock = { start: number; end: number; text: string };
-function findMarkdownTableBlock(content: string): MarkdownTableBlock | undefined {
-  const lines = content.split(/\r?\n/);
-  const cells = (line: string) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map(value => value.trim());
-  let fence: { marker: "`" | "~"; length: number } | undefined;
-  for (let start = 0; start < lines.length - 1; start++) {
-    const fenceLine = /^\s*(`{3,}|~{3,})/.exec(lines[start]);
-    if (fenceLine) {
-      const marker = fenceLine[1][0] as "`" | "~";
-      if (!fence) fence = { marker, length: fenceLine[1].length };
-      else if (marker === fence.marker && fenceLine[1].length >= fence.length) fence = undefined;
-      continue;
-    }
-    if (fence) continue;
-    const header = lines[start]; const divider = lines[start + 1];
-    if (!header.includes("|") || !divider.includes("|")) continue;
-    const headerCells = cells(header); const dividerCells = cells(divider);
-    if (headerCells.length < 2 || dividerCells.length !== headerCells.length || !dividerCells.every(value => /^:?-{3,}:?$/.test(value))) continue;
-    let end = start + 2;
-    while (end < lines.length && lines[end].includes("|") && cells(lines[end]).length === headerCells.length) end++;
-    return { start, end, text: lines.slice(start, end).join("\n") };
-  }
-  return undefined;
-}
-function replaceMarkdownTableBlock(content: string, block: MarkdownTableBlock, replacement: string): string {
-  const lines = content.split(/\r?\n/); lines.splice(block.start, block.end - block.start, ...replacement.split(/\r?\n/)); return lines.join("\n");
-}
-const readDisplayMetrics = (): DisplayMetrics => {
-  const ratio = window.devicePixelRatio || 1;
-  return { physicalWidth: Math.round(window.screen.width * ratio), physicalHeight: Math.round(window.screen.height * ratio), viewportWidth: window.innerWidth, viewportHeight: window.innerHeight };
-};
-
-function rotateCanvasPoint(point: Point, center: Point, degrees: number): Point {
-  if (!degrees) return point;
-  const angle = degrees * Math.PI / 180; const dx = point.x - center.x; const dy = point.y - center.y;
-  return { x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle), y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle) };
-}
-
-const RELEASES_API = "https://api.github.com/repos/Toushal29/SketchDraw/releases/latest";
 const LibraryComponentEditor = lazy(() => import("./components/LibraryComponentEditor").then(module => ({ default: module.LibraryComponentEditor })));
 const HelpDialog = lazy(() => import("./components/HelpDialog").then(module => ({ default: module.HelpDialog })));
 const MobileCommandBar = lazy(() => import("./platform/mobile/MobileCommandBar").then(module => ({ default: module.MobileCommandBar })));
 
-function compareReleaseVersions(left: string, right: string): number {
-  const parse = (version: string) => {
-    const match = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(version.trim());
-    return match ? match.slice(1, 4).map(Number) : undefined;
-  };
-  const a = parse(left); const b = parse(right);
-  if (!a || !b) throw new Error("GitHub returned a release tag that is not a three-part version.");
-  for (let index = 0; index < 3; index++) if (a[index] !== b[index]) return a[index] > b[index] ? 1 : -1;
-  return 0;
-}
-
-function androidReleaseApk(release: Record<string, unknown>): { version: string; url: string } | undefined {
-  if (!Array.isArray(release.assets)) return undefined;
-  for (const candidate of release.assets) {
-    if (!isRecord(candidate) || typeof candidate.name !== "string" || typeof candidate.browser_download_url !== "string") continue;
-    const match = /^SketchDraw-Android-v(\d+\.\d+\.\d+)-arm64\.apk$/i.exec(candidate.name);
-    if (match && candidate.browser_download_url.startsWith("https://github.com/Toushal29/SketchDraw/releases/download/")) {
-      return { version: match[1], url: candidate.browser_download_url };
-    }
-  }
-  return undefined;
-}
-
-const GRID_SIZE = 25;
-const TOUCH_DRAG_THRESHOLD = 8;
-const DEFAULT_UI_ACCENT = "#4f46e5";
-const BOARD_COLORS = ["#ffffff", "#fffdf7", "#f4f7fb", "#fbf2ed", "#f1f5ed", "#f3f0fa"];
-const UI_ACCENTS = [
-  { label: "Indigo", value: DEFAULT_UI_ACCENT }, { label: "Ocean", value: "#3f78a5" }, { label: "Sage", value: "#547a5b" },
-  { label: "Teal", value: "#39877f" }, { label: "Amber", value: "#b47b35" }, { label: "Rose", value: "#ad6475" },
-];
-const TOOLBAR_COLORS = [
-  { label: "Paper", value: "#f8faf7" }, { label: "Warm", value: "#f4efe4" },
-  { label: "Slate", value: "#e8edf2" }, { label: "Sage", value: "#e8efe9" },
-  { label: "Night", value: "#171717" },
-];
-const BOARD_COLOR_NAMES: Record<string, string> = { "#ffffff": "White", "#fffdf7": "Ivory", "#f4f7fb": "Mist", "#fbf2ed": "Blush", "#f1f5ed": "Sage", "#f3f0fa": "Lilac" };
-const readPreference = (key: string, fallback: string) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
-const readWhiteboardStyle = (): WhiteboardStyle => {
-  const stored = readPreference("sketchdraw-whiteboard-style", "dots");
-  return stored === "plain" || stored === "lines" || stored === "dots" || stored === "small-dots" || stored === "ruled" || stored === "small-grid" || stored === "isometric" ? stored : "dots";
-};
-const THICKNESS_PRESETS = [[1, "Ultra-thin"], [2, "Thin"], [4, "Default"], [5, "Medium"], [10, "Bold"]] as const;
-const ORIGINAL_INSPECTOR_THICKNESS_PRESETS = [[1, "Ultra-thin"], [2, "Thin"], [5, "Medium"], [10, "Bold"]] as const;
-const ERASER_SIZE_PRESETS = [[2, "2px"], [10, "10px"], [24, "24px"]] as const;
-const ARROW_ROUTES: { value: ArrowRoute; label: string; path: string }[] = [
-  { value: "straight", label: "Straight", path: "M3 12h17m-6-6 6 6-6 6" }, { value: "elbow", label: "Elbow", path: "M4 5v14h15m-6-6 6 6-6 6" },
-  { value: "curve", label: "Curve", path: "M3 18Q12 2 21 18" },
-  { value: "forked", label: "Forked", path: "M3 12h8m0 0V5h9m-4-3 4 3-4 3m-5 4v7h9m-4-3 4 3-4 3" },
-];
-const LINE_ROUTES: { value: LineRoute; label: string; path: string }[] = [
-  { value: "straight", label: "Straight", path: "M4 19 20 5" }, { value: "elbow", label: "Elbow", path: "M4 5v14h15" }, { value: "curve", label: "Curve", path: "M3 18Q12 2 21 18" },
-];
-const ARROW_HEADS: { value: ArrowHead; label: string }[] = [
-  { value: "none", label: "None" }, { value: "open", label: "Open" }, { value: "solid", label: "Solid" }, { value: "hollow", label: "Hollow triangle" },
-  { value: "thick", label: "Thick" }, { value: "dot", label: "Dot" }, { value: "diamond", label: "Diamond" }, { value: "open-diamond", label: "Open diamond" }, { value: "bar", label: "Bar" }, { value: "crow", label: "Crow's foot" },
-];
-const RELATIONSHIP_TYPES: { value: RelationshipType; label: string }[] = [
-  { value: "association", label: "Association" }, { value: "dependency", label: "Dependency" }, { value: "data-flow", label: "Data flow" },
-  { value: "inheritance", label: "Inheritance" }, { value: "aggregation", label: "Aggregation" }, { value: "composition", label: "Composition" },
-  { value: "sequence", label: "Sequence" }, { value: "network", label: "Network" }, { value: "other", label: "Other" },
-];
-function ArrowHeadIcon(props: { kind: ArrowHead }) {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h12" />{props.kind === "open" && <path d="m12 7 5 5-5 5" />}{props.kind === "solid" && <path d="m12 7 6 5-6 5z" fill="currentColor" />}{props.kind === "hollow" && <path d="M17 12 10 6v12z" />}{props.kind === "thick" && <path d="m10 5 9 7-9 7z" fill="currentColor" />}{props.kind === "dot" && <circle cx="17" cy="12" r="3" fill="currentColor" />}{props.kind === "diamond" && <path d="m17 7 5 5-5 5-5-5z" fill="currentColor" />}{props.kind === "open-diamond" && <path d="M17 12 11 6 5 12l6 6z" />}{props.kind === "bar" && <path d="M17 6v12" />}{props.kind === "crow" && <path d="m17 6-5 6 5 6m0-12-5 6" />}</svg>;
-}
-const emptyCanvas = (): CanvasState => ({ zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff", boardColorFollowsTheme: true });
-const cloneElements = (items: Element[]): Element[] => JSON.parse(JSON.stringify(items)) as Element[];
-const sameCanvasPoints = (left: Point[] | undefined, right: Point[]) => !!left && left.length === right.length && left.every((point, index) => point.x === right[index].x && point.y === right[index].y);
-const WINDOWS_SHAPE_TYPES = ["rectangle", "circle", "diamond", "triangle", "flowchart", "line", "arrow"] as const;
-const isShapeLike = (element: Element) => (WINDOWS_SHAPE_TYPES as readonly string[]).includes(element.type);
-const isShapeLikeType = (type: Element["type"]) => (WINDOWS_SHAPE_TYPES as readonly string[]).includes(type);
 const MermaidPreview = lazy(async () => {
   const module = await import("./MermaidPreview");
   return { default: module.MermaidPreview };
@@ -809,7 +637,7 @@ function App() {
   let windowsFocusWasFullscreen = false;
   let windowsFocusUsedDocumentFullscreen = false;
   let presentationOwnsFullscreen = false;
-  let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; axisLock?: "x" | "y"; guides?: { x?: number; y?: number }; snapTargets: { x: number[]; y: number[]; spacingBoxes?: Bounds[] }; targets: Map<string, Element> } | undefined;
+  let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; axisLock?: "x" | "y"; guides?: CanvasSnapGuides; snapTargets: { x: CanvasSnapTarget[]; y: CanvasSnapTarget[]; spacingBoxes?: Bounds[] }; targets: Map<string, Element> } | undefined;
   let libraryControlOrigin: { index: number } | undefined;
   let labelMoveOrigin: { index: number; point: Point; before: Element[]; offsetX: number; offsetY: number; rotation: number; moved: boolean } | undefined;
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number } | undefined;
@@ -3837,7 +3665,7 @@ function App() {
       if (element.note) { drawNoteCard(ctx, element, theme(), "simple"); return; }
       if (element.componentBounds && element.libraryComponent) {
         if (element.rotation) { const bounds = element.componentBounds; const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
-        if (element.libraryComponent.kind?.startsWith("viz-")) drawLibraryChart(ctx, element, theme());
+        if (element.libraryComponent.kind?.startsWith("viz-")) drawLibraryChartLazy(ctx, element, theme(), onChartEngineReady);
         else drawModelComponent(ctx, element, theme());
         if (element.container) {
           if (element.container.clipChildren) { ctx.save(); ctx.beginPath(); ctx.rect(element.componentBounds.x, element.componentBounds.y, element.componentBounds.w, element.componentBounds.h); ctx.clip(); }
@@ -3870,7 +3698,7 @@ function App() {
         ctx.restore(); return;
       }
       if (element.rotation && element.libraryComponent) { const bounds = elementBounds(element); const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
-      if (element.libraryComponent?.kind?.startsWith("viz-")) { drawLibraryChart(ctx, element, theme()); if (element.rotation) ctx.restore(); return; }
+      if (element.libraryComponent?.kind?.startsWith("viz-")) { drawLibraryChartLazy(ctx, element, theme(), onChartEngineReady); if (element.rotation) ctx.restore(); return; }
       for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems);
       if (element.rotation && element.libraryComponent) ctx.restore(); return;
     }
@@ -4161,6 +3989,7 @@ function App() {
     drawScene: (ctx, width, height, dpr, selection, strokePreview = true) => drawScene(ctx, width, height, dpr, selection, false, undefined, undefined, true, strokePreview),
   });
   const scheduleCanvasRender = canvasRenderScheduler.schedule;
+  const onChartEngineReady = () => { setCanvasAssetRevision(version => version + 1); scheduleCanvasRender(); };
   onCleanup(canvasRenderScheduler.dispose);
   onCleanup(stopBpmnSimulation);
   createEffect(() => { workspaceArea(); activePath(); elements(); pages(); projectWorkspaceData(); canvasState(); preview(); bpmnSimulationIndex(); bpmnSimulationSteps(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
@@ -6213,10 +6042,9 @@ function App() {
     const selected = new Set(indices);
     const moving = unionBounds(before.flatMap((element, index) => {
       if (!selected.has(index) || isElementHidden(element)) return [];
-      const bounds = elementGridBounds(element);
-      return bounds ? [bounds] : [];
+      return [elementBounds(element)];
     }));
-    const x: number[] = []; const y: number[] = []; const spacingBoxes: Bounds[] = [];
+    const x: CanvasSnapTarget[] = []; const y: CanvasSnapTarget[] = []; const spacingBoxes: Bounds[] = [];
     if (moving) {
       const margin = 120 / Math.max(.02, canvasState().zoom);
       const nearby = activeElementSpatialIndex.query({ x: moving.x - margin, y: moving.y - margin, w: moving.w + margin * 2, h: moving.h + margin * 2 });
@@ -6226,12 +6054,15 @@ function App() {
         const box = elementBounds(element); const distance = Math.hypot(box.x + box.w / 2 - center.x, box.y + box.h / 2 - center.y);
         return [{ box, distance }];
       }).sort((left, right) => left.distance - right.distance).slice(0, 48);
+      const seenX = new Set<number>(); const seenY = new Set<number>();
       for (const { box } of candidates) {
         spacingBoxes.push(box);
-        x.push(box.x, box.x + box.w / 2, box.x + box.w); y.push(box.y, box.y + box.h / 2, box.y + box.h);
+        const xValues = [box.x, box.x + box.w / 2, box.x + box.w]; const yValues = [box.y, box.y + box.h / 2, box.y + box.h];
+        for (const [anchor, coordinate] of xValues.entries()) if (!seenX.has(coordinate)) { x.push({ coordinate, bounds: box, anchor: anchor as 0 | 1 | 2 }); seenX.add(coordinate); }
+        for (const [anchor, coordinate] of yValues.entries()) if (!seenY.has(coordinate)) { y.push({ coordinate, bounds: box, anchor: anchor as 0 | 1 | 2 }); seenY.add(coordinate); }
       }
     }
-    x.sort((left, right) => left - right); y.sort((left, right) => left - right);
+    x.sort((left, right) => left.coordinate - right.coordinate); y.sort((left, right) => left.coordinate - right.coordinate);
     return { x, y, spacingBoxes };
   }
 
@@ -6242,26 +6073,32 @@ function App() {
     return targets;
   }
 
-  function snapTranslation(indices: number[], before: Element[], dx: number, dy: number, snapTargets: { x: number[]; y: number[]; spacingBoxes?: Bounds[] }, bypass = false): { dx: number; dy: number; guides?: { x?: number; y?: number } } {
+  function snapTranslation(indices: number[], before: Element[], dx: number, dy: number, snapTargets: { x: CanvasSnapTarget[]; y: CanvasSnapTarget[]; spacingBoxes?: Bounds[] }, bypass = false): { dx: number; dy: number; guides?: CanvasSnapGuides } {
     const selected = new Set(indices); const moving = unionBounds(before.flatMap((element, index) => {
       if (!selected.has(index) || isElementHidden(element)) return [];
       const bounds = elementGridBounds(element);
       return bounds ? [bounds] : [];
     }));
-    if (!moving) return { dx, dy };
-    const left = moving.x; const top = moving.y; const right = moving.x + moving.w; const bottom = moving.y + moving.h;
-    const movingX = [left, (left + right) / 2, right]; const movingY = [top, (top + bottom) / 2, bottom];
+    const aligned = unionBounds(before.flatMap((element, index) => selected.has(index) && !isElementHidden(element) ? [elementBounds(element)] : []));
+    if (!moving || !aligned) return { dx, dy };
+    const left = aligned.x; const top = aligned.y; const right = aligned.x + aligned.w; const bottom = aligned.y + aligned.h;
+    const movingX = [{ coordinate: left, anchor: 0 as const }, { coordinate: (left + right) / 2, anchor: 1 as const }, { coordinate: right, anchor: 2 as const }];
+    const movingY = [{ coordinate: top, anchor: 0 as const }, { coordinate: (top + bottom) / 2, anchor: 1 as const }, { coordinate: bottom, anchor: 2 as const }];
     const threshold = 8 / canvasState().zoom;
-    const closest = (targets: number[], movingValues: number[], delta: number) => {
-      let best: { correction: number; target: number } | undefined;
+    const closest = (targets: CanvasSnapTarget[], movingValues: { coordinate: number; anchor: 0 | 1 | 2 }[], delta: number) => {
+      let best: { correction: number; target: CanvasSnapTarget; anchorRank: number; distance: number } | undefined;
       for (const source of movingValues) {
-        const value = source + delta; let low = 0; let high = targets.length;
-        while (low < high) { const middle = (low + high) >>> 1; if (targets[middle] < value) low = middle + 1; else high = middle; }
+        const value = source.coordinate + delta; let low = 0; let high = targets.length;
+        while (low < high) { const middle = (low + high) >>> 1; if (targets[middle].coordinate < value) low = middle + 1; else high = middle; }
         for (const index of [low - 1, low]) {
           if (index < 0 || index >= targets.length) continue;
-          const target = targets[index];
-          const correction = target - (source + delta);
-          if (Math.abs(correction) <= threshold && (!best || Math.abs(correction) < Math.abs(best.correction))) best = { correction, target };
+          const target = targets[index]; const correction = target.coordinate - value;
+          const anchorRank = source.anchor === 1 && target.anchor === 1 ? 0 : source.anchor === target.anchor ? 1 : source.anchor !== 1 && target.anchor !== 1 ? 2 : 3;
+          const distance = Math.hypot(target.bounds.x + target.bounds.w / 2 - (aligned.x + aligned.w / 2), target.bounds.y + target.bounds.h / 2 - (aligned.y + aligned.h / 2));
+          const isBetter = !best || anchorRank < best.anchorRank
+            || anchorRank === best.anchorRank && (Math.abs(correction) < Math.abs(best.correction) - .0001
+              || Math.abs(Math.abs(correction) - Math.abs(best.correction)) <= .0001 && distance < best.distance);
+          if (Math.abs(correction) <= threshold && isBetter) best = { correction, target, anchorRank, distance };
         }
       }
       return best;
@@ -6303,17 +6140,22 @@ function App() {
     }
     // Keep object alignment on the active 25-unit move lattice; otherwise the lattice takes priority.
     const landsOnGrid = (position: number) => Math.abs(position / GRID_SIZE - Math.round(position / GRID_SIZE)) < 1e-7;
-    const objectCorrectionX = objectX && (!gridEnabled || landsOnGrid(objectX.target) && landsOnGrid(moving.x + dx + objectX.correction)) ? objectX.correction : undefined;
-    const objectCorrectionY = objectY && (!gridEnabled || landsOnGrid(objectY.target) && landsOnGrid(moving.y + dy + objectY.correction)) ? objectY.correction : undefined;
-    const objectOrSpaceX = spacingX && (!objectCorrectionX || Math.abs(spacingX.correction) < Math.abs(objectCorrectionX)) ? spacingX : objectCorrectionX !== undefined ? { correction: objectCorrectionX, target: objectX!.target } : undefined;
-    const objectOrSpaceY = spacingY && (!objectCorrectionY || Math.abs(spacingY.correction) < Math.abs(objectCorrectionY)) ? spacingY : objectCorrectionY !== undefined ? { correction: objectCorrectionY, target: objectY!.target } : undefined;
+    const objectCorrectionX = objectX && (!gridEnabled || landsOnGrid(objectX.target.coordinate) && landsOnGrid(aligned.x + dx + objectX.correction)) ? objectX.correction : undefined;
+    const objectCorrectionY = objectY && (!gridEnabled || landsOnGrid(objectY.target.coordinate) && landsOnGrid(aligned.y + dy + objectY.correction)) ? objectY.correction : undefined;
+    const objectOrSpaceX = spacingX && (!objectCorrectionX || Math.abs(spacingX.correction) < Math.abs(objectCorrectionX)) ? spacingX : objectCorrectionX !== undefined ? { correction: objectCorrectionX, target: objectX!.target.coordinate } : undefined;
+    const objectOrSpaceY = spacingY && (!objectCorrectionY || Math.abs(spacingY.correction) < Math.abs(objectCorrectionY)) ? spacingY : objectCorrectionY !== undefined ? { correction: objectCorrectionY, target: objectY!.target.coordinate } : undefined;
     const correctionX = objectOrSpaceX?.correction ?? gridX ?? 0;
     const correctionY = objectOrSpaceY?.correction ?? gridY ?? 0;
     const moveStepX = snapMovesToTen() && !objectOrSpaceX ? Math.round((moving.x + dx) / 10) * 10 - (moving.x + dx) : 0;
     const moveStepY = snapMovesToTen() && !objectOrSpaceY ? Math.round((moving.y + dy) / 10) * 10 - (moving.y + dy) : 0;
-    const guideX = objectCorrectionX !== undefined && (!spacingX || Math.abs(objectCorrectionX) <= Math.abs(spacingX.correction)) ? objectX?.target : undefined;
-    const guideY = objectCorrectionY !== undefined && (!spacingY || Math.abs(objectCorrectionY) <= Math.abs(spacingY.correction)) ? objectY?.target : undefined;
-    return { dx: dx + correctionX + (!objectOrSpaceX && gridX === undefined ? moveStepX : 0), dy: dy + correctionY + (!objectOrSpaceY && gridY === undefined ? moveStepY : 0), guides: { x: guideX, y: guideY } };
+    const finalDx = dx + correctionX + (!objectOrSpaceX && gridX === undefined ? moveStepX : 0);
+    const finalDy = dy + correctionY + (!objectOrSpaceY && gridY === undefined ? moveStepY : 0);
+    const movingAfter = { ...aligned, x: aligned.x + finalDx, y: aligned.y + finalDy };
+    const guideX = objectCorrectionX !== undefined && (!spacingX || Math.abs(objectCorrectionX) <= Math.abs(spacingX.correction)) && objectX
+      ? { coordinate: objectX.target.coordinate, moving: movingAfter, reference: objectX.target.bounds } : undefined;
+    const guideY = objectCorrectionY !== undefined && (!spacingY || Math.abs(objectCorrectionY) <= Math.abs(spacingY.correction)) && objectY
+      ? { coordinate: objectY.target.coordinate, moving: movingAfter, reference: objectY.target.bounds } : undefined;
+    return { dx: finalDx, dy: finalDy, guides: { x: guideX, y: guideY } };
   }
 
   function hitInterior(point: Point): number | undefined {
@@ -7594,7 +7436,7 @@ function App() {
                   <div class="stencil-category-filter" role="group" aria-label="Filter diagram library">{stencilCategories.map(category => <button type="button" class={stencilCategory() === category.id ? "active" : ""} aria-pressed={stencilCategory() === category.id} onClick={() => setStencilCategory(category.id)}>{category.label}</button>)}</div>
                   <Show when={visibleCustomStencils().length > 0 || stencilCategory() === "custom" || stencilCategory() === "favorites" || stencilCategory() === "recent" || stencilCategory() === "gui"}><strong class="tool-options-heading stencil-heading">{stencilCategory() === "favorites" ? "Favorites" : stencilCategory() === "recent" ? "Recently used" : "My stencils"}</strong><div class="custom-stencil-list">{visibleCustomStencils().map(stencil => <div class="custom-stencil-row"><button type="button" class="custom-stencil-insert" title={`Insert ${stencil.name}: ${stencil.preview}`} onClick={() => insertCustomStencil(stencil)}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/><path d="M11 7h3a3 3 0 0 1 3 3v3"/></svg><span>{stencil.name}</span><small>{stencil.folder ? `${stencil.folder} · ` : ""}{stencil.preview}</small><small>{stencil.tags.length ? `#${stencil.tags.join(" #")}` : `${stencil.elements.length} objects`}</small></button><button type="button" class="custom-stencil-favorite" aria-label={`${stencilFavorites().includes(stencil.id) ? "Remove" : "Add"} ${stencil.name} ${stencilFavorites().includes(stencil.id) ? "from" : "to"} favorites`} aria-pressed={stencilFavorites().includes(stencil.id)} title={stencilFavorites().includes(stencil.id) ? "Remove from favorites" : "Add to favorites"} onClick={() => toggleStencilFavorite(stencil.id)}>{stencilFavorites().includes(stencil.id) ? "★" : "☆"}</button><button type="button" class="custom-stencil-remove" aria-label={`Delete stencil ${stencil.name}`} title={`Delete ${stencil.name}`} onClick={() => removeCustomStencil(stencil.id)}>&times;</button></div>)}</div><Show when={!visibleCustomStencils().length}><p class="stencil-empty">{stencilCategory() === "favorites" ? "No favorites yet. Star a stencil to keep it close." : stencilCategory() === "recent" ? "No recently used stencils yet." : "No saved stencils yet. Select objects and choose ‘Save selection as stencil’."}</p></Show></Show>
                   <Show when={visibleComponentMasters().length || stencilCategory() === "masters" || stencilCategory() === "gui"}><strong class="tool-options-heading stencil-heading">Document masters</strong><div class="custom-stencil-list">{visibleComponentMasters().map(master => <button type="button" class="stencil-template" title={`Insert an instance of ${master.name}`} onClick={() => insertComponentMaster(master)}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="12" height="12" rx="2"/><path d="M9 7h3m-3 4h3M16 8h5v12H9v-3"/></svg><span class="stencil-template-copy"><strong>{master.name}</strong><small>{componentPrimaryLabel(master.template) || "Reusable master"} · {componentMasterInstanceCount(master.id)} instance(s)</small></span></button>)}</div><Show when={!visibleComponentMasters().length}><p class="stencil-empty">No document masters yet. Select objects and choose “Create component master”.</p></Show></Show>
-                  {visibleStencilSections().map(section => <><strong class="tool-options-heading stencil-heading">{section}</strong>{visibleStencilComponents().filter(component => component.section === section).map(component => <button type="button" class="stencil-template" title={component.description} aria-label={component.label + ". " + component.description} onClick={() => component.kind === "er-table" ? openSchemaDialog(undefined, "CREATE TABLE table_name (\n  id INTEGER PRIMARY KEY,\n  name TEXT\n);") : component.kind === "uml-class" ? (() => { const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; const rect = canvas!.getBoundingClientRect(); const view = canvasState(); openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind)}><LibraryComponentIcon kind={component.kind} /><span class="stencil-template-copy"><strong>{component.label}</strong><small>{component.description}</small></span></button>)}</>)}
+                  {visibleStencilSections().map(section => <><strong class="tool-options-heading stencil-heading">{section}</strong>{visibleStencilComponents().filter(component => component.section === section).map(component => <button type="button" class="stencil-template" classList={{ "stencil-template-model-component": !!cloudProviderComponent(component.kind) || component.kind.startsWith("cloud-") }} title={component.description} aria-label={component.label + ". " + component.description} onClick={() => component.kind === "er-table" ? openSchemaDialog(undefined, "CREATE TABLE table_name (\n  id INTEGER PRIMARY KEY,\n  name TEXT\n);") : component.kind === "uml-class" ? (() => { const item = LIBRARY_COMPONENTS.find(entry => entry.kind === component.kind)!; const rect = canvas!.getBoundingClientRect(); const view = canvasState(); openClassCardDialog((rect.width / 2 - view.panX) / view.zoom - item.width / 2, (rect.height / 2 - view.panY) / view.zoom - item.height / 2); })() : insertLibraryComponent(component.kind)}><LibraryComponentIcon kind={component.kind} loadProviderArtwork={stencilMenuOpen()} /><span class="stencil-template-copy"><strong>{component.label}</strong><small>{component.description}</small></span></button>)}</>)}
                   {stencilCategory() !== "custom" && visibleStencilComponents().length === 0 && <p class="stencil-empty">No matches. Try another search or category.</p>}
                   <div class="palette-spawn-footer"><button type="button" class="palette-spawn-all stencil-catalog-action" disabled={!activePath() || readOnlyView() || boardLocked() || componentCatalogBusy()} title={`Add all ${LIBRARY_COMPONENTS.length} built-in modeling components to the current canvas`} onClick={() => void spawnAllModelingComponents()}>{componentCatalogBusy() ? "Preparing component catalog…" : `Spawn all ${LIBRARY_COMPONENTS.length} components`}<small>Add all modeling symbols to the canvas in category order.</small></button></div>
                 </div></div>

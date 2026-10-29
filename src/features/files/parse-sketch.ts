@@ -7,6 +7,7 @@ import { validReferences } from "../../operations";
 import { defaultCurveControlPoints } from "../connectors/geometry";
 import { ALL_FLOWCHART_SHAPES } from "../diagrams/config";
 import { schemaTableMinimumHeight, schemaTableResizeMinimumWidth } from "../diagrams/schema-table-layout";
+import { sanitizeIconSvg } from "./sanitize-svg";
 import { normalizeLegacyLibraryData } from "./legacy-library-data";
 import { MAX_DOCUMENT_STROKE_POINTS, MAX_STROKE_POINTS } from "../canvas/stroke-limits";
 
@@ -128,7 +129,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       ? { source: value.mermaid.source, ...(value.mermaid.format ? { format: value.mermaid.format } : {}) } : undefined;
     const rawComponent = isRecord(value.libraryComponent) ? value.libraryComponent : undefined;
     const componentConnectionPoints = rawComponent?.connectionPoints === undefined ? undefined : normalizeConnectionPoints(rawComponent.connectionPoints);
-    const iconSvg = rawComponent && typeof rawComponent.iconSvg === "string" && rawComponent.iconSvg.length <= 100_000 && !/<script\b|\son[a-z]+\s*=|javascript:/i.test(rawComponent.iconSvg) ? rawComponent.iconSvg : undefined;
+    const iconSvg = rawComponent && typeof rawComponent.iconSvg === "string" ? sanitizeIconSvg(rawComponent.iconSvg) : undefined;
     const iconViewBox = rawComponent && typeof rawComponent.iconViewBox === "string" && /^-?[\d.]+\s+-?[\d.]+\s+[\d.]+\s+[\d.]+$/.test(rawComponent.iconViewBox) ? rawComponent.iconViewBox : undefined;
     const rawChartData = rawComponent && isRecord(rawComponent.chartData) ? rawComponent.chartData : undefined;
     const chartLabelsValid = rawChartData && Array.isArray(rawChartData.labels) && rawChartData.labels.length > 0 && rawChartData.labels.length <= 20 && rawChartData.labels.every(label => typeof label === "string" && label.length <= 60);
@@ -227,7 +228,6 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       : undefined;
     const libraryComponent = rawComponent && typeof rawComponent.kind === "string" && rawComponent.kind.length <= 100
       && (rawComponent.label === undefined || typeof rawComponent.label === "string" && rawComponent.label.length <= 120)
-      && (rawComponent.iconSvg === undefined || iconSvg !== undefined)
       && (rawComponent.iconViewBox === undefined || iconViewBox !== undefined)
       && (rawComponent.componentFields === undefined || componentFields !== undefined)
       && (iconSvg === undefined || iconViewBox !== undefined)

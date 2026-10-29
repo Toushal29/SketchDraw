@@ -340,6 +340,10 @@
   touch-action: manipulation;
 }
 
+.design-palette-item-model-component {
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+
 .design-palette-item:hover:not(:disabled) {
   border-color: var(--ui-accent-border);
   background: var(--ui-accent-soft);
@@ -363,6 +367,13 @@
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.design-palette-item-model-component>.stencil-component-model-preview {
+  width: 42px;
+  height: 26px;
+  fill: none;
+  stroke: none;
 }
 
 .design-palette-item>svg [fill="currentColor"] {

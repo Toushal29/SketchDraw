@@ -4,6 +4,7 @@ import { LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../notes";
 import { FLOWCHART_SHAPES, GENERAL_SHAPES } from "../diagrams/config";
 import type { CustomStencil } from "../components/custom-stencils";
 import { LibraryComponentIcon } from "../../components/LibraryComponentIcon";
+import { cloudNeutralComponent, cloudProviderComponent } from "../diagrams/cloud-providers";
 
 type PrimitiveShape = "rectangle" | "circle" | "diamond" | "triangle";
 
@@ -201,7 +202,7 @@ export function DesignShapePalette(props: {
         </button>
           <div class="design-palette-grid" id={sectionId} role="group" aria-label={`${section.name} shapes`} hidden={!isOpen()}>
           <Show when={isOpen()}>
-            <For each={section.entries}>{entry => <button type="button" class="design-palette-item" title={entry.item.label} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
+            <For each={section.entries}>{entry => <button type="button" class="design-palette-item" classList={{ "design-palette-item-model-component": entry.item.type === "component" && (!!cloudProviderComponent(entry.item.kind) || !!cloudNeutralComponent(entry.item.kind)) }} title={entry.item.label} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
               <PaletteIcon item={entry.item} />
               <span>{entry.item.label}</span>
             </button>}</For>
