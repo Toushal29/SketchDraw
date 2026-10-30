@@ -132,17 +132,17 @@
     color: var(--theme-text-primary);
 }
 
-.tool-options:not(.stencil-options) button {
+.tool-options button {
     border: 1px solid transparent;
     color: var(--theme-text-secondary);
     background: transparent;
 }
 
-.tool-options:not(.stencil-options) button>svg {
+.tool-options button>svg {
     color: inherit;
 }
 
-.tool-options:not(.stencil-options) button>span {
+.tool-options button>span {
     color: inherit;
     text-align: center;
 }

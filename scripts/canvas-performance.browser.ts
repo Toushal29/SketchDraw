@@ -5,7 +5,7 @@ import { appendSimplifiedStrokePoint } from "../src/features/canvas/stroke-simpl
 import { canvasStateForTouchGesture, gridStepForStyle, gridSvgPattern, pointerToWorld, snapCanvasPoint, strokePointFromPointer, zoomCanvasStateAt } from "../src/features/canvas/input";
 import { alignedTextStartX, anchorPoint, connectionAnchorsFor, flatten, isConnectable, labelBox, textLayout, validReferences } from "../src/operations";
 import { ALL_FLOWCHART_SHAPES } from "../src/features/diagrams/config";
-import { shapePathData } from "../src/features/shapes/geometry";
+import { adjustShapeAtPoint, shapeAdjustmentHandles, shapePathData } from "../src/features/shapes/geometry";
 import { drawShapeLabel } from "../src/features/canvas/rendering";
 import { elementBounds, lockAspectResizeBounds } from "../src/features/canvas/bounds";
 import { parseEditablePath, updateEditablePath } from "../src/features/canvas/path-editing";
@@ -13,7 +13,10 @@ import { recognizeStroke } from "../src/features/canvas/stroke-recognition";
 import { autoRouteConnectorSet, autoRoutePoints } from "../src/features/diagrams/connector-routing";
 import { autoLayoutElements } from "../src/features/diagrams/auto-layout";
 import { relationshipDirectionHeads, relationshipDisplayElement } from "../src/features/diagrams/relationships";
-import { LIBRARY_COMPONENTS, buildLibraryComponent } from "../src/notes";
+import { LIBRARY_COMPONENTS, buildLibraryComponent, buildNoteGroup, drawNoteCard, noteCollapseHit } from "../src/notes";
+import { markdownTableRows, serializeMarkdownTableRows } from "../src/app/markdown-table";
+import { CLOUD_NEUTRAL_COMPONENTS } from "../src/features/diagrams/cloud-providers";
+import { cloudNeutralIconPath } from "../src/features/components/cloud-neutral-icons";
 import { drawModelComponent, modelComponentSvg } from "../src/features/components/model-component-renderer";
 import { fitComponentSpecimen } from "../src/features/components/component-specimen-sheet";
 import { assignLibraryComponentIds, resizeLibraryGroup } from "../src/features/components/library-component-editor";
@@ -24,10 +27,12 @@ import mobileToolbarCss from "../src/platform/mobile/touch-toolbar.css?inline";
 import canvasToolsCss from "../src/styles/app/canvas-tools.css?inline";
 import homeCss from "../src/styles/app/home.css?inline";
 import popoverCss from "../src/styles/toolbar-and-view-popovers.css?inline";
+import foundationCss from "../src/styles/app/foundation.css?inline";
 import { createComponent } from "solid-js";
 import { render } from "solid-js/web";
 import { CanvasOptionsMenu } from "../src/components/CanvasOptionsMenu";
 import { DocumentTabs } from "../src/platform/windows/DocumentTabs";
+import { WindowsShapePalette } from "../src/platform/windows/WindowsShapePalette";
 import { parseSchema } from "../src/schema";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "../src/mermaid";
 import { exportDiagramCode, plantUmlToDiagram } from "../src/features/diagrams/code-formats";
@@ -420,8 +425,9 @@ spec:
   await importCheck("Excalidraw import/export round trip", () => {
     const source = JSON.stringify({ type: "excalidraw", version: 2, source: "SketchDraw", elements: [{ id: "api", type: "rectangle", x: 20, y: 30, width: 120, height: 60, strokeColor: "#26313b", backgroundColor: "#ffffff", strokeWidth: 2, opacity: 100, roughness: 0, seed: 1, version: 1, isDeleted: false, groupIds: [], link: null, locked: false }] });
     const imported = importExcalidraw(source); const vector: ShapeElement = { type: "svgPath", id: "vector", x: 180, y: 30, w: 80, h: 60, color: "#26313b", thickness: 2, pathData: "M0 0 L40 30 L0 60 Z", pathWidth: 40, pathHeight: 60, fillRule: "evenodd", svgStroke: true, fillColor: "#99bbdd", fillOpacity: .7 };
-    const restored = importExcalidraw(exportExcalidraw([...imported, vector])); const restoredVector = restored.find(item => item.type === "svgPath");
-    return imported.length === 1 && restored.length === 2 && restoredVector?.type === "svgPath" && restoredVector.pathData === vector.pathData && restoredVector.fillRule === "evenodd";
+    const blockArrow: ShapeElement = { type: "flowchart", id: "block-arrow", flowchartShape: "right-arrow", x: 280, y: 30, w: 120, h: 60, color: "#26313b", thickness: 2, shapeAdjustments: { shaft: .62, head: .7 } };
+    const restored = importExcalidraw(exportExcalidraw([...imported, vector, blockArrow])); const restoredVector = restored.find(item => item.type === "svgPath"); const restoredArrow = restored.find(item => item.type === "flowchart");
+    return imported.length === 1 && restored.length === 3 && restoredVector?.type === "svgPath" && restoredVector.pathData === vector.pathData && restoredVector.fillRule === "evenodd" && restoredArrow?.type === "flowchart" && restoredArrow.shapeAdjustments?.shaft === .62 && restoredArrow.shapeAdjustments?.head === .7;
   });
   for (const zoom of [.2, .55, 1, 1.37, 2.2]) for (const ratio of [1, 1.25, 1.5, 2]) {
     const step = gridStepForStyle("small-grid", 50, zoom); const pitch = step * zoom * ratio;
@@ -432,8 +438,17 @@ spec:
     check(Math.abs(pattern.width - step * zoom) < 1e-8 && Math.abs(pattern.height - step * zoom) < 1e-8, `Paper pattern repeats at the snapped grid pitch at zoom ${zoom} and pixel ratio ${ratio}`);
   }
   check(alignedTextStartX(100, 40, "left") === 100 && alignedTextStartX(100, 40, "center") === 80 && alignedTextStartX(100, 40, "right") === 60, "Text alignment shares its anchor calculation across canvas and exports");
-  const aspect = lockAspectResizeBounds({ x: 0, y: 0, w: 100, h: 50 }, { x: 0, y: 0, w: 160, h: 50 }, "e");
-  check(Math.abs(aspect.w / aspect.h - 2) < 1e-8 && aspect.x === 0 && Math.abs(aspect.y + aspect.h / 2 - 25) < 1e-8, "Aspect-locked side resize preserves ratio and centers the opposite dimension");
+  const originalResizeBounds = { x: 0, y: 0, w: 100, h: 50 };
+  const horizontalResize = lockAspectResizeBounds(originalResizeBounds, { x: 0, y: 0, w: 160, h: 50 }, "e");
+  const verticalResize = lockAspectResizeBounds(originalResizeBounds, { x: 0, y: 0, w: 100, h: 80 }, "s");
+  const cornerResize = lockAspectResizeBounds(originalResizeBounds, { x: 0, y: 0, w: 160, h: 80 }, "se");
+  const boundedCornerResize = lockAspectResizeBounds({ x: 0, y: 0, w: 1_000_000, h: 10 }, { x: 0, y: 0, w: 16_384, h: 1_000 }, "se", 25, 25, 16_384, 16_384);
+  check(horizontalResize.x === 0 && horizontalResize.w === 160 && horizontalResize.y === 0 && horizontalResize.h === 50
+    && verticalResize.x === 0 && verticalResize.w === 100 && verticalResize.y === 0 && verticalResize.h === 80
+    && Math.abs(cornerResize.w / cornerResize.h - 2) < 1e-8 && cornerResize.x === 0 && cornerResize.y === 0,
+  "Side resize changes only its axis while corner resize preserves the aspect ratio");
+  check(boundedCornerResize.w <= 16_384 && boundedCornerResize.h <= 16_384,
+    "Aspect-locked resize keeps extreme saved shapes within interactive bounds");
   const editablePath = parseEditablePath("M 0 0 L 100 0 L 100 100 Z");
   const movedPath = editablePath && updateEditablePath({ type: "svgPath", x: 0, y: 0, w: 100, h: 100, color: "#26313b", thickness: 2, pathData: "M 0 0 L 100 0 L 100 100 Z", pathWidth: 100, pathHeight: 100 }, editablePath.points.map((point, index) => index === 1 ? { x: 120, y: 0 } : point));
   const movedPathNodes = movedPath?.type === "svgPath" ? parseEditablePath(movedPath.pathData) : undefined;
@@ -479,6 +494,28 @@ spec:
     ...ALL_FLOWCHART_SHAPES.map(shape => ({ type: "flowchart" as const, x: 32, y: 25, w: 112, h: 66, color: "#26313b", thickness: 1, flowchartShape: shape.value })),
     { type: "svgPath", x: 32, y: 25, w: 112, h: 66, color: "#26313b", thickness: 1, pathData: "M 0 0 L 100 0 L 50 100 Z", pathWidth: 100, pathHeight: 100 },
   ];
+  check(ALL_FLOWCHART_SHAPES.every(definition => definition.path === shapePathData({ type: "flowchart", flowchartShape: definition.value, x: 3, y: 3, w: 18, h: 18, color: "#000", thickness: 1 })), "Shape palette icons use the canvas geometry for every catalog shape");
+  const tinyShapeContext = canvas(120, 120).getContext("2d")!;
+  const tinyShapeFailures = ALL_FLOWCHART_SHAPES.flatMap(definition => [[2, 70], [70, 2], [8, 8], [10, 10]].flatMap(([w, h]) => {
+    try {
+      const data = shapePathData({ type: "flowchart", flowchartShape: definition.value, x: 10, y: 10, w, h, color: "#000000", thickness: 1 });
+      if (!data || /NaN|Infinity/.test(data)) return [`${definition.value} ${w}×${h}`];
+      const path = new Path2D(data); tinyShapeContext.fill(path); tinyShapeContext.stroke(path); return [];
+    } catch { return [`${definition.value} ${w}×${h}`]; }
+  }));
+  check(tinyShapeFailures.length === 0, `All built-in shapes render at narrow dimensions${tinyShapeFailures.length ? `: ${tinyShapeFailures.join(", ")}` : ""}`);
+  const adjustableArrow: ShapeElement = { type: "flowchart", id: "adjustable-arrow", flowchartShape: "right-arrow", x: 0, y: 0, w: 100, h: 80, color: "#000000", thickness: 1 };
+  const longHead = adjustShapeAtPoint(adjustableArrow, "head", { x: 30, y: 40 });
+  const wideShaft = adjustShapeAtPoint(longHead, "shaft", { x: 50, y: 10 });
+  const restoredArrow = normalizeElement(JSON.parse(JSON.stringify(wideShaft)));
+  check(shapeAdjustmentHandles(adjustableArrow).length === 2 && shapePathData(adjustableArrow) !== shapePathData(wideShaft), "Block arrow head and shaft handles change geometry");
+  check(restoredArrow?.type === "flowchart" && restoredArrow.shapeAdjustments?.head === .7 && restoredArrow.shapeAdjustments?.shaft === .75,
+  "Block arrow adjustments survive Sketch import");
+  const adjustableStar: ShapeElement = { ...adjustableArrow, flowchartShape: "star" };
+  const starHandle = shapeAdjustmentHandles(adjustableStar)[0];
+  const narrowStar = adjustShapeAtPoint(adjustableStar, "inset", { x: starHandle.x + 12, y: starHandle.y });
+  check(shapeAdjustmentHandles(adjustableStar).length === 1 && shapePathData(adjustableStar) !== shapePathData(narrowStar), "Other proportion-based shapes expose a contour adjustment handle");
+  const connectorOutlineFailures: string[] = [];
   const connectorOutlinesFollowEveryShape = connectorShapeSet.every(shape => {
     const data = shape.type === "svgPath" ? shape.pathData : shapePathData(shape);
     if (!data) return false;
@@ -489,17 +526,22 @@ spec:
       const point = path.getPointAtLength(length * index / 256);
       return { x: shape.type === "svgPath" ? shape.x + point.x / (shape.pathWidth ?? shape.w) * shape.w : point.x, y: shape.type === "svgPath" ? shape.y + point.y / (shape.pathHeight ?? shape.h) * shape.h : point.y };
     });
-    return anchors.every(anchor => {
+    const valid = anchors.every(anchor => {
       const world = anchorPoint(shape, anchor);
       const nearest = outlinePoints.reduce((distance, point) => Math.min(distance, Math.hypot(world.x - point.x, world.y - point.y)), Infinity);
       return nearest <= Math.max(1.5, length / 180);
     });
+    if (!valid) connectorOutlineFailures.push(shape.flowchartShape ?? shape.type);
+    return valid;
   });
+  if (connectorOutlineFailures.length) console.info("Connector outline failures", connectorOutlineFailures.join(", "));
   const diamondAnchors = connectionAnchorsFor(connectorShapeSet[2]);
   const diamondVerticesAndEdges = [{ x: .5, y: 0 }, { x: .75, y: .25 }, { x: 1, y: .5 }, { x: .75, y: .75 }, { x: .5, y: 1 }, { x: .25, y: .75 }, { x: 0, y: .5 }, { x: .25, y: .25 }].every(expected => diamondAnchors.some(anchor => Math.abs(anchor.x - expected.x) < .002 && Math.abs(anchor.y - expected.y) < .002));
   const gear = connectorShapeSet.find(shape => shape.type === "flowchart" && shape.flowchartShape === "gear");
   const gearIgnoresInnerCutout = !!gear && connectionAnchorsFor(gear).every(anchor => Math.hypot(anchor.x - .5, anchor.y - .5) > .25);
-  check(connectorOutlinesFollowEveryShape && diamondVerticesAndEdges && gearIgnoresInnerCutout, "Connector snap points follow built-in and SVG outlines, include diamond vertices and edge centers, and avoid shape cutouts");
+  const ring = connectorShapeSet.find(shape => shape.type === "flowchart" && shape.flowchartShape === "ring");
+  const ringIgnoresInnerCutout = !!ring && connectionAnchorsFor(ring).every(anchor => Math.hypot(anchor.x - .5, anchor.y - .5) > .35);
+  check(connectorOutlinesFollowEveryShape && diamondVerticesAndEdges && gearIgnoresInnerCutout && ringIgnoresInnerCutout, "Connector snap points follow built-in and SVG outlines, include diamond vertices and edge centers, and avoid shape cutouts");
 
   await importCheck("Connector routing clears intervening nodes with orthogonal bends", () => {
     const source: ShapeElement = { type: "rectangle", id: "route-source", x: 0, y: 45, w: 60, h: 70, color: "#333", thickness: 1 };
@@ -529,6 +571,24 @@ spec:
   });
 
   const componentCanvas = canvas(600, 360); const componentContext = componentCanvas.getContext("2d")!;
+  const legacyTable = buildNoteGroup(7600, 13600, "note", "| Name | Value |\n| --- | --- |\n| A | B |", { width: 340, height: 154, title: "Markdown table" });
+  const fittedTable = normalizeElement(JSON.parse(JSON.stringify({ ...legacyTable, id: "legacy-table", elements: legacyTable.elements.map(child => ({ ...child, id: "legacy-table-surface" })) })));
+  check(fittedTable?.type === "group" && fittedTable.note?.content === legacyTable.note?.content && (fittedTable.note?.height ?? 0) < 154
+    && fittedTable.elements[0]?.type === "rectangle" && fittedTable.elements[0].h === fittedTable.note?.height,
+  "Legacy default-sized Markdown tables fit content without losing the table data");
+  const tableOnly = buildNoteGroup(0, 0, "note", "| Name | Value |\n| --- | --- |\n| A | B |", { width: 200, title: "Markdown table" });
+  const tableCanvas = canvas(210, 100); const tableContext = tableCanvas.getContext("2d")!;
+  drawNoteCard(tableContext, tableOnly, "light", "simple");
+  check(tableOnly.note?.height === 44 && !noteCollapseHit(tableOnly, { x: 185, y: 10 }), "Standalone Markdown tables use compact bounds and have no collapse control");
+  check(tableContext.getImageData(50, 30, 1, 1).data[3] === 0 && tableContext.getImageData(50, 10, 1, 1).data[3] > 0, "Standalone Markdown tables render without a card background");
+  check(markdownTableRows(serializeMarkdownTableRows([["Name", "A|B"], ["Item", "Value"]]))[0][1] === "A|B", "Markdown table cells preserve escaped pipe characters");
+  check(serializeMarkdownTableRows([["Name", "Value"], ["A", "B"]], "| Name | Value |\n| :--- | ---: |\n| A | B |").includes("| :--- | ---: |"), "Grid editing keeps Markdown table column alignment");
+  const neutralIcons = CLOUD_NEUTRAL_COMPONENTS.every(component => !!cloudNeutralIconPath(component.kind));
+  check(neutralIcons, "Every provider-neutral and integration component has an SVG icon path");
+  const legacyCloud = buildLibraryComponent("cloud-kubernetes", 5800, 8600);
+  const fittedCloud = normalizeElement(JSON.parse(JSON.stringify({ ...legacyCloud, componentBounds: { x: 5800, y: 8600, w: 176, h: 108 } })));
+  check(fittedCloud?.type === "group" && fittedCloud.componentBounds?.h === 58 && fittedCloud.libraryComponent?.kind === "cloud-kubernetes",
+  "Legacy default-sized neutral cloud cards become compact on import");
   const componentDiagnostics: { kind: string; issues: string[] }[] = [];
   console.info("Audit: component library checks");
   for (const definition of LIBRARY_COMPONENTS) {
@@ -563,6 +623,24 @@ spec:
       return issues.length === 0;
     });
   }
+  const narrowComponentFailures: string[] = [];
+  for (const definition of LIBRARY_COMPONENTS) {
+    if (definition.kind.startsWith("viz-")) continue;
+    const built = buildLibraryComponent(definition.kind, 20, 20);
+    const bounds = built.componentBounds;
+    if (!bounds) continue;
+    for (const [width, height] of [[2, bounds.h], [8, bounds.h], [10, bounds.h], [bounds.w, 2], [bounds.w, 8], [10, 10]] as const) {
+      const sample = resizeLibraryGroup(built, { ...bounds, w: width, h: height });
+      try {
+        drawModelComponent(canvas(320, 240).getContext("2d")!, sample, "light");
+        const svg = modelComponentSvg(sample);
+        if (/<(?:circle|ellipse|rect)\b[^>]*\b(?:r|rx|ry|width|height)="-(?:\d|\.)/i.test(svg)) narrowComponentFailures.push(`${definition.kind} ${width}×${height}: negative SVG geometry`);
+      }
+      catch (error) { narrowComponentFailures.push(`${definition.kind} ${width}×${height}: ${String(error)}`); }
+    }
+  }
+  if (narrowComponentFailures.length) console.info("Narrow component failures", narrowComponentFailures.length, JSON.stringify(narrowComponentFailures));
+  check(narrowComponentFailures.length === 0, "Every model component renders safely at narrow imported dimensions");
   for (const definition of LIBRARY_COMPONENTS.filter(item => item.kind.startsWith("viz-"))) {
     await importCheck(`${definition.kind} chart renders as vector and honors saved options`, () => {
       const group = assignLibraryComponentIds(buildLibraryComponent(definition.kind, 20, 20), definition.kind);
@@ -595,11 +673,31 @@ spec:
     return passed;
   });
   console.info("Audit: mobile controls and performance workloads");
-  const style = document.createElement("style"); style.textContent = `${mobileToolbarCss}\n${canvasToolsCss}\n${homeCss}\n${popoverCss}`; document.head.append(style);
+  const style = document.createElement("style"); style.textContent = `${foundationCss}\n${mobileToolbarCss}\n${canvasToolsCss}\n${homeCss}\n${popoverCss}`; document.head.append(style);
   const styleFixtureHost = document.createElement("div");
   styleFixtureHost.className = "app-shell platform-windows";
   styleFixtureHost.style.cssText = "--theme-primary:rgb(30,90,200);--theme-primary-border:rgb(60,110,200);--theme-primary-muted:rgb(220,230,255);--theme-info:rgb(20,140,200);--theme-warning:rgb(210,150,30);--theme-background:rgb(245,247,250);--theme-surface:rgb(250,250,252);--theme-surface-elevated:rgb(255,255,255);--theme-border:rgb(200,210,220);--theme-shadow:rgb(0 0 0 / 0.2);--theme-text-primary:rgb(20,25,35);--theme-text-secondary:rgb(70,80,90);--theme-text-tertiary:rgb(100,110,120)";
   document.body.append(styleFixtureHost);
+  const shapePaletteHost = document.createElement("div");
+  shapePaletteHost.className = "tool-family options-open";
+  styleFixtureHost.append(shapePaletteHost);
+  let spawnAllShapeClicks = 0;
+  const disposeShapePalette = render(() => createComponent(WindowsShapePalette, { activeTool: "rectangle", activeFlowchartShape: "process", canSpawnAll: true, busy: false, onSelect: () => {}, onSpawnAll: () => { spawnAllShapeClicks++; } }), shapePaletteHost);
+  const shapeFooterButton = shapePaletteHost.querySelector<HTMLButtonElement>(".windows-shape-footer button");
+  shapeFooterButton?.click();
+  check(!!shapeFooterButton && !shapeFooterButton.disabled && spawnAllShapeClicks === 1,
+    "Windows Shapes panel exposes a working spawn-all footer action");
+  disposeShapePalette();
+  const moreToolsFixture = document.createElement("div");
+  moreToolsFixture.className = "tool-family more-tools-family options-open";
+  moreToolsFixture.style.position = "relative";
+  moreToolsFixture.innerHTML = `<div class="tool-options more-tools-options"><div class="more-tools-paint-entry"><button>Paint brushes</button><div class="more-tools-brush-options"><button><span>Extra long soft brush name</span></button><button><span>Another long brush name</span></button></div></div></div>`;
+  styleFixtureHost.append(moreToolsFixture);
+  const moreToolsPanel = moreToolsFixture.querySelector<HTMLElement>(".more-tools-options")!;
+  const moreToolsWidth = moreToolsPanel.getBoundingClientRect().width;
+  if (Math.abs(moreToolsWidth - 228) >= 1 || moreToolsPanel.scrollWidth > moreToolsPanel.clientWidth + 1) console.info("More Tools width diagnostic", JSON.stringify({ width: moreToolsWidth, scrollWidth: moreToolsPanel.scrollWidth, clientWidth: moreToolsPanel.clientWidth, children: [...moreToolsPanel.querySelectorAll(".more-tools-paint-entry, .more-tools-brush-options, .more-tools-brush-options button")].map(item => ({ class: item.className, width: item.getBoundingClientRect().width, scroll: item.scrollWidth, client: item.clientWidth })) }));
+  check(Math.abs(moreToolsWidth - 228) < 1 && moreToolsPanel.scrollWidth <= moreToolsPanel.clientWidth + 1,
+    "Expanding nested brushes keeps the More Tools panel at its standard width");
   const quickStyleFixture = document.createElement("aside");
   quickStyleFixture.className = "style-pane quick-style-mode";
   quickStyleFixture.innerHTML = `<div class="quick-style-heading"><button><svg></svg></button></div><div class="quick-style-controls"><button class="quick-style-icon"><svg></svg></button></div>`;
@@ -607,9 +705,9 @@ spec:
   const quickStyleButton = quickStyleFixture.querySelector<HTMLElement>(".quick-style-icon")!;
   const quickStyleGlyph = quickStyleButton.querySelector<SVGElement>("svg")!;
   const quickStyleDimensions = { pane: getComputedStyle(quickStyleFixture).width, button: getComputedStyle(quickStyleButton).width, glyph: getComputedStyle(quickStyleGlyph).width };
-  const quickStyleSizePass = quickStyleDimensions.pane === "54px" && quickStyleDimensions.button === "38px" && quickStyleDimensions.glyph === "20px";
+  const quickStyleSizePass = quickStyleDimensions.pane === "50px" && quickStyleDimensions.button === "38px" && quickStyleDimensions.glyph === "20px";
   if (!quickStyleSizePass) console.info("Quick-style size diagnostic:", JSON.stringify(quickStyleDimensions));
-  check(quickStyleSizePass, "Quick-style rail preserves its current touch target and icon dimensions");
+  check(quickStyleSizePass, "Quick-style rail uses the requested 50px pane and preserves its touch target and icon dimensions");
   const welcomeFixture = document.createElement("section");
   welcomeFixture.className = "home-screen home-screen-desktop";
   welcomeFixture.style.cssText = "width:1200px;height:760px";

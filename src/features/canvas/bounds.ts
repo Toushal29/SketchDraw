@@ -22,8 +22,8 @@ export function unionBounds(boxes: Bounds[]): Bounds | undefined {
   return { x: left, y: top, w: right - left, h: bottom - top };
 }
 
-/** Resize a rectangle while preserving its original ratio and the opposite anchor. */
-export function lockAspectResizeBounds(before: Bounds, requested: Bounds, handle: string, minimumWidth = 1, minimumHeight = 1): Bounds {
+/** Resize a rectangle from the selected edge or corner, preserving ratio at corners. */
+export function lockAspectResizeBounds(before: Bounds, requested: Bounds, handle: string, minimumWidth = 1, minimumHeight = 1, maximumWidth = Infinity, maximumHeight = Infinity): Bounds {
   if (before.w <= 0 || before.h <= 0) return requested;
   const ratio = before.w / before.h;
   const horizontal = handle.includes("e") || handle.includes("w");
@@ -38,22 +38,21 @@ export function lockAspectResizeBounds(before: Bounds, requested: Bounds, handle
     if (widthScale >= heightScale) height = width / ratio;
     else width = height * ratio;
     const minimumScale = Math.max(minimumWidth / before.w, minimumHeight / before.h);
-    const scale = Math.max(minimumScale, width / before.w, height / before.h);
+    const maximumScale = Math.min(maximumWidth / before.w, maximumHeight / before.h);
+    const scale = Math.min(maximumScale, Math.max(minimumScale, width / before.w, height / before.h));
     width = before.w * scale; height = before.h * scale;
     if (handle.includes("w")) x = before.x + before.w - width;
     if (handle.includes("n")) y = before.y + before.h - height;
   } else if (horizontal) {
     width = Math.max(minimumWidth, width);
-    height = Math.max(minimumHeight, width / ratio);
-    width = height * ratio;
+    height = before.h;
     x = handle.includes("w") ? before.x + before.w - width : before.x;
-    y = before.y + (before.h - height) / 2;
+    y = before.y;
   } else if (vertical) {
+    width = before.w;
     height = Math.max(minimumHeight, height);
-    width = Math.max(minimumWidth, height * ratio);
-    height = width / ratio;
     y = handle.includes("n") ? before.y + before.h - height : before.y;
-    x = before.x + (before.w - width) / 2;
+    x = before.x;
   }
   return { x, y, w: width, h: height };
 }

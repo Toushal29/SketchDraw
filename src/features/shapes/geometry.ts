@@ -1,4 +1,4 @@
-import type { FlowchartShape, ShapeElement } from "../../model";
+import type { FlowchartShape, Point, ShapeElement } from "../../model";
 
 type Box = { x: number; y: number; w: number; h: number };
 
@@ -8,6 +8,26 @@ function boxOf(element: ShapeElement): Box {
 
 function polygon(points: { x: number; y: number }[]): string {
   return points.length ? `M ${points.map(point => `${point.x} ${point.y}`).join(" L ")} Z` : "";
+}
+
+function proportionalPolygon(box: Box, points: readonly (readonly [number, number])[]): string {
+  return polygon(points.map(([horizontal, vertical]) => ({ x: box.x + box.w * horizontal, y: box.y + box.h * vertical })));
+}
+
+const limited = (value: number | undefined, fallback: number, min: number, max: number) => Number.isFinite(value) ? Math.max(min, Math.min(max, value!)) : fallback;
+const BLOCK_ARROWS = new Set<FlowchartShape>(["right-arrow", "left-arrow", "double-arrow", "up-arrow", "down-arrow"]);
+
+function blockArrowOutline(shape: FlowchartShape, box: Box, adjustments?: ShapeElement["shapeAdjustments"]): string {
+  const shaft = limited(adjustments?.shaft, .4, .1, .9);
+  const head = limited(adjustments?.head, shape === "double-arrow" ? .35 : .4, .1, shape === "double-arrow" ? .45 : .85);
+  const narrow = (1 - shaft) / 2; const wide = 1 - narrow;
+  switch (shape) {
+    case "right-arrow": return proportionalPolygon(box, [[0, narrow], [1 - head, narrow], [1 - head, 0], [1, .5], [1 - head, 1], [1 - head, wide], [0, wide]]);
+    case "left-arrow": return proportionalPolygon(box, [[1, narrow], [head, narrow], [head, 0], [0, .5], [head, 1], [head, wide], [1, wide]]);
+    case "double-arrow": return proportionalPolygon(box, [[0, .5], [head, 0], [head, narrow], [1 - head, narrow], [1 - head, 0], [1, .5], [1 - head, 1], [1 - head, wide], [head, wide], [head, 1]]);
+    case "up-arrow": return proportionalPolygon(box, [[narrow, 1], [narrow, head], [0, head], [.5, 0], [1, head], [wide, head], [wide, 1]]);
+    default: return proportionalPolygon(box, [[narrow, 0], [narrow, 1 - head], [0, 1 - head], [.5, 1], [1, 1 - head], [wide, 1 - head], [wide, 0]]);
+  }
 }
 
 function ellipsePath(cx: number, cy: number, rx: number, ry: number): string {
@@ -20,7 +40,7 @@ function reverseEllipsePath(cx: number, cy: number, rx: number, ry: number): str
   return `M ${cx + rx} ${cy} C ${cx + rx} ${cy - k * ry} ${cx + k * rx} ${cy - ry} ${cx} ${cy - ry} C ${cx - k * rx} ${cy - ry} ${cx - rx} ${cy - k * ry} ${cx - rx} ${cy} C ${cx - rx} ${cy + k * ry} ${cx - k * rx} ${cy + ry} ${cx} ${cy + ry} C ${cx + k * rx} ${cy + ry} ${cx + rx} ${cy + k * ry} ${cx + rx} ${cy} Z`;
 }
 
-function flowchartOutline(shape: FlowchartShape, { x, y, w, h }: Box): string {
+function flowchartOutline(shape: FlowchartShape, { x, y, w, h }: Box, adjustments?: ShapeElement["shapeAdjustments"]): string {
   const right = x + w; const bottom = y + h; const middle = x + w / 2;
   const diamond = polygon([{ x: middle, y }, { x: right, y: y + h / 2 }, { x: middle, y: bottom }, { x, y: y + h / 2 }]);
   const rect = `M ${x} ${y} H ${right} V ${bottom} H ${x} Z`;
@@ -54,7 +74,7 @@ function flowchartOutline(shape: FlowchartShape, { x, y, w, h }: Box): string {
     case "sequential-data": return `M ${x} ${y + h * .18} C ${x} ${y + h * .08} ${x + w * .22} ${y} ${middle} ${y} C ${right - w * .22} ${y} ${right} ${y + h * .08} ${right} ${y + h * .18} V ${bottom - h * .18} C ${right} ${bottom - h * .08} ${right - w * .22} ${bottom} ${middle} ${bottom} C ${x + w * .22} ${bottom} ${x} ${bottom - h * .08} ${x} ${bottom - h * .18} Z`;
     case "alternate-process": { const r = Math.min(w * .16, h * .3); return `M ${x + r} ${y} H ${right - r} Q ${right} ${y} ${right} ${y + r} V ${bottom - r} Q ${right} ${bottom} ${right - r} ${bottom} H ${x + r} Q ${x} ${bottom} ${x} ${bottom - r} V ${y + r} Q ${x} ${y} ${x + r} ${y} Z`; }
     case "cloud": return `M ${x + w * .2} ${y + h * .76} C ${x + w * .04} ${y + h * .76} ${x} ${y + h * .63} ${x} ${y + h * .49} C ${x} ${y + h * .34} ${x + w * .13} ${y + h * .25} ${x + w * .29} ${y + h * .27} C ${x + w * .34} ${y + h * .08} ${x + w * .53} ${y} ${x + w * .68} ${y + h * .12} C ${x + w * .77} ${y + h * .18} ${x + w * .8} ${y + h * .26} ${x + w * .81} ${y + h * .31} C ${x + w} ${y + h * .29} ${right} ${y + h * .43} ${right} ${y + h * .56} C ${right} ${y + h * .69} ${x + w * .9} ${y + h * .76} ${x + w * .77} ${y + h * .76} Z`;
-    case "star": return polygon(Array.from({ length: 10 }, (_, index) => { const angle = -Math.PI / 2 + index * Math.PI / 5; const radius = index % 2 ? .23 : .48; return { x: middle + Math.cos(angle) * w * radius, y: y + h / 2 + Math.sin(angle) * h * radius }; }));
+    case "star": return polygon(Array.from({ length: 10 }, (_, index) => { const angle = -Math.PI / 2 + index * Math.PI / 5; const radius = index % 2 ? limited(adjustments?.inset, .23, .05, .45) : .48; return { x: middle + Math.cos(angle) * w * radius, y: y + h / 2 + Math.sin(angle) * h * radius }; }));
     case "lightning": return `M ${x + w * .58} ${y} L ${x + w * .18} ${y + h * .55} H ${x + w * .43} L ${x + w * .31} ${bottom} L ${right} ${y + h * .38} H ${x + w * .67} Z`;
     case "heart": return `M ${middle} ${bottom} C ${x + w * .81} ${y + h * .69} ${right} ${y + h * .52} ${right} ${y + h * .3} C ${right} ${y + h * .03} ${x + w * .61} ${y - h * .02} ${middle} ${y + h * .23} C ${x + w * .39} ${y - h * .02} ${x} ${y + h * .03} ${x} ${y + h * .3} C ${x} ${y + h * .52} ${x + w * .19} ${y + h * .69} ${middle} ${bottom} Z`;
     case "callout": return `M ${x + w * .1} ${y} H ${right - w * .1} Q ${right} ${y} ${right} ${y + h * .12} V ${y + h * .68} Q ${right} ${y + h * .8} ${right - w * .1} ${y + h * .8} H ${x + w * .63} L ${x + w * .47} ${bottom} L ${x + w * .41} ${y + h * .8} H ${x + w * .1} Q ${x} ${y + h * .8} ${x} ${y + h * .68} V ${y + h * .12} Q ${x} ${y} ${x + w * .1} ${y} Z`;
@@ -64,19 +84,26 @@ function flowchartOutline(shape: FlowchartShape, { x, y, w, h }: Box): string {
       const outer = polygon(teeth); const inner = reverseEllipsePath(middle, y + h / 2, w * .17, h * .17);
       return `${outer} ${inner}`;
     }
-    case "hexagon": { const cut = Math.min(w * .2, h * .28); return `M ${x + cut} ${y} H ${right - cut} L ${right} ${y + h / 2} L ${right - cut} ${bottom} H ${x + cut} L ${x} ${y + h / 2} Z`; }
-    case "preparation": { const cut = Math.min(w * .25, h * .35); return `M ${x + cut} ${y} H ${right - cut} L ${right} ${y + h / 2} L ${right - cut} ${bottom} H ${x + cut} L ${x} ${y + h / 2} Z`; }
-    case "trapezoid": { const inset = Math.min(w * .2, h * .35); return `M ${x + inset} ${y} H ${right - inset} L ${right} ${bottom} H ${x} Z`; }
+    case "hexagon": { const cut = Math.min(w * limited(adjustments?.inset, .2, .05, .45), h * .45); return `M ${x + cut} ${y} H ${right - cut} L ${right} ${y + h / 2} L ${right - cut} ${bottom} H ${x + cut} L ${x} ${y + h / 2} Z`; }
+    case "preparation": { const cut = Math.min(w * limited(adjustments?.inset, .25, .05, .45), h * .45); return `M ${x + cut} ${y} H ${right - cut} L ${right} ${y + h / 2} L ${right - cut} ${bottom} H ${x + cut} L ${x} ${y + h / 2} Z`; }
+    case "trapezoid": { const inset = Math.min(w * limited(adjustments?.inset, .2, .05, .45), h * .45); return `M ${x + inset} ${y} H ${right - inset} L ${right} ${bottom} H ${x} Z`; }
     case "pentagon": return polygon(Array.from({ length: 5 }, (_, index) => { const angle = -Math.PI / 2 + index * Math.PI * 2 / 5; return { x: middle + Math.cos(angle) * w * .48, y: y + h / 2 + Math.sin(angle) * h * .48 }; }));
-    case "octagon": { const cut = Math.min(w * .2, h * .2); return `M ${x + cut} ${y} H ${right - cut} L ${right} ${y + cut} V ${bottom - cut} L ${right - cut} ${bottom} H ${x + cut} L ${x} ${bottom - cut} V ${y + cut} Z`; }
+    case "octagon": { const cut = Math.min(w * limited(adjustments?.inset, .2, .05, .45), h * .45); return `M ${x + cut} ${y} H ${right - cut} L ${right} ${y + cut} V ${bottom - cut} L ${right - cut} ${bottom} H ${x + cut} L ${x} ${bottom - cut} V ${y + cut} Z`; }
     case "chevron": return `M ${x} ${y} H ${x + w * .62} L ${right} ${y + h / 2} L ${x + w * .62} ${bottom} H ${x} L ${x + w * .38} ${y + h / 2} Z`;
     case "cross": { const arm = Math.min(w, h) * .32; return `M ${middle - arm / 2} ${y} H ${middle + arm / 2} V ${y + h / 2 - arm / 2} H ${right} V ${y + h / 2 + arm / 2} H ${middle + arm / 2} V ${bottom} H ${middle - arm / 2} V ${y + h / 2 + arm / 2} H ${x} V ${y + h / 2 - arm / 2} H ${middle - arm / 2} Z`; }
     case "folder": return `M ${x} ${y + h * .16} H ${x + w * .38} L ${x + w * .5} ${y + h * .32} H ${right} V ${bottom} H ${x} Z`;
     case "note": return `M ${x} ${y} H ${right - w * .22} L ${right} ${y + h * .22} V ${bottom} H ${x} Z`;
     case "display": return `M ${x} ${y} H ${right} V ${y + h * .68} H ${x} Z M ${x + w * .4} ${y + h * .68} L ${x + w * .34} ${bottom - h * .08} H ${x + w * .66} L ${x + w * .6} ${y + h * .68} Z M ${x + w * .28} ${bottom - h * .08} H ${x + w * .72} V ${bottom} H ${x + w * .28} Z`;
     case "cube": return `M ${middle} ${y} L ${right} ${y + h * .22} V ${y + h * .76} L ${middle} ${bottom} L ${x} ${y + h * .76} V ${y + h * .22} Z`;
-    case "rounded-rectangle": { const radius = Math.min(w * .16, h * .3); return `M ${x + radius} ${y} H ${right - radius} Q ${right} ${y} ${right} ${y + radius} V ${bottom - radius} Q ${right} ${bottom} ${right - radius} ${bottom} H ${x + radius} Q ${x} ${bottom} ${x} ${bottom - radius} V ${y + radius} Q ${x} ${y} ${x + radius} ${y} Z`; }
+    case "rounded-rectangle": { const radius = Math.min(w * limited(adjustments?.inset, .16, .05, .45), h * .45); return `M ${x + radius} ${y} H ${right - radius} Q ${right} ${y} ${right} ${y + radius} V ${bottom - radius} Q ${right} ${bottom} ${right - radius} ${bottom} H ${x + radius} Q ${x} ${bottom} ${x} ${bottom - radius} V ${y + radius} Q ${x} ${y} ${x + radius} ${y} Z`; }
     case "shield": return `M ${middle} ${y} L ${right} ${y + h * .16} V ${y + h * .48} Q ${right} ${y + h * .82} ${middle} ${bottom} Q ${x} ${y + h * .82} ${x} ${y + h * .48} V ${y + h * .16} Z`;
+    case "right-arrow": case "left-arrow": case "double-arrow": case "up-arrow": case "down-arrow": return blockArrowOutline(shape, { x, y, w, h }, adjustments);
+    case "ring": return `${ellipsePath(middle, y + h / 2, w / 2, h / 2)} ${reverseEllipsePath(middle, y + h / 2, w * .25, h * .25)}`;
+    case "pie-slice": return `M ${middle} ${y + h / 2} L ${middle} ${y} C ${middle + w * .2761424} ${y} ${right} ${y + h * .2238576} ${right} ${y + h / 2} Z`;
+    case "wave": return `M ${x} ${y + h * .22} C ${x + w * .25} ${y + h * .03} ${x + w * .25} ${y + h * .43} ${middle} ${y + h * .22} C ${x + w * .75} ${y + h * .03} ${x + w * .75} ${y + h * .43} ${right} ${y + h * .22} V ${bottom - h * .22} C ${x + w * .75} ${bottom - h * .03} ${x + w * .75} ${bottom - h * .43} ${middle} ${bottom - h * .22} C ${x + w * .25} ${bottom - h * .03} ${x + w * .25} ${bottom - h * .43} ${x} ${bottom - h * .22} Z`;
+    case "banner": return proportionalPolygon({ x, y, w, h }, [[0, 0], [1, 0], [.88, .5], [1, 1], [0, 1], [.12, .5]]);
+    case "teardrop": return `M ${middle} ${y} C ${x + w * .76} ${y + h * .24} ${right} ${y + h * .5} ${right} ${y + h * .7} C ${right} ${bottom + h * .05} ${x} ${bottom + h * .05} ${x} ${y + h * .7} C ${x} ${y + h * .5} ${x + w * .24} ${y + h * .24} ${middle} ${y} Z`;
+    case "funnel": return proportionalPolygon({ x, y, w, h }, [[0, 0], [1, 0], [.62, .55], [.62, 1], [.38, 1], [.38, .55]]);
     default: return rect;
   }
 }
@@ -115,12 +142,61 @@ export function shapePathData(element: ShapeElement): string | undefined {
   if (element.type === "circle") return ellipsePath(cx, cy, w / 2, h / 2);
   if (element.type === "diamond") return polygon([{ x: cx, y }, { x: right, y: cy }, { x: cx, y: bottom }, { x, y: cy }]);
   if (element.type === "triangle") return polygon([{ x: cx, y }, { x: right, y: bottom }, { x, y: bottom }]);
-  if (element.type === "flowchart") return flowchartOutline(element.flowchartShape ?? "process", box);
+  if (element.type === "flowchart") return flowchartOutline(element.flowchartShape ?? "process", box, element.shapeAdjustments);
   return undefined;
 }
 
 export function shapeDetailPathData(element: ShapeElement): string {
   return element.type === "flowchart" ? flowchartDetails(element.flowchartShape ?? "process", boxOf(element)) : "";
+}
+
+export type ShapeAdjustmentHandle = { id: "shaft" | "head" | "inset"; x: number; y: number };
+const INSET_SHAPES = new Set<FlowchartShape>(["star", "hexagon", "preparation", "trapezoid", "octagon", "rounded-rectangle"]);
+function rotated(point: Point, center: Point, degrees: number): Point {
+  const angle = degrees * Math.PI / 180; const dx = point.x - center.x; const dy = point.y - center.y;
+  return { x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle), y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle) };
+}
+
+/** Editing handles are derived from the same ratios as the vector outline. */
+export function shapeAdjustmentHandles(element: ShapeElement): ShapeAdjustmentHandle[] {
+  if (element.type !== "flowchart") return [];
+  const shape = element.flowchartShape ?? "process"; const { x, y, w, h } = boxOf(element); const center = { x: x + w / 2, y: y + h / 2 };
+  if (w < 10 || h < 10) return [];
+  let handles: ShapeAdjustmentHandle[] = [];
+  if (BLOCK_ARROWS.has(shape)) {
+    const shaft = limited(element.shapeAdjustments?.shaft, .4, .1, .9);
+    const head = limited(element.shapeAdjustments?.head, shape === "double-arrow" ? .35 : .4, .1, shape === "double-arrow" ? .45 : .85);
+    if (shape === "right-arrow" || shape === "left-arrow" || shape === "double-arrow") {
+      handles = [{ id: "shaft", x: x + w * .5, y: y + h * (1 - shaft) / 2 }, { id: "head", x: x + w * (shape === "right-arrow" ? 1 - head : head), y: y + h * .5 }];
+    } else handles = [{ id: "shaft", x: x + w * (1 - shaft) / 2, y: y + h * .5 }, { id: "head", x: x + w * .5, y: y + h * (shape === "up-arrow" ? head : 1 - head) }];
+  } else if (INSET_SHAPES.has(shape)) {
+    const fallback = shape === "star" ? .23 : shape === "preparation" ? .25 : shape === "rounded-rectangle" ? .16 : .2;
+    const inset = limited(element.shapeAdjustments?.inset, fallback, .05, .45);
+    handles = shape === "star"
+      ? [{ id: "inset", x: center.x + Math.cos(-Math.PI / 2 + Math.PI / 5) * w * inset, y: center.y + Math.sin(-Math.PI / 2 + Math.PI / 5) * h * inset }]
+      : [{ id: "inset", x: x + Math.min(w * inset, h * .45), y }];
+  }
+  return handles.map(handle => ({ ...handle, ...rotated(handle, center, element.rotation ?? 0) }));
+}
+
+export function adjustShapeAtPoint(element: ShapeElement, handle: ShapeAdjustmentHandle["id"], worldPoint: Point): ShapeElement {
+  const shape = element.flowchartShape ?? "process"; const { x, y, w, h } = boxOf(element);
+  if (element.type !== "flowchart" || w <= 0 || h <= 0) return element;
+  const point = rotated(worldPoint, { x: x + w / 2, y: y + h / 2 }, -(element.rotation ?? 0));
+  const current = element.shapeAdjustments ?? {};
+  if (handle === "shaft" && BLOCK_ARROWS.has(shape)) {
+    const value = shape === "up-arrow" || shape === "down-arrow" ? 1 - 2 * (point.x - x) / w : 1 - 2 * (point.y - y) / h;
+    return { ...element, shapeAdjustments: { ...current, shaft: limited(value, .4, .1, .9) } };
+  }
+  if (handle === "head" && BLOCK_ARROWS.has(shape)) {
+    const value = shape === "right-arrow" ? 1 - (point.x - x) / w : shape === "left-arrow" || shape === "double-arrow" ? (point.x - x) / w : shape === "up-arrow" ? (point.y - y) / h : 1 - (point.y - y) / h;
+    return { ...element, shapeAdjustments: { ...current, head: limited(value, .4, .1, shape === "double-arrow" ? .45 : .85) } };
+  }
+  if (handle === "inset" && INSET_SHAPES.has(shape)) {
+    const value = shape === "star" ? Math.hypot((point.x - x - w / 2) / w, (point.y - y - h / 2) / h) : (point.x - x) / w;
+    return { ...element, shapeAdjustments: { ...current, inset: limited(value, .2, .05, .45) } };
+  }
+  return element;
 }
 
 export function shapePathObject(element: ShapeElement): Path2D | undefined {

@@ -1,12 +1,12 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { ArrowHead, ArrowRoute, ComponentMaster, FlowchartShape, LineRoute, StrokeStyle } from "../../model";
-import { LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../notes";
-import { FLOWCHART_SHAPES, GENERAL_SHAPES } from "../diagrams/config";
+import { LIBRARY_COMPONENTS, type LibraryComponentKind } from "../components/library-components";
+import { BASIC_SHAPES, FLOWCHART_SHAPES, GENERAL_SHAPES, type BasicShapeTool } from "../shapes/shape-catalog";
 import type { CustomStencil } from "../components/custom-stencils";
 import { LibraryComponentIcon } from "../../components/LibraryComponentIcon";
 import { cloudNeutralComponent, cloudProviderComponent } from "../diagrams/cloud-providers";
 
-type PrimitiveShape = "rectangle" | "circle" | "diamond" | "triangle";
+type PrimitiveShape = BasicShapeTool;
 
 export type DesignPaletteItem =
   | { type: "primitive"; shape: PrimitiveShape; label: string }
@@ -25,6 +25,7 @@ const COMPONENT_GROUPS = [
   { name: "Diagram structure", sources: ["General"] },
   { name: "Database", sources: ["ER", "Database"] },
   { name: "Architecture", sources: ["Architecture"] },
+  { name: "GUI design", sources: ["Forms & UI"] },
   { name: "Software", sources: ["Software"] },
   { name: "Cloud", sources: ["Cloud"] },
   { name: "Network", sources: ["Network"] },
@@ -37,13 +38,6 @@ const COMPONENT_GROUPS = [
 const COMPONENT_GROUP_BY_SOURCE = new Map<string, string>(
   COMPONENT_GROUPS.flatMap(group => group.sources.map(source => [source, group.name] as const)),
 );
-
-const primitiveShapes: { shape: PrimitiveShape; label: string; path: string }[] = [
-  { shape: "rectangle", label: "Rectangle", path: "M4 5h16v14H4z" },
-  { shape: "circle", label: "Ellipse", path: "M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0z" },
-  { shape: "diamond", label: "Diamond", path: "m12 3 9 9-9 9-9-9z" },
-  { shape: "triangle", label: "Triangle", path: "m12 4 9 16H3z" },
-];
 
 const connectorPresets: Omit<Extract<DesignPaletteItem, { type: "connector" }>, "type">[] = [
   { connector: "line", route: "straight", lineStyle: "solid", startHead: "none", endHead: "none", label: "Straight line" },
@@ -93,7 +87,7 @@ function createPaletteSections(stencils: CustomStencil[], masters: ComponentMast
     ...components.get("Database")!,
   ];
   const basicShapeEntries: PaletteEntry[] = [
-    ...primitiveShapes.map(shape => ({ item: { type: "primitive" as const, shape: shape.shape, label: shape.label }, searchText: shape.label })),
+    ...BASIC_SHAPES.map(shape => ({ item: { type: "primitive" as const, shape: shape.value, label: shape.label }, searchText: shape.label })),
     ...GENERAL_SHAPES.map(shape => ({ item: { type: "flowchart" as const, shape: shape.value, label: shape.label }, searchText: `${shape.label} general shape ${shape.value}` })),
   ];
   const connectorEntries = connectorPresets.map(preset => ({
@@ -106,6 +100,7 @@ function createPaletteSections(stencils: CustomStencil[], masters: ComponentMast
     { name: "Flowchart", entries: FLOWCHART_SHAPES.map(shape => ({ item: { type: "flowchart", shape: shape.value, label: shape.label }, searchText: `${shape.label} flowchart ${shape.value}` })) },
     { name: "Database", entries: databaseEntries },
     { name: "Architecture", entries: architectureEntries },
+    { name: "GUI design", entries: components.get("GUI design")! },
     { name: "Software", entries: components.get("Software")! },
     { name: "Cloud", entries: components.get("Cloud")! },
     { name: "Network", entries: components.get("Network")! },
@@ -131,7 +126,7 @@ function PaletteIcon(props: { item: DesignPaletteItem }) {
     return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={shape?.path ?? "M4 4h16v16H4z"} /></svg>;
   }
   if (item.type === "primitive") {
-    const shape = primitiveShapes.find(entry => entry.shape === item.shape);
+    const shape = BASIC_SHAPES.find(entry => entry.value === item.shape);
     return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={shape?.path ?? "M4 4h16v16H4z"} /></svg>;
   }
   if (item.type === "connector") {

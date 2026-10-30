@@ -1,5 +1,6 @@
 import type { FontFamily, GroupElement, Theme } from "../../model";
 import { cloudNeutralComponent, cloudProviderComponent } from "../diagrams/cloud-providers";
+import { cloudNeutralCanvasPath, cloudNeutralIconPath } from "./cloud-neutral-icons";
 import { drawGuiComponent, guiComponentSvg } from "./gui-components";
 
 type Palette = { ink: string; edge: string; fill: string; soft: string; muted: string; accent: string };
@@ -9,8 +10,16 @@ const paletteFor = (dark: boolean): Palette => dark
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number) {
   ctx.beginPath();
-  if (typeof ctx.roundRect === "function") ctx.roundRect(x, y, w, h, Math.min(radius, w / 2, h / 2));
+  if (w <= 0 || h <= 0) return;
+  if (typeof ctx.roundRect === "function") ctx.roundRect(x, y, w, h, Math.max(0, Math.min(radius, w / 2, h / 2)));
   else ctx.rect(x, y, w, h);
+}
+
+function attributeRadii(w: number, h: number, strokeWidth: number, double: boolean) {
+  const outerX = Math.max(0, w / 2 - strokeWidth / 2);
+  const outerY = Math.max(0, h / 2 - strokeWidth / 2);
+  const inset = double ? Math.min(5, outerX / 2, outerY / 2) : 0;
+  return { outerX, outerY, innerX: outerX - inset, innerY: outerY - inset };
 }
 
 function componentFieldValue(group: GroupElement, key: string): string {
@@ -230,20 +239,19 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   const neutralCloud = cloudNeutralComponent(kind);
   if (neutralCloud) {
     ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill;
-    if (fill !== "transparent") roundRect(ctx, x, y, w, h, 8);
-    if (fill !== "transparent") ctx.fill();
-    ctx.strokeStyle = neutralCloud.accent; ctx.lineWidth = 1.4; roundRect(ctx, x, y, w, h, 8); ctx.stroke();
-    const iconSide = Math.max(30, Math.min(46, h - 50, w * .27)); const iconX = x + 12; const iconY = y + 12;
-    ctx.fillStyle = theme === "dark" ? "#263a3d" : "#e8f3f2"; roundRect(ctx, iconX, iconY, iconSide, iconSide, 7); ctx.fill();
-    ctx.strokeStyle = neutralCloud.accent; ctx.lineWidth = 1; roundRect(ctx, iconX, iconY, iconSide, iconSide, 7); ctx.stroke();
-    fittedComponentSingleLine(ctx, neutralCloud.glyph, bounds, iconX + iconSide / 2, iconY + iconSide / 2, iconSide - 4, neutralCloud.glyph.length > 3 ? 9 : 11, neutralCloud.accent, 700, "center", textStyle);
-    const copyX = iconX + iconSide + 10; const copyWidth = Math.max(20, w - (copyX - x) - 10);
+    roundRect(ctx, x, y, w, h, 5); if (fill !== "transparent") ctx.fill();
+    ctx.strokeStyle = theme === "dark" ? "#66717b" : "#bdc8d0"; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = neutralCloud.accent; ctx.fillRect(x, y + 5, 3, Math.max(0, h - 10));
+    const iconSide = Math.min(25, Math.max(14, h - 20), Math.max(14, w * .22));
+    const iconX = x + 11; const iconY = y + Math.min(11, (h - iconSide) / 2);
+    const path = cloudNeutralCanvasPath(kind);
+    if (path) { ctx.save(); ctx.translate(iconX, iconY); ctx.scale(iconSide / 24, iconSide / 24); ctx.fillStyle = neutralCloud.accent; ctx.fill(path); ctx.restore(); }
+    const copyX = iconX + iconSide + 8; const copyWidth = Math.max(8, w - (copyX - x) - 7);
     const align = componentTextAlign(textStyle?.textAlign, "left"); const anchor = () => componentTextAnchor(copyX, copyWidth, "left", align);
-    fittedComponentSingleLine(ctx, name, bounds, anchor(), y + 28, copyWidth, Math.min(size, 12), textInk, 700, align, textStyle);
-    fittedComponentSingleLine(ctx, neutralCloud.category, bounds, anchor(), y + 47, copyWidth, 7, neutralCloud.accent, 650, align, textStyle);
-    ctx.strokeStyle = theme === "dark" ? "#475457" : "#d8e3e2"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + 10, y + 64); ctx.lineTo(x + w - 10, y + 64); ctx.stroke();
-    const details = (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, 2);
-    details.forEach((item, index) => fittedComponentSingleLine(ctx, `${item.label}: ${item.value.replace(/\s*\n\s*/g, " · ")}`, bounds, x + 11, y + 79 + index * 13, w - 22, 7, textInk, 400, "left", textStyle));
+    fittedComponentSingleLine(ctx, name, bounds, anchor(), y + Math.min(23, h * .39), copyWidth, Math.min(size, 12), textInk, 650, align, textStyle);
+    fittedComponentSingleLine(ctx, neutralCloud.category, bounds, anchor(), y + Math.min(41, h * .68), copyWidth, 7, neutralCloud.accent, 600, align, textStyle);
+    if (h > 76) (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, Math.min(2, Math.floor((h - 65) / 13)))
+      .forEach((item, index) => fittedComponentSingleLine(ctx, `${item.label}: ${item.value.replace(/\s*\n\s*/g, " · ")}`, bounds, x + 10, y + 68 + index * 13, w - 20, 7, textInk, 400, "left", textStyle));
     ctx.restore(); return;
   }
 
@@ -691,7 +699,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
       const platform = field("platform"); if (platform) label(platform, x + w * .24, screenY + h * .18, w * .52, Math.max(6, size * .5), false, "center");
     }
   } else if (["bpmn-start", "bpmn-event", "bpmn-end", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind)) {
-    const diameter = h >= 72 ? Math.min(58, w, h - 38) : Math.min(w, h - 14); const cx = x + w / 2; const cy = y + diameter / 2 + 1; const marked = ["bpmn-event", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind);
+    const diameter = Math.max(0, h >= 72 ? Math.min(58, w, h - 38) : Math.min(w, h - 14)); const cx = x + w / 2; const cy = y + diameter / 2 + 1; const marked = ["bpmn-event", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind);
     ctx.beginPath(); ctx.arc(cx, cy, diameter * .43, 0, Math.PI * 2); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "bpmn-end" || kind === "bpmn-terminate-event" ? 2.5 : 1.3; ctx.stroke();
     if (marked) { ctx.beginPath(); ctx.arc(cx, cy, diameter * .34, 0, Math.PI * 2); if (kind === "bpmn-boundary-event") ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]); }
     if (kind === "bpmn-message-event") { const mw = diameter * .38; const mh = diameter * .24; ctx.strokeRect(cx - mw / 2, cy - mh / 2, mw, mh); ctx.beginPath(); ctx.moveTo(cx - mw / 2, cy - mh / 2); ctx.lineTo(cx, cy + mh * .18); ctx.lineTo(cx + mw / 2, cy - mh / 2); ctx.stroke(); }
@@ -710,7 +718,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     if (eventDetail && h >= 72) label(eventDetail, x + 4, y + h - 24, w - 8, Math.max(7, size * .6), false, "center");
     label(name, x, y + h - 8, w, Math.max(7, size * .64), false, "center");
   } else if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) {
-    const side = Math.min(w, h - 12, 58); const cx = x + w / 2; const left = cx - side / 2; const cy = side / 2; ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(cx + side / 2, y + cy); ctx.lineTo(cx, y + side); ctx.lineTo(left, y + cy); ctx.closePath(); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    const side = Math.max(0, Math.min(w, h - 12, 58)); const cx = x + w / 2; const left = cx - side / 2; const cy = side / 2; ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(cx + side / 2, y + cy); ctx.lineTo(cx, y + side); ctx.lineTo(left, y + cy); ctx.closePath(); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
     if (kind === "bpmn-parallel-gateway") { rule(cx, y + side * .28, cx, y + side * .72); rule(cx - side * .22, y + cy, cx + side * .22, y + cy); }
     else if (kind === "bpmn-inclusive-gateway") { ctx.beginPath(); ctx.arc(cx, cy, side * .18, 0, Math.PI * 2); ctx.stroke(); }
     else if (kind === "bpmn-event-gateway") { ctx.beginPath(); ctx.arc(cx, cy, side * .2, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, side * .14, 0, Math.PI * 2); ctx.stroke(); }
@@ -1015,10 +1023,10 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
       const targetRole = field(kind === "er-identifying-relationship" ? "dependent-role" : "target-role");
       if (sourceRole || targetRole) erLabel(`${sourceRole || "?"} - ${targetRole || "?"}`, x + w / 2, y + h * .66, w * .48);
     } else if (kind.includes("attribute")) {
-      const double = kind === "er-multivalued-attribute"; const inset = double ? 5 : 0;
-      ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2 - strokeWidth / 2 - inset, h / 2 - strokeWidth / 2 - inset, 0, 0, Math.PI * 2);
+      const double = kind === "er-multivalued-attribute"; const radii = attributeRadii(w, h, strokeWidth, double);
+      ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, radii.innerX, radii.innerY, 0, 0, Math.PI * 2);
       if (kind === "er-derived-attribute" || kind === "er-partial-key-attribute") ctx.setLineDash([4, 3]); paintShape(); ctx.setLineDash([]);
-      if (double) { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2 - strokeWidth / 2, h / 2 - strokeWidth / 2, 0, 0, Math.PI * 2); ctx.strokeStyle = erEdge; ctx.stroke(); }
+      if (double) { ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, radii.outerX, radii.outerY, 0, 0, Math.PI * 2); ctx.strokeStyle = erEdge; ctx.stroke(); }
       erLabel(erName, x + w / 2, y + h * .42, w * .72, kind === "er-key-attribute" || kind === "er-partial-key-attribute");
       const type = field(kind === "er-multivalued-attribute" ? "element-type" : kind === "er-derived-attribute" ? "expression" : "data-type");
       if (type) erLabel(type, x + w / 2, y + h * .7, w * .7);
@@ -1172,9 +1180,13 @@ function renderModelComponentSvg(group: GroupElement): string {
     const p = (d: string, dash = "") => `<path d="${d}" fill="none" stroke="${ink}" stroke-width="1.3"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
     const neutralCloud = cloudNeutralComponent(kind);
     if (neutralCloud) {
-      const iconSide = Math.max(30, Math.min(46, h - 50, w * .27)); const iconX = x + 12; const iconY = y + 12; const copyX = iconX + iconSide + 10; const copyWidth = Math.max(20, w - (copyX - x) - 10);
-      const details = (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, 2);
-      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${cleanFill}" stroke="${neutralCloud.accent}" stroke-width="1.4"/><rect x="${iconX}" y="${iconY}" width="${iconSide}" height="${iconSide}" rx="7" fill="#e8f3f2" stroke="${neutralCloud.accent}"/><text x="${iconX + iconSide / 2}" y="${iconY + iconSide / 2}" text-anchor="middle" dominant-baseline="middle" fill="${neutralCloud.accent}" font-family="sans-serif" font-size="${neutralCloud.glyph.length > 3 ? 9 : 11}" font-weight="700">${xmlText(neutralCloud.glyph)}</text>${t(rawTitle, copyX, y + 28, copyWidth, Math.min(size, 12))}<text x="${copyX}" y="${y + 47}" dominant-baseline="middle" fill="${neutralCloud.accent}" font-family="sans-serif" font-size="7" font-weight="650">${xmlText(neutralCloud.category)}</text><path d="M ${x + 10} ${y + 64} H ${x + w - 10}" stroke="${neutralCloud.accent}" stroke-opacity=".28"/>${details.map((item, index) => t(`${item.label}: ${item.value}`, x + 11, y + 79 + index * 13, w - 22, 7, "start", 400)).join("")}`;
+      const iconSide = Math.min(25, Math.max(14, h - 20), Math.max(14, w * .22));
+      const iconX = x + 11; const iconY = y + Math.min(11, (h - iconSide) / 2);
+      const copyX = iconX + iconSide + 8; const copyWidth = Math.max(8, w - (copyX - x) - 7);
+      const path = cloudNeutralIconPath(kind);
+      const icon = path ? `<path d="${path}" fill="${neutralCloud.accent}" transform="translate(${iconX} ${iconY}) scale(${iconSide / 24})"/>` : "";
+      const details = h > 76 ? (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, Math.min(2, Math.floor((h - 65) / 13))) : [];
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="5" fill="${cleanFill}" stroke="#bdc8d0"/><path d="M ${x + 1.5} ${y + 5} V ${y + h - 5}" stroke="${neutralCloud.accent}" stroke-width="3"/>${icon}${t(rawTitle, copyX, y + Math.min(23, h * .39), copyWidth, Math.min(size, 12))}<text x="${copyX}" y="${y + Math.min(41, h * .68)}" dominant-baseline="middle" fill="${neutralCloud.accent}" font-family="sans-serif" font-size="7" font-weight="600">${xmlText(neutralCloud.category)}</text>${details.map((item, index) => t(`${item.label}: ${item.value}`, x + 10, y + 68 + index * 13, w - 20, 7, "start", 400)).join("")}`;
     }
     if (kind === "db-view") {
       const fold = Math.min(22, w * .14); const sources = field("sources"); const query = field("query"); const refresh = field("refresh");
@@ -1365,7 +1377,7 @@ function renderModelComponentSvg(group: GroupElement): string {
       return `${r()}${t(rawTitle.toUpperCase(), cx, y + 14, w - 12, Math.min(size, 11), "middle")}${p(`M ${x + 12} ${cy} H ${x + w - 12} M ${x + w * .32} ${cy - 7} l-7 7 7 7 M ${x + w * .68} ${cy - 7} l7 7-7 7`)}${field("upstream") ? t(field("upstream"), cx, y + h - 5, w - 16, Math.max(6, size * .5), "middle", 400) : ""}`;
     }
     if (["bpmn-start", "bpmn-event", "bpmn-end", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind)) {
-      const diameter = h >= 72 ? Math.min(58, w, h - 38) : Math.min(w, h - 14); const cx = x + w / 2; const cy = diameter / 2 + y + 1;
+      const diameter = Math.max(0, h >= 72 ? Math.min(58, w, h - 38) : Math.min(w, h - 14)); const cx = x + w / 2; const cy = diameter / 2 + y + 1;
       const marked = !["bpmn-start", "bpmn-end"].includes(kind);
       const outer = `<circle cx="${cx}" cy="${cy}" r="${diameter * .43}" fill="${kind === "bpmn-terminate-event" ? ink : cleanFill}" stroke="${ink}" stroke-width="${kind === "bpmn-end" || kind === "bpmn-terminate-event" ? 2.5 : 1.3}"/>`;
       const inner = marked ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .34}" fill="none" stroke="${kind === "bpmn-terminate-event" ? cleanFill : ink}"${kind === "bpmn-boundary-event" ? " stroke-dasharray=\"3 2\"" : ""}/>` : "";
@@ -1505,9 +1517,9 @@ function renderModelComponentSvg(group: GroupElement): string {
       return `${diamond}${inner}${text(rawTitle, x + w / 2, y + h * .42, w * .62)}${sourceRole || targetRole ? text(`${sourceRole || "?"} - ${targetRole || "?"}`, x + w / 2, y + h * .66, w * .48, Math.max(6, size * .6)) : ""}`;
     }
     if (kind.includes("attribute")) {
-      const inset = kind === "er-multivalued-attribute" ? 5 : 0; const dash = kind === "er-derived-attribute" || kind === "er-partial-key-attribute" ? ` stroke-dasharray="4 3"` : "";
-      const ellipse = `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2 - .7 - inset}" ry="${h / 2 - .7 - inset}" fill="${erFill}" stroke="${erEdge}"${dash}/>`;
-      const outer = kind === "er-multivalued-attribute" ? `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2 - .7}" ry="${h / 2 - .7}" fill="none" stroke="${erEdge}"/>` : "";
+      const double = kind === "er-multivalued-attribute"; const radii = attributeRadii(w, h, 1.4, double); const dash = kind === "er-derived-attribute" || kind === "er-partial-key-attribute" ? ` stroke-dasharray="4 3"` : "";
+      const ellipse = `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${radii.innerX}" ry="${radii.innerY}" fill="${erFill}" stroke="${erEdge}"${dash}/>`;
+      const outer = double ? `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${radii.outerX}" ry="${radii.outerY}" fill="none" stroke="${erEdge}"/>` : "";
       const label = text(rawTitle, x + w / 2, y + h * .42, w * .72); const underline = kind === "er-key-attribute" || kind === "er-partial-key-attribute" ? `<path d="M ${x + w * .28} ${y + h * .51} H ${x + w * .72}" stroke="${erEdge}"/>` : "";
       const type = field(kind === "er-multivalued-attribute" ? "element-type" : kind === "er-derived-attribute" ? "expression" : "data-type");
       return `${ellipse}${outer}${label}${underline}${type ? text(type, x + w / 2, y + h * .7, w * .7, Math.max(7, size * .6)) : ""}`;
@@ -1559,7 +1571,10 @@ function renderModelComponentSvg(group: GroupElement): string {
 
 /** Keeps component text formatting consistent when the vector renderer exports its dynamic labels. */
 export function modelComponentSvg(group: GroupElement) {
-  const svg = renderModelComponentSvg(group);
+  // Nested decorations can be wider than an imported or tightly resized symbol.
+  // Keep their SVG geometry valid without changing the saved component bounds.
+  const svg = renderModelComponentSvg(group).replace(/<(?:circle|ellipse|rect)\b[^>]*>/g, tag =>
+    tag.replace(/\b(r|rx|ry|width|height)="(-(?:\d|\.)[^"]*)"/g, (_attribute, name: string) => `${name}="0"`));
   const style = group.libraryComponent?.textStyle;
   if (!svg || !style) return svg;
   const family = componentFontFamily(style.fontFamily);

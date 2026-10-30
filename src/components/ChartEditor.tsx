@@ -2,7 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import type { GroupElement, LibraryChartData, LibraryChartKind, LibraryChartOptions, LibraryChartSeries } from "../model";
 import { chartDataFromCsv, chartDataToCsv } from "../features/components/chart-import";
 import { resizeLibraryGroup, setLibraryChartTrend } from "../features/components/library-component-editor";
-import { defaultLibraryChartData, LIBRARY_COMPONENTS } from "../notes";
+import { defaultLibraryChartData, LIBRARY_COMPONENTS } from "../features/components/library-components";
 import "./chart-editor.css";
 
 type Props = {

@@ -25,3 +25,22 @@ export function findMarkdownTableBlock(content: string): MarkdownTableBlock | un
 export function replaceMarkdownTableBlock(content: string, block: MarkdownTableBlock, replacement: string): string {
   const lines = content.split(/\r?\n/); lines.splice(block.start, block.end - block.start, ...replacement.split(/\r?\n/)); return lines.join("\n");
 }
+
+export function markdownTableRows(text: string): string[][] {
+  const lines = text.split(/\r?\n/);
+  const cells = (line: string) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map(value => value.trim().replace(/\\\|/g, "|"));
+  return [cells(lines[0] ?? ""), ...lines.slice(2).map(cells)];
+}
+
+export function serializeMarkdownTableRows(rows: string[][], source?: string): string {
+  const columns = Math.max(1, rows[0]?.length ?? 0);
+  const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, index) => (cells[index] ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ")).join(" | ")} |`;
+  const dividers = source?.split(/\r?\n/)[1]?.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(value => value.trim()) ?? [];
+  const divider = Array.from({ length: columns }, (_, index) => /^:?-{3,}:?$/.test(dividers[index] ?? "") ? dividers[index] : "---");
+  return [row(rows[0] ?? []), `| ${divider.join(" | ")} |`, ...rows.slice(1).map(row)].join("\n");
+}
+
+export function standaloneMarkdownTableRows(content: string): string[][] | undefined {
+  const block = findMarkdownTableBlock(content);
+  return block && block.text.trim() === content.trim() ? markdownTableRows(block.text) : undefined;
+}

@@ -367,11 +367,14 @@ h1 em {
     top: 100%;
     left: 50%;
     display: none;
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: calc(100vw - 20px);
     border: 1px solid var(--theme-border);
     transform: translateX(-50%);
 }
 
-.tool-options:not(.stencil-options) button {
+.tool-options button {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -379,7 +382,7 @@ h1 em {
     cursor: pointer;
 }
 
-.tool-options:not(.stencil-options) button>svg {
+.tool-options button>svg {
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;

@@ -1,7 +1,8 @@
 import type { Element, GroupElement, LibraryComponentData, Point, ShapeElement } from "../../model";
 import { elementBounds } from "../canvas/bounds";
+import { cloudNeutralComponent } from "../diagrams/cloud-providers";
 import { defaultGuiComponentProperties, guiChoiceMinimumHeight, guiNavigationMinimumHeight } from "./gui-components";
-import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryComponentFields, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../notes";
+import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryComponentFields, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "./library-components";
 
 export type LibraryComponentField = { key: string; label: string; value: string; hint?: string };
 
@@ -144,6 +145,7 @@ export function libraryComponentFontSize(group: GroupElement): number {
 
 export function libraryComponentMinimum(group: GroupElement, axis: "w" | "h"): number {
   const kind = group.libraryComponent?.kind;
+  if (kind && cloudNeutralComponent(kind)) return axis === "w" ? 90 : 48;
   if (kind === "uml-class") return axis === "w" ? 180 : 110;
   const modelMinimums: Record<string, { w: number; h: number }> = {
     "uml-object": { w: 150, h: 96 },
@@ -162,7 +164,9 @@ export function libraryComponentMinimum(group: GroupElement, axis: "w" | "h"): n
   if (kind?.startsWith("gui-")) {
     const minimums: Record<string, { w: number; h: number }> = {
       "gui-card": { w: 120, h: 25 }, "gui-app-bar": { w: 60, h: 25 }, "gui-navigation": { w: 50, h: guiNavigationMinimumHeight(group) },
-      "gui-tabs": { w: 60, h: 25 }, "gui-image": { w: 40, h: 25 },
+      "gui-tabs": { w: 60, h: 25 }, "gui-image": { w: 40, h: 25 }, "gui-alert": { w: 90, h: 36 }, "gui-modal": { w: 150, h: 90 },
+      "gui-breadcrumbs": { w: 80, h: 25 }, "gui-avatar": { w: 25, h: 25 }, "gui-badge": { w: 38, h: 20 }, "gui-progress": { w: 80, h: 30 },
+      "gui-list": { w: 80, h: 72 }, "gui-table": { w: 90, h: 40 }, "gui-accordion": { w: 80, h: 72 }, "gui-menu": { w: 72, h: 72 }, "gui-toast": { w: 150, h: 50 }, "gui-pagination": { w: 148, h: 30 }, "gui-divider": { w: 30, h: 8 }, "gui-footer": { w: 150, h: 30 },
     };
     return minimums[kind]?.[axis] ?? 10;
   }
@@ -171,9 +175,12 @@ export function libraryComponentMinimum(group: GroupElement, axis: "w" | "h"): n
     if (kind === "form-button") return 50;
     if (kind === "form-toggle") return 75;
     if (kind === "form-checkbox" || kind === "form-radio") return 75;
+    if (kind === "form-slider") return 80;
     return 75;
   }
   if (kind === "form-checkbox" || kind === "form-radio") return guiChoiceMinimumHeight(group);
+  if (kind === "form-textarea") return 45;
+  if (kind === "form-slider") return 35;
   return 25;
 }
 
@@ -355,10 +362,10 @@ export function rebuildLibraryFormOptions(group: GroupElement, options: string[]
 
 export function setLibraryFormTitle(group: GroupElement, title: string): GroupElement {
   const kind = group.libraryComponent?.kind;
-  if (kind !== "form-checkbox" && kind !== "form-radio" && kind !== "form-select" && kind !== "form-toggle" && kind !== "form-input") return group;
+  if (!kind?.startsWith("form-")) return group;
   const formTitle = title.slice(0, 80);
   if (group.componentBounds) return { ...group, libraryComponent: { ...group.libraryComponent!, formTitle } };
-  const titleRole = kind === "form-checkbox" ? "form-checkbox-title" : kind === "form-radio" ? "form-radio-title" : kind === "form-select" ? "form-select-title" : kind === "form-input" ? "form-input-title" : "form-toggle-title";
+  const titleRole = kind === "form-checkbox" ? "form-checkbox-title" : kind === "form-radio" ? "form-radio-title" : kind === "form-select" ? "form-select-title" : kind === "form-input" ? "form-input-title" : kind === "form-toggle" ? "form-toggle-title" : `form-${kind.slice("form-".length)}-title`;
   const elements = mapDescendants(group.elements, element => element.type === "text" && element.componentRole === titleRole ? { ...element, text: formTitle } : element);
   return { ...group, elements, libraryComponent: { ...group.libraryComponent!, formTitle } };
 }

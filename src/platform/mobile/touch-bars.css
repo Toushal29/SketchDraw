@@ -121,7 +121,7 @@
         background: var(--toolbar-surface, var(--theme-background));
         box-shadow: 0 10px 32px var(--theme-shadow);
     }
-    .app-shell:not(.platform-windows) .tool-family.options-open .tool-options:not(.stencil-options) > button {
+    .app-shell:not(.platform-windows) .tool-family.options-open .tool-options > button {
         box-sizing: border-box;
         min-width: 0;
         min-height: 40px;
@@ -131,15 +131,12 @@
         background: transparent;
         touch-action: manipulation;
     }
-    .app-shell:not(.platform-windows) .tool-family.options-open .tool-options:not(.stencil-options) > button:hover,
-    .app-shell:not(.platform-windows) .tool-family.options-open .tool-options:not(.stencil-options) > button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
+    .app-shell:not(.platform-windows) .tool-family.options-open .tool-options > button:hover,
+    .app-shell:not(.platform-windows) .tool-family.options-open .tool-options > button.active { border-color: var(--ui-accent-border); color: var(--ui-accent-ink); background: var(--ui-accent-soft); }
     .app-shell:not(.platform-windows) .paint-brush-options { --touch-popup-width: 190px; display: grid; grid-template-columns: 1fr; gap: 2px; }
     .app-shell:not(.platform-windows) .paint-brush-options > button { justify-content: flex-start; gap: 8px; text-align: left; }
     .app-shell:not(.platform-windows) .paint-brush-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }
-    .app-shell:not(.platform-windows) .tool-family.options-open .text-options { --touch-popup-width: 260px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .app-shell:not(.platform-windows) .text-options > button { justify-content: flex-start; gap: 6px; padding: 6px; text-align: left; }
-    .app-shell:not(.platform-windows) .text-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }
-    .app-shell:not(.platform-windows) .text-options > button span { min-width: 0; font-size: var(--type-micro); }
+    .app-shell:not(.platform-windows) .tool-family.options-open .text-tool-panel { --touch-popup-width: 238px; display: grid; grid-template-columns: 1fr; }
     .app-shell:not(.platform-windows) .tool-family.options-open .route-options { --touch-popup-width: 260px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .app-shell:not(.platform-windows) .route-options > button { justify-content: flex-start; gap: 6px; padding: 5px; text-align: left; }
     .app-shell:not(.platform-windows) .route-options > button svg { width: 18px; height: 18px; flex: 0 0 18px; }

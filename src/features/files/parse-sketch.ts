@@ -1,11 +1,12 @@
 import { SKETCH_FORMAT_VERSION } from "../../model";
 import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ComponentMaster, ConnectionPoint, ContainerMetadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, RelationshipDirection, RelationshipType, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
-import { normalizeCanvasDataBinding, normalizeCanvasDataSources } from "../diagrams/canvas-data";
 import { ensureCanvasLayerPath, normalizeCanvasLayers } from "../canvas/structure";
 import { elementBounds, unionBounds } from "../canvas/bounds";
+import { cloudNeutralComponent } from "../diagrams/cloud-providers";
+import { buildNoteGroup } from "../../notes";
 import { validReferences } from "../../operations";
 import { defaultCurveControlPoints } from "../connectors/geometry";
-import { ALL_FLOWCHART_SHAPES } from "../diagrams/config";
+import { ALL_FLOWCHART_SHAPES } from "../shapes/shape-catalog";
 import { schemaTableMinimumHeight, schemaTableResizeMinimumWidth } from "../diagrams/schema-table-layout";
 import { sanitizeIconSvg } from "./sanitize-svg";
 import { normalizeLegacyLibraryData } from "./legacy-library-data";
@@ -93,7 +94,6 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
   if (depth > MAX_ELEMENT_DEPTH || budget.remaining <= 0) return undefined;
   budget.remaining -= 1;
   if (!isRecord(value) || typeof value.type !== "string" || typeof value.id !== "string" || !value.id || value.id.length > 100) return undefined;
-  const dataBinding = normalizeCanvasDataBinding(value.dataBinding);
   const flags: LayerFlags = {
     id: value.id,
     hidden: typeof value.hidden === "boolean" ? value.hidden : false,
@@ -108,7 +108,6 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     ...(typeof value.pageLinkId === "string" && value.pageLinkId.length <= 100 ? { pageLinkId: value.pageLinkId } : {}),
     ...(typeof value.prototypeTargetId === "string" && value.prototypeTargetId.length <= 100 ? { prototypeTargetId: value.prototypeTargetId } : {}),
     ...(typeof value.projectTaskId === "string" && /^[\w.-]{1,100}$/.test(value.projectTaskId) ? { projectTaskId: value.projectTaskId } : {}),
-    ...(dataBinding ? { dataBinding } : {}),
     ...(typeof value.masterElementId === "string" && value.masterElementId.length <= 100 ? { masterElementId: value.masterElementId } : {}),
     ...(Array.isArray(value.strideThreats) ? { strideThreats: [...new Set(value.strideThreats.filter((threat): threat is StrideThreatCategory => ["spoofing", "tampering", "repudiation", "information-disclosure", "denial-of-service", "elevation-of-privilege"].includes(String(threat))))].slice(0, 6) } : {}),
     ...(normalizeArchitectureMetadata(value.architecture) ? { architecture: normalizeArchitectureMetadata(value.architecture) } : {}),
@@ -120,7 +119,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const note = isRecord(value.note) && ["note", "sticky", "checklist"].includes(String(value.note.kind)) && typeof value.note.content === "string" && value.note.content.length <= 50000
       && (value.note.title === undefined || typeof value.note.title === "string" && value.note.title.length <= 120)
       && (value.note.width === undefined || finite(value.note.width) && value.note.width >= 180 && value.note.width <= 4000)
-      && (value.note.height === undefined || finite(value.note.height) && value.note.height >= 100 && value.note.height <= 1_000_000)
+      && (value.note.height === undefined || finite(value.note.height) && value.note.height >= 32 && value.note.height <= 1_000_000)
       && (value.note.fontSize === undefined || finite(value.note.fontSize) && value.note.fontSize >= 8 && value.note.fontSize <= 32)
       && (value.note.collapsed === undefined || typeof value.note.collapsed === "boolean")
       ? { kind: value.note.kind as NoteKind, content: value.note.content, ...(typeof value.note.title === "string" ? { title: value.note.title } : {}), ...(finite(value.note.width) ? { width: value.note.width } : {}), ...(finite(value.note.height) ? { height: value.note.height } : {}), ...(finite(value.note.fontSize) ? { fontSize: Math.round(value.note.fontSize) } : {}), ...(typeof value.note.collapsed === "boolean" ? { collapsed: value.note.collapsed } : {}) } : undefined;
@@ -256,7 +255,23 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       : undefined;
     const resolvedComponentBounds = componentBoundsValue ?? inferredBounds;
     if ((value.note !== undefined && !note) || (value.mermaid !== undefined && !mermaid) || (value.libraryComponent !== undefined && !libraryComponent) || (value.componentBounds !== undefined && !componentBoundsValue) || (value.container !== undefined && !container) || (value.masterId !== undefined && !masterId) || (value.variantKey !== undefined && !variantKey) || (value.componentOverrides !== undefined && !componentOverrides) || (value.connectionPoints !== undefined && !connectionPoints) || (value.stencilParameters !== undefined && !stencilParameters) || (componentBoundsValue && !libraryComponent && !container && !masterId && !stencilParameters) || (containerMetadata?.kind === "frame" && !resolvedComponentBounds) || (note && mermaid) || (libraryComponent && (note || mermaid))) return undefined;
-    return { type: "group", ...flags, elements: children as Element[], ...(resolvedComponentBounds ? { componentBounds: resolvedComponentBounds } : {}), ...(containerMetadata ? { container: containerMetadata } : {}), note, mermaid, libraryComponent, ...(masterId ? { masterId } : {}), ...(variantKey ? { variantKey } : {}), ...(componentOverrides ? { componentOverrides } : {}), ...(connectionPoints?.length ? { connectionPoints } : {}), ...(stencilParameters ? { stencilParameters } : {}) };
+    let normalizedChildren = children as Element[];
+    let normalizedNote = note;
+    if (note && [84, 94, 154].includes(note.height ?? -1) && normalizedChildren.length === 1) {
+      const surface = normalizedChildren[0];
+      if (surface.type === "rectangle" && Math.abs(surface.h) === note.height && Math.abs(surface.w) === note.width) {
+        const fitted = buildNoteGroup(surface.x, surface.y, note.kind, note.content, { width: note.width, fontSize: note.fontSize, title: note.title, collapsed: note.collapsed });
+        if (fitted.note && fitted.note.height !== undefined && fitted.note.height < note.height) {
+          normalizedNote = { ...note, height: fitted.note.height };
+          normalizedChildren = [{ ...surface, h: note.collapsed ? 32 : fitted.note.height }];
+        }
+      }
+    }
+    const normalizedComponentBounds = resolvedComponentBounds && libraryComponent && cloudNeutralComponent(libraryComponent.kind)
+      && resolvedComponentBounds.w === 176 && resolvedComponentBounds.h === 108
+      && !(libraryComponent.componentFields ?? []).some(field => field.value.trim())
+      ? { ...resolvedComponentBounds, h: 58 } : resolvedComponentBounds;
+    return { type: "group", ...flags, elements: normalizedChildren, ...(normalizedComponentBounds ? { componentBounds: normalizedComponentBounds } : {}), ...(containerMetadata ? { container: containerMetadata } : {}), note: normalizedNote, mermaid, libraryComponent, ...(masterId ? { masterId } : {}), ...(variantKey ? { variantKey } : {}), ...(componentOverrides ? { componentOverrides } : {}), ...(connectionPoints?.length ? { connectionPoints } : {}), ...(stencilParameters ? { stencilParameters } : {}) };
   }
   if (value.type === "freehand") {
     if (!Array.isArray(value.points) || value.points.length > MAX_STROKE_POINTS || value.points.length > budget.remainingStrokePoints || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0 || !value.points.every((point) => isRecord(point) && finite(point.x) && finite(point.y))) return undefined;
@@ -322,6 +337,12 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const fillOpacity = finite(value.fillOpacity) ? Math.max(0, Math.min(1, value.fillOpacity)) : 0.2;
     const validHead = (head: unknown): head is ArrowHead => ["none", "open", "solid", "hollow", "thick", "dot", "diamond", "open-diamond", "bar", "crow"].includes(String(head));
     const flowchartShape: FlowchartShape = ALL_FLOWCHART_SHAPES.some(shape => shape.value === value.flowchartShape) ? value.flowchartShape as FlowchartShape : "process";
+    const rawAdjustments = value.shapeAdjustments && typeof value.shapeAdjustments === "object" ? value.shapeAdjustments as Record<string, unknown> : undefined;
+    const shapeAdjustments = rawAdjustments ? {
+      ...(finite(rawAdjustments.shaft) ? { shaft: Math.max(.1, Math.min(.9, rawAdjustments.shaft)) } : {}),
+      ...(finite(rawAdjustments.head) ? { head: Math.max(.1, Math.min(.85, rawAdjustments.head)) } : {}),
+      ...(finite(rawAdjustments.inset) ? { inset: Math.max(.05, Math.min(.45, rawAdjustments.inset)) } : {}),
+    } : undefined;
     const savedLineRoute = String(value.lineRoute);
     const lineRoute: LineRoute = savedLineRoute === "elbow" ? "elbow" : ["curve", "curve2", "curve3", "multi"].includes(savedLineRoute) ? "curve" : "straight";
     const oldCurveNodeCount = savedLineRoute === "curve2" ? 2 : savedLineRoute === "curve3" ? 3 : savedLineRoute === "multi" ? 4 : 1;
@@ -360,7 +381,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const relationshipType: RelationshipType | undefined = ["association", "dependency", "data-flow", "inheritance", "aggregation", "composition", "sequence", "network", "other"].includes(String(value.relationshipType)) ? value.relationshipType as RelationshipType : undefined;
     const relationshipDirection: RelationshipDirection | undefined = ["forward", "both", "none"].includes(String(value.relationshipDirection)) ? value.relationshipDirection as RelationshipDirection : undefined;
     const transportSecurity: TransportSecurity | undefined = ["encrypted", "unencrypted", "unknown"].includes(String(value.transportSecurity)) ? value.transportSecurity as TransportSecurity : undefined;
-    return { type: value.type as ShapeElement["type"], ...flags, ...(connectionPoints ? { connectionPoints } : {}), startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, ...(autoRoute ? { autoRoute: true, routeWaypoints: value.routeWaypoints as Point[] | undefined } : {}), ...(straightOnly ? { straightOnly: true } : {}), forkUpper: straightOnly ? undefined : forkUpper ?? undefined, forkLower: straightOnly ? undefined : forkLower ?? undefined, label, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, lineRoute: value.type === "line" ? straightOnly ? "straight" : lineRoute : undefined, arrowRoute: value.type === "arrow" ? straightOnly ? "straight" : arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(typeof value.cardinality === "string" && value.cardinality.length <= 40 ? { cardinality: value.cardinality } : {}), ...(typeof value.protocol === "string" && value.protocol.length <= 40 ? { protocol: value.protocol } : {}), ...(finite(value.portNumber) && value.portNumber >= 1 && value.portNumber <= 65535 ? { portNumber: Math.round(value.portNumber) } : {}), ...(typeof value.apiContract === "string" && value.apiContract.length <= 2000 ? { apiContract: value.apiContract } : {}), ...(typeof value.dataContract === "string" && value.dataContract.length <= 2000 ? { dataContract: value.dataContract } : {}), ...(typeof value.sequenceCondition === "string" && value.sequenceCondition.length <= 500 ? { sequenceCondition: value.sequenceCondition } : {}), ...(value.sequenceDefault === true ? { sequenceDefault: true } : {}), ...(relationshipType ? { relationshipType } : {}), ...(relationshipDirection ? { relationshipDirection } : {}), ...(transportSecurity ? { transportSecurity } : {}), ...(typeof value.schemaDiagramId === "string" ? { schemaDiagramId: value.schemaDiagramId } : {}) };
+    return { type: value.type as ShapeElement["type"], ...flags, ...(connectionPoints ? { connectionPoints } : {}), startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, ...(autoRoute ? { autoRoute: true, routeWaypoints: value.routeWaypoints as Point[] | undefined } : {}), ...(straightOnly ? { straightOnly: true } : {}), forkUpper: straightOnly ? undefined : forkUpper ?? undefined, label, x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, ...(value.type === "flowchart" && shapeAdjustments && Object.keys(shapeAdjustments).length ? { shapeAdjustments } : {}), lineRoute: value.type === "line" ? straightOnly ? "straight" : lineRoute : undefined, arrowRoute: value.type === "arrow" ? straightOnly ? "straight" : arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(typeof value.cardinality === "string" && value.cardinality.length <= 40 ? { cardinality: value.cardinality } : {}), ...(typeof value.protocol === "string" && value.protocol.length <= 40 ? { protocol: value.protocol } : {}), ...(finite(value.portNumber) && value.portNumber >= 1 && value.portNumber <= 65535 ? { portNumber: Math.round(value.portNumber) } : {}), ...(typeof value.apiContract === "string" && value.apiContract.length <= 2000 ? { apiContract: value.apiContract } : {}), ...(typeof value.dataContract === "string" && value.dataContract.length <= 2000 ? { dataContract: value.dataContract } : {}), ...(typeof value.sequenceCondition === "string" && value.sequenceCondition.length <= 500 ? { sequenceCondition: value.sequenceCondition } : {}), ...(value.sequenceDefault === true ? { sequenceDefault: true } : {}), ...(relationshipType ? { relationshipType } : {}), ...(relationshipDirection ? { relationshipDirection } : {}), ...(transportSecurity ? { transportSecurity } : {}), ...(typeof value.schemaDiagramId === "string" ? { schemaDiagramId: value.schemaDiagramId } : {}) };
   }
   return undefined;
 }
@@ -416,7 +437,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
       return [group];
     });
   };
-  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, budget: ElementParseBudget, rawLayers?: unknown, rawMasters?: unknown, rawVisibilityPresets?: unknown, rawDataSources?: unknown): SketchPage | undefined => {
+  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, budget: ElementParseBudget, rawLayers?: unknown, rawMasters?: unknown, rawVisibilityPresets?: unknown): SketchPage | undefined => {
     if (typeof id !== "string" || typeof name !== "string" || !isRecord(stateValue) || !Array.isArray(elementsValue) || elementsValue.length > MAX_ELEMENTS_PER_PAGE) return undefined;
     const state = stateValue;
     if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !isColor(state.backgroundColor)) return undefined;
@@ -436,16 +457,6 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
         return [{ id: raw.id, name: raw.name.trim().slice(0, 80), hiddenLayerIds: [...new Set(raw.hiddenLayerIds.filter((value): value is string => typeof value === "string" && layerIds.has(value)))].slice(0, 500) }];
       })
       : [];
-    const dataSources = rawDataSources === undefined ? [] : normalizeCanvasDataSources(rawDataSources);
-    if (!dataSources) return undefined;
-    const dataSourceIds = new Set(dataSources.map(source => source.id));
-    const validateDataBindings = (items: Element[]): Element[] => items.map(item => {
-      const { dataBinding, ...rest } = item;
-      const binding = dataBinding && dataSourceIds.has(dataBinding.sourceId) ? dataBinding : undefined;
-      if (item.type !== "group") return binding ? { ...rest, dataBinding: binding } as Element : rest as Element;
-      const children = validateDataBindings(item.elements);
-      return { ...rest, ...(binding ? { dataBinding: binding } : {}), elements: children } as Element;
-    });
     const layerPaths = new Map<string, string>();
     const assignLayerIds = (items: Element[]): Element[] => items.map(item => {
       let layerId = item.layerId;
@@ -460,7 +471,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
       const children = assignLayerIds(item.elements);
       return layerId === item.layerId && children.every((child, index) => child === item.elements[index]) ? item : { ...item, layerId, elements: children };
     });
-    normalizedElements = assignLayerIds(validateDataBindings(normalizedElements));
+    normalizedElements = assignLayerIds(normalizedElements);
     const guides = Array.isArray(state.guides) && state.guides.length <= 200 && state.guides.every(guide => isRecord(guide) && (guide.axis === "x" || guide.axis === "y") && finite(guide.position) && Math.abs(guide.position) <= 1_000_000_000)
       ? state.guides.map(guide => ({ axis: guide.axis as "x" | "y", position: guide.position as number })) : undefined;
     const componentMasters = Array.isArray(rawMasters) && rawMasters.length <= 100 ? rawMasters.flatMap(raw => {
@@ -475,7 +486,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
       }) : [];
       return [{ id: raw.id.slice(0, 80), name: raw.name.trim().slice(0, 80) || "Component", template: template as Element[], bounds: { x: raw.bounds.x, y: raw.bounds.y, w: raw.bounds.w, h: raw.bounds.h }, ...(variants.length ? { variants: Object.fromEntries(variants) } : {}), ...(typeof raw.variantKey === "string" ? { variantKey: raw.variantKey.slice(0, 80) } : {}), ...(connectionPoints?.length ? { connectionPoints } : {}), ...(finite(raw.createdAt) ? { createdAt: raw.createdAt } : {}) }];
     }) : [];
-    return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff", ...(guides?.length ? { guides } : {}) }, elements: normalizedElements, ...(layers.length ? { layers } : {}), ...(visibilityPresets.length ? { visibilityPresets } : {}), ...(dataSources.length ? { dataSources } : {}), ...(componentMasters.length ? { componentMasters } : {}) };
+    return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff", ...(guides?.length ? { guides } : {}) }, elements: normalizedElements, ...(layers.length ? { layers } : {}), ...(visibilityPresets.length ? { visibilityPresets } : {}), ...(componentMasters.length ? { componentMasters } : {}) };
   };
   const sourcePages = Array.isArray(canvasSection.pages) ? canvasSection.pages : undefined;
   if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100) return undefined;
@@ -484,7 +495,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
     if (!isRecord(page)) return undefined;
     const state = isRecord(page.canvasState) ? page.canvasState : {};
     const migratedState = isLegacyV9 ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
-    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, elementBudget, page.layers, page.componentMasters ?? (index === 0 ? canvasSection.componentMasters : undefined), page.visibilityPresets, page.dataSources);
+    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, elementBudget, page.layers, page.componentMasters ?? (index === 0 ? canvasSection.componentMasters : undefined), page.visibilityPresets);
   });
   if (pages.some((page) => !page)) return undefined;
   const normalized = pages as SketchPage[];
@@ -508,7 +519,6 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
 export function sketchFileResourceError(file: SketchFile): string | undefined {
   let nodeCount = 0;
   let strokePointCount = 0;
-  let dataSourceCharacters = 0;
   const componentMasters = new Map<string, ComponentMaster>();
   const visit = (elements: Element[], depth: number): string | undefined => {
     if (depth > MAX_ELEMENT_DEPTH) return "This sketch contains groups nested too deeply to save safely.";
@@ -542,10 +552,6 @@ export function sketchFileResourceError(file: SketchFile): string | undefined {
   if (!file.pages.length) return "A sketch must contain at least one page.";
   for (const page of file.pages) {
     if (page.elements.length > MAX_ELEMENTS_PER_PAGE) return "A page contains too many canvas objects to save safely.";
-    const dataSources = normalizeCanvasDataSources(page.dataSources ?? []);
-    if (!dataSources) return "This sketch contains invalid or oversized linked data.";
-    for (const source of dataSources) dataSourceCharacters += source.name.length + source.headers.reduce((sum, header) => sum + header.length, 0) + source.rows.reduce((sum, row) => sum + row.reduce((rowSum, cell) => rowSum + cell.length, 0), 0);
-    if (dataSourceCharacters > 20_000_000) return "CSV-linked data exceeds the 20 MB per-sketch save limit.";
     const error = visit(page.elements, 0);
     if (error) return error;
     for (const master of page.componentMasters ?? []) {

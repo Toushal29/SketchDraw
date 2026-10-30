@@ -10,7 +10,8 @@ import { modelComponentSvg } from "../components/model-component-renderer";
 import { renderLibraryChartSvg } from "../components/chart-engine";
 import { relationshipDisplayElement } from "../diagrams/relationships";
 import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
-import { checklistRows, defaultNoteTitle, noteCardPalette, syntaxTokenColor, syntaxTokens } from "../../notes";
+import { checklistRows, defaultNoteTitle, isMarkdownTableDivider, markdownCells, noteCardPalette, syntaxTokenColor, syntaxTokens } from "../../notes";
+import { standaloneMarkdownTableRows } from "../../app/markdown-table";
 
 type SvgRendererPorts = {
   theme: () => Theme;
@@ -29,32 +30,53 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
     const meta = group.note; const background = group.elements.find((child): child is ShapeElement => child.type === "rectangle");
     if (!meta || !background) return "";
     const x = background.x, y = background.y, width = Math.abs(background.w), height = Math.abs(background.h), simple = true, palette = noteCardPalette(meta.kind, theme(), "simple");
+    const standaloneTable = meta.kind === "note" ? standaloneMarkdownTableRows(meta.content) : undefined;
+    if (standaloneTable) {
+      const columns = standaloneTable[0].length; const cellWidth = width / columns; const rowHeight = height / standaloneTable.length;
+      const clipId = `table-${(group.id ?? crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+      const lines = Array.from({ length: columns - 1 }, (_, index) => `<path d="M ${x + (index + 1) * cellWidth} ${y} V ${y + height}" stroke="${palette.rule}" stroke-width=".75"/>`).join("")
+        + Array.from({ length: standaloneTable.length - 1 }, (_, index) => `<path d="M ${x} ${y + (index + 1) * rowHeight} H ${x + width}" stroke="${palette.rule}" stroke-width=".75"/>`).join("");
+      const cells = standaloneTable.map((row, rowIndex) => row.map((cell, column) => `<text x="${x + column * cellWidth + 6}" y="${y + (rowIndex + .5) * rowHeight}" dominant-baseline="middle" font-family="sans-serif" font-size="${Math.min(meta.fontSize ?? 12, Math.max(8, rowHeight - 6))}" font-weight="${rowIndex === 0 ? 600 : 400}" fill="${palette.ink}" textLength="${Math.min(cell.length * (meta.fontSize ?? 12) * .55, Math.max(1, cellWidth - 12))}" lengthAdjust="spacingAndGlyphs">${escapeXml(cell)}</text>`).join("")).join("");
+      return `<g><defs><clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${width}" height="${height}"/></clipPath></defs><g clip-path="url(#${clipId})"><rect x="${x}" y="${y}" width="${width}" height="${rowHeight}" fill="${palette.soft}"/><rect x="${x + .5}" y="${y + .5}" width="${Math.max(0, width - 1)}" height="${Math.max(0, height - 1)}" fill="none" stroke="${palette.border}"/>${lines}${cells}</g></g>`;
+    }
     const title = escapeXml(meta.title || defaultNoteTitle(meta.kind)); const collapsed = meta.collapsed === true; const clipId = `note-${(group.id ?? crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, "")}`;
     let body = "";
     if (!collapsed) {
       if (meta.kind === "checklist") {
-        const rows = checklistRows(meta.content, width, meta.fontSize ?? 12); const done = rows.filter(row => row.done).length;
-        body += `<text x="${x + 16}" y="${y + 40}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" fill="${palette.muted}">${done} of ${rows.length} complete</text><rect x="${x + 16}" y="${y + 53}" width="${width - 32}" height="2" fill="${palette.rule}"/><rect x="${x + 16}" y="${y + 53}" width="${rows.length ? (width - 32) * done / rows.length : 0}" height="2" fill="${palette.check}"/>`;
+        const rows = checklistRows(meta.content, width, meta.fontSize ?? 12);
         body += rows.map(row => { const boxX = x + row.boxX, boxY = y + row.top + Math.max(0, (row.height - 14) / 2), textY = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2; return `<rect x="${boxX}" y="${boxY}" width="14" height="14" rx="1" fill="${row.done ? palette.check : palette.surface}" stroke="${row.done ? palette.check : palette.border}"/>${row.done ? `<path d="M ${boxX + 3} ${boxY + 7} l3 3 5 -6" fill="none" stroke="${simple ? palette.ink : "#fff"}" stroke-width="1.6"/>` : ""}${row.labelLines.map((line, index) => `<text x="${x + row.textX}" y="${textY + index * row.lineHeight}" dominant-baseline="hanging" font-family="sans-serif" font-size="${meta.fontSize ?? 12}" fill="${row.done ? palette.muted : palette.ink}">${escapeXml(line)}</text>`).join("")}`; }).join("");
       } else {
-        let cursor = y + 41, inCode = false, language = "text", codeLines: string[] = [];
-        const addCode = () => { const fontSize = meta.fontSize ?? 12; const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => { const chunks: string[] = []; for (let index = 0; index < Math.max(1, line.length); index += max) chunks.push(line.slice(index, index + max)); return chunks; }); const blockHeight = Math.max(45, lines.length * fontSize * 1.5 + 26); body += `<rect x="${x + 10}" y="${cursor}" width="${width - 20}" height="${blockHeight}" rx="${simple ? 0 : 7}" fill="${simple ? palette.surface : "#202936"}" stroke="${simple ? palette.rule : "#344154"}"/><text x="${x + 20}" y="${cursor + 7}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" font-weight="600" fill="${simple ? palette.muted : "#91a1b5"}">${escapeXml(language.toUpperCase())}</text>${lines.map((line, index) => { let column = 0; return syntaxTokens(line, language).map(token => { const rendered = `<text x="${x + 20 + column * fontSize * .62}" y="${cursor + 22 + index * fontSize * 1.5}" dominant-baseline="hanging" font-family="monospace" font-size="${fontSize}" fill="${syntaxTokenColor(token.color, theme(), "simple")}">${escapeXml(token.value)}</text>`; column += token.value.length; return rendered; }).join(""); }).join("")}`; cursor += blockHeight + 9; codeLines = []; inCode = false; };
+        let cursor = y + 30, inCode = false, language = "text", codeLines: string[] = [];
+        const addCode = () => { const fontSize = meta.fontSize ?? 12; const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => { const chunks: string[] = []; for (let index = 0; index < Math.max(1, line.length); index += max) chunks.push(line.slice(index, index + max)); return chunks; }); const blockHeight = Math.max(32, lines.length * fontSize * 1.5 + 20); body += `<rect x="${x + 10}" y="${cursor}" width="${width - 20}" height="${blockHeight}" rx="${simple ? 0 : 7}" fill="${simple ? palette.surface : "#202936"}" stroke="${simple ? palette.rule : "#344154"}"/><text x="${x + 20}" y="${cursor + 7}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" font-weight="600" fill="${simple ? palette.muted : "#91a1b5"}">${escapeXml(language.toUpperCase())}</text>${lines.map((line, index) => { let column = 0; return syntaxTokens(line, language).map(token => { const rendered = `<text x="${x + 20 + column * fontSize * .62}" y="${cursor + 22 + index * fontSize * 1.5}" dominant-baseline="hanging" font-family="monospace" font-size="${fontSize}" fill="${syntaxTokenColor(token.color, theme(), "simple")}">${escapeXml(token.value)}</text>`; column += token.value.length; return rendered; }).join(""); }).join("")}`; cursor += blockHeight + 5; codeLines = []; inCode = false; };
         const maxChars = Math.max(8, Math.floor((width - 36) / ((meta.fontSize ?? 12) * .56)));
-        for (const line of meta.content.split(/\r?\n/)) {
-          const fence = /^\s*```\s*([\w+#.-]*)\s*$/.exec(line); if (fence) { if (!inCode) { inCode = true; language = fence[1] || "text"; } else addCode(); continue; }
-          if (inCode) { codeLines.push(line); continue; } if (!line.trim()) { cursor += 8; continue; }
+        const sourceLines = meta.content.split(/\r?\n/);
+        for (let lineIndex = 0; lineIndex < sourceLines.length;) {
+          const line = sourceLines[lineIndex];
+          const fence = /^\s*```\s*([\w+#.-]*)\s*$/.exec(line); if (fence) { if (!inCode) { inCode = true; language = fence[1] || "text"; } else addCode(); lineIndex++; continue; }
+          if (inCode) { codeLines.push(line); lineIndex++; continue; } if (!line.trim()) { lineIndex++; continue; }
+          if (lineIndex + 1 < sourceLines.length && isMarkdownTableDivider(sourceLines[lineIndex + 1])) {
+            const rows = [markdownCells(line)]; let rowIndex = lineIndex + 2;
+            while (rowIndex < sourceLines.length && sourceLines[rowIndex].includes("|")) rows.push(markdownCells(sourceLines[rowIndex++]));
+            const columns = Math.max(1, ...rows.map(row => row.length)); const tableWidth = width - 22;
+            const cellWidth = tableWidth / columns; const rowHeight = Math.max(20, (meta.fontSize ?? 12) * 1.5); const tableHeight = rowHeight * rows.length;
+            body += `<rect x="${x + 11}" y="${cursor}" width="${tableWidth}" height="${tableHeight}" fill="none" stroke="${palette.rule}"/><rect x="${x + 11}" y="${cursor}" width="${tableWidth}" height="${rowHeight}" fill="${palette.soft}"/>`;
+            rows.forEach((row, rowIndex) => {
+              if (rowIndex) body += `<path d="M ${x + 11} ${cursor + rowIndex * rowHeight} H ${x + 11 + tableWidth}" stroke="${palette.rule}"/>`;
+              row.forEach((cell, column) => { body += `<text x="${x + 17 + column * cellWidth}" y="${cursor + rowIndex * rowHeight + rowHeight / 2}" dominant-baseline="middle" font-family="sans-serif" font-size="${Math.max(9, (meta.fontSize ?? 12) * .86)}" font-weight="${rowIndex ? 400 : 600}" fill="${palette.ink}">${escapeXml(cell)}</text>`; });
+            });
+            for (let column = 1; column < columns; column++) body += `<path d="M ${x + 11 + column * cellWidth} ${cursor} V ${cursor + tableHeight}" stroke="${palette.rule}"/>`;
+            cursor += tableHeight + 5; lineIndex = rowIndex; continue;
+          }
           const heading = /^(#{1,3})\s+(.*)$/.exec(line); const value = heading?.[2] ?? line; const size = heading ? (meta.fontSize ?? 12) + (4 - heading[1].length) * 2 : (meta.fontSize ?? 12);
           for (let index = 0; index < Math.max(1, value.length); index += maxChars) { body += `<text x="${x + 16}" y="${cursor}" dominant-baseline="hanging" font-family="sans-serif" font-size="${size}" font-weight="${heading ? 650 : 400}" fill="${palette.ink}">${escapeXml(value.slice(index, index + maxChars))}</text>`; cursor += size * 1.5; }
+          lineIndex++;
         }
         if (inCode) addCode();
       }
     }
-    const summaryRows = collapsed && meta.kind === "checklist" ? checklistRows(meta.content, width, meta.fontSize ?? 12) : undefined;
-    const summary = summaryRows ? `${summaryRows.filter(row => row.done).length} of ${summaryRows.length} tasks` : meta.content.split(/\r?\n/).find(line => line.trim() && !/^\s*```/.test(line))?.trim() || "Empty card";
-    const toggleX = x + width - 26, toggleY = y + 7;
+    const toggleX = x + width - 24, toggleY = y + 5;
     const chevron = collapsed ? `M ${toggleX + 5} ${toggleY + 7} l4 4 4 -4` : `M ${toggleX + 5} ${toggleY + 11} l4 -4 4 4`;
-    const separator = collapsed ? "" : `<path d="M ${x + 10} ${y + 33} H ${x + width - 10}" stroke="${palette.rule}"/>`;
-    return `<g><defs><clipPath id="${clipId}"><rect x="${x + 8}" y="${y + 37}" width="${Math.max(0, width - 16)}" height="${Math.max(0, height - 45)}"/></clipPath></defs><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="3" fill="${palette.surface}" stroke="${palette.border}"/><text x="${x + 10}" y="${y + 9}" dominant-baseline="hanging" font-family="sans-serif" font-size="11" font-weight="600" fill="${palette.ink}">${title}</text>${collapsed ? `<text x="${x + 10}" y="${y + 25}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" fill="${palette.muted}">${escapeXml(summary.slice(0, 80))}</text>` : ""}<rect x="${toggleX}" y="${toggleY}" width="18" height="18" rx="2" fill="${palette.surface}" stroke="${palette.border}"/><path d="${chevron}" fill="none" stroke="${palette.muted}" stroke-width="1.3"/>${separator}${collapsed ? "" : `<g clip-path="url(#${clipId})">${body}</g>`}</g>`;
+    return `<g><defs><clipPath id="${clipId}"><rect x="${x + 8}" y="${y + 29}" width="${Math.max(0, width - 16)}" height="${Math.max(0, height - 32)}"/></clipPath></defs><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="3" fill="${palette.surface}" stroke="${palette.border}"/><text x="${x + 10}" y="${y + 8}" dominant-baseline="hanging" font-family="sans-serif" font-size="11" font-weight="600" fill="${palette.ink}">${title}</text><path d="${chevron}" fill="none" stroke="${palette.muted}" stroke-width="1.3"/>${collapsed ? "" : `<g clip-path="url(#${clipId})">${body}</g>`}</g>`;
   }
 
   function elementToSvg(element: Element): string {

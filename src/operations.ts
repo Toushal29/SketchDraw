@@ -53,7 +53,7 @@ function pathEndpoints(path: string): Point[] {
 function shapeOutlineGeometry(shape: ShapeElement): ShapeOutlineGeometry | undefined {
   const cached = outlineGeometryCache.get(shape); if (cached) return cached;
   const rawPath = shape.type === "svgPath" ? shape.pathData : shapePathData(shape);
-  const path = shape.type === "flowchart" && shape.flowchartShape === "gear" ? rawPath?.split(/\sM\s/, 1)[0] : rawPath;
+  const path = shape.type === "flowchart" && (shape.flowchartShape === "gear" || shape.flowchartShape === "ring") ? rawPath?.split(/\sM\s/, 1)[0] : rawPath;
   const boxX = Math.min(shape.x, shape.x + shape.w); const boxY = Math.min(shape.y, shape.y + shape.h);
   const boxW = Math.abs(shape.w); const boxH = Math.abs(shape.h);
   if (!path || boxW < .001 || boxH < .001) return undefined;
@@ -150,6 +150,14 @@ function shapeOutlineAnchors(shape: ShapeElement): Point[] {
   for (const target of BOX_ANCHORS) {
     const point = closestOutlineAnchor(shape, target);
     if (!result.some(anchor => Math.abs(anchor.x - point.x) < .002 && Math.abs(anchor.y - point.y) < .002)) result.push(point);
+  }
+  if (shape.type === "diamond") {
+    // Keep handles centered on each sloped edge as well as on the four vertices.
+    // Projecting box corners by physical distance skews these positions when a
+    // diamond is wider or taller than it is square.
+    for (const point of [{ x: .75, y: .25 }, { x: .75, y: .75 }, { x: .25, y: .75 }, { x: .25, y: .25 }]) {
+      if (!result.some(anchor => Math.abs(anchor.x - point.x) < .002 && Math.abs(anchor.y - point.y) < .002)) result.push(point);
+    }
   }
   if (result.length < 6) {
     const uniform = geometry.samples.filter((_, index) => index % Math.max(1, Math.floor(geometry.samples.length / 16)) === 0).slice(0, 16);

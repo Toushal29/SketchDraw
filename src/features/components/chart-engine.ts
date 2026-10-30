@@ -21,7 +21,7 @@ import {
 } from "echarts/components";
 import type { EChartsOption } from "echarts";
 import type { GroupElement, LibraryChartData, LibraryChartKind, Theme } from "../../model";
-import { defaultLibraryChartData } from "../../notes";
+import { defaultLibraryChartData } from "./library-components";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { CanvasRenderer, SVGRenderer } from "echarts/renderers";
 

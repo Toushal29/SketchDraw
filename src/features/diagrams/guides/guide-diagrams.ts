@@ -1,5 +1,5 @@
 import type { Element, FlowchartShape, GroupElement, ShapeElement } from "../../../model";
-import { buildLibraryComponent, LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../../notes";
+import { buildLibraryComponent, LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../components/library-components";
 
 export type DiagramGuideId = "order-flow" | "class-model" | "sequence" | "data-model" | "bpmn-process" | "c4-context" | "network-edge" | "cloud-service" | "state-machine" | "mind-map" | "user-journey" | "use-case" | "component-architecture" | "deployment" | "api-auth" | "data-flow" | "git-workflow" | "ci-cd" | "threat-model" | "c4-container" | "c4-dynamic" | "kubernetes-cluster" | "data-pipeline" | "incident-response" | "decision-tree";
 export type DiagramGuideCategory = "Flowchart" | "UML" | "Database" | "Data flow" | "API" | "BPMN" | "Architecture" | "Network" | "Brainstorming" | "UX" | "DevOps" | "Security" | "Operations";

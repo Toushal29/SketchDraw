@@ -1,7 +1,6 @@
 import type { FlowchartShape, Tool } from "../../model";
-import { FLOWCHART_SHAPES, GENERAL_SHAPES } from "../../features/diagrams/config";
+import { BASIC_SHAPES, FLOWCHART_SHAPES, GENERAL_SHAPES, type BasicShapeTool } from "../../features/shapes/shape-catalog";
 
-type BasicShapeTool = Extract<Tool, "rectangle" | "circle" | "diamond" | "triangle">;
 export type WindowsShapeChoice =
   | { kind: "basic"; tool: BasicShapeTool }
   | { kind: "flowchart"; shape: FlowchartShape };
@@ -10,18 +9,13 @@ type ShapeOption = WindowsShapeChoice & { label: string; path: string };
 type Props = {
   activeTool: Tool;
   activeFlowchartShape: FlowchartShape;
-  spawnAllDisabled: boolean;
-  spawnAllLabel: string;
-  onSpawnAll: () => void;
   onSelect: (choice: WindowsShapeChoice) => void;
+  canSpawnAll: boolean;
+  busy: boolean;
+  onSpawnAll: () => void;
 };
 
-const basicShapes: ShapeOption[] = [
-  { kind: "basic", tool: "rectangle", label: "Rectangle", path: "M5 5h14v14H5z" },
-  { kind: "basic", tool: "circle", label: "Ellipse", path: "M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0z" },
-  { kind: "basic", tool: "diamond", label: "Diamond", path: "M12 3 21 12 12 21 3 12z" },
-  { kind: "basic", tool: "triangle", label: "Triangle", path: "M12 4 21 20H3z" },
-];
+const basicShapes: ShapeOption[] = BASIC_SHAPES.map(shape => ({ kind: "basic", tool: shape.value, label: shape.label, path: shape.path }));
 
 const flowchartGroup = (shapes: typeof FLOWCHART_SHAPES): ShapeOption[] => shapes.map(shape => ({ kind: "flowchart", shape: shape.value, label: shape.label, path: shape.path }));
 
@@ -46,6 +40,6 @@ export function WindowsShapePalette(props: Props) {
         <span>{shape.label}</span>
       </button>)}
     </section>)}
-    <button type="button" class="palette-spawn-all windows-shape-spawn-all" role="menuitem" disabled={props.spawnAllDisabled} onClick={props.onSpawnAll}>{props.spawnAllLabel}</button>
+    <footer class="windows-shape-footer"><span>{groups.reduce((count, group) => count + group.shapes.length, 0)} shapes</span><button type="button" disabled={!props.canSpawnAll || props.busy} onClick={props.onSpawnAll}>{props.busy ? "Preparing…" : "Spawn all shapes"}</button></footer>
   </div>;
 }

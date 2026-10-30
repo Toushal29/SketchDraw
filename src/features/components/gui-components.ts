@@ -2,8 +2,8 @@ import type { GuiComponentProperties, GroupElement, Point, StrokeStyle, Theme } 
 import { strokeDashPattern } from "../canvas/stroke-style";
 
 export type GuiComponentKind =
-  | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle"
-  | "gui-card" | "gui-app-bar" | "gui-navigation" | "gui-tabs" | "gui-image";
+  | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle" | "form-textarea" | "form-search" | "form-date" | "form-slider" | "form-password" | "form-email" | "form-file"
+  | "gui-card" | "gui-app-bar" | "gui-navigation" | "gui-tabs" | "gui-image" | "gui-alert" | "gui-modal" | "gui-breadcrumbs" | "gui-avatar" | "gui-badge" | "gui-progress" | "gui-list" | "gui-table" | "gui-accordion" | "gui-menu" | "gui-toast" | "gui-pagination" | "gui-divider" | "gui-footer";
 
 function componentFontFamily(family?: string) {
   return family === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : family === "serif" ? "Georgia, 'Times New Roman', serif" : family === "mono" ? "'Cascadia Mono', Consolas, monospace" : family === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : family === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif";
@@ -16,11 +16,32 @@ export const GUI_COMPONENT_DEFINITIONS: { kind: GuiComponentKind; section: strin
   { kind: "form-checkbox", section: "Forms & UI | Choices", label: "Checkbox group", description: "Compact list of selectable options", width: 150, height: 75 },
   { kind: "form-radio", section: "Forms & UI | Choices", label: "Radio group", description: "Compact single-choice list", width: 150, height: 75 },
   { kind: "form-toggle", section: "Forms & UI | Choices", label: "Toggle switch", description: "Compact settings switch", width: 150, height: 50 },
+  { kind: "form-textarea", section: "Forms & UI | Fields", label: "Text area", description: "Multi-line text input", width: 190, height: 105 },
+  { kind: "form-search", section: "Forms & UI | Fields", label: "Search field", description: "Search input with a search icon", width: 190, height: 50 },
+  { kind: "form-date", section: "Forms & UI | Fields", label: "Date field", description: "Date input with a calendar affordance", width: 180, height: 50 },
+  { kind: "form-slider", section: "Forms & UI | Controls", label: "Slider", description: "Range control with a movable value", width: 180, height: 56 },
+  { kind: "form-password", section: "Forms & UI | Fields", label: "Password field", description: "Masked password input", width: 175, height: 50 },
+  { kind: "form-email", section: "Forms & UI | Fields", label: "Email field", description: "Labeled email input", width: 175, height: 50 },
+  { kind: "form-file", section: "Forms & UI | Fields", label: "File upload", description: "File picker field with upload affordance", width: 190, height: 50 },
   { kind: "gui-card", section: "Forms & UI | Layout", label: "Content card", description: "Card with image, title, copy, and action", width: 175, height: 125 },
   { kind: "gui-app-bar", section: "Forms & UI | Layout", label: "App bar", description: "Header bar with brand and account controls", width: 250, height: 50 },
   { kind: "gui-navigation", section: "Forms & UI | Layout", label: "Side navigation", description: "Navigation rail with active page", width: 150, height: 150 },
   { kind: "gui-tabs", section: "Forms & UI | Layout", label: "Tab bar", description: "Horizontal navigation tabs", width: 200, height: 50 },
   { kind: "gui-image", section: "Forms & UI | Media", label: "Image placeholder", description: "Replaceable media area for a wireframe", width: 150, height: 100 },
+  { kind: "gui-alert", section: "Forms & UI | Feedback", label: "Alert banner", description: "Inline status message with an icon", width: 260, height: 68 },
+  { kind: "gui-modal", section: "Forms & UI | Feedback", label: "Dialog window", description: "Confirmation dialog with actions", width: 300, height: 190 },
+  { kind: "gui-breadcrumbs", section: "Forms & UI | Navigation", label: "Breadcrumbs", description: "Compact hierarchical navigation trail", width: 250, height: 42 },
+  { kind: "gui-avatar", section: "Forms & UI | Identity", label: "Avatar", description: "User avatar with initials", width: 64, height: 64 },
+  { kind: "gui-badge", section: "Forms & UI | Feedback", label: "Status badge", description: "Small status or category label", width: 100, height: 36 },
+  { kind: "gui-progress", section: "Forms & UI | Feedback", label: "Progress bar", description: "Labeled completion meter", width: 210, height: 58 },
+  { kind: "gui-list", section: "Forms & UI | Data", label: "List", description: "Compact list with editable rows", width: 210, height: 150 },
+  { kind: "gui-table", section: "Forms & UI | Data", label: "Data table", description: "Simple table with headers and sample rows", width: 280, height: 150 },
+  { kind: "gui-accordion", section: "Forms & UI | Layout", label: "Accordion", description: "Expandable section list wireframe", width: 240, height: 142 },
+  { kind: "gui-menu", section: "Forms & UI | Navigation", label: "Menu", description: "Compact navigation menu", width: 180, height: 138 },
+  { kind: "gui-toast", section: "Forms & UI | Feedback", label: "Toast notification", description: "Short status message with a dismiss affordance", width: 260, height: 74 },
+  { kind: "gui-pagination", section: "Forms & UI | Navigation", label: "Pagination", description: "Page navigation with previous and next controls", width: 230, height: 42 },
+  { kind: "gui-divider", section: "Forms & UI | Layout", label: "Divider", description: "Horizontal content separator", width: 200, height: 24 },
+  { kind: "gui-footer", section: "Forms & UI | Layout", label: "Footer", description: "Page footer with a label and links", width: 320, height: 58 },
 ];
 
 const GUI_KINDS = new Set<string>(GUI_COMPONENT_DEFINITIONS.map(item => item.kind));
@@ -29,12 +50,32 @@ export const isGuiComponentKind = (kind: string): kind is GuiComponentKind => GU
 export function defaultGuiComponentProperties(kind: string): GuiComponentProperties | undefined {
   if (kind === "form-input") return { titlePosition: "top", placeholder: "Enter text" };
   if (kind === "form-select") return { titlePosition: "top", placeholder: "Choose an option" };
+  if (kind === "form-textarea") return { titlePosition: "top", placeholder: "Write a message" };
+  if (kind === "form-search") return { titlePosition: "top", placeholder: "Search" };
+  if (kind === "form-date") return { titlePosition: "top", placeholder: "Select a date" };
+  if (kind === "form-password") return { titlePosition: "top", placeholder: "Enter password" };
+  if (kind === "form-email") return { titlePosition: "top", placeholder: "name@example.com" };
+  if (kind === "form-file") return { titlePosition: "top", placeholder: "Choose a file" };
   if (kind === "form-checkbox" || kind === "form-radio") return { titlePosition: "top", optionLayout: "vertical", optionColumns: 2, optionGap: 4 };
+  if (kind === "form-slider") return { title: "Volume" };
   if (kind === "gui-card") return { title: "Card title", bodyText: "Add a short description", actionLabel: "Details" };
   if (kind === "gui-app-bar") return { title: "Workspace", actionLabel: "JD" };
   if (kind === "gui-navigation") return { title: "Workspace", items: ["Overview", "Projects", "Reports", "Settings"], activeItem: 0 };
   if (kind === "gui-tabs") return { items: ["Overview", "Activity", "Settings"], activeItem: 0 };
   if (kind === "gui-image") return { placeholder: "Image" };
+  if (kind === "gui-alert") return { title: "Information", bodyText: "Your changes are saved." };
+  if (kind === "gui-modal") return { title: "Confirm action", bodyText: "Review this change before continuing.", actionLabel: "Continue" };
+  if (kind === "gui-breadcrumbs") return { items: ["Home", "Projects", "Current"], activeItem: 2 };
+  if (kind === "gui-avatar") return { title: "JD" };
+  if (kind === "gui-badge") return { title: "Active" };
+  if (kind === "gui-progress") return { title: "Progress" };
+  if (kind === "gui-list") return { title: "Recent items", items: ["Project plan", "Design review", "Release notes"] };
+  if (kind === "gui-table") return { title: "Team members", items: ["Name", "Role", "Status", "Alex", "Designer", "Active", "Sam", "Engineer", "Away"] };
+  if (kind === "gui-accordion") return { title: "Help topics", items: ["Getting started", "Account settings", "Billing"] };
+  if (kind === "gui-menu") return { title: "Menu", items: ["Overview", "Projects", "Settings"], activeItem: 0 };
+  if (kind === "gui-toast") return { title: "Changes saved", bodyText: "Your work is up to date." };
+  if (kind === "gui-pagination") return { items: ["1", "2", "3", "4", "5"], activeItem: 0 };
+  if (kind === "gui-footer") return { title: "© 2025 SketchDraw", items: ["Help", "Privacy", "Terms"] };
   return undefined;
 }
 
@@ -106,7 +147,8 @@ function escapeXml(value: string) {
 function primitivePath(ctx: CanvasRenderingContext2D, item: Primitive, offsetX = 0, offsetY = 0) {
   ctx.beginPath();
   if (item.type === "rect") {
-    const radius = Math.min(item.radius ?? 0, item.w / 2, item.h / 2);
+    if (item.w <= 0 || item.h <= 0) return;
+    const radius = Math.max(0, Math.min(item.radius ?? 0, item.w / 2, item.h / 2));
     if (ctx.roundRect) ctx.roundRect(item.x + offsetX, item.y + offsetY, item.w, item.h, radius);
     else ctx.rect(item.x + offsetX, item.y + offsetY, item.w, item.h);
   } else if (item.type === "circle") ctx.arc(item.x + offsetX, item.y + offsetY, item.r, 0, Math.PI * 2);
@@ -160,7 +202,7 @@ type Primitive =
 function componentTitle(group: GroupElement) {
   const meta = group.libraryComponent!;
   const kind = meta.kind;
-  if (kind.startsWith("form-")) return meta.formTitle || (kind === "form-input" ? "Label" : kind === "form-select" ? "Choose an option" : kind === "form-checkbox" ? "Preferences" : kind === "form-radio" ? "Choose an option" : kind === "form-toggle" ? "Notifications" : "Continue");
+  if (kind.startsWith("form-")) return meta.formTitle || (kind === "form-input" ? "Label" : kind === "form-select" ? "Choose an option" : kind === "form-textarea" ? "Message" : kind === "form-search" ? "Search" : kind === "form-date" ? "Date" : kind === "form-password" ? "Password" : kind === "form-email" ? "Email" : kind === "form-file" ? "Attachment" : kind === "form-slider" ? "Volume" : kind === "form-checkbox" ? "Preferences" : kind === "form-radio" ? "Choose an option" : kind === "form-toggle" ? "Notifications" : "Continue");
   return meta.guiProperties?.title ?? meta.label ?? "Content";
 }
 
@@ -192,7 +234,7 @@ function buildPrimitives(group: GroupElement, theme: Theme): Primitive[] | undef
     const fill = meta.styleOverrides?.fillColor && meta.styleOverrides.fillColor !== "transparent" ? style.surface : style.accent;
     rect(x, y, w, h, fill, Math.min(7, h / 2));
     text(options[meta.selectedOption ?? 0] ?? "Continue", x + w / 2, y + h / 2, w - inset * 2, size, theme === "dark" ? "#151b20" : "#ffffff", 650, "middle");
-  } else if (meta.kind === "form-input" || meta.kind === "form-select") {
+  } else if (meta.kind === "form-input" || meta.kind === "form-select" || meta.kind === "form-search" || meta.kind === "form-date" || meta.kind === "form-password" || meta.kind === "form-email" || meta.kind === "form-file") {
     const position = props.titlePosition ?? "top";
     const horizontal = position === "left" || position === "right";
     const titleWidth = horizontal ? Math.min(w * .42, Math.max(34, title.length * size * .55)) : w - inset * 2;
@@ -204,9 +246,18 @@ function buildPrimitives(group: GroupElement, theme: Theme): Primitive[] | undef
     const fieldH = horizontal ? h - 2 : Math.max(14, h - Math.min(18, h * .38) - (position === "bottom" ? 0 : 0));
     text(title, titleX, titleY, titleWidth - inset * .25, Math.min(10, size), style.muted, 600);
     rect(fieldX, fieldY, fieldW, fieldH, style.surface, 5);
-    const placeholder = props.placeholder ?? (meta.kind === "form-select" ? options[meta.selectedOption ?? 0] ?? "Choose an option" : "Enter text");
-    text(placeholder, fieldX + inset * .45, fieldY + fieldH / 2, fieldW - inset * .8 - (meta.kind === "form-select" ? 17 : 1), Math.min(11, size), style.muted);
+    const placeholder = meta.kind === "form-password" ? "••••••••" : props.placeholder ?? (meta.kind === "form-select" ? options[meta.selectedOption ?? 0] ?? "Choose an option" : meta.kind === "form-search" ? "Search" : meta.kind === "form-date" ? "Select a date" : meta.kind === "form-email" ? "name@example.com" : meta.kind === "form-file" ? "Choose a file" : "Enter text");
+    text(placeholder, fieldX + inset * .45, fieldY + fieldH / 2, fieldW - inset * .8 - (meta.kind === "form-select" || meta.kind === "form-date" ? 17 : meta.kind === "form-file" ? 33 : 1), Math.min(11, size), style.muted);
     if (meta.kind === "form-select") { const ax = fieldX + fieldW - 9; const ay = fieldY + fieldH / 2; line(ax - 3, ay - 1, ax, ay + 2, style.muted, 1.4); line(ax, ay + 2, ax + 3, ay - 1, style.muted, 1.4); }
+    if (meta.kind === "form-search") { const cx = fieldX + fieldW - 12; const cy = fieldY + fieldH / 2; circle(cx, cy, 3.5, "transparent", style.muted); line(cx + 2.5, cy + 2.5, cx + 5.5, cy + 5.5, style.muted, 1.2); }
+    if (meta.kind === "form-date") { const cx = fieldX + fieldW - 16; const cy = fieldY + fieldH / 2 - 5; rect(cx, cy, 12, 11, "transparent", 2, style.muted); line(cx, cy + 3, cx + 12, cy + 3, style.muted); line(cx + 3, cy - 2, cx + 3, cy + 1, style.muted); line(cx + 9, cy - 2, cx + 9, cy + 1, style.muted); }
+    if (meta.kind === "form-file") { const bx = fieldX + fieldW - 28; rect(bx, fieldY + 4, 24, Math.max(16, fieldH - 8), style.soft, 4); line(bx + 12, fieldY + fieldH * .35, bx + 12, fieldY + fieldH * .68, style.accent, 1.4); line(bx + 9, fieldY + fieldH * .45, bx + 12, fieldY + fieldH * .35, style.accent, 1.4); line(bx + 15, fieldY + fieldH * .45, bx + 12, fieldY + fieldH * .35, style.accent, 1.4); }
+  } else if (meta.kind === "form-textarea") {
+    const position = props.titlePosition ?? "top";
+    const titleHeight = position === "top" ? Math.min(17, h * .22) : 0;
+    text(title, x + inset, position === "bottom" ? y + h - 5 : y + Math.min(9, h * .16), w - inset * 2, Math.min(10, size), style.muted, 600);
+    rect(x + 1, y + titleHeight + 1, w - 2, Math.max(12, h - titleHeight - (position === "bottom" ? 18 : 2)), style.surface, 5);
+    text(props.placeholder ?? "Write a message", x + inset, y + titleHeight + 12, w - inset * 2, Math.min(10, size), style.muted, 450);
   } else if (meta.kind === "form-checkbox" || meta.kind === "form-radio") {
     const position = props.titlePosition ?? "top";
     const horizontalTitle = position === "left" || position === "right";
@@ -242,6 +293,10 @@ function buildPrimitives(group: GroupElement, theme: Theme): Primitive[] | undef
     text(title, x + inset, y + h / 2, tx - x - inset - 7, size, style.ink, 600);
     rect(tx, ty, trackW, trackH, meta.formState === false ? style.soft : style.accent, trackH / 2);
     circle(tx + (meta.formState === false ? trackH / 2 : trackW - trackH / 2), ty + trackH / 2, trackH * .34, theme === "dark" ? "#161b1f" : "#ffffff", "transparent");
+  } else if (meta.kind === "form-slider") {
+    text(title, x + inset, y + Math.min(10, h * .2), w - inset * 2, Math.min(10, size), style.ink, 600);
+    const trackY = y + h * .68; const trackLeft = x + inset; const trackRight = x + w - inset; const ratio = Math.max(0, Math.min(1, (meta.selectedOption ?? 65) / 100));
+    line(trackLeft, trackY, trackRight, trackY, style.soft, 5); line(trackLeft, trackY, trackLeft + (trackRight - trackLeft) * ratio, trackY, style.accent, 5); circle(trackLeft + (trackRight - trackLeft) * ratio, trackY, 5, style.surface, style.accent);
   } else if (meta.kind === "gui-card" && h < guiCardCompactThreshold(group)) {
     rect(x, y, w, h, style.surface, 6);
     const actionW = Math.min(64, Math.max(28, w * .28));
@@ -295,6 +350,41 @@ function buildPrimitives(group: GroupElement, theme: Theme): Primitive[] | undef
     p.push({ type: "path", points: [{ x: x + w * .2, y: y + h * .76 }, { x: x + w * .43, y: y + h * .42 }, { x: x + w * .57, y: y + h * .58 }, { x: x + w * .68, y: y + h * .46 }, { x: x + w * .84, y: y + h * .76 }], fill: theme === "dark" ? "#404b55" : "#d9e2eb", closed: true });
     circle(x + w * .72, y + h * .3, Math.min(6, h * .08), style.accent, style.accent);
     text(props.placeholder ?? "Image", x + w / 2, y + h - 9, w - 8, Math.min(9, size), style.muted, 500, "middle");
+  } else if (meta.kind === "gui-alert") {
+    rect(x, y, w, h, style.soft, 6, style.edge); circle(x + 14, y + 17, 6, style.accent, style.accent); text("i", x + 14, y + 17, 10, 8, "#ffffff", 700, "middle");
+    text(title, x + 26, y + 15, w - 36, Math.min(10, size), style.ink, 650); text(props.bodyText ?? "Your changes are saved.", x + 10, y + h - 15, w - 20, Math.min(9, size), style.muted, 450);
+  } else if (meta.kind === "gui-modal") {
+    rect(x, y, w, h, style.soft, 8, style.edge); rect(x + 7, y + 7, w - 14, h - 14, style.surface, 6, style.edge);
+    text(title, x + 17, y + 26, w - 34, Math.min(13, size + 1), style.ink, 650); text(props.bodyText ?? "Review this change before continuing.", x + 17, y + h * .53, w - 34, Math.min(9, size), style.muted, 450);
+    const actionW = Math.min(86, w * .3); rect(x + w - actionW - 17, y + h - 34, actionW, 19, style.accent, 4, style.accent); text(props.actionLabel ?? "Continue", x + w - actionW / 2 - 17, y + h - 24, actionW - 8, 8, theme === "dark" ? "#151b20" : "#ffffff", 600, "middle");
+  } else if (meta.kind === "gui-breadcrumbs") {
+    const items = (props.items?.length ? props.items : ["Home", "Projects", "Current"]).slice(0, 5); const cellW = (w - inset * 2) / items.length;
+    items.forEach((item, index) => { const left = x + inset + index * cellW; text(item, left, y + h / 2, cellW - 8, Math.min(9, size), index === (props.activeItem ?? items.length - 1) ? style.ink : style.muted, index === (props.activeItem ?? items.length - 1) ? 650 : 450); if (index < items.length - 1) text("/", left + cellW - 5, y + h / 2, 8, 9, style.muted, 450, "middle"); });
+  } else if (meta.kind === "gui-avatar") {
+    const radius = Math.min(w, h) * .43; circle(x + w / 2, y + h / 2, radius, style.soft, style.edge); text(title.slice(0, 3).toUpperCase(), x + w / 2, y + h / 2, radius * 1.5, Math.min(12, size), style.ink, 650, "middle");
+  } else if (meta.kind === "gui-badge") {
+    const labelWidth = Math.min(w, Math.max(42, title.length * size * .65 + 18)); const labelX = x + (w - labelWidth) / 2; rect(labelX, y + 3, labelWidth, h - 6, style.soft, (h - 6) / 2, style.edge); circle(labelX + 9, y + h / 2, 2.5, style.accent, style.accent); text(title, labelX + 15, y + h / 2, labelWidth - 20, Math.min(9, size), style.ink, 600);
+  } else if (meta.kind === "gui-progress") {
+    text(title, x + inset, y + 11, w - inset * 2, Math.min(10, size), style.ink, 600); const trackY = y + h * .67; const trackX = x + inset; const trackW = w - inset * 2; rect(trackX, trackY, trackW, 8, style.soft, 4, "transparent"); rect(trackX, trackY, trackW * .68, 8, style.accent, 4, "transparent"); text("68%", x + w - inset, y + 11, 35, Math.min(9, size), style.muted, 500, "end");
+  } else if (meta.kind === "gui-list" || meta.kind === "gui-menu" || meta.kind === "gui-accordion") {
+    rect(x, y, w, h, style.surface, 5); text(title, x + inset, y + 13, w - inset * 2, size, style.ink, 650);
+    const items = (props.items?.length ? props.items : ["First item", "Second item", "Third item"]).slice(0, 12);
+    const gap = Math.max(0, Math.min(40, props.optionRowGap ?? props.optionGap ?? 3)); const rowHeight = Math.min(24, Math.max(13, (h - 28 - gap * (items.length - 1)) / items.length));
+    items.forEach((item, index) => { const yy = y + 27 + index * (rowHeight + gap); if (meta.kind === "gui-accordion") rect(x + 5, yy, w - 10, rowHeight, style.soft, 3, "transparent"); if (meta.kind === "gui-menu" && index === (props.activeItem ?? 0)) rect(x + 4, yy, w - 8, rowHeight, style.soft, 3, "transparent"); if (meta.kind === "gui-list") circle(x + inset + 3, yy + rowHeight / 2, 2.5, style.accent, "transparent"); text(item, x + inset + (meta.kind === "gui-list" ? 10 : 2), yy + rowHeight / 2, w - inset * 2 - 12, Math.min(10, size), style.ink, meta.kind === "gui-menu" && index === (props.activeItem ?? 0) ? 600 : 450); if (meta.kind === "gui-accordion") { const ax = x + w - 13; const ay = yy + rowHeight / 2; line(ax - 3, ay - 1, ax, ay + 2, style.muted); line(ax, ay + 2, ax + 3, ay - 1, style.muted); } });
+  } else if (meta.kind === "gui-table") {
+    const items = (props.items?.length ? props.items : ["Name", "Type", "Status", "Item", "Text", "Active"]).slice(0, 12); const cols = 3; const rows = Math.max(2, Math.ceil(items.length / cols)); const rowH = h / rows; const colW = w / cols;
+    for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) { const index = row * cols + col; const cellX = x + col * colW; const cellY = y + row * rowH; rect(cellX, cellY, colW, rowH, row === 0 ? style.soft : style.surface, 0, style.edge); text(items[index] ?? "—", cellX + 5, cellY + rowH / 2, colW - 10, Math.min(9, size), row === 0 ? style.ink : style.muted, row === 0 ? 650 : 450); }
+  } else if (meta.kind === "gui-toast") {
+    rect(x, y, w, h, style.surface, 6); circle(x + 16, y + h / 2, 6, style.accent, style.accent); text("✓", x + 16, y + h / 2, 10, 8, theme === "dark" ? "#151b20" : "#ffffff", 700, "middle"); text(title, x + 30, y + h * .39, w - 42, Math.min(10, size), style.ink, 650); text(props.bodyText ?? "Your work is up to date.", x + 30, y + h * .7, w - 42, Math.min(9, size), style.muted, 450); text("×", x + w - 12, y + 12, 10, 12, style.muted, 500, "middle");
+  } else if (meta.kind === "gui-pagination") {
+    const items = (props.items?.length ? props.items : ["1", "2", "3"]).slice(0, 8); const gap = 4; const buttonW = Math.min(30, (w - inset * 2 - gap * (items.length + 1)) / (items.length + 2)); let bx = x + inset;
+    for (const label of ["‹", ...items, "›"]) { const active = label === items[props.activeItem ?? 0]; rect(bx, y + (h - 26) / 2, buttonW, 26, active ? style.soft : style.surface, 4, active ? style.accent : style.edge); text(label, bx + buttonW / 2, y + h / 2, buttonW - 4, Math.min(10, size), active ? style.accent : style.ink, active ? 650 : 450, "middle"); bx += buttonW + gap; }
+  } else if (meta.kind === "gui-divider") {
+    line(x + inset, y + h / 2, x + w - inset, y + h / 2, style.edge, 1);
+  } else if (meta.kind === "gui-footer") {
+    line(x, y + 1, x + w, y + 1, style.edge); text(title, x + inset, y + h / 2, Math.max(40, w * .42), Math.min(9, size), style.muted, 500);
+    const items = (props.items?.length ? props.items : ["Help", "Privacy", "Terms"]).slice(0, 6); const cellW = Math.max(1, w * .5 / items.length);
+    items.forEach((item, index) => text(item, x + w * .5 + index * cellW, y + h / 2, cellW - 4, Math.min(9, size), style.muted, 450, "middle"));
   }
   return p;
 }

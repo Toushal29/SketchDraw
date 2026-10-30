@@ -4,6 +4,7 @@ import { elementBounds } from "./bounds";
 import { traceConnector } from "../connectors/geometry";
 import { ElementSpatialIndex, elementSpatialIndex } from "./spatial-index";
 import { SceneTileCache } from "./scene-tile-cache";
+import { shapeAdjustmentHandles, shapePathObject } from "../shapes/geometry";
 import { gridStepForStyle, isometricRowHeight, isometricRowOffset, type CanvasGridStyle } from "./input";
 
 type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; guides?: CanvasSnapGuides; snapTargets: { x: CanvasSnapTarget[]; y: CanvasSnapTarget[] }; targets: Map<string, Element> };
@@ -166,7 +167,9 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         if (bindings.some(binding => binding && movedIds.has(binding.elementId)) || element.autoRoute) paintIndices.add(index);
       });
     }
-    const tileDrawing = !hasUnindexedAutoRoutes && includeSelection && !transparent && !viewOverride && !drag && sourceItems === ports.elements() && ports.tileCacheAllowed()
+    // Paint vectors directly at 100% and above. Repeated bitmap tile copies
+    // soften one-pixel strokes and text even when their nominal scale matches.
+    const tileDrawing = state.zoom < 1 && !hasUnindexedAutoRoutes && includeSelection && !transparent && !viewOverride && !drag && sourceItems === ports.elements() && ports.tileCacheAllowed()
       && tileCache.draw(ctx, viewport, state.zoom, dpr, sourceItems, ports.spatialIndex(), ports.tileCacheKey(), (tileContext, element, tileViewport, items) => {
         const drawn = isConnector(element) ? ports.connectorForView(element as ShapeElement, items) : element;
         ports.drawElement(tileContext, drawn, tileViewport, items);
@@ -193,13 +196,21 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         const bounds = elementBounds(element); const handlePadding = 5 / state.zoom;
         ctx.save(); ctx.strokeStyle = isSelected ? "#547bb1" : "#8298b8"; ctx.globalAlpha = isSelected ? 1 : 0.62; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([4 / state.zoom, 3 / state.zoom]);
         const rotation = element.rotation ?? 0; const frame = rotation ? elementBounds({ ...element, rotation: 0 } as Element) : bounds;
-        if (rotation) {
+        if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart") {
+          if (rotation) { ctx.translate(frame.x + frame.w / 2, frame.y + frame.h / 2); ctx.rotate(rotation * Math.PI / 180); ctx.translate(-frame.x - frame.w / 2, -frame.y - frame.h / 2); }
+          ctx.setLineDash([]); ctx.lineWidth = (isSelected ? 2 : 1.25) / state.zoom;
+          const outline = shapePathObject(element); if (outline) ctx.stroke(outline);
+        } else if (rotation) {
           ctx.translate(frame.x + frame.w / 2, frame.y + frame.h / 2); ctx.rotate(rotation * Math.PI / 180);
           ctx.strokeRect(-frame.w / 2 - handlePadding, -frame.h / 2 - handlePadding, Math.max(frame.w + handlePadding * 2, 2 / state.zoom), Math.max(frame.h + handlePadding * 2, 2 / state.zoom));
         } else ctx.strokeRect(bounds.x - handlePadding, bounds.y - handlePadding, Math.max(bounds.w + handlePadding * 2, 2 / state.zoom), Math.max(bounds.h + handlePadding * 2, 2 / state.zoom));
         ctx.restore();
         if (isSelected && !ports.isLocked(element) && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent || !!element.container) && element.type !== "freehand") {
           drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent || !!element.container, rotation, element.type !== "schemaTable");
+          if (element.type === "flowchart") for (const handle of shapeAdjustmentHandles(element)) {
+            ctx.beginPath(); ctx.arc(handle.x, handle.y, 4.5 / state.zoom, 0, Math.PI * 2);
+            ctx.fillStyle = "#fff7d6"; ctx.strokeStyle = "#ba7400"; ctx.lineWidth = 1.5 / state.zoom; ctx.fill(); ctx.stroke();
+          }
         }
       }
       ctx.restore();

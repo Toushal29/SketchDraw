@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { LibraryComponentIcon } from "../../components/LibraryComponentIcon";
-import { LIBRARY_COMPONENTS } from "../../notes";
+import { LIBRARY_COMPONENTS } from "../components/library-components";
 
 /** Explain the built-in modeling symbols without leaving the Planning workspace. */
 export function ModelingGuide() {

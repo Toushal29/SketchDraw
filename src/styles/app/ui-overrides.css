@@ -5,7 +5,7 @@
     border-radius: 8px;
 }
 
-.tool-options:not(.stencil-options) button {
+.tool-options button {
     min-width: 40px;
     min-height: 40px;
     gap: 0px;
@@ -13,12 +13,12 @@
     border-radius: 0px;
 }
 
-.tool-options:not(.stencil-options) button>svg {
+.tool-options button>svg {
     width: 21px;
     height: 21px;
 }
 
-.tool-options:not(.stencil-options) button>span {
+.tool-options button>span {
     font-size: var(--type-micro);
     line-height: var(--leading-tight);
 }
@@ -34,8 +34,8 @@
     color: var(--ui-accent);
 }
 
-.tool-options:not(.stencil-options)>button:hover,
-.tool-options:not(.stencil-options)>button.active {
+.tool-options>button:hover,
+.tool-options>button.active {
     border-color: var(--ui-accent-border);
     color: var(--ui-accent);
     background: var(--ui-accent-soft);

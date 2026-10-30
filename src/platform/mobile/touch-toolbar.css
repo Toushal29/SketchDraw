@@ -179,8 +179,7 @@
   /* All tool groups stay in the rail. The rail scrolls when it cannot fit. */
   .app-shell:not(.platform-windows) .touch-tool-content .tool-cluster .tool-icon-button,
   .app-shell:not(.platform-windows) .touch-tool-content .tool-family,
-  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family,
-  .app-shell:not(.platform-windows) .touch-tool-content>.stencil-family {
+  .app-shell:not(.platform-windows) .touch-tool-content .canvas-options-family {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
@@ -231,7 +230,7 @@
     display: block;
   }
 
-  .app-shell:not(.platform-windows) .touch-tool-content .tool-options:not(.stencil-options)>button,
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-options>button,
   .app-shell:not(.platform-windows) .touch-tool-content .route-options>button {
     display: grid;
     box-sizing: border-box;
@@ -250,14 +249,14 @@
     touch-action: manipulation;
   }
 
-  .app-shell:not(.platform-windows) .touch-tool-content .tool-options:not(.stencil-options)>button:hover,
-  .app-shell:not(.platform-windows) .touch-tool-content .tool-options:not(.stencil-options)>button.active {
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-options>button:hover,
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-options>button.active {
     border-color: color-mix(in srgb, var(--ui-accent, var(--theme-primary-border)) 25%, transparent);
     color: var(--ui-accent-ink, var(--theme-primary));
     background: var(--ui-accent-soft, var(--theme-primary-muted));
   }
 
-  .app-shell:not(.platform-windows) .touch-tool-content .tool-options:not(.stencil-options)>button>svg {
+  .app-shell:not(.platform-windows) .touch-tool-content .tool-options>button>svg {
     width: 21px;
     height: 21px;
     fill: none;
@@ -280,12 +279,15 @@
     text-align: center;
   }
 
-  .app-shell:not(.platform-windows) .touch-tool-content .text-options {
-    width: min(270px, calc(100vw - 16px));
+  .app-shell:not(.platform-windows) .touch-tool-content .text-tool-panel {
+    --touch-popup-width: 238px;
+    width: min(238px, calc(100vw - 16px));
     grid-template-columns: 1fr;
+    gap: 3px;
+    padding: 5px;
   }
 
-  .app-shell:not(.platform-windows) .touch-tool-content .text-options>button,
+  .app-shell:not(.platform-windows) .touch-tool-content .text-tool-option,
   .app-shell:not(.platform-windows) .touch-tool-content .paint-brush-options>button {
     grid-template-columns: 24px minmax(0, 1fr);
     justify-content: start;
@@ -306,16 +308,6 @@
     width: min(205px, calc(100vw - 16px));
     grid-template-columns: 1fr;
     gap: 2px;
-  }
-
-  .app-shell:not(.platform-windows) .touch-tool-content .tool-family.options-open>.stencil-options {
-    --touch-popup-width: 580px;
-    width: min(580px, calc(100vw - 16px));
-  }
-
-  .app-shell:not(.platform-windows) .touch-tool-content>.stencil-family.options-open>.tool-icon-button {
-    border-color: transparent;
-    background: transparent;
   }
 
   .app-shell:not(.platform-windows) .touch-tool-content .workspace-view-panel {

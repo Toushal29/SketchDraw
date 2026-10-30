@@ -518,6 +518,31 @@
     outline-offset: 1px;
 }
 
+.app-shell.platform-windows .windows-shape-footer {
+    position: sticky;
+    bottom: -10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 3px 2px;
+    border-top: 1px solid var(--theme-border);
+    background: var(--theme-surface-elevated);
+    color: var(--theme-text-secondary);
+    font: var(--type-micro)/var(--leading-tight) var(--font-ui);
+}
+
+.app-shell.platform-windows .windows-shape-footer button {
+    padding: 6px 10px;
+    border: 1px solid var(--ui-accent-border);
+    border-radius: 6px;
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+    cursor: pointer;
+}
+
+.app-shell.platform-windows .windows-shape-footer button:disabled { opacity: .5; cursor: default; }
+
 .platform-windows.windows-presentation-mode .topbar,
 .platform-windows.windows-presentation-mode .touch-tool-bar,
 .platform-windows.windows-presentation-mode .tool-deck,

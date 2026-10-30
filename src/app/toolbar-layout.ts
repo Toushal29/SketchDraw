@@ -1,7 +1,7 @@
 import type { ToolbarItem } from "../model";
 import { isWindowsPlatform } from "../platform/runtime";
 
-export const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "eraser", "laser", "line", "arrow", "rectangle", "circle", "diamond", "flowchart", "text", "bucket", "crop", "measure", "codeData", "pathEdit", "frame"];
+export const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "eraser", "laser", "line", "arrow", "rectangle", "circle", "diamond", "flowchart", "text", "componentLibrary", "bucket", "crop", "measure", "codeData", "pathEdit", "frame"];
 export const DEFAULT_MORE_TOOL_ORDER: ToolbarItem[] = ["bucket", "measure", "crop"];
 export const MOBILE_DEFAULT_TOOLBAR_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "eraser", "line", "arrow", "rectangle", "text"];
 export type ToolbarLayout = { toolbar: ToolbarItem[]; more: ToolbarItem[] };
@@ -17,6 +17,11 @@ export function normalizePaintToolOrder(toolbar: ToolbarItem[]) {
   };
   if (toolbar.includes("paintBrushes")) moveAfter("paintBrushes", "pen");
   moveAfter("eraser", toolbar.includes("paintBrushes") ? "paintBrushes" : "pen");
+}
+function insertComponentLibraryAfterText(toolbar: ToolbarItem[], more: ToolbarItem[]) {
+  if (toolbar.includes("componentLibrary") || more.includes("componentLibrary")) return;
+  const textIndex = toolbar.indexOf("text");
+  toolbar.splice(textIndex >= 0 ? textIndex + 1 : toolbar.length, 0, "componentLibrary");
 }
 export function toolbarItemsForCurrentPlatform(): ToolbarItem[] {
   return [...DEFAULT_TOOL_ORDER];
@@ -44,7 +49,13 @@ export function readToolbarLayout(): ToolbarLayout {
       const source = saved as { toolbar?: unknown; more?: unknown };
       const toolbar = normalize(source.toolbar);
       const more = normalize(source.more).filter(value => value !== "eraser" && !toolbar.includes(value));
-      for (const value of [...defaults.toolbar, ...defaults.more]) if (!toolbar.includes(value) && !more.includes(value)) (defaults.more.includes(value) ? more : toolbar).push(value);
+      for (const value of [...defaults.toolbar, ...defaults.more]) {
+        if (value === "componentLibrary" || toolbar.includes(value) || more.includes(value)) continue;
+        (defaults.more.includes(value) ? more : toolbar).push(value);
+      }
+      if (defaults.more.includes("componentLibrary")) {
+        if (!toolbar.includes("componentLibrary") && !more.includes("componentLibrary")) more.push("componentLibrary");
+      } else insertComponentLibraryAfterText(toolbar, more);
       normalizePaintToolOrder(toolbar);
       return { toolbar, more };
     }
@@ -52,7 +63,8 @@ export function readToolbarLayout(): ToolbarLayout {
     if (Array.isArray(legacy)) {
       const oldToolbar = normalize(legacy).filter(value => !DEFAULT_MORE_TOOL_ORDER.includes(value));
       const more = defaults.more.filter(value => !oldToolbar.includes(value));
-      const toolbar = [...oldToolbar, ...defaults.toolbar.filter(value => !oldToolbar.includes(value))];
+      const toolbar = [...oldToolbar, ...defaults.toolbar.filter(value => value !== "componentLibrary" && !oldToolbar.includes(value))];
+      insertComponentLibraryAfterText(toolbar, more);
       normalizePaintToolOrder(toolbar);
       return { toolbar, more };
     }

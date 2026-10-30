@@ -176,11 +176,11 @@
     box-sizing: border-box;
     z-index: 7;
     display: block;
-    width: 54px;
+    width: 50px;
     max-height: calc(100% - 36px);
     padding: 6px 4px;
     border: 1px solid var(--theme-border);
-    border-radius: 19px;
+    border-radius: 25px;
     background: var(--theme-surface-elevated);
     box-shadow: var(--theme-elevation-popover);
     overflow: visible;

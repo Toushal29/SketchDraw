@@ -64,7 +64,7 @@ import {
   IconWorld,
   type IconProps,
 } from "@tabler/icons-solidjs";
-import { type LibraryComponentKind } from "../notes";
+import { type LibraryComponentKind } from "../features/components/library-components";
 import type { GroupElement } from "../model";
 import { modelComponentSvg } from "../features/components/model-component-renderer";
 import { cloudNeutralComponent, cloudProviderComponent, loadCloudProviderGlyph } from "../features/diagrams/cloud-providers";
@@ -189,11 +189,22 @@ const icons: Partial<Record<LibraryComponentKind, Component<IconProps>>> = {
   "form-checkbox": IconCheckbox,
   "form-radio": IconCircleDot,
   "form-toggle": IconToggleRight,
+  "form-password": IconTextSize,
+  "form-email": IconMessage,
+  "form-file": IconFileText,
   "gui-card": IconListDetails,
   "gui-app-bar": IconBrowser,
   "gui-navigation": IconColumns3,
   "gui-tabs": IconComponents,
   "gui-image": IconDeviceDesktop,
+  "gui-list": IconListDetails,
+  "gui-table": IconTable,
+  "gui-accordion": IconListDetails,
+  "gui-menu": IconListCheck,
+  "gui-toast": IconMessage,
+  "gui-pagination": IconArrowsSplit,
+  "gui-divider": IconColumns3,
+  "gui-footer": IconBrowser,
   "bpmn-start": IconCircle,
   "bpmn-message-event": IconMessage,
   "bpmn-timer-event": IconStopwatch,
@@ -249,10 +260,10 @@ function CloudNeutralModelIcon(props: { kind: LibraryComponentKind }) {
   const group: GroupElement = {
     type: "group",
     elements: [],
-    componentBounds: { x: 0, y: 0, w: 176, h: 108 },
+    componentBounds: { x: 0, y: 0, w: 176, h: 58 },
     libraryComponent: { kind: component.kind, label: component.label, renderStyle: "clean" },
   };
-  return <svg viewBox="0 0 176 108" class="stencil-component-icon stencil-component-model-preview" aria-hidden="true" innerHTML={modelComponentSvg(group)} />;
+  return <svg viewBox="0 0 176 58" class="stencil-component-icon stencil-component-model-preview" aria-hidden="true" innerHTML={modelComponentSvg(group)} />;
 }
 
 export function LibraryComponentIcon(props: { kind: LibraryComponentKind; loadProviderArtwork?: boolean }) {

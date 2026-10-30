@@ -1,6 +1,6 @@
 import type { Element as CanvasElement, FreehandElement, ImageElement, Point, ShapeElement, TextElement } from "../../model";
 import { elementBounds } from "../canvas/bounds";
-import { ALL_FLOWCHART_SHAPES } from "./config";
+import { ALL_FLOWCHART_SHAPES } from "../shapes/shape-catalog";
 
 const MAX_IMPORT_BYTES = 25_000_000;
 const MAX_IMPORTED_POINTS = 250_000;
@@ -147,7 +147,14 @@ function shapeFromExternal(record: Record<string, unknown>, kind: string, files?
     const backgroundColor = fill === "transparent" || fill === "#ffffff00" || fill === "#FFFFFF00" ? undefined : fill;
     const label = validText(record.label) ? record.label : undefined;
     const flowchartShape = record.customData && typeof record.customData === "object" ? (record.customData as Record<string, unknown>).flowchartShape : undefined;
-    return { type: elementType, id: elementId, x, y, w, h, color, thickness, ...(backgroundColor && backgroundColor !== "transparent" ? { fillColor: backgroundColor } : {}), lineStyle: strokeStyle, ...(elementType === "flowchart" ? { flowchartShape: FLOWCHART_SHAPES.has(String(flowchartShape)) ? flowchartShape as ShapeElement["flowchartShape"] : "process" } : {}), opacity, ...(rotation ? { rotation } : {}), ...(label ? { label: { text: label, color: safeColor(record.textColor, "#111827"), fontSize: clamp(finite(record.fontSize, 16), 8, 100), fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } } : {}) } as ShapeElement;
+    const rawAdjustments = record.customData && typeof record.customData === "object" ? (record.customData as Record<string, unknown>).shapeAdjustments : undefined;
+    const adjusted = rawAdjustments && typeof rawAdjustments === "object" ? rawAdjustments as Record<string, unknown> : undefined;
+    const shapeAdjustments = adjusted ? {
+      ...(typeof adjusted.shaft === "number" && Number.isFinite(adjusted.shaft) ? { shaft: clamp(adjusted.shaft, .1, .9) } : {}),
+      ...(typeof adjusted.head === "number" && Number.isFinite(adjusted.head) ? { head: clamp(adjusted.head, .1, .85) } : {}),
+      ...(typeof adjusted.inset === "number" && Number.isFinite(adjusted.inset) ? { inset: clamp(adjusted.inset, .05, .45) } : {}),
+    } : undefined;
+    return { type: elementType, id: elementId, x, y, w, h, color, thickness, ...(backgroundColor && backgroundColor !== "transparent" ? { fillColor: backgroundColor } : {}), lineStyle: strokeStyle, ...(elementType === "flowchart" ? { flowchartShape: FLOWCHART_SHAPES.has(String(flowchartShape)) ? flowchartShape as ShapeElement["flowchartShape"] : "process", ...(shapeAdjustments && Object.keys(shapeAdjustments).length ? { shapeAdjustments } : {}) } : {}), opacity, ...(rotation ? { rotation } : {}), ...(label ? { label: { text: label, color: safeColor(record.textColor, "#111827"), fontSize: clamp(finite(record.fontSize, 16), 8, 100), fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } } : {}) } as ShapeElement;
   }
   return undefined;
 }
@@ -302,7 +309,7 @@ export function exportExcalidraw(elements: CanvasElement[]): string {
       common.strokeColor = element.color; common.backgroundColor = "transparent";
       common.fontWeight = element.bold ? "bold" : "normal"; common.fontStyle = element.italic ? "italic" : "normal";
     }
-    if (element.type === "flowchart") common.customData = { sketchDrawType: element.type, flowchartShape: element.flowchartShape };
+    if (element.type === "flowchart") common.customData = { sketchDrawType: element.type, flowchartShape: element.flowchartShape, ...(element.shapeAdjustments ? { shapeAdjustments: element.shapeAdjustments } : {}) };
     else if (element.type === "triangle") common.customData = { sketchDrawType: element.type };
     else if (element.type === "svgPath") common.customData = { sketchDrawType: element.type, svgPathData: element.pathData, svgPathWidth: element.pathWidth, svgPathHeight: element.pathHeight, svgFillRule: element.fillRule, svgFillOpacity: element.fillOpacity, svgStroke: element.svgStroke };
     if (element.type === "image") {
