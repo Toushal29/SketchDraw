@@ -1,11 +1,14 @@
 import { createFreehandRenderer } from "../src/features/canvas/freehand-rendering";
-import { createCanvasRenderScheduler } from "../src/features/canvas/rendering";
+import { canvasPixelRatio, createCanvasRenderScheduler } from "../src/features/canvas/rendering";
+import { SceneTileCache } from "../src/features/canvas/scene-tile-cache";
+import { ElementSpatialIndex } from "../src/features/canvas/spatial-index";
 import { createStrokeSampleGate } from "../src/features/canvas/stroke-input";
 import { appendSimplifiedStrokePoint } from "../src/features/canvas/stroke-simplification";
 import { canvasStateForTouchGesture, gridStepForStyle, gridSvgPattern, pointerToWorld, snapCanvasPoint, strokePointFromPointer, zoomCanvasStateAt } from "../src/features/canvas/input";
-import { alignedTextStartX, anchorPoint, connectionAnchorsFor, flatten, isConnectable, labelBox, textLayout, validReferences } from "../src/operations";
+import { alignedTextStartX, anchorPoint, connectionAnchorsFor, flatten, isConnectable, labelBox, nearestBinding, textLayout, validReferences } from "../src/operations";
 import { ALL_FLOWCHART_SHAPES } from "../src/features/diagrams/config";
 import { adjustShapeAtPoint, shapeAdjustmentHandles, shapePathData } from "../src/features/shapes/geometry";
+import { componentOutlinePath } from "../src/features/components/component-geometry";
 import { drawShapeLabel } from "../src/features/canvas/rendering";
 import { elementBounds, lockAspectResizeBounds } from "../src/features/canvas/bounds";
 import { parseEditablePath, updateEditablePath } from "../src/features/canvas/path-editing";
@@ -455,6 +458,27 @@ spec:
     check(Math.abs(snapped.x / 50 - Math.round(snapped.x / 50)) < 1e-8 && Math.abs(snapped.y / 50 - Math.round(snapped.y / 50)) < 1e-8, `Grid snapping uses the 50-unit document lattice at zoom ${zoom} and pixel ratio ${ratio}`);
     check(Math.abs(pattern.width - step * zoom) < 1e-8 && Math.abs(pattern.height - step * zoom) < 1e-8, `Paper pattern repeats at the snapped grid pitch at zoom ${zoom} and pixel ratio ${ratio}`);
   }
+  const renderShape: ShapeElement = { type: "rectangle", x: 32, y: 24, w: 180, h: 90, color: "#202124", thickness: 1.5 };
+  const renderElements: Element[] = [renderShape]; const renderIndex = new ElementSpatialIndex(renderElements);
+  const tileCanvas = canvas(500, 350); const vectorCanvas = canvas(500, 350);
+  const paintTileElement = (ctx: CanvasRenderingContext2D, element: Element) => {
+    if (element.type !== "rectangle") return;
+    ctx.strokeStyle = element.color; ctx.lineWidth = element.thickness; ctx.strokeRect(element.x, element.y, element.w, element.h);
+  };
+  const tileContext = tileCanvas.getContext("2d")!; tileContext.setTransform(1.5, 0, 0, 1.5, 0, 0);
+  const tileCache = new SceneTileCache();
+  const tileCopiedOneToOne = tileCache.draw(tileContext, { x: 0, y: 0, w: 300, h: 200 }, 1.5, 1, renderElements, renderIndex, "pixel-aligned", paintTileElement);
+  const vectorContext = vectorCanvas.getContext("2d")!; vectorContext.setTransform(1.5, 0, 0, 1.5, 0, 0); paintTileElement(vectorContext, renderShape);
+  const tilePixels = tileContext.getImageData(0, 0, tileCanvas.width, tileCanvas.height).data;
+  const vectorPixels = vectorContext.getImageData(0, 0, vectorCanvas.width, vectorCanvas.height).data;
+  const tilePixelDifference = tilePixels.reduce((difference, value, index) => difference + Number(value !== vectorPixels[index]), 0);
+  const fractionalContext = canvas(500, 350).getContext("2d")!; fractionalContext.setTransform(1.5, 0, 0, 1.5, .25, 0);
+  const fractionalTileUsed = tileCache.draw(fractionalContext, { x: 0, y: 0, w: 300, h: 200 }, 1.5, 1, renderElements, new ElementSpatialIndex(renderElements), "pixel-aligned", paintTileElement);
+  tileCache.clear();
+  check(tileCopiedOneToOne && tilePixelDifference === 0, `Zoomed-out scene tiles match direct vector pixels when aligned (${tilePixelDifference} differing channel values)`);
+  check(!fractionalTileUsed, "Subpixel-translated scenes bypass raster tiles and retain direct vector rendering");
+  check(canvasPixelRatio(1200, 800, 2) === 2 && canvasPixelRatio(20_000, 2_000, 3) < 3,
+    "Canvas backing resolution follows display pixel ratio within its dimension and memory limits");
   check(alignedTextStartX(100, 40, "left") === 100 && alignedTextStartX(100, 40, "center") === 80 && alignedTextStartX(100, 40, "right") === 60, "Text alignment shares its anchor calculation across canvas and exports");
   const originalResizeBounds = { x: 0, y: 0, w: 100, h: 50 };
   const horizontalResize = lockAspectResizeBounds(originalResizeBounds, { x: 0, y: 0, w: 160, h: 50 }, "e");
@@ -560,6 +584,21 @@ spec:
   const ring = connectorShapeSet.find(shape => shape.type === "flowchart" && shape.flowchartShape === "ring");
   const ringIgnoresInnerCutout = !!ring && connectionAnchorsFor(ring).every(anchor => Math.hypot(anchor.x - .5, anchor.y - .5) > .35);
   check(connectorOutlinesFollowEveryShape && diamondVerticesAndEdges && gearIgnoresInnerCutout && ringIgnoresInnerCutout, "Connector snap points follow built-in and SVG outlines, include diamond vertices and edge centers, and avoid shape cutouts");
+  const nearbyActor = buildLibraryComponent("uml-actor", 0, 0);
+  const nearbyActorAnchor = connectionAnchorsFor(nearbyActor)[0];
+  const nearbyActorPoint = anchorPoint(nearbyActor, nearbyActorAnchor);
+  const distantActors = Array.from({ length: 300 }, (_, index) => buildLibraryComponent("uml-actor", 5000 + index * 300, 5000));
+  const nearbyActorBinding = nearestBinding([...distantActors, nearbyActor], nearbyActorPoint, 1);
+  check(nearbyActorBinding?.binding.elementId === nearbyActor.id && !!nearbyActorBinding && Math.hypot(nearbyActorBinding.point.x - nearbyActorPoint.x, nearbyActorBinding.point.y - nearbyActorPoint.y) <= 1,
+    "Connector endpoint snapping finds a nearby component among 300 distant components");
+  const actionComponent = buildLibraryComponent("uml-activity-action", 0, 0);
+  const actionSvg = modelComponentSvg(actionComponent, "light");
+  const actionOutline = document.createElementNS("http://www.w3.org/2000/svg", "path"); actionOutline.setAttribute("d", componentOutlinePath("uml-activity-action", 190, 100));
+  const packageOutlineData = componentOutlinePath("uml-package", 190, 100);
+  const packageOutline = document.createElementNS("http://www.w3.org/2000/svg", "path"); packageOutline.setAttribute("d", packageOutlineData);
+  check(actionSvg.includes('rx="15"') && Number.isFinite(actionOutline.getTotalLength()) && actionOutline.getTotalLength() > 0
+    && Number.isFinite(packageOutline.getTotalLength()) && packageOutlineData !== componentOutlinePath("uml-package", 100, 100),
+  "UML action borders stay rounded in SVG and package ports use size-matched contours");
 
   await importCheck("Connector routing clears intervening nodes with orthogonal bends", () => {
     const source: ShapeElement = { type: "rectangle", id: "route-source", x: 0, y: 45, w: 60, h: 70, color: "#333", thickness: 1 };

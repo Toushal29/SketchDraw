@@ -71,9 +71,22 @@ export function componentOutlinePath(kind: string, width = 100, height = 100): s
     return `M ${l(cx, 14)} C ${l(cx + 5.5, 14)} ${l(cx + 10, 18.5)} ${l(cx + 10, 24)} C ${l(cx + 10, 29.5)} ${l(cx + 5.5, 34)} ${l(cx, 34)} C ${l(cx - 5.5, 34)} ${l(cx - 10, 29.5)} ${l(cx - 10, 24)} C ${l(cx - 10, 18.5)} ${l(cx - 5.5, 14)} ${l(cx, 14)} M ${l(cx, 35)} L ${l(cx, 63)} M ${l(cx - 20, 42)} L ${l(cx + 20, 42)} M ${l(cx, 63)} L ${l(cx - 15, 82)} M ${l(cx, 63)} L ${l(cx + 15, 82)}`;
   }
   if (kind === "bpmn-text-annotation") return "M 14 0 H 4 V 100 H 14";
-  if (kind === "uml-package") return "M 0 22 V 2 H 35 L 47 22 H 98 V 98 H 2 Z";
-  if (kind === "uml-artifact") return "M 1 1 H 82 L 99 18 V 99 H 1 Z M 82 1 V 18 H 99";
-  if (kind === "uml-node") return "M 8 14 L 20 2 H 99 V 86 L 88 99 H 1 V 14 Z M 88 99 V 14 H 99 M 1 14 H 88 L 99 2";
+  if (kind === "uml-activity-action") {
+    const radius = Math.min(15, width / 2, height / 2); const rx = Number((radius / Math.max(1, width) * 100).toFixed(4)); const ry = Number((radius / Math.max(1, height) * 100).toFixed(4)); const p = (x: number, y: number) => pathPoint(x, y, width, height);
+    return `M ${p(radius, 0)} L ${p(width - radius, 0)} A ${rx} ${ry} 0 0 1 ${p(width, radius)} L ${p(width, height - radius)} A ${rx} ${ry} 0 0 1 ${p(width - radius, height)} L ${p(radius, height)} A ${rx} ${ry} 0 0 1 ${p(0, height - radius)} L ${p(0, radius)} A ${rx} ${ry} 0 0 1 ${p(radius, 0)} Z`;
+  }
+  if (kind === "uml-package") {
+    const tabW = Math.min(width * .42, 86); const tabH = Math.min(22, height * .22); const p = (x: number, y: number) => pathPoint(x, y, width, height);
+    return `M ${p(0, tabH)} L ${p(0, 2)} L ${p(tabW, 2)} L ${p(tabW + 12, tabH)} L ${p(width - 2, tabH)} L ${p(width - 2, height - 2)} L ${p(2, height - 2)} Z`;
+  }
+  if (kind === "uml-artifact") {
+    const fold = Math.min(20, width * .18); const p = (x: number, y: number) => pathPoint(x, y, width, height);
+    return `M ${p(0, 0)} L ${p(width - fold, 0)} L ${p(width, fold)} L ${p(width, height)} L ${p(0, height)} Z M ${p(width - fold, 0)} L ${p(width - fold, fold)} L ${p(width, fold)}`;
+  }
+  if (kind === "uml-node") {
+    const dx = Math.min(18, width * .12); const dy = Math.min(15, height * .12); const p = (x: number, y: number) => pathPoint(x, y, width, height);
+    return `M ${p(dx, dy)} L ${p(dx + 10, 0)} L ${p(width, 0)} L ${p(width, height)} L ${p(dx, height)} Z M ${p(width - dx, dy)} L ${p(width, 0)}`;
+  }
   if (kind === "bpmn-data") return "M 1 1 H 99 V 88 Q 75 100 50 88 Q 25 76 1 88 Z";
   if (kind === "bpmn-data-store" || kind === "software-database" || kind === "cloud-database") return "M 7 12 C 7 1 93 1 93 12 V 88 C 93 99 7 99 7 88 Z M 7 12 C 7 23 93 23 93 12 M 7 50 C 7 61 93 61 93 50";
   if (kind === "uml-use-case" || kind === "er-attribute" || kind === "er-key-attribute" || kind === "er-partial-key-attribute" || kind === "er-multivalued-attribute" || kind === "er-derived-attribute") return ELLIPSE;

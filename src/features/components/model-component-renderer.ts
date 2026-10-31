@@ -27,10 +27,18 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 function strokeRectAligned(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
   const transform = ctx.getTransform(); const scale = Math.max(.01, Math.hypot(transform.a, transform.b));
+  if (Math.abs(transform.a) < 1e-7 || Math.abs(transform.d) < 1e-7 || Math.abs(transform.b) > 1e-7 || Math.abs(transform.c) > 1e-7 || Math.abs(Math.abs(transform.a) - Math.abs(transform.d)) > 1e-7) {
+    ctx.strokeRect(x, y, Math.max(0, w), Math.max(0, h));
+    return;
+  }
   const deviceStrokeWidth = Math.max(1, Math.round(ctx.lineWidth * scale)); const offset = deviceStrokeWidth % 2 ? .5 : 0;
-  const align = (value: number) => (Math.round(value * scale - offset) + offset) / scale;
-  const left = align(x); const top = align(y); const right = align(x + w); const bottom = align(y + h);
+  const alignX = (value: number) => (Math.round(transform.a * value + transform.e - offset) + offset - transform.e) / transform.a;
+  const alignY = (value: number) => (Math.round(transform.d * value + transform.f - offset) + offset - transform.f) / transform.d;
+  const left = alignX(x); const top = alignY(y); const right = alignX(x + w); const bottom = alignY(y + h);
+  const previousLineWidth = ctx.lineWidth;
+  ctx.lineWidth = deviceStrokeWidth / scale;
   ctx.strokeRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+  ctx.lineWidth = previousLineWidth;
 }
 
 function attributeRadii(w: number, h: number, strokeWidth: number, double: boolean) {
@@ -295,7 +303,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     ctx.restore(); return;
   }
   if (kind === "uml-activity-action") {
-    roundRect(ctx, x, y, w, h, 15); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    roundRect(ctx, x, y, w, h, 15); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.stroke();
     label(name, x + 12, y + 22, w - 24, size, true, "center");
     const behavior = field("behavior"); const inputs = field("inputs"); const outputs = field("outputs");
     if (behavior) label(behavior, x + 12, y + 47, w - 24, Math.max(7, size * .62), false, "center");
@@ -1026,7 +1034,7 @@ function drawModelComponentDirect(ctx: CanvasRenderingContext2D, group: GroupEle
   }
   if (kind === "uml-package") {
     const tabW = Math.min(w * .42, 86); const tabH = Math.min(22, h * .22);
-    ctx.beginPath(); ctx.moveTo(x, y + tabH); ctx.lineTo(x, y + 2); ctx.lineTo(x + tabW, y + 2); ctx.lineTo(x + tabW + 12, y + tabH); ctx.lineTo(x + w - 2, y + tabH); ctx.lineTo(x + w - 2, y + h - 2); ctx.lineTo(x + 2, y + h - 2); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y + tabH); ctx.lineTo(x, y + 2); ctx.lineTo(x + tabW, y + 2); ctx.lineTo(x + tabW + 12, y + tabH); ctx.lineTo(x + w - 2, y + tabH); ctx.lineTo(x + w - 2, y + h - 2); ctx.lineTo(x + 2, y + h - 2); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = meta.styleOverrides?.color ?? palette.edge; ctx.lineWidth = 1.3; ctx.stroke();
     const namespace = field("namespace"); const contents = field("contents");
     componentText(name, x + w / 2, y + tabH + h * .31, w - 24, size, ink, 650, "center");
     if (namespace) componentText(namespace, x + w / 2, y + tabH + h * .52, w - 24, Math.max(7, size * .7), palette.muted, 500, "center");
@@ -1110,30 +1118,28 @@ function shortHash(value: string): string {
   return (hash >>> 0).toString(36);
 }
 
-function componentRasterKey(group: GroupElement, theme: Theme, zoomBucket: number) {
+function componentRasterKey(group: GroupElement, theme: Theme, pixelWidth: number, pixelHeight: number) {
   const meta = group.libraryComponent!;
   const iconUrl = componentIconDataUrl(group); const icon = iconUrl ? componentIconImages.get(iconUrl) : undefined;
   const fields = JSON.stringify([meta.label, meta.formTitle, meta.componentFields?.map(field => [field.key, field.value]), meta.guiProperties, meta.formOptions, meta.formStates, meta.formState, meta.selectedOption, meta.iconSvg, meta.iconViewBox, icon?.complete && icon.naturalWidth > 0]);
   const style = JSON.stringify([meta.styleOverrides, meta.textStyle, meta.renderStyle, meta.appearance, theme]);
-  return `${meta.kind}:${group.componentBounds!.w}x${group.componentBounds!.h}:${shortHash(style)}:${zoomBucket}:${shortHash(fields)}`;
+  return `${meta.kind}:${group.componentBounds!.w}x${group.componentBounds!.h}:${shortHash(style)}:${pixelWidth}x${pixelHeight}:${shortHash(fields)}`;
 }
 
-function cachedComponentBitmap(group: GroupElement, theme: Theme, zoomBucket: number): ComponentBitmap | undefined {
+function cachedComponentBitmap(group: GroupElement, theme: Theme, pixelWidth: number, pixelHeight: number): ComponentBitmap | undefined {
   const bounds = group.componentBounds;
   if (!bounds || typeof document === "undefined") return undefined;
-  const scale = Math.max(1, Math.min(8, 2 ** zoomBucket));
-  const width = Math.ceil(bounds.w * scale); const height = Math.ceil(bounds.h * scale);
-  if (width < 1 || height < 1 || width > 4096 || height > 4096 || width * height > 4_000_000) return undefined;
-  const key = componentRasterKey(group, theme, zoomBucket);
+  if (pixelWidth < 1 || pixelHeight < 1 || pixelWidth > 4096 || pixelHeight > 4096 || pixelWidth * pixelHeight > 4_000_000) return undefined;
+  const key = componentRasterKey(group, theme, pixelWidth, pixelHeight);
   let entry = componentBitmapCache.get(key);
   if (entry) { entry.lastUsed = ++componentBitmapClock; return entry; }
-  const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+  const canvas = document.createElement("canvas"); canvas.width = pixelWidth; canvas.height = pixelHeight;
   const context = canvas.getContext("2d");
   if (!context) return undefined;
-  context.scale(scale, scale);
+  context.setTransform(pixelWidth / bounds.w, 0, 0, pixelHeight / bounds.h, 0, 0);
   const localGroup = { ...group, rotation: 0, componentBounds: { x: 0, y: 0, w: bounds.w, h: bounds.h } };
   drawModelComponentDirect(context, localGroup, theme);
-  const pixels = width * height;
+  const pixels = pixelWidth * pixelHeight;
   entry = { canvas, pixels, lastUsed: ++componentBitmapClock };
   componentBitmapCache.set(key, entry); componentBitmapPixels += pixels;
   const limits = componentBitmapLimits();
@@ -1147,11 +1153,26 @@ function cachedComponentBitmap(group: GroupElement, theme: Theme, zoomBucket: nu
 export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme) {
   const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return;
-  const transform = ctx.getTransform(); const zoom = Math.max(.01, Math.hypot(transform.a, transform.b));
-  const deviceScale = zoom * (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1);
-  const zoomBucket = Math.round(Math.log2(Math.max(.25, deviceScale)) * 2) / 2;
-  const bitmap = cachedComponentBitmap(group, theme, zoomBucket);
-  if (bitmap) { ctx.drawImage(bitmap.canvas, bounds.x, bounds.y, bounds.w, bounds.h); return; }
+  const transform = ctx.getTransform();
+  const isIntegerPixel = (value: number) => Math.abs(value - Math.round(value)) < 1e-7;
+  const pixelX = transform.a * bounds.x + transform.e;
+  const pixelY = transform.d * bounds.y + transform.f;
+  const pixelWidth = transform.a * bounds.w;
+  const pixelHeight = transform.d * bounds.h;
+  // Cached components stay sharp only when their bitmap has the exact output
+  // dimensions and lands on the physical pixel grid. Fractional scales,
+  // subpixel positions, and rotation use the vector renderer directly.
+  const cacheable = Math.abs(transform.b) < 1e-8 && Math.abs(transform.c) < 1e-8
+    && transform.a > 0 && transform.d > 0 && Math.abs(transform.a - transform.d) < 1e-7
+    && [pixelX, pixelY, pixelWidth, pixelHeight].every(isIntegerPixel);
+  if (cacheable) {
+    const bitmap = cachedComponentBitmap(group, theme, Math.round(pixelWidth), Math.round(pixelHeight));
+    if (bitmap) {
+      ctx.save(); ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(bitmap.canvas, bounds.x, bounds.y, bounds.w, bounds.h); ctx.restore();
+      return;
+    }
+  }
   drawModelComponentDirect(ctx, group, theme);
 }
 
@@ -1230,7 +1251,7 @@ function renderModelComponentSvg(group: GroupElement, theme: Theme): string {
       return `<text text-anchor="start" fill="${ink}" font-family="sans-serif" font-size="${fittedFont}" font-weight="400">${tspans}</text>`;
     };
     const field = (key: string) => componentFieldValue(group, key);
-    const r = (rx = x, ry = y, rw = w, rh = h, color = cleanFill) => `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${color}" stroke="${ink}" stroke-width="1.3"/>`;
+    const r = (rx = x, ry = y, rw = w, rh = h, color = cleanFill, radius = 0) => `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}"${radius > 0 ? ` rx="${Math.min(radius, rw / 2, rh / 2)}" ry="${Math.min(radius, rw / 2, rh / 2)}"` : ""} fill="${color}" stroke="${ink}" stroke-width="1.3"/>`;
     const p = (d: string, dash = "") => `<path d="${d}" fill="none" stroke="${ink}" stroke-width="1.3"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
     const neutralCloud = cloudNeutralComponent(kind);
     if (neutralCloud) {
@@ -1261,7 +1282,7 @@ function renderModelComponentSvg(group: GroupElement, theme: Theme): string {
     }
     if (kind === "uml-activity-action") {
       const behavior = field("behavior"); const inputs = field("inputs").split(/\r?\n/).filter(Boolean)[0]; const outputs = field("outputs").split(/\r?\n/).filter(Boolean)[0];
-      return `${r(x, y, w, h, cleanFill)}${t(rawTitle, x + w / 2, y + 22, w - 24, size, "middle")}${behavior ? t(behavior, x + w / 2, y + 47, w - 24, Math.max(7, size * .62), "middle", 400) : ""}${inputs ? `${r(x, y + h * .5 - 5, 8, 10, soft)}${t(inputs, x + 10, y + h * .72, w * .42, Math.max(6, size * .52), "start", 400)}` : ""}${outputs ? `${r(x + w - 8, y + h * .5 - 5, 8, 10, soft)}${t(outputs, x + w * .54, y + h * .72, w * .4, Math.max(6, size * .52), "start", 400)}` : ""}`;
+      return `${r(x, y, w, h, cleanFill, 15)}${t(rawTitle, x + w / 2, y + 22, w - 24, size, "middle")}${behavior ? t(behavior, x + w / 2, y + 47, w - 24, Math.max(7, size * .62), "middle", 400) : ""}${inputs ? `${r(x - 1, y + h * .5 - 5, 8, 10, soft)}${t(inputs, x + 10, y + h * .72, w * .42, Math.max(6, size * .52), "start", 400)}` : ""}${outputs ? `${r(x + w - 7, y + h * .5 - 5, 8, 10, soft)}${t(outputs, x + w * .54, y + h * .72, w * .4, Math.max(6, size * .52), "start", 400)}` : ""}`;
     }
     if (kind === "uml-activity-decision") {
       const condition = field("condition"); const guards = field("guards").split(/\r?\n/).filter(Boolean)[0];
@@ -1583,7 +1604,7 @@ function renderModelComponentSvg(group: GroupElement, theme: Theme): string {
       return `<path d="M ${x + w / 2} ${y + h * .38} L ${x + w * .25} ${y + h * .61} M ${x + w / 2} ${y + h * .38} L ${x + w * .75} ${y + h * .61}" stroke="${erEdge}"/><ellipse cx="${x + w / 2}" cy="${y + h * .22}" rx="${w * .18}" ry="${h * .16}" fill="${erFill}" stroke="${erEdge}"/><ellipse cx="${x + w * .25}" cy="${y + h * .77}" rx="${w * .22}" ry="${h * .16}" fill="${erFill}" stroke="${erEdge}"/><ellipse cx="${x + w * .75}" cy="${y + h * .77}" rx="${w * .22}" ry="${h * .16}" fill="${erFill}" stroke="${erEdge}"/>${parent}${text(first, x + w * .25, y + h * .77, w * .34)}${text(second, x + w * .75, y + h * .77, w * .34)}`;
     }
   }
-  if (kind === "uml-package") { const tabW = Math.min(w * .42, 86); const tabH = Math.min(22, h * .22); return `<path d="M ${x} ${y + tabH} V ${y + 2} H ${x + tabW} L ${x + tabW + 12} ${y + tabH} H ${x + w - 2} V ${y + h - 2} H ${x + 2} Z" fill="${fill}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + tabH + h * .35}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 24)}>${title}</text>`; }
+  if (kind === "uml-package") { const tabW = Math.min(w * .42, 86); const tabH = Math.min(22, h * .22); return `<path d="M ${x} ${y + tabH} L ${x} ${y + 2} L ${x + tabW} ${y + 2} L ${x + tabW + 12} ${y + tabH} L ${x + w - 2} ${y + tabH} L ${x + w - 2} ${y + h - 2} L ${x + 2} ${y + h - 2} Z" fill="${fill}" stroke="${edge}" stroke-width="1.3"/><text x="${x + w / 2}" y="${y + tabH + h * .35}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 24)}>${title}</text>`; }
   if (kind === "uml-actor") { const cx = x + w / 2; const figureWidth = Math.min(58, w * .72); const head = Math.min(12, h * .11); return `<circle cx="${cx}" cy="${y + head + 3}" r="${head}" fill="${fill}" stroke="${edge}"/><path d="M ${cx} ${y + head * 2 + 3} V ${y + h * .62} M ${cx - figureWidth * .38} ${y + h * .4} H ${cx + figureWidth * .38} M ${cx} ${y + h * .62} L ${cx - figureWidth * .3} ${y + h * .74} M ${cx} ${y + h * .62} L ${cx + figureWidth * .3} ${y + h * .74}" fill="none" stroke="${edge}"/><text x="${cx}" y="${y + h * .9}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w - 8)}>${title}</text>`; }
   if (kind === "uml-use-case") return `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2 - .65}" ry="${h / 2 - .65}" fill="${fill}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}"${fitTextAttribute(rawTitle, w * .84)}>${title}</text>`;
   if (kind === "uml-lifeline") return `<rect x="${x}" y="${y}" width="${w}" height="${Math.min(34, h)}" rx="${simple ? 0 : 8}" fill="${fill}" fill-opacity="${meta.styleOverrides?.fillOpacity ?? 1}" stroke="${edge}"/><text x="${x + w / 2}" y="${y + 17}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700">${title}</text><path d="M ${x + w / 2} ${y + 34} V ${y + h}" stroke="${edge}" stroke-dasharray="6 5"/>`;

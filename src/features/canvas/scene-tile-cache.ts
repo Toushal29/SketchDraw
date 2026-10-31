@@ -2,7 +2,7 @@ import type { Bounds, Element } from "../../model";
 import type { ElementSpatialIndex } from "./spatial-index";
 
 const TILE_SIZE = 512;
-const TILE_BLEED = 1;
+const TILE_BLEED = 2;
 const MAX_TILE_BYTES = 24 * 1024 * 1024;
 const MAX_VISIBLE_TILES = 64;
 const MAX_CACHED_TILE_SCALE = 3;
@@ -40,10 +40,17 @@ export class SceneTileCache {
     drawElement: (context: CanvasRenderingContext2D, element: Element, viewport: Bounds, sourceItems: Element[]) => void,
   ): boolean {
     const physicalScale = zoom * devicePixelRatio;
-    if (!Number.isFinite(physicalScale) || physicalScale < .5 || physicalScale > MAX_CACHED_TILE_SCALE) return false;
-    // Downsampled tiles are useful while zoomed out; 100% and closer views
-    // draw vectors directly in the scene renderer.
-    const scale = Math.max(.5, Math.min(MAX_CACHED_TILE_SCALE, Math.round(physicalScale * 8) / 8));
+    const transform = context.getTransform();
+    const isIntegerPixel = (value: number) => Math.abs(value - Math.round(value)) < 1e-7;
+    // A cached bitmap is only sharp when it is copied one-to-one onto the
+    // destination pixel grid. Otherwise let the scene renderer draw vectors.
+    // Half-step scales keep the fixed 516-unit tile (including bleed) integral.
+    if (!Number.isFinite(physicalScale) || physicalScale < .5 || physicalScale > MAX_CACHED_TILE_SCALE
+      || !isIntegerPixel(physicalScale * 2)
+      || Math.abs(transform.a - physicalScale) > 1e-7 || Math.abs(transform.d - physicalScale) > 1e-7
+      || Math.abs(transform.b) > 1e-8 || Math.abs(transform.c) > 1e-8
+      || !isIntegerPixel(transform.e) || !isIntegerPixel(transform.f)) return false;
+    const scale = physicalScale;
     this.sync(elements, spatialIndex, renderKey);
 
     const left = Math.floor(viewport.x / TILE_SIZE);
@@ -63,7 +70,6 @@ export class SceneTileCache {
         visibleTiles.push(tile);
       }
     }
-    const transform = context.getTransform();
     if (![transform.a, transform.b, transform.c, transform.d, transform.e, transform.f].every(Number.isFinite)
       || Math.abs(transform.b) > 1e-8 || Math.abs(transform.c) > 1e-8 || !transform.a || !transform.d) return false;
     for (const tile of visibleTiles) {
@@ -82,6 +88,7 @@ export class SceneTileCache {
       context.rect(left, top, right - left, bottom - top);
       context.clip();
       context.setTransform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
+      context.imageSmoothingEnabled = false;
       context.drawImage(tile.canvas, tile.x - TILE_BLEED, tile.y - TILE_BLEED, TILE_SIZE + TILE_BLEED * 2, TILE_SIZE + TILE_BLEED * 2);
       context.restore();
     }

@@ -24,6 +24,8 @@ export const DEFAULT_CONNECTION_POINTS: readonly ConnectionPoint[] = [
 type ShapeOutlineGeometry = { path?: SVGPathElement; length: number; samples: Point[] };
 const outlineGeometryCache = new WeakMap<ShapeElement, ShapeOutlineGeometry>();
 const outlineAnchorCache = new WeakMap<ShapeElement, Point[]>();
+const connectionAnchorCache = new WeakMap<object, Point[]>();
+const connectionPointCache = new WeakMap<object, ConnectionPoint[]>();
 const pathTokens = /[A-Za-z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/gi;
 
 function pathEndpoints(path: string): Point[] {
@@ -94,14 +96,21 @@ function shapeOutlineGeometry(shape: ShapeElement): ShapeOutlineGeometry | undef
 
 /** Default connector handles retain box-side spacing while following each shape's visible outline. */
 export function connectionAnchorsFor(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement): Point[] {
+  const cached = connectionAnchorCache.get(shape);
+  if (cached) return cached;
   if (shape.type === "group" && shape.libraryComponent) {
     const strategy = componentPortStrategy(shape.libraryComponent.kind);
-    if (strategy.type === "outline-projected") return BOX_ANCHORS.map(anchor => projectComponentAnchor(shape, anchor));
-    return componentDefaultPorts(shape, (path, anchor) => projectComponentAnchor(shape, anchor, path)).map(port => port.anchor);
+    const anchors = strategy.type === "outline-projected"
+      ? BOX_ANCHORS.map(anchor => projectComponentAnchor(shape, anchor))
+      : componentDefaultPorts(shape, (path, anchor) => projectComponentAnchor(shape, anchor, path)).map(port => port.anchor);
+    connectionAnchorCache.set(shape, anchors);
+    return anchors;
   }
-  return shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath"
+  const anchors = shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath"
     ? shapeOutlineAnchors(shape)
     : [...BOX_ANCHORS];
+  connectionAnchorCache.set(shape, anchors);
+  return anchors;
 }
 
 const componentOutlineProxies = new WeakMap<GroupElement, ShapeElement>();
@@ -241,13 +250,38 @@ export function validReferences(items: Element[]): boolean {
 }
 
 export function connectionPointsFor(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement): ConnectionPoint[] {
+  const cached = connectionPointCache.get(shape);
+  if (cached) return cached;
   const custom = shape.type === "group" ? shape.connectionPoints ?? shape.libraryComponent?.connectionPoints ?? shape.container?.connectionPoints ?? [] : "connectionPoints" in shape ? shape.connectionPoints ?? [] : [];
   const defaults = shape.type === "group" && shape.libraryComponent
     ? componentDefaultPorts(shape, (path, anchor) => projectComponentAnchor(shape, anchor, path))
     : shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath"
     ? DEFAULT_CONNECTION_POINTS.map(port => ({ ...port, anchor: closestOutlineAnchor(shape, port.anchor) }))
     : [...DEFAULT_CONNECTION_POINTS];
-  return [...defaults, ...custom.filter(point => !defaults.some(defaultPort => defaultPort.id === point.id))];
+  const points = [...defaults, ...custom.filter(point => !defaults.some(defaultPort => defaultPort.id === point.id))];
+  connectionPointCache.set(shape, points);
+  return points;
+}
+
+function connectionBoundsNear(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement, point: Point, threshold: number): boolean {
+  const bounds = shape.type === "group"
+    ? shape.componentBounds
+    : shape.type === "text" ? textElementBox(shape) : { x: shape.x, y: shape.y, w: shape.w, h: shape.h };
+  if (!bounds) return false;
+  const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
+  let left = Math.min(bounds.x, bounds.x + bounds.w); let top = Math.min(bounds.y, bounds.y + bounds.h);
+  let right = Math.max(bounds.x, bounds.x + bounds.w); let bottom = Math.max(bounds.y, bounds.y + bounds.h);
+  const custom = shape.type === "group" ? shape.connectionPoints ?? shape.libraryComponent?.connectionPoints ?? shape.container?.connectionPoints ?? [] : "connectionPoints" in shape ? shape.connectionPoints ?? [] : [];
+  for (const port of custom) {
+    const portX = bounds.x + bounds.w * port.anchor.x; const portY = bounds.y + bounds.h * port.anchor.y;
+    left = Math.min(left, portX); top = Math.min(top, portY); right = Math.max(right, portX); bottom = Math.max(bottom, portY);
+  }
+  const angle = -(shape.rotation ?? 0) * Math.PI / 180;
+  const dx = point.x - center.x; const dy = point.y - center.y;
+  const local = { x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle), y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle) };
+  const outsideX = Math.max(left - local.x, 0, local.x - right);
+  const outsideY = Math.max(top - local.y, 0, local.y - bottom);
+  return outsideX * outsideX + outsideY * outsideY <= threshold * threshold;
 }
 
 export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement, anchor: Point, rowId?: string, portId?: string): Point {
@@ -282,24 +316,29 @@ export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextEleme
 /** Snap to visible outline points and project each stored anchor onto its current target. */
 export function nearestBinding(items: Element[], point: Point, threshold: number, eligible: (item: Element) => boolean = () => true, relationshipType?: RelationshipType): { binding: Binding; point: Point } | undefined {
   let best: { binding: Binding; point: Point; distance: number } | undefined;
-  const blockedByTypedPort = (item: ShapeElement | SchemaTableElement | TextElement | GroupElement, anchor: Point) => !!relationshipType && connectionPointsFor(item).some(port => port.accepts?.length && Math.abs(port.anchor.x - anchor.x) < .0001 && Math.abs(port.anchor.y - anchor.y) < .0001 && !port.accepts.includes(relationshipType));
+  const blockedByTypedPort = (ports: ConnectionPoint[], anchor: Point) => !!relationshipType && ports.some(port => port.accepts?.length && Math.abs(port.anchor.x - anchor.x) < .0001 && Math.abs(port.anchor.y - anchor.y) < .0001 && !port.accepts.includes(relationshipType));
   const visit = (children: Element[]) => {
     for (let index = children.length - 1; index >= 0; index--) {
       const item = children[index];
       if (item.hidden || item.locked || !eligible(item)) continue;
       if (item.type === "group") {
-        if (item.componentBounds && (item.libraryComponent || item.masterId) && item.id) for (const anchor of connectionAnchorsFor(item)) {
-          if (blockedByTypedPort(item, anchor)) continue;
-          const port = anchorPoint(item, anchor); const distance = Math.hypot(point.x - port.x, point.y - port.y);
-          if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id, anchor }, point: port, distance };
-        }
-        if (item.componentBounds && (item.libraryComponent || item.container || item.masterId) && item.id) for (const custom of connectionPointsFor(item).filter(port => !port.accepts?.length || !relationshipType || port.accepts.includes(relationshipType))) {
-          const port = anchorPoint(item, custom.anchor, undefined, custom.id); const distance = Math.hypot(point.x - port.x, point.y - port.y);
-          if (distance <= threshold && (!best || distance <= best.distance)) best = { binding: { elementId: item.id, anchor: custom.anchor, portId: custom.id }, point: port, distance };
+        const connectableGroup = item.componentBounds && (item.libraryComponent || item.container || item.masterId) && item.id;
+        if (connectableGroup && connectionBoundsNear(item, point, threshold)) {
+          const ports = connectionPointsFor(item);
+          if (item.libraryComponent || item.masterId) for (const anchor of connectionAnchorsFor(item)) {
+            if (blockedByTypedPort(ports, anchor)) continue;
+            const port = anchorPoint(item, anchor); const distance = Math.hypot(point.x - port.x, point.y - port.y);
+            if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id!, anchor }, point: port, distance };
+          }
+          for (const custom of ports.filter(port => !port.accepts?.length || !relationshipType || port.accepts.includes(relationshipType))) {
+            const port = anchorPoint(item, custom.anchor, undefined, custom.id); const distance = Math.hypot(point.x - port.x, point.y - port.y);
+            if (distance <= threshold && (!best || distance <= best.distance)) best = { binding: { elementId: item.id!, anchor: custom.anchor, portId: custom.id }, point: port, distance };
+          }
         }
         visit(item.elements); continue;
       }
-      if (!isConnectable(item) || !item.id) continue;
+      if (!isConnectable(item) || !item.id || !connectionBoundsNear(item, point, threshold)) continue;
+      const ports = connectionPointsFor(item);
       if (item.type === "schemaTable") {
         for (const column of item.columns) for (const anchor of [{ x: 1, y: .5 }, { x: 0, y: .5 }]) {
           const port = anchorPoint(item, anchor, column.id); const distance = Math.hypot(point.x - port.x, point.y - port.y);
@@ -307,11 +346,11 @@ export function nearestBinding(items: Element[], point: Point, threshold: number
         }
       }
       for (const anchor of connectionAnchorsFor(item)) {
-        if (blockedByTypedPort(item, anchor)) continue;
+        if (blockedByTypedPort(ports, anchor)) continue;
         const port = anchorPoint(item, anchor); const distance = Math.hypot(point.x - port.x, point.y - port.y);
         if (distance <= threshold && (!best || distance < best.distance)) best = { binding: { elementId: item.id, anchor }, point: port, distance };
       }
-      if (item.type !== "schemaTable") for (const custom of connectionPointsFor(item).filter(port => !port.accepts?.length || !relationshipType || port.accepts.includes(relationshipType))) {
+      if (item.type !== "schemaTable") for (const custom of ports.filter(port => !port.accepts?.length || !relationshipType || port.accepts.includes(relationshipType))) {
         const port = anchorPoint(item, custom.anchor, undefined, custom.id); const distance = Math.hypot(point.x - port.x, point.y - port.y);
         if (distance <= threshold && (!best || distance <= best.distance)) best = { binding: { elementId: item.id, anchor: custom.anchor, portId: custom.id }, point: port, distance };
       }

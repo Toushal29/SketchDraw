@@ -277,10 +277,11 @@ function App() {
   }
   // Pointer drags run once per display frame. Keep their immutable preview
   // updates cheap, while the incremental index refreshes changed objects only.
-  function setElementsTransient(next: Element[] | ((previous: Element[]) => Element[]), changedIndices?: readonly number[]) {
+  function setElementsTransient(next: Element[] | ((previous: Element[]) => Element[]), changedIndices?: readonly number[], skipLayout = false) {
     advanceDocumentRevision();
     return setElementsSignal(previous => {
-      const updated = reflowFrames(fitAutoResizeContainers(typeof next === "function" ? next(previous) : next));
+      const edited = typeof next === "function" ? next(previous) : next;
+      const updated = skipLayout ? edited : reflowFrames(fitAutoResizeContainers(edited));
       if (changedIndices) activeElementSpatialIndex.updateChanged(updated, changedIndices);
       else activeElementSpatialIndex.update(updated);
       return updated;
@@ -694,19 +695,20 @@ function App() {
   let presentationOwnsFullscreen = false;
   let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; axisLock?: "x" | "y"; guides?: CanvasSnapGuides; snapTargets: { x: CanvasSnapTarget[]; y: CanvasSnapTarget[]; spacingBoxes?: Bounds[] }; targets: Map<string, Element> } | undefined;
   let libraryControlOrigin: { index: number } | undefined;
-  let labelMoveOrigin: { index: number; labelIndex: number; point: Point; before: Element[]; moved: boolean } | undefined;
+  let labelMoveOrigin: { index: number; labelIndex: number; point: Point; before: Element[]; moved: boolean; routePreview?: ShapeElement } | undefined;
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number; lasso?: Point[] } | undefined;
-  let resizeOrigin: { index: number; handle: string; start: Point; original: Element; before: Element[]; moved: boolean } | undefined;
+  let resizeOrigin: { index: number; handle: string; start: Point; original: Element; before: Element[]; moved: boolean; routePreview?: ShapeElement; routeContext?: AutoRouteContext } | undefined;
   let resizeFrame: number | undefined;
-  let pendingResize: { origin: NonNullable<typeof resizeOrigin>; element: Element } | undefined;
+  let pendingResize: { origin: NonNullable<typeof resizeOrigin>; point: Point; lockAspect: boolean } | undefined;
   function flushResizePreview() {
     if (resizeFrame !== undefined) { cancelAnimationFrame(resizeFrame); resizeFrame = undefined; }
     const pending = pendingResize; pendingResize = undefined;
     if (!pending || resizeOrigin !== pending.origin) return;
-    setElementsTransient(pending.origin.before.map((element, index) => index === pending.origin.index ? pending.element : element), [pending.origin.index]);
+    const resized = resizeElement(pending.origin.original, pending.origin.handle, pending.origin.start, pending.point, pending.lockAspect);
+    setElementsTransient(pending.origin.before.map((element, index) => index === pending.origin.index ? resized : element), [pending.origin.index], isConnector(pending.origin.original));
   }
-  function queueResizePreview(origin: NonNullable<typeof resizeOrigin>, element: Element) {
-    pendingResize = { origin, element };
+  function queueResizePreview(origin: NonNullable<typeof resizeOrigin>, point: Point, lockAspect: boolean) {
+    pendingResize = { origin, point, lockAspect };
     if (resizeFrame === undefined) resizeFrame = requestAnimationFrame(flushResizePreview);
   }
   let measureOrigin: Point | undefined;
@@ -1250,6 +1252,19 @@ function App() {
   }
   function connectorForView(item: ShapeElement, sourceItems = elements()): ShapeElement {
     if (item.straightOnly || !item.autoRoute || (item.type !== "line" && item.type !== "arrow")) return item;
+    if (labelMoveOrigin) {
+      if (item.id !== labelMoveOrigin.before[labelMoveOrigin.index]?.id || !labelMoveOrigin.routePreview) return item;
+      return { ...item, lineRoute: item.type === "line" ? "straight" : undefined, arrowRoute: item.type === "arrow" ? "straight" : undefined, routePoints: labelMoveOrigin.routePreview.routePoints };
+    }
+    const activeResize = resizeOrigin;
+    if (activeResize && isConnector(activeResize.original)) {
+      if (item.id !== activeResize.original.id || !activeResize.routePreview) return item;
+      if (activeResize.moved && activeResize.routeContext) return { ...item, lineRoute: item.type === "line" ? "straight" : undefined, arrowRoute: item.type === "arrow" ? "straight" : undefined, routePoints: autoRoutePoints(item, activeResize.routeContext) };
+      return { ...item, lineRoute: item.type === "line" ? "straight" : undefined, arrowRoute: item.type === "arrow" ? "straight" : undefined, routePoints: activeResize.routePreview.routePoints };
+    }
+    // Keep automatic routes stable while a selection moves. The endpoints
+    // still follow the drag preview, and routes are refreshed when it ends.
+    if (moveOrigin?.moved) return item;
     return { ...item, lineRoute: item.type === "line" ? "straight" : undefined, arrowRoute: item.type === "arrow" ? "straight" : undefined, routePoints: autoRoutePoints(item, autoRouteContextFor(sourceItems)) };
   }
   function connectorIsStraight(item: Element | undefined): item is ShapeElement {
@@ -1326,7 +1341,9 @@ function App() {
   }
 
   function resizeConnector(item: ShapeElement, handle: string, point: Point): ShapeElement {
-    const port = nearestBinding(elements(), point, 18 / canvasState().zoom, item => !isElementHidden(item) && !isElementLocked(item), item.relationshipType); setAttachmentHint(port?.point);
+    const needsBinding = handle === "start" || handle === "end" || /^fork:(?:upper|lower):end$/.test(handle);
+    const port = needsBinding ? nearestBinding(elements(), point, 18 / canvasState().zoom, target => !isElementHidden(target) && !isElementLocked(target), item.relationshipType) : undefined;
+    setAttachmentHint(port?.point);
     const requested = port?.point ?? snap(point);
     if (handle === "start") {
       const fixed = { x: item.x + item.w, y: item.y + item.h }; const target = connectorEndpointMinimum(requested, fixed, item, "start");
@@ -1338,7 +1355,7 @@ function App() {
     }
     const autoRouteMatch = /^auto-route:(\d+)$/.exec(handle);
     if (autoRouteMatch && item.autoRoute) {
-      const route = connectorForView(item).routePoints ?? []; const routeIndex = Number(autoRouteMatch[1]);
+      const route = resizeOrigin?.routePreview?.routePoints ?? item.routePoints ?? []; const routeIndex = Number(autoRouteMatch[1]);
       if (routeIndex < 0 || routeIndex >= route.length) return item;
       // Pin only the dragged bend. The rest of the route stays automatic and
       // will be recalculated when connected nodes or nearby obstacles move.
@@ -4788,7 +4805,7 @@ function App() {
 
   const sceneRenderer = createCanvasSceneRenderer({
     elements, isHidden: isElementHidden, isLocked: isElementLocked, spatialIndex: () => activeElementSpatialIndex, canvasState, renderedBoardColor, whiteboardStyle, showGrid, gridSize: GRID_SIZE, selectedSet,
-    moveOrigin: () => moveOrigin, resizeOrigin: () => resizeOrigin,
+    moveOrigin: () => moveOrigin, resizeOrigin: () => resizeOrigin, connectorLabelMoveActive: () => !!labelMoveOrigin,
     hoveredIndex, boardLocked, tool, attachmentHint, marquee,
     tileCacheKey: () => `${theme()}|${canvasAssetRevision()}|${currentLayers().map(layer => `${layer.id}:${layer.hidden ? 1 : 0}`).join(",")}`, tileCacheAllowed: () => !textDraft() && !noteEditor() && !resizeOrigin && !labelMoveOrigin,
     laserTrail, laserThickness, preview, simulationTokenId: () => bpmnSimulationIndex() >= 0 ? bpmnSimulationSteps()[bpmnSimulationIndex()]?.elementId : undefined, currentPoints: () => currentPoints,
@@ -6636,7 +6653,7 @@ function App() {
     if (tool() === "select") {
       libraryControlOrigin = undefined; labelMoveOrigin = undefined;
       const labelHit = hitTest(point); const labelTarget = labelHit === undefined ? undefined : elements()[labelHit];
-      if (labelHit !== undefined && labelTarget && isConnector(labelTarget)) {
+      if (event.altKey && labelHit !== undefined && labelTarget && isConnector(labelTarget)) {
         const labelTargetView = connectorForView(labelTarget);
         const labels = [labelTargetView.label, ...(labelTargetView.connectorLabels ?? [])];
         const labelIndex = labels.findIndex(label => {
@@ -6646,12 +6663,18 @@ function App() {
         });
         if (labelIndex >= 0) {
           setSelectedIndices([labelHit]);
-          labelMoveOrigin = { index: labelHit, labelIndex, point, before: elements(), moved: false };
+          labelMoveOrigin = { index: labelHit, labelIndex, point, before: elements(), moved: false, routePreview: labelTargetView };
           canvas.setPointerCapture(event.pointerId); return;
         }
       }
       const handle = findTransformHandle(point);
-      if (handle) { const original = elements()[handle.index]; resizeOrigin = { ...handle, start: point, original, before: elements(), moved: false }; canvas.setPointerCapture(event.pointerId); return; }
+      if (handle) {
+        const before = elements(); const original = before[handle.index];
+        const routeContext = isConnector(original) && original.autoRoute ? autoRouteContextFor(before) : undefined;
+        const routePreview = routeContext ? connectorForView(original as ShapeElement, before) : undefined;
+        resizeOrigin = { ...handle, start: point, original, before, moved: false, routePreview, routeContext };
+        canvas.setPointerCapture(event.pointerId); return;
+      }
       const hit = hitTest(point);
       if (hit !== undefined) {
         const target = elements()[hit];
@@ -6684,8 +6707,10 @@ function App() {
     if (tool() === "line" || tool() === "arrow") {
       const handle = findTransformHandle(point);
       if (handle && isConnector(elements()[handle.index])) {
-        const original = elements()[handle.index];
-        resizeOrigin = { ...handle, start: point, original, before: elements(), moved: false };
+        const before = elements(); const original = before[handle.index] as ShapeElement;
+        const routeContext = original.autoRoute ? autoRouteContextFor(before) : undefined;
+        const routePreview = routeContext ? connectorForView(original, before) : undefined;
+        resizeOrigin = { ...handle, start: point, original, before, moved: false, routePreview, routeContext };
         canvas.setPointerCapture(event.pointerId); return;
       }
     }
@@ -6897,9 +6922,9 @@ function App() {
         setElementsTransient(origin.before.map((element, index) => {
           if (index !== origin.index || !isConnector(element)) return element;
           const currentLabel = origin.labelIndex === 0 ? element.label : element.connectorLabels?.[origin.labelIndex - 1];
-          const routed = connectorForView(element); const route = routed.type === "arrow" ? routed.arrowRoute ?? "straight" : routed.lineRoute ?? "straight";
+          const routed = origin.routePreview ?? element as ShapeElement; const route = routed.type === "arrow" ? routed.arrowRoute ?? "straight" : routed.lineRoute ?? "straight";
           return setShapeLabelAt(element, origin.labelIndex, { text: "", color: color(), fontSize: defaultFontSize(), fontFamily: defaultFontFamily(), verticalAlign: "middle", textAlign: "center", listType: "none", ...currentLabel, routePosition: connectorProgressAtPoint(routed, route, point), offsetX: 0, offsetY: 0 });
-        }), [origin.index]);
+        }), [origin.index], true);
         setDirty(true);
       }
       return;
@@ -6910,8 +6935,7 @@ function App() {
       if (!origin.moved) return;
       const freeResize = event.ctrlKey || event.metaKey || event.shiftKey;
       const snapped = isConnector(origin.original) || origin.handle.startsWith("shape:") ? { point: pointerPoint } : snapResizePoint(origin.original, origin.handle, origin.start, pointerPoint, freeResize);
-      const resized = resizeElement(origin.original, origin.handle, origin.start, snapped.point, !freeResize && !!origin.original.aspectLocked);
-      queueResizePreview(origin, resized); setDirty(true); return;
+      queueResizePreview(origin, snapped.point, !freeResize && !!origin.original.aspectLocked); setDirty(true); return;
     }
     if (moveOrigin) {
       const point = toWorld(event); let dx = point.x - moveOrigin.point.x; let dy = point.y - moveOrigin.point.y;

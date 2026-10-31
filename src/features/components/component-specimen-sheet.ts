@@ -13,7 +13,12 @@ export function fitComponentSpecimen(source: Element, cell: { x: number; y: numb
   const width = Math.max(1, bounds.w * scale);
   const height = Math.max(1, bounds.h * scale);
   const target = { x: cell.x + (cell.w - width) / 2, y: cell.y + (cell.h - height) / 2, w: width, h: height };
-  if (source.type === "group") return resizeLibraryGroup(source, target);
+  if (source.type === "group") {
+    // Specimens are transient previews, so they must fit their cell even when
+    // an interactive canvas component has a larger minimum resize size.
+    if (source.componentBounds) return { ...source, componentBounds: target };
+    return resizeLibraryGroup(source, target);
+  }
   const wrapper: GroupElement = { type: "group", elements: [source] };
   return resizeLibraryGroup(wrapper, target).elements[0] ?? source;
 }

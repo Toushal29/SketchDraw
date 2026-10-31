@@ -24,6 +24,7 @@ export type CanvasSceneRendererPorts = {
   selectedSet: () => Set<number>;
   moveOrigin: () => DragState | undefined;
   resizeOrigin: () => { original: Element } | undefined;
+  connectorLabelMoveActive: () => boolean;
   hoveredIndex: () => number | undefined;
   boardLocked: () => boolean;
   tool: () => Tool;
@@ -149,6 +150,11 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     const viewport = { x: -state.panX / state.zoom - padding, y: -state.panY / state.zoom - padding, w: width / state.zoom + padding * 2, h: height / state.zoom + padding * 2 };
     const selected = ports.selectedSet();
     const currentMove = ports.moveOrigin();
+    const currentResize = ports.resizeOrigin();
+    const connectorResize = !!currentResize && isConnector(currentResize.original);
+    const connectorLabelMoving = ports.connectorLabelMoveActive();
+    const previewType = ports.preview()?.type;
+    const connectorDrawing = previewType === "line" || previewType === "arrow";
     const drag = includeSelection && sourceItems === ports.elements() && currentMove?.moved ? currentMove : undefined;
     const spatialItems = drag?.before ?? sourceItems;
     const paintIndices = new Set((spatialItems === ports.elements() ? ports.spatialIndex() : elementSpatialIndex(spatialItems)).query(viewport));
@@ -207,9 +213,9 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       }
       ctx.restore();
     }
-    // Bridges are a lightweight final vector pass. They are skipped while a
-    // selection is moving so connector previews remain responsive.
-    if (!drag) {
+    // Intersections are quadratic in the number of connectors. Defer bridges
+    // while dragging or drawing; the final stationary pass restores them.
+    if (!drag && !connectorResize && !connectorDrawing && !connectorLabelMoving) {
       const visible: Element[] = [];
       const collectVisible = (items: Element[]) => items.forEach(item => {
         if (ports.isHidden(item)) return;
@@ -263,7 +269,6 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       ctx.beginPath(); ctx.arc(tokenX, tokenY, 8 / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.beginPath(); ctx.fillStyle = "#b45309"; ctx.arc(tokenX, tokenY, 3 / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     }
-    const currentResize = ports.resizeOrigin();
     if (includeSelection && (ports.tool() === "arrow" || ports.tool() === "line" || currentResize && isConnector(currentResize.original))) {
       const drawPorts = (items: Element[]) => { for (const item of items) {
         const moved = !!drag?.targets.has(item.id ?? ""); const bounds = elementBounds(item);
