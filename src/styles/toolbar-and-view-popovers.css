@@ -175,11 +175,11 @@
     width: min(420px, calc(100vw - 20px));
     max-width: calc(100vw - 20px);
     max-height: min(680px, calc(100dvh - 24px));
-    gap: 10px;
-    padding: 13px;
+    gap: var(--ui-space-3);
+    padding: var(--ui-space-3);
     overflow: auto;
     border: 1px solid var(--theme-border);
-    border-radius: 12px;
+    border-radius: var(--ui-radius-popover);
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
     box-shadow: 0 16px 42px rgb(16 25 40 / 20%);
@@ -188,13 +188,13 @@
 .view-settings-action {
     display: flex;
     width: 100%;
-    min-height: 32px;
+    min-height: var(--ui-control-height-compact);
     align-items: center;
     justify-content: flex-start;
     gap: 7px;
     padding: 6px 9px;
     border: 1px solid var(--theme-border);
-    border-radius: 7px;
+    border-radius: var(--ui-radius-control);
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
     font: var(--font-weight-semibold) var(--type-micro)/var(--leading-tight) var(--font-ui);
@@ -398,7 +398,7 @@
     padding: 14px;
     overflow: hidden;
     border: 1px solid var(--theme-border);
-    border-radius: 14px;
+    border-radius: var(--ui-radius-dialog);
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
     box-shadow: var(--theme-elevation-dialog);

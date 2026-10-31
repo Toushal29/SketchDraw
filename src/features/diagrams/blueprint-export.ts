@@ -1,6 +1,8 @@
 import type { Element, SchemaTableElement } from "../../model";
 
-export type BlueprintFormat = "java" | "python" | "prisma";
+import { buildScaffoldFiles, type ScaffoldFormat } from "./code-scaffolds";
+
+export type BlueprintFormat = "java" | "python" | "prisma" | ScaffoldFormat;
 export type BlueprintFile = { path: string; contents: string };
 
 type UmlClass = { name: string; attributes: string[]; methods: string[] };
@@ -216,6 +218,7 @@ export function blueprintZip(files: BlueprintFile[], maximumBytes = 32 * 1024 * 
 }
 
 export function buildBlueprintFiles(format: BlueprintFormat, elements: Element[]) {
+  if (format === "terraform" || format === "openapi" || format === "html" || format === "react") return buildScaffoldFiles(format, elements);
   if (format === "prisma") return prismaFiles(elements);
   return classFiles(format, elements);
 }

@@ -2,6 +2,8 @@ import type { ArrowHead, Bounds, CanvasSnapGuides, CanvasSnapTarget, CanvasState
 import { anchorPoint, connectionAnchorsFor, isConnectable, isConnector } from "../../operations";
 import { elementBounds } from "./bounds";
 import { traceConnector } from "../connectors/geometry";
+import { drawConnectorBridges } from "../connectors/crossings";
+import { swimlaneDividerHandles } from "./swimlanes";
 import { ElementSpatialIndex, elementSpatialIndex } from "./spatial-index";
 import { SceneTileCache } from "./scene-tile-cache";
 import { shapeAdjustmentHandles, shapePathObject } from "../shapes/geometry";
@@ -27,7 +29,7 @@ export type CanvasSceneRendererPorts = {
   boardLocked: () => boolean;
   tool: () => Tool;
   attachmentHint: () => Point | undefined;
-  marquee: () => { start: Point; end: Point } | undefined;
+  marquee: () => { start: Point; end: Point; lasso?: Point[] } | undefined;
   laserTrail: () => { points: Point[]; opacity: number } | undefined;
   laserThickness: () => number;
   preview: () => Preview | undefined;
@@ -190,7 +192,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       const isSelected = selected.has(index);
       if (includeSelection && (isSelected || ports.hoveredIndex() === index) && isConnector(element)) {
         ctx.save(); ctx.strokeStyle = "#548ce8"; ctx.globalAlpha = .65; ctx.lineWidth = (isSelected ? 2 : 1) / state.zoom; traceConnector(ctx, drawnElement as ShapeElement); ctx.stroke();
-        if (isSelected && selected.size === 1 && !ports.isLocked(element) && !ports.boardLocked()) for (const handle of ports.connectorHandles(element as ShapeElement)) { const routeHandle = handle.id.startsWith("route") || handle.id.startsWith("auto-route:") || handle.id.includes(":route:"); ctx.beginPath(); ctx.fillStyle = routeHandle ? "#dbeafe" : "#ffffff"; ctx.arc(handle.x, handle.y, (routeHandle ? 4 : 6) / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+        if (isSelected && selected.size === 1 && !ports.isLocked(element) && !ports.boardLocked()) for (const handle of ports.connectorHandles(element as ShapeElement)) { const routeHandle = handle.id.startsWith("route") || handle.id.startsWith("auto-route:") || handle.id.startsWith("waypoint:") || handle.id.includes(":route:"); ctx.beginPath(); ctx.fillStyle = routeHandle ? "#dbeafe" : "#ffffff"; ctx.arc(handle.x, handle.y, (routeHandle ? 4 : 6) / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
         ctx.restore();
       } else if (includeSelection && (isSelected || ports.hoveredIndex() === index)) {
         const bounds = elementBounds(element); const handlePadding = 5 / state.zoom;
@@ -207,6 +209,9 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         ctx.restore();
         if (isSelected && !ports.isLocked(element) && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent || !!element.container) && element.type !== "freehand") {
           drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent || !!element.container, rotation, element.type !== "schemaTable");
+          if (element.type === "group" && element.libraryComponent?.kind === "diagram-swimlane") for (const handle of swimlaneDividerHandles(element)) {
+            const size = 1 / state.zoom; ctx.beginPath(); ctx.roundRect(handle.point.x - 7 * size, handle.point.y - 3 * size, 14 * size, 6 * size, 3 * size); ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 1.5 * size; ctx.fill(); ctx.stroke();
+          }
           if (element.type === "flowchart") for (const handle of shapeAdjustmentHandles(element)) {
             ctx.beginPath(); ctx.arc(handle.x, handle.y, 4.5 / state.zoom, 0, Math.PI * 2);
             ctx.fillStyle = "#fff7d6"; ctx.strokeStyle = "#ba7400"; ctx.lineWidth = 1.5 / state.zoom; ctx.fill(); ctx.stroke();
@@ -214,6 +219,23 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         }
       }
       ctx.restore();
+    }
+    // Bridges are a lightweight final vector pass. They are skipped while a
+    // selection is moving so connector previews remain responsive.
+    if (!drag) {
+      const visible: Element[] = [];
+      const collectVisible = (items: Element[]) => items.forEach(item => {
+        if (ports.isHidden(item)) return;
+        visible.push(item);
+        if (item.type === "group" && !item.container?.collapsed) collectVisible(item.elements);
+      });
+      collectVisible(sourceItems);
+      const crossingCandidates = visible.filter(item => {
+        const drawn = isConnector(item) ? ports.connectorForView(item, sourceItems) : item;
+        const bounds = elementBounds(drawn);
+        return ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, bounds);
+      });
+      drawConnectorBridges(ctx, crossingCandidates, ports.renderedBoardColor(), item => ports.connectorForView(item, sourceItems));
     }
     if (drag?.guides && (drag.guides.x || drag.guides.y)) {
       const alignedSegment = (movingStart: number, movingLength: number, referenceStart: number, referenceLength: number) => {
@@ -297,6 +319,12 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     ctx.restore();
     const activeMarquee = ports.marquee();
     if (includeSelection && activeMarquee) {
+      if (activeMarquee.lasso && activeMarquee.lasso.length > 1) {
+        ctx.save(); ctx.strokeStyle = "#5888c5"; ctx.fillStyle = "#76a7e51a"; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); ctx.lineJoin = "round"; ctx.beginPath();
+        activeMarquee.lasso.forEach((point, index) => { const x = point.x * state.zoom + state.panX; const y = point.y * state.zoom + state.panY; if (index) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+        ctx.fill(); ctx.stroke(); ctx.restore();
+        return;
+      }
       const { start, end } = activeMarquee; const left = Math.min(start.x, end.x) * state.zoom + state.panX; const top = Math.min(start.y, end.y) * state.zoom + state.panY;
       const marqueeWidth = Math.abs(end.x - start.x) * state.zoom; const marqueeHeight = Math.abs(end.y - start.y) * state.zoom;
       ctx.save(); ctx.strokeStyle = "#5888c5"; ctx.fillStyle = "#76a7e51a"; ctx.lineWidth = 1; ctx.setLineDash([5, 4]); ctx.fillRect(left, top, marqueeWidth, marqueeHeight); ctx.strokeRect(left, top, marqueeWidth, marqueeHeight); ctx.restore();

@@ -1,4 +1,5 @@
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
+import type { ThemeMode } from "../../model";
 import { TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./GestureSettings";
 
 type MenuPanel = "file" | "settings" | undefined;
@@ -26,6 +27,7 @@ type Props = {
   onSaveAs: () => void;
   onRename: () => void;
   onImportImage: () => void;
+  onImportPdf: () => void;
   onImportSvg: () => void;
   onImportDiagram: () => void;
   onEmbedWeb: () => void;
@@ -50,12 +52,12 @@ type Props = {
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: "presets" | "stepper") => void;
   appAppearance: {
-    themeMode: "system" | "light" | "dark";
+    themeMode: ThemeMode;
     accentColor: string;
     toolbarColorChoice: string;
     accentOptions: { label: string; value: string }[];
     toolbarColorOptions: { label: string; value: string }[];
-    onThemeChange: (mode: "system" | "light" | "dark") => void;
+    onThemeChange: (mode: ThemeMode) => void;
     onAccentChange: (value: string) => void;
     onToolbarColorChange: (value: string) => void;
   };
@@ -162,6 +164,7 @@ export function MobileCommandBar(props: Props) {
     { label: "Save as…", disabled: () => !props.canSaveAs, action: props.onSaveAs },
     { label: "Rename", disabled: () => !props.canRename, action: props.onRename },
     { label: "Import image", disabled: () => !props.canImport, action: props.onImportImage },
+    { label: "Import PDF for markup", disabled: () => !props.canImport, action: props.onImportPdf },
     { label: "Import SVG", disabled: () => !props.canImport, action: props.onImportSvg },
     { label: "Import diagram, CSV or DOT", disabled: () => !props.canImport, action: props.onImportDiagram },
     { label: "Embed web page", disabled: () => !props.canImport, action: props.onEmbedWeb },
@@ -251,7 +254,7 @@ export function MobileCommandBar(props: Props) {
 
           <Show when={settingsTab() === "view"}>
             <section class="mobile-settings-section"><h3>Application appearance</h3>
-              <div class="mobile-settings-field"><span>Theme</span><ChoiceRow label="Theme" value={props.appAppearance.themeMode} options={[{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]} onChange={props.appAppearance.onThemeChange} /></div>
+              <div class="mobile-settings-field"><span>Theme</span><ChoiceRow label="Theme" value={props.appAppearance.themeMode} options={[{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }, { value: "modern", label: "Modern" }]} onChange={props.appAppearance.onThemeChange} /></div>
               <div class="mobile-settings-field"><span>Accent color</span><div class="mobile-appearance-options" role="group" aria-label="Accent color">{props.appAppearance.accentOptions.map(option => <button type="button" class={props.appAppearance.accentColor === option.value ? "active" : ""} aria-label={option.label} aria-pressed={props.appAppearance.accentColor === option.value} title={option.label} onClick={() => props.appAppearance.onAccentChange(option.value)}><i style={{ "background-color": option.value }} /></button>)}<label class="mobile-appearance-custom" title="Custom accent color"><input type="color" aria-label="Custom accent color" value={props.appAppearance.accentColor} onInput={event => props.appAppearance.onAccentChange(event.currentTarget.value)} /><i style={{ "background-color": props.appAppearance.accentColor }} /></label></div></div>
               <div class="mobile-settings-field"><span>Toolbar surface</span><div class="mobile-appearance-options" role="group" aria-label="Toolbar surface"><button type="button" class={props.appAppearance.toolbarColorChoice === "auto" ? "active" : ""} aria-pressed={props.appAppearance.toolbarColorChoice === "auto"} onClick={() => props.appAppearance.onToolbarColorChange("auto")}><i class="mobile-appearance-auto" /><span>Auto</span></button>{props.appAppearance.toolbarColorOptions.map(option => <button type="button" class={props.appAppearance.toolbarColorChoice === option.value ? "active" : ""} aria-label={option.label} aria-pressed={props.appAppearance.toolbarColorChoice === option.value} title={option.label} onClick={() => props.appAppearance.onToolbarColorChange(option.value)}><i style={{ "background-color": option.value }} /></button>)}<label class="mobile-appearance-custom" title="Custom toolbar surface"><input type="color" aria-label="Custom toolbar surface" value={props.appAppearance.toolbarColorChoice === "auto" ? "#ffffff" : props.appAppearance.toolbarColorChoice} onInput={event => props.appAppearance.onToolbarColorChange(event.currentTarget.value)} /><i style={{ "background-color": props.appAppearance.toolbarColorChoice === "auto" ? "#ffffff" : props.appAppearance.toolbarColorChoice }} /></label></div></div>
             </section>

@@ -1,7 +1,7 @@
 import type { ToolbarItem } from "../model";
 import { isWindowsPlatform } from "../platform/runtime";
 
-export const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "eraser", "laser", "line", "arrow", "rectangle", "circle", "diamond", "flowchart", "text", "componentLibrary", "bucket", "crop", "measure", "codeData", "pathEdit", "frame"];
+export const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "lasso", "pan", "pen", "paintBrushes", "eraser", "laser", "line", "arrow", "rectangle", "circle", "diamond", "flowchart", "text", "componentLibrary", "bucket", "crop", "measure", "codeData", "pathEdit", "frame"];
 export const DEFAULT_MORE_TOOL_ORDER: ToolbarItem[] = ["bucket", "measure", "crop"];
 export const MOBILE_DEFAULT_TOOLBAR_ORDER: ToolbarItem[] = ["select", "pan", "pen", "paintBrushes", "eraser", "line", "arrow", "rectangle", "text"];
 export type ToolbarLayout = { toolbar: ToolbarItem[]; more: ToolbarItem[] };
@@ -17,6 +17,12 @@ export function normalizePaintToolOrder(toolbar: ToolbarItem[]) {
   };
   if (toolbar.includes("paintBrushes")) moveAfter("paintBrushes", "pen");
   moveAfter("eraser", toolbar.includes("paintBrushes") ? "paintBrushes" : "pen");
+}
+/** Lasso sits right after Select, even in layouts saved before it existed. */
+function placeLassoAfterSelect(toolbar: ToolbarItem[]) {
+  const lasso = toolbar.indexOf("lasso"); const select = toolbar.indexOf("select");
+  if (lasso < 0 || select < 0 || lasso === select + 1) return;
+  toolbar.splice(lasso, 1); toolbar.splice(toolbar.indexOf("select") + 1, 0, "lasso");
 }
 function insertComponentLibraryAfterText(toolbar: ToolbarItem[], more: ToolbarItem[]) {
   if (toolbar.includes("componentLibrary") || more.includes("componentLibrary")) return;
@@ -56,7 +62,7 @@ export function readToolbarLayout(): ToolbarLayout {
       if (defaults.more.includes("componentLibrary")) {
         if (!toolbar.includes("componentLibrary") && !more.includes("componentLibrary")) more.push("componentLibrary");
       } else insertComponentLibraryAfterText(toolbar, more);
-      normalizePaintToolOrder(toolbar);
+      normalizePaintToolOrder(toolbar); placeLassoAfterSelect(toolbar);
       return { toolbar, more };
     }
     const legacy = JSON.parse(localStorage.getItem("sketchdraw-toolbar-order") ?? "null") as unknown;
@@ -65,7 +71,7 @@ export function readToolbarLayout(): ToolbarLayout {
       const more = defaults.more.filter(value => !oldToolbar.includes(value));
       const toolbar = [...oldToolbar, ...defaults.toolbar.filter(value => value !== "componentLibrary" && !oldToolbar.includes(value))];
       insertComponentLibraryAfterText(toolbar, more);
-      normalizePaintToolOrder(toolbar);
+      normalizePaintToolOrder(toolbar); placeLassoAfterSelect(toolbar);
       return { toolbar, more };
     }
     return defaults;

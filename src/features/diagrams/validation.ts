@@ -1,6 +1,7 @@
 import type { Binding, Element, SchemaTableElement, ShapeElement, SketchPage } from "../../model";
 import { elementBounds } from "../canvas/bounds";
 import { connectionPointsFor, flatten, isConnectable, isConnector } from "../../operations";
+import { accessibilityIssues } from "../accessibility/accessibility";
 
 export type DiagramIssue = { code: string; severity: "error" | "warning"; message: string; elementId?: string; pageId?: string };
 
@@ -15,7 +16,7 @@ const libraryKind = (item: Element) => item.type === "group" ? item.libraryCompo
 const boundNode = (binding: Binding | undefined, byId: Map<string, Element>) => binding ? byId.get(binding.elementId) : undefined;
 
 /** Find broken references and common diagram inconsistencies. */
-export function validateDiagram(elements: Element[], pages: SketchPage[] = [], options: { includeOverlaps?: boolean; warnEmptyLabels?: boolean } = {}): DiagramIssue[] {
+export function validateDiagram(elements: Element[], pages: SketchPage[] = [], options: { includeOverlaps?: boolean; warnEmptyLabels?: boolean; accessibility?: { boardColor: string; ink?: (color: string) => string } } = {}): DiagramIssue[] {
   const all = flatten(elements);
   const issues: DiagramIssue[] = [];
   const ids = new Map<string, Element[]>();
@@ -120,6 +121,31 @@ export function validateDiagram(elements: Element[], pages: SketchPage[] = [], o
     const bContainsA = b.x <= a.x && b.y <= a.y && b.x + b.w >= a.x + a.w && b.y + b.h >= a.y + a.h;
     if (!aContainsB && !bContainsA) issues.push({ code: "overlap", severity: "warning", message: `"${textOf(nodes[first]) || nodes[first].type}" overlaps "${textOf(nodes[second]) || nodes[second].type}".`, elementId: nodes[second].id });
   }
+  if (options.accessibility) for (const issue of accessibilityIssues(elements, options.accessibility.boardColor, options.accessibility.ink)) issues.push({ code: issue.code, severity: "warning", message: issue.message, elementId: issue.elementId });
+  return issues;
+}
+
+/**
+ * Checks page links and prototype links across every page: targets that no longer exist, links back to the same
+ * page, prototype targets on another page, and pages nothing links to once links are used at all.
+ */
+export function checkDocumentLinks(pages: { id: string; name: string; elements: Element[] }[]): DiagramIssue[] {
+  const issues: DiagramIssue[] = []; const pageIds = new Set(pages.map(page => page.id)); const incoming = new Map<string, number>(); let anyPageLinks = false;
+  const walkItems = (items: Element[], visit: (element: Element) => void) => { for (const item of items) { visit(item); if (item.type === "group") walkItems(item.elements, visit); } };
+  const label = (item: Element) => { const text = textOf(item).trim(); return text ? `"${text.slice(0, 40)}"` : `this ${item.type === "group" ? "object" : item.type}`; };
+  for (const page of pages) {
+    const ids = new Set<string>(); walkItems(page.elements, item => { if (item.id) ids.add(item.id); });
+    walkItems(page.elements, item => {
+      if (item.pageLinkId) {
+        anyPageLinks = true;
+        if (!pageIds.has(item.pageLinkId)) issues.push({ code: "missing-page", severity: "error", message: `[${page.name}] ${label(item)} links to a page that no longer exists.`, elementId: item.id, pageId: page.id });
+        else if (item.pageLinkId === page.id) issues.push({ code: "self-page-link", severity: "warning", message: `[${page.name}] ${label(item)} links to the page it is on.`, elementId: item.id, pageId: page.id });
+        else incoming.set(item.pageLinkId, (incoming.get(item.pageLinkId) ?? 0) + 1);
+      }
+      if (item.prototypeTargetId && !ids.has(item.prototypeTargetId)) issues.push({ code: "missing-prototype-target", severity: "error", message: `[${page.name}] ${label(item)} points to a prototype target that is not on this page.`, elementId: item.id, pageId: page.id });
+    });
+  }
+  if (anyPageLinks) pages.forEach((page, index) => { if (index > 0 && !incoming.has(page.id)) issues.push({ code: "unreachable-page", severity: "warning", message: `Page "${page.name}" is not the first page and no link leads to it.`, pageId: page.id }); });
   return issues;
 }
 

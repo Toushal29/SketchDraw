@@ -28,12 +28,14 @@ function fitElement(item: Element, origin: Point, sx: number, sy: number): Eleme
   if (item.type === "schemaTable") return { ...item, ...mapPoint(item), w: item.w * sx, h: item.h * sy, fontSize: Math.max(8, (item.fontSize ?? 12) * fontScale) };
   if (item.type === "image") return { ...item, ...mapPoint(item), w: item.w * sx, h: item.h * sy };
   const label = item.label ? { ...item.label, fontSize: Math.max(8, item.label.fontSize * fontScale), ...(item.label.offsetX !== undefined ? { offsetX: item.label.offsetX * sx } : {}), ...(item.label.offsetY !== undefined ? { offsetY: item.label.offsetY * sy } : {}) } : undefined;
+  const connectorLabels = item.type === "line" || item.type === "arrow" ? item.connectorLabels?.map(label => ({ ...label, fontSize: Math.max(8, label.fontSize * fontScale), ...(label.offsetX !== undefined ? { offsetX: label.offsetX * sx } : {}), ...(label.offsetY !== undefined ? { offsetY: label.offsetY * sy } : {}) })) : undefined;
   return {
     ...item,
     ...mapPoint(item), w: item.w * sx, h: item.h * sy,
     thickness: Math.max(.5, item.thickness * (item.svgNonScalingStroke ? 1 : fontScale)),
     ...(item.cornerRadius !== undefined ? { cornerRadius: item.cornerRadius * fontScale } : {}),
     ...(label ? { label } : {}),
+    ...(connectorLabels ? { connectorLabels } : {}),
     ...(item.routePoints ? { routePoints: item.routePoints.map(mapPoint) } : {}),
     ...(item.routeWaypoints ? { routeWaypoints: item.routeWaypoints.map(mapPoint) } : {}),
     ...(item.forkUpper ? { forkUpper: { ...item.forkUpper, ...(item.forkUpper.end ? { end: mapPoint(item.forkUpper.end) } : {}), ...(item.forkUpper.routePoints ? { routePoints: item.forkUpper.routePoints.map(mapPoint) } : {}) } } : {}),

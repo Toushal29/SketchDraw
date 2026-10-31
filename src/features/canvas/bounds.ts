@@ -94,8 +94,9 @@ export function elementBounds(element: Element): Bounds {
     const doubleOffset = strokeStyleLineGap(element.lineStyle, element.thickness);
     const routeBounds = rotatedBounds(boundsOfPoints(points, element.thickness / 2 + doubleOffset), element.rotation ?? 0);
     const displayElement = relationshipDisplayElement(element);
-    const labelBounds = displayElement.label?.text ? rotatedBounds(labelBox(displayElement), element.rotation ?? 0) : undefined;
-    return cacheBounds(element, labelBounds ? unionBounds([routeBounds, labelBounds])! : routeBounds);
+    const labelBounds = [displayElement.label, ...(displayElement.type === "line" || displayElement.type === "arrow" ? displayElement.connectorLabels ?? [] : [])]
+      .flatMap(label => label?.text ? [rotatedBounds(labelBox(displayElement, label), element.rotation ?? 0)] : []);
+    return cacheBounds(element, labelBounds.length ? unionBounds([routeBounds, ...labelBounds])! : routeBounds);
   }
   return cacheBounds(element, rotatedBounds({ x, y, w, h }, element.rotation ?? 0));
 }
@@ -105,6 +106,7 @@ export function visibleElementBounds(element: Element, isHidden: (element: Eleme
   if (isHidden(element)) return [];
   if (element.type !== "group") return [elementBounds(element)];
   const ownBounds = element.note || element.componentBounds ? [elementBounds(element)] : [];
+  if (element.container?.collapsed) return ownBounds.length ? ownBounds : [elementBounds(element)];
   if (element.container?.showLabel !== false && element.container?.name.trim()) {
     const box = elementBounds(element);
     const label = { x: box.x + 8, y: box.y - 22, w: element.container.name.length * 10, h: 18 };

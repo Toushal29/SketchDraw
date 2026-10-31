@@ -22,7 +22,11 @@ export function replaceElementText(element: Element, search: string, replacement
     };
     if (item.type === "text") return { ...item, text: replace(item.text) ?? item.text };
     if (item.type === "schemaTable") return { ...item, name: replace(item.name) ?? item.name };
-    if ("label" in item && item.label) return { ...item, label: { ...item.label, text: replace(item.label.text) ?? item.label.text } };
+    if ("label" in item && (item.label || item.type === "line" || item.type === "arrow")) return {
+      ...item,
+      ...(item.label ? { label: { ...item.label, text: replace(item.label.text) ?? item.label.text } } : {}),
+      ...(item.type === "line" || item.type === "arrow" ? { connectorLabels: item.connectorLabels?.map(label => ({ ...label, text: replace(label.text) ?? label.text })) } : {}),
+    };
     return item;
   };
   return { element: visit(element), count };

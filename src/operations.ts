@@ -1,6 +1,7 @@
-import type { Binding, ConnectionPoint, Element, GroupElement, ShapeElement, SchemaTableElement, TextElement, Point, Bounds, RelationshipType } from "./model";
+import type { Binding, ConnectionPoint, Element, GroupElement, ShapeElement, SchemaTableElement, TextElement, Point, Bounds, RelationshipType, ShapeLabel } from "./model";
 import { schemaTableMetrics } from "./features/diagrams/schema-table-layout";
 import { shapePathData } from "./features/shapes/geometry";
+import { connectorPoint } from "./features/connectors/geometry";
 
 export const isConnector = (element: Element): element is ShapeElement => element.type === "line" || element.type === "arrow";
 export const isLabelShape = (element: Element): element is ShapeElement => element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "svgPath";
@@ -392,16 +393,19 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
 }
 
 export const textFont = (text: Pick<TextElement, "italic" | "bold" | "fontSize" | "fontFamily">) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : text.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : text.fontFamily === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : text.fontFamily === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif"}`;
-export function labelBox(shape: ShapeElement) {
+export function labelBox(shape: ShapeElement, labelOverride?: ShapeLabel) {
   // Keep padding proportional only while a shape is small. A fixed inset can
   // consume the entire label area on compact components such as UML lifelines.
   const width = Math.abs(shape.w); const height = Math.abs(shape.h);
   if (shape.type === "line" || shape.type === "arrow") {
-    const fontSize = shape.label?.fontSize ?? 12;
-    const lineCount = Math.max(1, shape.label?.text.split(/\r?\n/).length ?? 1);
+    const label = labelOverride ?? shape.label;
+    const fontSize = label?.fontSize ?? 12;
+    const lineCount = Math.max(1, label?.text.split(/\r?\n/).length ?? 1);
     const labelWidth = Math.max(120, width);
-    const centerX = shape.x + shape.w / 2 + (shape.label?.offsetX ?? 0);
-    const centerY = shape.y + shape.h / 2 - fontSize * 1.75 + (shape.label?.offsetY ?? 0);
+    const route = shape.type === "arrow" ? shape.arrowRoute ?? "straight" : shape.lineRoute ?? "straight";
+    const anchor = connectorPoint(shape, route, label?.routePosition ?? .5);
+    const centerX = anchor.x + (label?.offsetX ?? 0);
+    const centerY = anchor.y - fontSize * 1.75 + (label?.offsetY ?? 0);
     return { x: centerX - labelWidth / 2, y: centerY, w: labelWidth, h: Math.max(fontSize * 1.25, lineCount * fontSize * 1.25) };
   }
   const tapered = shape.type === "diamond" || ["decision", "data", "preparation", "hexagon", "parallelogram", "trapezoid", "pentagon", "octagon", "chevron", "shield"].includes(shape.flowchartShape ?? "");

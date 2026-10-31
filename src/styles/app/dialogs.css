@@ -553,7 +553,7 @@
 
 .diagram-source-editor > small { color: var(--theme-text-secondary); font-size: var(--type-micro); }
 .diagram-source-editor textarea,
-.csv-chart-dialog textarea { width: 100%; min-height: 130px; resize: vertical; padding: 10px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface); color: var(--theme-text); font: var(--type-caption)/var(--leading-normal) ui-monospace, SFMono-Regular, Consolas, monospace; }
+.csv-chart-dialog textarea { width: 100%; min-height: 130px; resize: vertical; padding: 10px; border: 1px solid var(--theme-border); border-radius: var(--ui-radius-control); background: var(--theme-surface); color: var(--theme-text); font: var(--type-caption)/var(--leading-normal) ui-monospace, SFMono-Regular, Consolas, monospace; }
 .diagram-source-editor .mermaid-preview-panel { max-height: 250px; overflow: hidden; }
 .diagram-source-preview { max-height: 220px; overflow: auto; margin: 5px 0; padding: 10px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface); color: var(--theme-text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; font: var(--type-micro)/var(--leading-normal) ui-monospace, SFMono-Regular, Consolas, monospace; }
 .diagram-code-limitations { color: var(--theme-text-secondary); font-size: var(--type-caption); line-height: var(--leading-normal); }

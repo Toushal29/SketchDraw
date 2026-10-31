@@ -350,14 +350,16 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   }
   if (kind === "diagram-swimlane") {
     const headerHeight = Math.min(32, Math.max(24, h * .12)); const labelWidth = Math.min(132, Math.max(84, w * .22));
-    const lanes = Math.max(2, Math.min(8, Math.round(meta.laneCount ?? 3))); const rowHeight = Math.max(1, (h - headerHeight) / lanes);
+    const lanes = Math.max(2, Math.min(8, Math.round(meta.laneCount ?? 3))); const laneWeights = Array.from({ length: lanes }, (_, lane) => { const weight = meta.laneWeights?.[lane]; return Number.isFinite(weight) && weight! > 0 ? weight! : 1; }); const totalLaneWeight = laneWeights.reduce((sum, weight) => sum + weight, 0); const rowHeights = laneWeights.map(weight => Math.max(1, (h - headerHeight) * weight / totalLaneWeight));
     box(); ctx.fillStyle = soft; ctx.fillRect(x + 1, y + 1, Math.max(0, w - 2), Math.max(0, headerHeight - 1));
     rule(x, y + headerHeight, x + w, y + headerHeight); rule(x + labelWidth, y + headerHeight, x + labelWidth, y + h);
     label(name, x + 10, y + headerHeight / 2, w - 20, Math.min(size, 14));
+    let laneTop = y + headerHeight;
     for (let lane = 0; lane < lanes; lane++) {
-      const top = y + headerHeight + rowHeight * lane;
+      const rowHeight = rowHeights[lane]!; const top = laneTop;
       if (lane) rule(x, top, x + w, top);
       label(`Lane ${lane + 1}`, x + 8, top + rowHeight / 2, labelWidth - 16, Math.min(size, 12), false);
+      laneTop += rowHeight;
     }
     ctx.restore(); return;
   }

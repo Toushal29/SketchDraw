@@ -3,6 +3,7 @@ import { isConnector, isLabelShape } from "../../operations";
 import { shapeDetailPathData, shapeFillRule, shapePathData } from "../shapes/geometry";
 import { arrowHeadEntries, arrowHeadPoints, arrowHeadSvgPath, connectorSvgPath } from "../connectors/geometry";
 import { elementBounds } from "../canvas/bounds";
+import { normalizeExternalHref } from "../links/links";
 import { fontCss, themeInk } from "../canvas/rendering";
 import { freehandSvg } from "../canvas/freehand-rendering";
 import { strokeDashPattern } from "../canvas/stroke-style";
@@ -84,7 +85,12 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
     const content = serializeElement(element);
     if (!content || !element.id) return content;
     const base = `sketchdraw-${element.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`; const count = emittedIds.get(base) ?? 0; emittedIds.set(base, count + 1);
-    return `<g id="${base}${count ? `-${count + 1}` : ""}" data-sketchdraw-type="${element.type}">${content}</g>`;
+    // Alt text becomes the object's accessible name and tooltip in exported SVG.
+    const alt = element.altText?.trim(); const title = element.tooltip?.trim() || alt; const link = normalizeExternalHref(element.href);
+    const targetId = element.prototypeTargetId ? `sketchdraw-${element.prototypeTargetId.replace(/[^a-zA-Z0-9_-]/g, "-")}` : undefined;
+    const data = `${element.layerId ? ` data-layer="${escapeXml(element.layerId)}"` : ""}${element.pageLinkId ? ` data-page-link="${escapeXml(element.pageLinkId)}" data-transition="${element.pageLinkTransition ?? "instant"}"` : ""}${targetId ? ` data-prototype-target="${escapeXml(targetId)}"` : ""}`;
+    const group = `<g id="${base}${count ? `-${count + 1}` : ""}" data-sketchdraw-type="${element.type}"${data}${alt ? ` role="img" aria-label="${escapeXml(alt)}"` : ""}>${title ? `<title>${escapeXml(title)}</title>` : ""}${content}</g>`;
+    return link ? `<a href="${escapeXml(link)}" target="_blank" rel="noopener noreferrer">${group}</a>` : group;
   }
 
   function serializeElement(element: Element): string {
@@ -92,6 +98,12 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
     element = simpleComponentElement(element);
     if (element.type === "group") {
       if (element.note) return noteCardSvg(element);
+      if (element.container?.collapsed && element.componentBounds) {
+        const box = element.componentBounds; const countChildren = (items: Element[]): number => items.reduce((total, item) => total + 1 + (item.type === "group" ? countChildren(item.elements) : 0), 0); const count = countChildren(element.elements);
+        const fill = element.container.background ?? (theme() === "dark" ? "#242a35" : "#f7f9fc"); const border = element.container.borderColor ?? "#77859a";
+        const content = `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="8" fill="${escapeXml(fill)}" stroke="${escapeXml(border)}" stroke-width="${element.container.borderThickness ?? 1.5}"/><text x="${box.x + 14}" y="${box.y + box.h / 2}" dominant-baseline="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="${theme() === "dark" ? "#f2f4f8" : "#253044"}">${escapeXml(`${element.container.name || "Group"} · ${count} items`)}</text>`;
+        return element.rotation ? `<g transform="rotate(${element.rotation} ${box.x + box.w / 2} ${box.y + box.h / 2})">${content}</g>` : content;
+      }
       if (element.componentBounds) {
         const bounds = element.componentBounds; const cx = bounds.x + bounds.w / 2; const cy = bounds.y + bounds.h / 2;
         const component = element.libraryComponent?.kind?.startsWith("viz-")

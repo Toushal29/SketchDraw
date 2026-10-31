@@ -192,7 +192,7 @@
     width: min(420px, 100%);
     padding: 25px;
     border: 1px solid var(--theme-border);
-    border-radius: 14px;
+    border-radius: var(--ui-radius-dialog);
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
 }
@@ -217,9 +217,9 @@
 }
 
 .confirm-dialog button {
-    min-height: 37px;
+    min-height: var(--ui-control-height);
     padding: 0 13px;
-    border-radius: 7px;
+    border-radius: var(--ui-radius-control);
 }
 
 .danger-button {
@@ -408,7 +408,7 @@
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
     border: 1px solid var(--theme-border);
-    border-radius: 12px;
+    border-radius: var(--ui-radius-popover);
 }
 
 .canvas-context-menu kbd {

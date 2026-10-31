@@ -1,3 +1,4 @@
+import { For, Show } from "solid-js";
 import type { ThemeMode } from "../model";
 
 type WhiteboardStyle = "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric";
@@ -17,6 +18,16 @@ type Props = {
   paperPattern: WhiteboardStyle;
   patterns: { value: WhiteboardStyle; label: string }[];
   namedVersionsDisabled: boolean;
+  accessibility?: {
+    colorVisionMode: string;
+    colorVisionModes: { id: string; label: string }[];
+    safePalette: boolean;
+    documentDisabled: boolean;
+    onColorVisionModeChange: (mode: string) => void;
+    onSafePaletteChange: (enabled: boolean) => void;
+    onOpenOutline: () => void;
+    onOpenNavigator: () => void;
+  };
   onThemeChange: (mode: ThemeMode) => void;
   onAccentChange: (value: string) => void;
   onToolbarColorChange: (value: string) => void;
@@ -38,7 +49,7 @@ export function ViewSettingsPopover(props: Props) {
       <div class="view-settings-row">
         <span>Theme</span>
         <div class="view-theme-options" role="group" aria-label="Application theme">
-          {([{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }] as const).map(option =>
+          {([{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }, { value: "modern", label: "Modern" }] as const).map(option =>
             <button type="button" class={props.themeMode === option.value ? "active" : ""} aria-pressed={props.themeMode === option.value} onClick={() => props.onThemeChange(option.value)}>{option.label}</button>)}
         </div>
       </div>
@@ -74,5 +85,19 @@ export function ViewSettingsPopover(props: Props) {
         <div>{props.patterns.map(option => <button type="button" class={props.paperPattern === option.value ? "active" : ""} aria-pressed={props.paperPattern === option.value} onClick={() => props.onPaperPatternChange(option.value)}><i class={`paper-pattern-swatch ${option.value}`} /><span>{option.label}</span></button>)}</div>
       </div>
     </section>
+
+    <Show when={props.accessibility}>{access => <section class="view-settings-section">
+      <h3>Viewing aids</h3>
+      <div class="view-settings-row">
+        <span>Color vision preview</span>
+        <select aria-label="Color vision preview" value={access().colorVisionMode} onChange={event => access().onColorVisionModeChange(event.currentTarget.value)}>
+          <For each={access().colorVisionModes}>{mode => <option value={mode.id}>{mode.label}</option>}</For>
+        </select>
+      </div>
+      <label class="view-settings-check"><input type="checkbox" checked={access().safePalette} onChange={event => access().onSafePaletteChange(event.currentTarget.checked)} /> Color-blind-safe swatches</label>
+      <button type="button" class="view-settings-action" disabled={access().documentDisabled} onClick={access().onOpenNavigator}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v16H3zM9 4v16M3 10h6"/></svg><span>Frame navigator</span><kbd>Alt+Shift+F</kbd></button>
+      <button type="button" class="view-settings-action" disabled={access().documentDisabled} onClick={access().onOpenOutline}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9"/></svg><span>Document outline</span><kbd>Alt+Shift+O</kbd></button>
+      <p class="view-settings-note">The color vision preview changes only what you see here, never exports.</p>
+    </section>}</Show>
   </div>;
 }

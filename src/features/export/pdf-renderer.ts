@@ -116,6 +116,16 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
             } catch { for (const child of element.elements) await drawItem(child); }
             return;
           }
+          if (element.container?.collapsed && element.componentBounds) {
+            const box = element.componentBounds; const left = x0 + box.x * scale; const top = paperH - (bleed + margin + (box.y - bounds.y) * scale); const width = box.w * scale; const height = box.h * scale;
+            const center = { x: box.x + box.w / 2, y: box.y + box.h / 2 }; const rotated = !!element.rotation;
+            if (rotated) page.pushOperators(pushGraphicsState(), translate(x0 + center.x * scale, paperH - (bleed + margin + (center.y - bounds.y) * scale)), rotateDegrees(-(element.rotation ?? 0)), translate(-(x0 + center.x * scale), -(paperH - (bleed + margin + (center.y - bounds.y) * scale))));
+            page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(element.container.background ?? (theme() === "dark" ? "#242a35" : "#f7f9fc"), pdfColorMode()), borderColor: pdfColor(themeInk(element.container.borderColor ?? "#77859a", theme()), pdfColorMode()), borderWidth: Math.max(.5, (element.container.borderThickness ?? 1.5) * scale) });
+            const countChildren = (items: Element[]): number => items.reduce((total, item) => total + 1 + (item.type === "group" ? countChildren(item.elements) : 0), 0); const count = countChildren(element.elements);
+            drawText(`${element.container.name || "Group"} · ${count} items`, box.x + 14, center.y - 6, theme() === "dark" ? "#f2f4f8" : "#253044", 13, "sans", true, false, 1);
+            if (rotated) page.pushOperators(popGraphicsState());
+            return;
+          }
           const containerBounds = element.container && !element.libraryComponent ? element.componentBounds ?? elementBounds(element) : undefined;
           if (element.container && containerBounds) {
             const box = containerBounds; const left = x0 + box.x * scale; const top = paperH - (bleed + margin + (box.y - bounds.y) * scale); const width = box.w * scale; const height = box.h * scale; const border = pdfColor(themeInk(element.container.borderColor ?? "#667085", theme()), pdfColorMode()); const borderWidth = (element.container.borderThickness ?? 1.5) * scale;
@@ -247,7 +257,7 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
         }
         if (isLabelShape(element) || isConnector(element)) drawShapeLabel(element, drawText);
       };
-      const drawShapeLabel=(shape:ShapeElement,draw:(text:string,x:number,y:number,color:string,size:number,family:FontFamily|undefined,bold:boolean,italic:boolean,opacity:number,rotation?:number,rotationCenter?:Point)=>void)=>{if(!shape.label||!textMeasureContext)return;const bounds=elementBounds(shape),center={x:bounds.x+bounds.w/2,y:bounds.y+bounds.h/2};for(const run of textLayout(textMeasureContext,shape))draw(run.text,run.x,run.y,shape.label.color,shape.label.fontSize,shape.label.fontFamily,!!shape.label.bold,!!shape.label.italic,shape.label.opacity??1,shape.rotation??0,center);};
+      const drawShapeLabel=(shape:ShapeElement,draw:(text:string,x:number,y:number,color:string,size:number,family:FontFamily|undefined,bold:boolean,italic:boolean,opacity:number,rotation?:number,rotationCenter?:Point)=>void)=>{if(!textMeasureContext)return;const bounds=elementBounds(shape),center={x:bounds.x+bounds.w/2,y:bounds.y+bounds.h/2},labels=[shape.label,...((shape.type==="line"||shape.type==="arrow")?shape.connectorLabels??[]:[])];for(const label of labels){if(!label?.text)continue;const labelled={...shape,label};for(const run of textLayout(textMeasureContext,labelled))draw(run.text,run.x,run.y,label.color,label.fontSize,label.fontFamily,!!label.bold,!!label.italic,label.opacity??1,shape.rotation??0,center);}};
       for(const item of scene.items) if (!isSceneHidden(item)) await drawItem(item);
       page.pushOperators(popGraphicsState());
       if(pdfHeader().trim())page.drawText(pdfText(pdfHeader()),{x:bleed+margin,y:paperH-bleed-margin+4,size:9,font:fontBold,color:pdfColor("#333333",pdfColorMode())});

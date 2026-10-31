@@ -12,7 +12,7 @@
     grid-template-rows: 46px minmax(0, 1fr);
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--theme-border) 84%, var(--theme-text-secondary));
-    border-radius: 12px;
+    border-radius: var(--ui-radius-panel);
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
     box-shadow: 0 12px 32px rgb(18 28 42 / 12%);
@@ -777,6 +777,10 @@
     gap: 5px;
 }
 
+.component-editor-dock .swimlane-order-list { display: grid; gap: 4px; }
+.component-editor-dock .swimlane-order-list .container-structure-actions { align-items: center; justify-content: space-between; }
+.component-editor-dock .swimlane-order-list .container-structure-actions > div { display: flex; gap: 4px; }
+
 .component-editor-dock .structure-container-editor .component-state-control {
     margin: 0;
 }
@@ -832,7 +836,7 @@
 }
 
 .component-editor-dock :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]), select, textarea, button) {
-    border-radius: 2px;
+    border-radius: var(--ui-radius-control);
     box-shadow: none;
 }
 

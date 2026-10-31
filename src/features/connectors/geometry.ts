@@ -266,6 +266,22 @@ export function connectorPoint(element: ShapeElement, route: Route, t: number): 
   return lerp(path[segment - 1], path[segment], (target - lengths[segment - 1]) / span);
 }
 
+/** Projects a pointer onto the main connector path and returns its length ratio. */
+export function connectorProgressAtPoint(element: ShapeElement, route: Route, point: Point): number {
+  const path = connectorPolylines(element, route, 96)[0] ?? [];
+  if (path.length < 2) return 0.5;
+  const lengths = [0];
+  for (let index = 1; index < path.length; index++) lengths.push(lengths[index - 1] + Math.hypot(path[index].x - path[index - 1].x, path[index].y - path[index - 1].y));
+  const total = lengths[lengths.length - 1] || 1; let bestDistance = Infinity; let progress = .5;
+  for (let index = 1; index < path.length; index++) {
+    const start = path[index - 1]; const end = path[index]; const dx = end.x - start.x; const dy = end.y - start.y; const spanSquared = dx * dx + dy * dy;
+    const ratio = spanSquared ? Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / spanSquared)) : 0;
+    const projected = { x: start.x + dx * ratio, y: start.y + dy * ratio }; const distance = Math.hypot(point.x - projected.x, point.y - projected.y);
+    if (distance < bestDistance) { bestDistance = distance; progress = (lengths[index - 1] + Math.sqrt(spanSquared) * ratio) / total; }
+  }
+  return Math.max(0, Math.min(1, progress));
+}
+
 export function connectorTangent(element: ShapeElement, route: Route, atEnd: boolean): number {
   return polylineTangent(connectorPolylines(element, route, 96)[0] ?? [], atEnd);
 }

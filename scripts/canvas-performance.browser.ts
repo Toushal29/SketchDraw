@@ -17,6 +17,24 @@ import { LIBRARY_COMPONENTS, buildLibraryComponent, buildNoteGroup, drawNoteCard
 import { markdownTableRows, serializeMarkdownTableRows } from "../src/app/markdown-table";
 import { CLOUD_NEUTRAL_COMPONENTS } from "../src/features/diagrams/cloud-providers";
 import { cloudNeutralIconPath } from "../src/features/components/cloud-neutral-icons";
+import { renderPdfPages } from "../src/features/files/pdf-import";
+import { buildInteractiveViewer } from "../src/features/export/interactive-viewer";
+import { createSvgElementSerializer } from "../src/features/export/svg-renderer";
+import { parseSketchFile } from "../src/features/files/parse-sketch";
+import { cloudDiagramFromText, resolveCloudIcon } from "../src/features/diagrams/cloud-diagram";
+import { findLineForElement, generateLiveDiagram, matchLineElements } from "../src/features/diagrams/live-diagram";
+import { LiveDiagramPanel } from "../src/features/diagrams/LiveDiagramPanel";
+import { SequencePlaybackPanel } from "../src/features/diagrams/SequencePlaybackPanel";
+import { DataLinkPanel } from "../src/features/data/DataLinkPanel";
+import { sequenceSteps } from "../src/features/diagrams/sequence-playback";
+import { ViewSettingsPopover } from "../src/components/ViewSettingsPopover";
+import { DEFAULT_TOOL_ORDER, defaultToolbarLayout } from "../src/app/toolbar-layout";
+import { createSketchSnapshot, serializeSketchSnapshot } from "../src/features/files/document-codec";
+import { PDFDocument, rgb } from "pdf-lib";
+import { StyleLibraryPanel } from "../src/features/styles/StyleLibraryPanel";
+import { DocumentOutlineDialog } from "../src/features/accessibility/DocumentOutlineDialog";
+import { buildDocumentOutline } from "../src/features/accessibility/accessibility";
+import { FONT_FAMILY_CHOICES } from "../src/app/canvas-options";
 import { drawModelComponent, modelComponentSvg } from "../src/features/components/model-component-renderer";
 import { fitComponentSpecimen } from "../src/features/components/component-specimen-sheet";
 import { assignLibraryComponentIds, resizeLibraryGroup } from "../src/features/components/library-component-editor";
@@ -751,11 +769,13 @@ spec:
   planningTabHost.querySelector<HTMLButtonElement>(".windows-document-tab-close")?.click();
   check(planningTab?.getAttribute("aria-label") === "Open Planning files" && closedPlanningPath === "C:/SketchDraw/Launch.sdplan", "Planning document tabs expose an accessible label and close the selected file");
   disposePlanningTabs(); planningTabHost.remove();
+  let styleLibraryOpened = false;
   const menuHost = document.createElement("div"); menuHost.className = "app-shell"; document.body.append(menuHost);
   const disposeMenu = render(() => createComponent(CanvasOptionsMenu, {
     open: true, showGrid: true, snapToGrid: true, snapToObjects: true, snapMovesToTen: true, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false,
     onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onToggleSnapMovesToTen() {}, onGroupSelection() {},
     penInput: { pressureWidth: false, tiltShaping: false, stylusEraserEnd: false, disabled: false, onPressureWidthChange() {}, onTiltShapingChange() {}, onStylusEraserEndChange() {} },
+    styleLibrary: { onOpen() { styleLibraryOpened = true; } },
     canvasTools: { showMinimap: true, onToggleMinimap() {}, onAutoLayout() {} },
   }), menuHost);
   const controls = [...menuHost.querySelectorAll<HTMLElement>("button,input,select,textarea,[role=button]")];
@@ -769,7 +789,214 @@ spec:
   check(unlabeledControls.length === 0, `Canvas view controls expose accessible names (${unlabeledControls.length} missing)`);
   const firstEnabled = controls.find(control => control instanceof HTMLButtonElement && !control.disabled);
   firstEnabled?.focus(); check(!firstEnabled || document.activeElement === firstEnabled, "Canvas view controls can receive keyboard focus");
+  const styleLibraryButton = [...menuHost.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.includes("Style library"));
+  styleLibraryButton?.click();
+  check(styleLibraryOpened, "Canvas settings open the style library");
+  check(!menuHost.querySelector('input[aria-label="Stroke smoothing"]') && !menuHost.querySelector('select[aria-label="Selection drag mode"]') && !menuHost.querySelector('select[aria-label="Color vision preview"]'), "Canvas settings no longer carry stroke smoothing, selection mode, or color vision controls");
+  const viewHost = document.createElement("div"); document.body.append(viewHost);
+  let chosenVision = ""; let openedOutline = false; let openedNavigator = false;
+  const disposeView = render(() => createComponent(ViewSettingsPopover, {
+    themeMode: "light", accentColor: "#3b82f6", toolbarColorChoice: "auto", accentOptions: [], toolbarColorOptions: [], boardColor: "#ffffff", renderedBoardColor: "#ffffff", boardColorFollowsTheme: true, boardLocked: false, boardColors: [], paperPattern: "plain", patterns: [], namedVersionsDisabled: false,
+    onThemeChange() {}, onAccentChange() {}, onToolbarColorChange() {}, onBoardFollowTheme() {}, onBoardColorChange() {}, onPaperPatternChange() {}, onNamedVersions() {},
+    accessibility: { colorVisionMode: "none", colorVisionModes: [{ id: "none", label: "Normal vision" }, { id: "deuteranopia", label: "Deuteranopia (no green)" }], safePalette: false, documentDisabled: false, onColorVisionModeChange(mode: string) { chosenVision = mode; }, onSafePaletteChange() {}, onOpenOutline() { openedOutline = true; }, onOpenNavigator() { openedNavigator = true; } },
+  }), viewHost);
+  const visionSelect = viewHost.querySelector<HTMLSelectElement>('select[aria-label="Color vision preview"]');
+  if (visionSelect) { visionSelect.value = "deuteranopia"; visionSelect.dispatchEvent(new Event("change", { bubbles: true })); }
+  const viewButtons = [...viewHost.querySelectorAll<HTMLButtonElement>("button")];
+  viewButtons.find(button => button.textContent?.includes("Document outline"))?.click(); viewButtons.find(button => button.textContent?.includes("Frame navigator"))?.click();
+  check(chosenVision === "deuteranopia" && openedOutline && openedNavigator && [...viewHost.querySelectorAll("input[type=checkbox]")].some(box => box.parentElement?.textContent?.includes("Color-blind-safe swatches")), "The View menu holds the color vision preview, safe swatches, document outline, and frame navigator");
+  disposeView(); viewHost.remove();
+  check(DEFAULT_TOOL_ORDER.indexOf("lasso") === DEFAULT_TOOL_ORDER.indexOf("select") + 1 && DEFAULT_TOOL_ORDER.indexOf("lasso") > 0, "Lasso is its own toolbar tool placed right after Select");
+  const defaultLayout = defaultToolbarLayout();
+  check([...defaultLayout.toolbar, ...defaultLayout.more].includes("lasso") && [...defaultLayout.toolbar, ...defaultLayout.more].includes("select"), "Both Select and Lasso are available in the default toolbar layout");
   disposeMenu(); menuHost.remove(); styleFixtureHost.remove(); style.remove();
+  // PDF import: render a generated PDF with the bundled pdf.js build and check pixels, size, and extracted text.
+  try {
+    const pdf = await PDFDocument.create(); const sheet = pdf.addPage([300, 200]);
+    sheet.drawRectangle({ x: 20, y: 20, width: 100, height: 60, color: rgb(1, 0, 0) }); sheet.drawText("Quarterly review", { x: 30, y: 150, size: 18 });
+    const imported = await renderPdfPages(await pdf.save());
+    const pageImage = imported.pages[0];
+    const raster = new Image(); raster.src = pageImage?.dataUrl ?? ""; await raster.decode();
+    const probe = document.createElement("canvas"); probe.width = raster.naturalWidth; probe.height = raster.naturalHeight;
+    const probeContext = probe.getContext("2d")!; probeContext.drawImage(raster, 0, 0);
+    const scaleX = raster.naturalWidth / 300; const red = probeContext.getImageData(Math.round(70 * scaleX), Math.round((200 - 50) * scaleX), 1, 1).data; const blank = probeContext.getImageData(Math.round(250 * scaleX), Math.round(20 * scaleX), 1, 1).data;
+    check(imported.pages.length === 1 && !imported.truncated && pageImage.width === 300 && pageImage.height === 200 && pageImage.dataUrl.startsWith("data:image/jpeg;base64,") && raster.naturalWidth > 300, "PDF import renders each page to an embedded image at the page's point size");
+    check(red[0] > 200 && red[1] < 70 && red[2] < 70 && blank[0] > 240 && blank[1] > 240 && blank[2] > 240, "PDF import draws page content on a white background");
+    check(pageImage.text.includes("Quarterly review"), "PDF import extracts page text for alt text");
+  } catch (cause) { check(false, `PDF import renders pages (${String(cause)})`); }
+  let rejectedNonPdf = false; try { await renderPdfPages(new Uint8Array([1, 2, 3, 4])); } catch { rejectedNonPdf = true; }
+  check(rejectedNonPdf, "PDF import rejects files that are not PDF documents");
+
+  // Files keep alt text, style bindings, the style library, auto-layout frames, and bookmarks across save and reopen.
+  {
+    const library = { colors: [{ id: "brand", name: "Brand", value: "#2468a0", modeValues: { dark: "#9ec5ee" } }, { id: "accent", name: "Accent", value: "#ffffff", aliasOf: "brand" }], textStyles: [{ id: "title", name: "Title", fontSize: 28, fontFamily: "serif" as const, bold: true }], strokeStyles: [{ id: "heavy", name: "Heavy", thickness: 6, lineStyle: "dashed" as const }], modes: [{ id: "light", name: "Light" }, { id: "dark", name: "Dark" }], activeModeId: "dark", followTheme: true };
+    const card = { type: "rectangle" as const, id: "card", x: 0, y: 0, w: 80, h: 40, color: "#2468a0", thickness: 6, lineStyle: "dashed" as const, altText: "Primary card", layoutFill: true, styleBindings: { stroke: { id: "brand", applied: "{\"color\":\"#2468a0\"}" } } };
+    const frame = { type: "group" as const, id: "frame", elements: [card], componentBounds: { x: 0, y: 0, w: 200, h: 100 }, container: { kind: "frame" as const, name: "Screen", autoResize: true, padding: 12, autoLayout: { direction: "horizontal" as const, gap: 8, padding: 12, align: "center" as const } } };
+    const page = { id: "page-1", name: "Page 1", canvasState: { zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff", boardColorFollowsTheme: true }, elements: [frame], styleLibrary: library, bookmarks: [{ id: "view-1", name: "Overview", zoom: .5, panX: 40, panY: -20 }] };
+    const saved = serializeSketchSnapshot(createSketchSnapshot({ pages: [page], activePageId: "page-1", activeElements: [frame], activeCanvasState: page.canvasState, activeRenderedBoardColor: "#ffffff", theme: "light", library: { quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] } }));
+    const reopened = parseSketchFile(JSON.parse(saved));
+    const reopenedPage = reopened?.pages[0]; const reopenedFrame = reopenedPage?.elements[0]; const reopenedCard = reopenedFrame?.type === "group" ? reopenedFrame.elements[0] : undefined;
+    check(reopenedPage?.styleLibrary?.activeModeId === "dark" && reopenedPage.styleLibrary.followTheme === true && reopenedPage.styleLibrary.colors[1].aliasOf === "brand" && reopenedPage.styleLibrary.colors[0].modeValues?.dark === "#9ec5ee" && reopenedPage.styleLibrary.textStyles[0].name === "Title" && reopenedPage.styleLibrary.strokeStyles[0].thickness === 6, "Saved sketches keep the style library with modes, aliases, text styles, and stroke styles");
+    check(reopenedCard?.altText === "Primary card" && reopenedCard.layoutFill === true && reopenedCard.styleBindings?.stroke?.id === "brand", "Saved sketches keep alt text, style bindings, and fill-space flags on objects");
+    check(reopenedFrame?.type === "group" && reopenedFrame.container?.autoLayout?.direction === "horizontal" && reopenedFrame.container.autoLayout.gap === 8 && reopenedFrame.container.autoLayout.align === "center", "Saved sketches keep auto-layout frame settings");
+    check(reopenedPage?.bookmarks?.length === 1 && reopenedPage.bookmarks[0].name === "Overview" && reopenedPage.bookmarks[0].zoom === .5, "Saved sketches keep saved views");
+    const hostile = parseSketchFile(JSON.parse(saved.replace('"direction":"horizontal"', '"direction":"diagonal"')));
+    check(hostile === undefined, "Invalid auto-layout settings are rejected instead of silently dropped");
+  }
+
+  // The interactive HTML viewer works as a standalone page: tabs, page links, layers, zoom, safe links, and no injected markup.
+  {
+    const serialize = createSvgElementSerializer({ theme: () => "light", isHidden: item => !!item.hidden, simpleComponentElement: item => item, connectorForView: item => item, labelSvg: () => "" });
+    const hostile = "<script>window.__pwned=1</script><img src=x onerror=window.__pwned=1>";
+    const pageA = [
+      { type: "rectangle" as const, id: "go-b", x: 0, y: 0, w: 120, h: 60, color: "#2468a0", thickness: 2, pageLinkId: "page-b", pageLinkTransition: "fade" as const, label: { text: hostile, color: "#000000", fontSize: 14, verticalAlign: "middle" as const } },
+      { type: "rectangle" as const, id: "docs", x: 200, y: 0, w: 120, h: 60, color: "#2468a0", thickness: 2, href: "https://example.com/docs?a=1&b=2", tooltip: 'Open "docs"' },
+      { type: "rectangle" as const, id: "bad", x: 400, y: 0, w: 120, h: 60, color: "#2468a0", thickness: 2, href: "javascript:alert(1)" },
+      { type: "rectangle" as const, id: "notes", x: 0, y: 120, w: 120, h: 60, color: "#a02424", thickness: 2, layerId: "layer-1" },
+    ];
+    const pageB = [{ type: "rectangle" as const, id: "back", x: 0, y: 0, w: 80, h: 40, color: "#2468a0", thickness: 2 }];
+    const html = buildInteractiveViewer({ title: `Review "${hostile}"`, startPageId: "page-a", pages: [
+      { id: "page-a", name: `Overview ${hostile}`, bounds: { x: 0, y: 0, w: 520, h: 180 }, background: "#ffffff", svg: pageA.map(serialize).join(""), layers: [{ id: "layer-1", name: "Notes", hidden: false }], frames: [] },
+      { id: "page-b", name: "Details", bounds: { x: 0, y: 0, w: 80, h: 40 }, background: "#ffffff", svg: pageB.map(serialize).join(""), layers: [], frames: [{ id: "sketchdraw-back", name: "Back screen", x: 0, y: 0, w: 80, h: 40 }] },
+    ] });
+    const frame = document.createElement("iframe"); frame.style.cssText = "position:fixed;left:0;top:0;width:900px;height:600px;border:0"; document.body.append(frame);
+    await new Promise<void>(resolve => { frame.onload = () => resolve(); frame.srcdoc = html; });
+    const win = frame.contentWindow as Window & { __sketchdrawViewer?: { current: string | null }; __pwned?: number }; const doc = frame.contentDocument!;
+    const viewer = () => win.__sketchdrawViewer!;
+    check(!!win.__sketchdrawViewer && viewer().current === "page-a" && doc.querySelectorAll(".sd-tab").length === 2 && (win.__pwned ?? 0) === 0 && doc.querySelectorAll("script").length === 2 && doc.querySelectorAll("img").length === 0, "Interactive viewer loads standalone, starts on the chosen page, and ignores markup in names and labels");
+    const docsLink = doc.querySelector<SVGAElement>('a[href="https://example.com/docs?a=1&b=2"]');
+    check(!!docsLink && docsLink.getAttribute("target") === "_blank" && docsLink.getAttribute("rel") === "noopener noreferrer" && docsLink.querySelector("title")?.textContent === 'Open "docs"' && !doc.querySelector('a[href*="javascript"]'), "Viewer links open in a new tab safely, carry tooltips, and drop unsafe URLs");
+    const svg = doc.querySelector<SVGSVGElement>('.sd-page[data-page-id="page-a"] svg')!; const widthBefore = svg.viewBox.baseVal.width;
+    svg.dispatchEvent(new WheelEvent("wheel", { deltaY: -300, clientX: 450, clientY: 300, bubbles: true, cancelable: true }));
+    check(svg.viewBox.baseVal.width < widthBefore, "Viewer zooms with the mouse wheel");
+    const noteWrapper = doc.querySelector<SVGGElement>('[data-layer="layer-1"]')!; const layerBox = doc.querySelector<HTMLInputElement>('.sd-layers-list input[type=checkbox]')!;
+    layerBox.checked = false; layerBox.dispatchEvent(new Event("change", { bubbles: true }));
+    check(noteWrapper.style.display === "none", "Viewer layer toggles hide and show a layer");
+    const target = doc.querySelector<SVGGElement>('[data-page-link="page-b"]')!;
+    const down = (type: string, id: number) => target.dispatchEvent(new PointerEvent(type, { pointerId: id, button: 0, clientX: 100, clientY: 100, bubbles: true, cancelable: true }));
+    down("pointerdown", 1); down("pointerup", 1);
+    check(viewer().current === "page-b" && doc.querySelector('.sd-page[data-page-id="page-b"]')!.classList.contains("active") && !doc.querySelector<HTMLButtonElement>(".sd-back")!.disabled && doc.querySelectorAll(".sd-frames option").length === 1, "Clicking a page link navigates with history and lists the destination page's screens");
+    doc.querySelector<HTMLButtonElement>(".sd-back")!.click();
+    check(viewer().current === "page-a", "The viewer's Back button returns to the previous page");
+    frame.remove();
+  }
+
+  // Org charts from CSV flow through the live editor; mermaid sequence diagrams play back message by message.
+  {
+    const org = generateLiveDiagram("org", "name,title,manager\nAda,CEO,\nBen,CTO,Ada\nCy,Eng,Ben", { x: 0, y: 0 }, "org-session");
+    const adaNode = org.elements.find(item => item.liveKey === "Ada"); const cyNode = org.elements.find(item => item.liveKey === "Cy");
+    check(org.elements.length === 5 && !!adaNode && !!cyNode && adaNode.type === "rectangle" && cyNode.type === "rectangle" && adaNode.y < cyNode.y && org.elements.filter(item => item.type === "arrow").every(item => item.type === "arrow" && Math.abs(item.h) > 10), "The live editor builds an org chart from CSV with bound reporting lines");
+    check(matchLineElements(org.elements, "org-session", "Ben,CTO,Ada").length >= 2, "Org chart rows link to the people they name");
+    const sequence = generateLiveDiagram("mermaid", "sequenceDiagram\n  Client->>API: GET /orders\n  API->>DB: query\n  DB-->>API: rows\n  API-->>Client: 200 OK", { x: 0, y: 0 }, "seq-session");
+    const steps = sequenceSteps(sequence.elements);
+    check(steps.length === 4 && steps[0].from === "Client" && steps[0].to === "API" && steps[0].label === "GET /orders" && steps[3].to === "Client", "Sequence playback orders messages top to bottom with their participants");
+    const playHost = document.createElement("div"); document.body.append(playHost); const played: string[] = [];
+    const disposePlay = render(() => createComponent(SequencePlaybackPanel, { steps, index: 1, playing: false, onPrevious() { played.push("prev"); }, onNext() { played.push("next"); }, onTogglePlay() { played.push("play"); }, onReset() { played.push("reset"); }, onClose() {} }), playHost);
+    [...playHost.querySelectorAll<HTMLButtonElement>("button")].filter(button => ["Previous", "Next", "Play", "Reset"].includes(button.textContent ?? "")).forEach(button => button.click());
+    check(played.join(",") === "prev,play,next,reset" && playHost.textContent?.includes("Step 2 of 4") === true && playHost.textContent.includes("API") && playHost.textContent.includes("query"), "The sequence playback panel shows the current step and responds to its controls");
+    disposePlay(); playHost.remove();
+  }
+
+  // Linked data saves with the sketch and the panel links the selected shape to a row.
+  {
+    const source = { id: "ops", name: "ops.csv", headers: ["service", "status"], rows: [["API", "up"], ["DB", "down"]], updatedAt: 5 };
+    const linkedShape = { type: "rectangle" as const, id: "api-box", x: 0, y: 0, w: 100, h: 50, color: "#000000", thickness: 2, dataLink: { source: "ops", key: "service", value: "DB", label: "status", rules: "status = down -> fill #d64545" } };
+    const dataPage = { id: "p", name: "P", canvasState: { zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff", boardColorFollowsTheme: true }, elements: [linkedShape], dataSources: [source] };
+    const savedData = serializeSketchSnapshot(createSketchSnapshot({ pages: [dataPage], activePageId: "p", activeElements: [linkedShape], activeCanvasState: dataPage.canvasState, activeRenderedBoardColor: "#ffffff", theme: "light", library: { quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] } }));
+    const reopenedData = parseSketchFile(JSON.parse(savedData))?.pages[0];
+    check(reopenedData?.dataSources?.[0]?.rows[1][1] === "down" && reopenedData.elements[0].dataLink?.value === "DB" && reopenedData.elements[0].dataLink.rules?.includes("fill #d64545") === true, "Saved sketches keep linked data tables and the links on shapes");
+    check(parseSketchFile(JSON.parse(savedData.replace('"headers":["service","status"]', '"headers":[]')))?.pages[0].dataSources === undefined, "Invalid linked data tables are dropped instead of breaking the file");
+    const dataHost = document.createElement("div"); document.body.append(dataHost); let appliedLink: unknown; let addedFile = false;
+    const disposeData = render(() => createComponent(DataLinkPanel, { sources: [source], canEdit: true, selection: { label: "Rectangle", canShowText: true }, onAddFile() { addedFile = true; }, onRefresh() {}, onRemove() {}, onLink: link => { appliedLink = link; }, onUnlink() {}, onClose() {} }), dataHost);
+    const pick = (label: string, value: string) => { const select = dataHost.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!; select.value = value; select.dispatchEvent(new Event("change", { bubbles: true })); };
+    pick("Match column", "service");
+    const rowInput = dataHost.querySelector<HTMLInputElement>('input[aria-label="Row value"]')!; rowInput.value = "API"; rowInput.dispatchEvent(new Event("input", { bubbles: true }));
+    pick("Text column", "status");
+    const rulesBox = dataHost.querySelector<HTMLTextAreaElement>('textarea[aria-label="Color rules"]')!; rulesBox.value = "status = down -> fill #d64545"; rulesBox.dispatchEvent(new Event("input", { bubbles: true }));
+    [...dataHost.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Link object")?.click();
+    [...dataHost.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.includes("Add CSV"))?.click();
+    check(JSON.stringify(appliedLink) === JSON.stringify({ source: "ops", key: "service", value: "API", label: "status", rules: "status = down -> fill #d64545" }) && addedFile && dataHost.querySelector('[role="dialog"][aria-label="Linked data"]') !== null, "The linked data panel links the selected shape to a row with a label column and color rules");
+    rulesBox.value = "oops"; rulesBox.dispatchEvent(new Event("input", { bubbles: true }));
+    check(!!dataHost.querySelector('[role="alert"]') && [...dataHost.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "Link object")?.disabled === true, "The linked data panel blocks unreadable rules and explains the fix");
+    disposeData(); dataHost.remove();
+  }
+
+  // Cloud architecture text builds real provider components; the live editor tags, links, and saves its shapes.
+  {
+    const cloud = cloudDiagramFromText(`Users [icon: user]\nVPC {\n  Gateway [icon: aws-api-gateway, label: "Public API"]\n  Orders [icon: lambda]\n  DB [icon: azure-sql]\n  Pods [icon: k8s]\n}\nMystery [icon: not-a-real-icon]\nUsers > Gateway: HTTPS\nGateway > Orders > DB\nOrders < Pods`, { x: 0, y: 0 });
+    const flat = flatten(cloud.elements);
+    const kinds = flat.flatMap(item => item.type === "group" && item.libraryComponent ? [item.libraryComponent.kind] : []);
+    const vpc = cloud.elements.find(item => item.id === "cloud-group:VPC");
+    const arrows = cloud.elements.filter(item => item.type === "arrow");
+    check(kinds.includes("aws-api-gateway") && kinds.includes("aws-lambda") && kinds.includes("azure-sql") && kinds.includes("cloud-kubernetes") && kinds.includes("c4-person"), "Cloud text resolves exact kinds, short names, and aliases to real AWS, Azure, Kubernetes, and C4 components");
+    check(vpc?.type === "group" && vpc.elements.length === 4 && !!vpc.componentBounds && vpc.componentBounds.w > 300 && cloud.warnings.some(warning => warning.includes("not-a-real-icon")), "Cloud text wraps grouped nodes in a frame and warns about unknown icons");
+    check(arrows.length === 4 && arrows.every(arrow => arrow.type === "arrow" && !!arrow.startBinding && !!arrow.endBinding && (Math.abs(arrow.w) + Math.abs(arrow.h)) > 8) && arrows.some(arrow => arrow.type === "arrow" && arrow.label?.text === "HTTPS"), "Cloud text connectors are bound, resolved to real geometry, and keep labels");
+    check(resolveCloudIcon("lambda") === "aws-lambda" && resolveCloudIcon("Load Balancer") === "cloud-load-balancer" && resolveCloudIcon("zzz-unknown") === undefined, "Cloud icon names match by suffix and spelling");
+    const ids = new Set(flat.flatMap(item => item.id ? [item.id] : []));
+    check(flat.length === ids.size, "Cloud text generates unique object ids");
+
+    const live = generateLiveDiagram("mermaid", "flowchart TD\n  Start([Start]) --> Check{Ready?}\n  Check -->|Yes| Done[Finish]", { x: 100, y: 100 }, "session-one");
+    const liveFlat = flatten(live.elements); const liveIds = new Set(liveFlat.flatMap(item => item.id ? [item.id] : []));
+    check(live.elements.every(item => item.liveSourceId === "session-one") && live.elements[0].liveSource?.format === "mermaid" && live.elements.filter(item => item.liveSource).length === 1, "Live diagrams tag every shape with the session and keep the code on the first one");
+    check(liveFlat.filter(item => item.type === "arrow" || item.type === "line").every(item => (!("startBinding" in item) || !item.startBinding || liveIds.has(item.startBinding.elementId)) && (!("endBinding" in item) || !item.endBinding || liveIds.has(item.endBinding.elementId))) && live.elements.some(item => item.liveKey === "Check"), "Live diagrams keep connector bindings valid after id prefixing and record source names");
+    const source = "flowchart TD\n  Start([Start]) --> Check{Ready?}\n  Check -->|Yes| Done[Finish]";
+    const lineTwo = matchLineElements(live.elements, "session-one", "  Check -->|Yes| Done[Finish]");
+    const matchedKeys = lineTwo.map(index => live.elements[index]).filter(item => item.liveKey).map(item => item.liveKey).sort();
+    check(matchedKeys.join(",") === "Check,Done" && lineTwo.some(index => live.elements[index].type === "arrow" || live.elements[index].type === "line"), "Clicking a code line selects its shapes and the connector between them");
+    const doneShape = live.elements.find(item => item.liveKey === "Done")!;
+    check(findLineForElement(source, doneShape) === 2 && findLineForElement(source, live.elements.find(item => item.liveKey === "Start")!) === 1 && matchLineElements(live.elements, "other", "Check").length === 0, "Selecting a shape finds the first source line that names it");
+    let generated = 0;
+    for (const [format, code] of [["plantuml", "@startuml\nclass User {\n  id: UUID\n}\nclass Order\nUser --> Order : places\n@enduml"], ["d2", "a: Alpha\nb: Beta\na -> b: link"], ["cloud", "A [icon: aws-s3]\nA > B"]] as const) { try { if (generateLiveDiagram(format, code, { x: 0, y: 0 }, "s").elements.length) generated++; } catch { /* counted below */ } }
+    check(generated === 3, "The live editor builds PlantUML, D2, and cloud text");
+    let emptyRejected = false; try { generateLiveDiagram("cloud", "   ", { x: 0, y: 0 }, "s"); } catch { emptyRejected = true; }
+    check(emptyRejected, "Empty live code is rejected with a message instead of an empty diagram");
+    const savedLive = serializeSketchSnapshot(createSketchSnapshot({ pages: [{ id: "p", name: "P", canvasState: { zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff", boardColorFollowsTheme: true }, elements: live.elements }], activePageId: "p", activeElements: live.elements, activeCanvasState: { zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff", boardColorFollowsTheme: true }, activeRenderedBoardColor: "#ffffff", theme: "light", library: { quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] } }));
+    const reopenedLive = parseSketchFile(JSON.parse(savedLive))?.pages[0].elements;
+    check(!!reopenedLive && reopenedLive.every(item => item.liveSourceId === "session-one") && reopenedLive[0].liveSource?.source.includes("Check") === true && reopenedLive.some(item => item.liveKey === "Done"), "Saved sketches keep live diagram code and shape links");
+  }
+  const livePanelHost = document.createElement("div"); document.body.append(livePanelHost);
+  let liveFormat = ""; let liveCaret = -1; let liveTyped = "";
+  const disposeLivePanel = render(() => createComponent(LiveDiagramPanel, { format: "mermaid", source: "flowchart TD\n  A --> B", canEdit: true, status: { kind: "error", message: "Line 2: bad" }, linkedLine: 1, onFormat: format => { liveFormat = format; }, onSource: source => { liveTyped = source; }, onCaretLine: line => { liveCaret = line; }, onTextarea() {}, onExample() {}, onClose() {} }), livePanelHost);
+  const liveArea = livePanelHost.querySelector<HTMLTextAreaElement>("textarea"); const liveSelect = livePanelHost.querySelector<HTMLSelectElement>('select[aria-label="Diagram language"]');
+  if (liveArea) { liveArea.value = "flowchart TD\n  A --> B\n  B --> C"; liveArea.setSelectionRange(liveArea.value.length, liveArea.value.length); liveArea.dispatchEvent(new Event("input", { bubbles: true })); }
+  if (liveSelect) { liveSelect.value = "cloud"; liveSelect.dispatchEvent(new Event("change", { bubbles: true })); }
+  check(liveTyped.endsWith("B --> C") && liveCaret === 2 && liveFormat === "cloud" && [...(liveSelect?.options ?? [])].map(option => option.value).join(",") === "mermaid,plantuml,d2,org,cloud" && !!livePanelHost.querySelector('[role="alert"]') && livePanelHost.textContent?.includes("Linked to line 2") === true, "Live diagram panel reports typing, the caret line, the language, errors, and the linked line");
+  disposeLivePanel(); livePanelHost.remove();
+
+  // Style library panel and document outline expose labelled, operable controls.
+  const panelHost = document.createElement("div"); document.body.append(panelHost);
+  const appliedStyles: string[] = []; const removedStyles: string[] = []; let modesEnabled = false;
+  const panelLibrary = { colors: [{ id: "brand", name: "Brand", value: "#2468a0" }], textStyles: [{ id: "title", name: "Title", fontSize: 28, fontFamily: "serif" as const, bold: true }], strokeStyles: [{ id: "heavy", name: "Heavy", thickness: 6, lineStyle: "dashed" as const }] };
+  const disposePanel = render(() => createComponent(StyleLibraryPanel, {
+    library: panelLibrary, canEdit: true, selection: { label: "Rectangle: API", slots: [{ slot: "stroke", state: "unbound" }, { slot: "fill", state: "bound", tokenId: "brand" }, { slot: "textStyle", state: "detached", tokenId: "title" }] },
+    usage: (slot, id) => slot === "stroke" && id === "brand" ? 3 : 0, fontChoices: FONT_FAMILY_CHOICES,
+    resolveColor: () => "#2468a0", onEnableModes() { modesEnabled = true; }, onAddMode() {}, onRenameMode() {}, onRemoveMode() {}, onSetMode() {}, onFollowTheme() {},
+    onAddColor() {}, onUpdateColor() {}, onRemoveColor: id => removedStyles.push(id), onAddTextStyle() {}, onUpdateTextStyle() {}, onRemoveTextStyle() {}, onAddStrokeStyle() {}, onUpdateStrokeStyle() {}, onRemoveStrokeStyle() {},
+    onApply: (slot, id) => appliedStyles.push(`${slot}:${id}`), onDetach() {}, onClose() {},
+  }), panelHost);
+  const panelControls = [...panelHost.querySelectorAll<HTMLElement>("button,input,select")];
+  check(panelControls.length > 8 && panelControls.every(control => control.getAttribute("aria-label") || control.getAttribute("title") || control.textContent?.trim() || control.closest("label")?.textContent?.trim()), "Style library controls expose accessible names");
+  panelHost.querySelector<HTMLButtonElement>('button[aria-label="Use Brand as stroke color"]')?.click();
+  panelHost.querySelector<HTMLButtonElement>('button[aria-label="Delete Heavy"]')?.click();
+  Array.from(panelHost.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes("Light and Dark"))?.click();
+  check(modesEnabled, "Style library offers Light and Dark variable modes");
+  check(appliedStyles.includes("stroke:brand") && removedStyles.length === 0 && panelHost.textContent?.includes("3 in use") && panelHost.querySelector('[role="dialog"][aria-label="Style library"]') !== null, "Style library applies named colors and reports how many objects use them");
+  disposePanel(); panelHost.remove();
+
+  const outlineHost = document.createElement("div"); document.body.append(outlineHost);
+  const outlineElements = [
+    { type: "rectangle" as const, id: "r", x: 0, y: 0, w: 80, h: 40, color: "#000000", thickness: 2, label: { text: "Gateway", color: "#000000", fontSize: 14, verticalAlign: "middle" as const } },
+    { type: "image" as const, id: "i", x: 0, y: 100, w: 60, h: 60, dataUrl: "data:image/png;base64,AAAA" },
+  ];
+  const picked: string[] = [];
+  const disposeOutline = render(() => createComponent(DocumentOutlineDialog, { pageName: "Page 1", entries: buildDocumentOutline(outlineElements), selectedRoots: new Set<number>(), onSelect: entry => picked.push(entry.indices.join(".")), onClose() {} }), outlineHost);
+  const outlineButtons = [...outlineHost.querySelectorAll<HTMLButtonElement>(".document-outline-list button")];
+  outlineButtons[0]?.focus(); outlineButtons[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+  const movedFocus = document.activeElement === outlineButtons[1];
+  outlineButtons[1]?.click();
+  check(outlineButtons.length === 2 && outlineButtons[0].textContent?.includes("Gateway") && outlineButtons[1].textContent?.includes("no alt text") && movedFocus && picked[0] === "1" && outlineHost.querySelector('[role="dialog"][aria-modal="true"]') !== null, "Document outline lists objects in reading order, flags images without alt text, and supports arrow-key navigation");
+  disposeOutline(); outlineHost.remove();
+
   const performanceResults = {
     workload: "160 pressure strokes, 240 samples each, 1200x800 canvas, software-rendered panning",
     baseline: globalThis.__baselineRenderer ? crowded(globalThis.__baselineRenderer) : undefined, updated: crowded(createFreehandRenderer),

@@ -23,13 +23,18 @@ export function themeInk(color: string, activeTheme: Theme): string {
   return color;
 }
 
-export function drawShapeLabel(ctx: CanvasRenderingContext2D, shape: ShapeElement, activeTheme: Theme) {
-  const label = shape.label;
+function drawOneShapeLabel(ctx: CanvasRenderingContext2D, shape: ShapeElement, label: NonNullable<ShapeElement["label"]>, activeTheme: Theme) {
   if (!label?.text) return;
+  const labelled = { ...shape, label };
   ctx.save(); ctx.font = textFont(label); ctx.fillStyle = themeInk(label.color, activeTheme); ctx.globalAlpha = (shape.opacity ?? 1) * (label.opacity ?? 1); ctx.textBaseline = "top"; ctx.textAlign = "left";
-  const box = labelBox(shape); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip();
-  for (const run of textLayout(ctx, shape)) { ctx.fillText(run.text, run.x, run.y); if (label.underline) ctx.fillRect(run.x, run.y + label.fontSize * 1.06, ctx.measureText(run.text).width, Math.max(1, label.fontSize / 18)); }
+  const box = labelBox(labelled); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip();
+  for (const run of textLayout(ctx, labelled)) { ctx.fillText(run.text, run.x, run.y); if (label.underline) ctx.fillRect(run.x, run.y + label.fontSize * 1.06, ctx.measureText(run.text).width, Math.max(1, label.fontSize / 18)); }
   ctx.restore();
+}
+
+export function drawShapeLabel(ctx: CanvasRenderingContext2D, shape: ShapeElement, activeTheme: Theme) {
+  const labels = [shape.label, ...((shape.type === "line" || shape.type === "arrow") ? shape.connectorLabels ?? [] : [])];
+  for (const label of labels) if (label) drawOneShapeLabel(ctx, shape, label, activeTheme);
 }
 
 function escapeXml(value: string) {
@@ -37,9 +42,12 @@ function escapeXml(value: string) {
 }
 
 export function shapeLabelSvg(shape: ShapeElement, ctx: CanvasRenderingContext2D, activeTheme: Theme): string {
-  const label = shape.label;
-  if (!label?.text) return "";
-  return `<g fill="${escapeXml(themeInk(label.color, activeTheme))}" opacity="${(shape.opacity ?? 1) * (label.opacity ?? 1)}" font-size="${label.fontSize}" font-family="${escapeXml(fontCss(label.fontFamily))}" font-weight="${label.bold ? 700 : 400}" font-style="${label.italic ? "italic" : "normal"}" text-decoration="${label.underline ? "underline" : "none"}">${textLayout(ctx, shape).map(run => `<text x="${run.x}" y="${run.y + label.fontSize * .8}">${escapeXml(run.text)}</text>`).join("")}</g>`;
+  const labels = [shape.label, ...((shape.type === "line" || shape.type === "arrow") ? shape.connectorLabels ?? [] : [])];
+  return labels.flatMap(label => {
+    if (!label?.text) return [];
+    const labelled = { ...shape, label };
+    return [`<g fill="${escapeXml(themeInk(label.color, activeTheme))}" opacity="${(shape.opacity ?? 1) * (label.opacity ?? 1)}" font-size="${label.fontSize}" font-family="${escapeXml(fontCss(label.fontFamily))}" font-weight="${label.bold ? 700 : 400}" font-style="${label.italic ? "italic" : "normal"}" text-decoration="${label.underline ? "underline" : "none"}">${textLayout(ctx, labelled).map(run => `<text x="${run.x}" y="${run.y + label.fontSize * .8}">${escapeXml(run.text)}</text>`).join("")}</g>`];
+  }).join("");
 }
 
 export type CanvasRendererPorts = {

@@ -1,4 +1,5 @@
 import type { Element, SchemaTableElement, ShapeElement } from "../../model";
+import { detectExtendedMermaidType, exportExtendedMermaid } from "./mermaid-extended";
 
 export type DiagramCodeFormat = "mmd" | "dot" | "d2" | "csv" | "sql" | "json" | "puml";
 
@@ -68,6 +69,10 @@ function diagramParts(elements: Element[]) {
 }
 
 function exportMermaid(elements: Element[]) {
+  if (elements.length === 1 && elements[0].type === "group" && elements[0].mermaid?.format !== "plantuml") {
+    const type = elements[0].mermaid?.diagramType ?? detectExtendedMermaidType(elements[0].mermaid?.source ?? "");
+    if (type && type !== "flowchart" && type !== "sequence") return exportExtendedMermaid(type, elements, elements[0].mermaid?.source ?? "");
+  }
   if (elements.length === 1 && elements[0].type === "group" && elements[0].mermaid && /^\s*sequenceDiagram\b/im.test(elements[0].mermaid.source)) {
     const group = elements[0];
     const participants = group.elements.filter((item): item is Extract<Element, { type: "group" }> => item.type === "group" && item.libraryComponent?.kind === "uml-lifeline");

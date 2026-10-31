@@ -19,6 +19,10 @@
 | Project planning | `src/features/project/project-workspace.css` owns the lazily loaded Planning workspace, `.sdplan` toolbar, responsive layouts, report printing, and scoped coarse-pointer navigation behavior. | The Planning component stylesheet contains the small touch-specific navigation rule under `.app-shell:not(.platform-windows)`. `src/platform/mobile/layout-fixes.css` only owns shared workspace-shell sizing. | No separate Windows Planning overrides currently exist; add them in `src/platform/windows/windows.css` only when needed. |
 | Design shape library and text toolbar | `src/features/workspace/database-workspace.css` owns the searchable Design palette and shared text formatting controls. | `src/platform/mobile/design-workspace.css` gives the Design formatting strip readable controls beside vertical touch rails and improves palette tiles on narrow screens. | Use the shared Design controls. |
 
+## Modern theme
+
+`src/styles/app/theme-modern.css` is the last stylesheet in the manifest and is scoped to `.app-shell.theme-modern`. It owns how the Modern theme shapes components: frosted surfaces, hairline edges, filled controls, segmented tabs, switches, sliders, macOS-style menus, and the command palette. Its palette tokens stay in `theme.css`; it only derives translucent fills with `color-mix`. It must not change geometry that belongs to touch layouts. Light, Dark, and System are unaffected because every rule starts with `.theme-modern`.
+
 ## Shared refinement sheets
 
 `src/styles/app/ui-overrides.css`, `src/styles/app/toolbar-polish.css`, `src/styles/app/canvas-polish.css`, and `src/styles/property-panel-redesign.css` contain later refinement rules. Treat them as existing migration areas, not as the default place for new component base styles. When changing a component, move its base rule to the owner above if that can be done without changing unrelated behavior.

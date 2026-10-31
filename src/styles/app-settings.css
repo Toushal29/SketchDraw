@@ -30,17 +30,17 @@
     width: min(330px, calc(100vw - 20px));
     max-height: min(78vh, 680px);
     max-height: min(78dvh, 680px);
-    gap: 10px;
-    padding: 12px;
+    gap: var(--ui-space-3);
+    padding: var(--ui-space-3);
     overflow: auto;
     border: 1px solid var(--theme-border);
-    border-radius: 8px;
+    border-radius: var(--ui-radius-panel);
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
 }
 
 .app-settings-heading {
-    padding-bottom: 8px;
+    padding-bottom: var(--ui-space-2);
     border-bottom: 1px solid var(--theme-border);
 }
 
@@ -50,7 +50,7 @@
 
 .app-settings-section {
     display: grid;
-    gap: 8px;
+    gap: var(--ui-space-2);
     padding-bottom: 9px;
     border-bottom: 1px solid var(--theme-border);
 }
@@ -61,7 +61,7 @@
 
 .app-settings-choice {
     display: grid;
-    gap: 4px;
+    gap: var(--ui-space-1);
     color: var(--theme-text-secondary);
     font-size: var(--type-caption);
 }
@@ -73,10 +73,10 @@
 
 .app-settings-choice button,
 .app-settings-reset {
-    min-height: 30px;
+    min-height: var(--ui-control-height-compact);
     padding: 5px 8px;
     border: 1px solid var(--theme-border);
-    border-radius: 6px;
+    border-radius: var(--ui-radius-control);
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
     font: inherit;

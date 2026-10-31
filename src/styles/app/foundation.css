@@ -162,9 +162,9 @@ h6 {
     left: -10px;
     top: 42px;
     width: 220px;
-    padding: 7px;
+    padding: var(--ui-space-2);
     border: 1px solid var(--theme-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius-popover);
     background: var(--theme-surface-elevated);
 }
 
@@ -175,7 +175,7 @@ h6 {
     justify-content: space-between;
     padding: 5px;
     border: 0;
-    border-radius: 5px;
+    border-radius: var(--ui-radius-control);
     background: transparent;
     color: var(--theme-text-primary);
     text-align: left;

@@ -40,7 +40,7 @@ try {
     const asset = assets.find(item => item.fileName === pathname || pathname.endsWith(item.fileName));
     if (pathname.toLowerCase().includes("elk")) process.stdout.write(`[audit] requested worker asset: ${pathname} (${asset ? "served" : "missing"})\n`);
     if (asset?.type === "asset") {
-      const contentType = asset.fileName.endsWith(".js") ? "text/javascript; charset=utf-8" : "application/octet-stream";
+      const contentType = /\.m?js$/.test(asset.fileName) ? "text/javascript; charset=utf-8" : "application/octet-stream";
       response.writeHead(200, { "content-type": contentType }); response.end(asset.source); return;
     }
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" }); response.end("<!doctype html><html><head></head><body></body></html>");

@@ -1079,6 +1079,9 @@
 }
 
 .app-shell.platform-windows .windows-command-results {
+    display: grid;
+    align-content: start;
+    gap: 2px;
     min-height: 72px;
     max-height: min(58vh, 560px);
     overflow: auto;
@@ -1088,6 +1091,16 @@
 }
 
 .app-shell.platform-windows .windows-command-results>button {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
     min-height: 54px;
     padding: 8px 11px;
     border-radius: 10px;
@@ -1104,6 +1117,8 @@
 }
 
 .app-shell.platform-windows .windows-command-results>button span {
+    display: grid;
+    min-width: 0;
     gap: 3px;
 }
 

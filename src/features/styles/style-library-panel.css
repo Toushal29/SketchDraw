@@ -1,0 +1,37 @@
+.style-library-panel {
+  position: fixed; top: 64px; right: 12px; z-index: 40; width: min(340px, calc(100vw - 24px)); max-height: calc(100vh - 88px); overflow-y: auto;
+  padding: 10px 12px 12px; border: 1px solid var(--theme-border, rgba(127, 127, 127, .35)); border-radius: 8px;
+  background: var(--theme-surface-elevated); color: var(--theme-text, inherit); font-size: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+.style-library-panel header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.style-library-panel header strong { display: block; font-size: 14px; }
+.style-library-panel header small, .style-library-hint { color: var(--theme-text-muted, #6b7280); font-size: 11px; line-height: 1.35; }
+.style-library-panel h3 { display: flex; justify-content: space-between; margin: 12px 0 4px; font-size: 12px; font-weight: 600; }
+.style-library-panel h3 small { font-weight: 400; color: var(--theme-text-muted, #6b7280); }
+.style-library-panel section + section { border-top: 1px solid var(--theme-border, rgba(127, 127, 127, .25)); }
+.style-library-panel ul { list-style: none; margin: 0; padding: 0; }
+.style-add-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.style-add-row button, .style-token-apply, .style-token-remove, .style-format {
+  min-height: 26px; padding: 2px 8px; border: 1px solid var(--theme-border, rgba(127, 127, 127, .4)); border-radius: 5px; background: transparent; color: inherit; font: inherit; cursor: pointer;
+}
+.style-add-row button:disabled, .style-token-apply:disabled, .style-token-remove:disabled, .style-format:disabled { opacity: .5; cursor: not-allowed; }
+.style-token-apply.active, .style-format.active { border-color: var(--theme-accent, #3b82f6); background: color-mix(in srgb, var(--theme-accent, #3b82f6) 16%, transparent); }
+.style-token-remove { padding: 2px 7px; }
+.style-token-list li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 4px 6px; padding: 4px 0; }
+.style-token-list li.style-token-wide { grid-template-columns: minmax(0, 1fr) auto; }
+.style-token-list input[type="color"] { width: 28px; height: 26px; padding: 0; border: 1px solid var(--theme-border, rgba(127, 127, 127, .4)); border-radius: 5px; background: transparent; }
+.style-token-name { min-width: 0; height: 26px; padding: 0 6px; border: 1px solid var(--theme-border, rgba(127, 127, 127, .4)); border-radius: 5px; background: transparent; color: inherit; font: inherit; }
+.style-token-list small { grid-column: 1 / -1; color: var(--theme-text-muted, #6b7280); font-size: 11px; }
+.style-token-actions { display: flex; gap: 4px; justify-content: flex-end; }
+.style-token-list li:not(.style-token-wide) .style-token-actions { grid-column: 1 / -1; flex-wrap: wrap; }
+.style-token-fields { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: end; gap: 6px; }
+.style-token-fields label { display: grid; gap: 2px; font-size: 11px; }
+.style-token-fields input, .style-token-fields select { height: 26px; max-width: 96px; padding: 0 4px; border: 1px solid var(--theme-border, rgba(127, 127, 127, .4)); border-radius: 5px; background: transparent; color: inherit; font: inherit; }
+.style-mode-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: end; gap: 6px; margin-bottom: 6px; }
+.style-mode-row label { display: grid; gap: 2px; font-size: 11px; }
+.style-mode-row select, .style-alias-row select { height: 26px; padding: 0 4px; border: 1px solid var(--theme-border, rgba(127, 127, 127, .4)); border-radius: 5px; background: transparent; color: inherit; font: inherit; }
+.style-mode-row button { min-height: 26px; padding: 2px 8px; border: 1px solid var(--theme-border, rgba(127, 127, 127, .4)); border-radius: 5px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.style-follow-theme { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.style-alias-row { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.style-selection-slots li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 6px; padding: 3px 0; }
+.style-selection-slots small { color: var(--theme-text-muted, #6b7280); }

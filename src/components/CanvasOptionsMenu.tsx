@@ -1,5 +1,6 @@
 import { Show } from "solid-js";
 import type { DiagramLayoutAlgorithm } from "../features/diagrams/auto-layout";
+import type { ThemeMode } from "../model";
 
 export type CanvasOptionsMenuProps = {
   open: boolean;
@@ -40,12 +41,12 @@ export type CanvasOptionsMenuProps = {
   structureSelectionDisabled?: boolean;
   orthogonalizeDisabled?: boolean;
   appAppearance?: {
-    themeMode: "system" | "light" | "dark";
+    themeMode: ThemeMode;
     accentColor: string;
     toolbarColorChoice: string;
     accentOptions: { label: string; value: string }[];
     toolbarColorOptions: { label: string; value: string }[];
-    onThemeChange: (mode: "system" | "light" | "dark") => void;
+    onThemeChange: (mode: ThemeMode) => void;
     onAccentChange: (value: string) => void;
     onToolbarColorChange: (value: string) => void;
   };
@@ -60,6 +61,7 @@ export type CanvasOptionsMenuProps = {
     onBackgroundColorChange: (color: string) => void;
     onPaperPatternChange: (pattern: "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric") => void;
   };
+  styleLibrary?: { onOpen: () => void };
   penInput?: {
     pressureWidth: boolean;
     tiltShaping: boolean;
@@ -88,6 +90,11 @@ export type CanvasOptionsMenuProps = {
     onLayoutSpacingChange?: (spacing: number) => void;
     onValidateDiagram?: () => void;
     onSearchObjects?: () => void;
+    onOpenLiveEditor?: () => void;
+    onCheckLinks?: () => void;
+    onOpenLinkedData?: () => void;
+    onInsertMetricsSummary?: () => void;
+    onPlaySequence?: () => void;
     validationDisabled?: boolean;
     onRenumberSequenceMessages?: () => void;
     sequenceNumberingDisabled?: boolean;
@@ -156,6 +163,11 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
                 <label class="workspace-view-checkbox"><input type="checkbox" checked={tools().layoutSelectionOnly ?? false} disabled={tools().autoLayoutDisabled} onChange={event => tools().onLayoutSelectionOnlyChange?.(event.currentTarget.checked)} />Layout selection only</label>
                 {action("Auto arrange", autoLayout(), !!tools().autoLayoutDisabled || !!tools().layoutSelectionOnly && !props.hasSelection)}
               </>}</Show>
+              <Show when={tools().onOpenLiveEditor}>{open => action("Live diagram editor...", open(), props.boardLocked)}</Show>
+              <Show when={tools().onInsertMetricsSummary}>{insert => action("Insert cost and capacity summary", insert(), props.boardLocked)}</Show>
+              <Show when={tools().onOpenLinkedData}>{open => action("Linked data...", open(), props.boardLocked)}</Show>
+              <Show when={tools().onCheckLinks}>{check => action("Check page and prototype links", check())}</Show>
+              <Show when={tools().onPlaySequence}>{play => action("Play sequence diagram", play())}</Show>
               <Show when={tools().onSearchObjects}>{search => action("Find objects", search(), false, "Ctrl+F")}</Show>
               <Show when={tools().onValidateDiagram}>{validate => action("Validate diagram", validate(), !!tools().validationDisabled)}</Show>
               {check("Show minimap", tools().showMinimap, tools().onToggleMinimap)}
@@ -183,7 +195,7 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
           <section class="workspace-view-section">
             <h2>Appearance</h2>
             <Show when={props.appAppearance}>{appearance => <div class="workspace-view-fields">
-              <label>Theme<select aria-label="Application theme" value={appearance().themeMode} onChange={event => appearance().onThemeChange(event.currentTarget.value as "system" | "light" | "dark")}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+              <label>Theme<select aria-label="Application theme" value={appearance().themeMode} onChange={event => appearance().onThemeChange(event.currentTarget.value as ThemeMode)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option><option value="modern">Modern</option></select></label>
               <label>Accent<select aria-label="Accent color" value={appearance().accentColor} onChange={event => appearance().onAccentChange(event.currentTarget.value)}>{appearance().accentOptions.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
               <label>Toolbar<select aria-label="Toolbar surface" value={appearance().toolbarColorChoice} onChange={event => appearance().onToolbarColorChange(event.currentTarget.value)}><option value="auto">Automatic</option>{appearance().toolbarColorOptions.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
             </div>}</Show>
@@ -196,6 +208,16 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
               <label class="workspace-view-fields">Paper pattern<select aria-label="Paper pattern" value={appearance().paperPattern} onChange={event => appearance().onPaperPatternChange(event.currentTarget.value as "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric")}><option value="plain">Plain</option><option value="dots">Dots</option><option value="small-dots">Fine dots</option><option value="lines">Grid</option><option value="small-grid">Fine grid</option><option value="ruled">Ruled</option><option value="isometric">Isometric</option></select></label>
             </>}</Show>
           </section>
+        </Show>
+
+        <Show when={props.styleLibrary}>
+          {styles => <section class="workspace-view-section">
+            <h2>Design styles</h2>
+            <div class="workspace-view-action-grid">
+              {action("Style library...", styles().onOpen, props.boardLocked)}
+            </div>
+            <p class="workspace-view-note">Named colors, text styles, and stroke styles. Change one and every object using it updates.</p>
+          </section>}
         </Show>
 
         <Show when={props.penInput}>
