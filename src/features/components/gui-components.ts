@@ -1,13 +1,10 @@
-import type { GuiComponentProperties, GroupElement, Point, StrokeStyle, Theme } from "../../model";
+import type { FontFamily, GuiComponentProperties, GroupElement, Point, StrokeStyle, Theme } from "../../model";
 import { strokeDashPattern } from "../canvas/stroke-style";
+import { componentBaselineOffset, componentFont, componentFontFamily } from "./component-text";
 
 export type GuiComponentKind =
   | "form-button" | "form-input" | "form-select" | "form-checkbox" | "form-radio" | "form-toggle" | "form-textarea" | "form-search" | "form-date" | "form-slider" | "form-password" | "form-email" | "form-file"
   | "gui-card" | "gui-app-bar" | "gui-navigation" | "gui-tabs" | "gui-image" | "gui-alert" | "gui-modal" | "gui-breadcrumbs" | "gui-avatar" | "gui-badge" | "gui-progress" | "gui-list" | "gui-table" | "gui-accordion" | "gui-menu" | "gui-toast" | "gui-pagination" | "gui-divider" | "gui-footer";
-
-function componentFontFamily(family?: string) {
-  return family === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : family === "serif" ? "Georgia, 'Times New Roman', serif" : family === "mono" ? "'Cascadia Mono', Consolas, monospace" : family === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : family === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif";
-}
 
 export const GUI_COMPONENT_DEFINITIONS: { kind: GuiComponentKind; section: string; label: string; description: string; width: number; height: number }[] = [
   { kind: "form-button", section: "Forms & UI | Controls", label: "Button", description: "Compact primary action button", width: 100, height: 50 },
@@ -100,14 +97,21 @@ export function guiChoiceMinimumHeight(group: GroupElement): number {
   const position = props.titlePosition ?? "top";
   const horizontalTitle = position === "left" || position === "right";
   const options = meta.formOptions?.length ? meta.formOptions.slice(0, 12) : ["First option", "Second option", "Third option"];
-  const fontSize = Math.max(5, Math.min(14, meta.textStyle?.fontSize ?? 11, 25 * .32));
-  const titleWidth = horizontalTitle ? Math.min(bounds.w * .38, Math.max(30, (meta.formTitle ?? "Choose an option").length * fontSize * .55)) : bounds.w;
+  const preferredFontSize = meta.textStyle?.fontSize ?? 11;
+  const titleWidth = horizontalTitle ? Math.min(bounds.w * .38, Math.max(30, (meta.formTitle ?? "Choose an option").length * preferredFontSize * .55)) : bounds.w;
   const contentWidth = horizontalTitle ? Math.max(20, bounds.w - titleWidth - 6) : bounds.w - 4;
   const columns = guiChoiceColumnCount(group, contentWidth);
   const rows = Math.ceil(options.length / columns);
   const rowGap = Math.max(0, Math.min(40, props.optionRowGap ?? props.optionGap ?? 4));
-  const titleHeight = horizontalTitle ? 0 : position === "bottom" ? 15 : 18;
-  return Math.max(25, titleHeight + rows * 11 + (rows - 1) * rowGap + 6);
+  const titleHeight = horizontalTitle ? 2 : position === "bottom" ? 2 : 18;
+  const bottomTitleSpace = position === "bottom" && !horizontalTitle ? 18 : 0;
+  let height = titleHeight + rows * 11 + (rows - 1) * rowGap + bottomTitleSpace + 4;
+  for (let pass = 0; pass < 4; pass++) {
+    const fontSize = Math.max(9, Math.min(14, preferredFontSize, height * .32));
+    const itemHeight = Math.max(11, fontSize * 1.2);
+    height = titleHeight + rows * itemHeight + (rows - 1) * rowGap + bottomTitleSpace + 4;
+  }
+  return Math.max(25, Math.ceil(height));
 }
 
 export function guiNavigationMinimumHeight(group: GroupElement): number {
@@ -128,15 +132,17 @@ export function guiCardCompactThreshold(group: GroupElement): number {
 type Style = { ink: string; muted: string; edge: string; surface: string; soft: string; accent: string };
 function styleFor(group: GroupElement, theme: Theme): Style {
   const dark = theme === "dark";
+  const host = typeof document === "undefined" ? undefined : document.querySelector<HTMLElement>(dark ? ".app-shell.theme-dark" : ".app-shell:not(.theme-dark)") ?? document.documentElement;
+  const token = (name: string, fallback: string) => host && typeof getComputedStyle === "function" ? getComputedStyle(host).getPropertyValue(name).trim() || fallback : fallback;
   const safe = (value: string | null | undefined, fallback: string) => value && /^(#[\da-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]+)$/i.test(value) ? value : fallback;
   const overrides = group.libraryComponent?.styleOverrides;
   return {
-    ink: safe(overrides?.color, dark ? "#e7ebef" : "#27313a"),
-    muted: dark ? "#aab4bf" : "#6d7883",
-    edge: safe(overrides?.color, dark ? "#59636d" : "#d3dbe3"),
-    surface: safe(overrides?.fillColor, dark ? "#20262c" : "#ffffff"),
-    soft: dark ? "#2a323a" : "#f2f5f8",
-    accent: dark ? "#8bb7ff" : "#376fca",
+    ink: safe(overrides?.color, token("--diagram-ink", dark ? "#f0f1f2" : "#252a2e")),
+    muted: token("--diagram-muted", dark ? "#c0c5c9" : "#737b82"),
+    edge: safe(overrides?.color, token("--diagram-edge", dark ? "#aab1b8" : "#6f777e")),
+    surface: overrides?.fillColor === null ? "transparent" : safe(overrides?.fillColor, token("--diagram-fill", dark ? "#25282b" : "#ffffff")),
+    soft: token("--diagram-soft", dark ? "#3a3f44" : "#edf0f2"),
+    accent: token("--diagram-accent-blue", dark ? "#8bb7ff" : "#376fca"),
   };
 }
 
@@ -215,7 +221,7 @@ function buildPrimitives(group: GroupElement, theme: Theme): Primitive[] | undef
   const props = meta.guiProperties ?? defaultGuiComponentProperties(meta.kind) ?? {};
   const title = componentTitle(group);
   const textStyle = meta.textStyle;
-  const size = Math.max(5, Math.min(14, meta.textStyle?.fontSize ?? 11, h * .32));
+  const size = Math.max(9, Math.min(14, meta.textStyle?.fontSize ?? 11, h * .32));
   const options = (meta.formOptions?.length ? meta.formOptions : ["First option", "Second option", "Third option"]).slice(0, 12);
   const p: Primitive[] = [];
   const rect = (rx: number, ry: number, rw: number, rh: number, fill = style.surface, radius = 5, stroke = style.edge) => p.push({ type: "rect", x: rx, y: ry, w: Math.max(0, rw), h: Math.max(0, rh), fill, radius, stroke });
@@ -226,14 +232,17 @@ function buildPrimitives(group: GroupElement, theme: Theme): Primitive[] | undef
     const finalAlign = textStyle?.textAlign ?? (anchor === "middle" ? "center" : anchor === "end" ? "right" : "left");
     const left = anchor === "middle" ? tx - tw / 2 : anchor === "end" ? tx - tw : tx;
     const finalX = finalAlign === "center" ? left + tw / 2 : finalAlign === "right" ? left + tw : left;
-    p.push({ type: "text", value: clampText(value, tw, font), x: finalX, y: ty, width: tw, size: font, fill: textStyle?.color ?? fill, weight: textStyle?.bold === undefined ? weight : textStyle.bold ? 700 : 400, anchor: finalAlign === "center" ? "middle" : finalAlign === "right" ? "end" : "start", family: componentFontFamily(textStyle?.fontFamily), italic: textStyle?.italic, underline: textStyle?.underline });
+    const fittedFont = Math.max(9, font);
+    p.push({ type: "text", value: clampText(value, tw, fittedFont), x: finalX, y: ty, width: tw, size: fittedFont, fill: textStyle?.color ?? fill, weight: textStyle?.bold === undefined ? weight : textStyle.bold ? 700 : 400, anchor: finalAlign === "center" ? "middle" : finalAlign === "right" ? "end" : "start", family: componentFontFamily(textStyle?.fontFamily), italic: textStyle?.italic, underline: textStyle?.underline });
   };
   const inset = Math.max(5, Math.min(12, w * .06));
 
   if (meta.kind === "form-button") {
-    const fill = meta.styleOverrides?.fillColor && meta.styleOverrides.fillColor !== "transparent" ? style.surface : style.accent;
+    const configuredFill = meta.styleOverrides?.fillColor;
+    const fill = configuredFill === null ? "transparent" : configuredFill ?? style.accent;
     rect(x, y, w, h, fill, Math.min(7, h / 2));
-    text(options[meta.selectedOption ?? 0] ?? "Continue", x + w / 2, y + h / 2, w - inset * 2, size, theme === "dark" ? "#151b20" : "#ffffff", 650, "middle");
+    const buttonText = meta.textStyle?.color ?? (configuredFill === undefined ? theme === "dark" ? "#151b20" : "#ffffff" : style.ink);
+    text(options[meta.selectedOption ?? 0] ?? "Continue", x + w / 2, y + h / 2, w - inset * 2, size, buttonText, 650, "middle");
   } else if (meta.kind === "form-input" || meta.kind === "form-select" || meta.kind === "form-search" || meta.kind === "form-date" || meta.kind === "form-password" || meta.kind === "form-email" || meta.kind === "form-file") {
     const position = props.titlePosition ?? "top";
     const horizontal = position === "left" || position === "right";
@@ -397,7 +406,7 @@ export function guiOptionIndexAtPoint(group: GroupElement, point: Point): number
   const props = meta.guiProperties ?? defaultGuiComponentProperties(meta.kind) ?? {};
   const { x, y, w, h } = bounds;
   const title = componentTitle(group);
-  const size = Math.max(5, Math.min(14, meta.textStyle?.fontSize ?? 11, h * .32));
+  const size = Math.max(9, Math.min(14, meta.textStyle?.fontSize ?? 11, h * .32));
   const position = props.titlePosition ?? "top";
   const horizontalTitle = position === "left" || position === "right";
   const titleHeight = horizontalTitle ? 0 : Math.min(18, h * .28);
@@ -433,16 +442,18 @@ export function drawGuiComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     else if (item.type === "line") strokePrimitive(ctx, item, lineStyle, bounds);
     else if (item.type === "path") { primitivePath(ctx, item); if (item.fill) { ctx.fillStyle = item.fill; ctx.fill(); } if (item.stroke) strokePrimitive(ctx, item, lineStyle, bounds); }
     else {
-      ctx.fillStyle = item.fill; ctx.font = `${item.italic ? "italic " : ""}${item.weight ?? 500} ${item.size}px ${item.family ?? "system-ui, sans-serif"}`; ctx.textAlign = item.anchor === "middle" ? "center" : item.anchor === "end" ? "right" : "left"; ctx.textBaseline = "middle"; ctx.fillText(item.value, item.x, item.y, item.width);
-      if (item.underline) { const measured = Math.min(item.width, ctx.measureText(item.value).width); const start = item.anchor === "middle" ? item.x - measured / 2 : item.anchor === "end" ? item.x - measured : item.x; ctx.fillRect(start, item.y + item.size * .36, measured, Math.max(1, item.size / 14)); }
+      const size = Math.max(9, item.size); const family = item.family as FontFamily | undefined; const weight = item.weight ?? 500;
+      ctx.fillStyle = item.fill; ctx.font = componentFont(size, weight, family, item.italic); ctx.textAlign = item.anchor === "middle" ? "center" : item.anchor === "end" ? "right" : "left"; ctx.textBaseline = "alphabetic";
+      ctx.fillText(item.value, item.x, item.y + componentBaselineOffset(item.value, size, weight, family, item.italic), item.width);
+      if (item.underline) { const measured = Math.min(item.width, ctx.measureText(item.value).width); const start = item.anchor === "middle" ? item.x - measured / 2 : item.anchor === "end" ? item.x - measured : item.x; ctx.fillRect(start, item.y + size * .36, measured, Math.max(1, size / 14)); }
     }
   }
   ctx.restore();
   return true;
 }
 
-export function guiComponentSvg(group: GroupElement) {
-  const primitives = buildPrimitives(group, "light");
+export function guiComponentSvg(group: GroupElement, theme: Theme = "light") {
+  const primitives = buildPrimitives(group, theme);
   const meta = group.libraryComponent;
   if (!primitives || !meta) return undefined;
   const bounds = group.componentBounds!;
@@ -477,7 +488,7 @@ export function guiComponentSvg(group: GroupElement) {
       const pathAt = (x: number, y: number) => item.points.map((point, index) => `${index ? "L" : "M"} ${point.x + x} ${point.y + y}`).join(" ");
       return `<path d="${pathAt(ox, oy)}" fill="none" stroke="${item.stroke}" stroke-width="${width}"/><path d="${pathAt(-ox, -oy)}" fill="none" stroke="${item.stroke}" stroke-width="${width}"/>`;
     }
-    return `<text x="${item.x}" y="${item.y}" text-anchor="${item.anchor ?? "start"}" dominant-baseline="middle" fill="${item.fill}" font-family="${escapeXml(item.family ?? "system-ui, sans-serif")}" font-size="${item.size}" font-weight="${item.weight ?? 500}"${item.italic ? ` font-style="italic"` : ""}${item.underline ? ` text-decoration="underline"` : ""}>${escapeXml(item.value)}</text>`;
+    return `<text x="${item.x}" y="${item.y}" text-anchor="${item.anchor ?? "start"}" dominant-baseline="middle" fill="${item.fill}" font-family="${escapeXml(componentFontFamily(item.family as FontFamily | undefined))}" font-size="${Math.max(9, item.size)}" font-weight="${item.weight ?? 500}"${item.italic ? ` font-style="italic"` : ""}${item.underline ? ` text-decoration="underline"` : ""}>${escapeXml(item.value)}</text>`;
   }).join("");
-  return `<g data-component="${meta.kind}" data-id="${escapeXml(group.id ?? "")}">${content}</g>`;
+  return `<g data-component="${meta.kind}">${content}</g>`;
 }

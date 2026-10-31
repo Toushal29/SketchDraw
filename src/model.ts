@@ -30,7 +30,7 @@ export type ContainerMetadata = { kind: "frame" | "container" | "swimlane"; name
 export type CanvasLayer = { id: string; name: string; parentId?: string; hidden?: boolean; locked?: boolean; order: number };
 export type CanvasLayerVisibilityPreset = { id: string; name: string; hiddenLayerIds: string[] };
 export type ReviewCommentMessage = { id: string; author: string; text: string; createdAt: number };
-/** A local review thread attached to an element by normalized anchor, or to a world-space canvas point. */
+/** Legacy local review metadata retained for backward-compatible document round trips. */
 export type ReviewCommentThread = { id: string; elementId?: string; anchor: Point; messages: ReviewCommentMessage[]; resolved?: boolean };
 export type ForkBranch = { end?: Point; routePoints?: Point[]; endHead?: ArrowHead; endBinding?: Binding };
 export type RelationshipType = "association" | "dependency" | "data-flow" | "inheritance" | "aggregation" | "composition" | "sequence" | "network" | "other";
@@ -169,7 +169,7 @@ export type SnapGuideLine = { coordinate: number; moving: Bounds; reference: Bou
 export type CanvasSnapGuides = { x?: SnapGuideLine; y?: SnapGuideLine };
 export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; editingChildId?: string; shapeLabel?: boolean; shapeLabelIndex?: number; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };
 export type Theme = "light" | "dark";
-export type ThemeMode = Theme | "system" | "modern";
+export type ThemeMode = Theme | "system";
 
 export type Binding = { elementId: string; anchor: Point; rowId?: string; portId?: string };
 export type ShapeLabel = Omit<TextElement, keyof LayerFlags | "type" | "x" | "y"> & { verticalAlign: "top" | "middle" | "bottom"; offsetX?: number; offsetY?: number; routePosition?: number };

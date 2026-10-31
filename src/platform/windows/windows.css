@@ -638,33 +638,30 @@
     background: color-mix(in srgb, var(--toolbar-ink) 16%, transparent);
 }
 
-/* Windows settings use direct choices and inherit the current toolbar theme. */
+/* Keep the settings popover aligned with the selected application theme. */
 .app-shell.platform-windows .app-settings-popover {
-    --setting-ink: var(--toolbar-ink);
-    --setting-line: color-mix(in srgb, var(--toolbar-ink) 14%, transparent);
     width: min(380px, calc(100vw - 24px));
-    gap: 8px;
-    padding: 12px;
-    border-color: var(--setting-line);
-    color: var(--setting-ink);
-    background: var(--toolbar-surface);
+    max-height: min(620px, calc(100dvh - 24px));
+    border-color: var(--theme-border);
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-elevated);
 }
 
 .app-shell.platform-windows .app-settings-heading {
     padding: 0 2px 8px;
-    border-color: var(--setting-line);
+    border-color: var(--theme-border-subtle);
 }
 
 .app-shell.platform-windows .app-settings-heading strong {
-    color: var(--setting-ink);
+    color: var(--theme-text-primary);
 }
 
 .app-shell.platform-windows .app-settings-reset {
     min-height: 34px;
-    border-color: var(--ui-accent-border);
-    border-radius: 8px;
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
+    border-color: var(--theme-border);
+    border-radius: 6px;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
     cursor: pointer;
 }
 
@@ -673,14 +670,14 @@
     cursor: not-allowed;
 }
 
-/* Windows view settings are one unified sheet with every control in view. */
+/* The view sheet uses a bounded width and follows the same theme as Settings. */
 .app-shell.platform-windows .view-menu-dropdown .view-settings-popover {
     box-sizing: border-box;
-    width: min(780px, calc(100vw - 32px));
+    width: min(620px, calc(100vw - 32px));
     max-width: calc(100vw - 32px);
-    max-height: min(680px, calc(100dvh - 84px));
+    max-height: min(620px, calc(100dvh - 24px));
     padding: 12px;
-    border-radius: 15px;
+    border-radius: 9px;
 }
 
 @media (max-width: 900px) {

@@ -25,8 +25,25 @@ type SvgRendererPorts = {
 export function createSvgElementSerializer(ports: SvgRendererPorts) {
   const { theme, simpleComponentElement, connectorForView, labelSvg } = ports;
   const hidden = (element: Element) => ports.isHidden?.(element) ?? element.hidden === true;
-  let modelClipSequence = 0;
+  const componentSymbolIds = new Map<string, string>();
+  const emittedComponentSymbols = new Set<string>();
+  const usedComponentSymbolIds = new Set<string>();
   const emittedIds = new Map<string, number>();
+  const stableHash = (value: string) => { let hash = 2166136261; for (let index = 0; index < value.length; index++) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619); return (hash >>> 0).toString(36); };
+  function componentUseSvg(element: Extract<Element, { type: "group" }>, bounds: NonNullable<Extract<Element, { type: "group" }>["componentBounds"]>) {
+    const local = { ...element, rotation: 0, componentBounds: { x: 0, y: 0, w: bounds.w, h: bounds.h } };
+    const vector = modelComponentSvg(local, theme());
+    const key = `${bounds.w}x${bounds.h}:${vector}`;
+    let id = componentSymbolIds.get(key);
+    if (!id) {
+      const base = `component-${stableHash(key)}`; id = base; let suffix = 2;
+      while (usedComponentSymbolIds.has(id)) id = `${base}-${suffix++}`;
+      componentSymbolIds.set(key, id); usedComponentSymbolIds.add(id);
+    }
+    const definition = emittedComponentSymbols.has(id) ? "" : `<defs><symbol id="${id}" viewBox="0 0 ${bounds.w} ${bounds.h}">${vector}</symbol></defs>`;
+    emittedComponentSymbols.add(id);
+    return `${definition}<use href="#${id}" x="${bounds.x}" y="${bounds.y}" width="${bounds.w}" height="${bounds.h}"/>`;
+  }
 function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
     const meta = group.note; const background = group.elements.find((child): child is ShapeElement => child.type === "rectangle");
     if (!meta || !background) return "";
@@ -108,8 +125,8 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
         const bounds = element.componentBounds; const cx = bounds.x + bounds.w / 2; const cy = bounds.y + bounds.h / 2;
         const component = element.libraryComponent?.kind?.startsWith("viz-")
           ? renderLibraryChartSvg(element, theme())
-          : element.libraryComponent ? modelComponentSvg(element) : "";
-        const clipId = `model-${(element.id ?? "component").replace(/[^a-zA-Z0-9_-]/g, "")}-${++modelClipSequence}`;
+          : element.libraryComponent ? componentUseSvg(element, bounds) : "";
+        const clipId = `model-${(element.id ?? `component-${stableHash(JSON.stringify([bounds.x, bounds.y, bounds.w, bounds.h]))}`).replace(/[^a-zA-Z0-9_-]/g, "")}`;
         const clippedComponent = component ? `<defs><clipPath id="${clipId}"><rect x="${bounds.x}" y="${bounds.y}" width="${Math.max(0, bounds.w)}" height="${Math.max(0, bounds.h)}"/></clipPath></defs><g clip-path="url(#${clipId})">${component}</g>` : "";
         const children = element.container ? element.elements.map(elementToSvg).join("") : "";
         const borderStyle = element.container?.borderStyle ?? (element.container?.kind === "frame" ? "dashed" : "solid"); const borderWidth = element.container?.borderThickness ?? 1.5;

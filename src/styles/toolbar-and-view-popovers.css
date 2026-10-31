@@ -172,17 +172,24 @@
 .view-menu-dropdown .view-settings-popover {
     box-sizing: border-box;
     display: grid;
-    width: min(420px, calc(100vw - 20px));
+    width: min(620px, calc(100vw - 20px));
     max-width: calc(100vw - 20px);
     max-height: min(680px, calc(100dvh - 24px));
-    gap: var(--ui-space-3);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 10px 14px;
     padding: var(--ui-space-3);
     overflow: auto;
     border: 1px solid var(--theme-border);
-    border-radius: var(--ui-radius-popover);
+    border-radius: 9px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
-    box-shadow: 0 16px 42px rgb(16 25 40 / 20%);
+    box-shadow: 0 8px 24px rgb(20 28 40 / 16%);
+}
+
+.view-settings-popover > .view-settings-action:first-child,
+.view-settings-popover > .view-settings-section:last-child {
+    grid-column: 1 / -1;
 }
 
 .view-settings-action {
@@ -228,8 +235,9 @@
 
 .view-settings-section {
     display: grid;
+    min-width: 0;
     gap: 8px;
-    padding: 0 0 9px;
+    padding: 8px 0 10px;
     border-bottom: 1px solid var(--theme-border);
 }
 
@@ -509,7 +517,8 @@
 .code-data-load-file { justify-self: start; margin: 0 0 7px; }
 
 @media (max-width: 620px) {
-    .view-menu-dropdown .view-settings-popover { width: min(390px, calc(100vw - 16px)); max-width: calc(100vw - 16px); padding: 10px; }
+    .view-menu-dropdown .view-settings-popover { width: min(390px, calc(100vw - 16px)); max-width: calc(100vw - 16px); grid-template-columns: minmax(0, 1fr); padding: 10px; }
+    .view-settings-popover > .view-settings-section { grid-column: 1; }
     .view-settings-row, .view-settings-patterns { grid-template-columns: 72px minmax(0, 1fr); }
     .toolbar-organizer-backdrop { padding: 8px; }
     .toolbar-order-editor { width: min(500px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); gap: 8px; padding: 10px; }

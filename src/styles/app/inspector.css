@@ -1,11 +1,21 @@
 /* Readable property and layer controls */
 .style-pane {
-    width: 300px;
-    padding: 12px 14px 16px;
+    width: 288px;
+    padding: 10px 12px 12px;
+}
+
+.style-pane.full-style-mode {
+    padding: 0;
+    border-color: var(--theme-border);
+    border-radius: 9px;
+}
+
+.style-pane.full-style-mode.mobile-properties-collapsed {
+    overflow: hidden;
 }
 
 .pane-section {
-    padding: 16px 0;
+    padding: 12px 0;
 }
 
 .pane-heading {
@@ -232,7 +242,7 @@
 
 @media (max-width: 760px) {
     .style-pane {
-        width: min(300px, calc(100vw - 30px));
+        width: min(288px, calc(100vw - 30px));
     }
 }
 

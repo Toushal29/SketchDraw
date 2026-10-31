@@ -1,8 +1,8 @@
 import type { Element, GroupElement, LibraryComponentData, Point, ShapeElement } from "../../model";
 import { elementBounds } from "../canvas/bounds";
-import { cloudNeutralComponent } from "../diagrams/cloud-providers";
 import { defaultGuiComponentProperties, guiChoiceMinimumHeight, guiNavigationMinimumHeight } from "./gui-components";
 import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryComponentFields, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "./library-components";
+import { componentGeometry, componentMinimumSize } from "./component-geometry";
 
 export type LibraryComponentField = { key: string; label: string; value: string; hint?: string };
 
@@ -145,43 +145,10 @@ export function libraryComponentFontSize(group: GroupElement): number {
 
 export function libraryComponentMinimum(group: GroupElement, axis: "w" | "h"): number {
   const kind = group.libraryComponent?.kind;
-  if (kind && cloudNeutralComponent(kind)) return axis === "w" ? 90 : 48;
-  if (kind === "uml-class") return axis === "w" ? 180 : 110;
-  const modelMinimums: Record<string, { w: number; h: number }> = {
-    "uml-object": { w: 150, h: 96 },
-    "uml-activity-action": { w: 140, h: 72 },
-    "uml-activity-decision": { w: 76, h: 76 },
-    "uml-activity-initial": { w: 38, h: 38 },
-    "uml-activity-final": { w: 46, h: 46 },
-    "db-view": { w: 150, h: 96 },
-    "db-index": { w: 160, h: 92 },
-    "db-procedure": { w: 164, h: 104 },
-    "c4-container-instance": { w: 160, h: 96 },
-    "c4-component-instance": { w: 150, h: 92 },
-    "bpmn-group": { w: 150, h: 90 },
-  };
-  if (kind && modelMinimums[kind]) return modelMinimums[kind][axis];
-  if (kind?.startsWith("gui-")) {
-    const minimums: Record<string, { w: number; h: number }> = {
-      "gui-card": { w: 120, h: 25 }, "gui-app-bar": { w: 60, h: 25 }, "gui-navigation": { w: 50, h: guiNavigationMinimumHeight(group) },
-      "gui-tabs": { w: 60, h: 25 }, "gui-image": { w: 40, h: 25 }, "gui-alert": { w: 90, h: 36 }, "gui-modal": { w: 150, h: 90 },
-      "gui-breadcrumbs": { w: 80, h: 25 }, "gui-avatar": { w: 25, h: 25 }, "gui-badge": { w: 38, h: 20 }, "gui-progress": { w: 80, h: 30 },
-      "gui-list": { w: 80, h: 72 }, "gui-table": { w: 90, h: 40 }, "gui-accordion": { w: 80, h: 72 }, "gui-menu": { w: 72, h: 72 }, "gui-toast": { w: 150, h: 50 }, "gui-pagination": { w: 148, h: 30 }, "gui-divider": { w: 30, h: 8 }, "gui-footer": { w: 150, h: 30 },
-    };
-    return minimums[kind]?.[axis] ?? 10;
-  }
-  if (!kind?.startsWith("form-")) return 10;
-  if (axis === "w") {
-    if (kind === "form-button") return 50;
-    if (kind === "form-toggle") return 75;
-    if (kind === "form-checkbox" || kind === "form-radio") return 75;
-    if (kind === "form-slider") return 80;
-    return 75;
-  }
-  if (kind === "form-checkbox" || kind === "form-radio") return guiChoiceMinimumHeight(group);
-  if (kind === "form-textarea") return 45;
-  if (kind === "form-slider") return 35;
-  return 25;
+  if (!kind) return 10;
+  if (kind === "form-checkbox" || kind === "form-radio") return axis === "h" ? guiChoiceMinimumHeight(group) : componentMinimumSize(kind)[axis];
+  if (kind === "gui-navigation" && axis === "h") return guiNavigationMinimumHeight(group);
+  return componentMinimumSize(kind)[axis];
 }
 
 export function assignLibraryComponentIds(group: GroupElement, kind: LibraryComponentKind, previous?: GroupElement): GroupElement {
@@ -321,7 +288,18 @@ export function setLibraryPortCount(group: GroupElement, requestedCount: number)
 }
 
 export function resizeLibraryGroup(group: GroupElement, bounds: { x: number; y: number; w: number; h: number }): GroupElement {
-  if (group.componentBounds) return { ...group, componentBounds: { x: bounds.x, y: bounds.y, w: Math.max(.1, bounds.w), h: Math.max(.1, bounds.h) } };
+  if (group.componentBounds) {
+    const kind = group.libraryComponent?.kind;
+    const geometry = kind ? componentGeometry(kind, group.componentBounds.w, group.componentBounds.h) : undefined;
+    let w = Math.max(bounds.w, kind ? libraryComponentMinimum(group, "w") : 25, geometry?.resize.minSize.w ?? 25);
+    let h = Math.max(bounds.h, kind ? libraryComponentMinimum(group, "h") : 25, geometry?.resize.minSize.h ?? 25);
+    if (geometry?.resize.aspectLock || group.aspectLocked) {
+      const sourceW = Math.max(.001, group.componentBounds.w); const sourceH = Math.max(.001, group.componentBounds.h);
+      const scale = Math.max(w / sourceW, h / sourceH, (geometry?.resize.minSize.w ?? 25) / sourceW, (geometry?.resize.minSize.h ?? 25) / sourceH);
+      w = sourceW * scale; h = sourceH * scale;
+    }
+    return { ...group, componentBounds: { x: bounds.x, y: bounds.y, w, h } };
+  }
   const source = elementBounds(group.libraryComponent ? { ...group, rotation: 0 } : group); const sx = Math.max(.1, bounds.w) / Math.max(1, source.w); const sy = Math.max(.1, bounds.h) / Math.max(1, source.h);
   const formFontScale = group.libraryComponent?.kind?.startsWith("form-") ? Math.min(sx, sy) : 1;
   const tx = (x: number) => bounds.x + (x - source.x) * sx; const ty = (y: number) => bounds.y + (y - source.y) * sy;

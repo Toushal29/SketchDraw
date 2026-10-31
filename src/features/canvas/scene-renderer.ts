@@ -1,12 +1,11 @@
 import type { ArrowHead, Bounds, CanvasSnapGuides, CanvasSnapTarget, CanvasState, EdgeStyle, Element, FreehandElement, Point, Preview, ShapeElement, StrokePoint, StrokeStyle, Tool } from "../../model";
 import { anchorPoint, connectionAnchorsFor, isConnectable, isConnector } from "../../operations";
 import { elementBounds } from "./bounds";
-import { traceConnector } from "../connectors/geometry";
 import { drawConnectorBridges } from "../connectors/crossings";
 import { swimlaneDividerHandles } from "./swimlanes";
 import { ElementSpatialIndex, elementSpatialIndex } from "./spatial-index";
 import { SceneTileCache } from "./scene-tile-cache";
-import { shapeAdjustmentHandles, shapePathObject } from "../shapes/geometry";
+import { shapeAdjustmentHandles } from "../shapes/geometry";
 import { gridStepForStyle, isometricRowHeight, isometricRowOffset, type CanvasGridStyle } from "./input";
 
 type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; guides?: CanvasSnapGuides; snapTargets: { x: CanvasSnapTarget[]; y: CanvasSnapTarget[] }; targets: Map<string, Element> };
@@ -191,22 +190,10 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       if (!tileDrawing) ports.drawElement(ctx, drawnElement, drawViewport, sourceItems);
       const isSelected = selected.has(index);
       if (includeSelection && (isSelected || ports.hoveredIndex() === index) && isConnector(element)) {
-        ctx.save(); ctx.strokeStyle = "#548ce8"; ctx.globalAlpha = .65; ctx.lineWidth = (isSelected ? 2 : 1) / state.zoom; traceConnector(ctx, drawnElement as ShapeElement); ctx.stroke();
         if (isSelected && selected.size === 1 && !ports.isLocked(element) && !ports.boardLocked()) for (const handle of ports.connectorHandles(element as ShapeElement)) { const routeHandle = handle.id.startsWith("route") || handle.id.startsWith("auto-route:") || handle.id.startsWith("waypoint:") || handle.id.includes(":route:"); ctx.beginPath(); ctx.fillStyle = routeHandle ? "#dbeafe" : "#ffffff"; ctx.arc(handle.x, handle.y, (routeHandle ? 4 : 6) / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-        ctx.restore();
       } else if (includeSelection && (isSelected || ports.hoveredIndex() === index)) {
-        const bounds = elementBounds(element); const handlePadding = 5 / state.zoom;
-        ctx.save(); ctx.strokeStyle = isSelected ? "#547bb1" : "#8298b8"; ctx.globalAlpha = isSelected ? 1 : 0.62; ctx.lineWidth = 1 / state.zoom; ctx.setLineDash([4 / state.zoom, 3 / state.zoom]);
+        const bounds = elementBounds(element);
         const rotation = element.rotation ?? 0; const frame = rotation ? elementBounds({ ...element, rotation: 0 } as Element) : bounds;
-        if (element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart") {
-          if (rotation) { ctx.translate(frame.x + frame.w / 2, frame.y + frame.h / 2); ctx.rotate(rotation * Math.PI / 180); ctx.translate(-frame.x - frame.w / 2, -frame.y - frame.h / 2); }
-          ctx.setLineDash([]); ctx.lineWidth = (isSelected ? 2 : 1.25) / state.zoom;
-          const outline = shapePathObject(element); if (outline) ctx.stroke(outline);
-        } else if (rotation) {
-          ctx.translate(frame.x + frame.w / 2, frame.y + frame.h / 2); ctx.rotate(rotation * Math.PI / 180);
-          ctx.strokeRect(-frame.w / 2 - handlePadding, -frame.h / 2 - handlePadding, Math.max(frame.w + handlePadding * 2, 2 / state.zoom), Math.max(frame.h + handlePadding * 2, 2 / state.zoom));
-        } else ctx.strokeRect(bounds.x - handlePadding, bounds.y - handlePadding, Math.max(bounds.w + handlePadding * 2, 2 / state.zoom), Math.max(bounds.h + handlePadding * 2, 2 / state.zoom));
-        ctx.restore();
         if (isSelected && !ports.isLocked(element) && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent || !!element.container) && element.type !== "freehand") {
           drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent || !!element.container, rotation, element.type !== "schemaTable");
           if (element.type === "group" && element.libraryComponent?.kind === "diagram-swimlane") for (const handle of swimlaneDividerHandles(element)) {

@@ -195,7 +195,7 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
           <section class="workspace-view-section">
             <h2>Appearance</h2>
             <Show when={props.appAppearance}>{appearance => <div class="workspace-view-fields">
-              <label>Theme<select aria-label="Application theme" value={appearance().themeMode} onChange={event => appearance().onThemeChange(event.currentTarget.value as ThemeMode)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option><option value="modern">Modern</option></select></label>
+              <label>Theme<select aria-label="Application theme" value={appearance().themeMode} onChange={event => appearance().onThemeChange(event.currentTarget.value as ThemeMode)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
               <label>Accent<select aria-label="Accent color" value={appearance().accentColor} onChange={event => appearance().onAccentChange(event.currentTarget.value)}>{appearance().accentOptions.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
               <label>Toolbar<select aria-label="Toolbar surface" value={appearance().toolbarColorChoice} onChange={event => appearance().onToolbarColorChange(event.currentTarget.value)}><option value="auto">Automatic</option>{appearance().toolbarColorOptions.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
             </div>}</Show>

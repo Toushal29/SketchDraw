@@ -1,18 +1,36 @@
-import type { FontFamily, GroupElement, Theme } from "../../model";
+import type { Element, GroupElement, Theme } from "../../model";
 import { cloudNeutralComponent, cloudProviderComponent } from "../diagrams/cloud-providers";
 import { cloudNeutralCanvasPath, cloudNeutralIconPath } from "./cloud-neutral-icons";
 import { drawGuiComponent, guiComponentSvg } from "./gui-components";
+import { componentBaselineOffset, componentFont as sharedComponentFont, componentFontFamily } from "./component-text";
+import { normalizeComponentSvgText } from "./component-text";
 
 type Palette = { ink: string; edge: string; fill: string; soft: string; muted: string; accent: string };
-const paletteFor = (dark: boolean): Palette => dark
-  ? { ink: "#f0f1f2", edge: "#aab1b8", fill: "#25282b", soft: "#3a3f44", muted: "#c0c5c9", accent: "#d6dadd" }
-  : { ink: "#252a2e", edge: "#6f777e", fill: "#ffffff", soft: "#edf0f2", muted: "#737b82", accent: "#46525b" };
+function componentThemeToken(name: string, fallback: string, dark = false) {
+  const host = typeof document === "undefined" ? undefined : document.querySelector<HTMLElement>(dark ? ".app-shell.theme-dark" : ".app-shell:not(.theme-dark)") ?? document.documentElement;
+  const value = host && typeof getComputedStyle === "function" ? getComputedStyle(host).getPropertyValue(name).trim() : "";
+  return value || fallback;
+}
+function paletteFor(dark: boolean): Palette {
+  return {
+    ink: componentThemeToken("--diagram-ink", dark ? "#f0f1f2" : "#252a2e", dark), edge: componentThemeToken("--diagram-edge", dark ? "#aab1b8" : "#6f777e", dark), fill: componentThemeToken("--diagram-fill", dark ? "#25282b" : "#ffffff", dark),
+    soft: componentThemeToken("--diagram-soft", dark ? "#3a3f44" : "#edf0f2", dark), muted: componentThemeToken("--diagram-muted", dark ? "#c0c5c9" : "#737b82", dark), accent: componentThemeToken("--diagram-accent", dark ? "#d6dadd" : "#46525b", dark),
+  };
+}
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number) {
   ctx.beginPath();
   if (w <= 0 || h <= 0) return;
   if (typeof ctx.roundRect === "function") ctx.roundRect(x, y, w, h, Math.max(0, Math.min(radius, w / 2, h / 2)));
   else ctx.rect(x, y, w, h);
+}
+
+function strokeRectAligned(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  const transform = ctx.getTransform(); const scale = Math.max(.01, Math.hypot(transform.a, transform.b));
+  const deviceStrokeWidth = Math.max(1, Math.round(ctx.lineWidth * scale)); const offset = deviceStrokeWidth % 2 ? .5 : 0;
+  const align = (value: number) => (Math.round(value * scale - offset) + offset) / scale;
+  const left = align(x); const top = align(y); const right = align(x + w); const bottom = align(y + h);
+  ctx.strokeRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
 }
 
 function attributeRadii(w: number, h: number, strokeWidth: number, double: boolean) {
@@ -27,11 +45,8 @@ function componentFieldValue(group: GroupElement, key: string): string {
 }
 
 type ComponentTextStyle = NonNullable<NonNullable<GroupElement["libraryComponent"]>["textStyle"]>;
-function componentFontFamily(family?: FontFamily) {
-  return family === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : family === "serif" ? "Georgia, 'Times New Roman', serif" : family === "mono" ? "'Cascadia Mono', Consolas, monospace" : family === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : family === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif";
-}
 function componentFont(size: number, weight: number, style?: ComponentTextStyle) {
-  return `${style?.italic ? "italic " : ""}${style?.bold === undefined ? weight : style.bold ? 700 : 400} ${size}px ${componentFontFamily(style?.fontFamily)}`;
+  return sharedComponentFont(size, style?.bold === undefined ? weight : style.bold ? 700 : 400, style?.fontFamily, style?.italic);
 }
 function componentTextAlign(align: ComponentTextStyle["textAlign"] | undefined, fallback: CanvasTextAlign): CanvasTextAlign {
   return align === "justify" ? fallback : align ?? fallback;
@@ -41,30 +56,19 @@ function componentTextAnchor(x: number, width: number, from: CanvasTextAlign, to
   return to === "center" ? left + width / 2 : to === "right" ? left + width : left;
 }
 function text(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, maxWidth: number, size: number, color: string, weight = 500, align: CanvasTextAlign = "left", style?: ComponentTextStyle) {
-  ctx.fillStyle = color; ctx.font = componentFont(size, weight, style); ctx.textAlign = align; ctx.textBaseline = "middle";
-  ctx.fillText(value, x, y, Math.max(1, maxWidth));
+  const fontSize = Math.max(9, size);
+  const actualWeight = style?.bold === undefined ? weight : style.bold ? 700 : 400;
+  ctx.fillStyle = color; ctx.font = componentFont(fontSize, weight, style); ctx.textAlign = align; ctx.textBaseline = "alphabetic";
+  ctx.fillText(value, x, y + componentBaselineOffset(value, fontSize, actualWeight, style?.fontFamily, style?.italic), Math.max(1, maxWidth));
   if (style?.underline) {
     const measured = Math.min(Math.max(1, maxWidth), ctx.measureText(value).width);
     const start = align === "center" ? x - measured / 2 : align === "right" ? x - measured : x;
-    ctx.fillRect(start, y + size * .36, measured, Math.max(1, size / 14));
+    ctx.fillRect(start, y + fontSize * .36, measured, Math.max(1, fontSize / 14));
   }
 }
 
 function fittedComponentSingleLine(ctx: CanvasRenderingContext2D, value: string, bounds: { x: number; y: number; w: number; h: number }, tx: number, ty: number, requestedWidth: number, requestedSize: number, color: string, weight = 500, align: CanvasTextAlign = "left", style?: ComponentTextStyle) {
-  const inset = Math.min(4, Math.max(1, Math.min(bounds.w, bounds.h) * .04)); const left = bounds.x + inset; const right = bounds.x + bounds.w - inset;
-  const width = Math.max(0, Math.min(requestedWidth, right - left)); let x = tx; let maxWidth = width;
-  if (align === "center") { x = Math.max(left + width / 2, Math.min(right - width / 2, tx)); maxWidth = Math.min(width, 2 * Math.min(x - left, right - x)); }
-  else if (align === "right") { x = Math.max(left, Math.min(right, tx)); maxWidth = Math.min(width, x - left); }
-  else { x = Math.max(left, Math.min(right, tx)); maxWidth = Math.min(width, right - x); }
-  if (maxWidth < 2) return;
-  let size = Math.max(5, Math.min(48, requestedSize, bounds.h - inset * 2)); let label = value.trim();
-  while (size > 5) { ctx.font = componentFont(size, weight, style); if (ctx.measureText(label).width <= maxWidth) break; size = Math.max(5, size - 1); }
-  ctx.font = componentFont(size, weight, style);
-  if (ctx.measureText(label).width > maxWidth) {
-    while (label && ctx.measureText(`${label}…`).width > maxWidth) label = label.slice(0, -1);
-    label = label ? `${label}…` : "…";
-  }
-  text(ctx, label, x, ty, maxWidth, size, color, weight, align, style);
+  fittedComponentText(ctx, value, bounds, tx, ty, requestedWidth, requestedSize, color, weight, align, style, 2);
 }
 
 function wrapComponentLabel(ctx: CanvasRenderingContext2D, value: string, width: number): string[] {
@@ -104,7 +108,7 @@ function wrapComponentApprox(value: string, width: number, size: number): string
   return output.length ? output : [""];
 }
 
-function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bounds: { x: number; y: number; w: number; h: number }, tx: number, ty: number, requestedWidth: number, requestedSize: number, color: string, weight = 500, align: CanvasTextAlign = "left", style?: ComponentTextStyle) {
+function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bounds: { x: number; y: number; w: number; h: number }, tx: number, ty: number, requestedWidth: number, requestedSize: number, color: string, weight = 500, align: CanvasTextAlign = "left", style?: ComponentTextStyle, maxLineLimit = 2) {
   const inset = Math.min(4, Math.max(1, Math.min(bounds.w, bounds.h) * .04));
   const left = bounds.x + inset; const right = bounds.x + bounds.w - inset;
   const top = bounds.y + inset; const bottom = bounds.y + bounds.h - inset;
@@ -122,7 +126,7 @@ function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bound
     maxWidth = Math.min(width, right - x);
   }
   if (maxWidth < 2) return;
-  let size = Math.max(5, Math.min(48, requestedSize, bottom - top));
+  let size = Math.max(9, Math.min(48, requestedSize, bottom - top));
   let lines: string[] = [];
   let lineHeight = size * 1.18;
   let maxLines = Math.max(1, Math.floor((bottom - top) / lineHeight));
@@ -130,9 +134,9 @@ function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bound
     ctx.font = componentFont(size, weight, style);
     lines = wrapComponentLabel(ctx, value, maxWidth);
     lineHeight = size * 1.18;
-    maxLines = Math.max(1, Math.floor((bottom - top) / lineHeight));
-    if (lines.length <= maxLines || size <= 5) break;
-    size = Math.max(5, size - 1);
+    maxLines = Math.min(maxLineLimit, Math.max(1, Math.floor((bottom - top) / lineHeight)));
+    if (lines.length <= maxLines || size <= 9) break;
+    size = Math.max(9, size - 1);
   }
   if (lines.length > maxLines) {
     lines = lines.slice(0, maxLines);
@@ -185,11 +189,12 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   if (!bounds || !meta) return;
   const { x, y, w, h } = bounds; const kind = meta.kind;
   const textStyle = meta.textStyle;
-  const defaultInk = kind.startsWith("er-") ? "#000000" : theme === "dark" ? "#eeeeee" : "#292929";
+  const defaultPalette = paletteFor(theme === "dark");
+  const defaultInk = defaultPalette.ink;
   const textInk = textStyle?.color ?? meta.styleOverrides?.color ?? defaultInk;
   const ink = meta.styleOverrides?.color ?? defaultInk;
-  const edge = ink; const fill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? group.container?.background ?? (theme === "dark" ? "#202020" : "#ffffff");
-  const soft = theme === "dark" ? "#343434" : "#eeeeee";
+  const edge = ink; const fill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? group.container?.background ?? defaultPalette.fill;
+  const soft = defaultPalette.soft;
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
   const name = meta.label ?? kind.replace(/^(network|cloud|software|bpmn|c4)-/, "").replace(/-/g, " ");
@@ -199,20 +204,10 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     ctx.save();
     ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill;
     if (fill !== "transparent") ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = provider.accent; ctx.lineWidth = 1.4; ctx.strokeRect(x, y, w, h);
+    ctx.strokeStyle = provider.accent; ctx.lineWidth = 1.5; strokeRectAligned(ctx, x, y, w, h);
     const iconSide = Math.max(28, Math.min(54, h - 34, w * .34));
     const iconX = x + 10; const iconY = y + (h - iconSide) / 2 - 3;
-    const iconUrl = componentIconDataUrl(group); const icon = iconUrl ? componentIconImages.get(iconUrl) : undefined;
-    if (icon?.complete && icon.naturalWidth) {
-      const [, , sourceW, sourceH] = (meta.iconViewBox ?? "0 0 1 1").split(/\s+/).map(Number);
-      const ratio = sourceW > 0 && sourceH > 0 ? sourceW / sourceH : 1;
-      const drawW = iconSide * Math.min(1, ratio); const drawH = iconSide * Math.min(1, 1 / ratio);
-      ctx.drawImage(icon, iconX + (iconSide - drawW) / 2, iconY + (iconSide - drawH) / 2, drawW, drawH);
-    } else {
-      ctx.fillStyle = theme === "dark" ? "#292929" : "#f4f6f8"; ctx.fillRect(iconX, iconY, iconSide, iconSide);
-      ctx.strokeStyle = provider.accent; ctx.strokeRect(iconX, iconY, iconSide, iconSide);
-      fittedComponentText(ctx, provider.glyph, bounds, iconX + iconSide / 2, iconY + iconSide / 2, iconSide - 5, provider.glyph.length > 2 ? 10 : 13, provider.accent, 700, "center");
-    }
+    drawProviderArtwork(ctx, group, iconX, iconY, iconSide, defaultPalette.soft, provider.accent);
     const copyX = iconX + iconSide + 9; const copyWidth = w - (copyX - x) - 9;
     const providerTextAlign = componentTextAlign(textStyle?.textAlign, "left");
     fittedComponentSingleLine(ctx, name, bounds, componentTextAnchor(copyX, copyWidth, "left", providerTextAlign), y + h * .37, copyWidth, size, textInk, 700, providerTextAlign, textStyle);
@@ -221,26 +216,26 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     providerDetails.forEach((item, index) => fittedComponentSingleLine(ctx, `${item.label}: ${item.value.replace(/\s*\n\s*/g, " · ")}`, bounds, componentTextAnchor(copyX, copyWidth, "left", providerTextAlign), y + h * (.76 + index * .13), copyWidth, 7, textInk, 400, providerTextAlign, textStyle));
     ctx.restore(); return;
   }
-  const box = (bx = x, by = y, bw = w, bh = h, color = fill) => { ctx.fillStyle = color === "transparent" ? "rgba(0,0,0,0)" : color; if (color !== "transparent") ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.strokeRect(bx, by, bw, bh); };
+  const box = (bx = x, by = y, bw = w, bh = h, color = fill) => { ctx.fillStyle = color === "transparent" ? "rgba(0,0,0,0)" : color; if (color !== "transparent") ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; strokeRectAligned(ctx, bx, by, bw, bh); };
   const label = (value = name, bx = x + 10, by = y + 15, max = w - 20, font = size, bold = true, align: CanvasTextAlign = "left") => {
     const textAlign = componentTextAlign(textStyle?.textAlign, align);
     fittedComponentSingleLine(ctx, value.replace(/\s*\n\s*/g, " · "), bounds, componentTextAnchor(bx, max, "left", textAlign), by, max, Math.min(maxLabelSize, font), textInk, bold ? 650 : 400, textAlign, textStyle);
   };
-  const rule = (x1: number, y1: number, x2: number, y2: number) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = edge; ctx.lineWidth = 1.2; ctx.stroke(); };
+  const rule = (x1: number, y1: number, x2: number, y2: number) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke(); };
   const dashedBoundary = (title: string, caption: string) => {
-    ctx.setLineDash([6, 4]); ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2); ctx.setLineDash([]);
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; strokeRectAligned(ctx, x + 1, y + 1, w - 2, h - 2); ctx.setLineDash([]);
     label(title.toUpperCase(), x + 12, y + 15, w - 24, Math.min(size, 14));
     label(caption, x + 12, y + 34, w - 24, Math.max(8, size * .75), false);
   };
   ctx.save();
   ctx.beginPath(); ctx.rect(x - 1, y - 1, w + 2, h + 2); ctx.clip();
-  ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.font = `${size}px system-ui, sans-serif`;
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
 
   const neutralCloud = cloudNeutralComponent(kind);
   if (neutralCloud) {
     ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill;
     roundRect(ctx, x, y, w, h, 5); if (fill !== "transparent") ctx.fill();
-    ctx.strokeStyle = theme === "dark" ? "#66717b" : "#bdc8d0"; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = defaultPalette.edge; ctx.lineWidth = 1; ctx.stroke();
     ctx.fillStyle = neutralCloud.accent; ctx.fillRect(x, y + 5, 3, Math.max(0, h - 10));
     const iconSide = Math.min(25, Math.max(14, h - 20), Math.max(14, w * .22));
     const iconX = x + 11; const iconY = y + Math.min(11, (h - iconSide) / 2);
@@ -258,7 +253,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   if (kind === "uml-use-case") {
     ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, w / 2 - .65, h / 2 - .65, 0, 0, Math.PI * 2);
     ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill();
-    ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.stroke();
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke();
     label(name, x + w / 2, y + h / 2, w - 16, size, true, "center");
     const outcome = field("outcome"); if (outcome) label(outcome, x + w / 2, y + h * .68, w * .64, Math.max(7, size * .62), false, "center");
     ctx.restore(); return;
@@ -315,7 +310,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     ctx.restore(); return;
   }
   if (kind === "uml-activity-initial" || kind === "uml-activity-final") {
-    const radius = Math.min(w, h) / 2 - 1; ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, radius, 0, Math.PI * 2); ctx.fillStyle = kind === "uml-activity-initial" ? ink : (fill === "transparent" ? "rgba(0,0,0,0)" : fill); if (kind === "uml-activity-initial" || fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "uml-activity-final" ? 2 : 1.3; ctx.stroke();
+    const radius = Math.min(w, h) / 2 - 1; ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, radius, 0, Math.PI * 2); ctx.fillStyle = kind === "uml-activity-initial" ? ink : (fill === "transparent" ? "rgba(0,0,0,0)" : fill); if (kind === "uml-activity-initial" || fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "uml-activity-final" ? 2 : 1.5; ctx.stroke();
     if (kind === "uml-activity-final") { ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, radius * .65, 0, Math.PI * 2); ctx.fillStyle = ink; ctx.fill(); }
     ctx.restore(); return;
   }
@@ -344,7 +339,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   }
 
   if (kind === "diagram-frame") {
-    ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.setLineDash([7, 4]); ctx.strokeRect(x + .7, y + .7, Math.max(0, w - 1.4), Math.max(0, h - 1.4)); ctx.setLineDash([]);
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.setLineDash([7, 4]); strokeRectAligned(ctx, x + .7, y + .7, Math.max(0, w - 1.4), Math.max(0, h - 1.4)); ctx.setLineDash([]);
     label(name, x + 12, y + 13, w - 24, Math.min(size, 14));
     ctx.restore(); return;
   }
@@ -381,7 +376,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
       });
       actions.forEach((action, index) => label(action, x + 10, y + h * (.62 + index * .12), w - 20, Math.max(7, size * .6), false, "center"));
     } else if (kind === "uml-component") {
-      box(); ctx.strokeRect(x + w - 25, y + 12, 14, 10); ctx.strokeRect(x + w - 25, y + 28, 14, 10); label(name, x + 10, y + h * .36, w - 45, size, true, "center");
+      box(); strokeRectAligned(ctx, x + w - 25, y + 12, 14, 10); strokeRectAligned(ctx, x + w - 25, y + 28, 14, 10); label(name, x + 10, y + h * .36, w - 45, size, true, "center");
       const provided = field("provided"); const required = field("required");
       if (provided) label(`Provides: ${provided}`, x + 10, y + h * .65, w - 20, Math.max(7, size * .65), false);
       if (required) label(`Requires: ${required}`, x + 10, y + h * .82, w - 20, Math.max(7, size * .62), false);
@@ -420,7 +415,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     ctx.restore(); return;
   }
   if (kind === "c4-external-system") {
-    ctx.setLineDash([6, 4]); ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2); ctx.setLineDash([]);
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; strokeRectAligned(ctx, x + 1, y + 1, w - 2, h - 2); ctx.setLineDash([]);
     label("EXTERNAL SYSTEM", x + 10, y + 18, w - 20, Math.max(8, size * .72), false);
     label(name, x + 10, y + h * .4, w - 20, size, true);
     const capability = field("description"); const integration = field("interface");
@@ -438,7 +433,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     ctx.restore(); return;
   }
   if (kind === "c4-deployment-node" || kind === "c4-infrastructure-node") {
-    ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.5; strokeRectAligned(ctx, x + 1, y + 1, w - 2, h - 2);
     rule(x + 12, y + 27, x + w - 12, y + 27);
     label(kind === "c4-deployment-node" ? "DEPLOYMENT NODE" : "INFRASTRUCTURE NODE", x + 10, y + 15, w - 20, Math.min(size, 12));
     const rackTop = y + 40; const rackHeight = Math.min(28, (h - 54) / 2);
@@ -447,7 +442,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
       : [field("infrastructure-role") && `Role: ${field("infrastructure-role")}`, field("technology") && `Technology: ${field("technology")}`, field("location") && `Location: ${field("location")}`];
     for (let index = 0; index < 2; index++) {
       const rowY = rackTop + index * (rackHeight + 6);
-      ctx.strokeRect(x + 14, rowY, w - 28, rackHeight);
+      strokeRectAligned(ctx, x + 14, rowY, w - 28, rackHeight);
       ctx.beginPath(); ctx.arc(x + 24, rowY + rackHeight / 2, 2, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill();
       const detail = deploymentDetails[index];
       if (detail) label(detail, x + 32, rowY + rackHeight / 2, w - 48, Math.max(7, size * .58), false);
@@ -495,7 +490,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   }
   if (kind === "cloud-boundary") {
     cloudPath(ctx, x, y, w, h); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill();
-    ctx.setLineDash([6, 4]); ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.stroke(); ctx.setLineDash([]);
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
     label(name.toUpperCase(), x + w * .25, y + h * .45, w * .5, Math.min(size, 14), true, "center");
     label("Deployment boundary", x + w * .25, y + h * .58, w * .5, Math.max(8, size * .72), false, "center");
     ctx.restore(); return;
@@ -548,7 +543,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   } else if (kind === "software-database" || kind === "cloud-database") {
     const inset = w * .07; const ry = Math.max(7, Math.min(12, h * .12)); const left = x + inset; const right = x + w - inset;
     ctx.beginPath(); ctx.moveTo(left, y + ry); ctx.lineTo(left, y + h - ry); ctx.ellipse(x + w / 2, y + h - ry, w * .43, ry, 0, Math.PI, 0, true); ctx.lineTo(right, y + ry); ctx.closePath();
-    ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 1.3; ctx.stroke();
+    ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.beginPath(); ctx.ellipse(x + w / 2, y + ry, w * .43, ry, 0, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
     ctx.beginPath(); ctx.ellipse(x + w / 2, y + h * .55, w * .43, ry, 0, 0, Math.PI); ctx.strokeStyle = edge; ctx.stroke();
     if (kind === "cloud-database") {
@@ -605,7 +600,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     box(); label(name.toUpperCase());
     const count = Math.max(1, Math.min(32, Math.round(meta.portCount ?? (kind === "network-hub" ? 8 : 6)))); const columns = Math.min(8, count); const rows = Math.ceil(count / columns);
     const gapX = (w - 24) / columns; const startY = y + 32; const rowGap = Math.max(10, (h - 42) / rows);
-    for (let i = 0; i < count; i++) { const col = i % columns; const row = Math.floor(i / columns); const pw = Math.min(12, gapX - 2); ctx.strokeStyle = edge; ctx.strokeRect(x + 12 + col * gapX + (gapX - pw) / 2, startY + row * rowGap, pw, Math.min(7, rowGap - 2)); }
+    for (let i = 0; i < count; i++) { const col = i % columns; const row = Math.floor(i / columns); const pw = Math.min(12, gapX - 2); ctx.strokeStyle = edge; strokeRectAligned(ctx, x + 12 + col * gapX + (gapX - pw) / 2, startY + row * rowGap, pw, Math.min(7, rowGap - 2)); }
     const networkNote = kind === "network-switch" ? field("vlans") : field("connected-devices");
     if (networkNote) label(networkNote, x + 8, y + h - 5, w - 16, Math.max(6, size * .55), false, "center");
   } else if (kind === "network-server") {
@@ -618,7 +613,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     const action = field("default-action"); const rules = field("rules");
     if (action) label(`Default: ${action}`, x + 8, y + 28, w - 16, Math.max(6, size * .5), false);
     const top = y + 38; const brickW = (w - 24) / 4; const brickH = (h - 50) / 2;
-    for (let row = 0; row < 2; row++) for (let col = 0; col < 4; col++) ctx.strokeRect(x + 8 + col * brickW + (row ? brickW / 2 : 0), top + row * brickH, brickW, brickH);
+    for (let row = 0; row < 2; row++) for (let col = 0; col < 4; col++) strokeRectAligned(ctx, x + 8 + col * brickW + (row ? brickW / 2 : 0), top + row * brickH, brickW, brickH);
     if (rules) label(rules, x + 8, y + h - 4, w - 16, Math.max(6, size * .48), false, "center");
   } else if (kind === "network-client") {
     box(x + 8, y + 4, w - 16, h * .68);
@@ -681,7 +676,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     } else if (kind === "network-bridge") {
       const cy = y + h * .66; rule(x + 25, cy, x + w - 25, cy); rule(x + w * .3, cy, x + w * .3, y + h * .43); rule(x + w * .7, cy, x + w * .7, y + h * .43);
       ctx.beginPath(); ctx.moveTo(x + w * .3, y + h * .43); ctx.quadraticCurveTo(x + w * .5, y + h * .22, x + w * .7, y + h * .43); ctx.stroke();
-      ctx.strokeRect(x + 15, cy - 5, 10, 10); ctx.strokeRect(x + w - 25, cy - 5, 10, 10);
+      strokeRectAligned(ctx, x + 15, cy - 5, 10, 10); strokeRectAligned(ctx, x + w - 25, cy - 5, 10, 10);
       const segments = field("segments"); if (segments) label(segments, x + 8, y + h - 5, w - 16, Math.max(6, size * .5), false, "center");
     } else if (kind === "network-bastion") {
       const cx = x + w / 2; const top = y + h * .35;
@@ -694,17 +689,17 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
       rule(x + 18, cy, cx - 22, cy); rule(cx + 22, cy, x + w - 18, cy); rule(cx, cy - 31, cx, cy - 20); rule(cx, cy + 20, cx, y + h - 10);
       const gatewayType = field("gateway-type"); if (gatewayType) label(gatewayType, x + 8, y + h - 5, w - 16, Math.max(6, size * .5), false, "center");
     } else if (kind === "network-printer") {
-      const bodyY = y + h * .43; ctx.strokeRect(x + w * .2, bodyY, w * .6, h * .36); ctx.strokeRect(x + w * .3, y + h * .27, w * .4, h * .22); ctx.strokeRect(x + w * .3, bodyY + h * .26, w * .4, h * .2); rule(x + w * .36, bodyY + h * .1, x + w * .64, bodyY + h * .1);
+      const bodyY = y + h * .43; strokeRectAligned(ctx, x + w * .2, bodyY, w * .6, h * .36); strokeRectAligned(ctx, x + w * .3, y + h * .27, w * .4, h * .22); strokeRectAligned(ctx, x + w * .3, bodyY + h * .26, w * .4, h * .2); rule(x + w * .36, bodyY + h * .1, x + w * .64, bodyY + h * .1);
       const model = field("model"); if (model) label(model, x + w * .3, y + h * .36, w * .4, Math.max(6, size * .48), false, "center");
     } else {
-      const screenY = y + h * .34; ctx.strokeRect(x + w * .2, screenY, w * .6, h * .34); rule(x + w / 2, screenY + h * .34, x + w / 2, y + h * .82); rule(x + w * .34, y + h * .82, x + w * .66, y + h * .82);
+      const screenY = y + h * .34; strokeRectAligned(ctx, x + w * .2, screenY, w * .6, h * .34); rule(x + w / 2, screenY + h * .34, x + w / 2, y + h * .82); rule(x + w * .34, y + h * .82, x + w * .66, y + h * .82);
       const platform = field("platform"); if (platform) label(platform, x + w * .24, screenY + h * .18, w * .52, Math.max(6, size * .5), false, "center");
     }
   } else if (["bpmn-start", "bpmn-event", "bpmn-end", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind)) {
     const diameter = Math.max(0, h >= 72 ? Math.min(58, w, h - 38) : Math.min(w, h - 14)); const cx = x + w / 2; const cy = y + diameter / 2 + 1; const marked = ["bpmn-event", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind);
-    ctx.beginPath(); ctx.arc(cx, cy, diameter * .43, 0, Math.PI * 2); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "bpmn-end" || kind === "bpmn-terminate-event" ? 2.5 : 1.3; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, diameter * .43, 0, Math.PI * 2); ctx.fillStyle = fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = kind === "bpmn-end" || kind === "bpmn-terminate-event" ? 2 : 1.5; ctx.stroke();
     if (marked) { ctx.beginPath(); ctx.arc(cx, cy, diameter * .34, 0, Math.PI * 2); if (kind === "bpmn-boundary-event") ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]); }
-    if (kind === "bpmn-message-event") { const mw = diameter * .38; const mh = diameter * .24; ctx.strokeRect(cx - mw / 2, cy - mh / 2, mw, mh); ctx.beginPath(); ctx.moveTo(cx - mw / 2, cy - mh / 2); ctx.lineTo(cx, cy + mh * .18); ctx.lineTo(cx + mw / 2, cy - mh / 2); ctx.stroke(); }
+    if (kind === "bpmn-message-event") { const mw = diameter * .38; const mh = diameter * .24; strokeRectAligned(ctx, cx - mw / 2, cy - mh / 2, mw, mh); ctx.beginPath(); ctx.moveTo(cx - mw / 2, cy - mh / 2); ctx.lineTo(cx, cy + mh * .18); ctx.lineTo(cx + mw / 2, cy - mh / 2); ctx.stroke(); }
     else if (kind === "bpmn-timer-event") { ctx.beginPath(); ctx.moveTo(cx, cy - diameter * .2); ctx.lineTo(cx, cy); ctx.lineTo(cx + diameter * .14, cy + diameter * .08); ctx.stroke(); }
     else if (kind === "bpmn-error-event") { ctx.beginPath(); ctx.moveTo(cx + diameter * .08, cy - diameter * .22); ctx.lineTo(cx - diameter * .1, cy); ctx.lineTo(cx + diameter * .04, cy); ctx.lineTo(cx - diameter * .08, cy + diameter * .22); ctx.stroke(); }
     else if (kind === "bpmn-signal-event") { ctx.beginPath(); ctx.moveTo(cx, cy - diameter * .2); ctx.lineTo(cx + diameter * .18, cy + diameter * .16); ctx.lineTo(cx - diameter * .18, cy + diameter * .16); ctx.closePath(); ctx.stroke(); }
@@ -727,14 +722,14 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     else { rule(cx - side * .16, y + side * .34, cx + side * .16, y + side * .66); rule(cx + side * .16, y + side * .34, cx - side * .16, y + side * .66); }
     label(name, x, y + h - 8, w, Math.max(7, size * .58), false, "center");
   } else if (["bpmn-task", "bpmn-user-task", "bpmn-service-task", "bpmn-script-task", "bpmn-manual-task", "bpmn-business-rule-task", "bpmn-send-task", "bpmn-receive-task", "bpmn-call-activity"].includes(kind)) {
-    box(); if (kind === "bpmn-call-activity") ctx.strokeRect(x + 4, y + 4, w - 8, h - 8);
+    box(); if (kind === "bpmn-call-activity") strokeRectAligned(ctx, x + 4, y + 4, w - 8, h - 8);
     const gx = x + 15; const gy = y + 18;
     if (kind === "bpmn-user-task") { ctx.beginPath(); ctx.arc(gx + 5, gy + 4, 3, 0, Math.PI * 2); ctx.stroke(); rule(gx, gy + 16, gx + 10, gy + 16); rule(gx + 5, gy + 8, gx + 5, gy + 20); }
     else if (kind === "bpmn-service-task") { ctx.beginPath(); ctx.arc(gx + 5, gy + 8, 6, 0, Math.PI * 2); ctx.stroke(); rule(gx - 2, gy + 8, gx + 12, gy + 8); rule(gx + 5, gy + 1, gx + 5, gy + 15); }
-    else if (kind === "bpmn-script-task") { ctx.strokeRect(gx, gy, 12, 16); rule(gx + 3, gy + 5, gx + 9, gy + 5); rule(gx + 3, gy + 9, gx + 9, gy + 9); rule(gx + 3, gy + 13, gx + 7, gy + 13); }
+    else if (kind === "bpmn-script-task") { strokeRectAligned(ctx, gx, gy, 12, 16); rule(gx + 3, gy + 5, gx + 9, gy + 5); rule(gx + 3, gy + 9, gx + 9, gy + 9); rule(gx + 3, gy + 13, gx + 7, gy + 13); }
     else if (kind === "bpmn-manual-task") { ctx.beginPath(); ctx.moveTo(gx + 2, gy + 18); ctx.lineTo(gx + 3, gy + 7); ctx.lineTo(gx + 5, gy + 7); ctx.lineTo(gx + 6, gy + 14); ctx.lineTo(gx + 7, gy + 4); ctx.lineTo(gx + 9, gy + 4); ctx.lineTo(gx + 10, gy + 14); ctx.lineTo(gx + 11, gy + 7); ctx.lineTo(gx + 13, gy + 7); ctx.lineTo(gx + 14, gy + 17); ctx.stroke(); }
-    else if (kind === "bpmn-business-rule-task") { ctx.strokeRect(gx, gy + 2, 16, 14); rule(gx, gy + 7, gx + 16, gy + 7); rule(gx, gy + 12, gx + 16, gy + 12); rule(gx + 6, gy + 2, gx + 6, gy + 16); }
-    else if (kind === "bpmn-send-task" || kind === "bpmn-receive-task") { ctx.strokeRect(gx, gy + 3, 17, 12); ctx.beginPath(); ctx.moveTo(gx, gy + 3); ctx.lineTo(gx + 8.5, gy + 10); ctx.lineTo(gx + 17, gy + 3); ctx.stroke(); if (kind === "bpmn-send-task") { ctx.beginPath(); ctx.arc(gx + 8.5, gy + 9, 1.5, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill(); } }
+    else if (kind === "bpmn-business-rule-task") { strokeRectAligned(ctx, gx, gy + 2, 16, 14); rule(gx, gy + 7, gx + 16, gy + 7); rule(gx, gy + 12, gx + 16, gy + 12); rule(gx + 6, gy + 2, gx + 6, gy + 16); }
+    else if (kind === "bpmn-send-task" || kind === "bpmn-receive-task") { strokeRectAligned(ctx, gx, gy + 3, 17, 12); ctx.beginPath(); ctx.moveTo(gx, gy + 3); ctx.lineTo(gx + 8.5, gy + 10); ctx.lineTo(gx + 17, gy + 3); ctx.stroke(); if (kind === "bpmn-send-task") { ctx.beginPath(); ctx.arc(gx + 8.5, gy + 9, 1.5, 0, Math.PI * 2); ctx.fillStyle = edge; ctx.fill(); } }
     const taskDescription = kind === "bpmn-user-task" ? field("assignee")
       : kind === "bpmn-service-task" ? field("operation")
         : kind === "bpmn-script-task" ? field("script-language")
@@ -752,7 +747,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     const purpose = field("purpose"); const entry = field("entry-condition");
     if (purpose) label(purpose, x + 10, y + h * .59, w - 20, Math.max(7, size * .64), false, "center");
     if (entry) label(`Starts when: ${entry}`, x + 10, y + h * .78, w - 20, Math.max(7, size * .58), false, "center");
-    ctx.strokeRect(x + w / 2 - 6, y + h - 18, 12, 12); rule(x + w / 2 - 3, y + h - 12, x + w / 2 + 3, y + h - 12); rule(x + w / 2, y + h - 15, x + w / 2, y + h - 9);
+    strokeRectAligned(ctx, x + w / 2 - 6, y + h - 18, 12, 12); rule(x + w / 2 - 3, y + h - 12, x + w / 2 + 3, y + h - 12); rule(x + w / 2, y + h - 15, x + w / 2, y + h - 9);
   } else if (kind === "bpmn-data") {
     box(); ctx.beginPath(); ctx.moveTo(x + w - 18, y); ctx.lineTo(x + w, y + 18); ctx.lineTo(x + w - 18, y + 18); ctx.closePath(); ctx.strokeStyle = edge; ctx.stroke(); rule(x + 12, y + h - 23, x + w - 12, y + h - 23); label(name.toUpperCase(), x + 5, y + h * .38, w - 10, Math.max(8, size * .8), true, "center");
     const state = field("state"); const format = field("format");
@@ -775,7 +770,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   ctx.restore();
 }
 
-export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme) {
+function drawModelComponentDirect(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme) {
   const bounds = group.componentBounds;
   const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return;
@@ -787,9 +782,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   // Modeling components share one plain visual language.
   const simple = true;
   const basePalette = paletteFor(theme === "dark");
-  const palette: Palette = kind.startsWith("er-")
-    ? { ...basePalette, ink: "#000000", edge: "#000000", fill: "#ffffff", soft: "#ffffff", muted: "#000000" }
-    : basePalette;
+  const palette: Palette = basePalette;
   const ink = meta.styleOverrides?.color ?? palette.ink;
   const fill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? palette.fill;
   const fillOpacity = meta.styleOverrides?.fillOpacity ?? 1;
@@ -797,7 +790,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
   const name = meta.formTitle ?? meta.label ?? kind.replace(/^(network|cloud|software|bpmn|uml|c4|er)-/, "").replace(/-/g, " ").toUpperCase();
   const field = (key: string) => componentFieldValue(group, key);
-  const strokeWidth = Math.max(1.25, Math.min(2.5, Math.min(w, h) * .018));
+  const strokeWidth = 1.5;
   const shell = (radius = 12, inset = 0) => {
     roundRect(ctx, x + inset, y + inset, w - inset * 2, h - inset * 2, radius);
     if (fill !== "transparent") { ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = fill; ctx.fill(); ctx.restore(); }
@@ -824,18 +817,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     shell(5);
     const iconSide = Math.max(24, Math.min(64, h - 32, w * .38));
     const iconX = x + 12; const iconY = y + (h - iconSide) / 2 - 3;
-    if (meta.iconSvg && meta.iconViewBox) {
-      const iconUrl = componentIconDataUrl(group); const icon = iconUrl ? componentIconImages.get(iconUrl) : undefined;
-      if (icon?.complete && icon.naturalWidth) {
-        const [, , sourceW, sourceH] = meta.iconViewBox.split(/\s+/).map(Number);
-        const ratio = sourceW > 0 && sourceH > 0 ? sourceW / sourceH : 1;
-        const drawW = iconSide * Math.min(1, ratio); const drawH = iconSide * Math.min(1, 1 / ratio);
-        ctx.drawImage(icon, iconX + (iconSide - drawW) / 2, iconY + (iconSide - drawH) / 2, drawW, drawH);
-      }
-    } else {
-      roundRect(ctx, iconX, iconY, iconSide, iconSide, 3); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke();
-      componentText( provider.glyph, iconX + iconSide / 2, iconY + iconSide / 2, iconSide - 4, provider.glyph.length > 2 ? 9 : 13, ink, 700, "center");
-    }
+    drawProviderArtwork(ctx, group, iconX, iconY, iconSide, palette.soft, palette.edge);
     const copyX = iconX + iconSide + 10;
     componentText( name, copyX, y + h * .43, w - (copyX - x) - 10, size, ink, 700);
     componentText( provider.provider.toUpperCase(), copyX, y + h * .63, w - (copyX - x) - 10, 8, palette.muted, 600);
@@ -843,14 +825,14 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     ctx.restore(); return;
   }
   if (kind === "cloud-boundary") {
-    cloudPath(ctx, x, y, w, h); ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = fill === "transparent" ? "#ffffff" : fill; ctx.fill(); ctx.restore();
+    cloudPath(ctx, x, y, w, h); ctx.save(); ctx.globalAlpha = fillOpacity; ctx.fillStyle = fill === "transparent" ? palette.fill : fill; ctx.fill(); ctx.restore();
     ctx.strokeStyle = ink === palette.ink ? palette.edge : ink; ctx.setLineDash([8, 5]); ctx.stroke(); ctx.setLineDash([]);
     componentText( name.toUpperCase(), x + w * .24, y + h * .36, w * .5, size + 1, ink, 700);
     componentText( "DEPLOYMENT BOUNDARY", x + w * .24, y + h * .36 + size + 7, w * .5, Math.max(8, size * .72), palette.muted, 500);
     ctx.restore(); return;
   }
   if (kind === "network-zone" || kind === "c4-system" || kind === "c4-container" || kind === "c4-component") {
-    shell(15); ctx.setLineDash([6, 4]); ctx.strokeStyle = palette.edge; ctx.strokeRect(x + 5, y + 5, w - 10, h - 10); ctx.setLineDash([]);
+    shell(15); ctx.setLineDash([6, 4]); ctx.strokeStyle = palette.edge; strokeRectAligned(ctx, x + 5, y + 5, w - 10, h - 10); ctx.setLineDash([]);
     heading(); componentText( kind === "network-zone" ? "NETWORK BOUNDARY" : "SYSTEM CONTEXT", x + 14, y + Math.min(35, h * .28), w - 28, Math.max(8, size * .72), palette.muted, 500);
     ctx.restore(); return;
   }
@@ -905,8 +887,8 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   if (kind === "network-access-point") {
     const diameter = Math.min(w * .56, h * .64); const radius = diameter / 2; const cx = x + w / 2; const cy = y + h * .38;
     ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.lineWidth = strokeWidth; ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, radius * .78, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? palette.fill : fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.lineWidth = Math.max(1, strokeWidth * .7); ctx.stroke();
-    ctx.strokeStyle = palette.accent; ctx.lineWidth = Math.max(1.4, strokeWidth); ctx.beginPath(); ctx.moveTo(cx - radius * .31, cy - radius * .03); ctx.quadraticCurveTo(cx, cy - radius * .56, cx + radius * .31, cy - radius * .03); ctx.moveTo(cx - radius * .17, cy + radius * .12); ctx.quadraticCurveTo(cx, cy - radius * .16, cx + radius * .17, cy + radius * .12); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, radius * .78, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? palette.fill : fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = palette.accent; ctx.lineWidth = strokeWidth; ctx.beginPath(); ctx.moveTo(cx - radius * .31, cy - radius * .03); ctx.quadraticCurveTo(cx, cy - radius * .56, cx + radius * .31, cy - radius * .03); ctx.moveTo(cx - radius * .17, cy + radius * .12); ctx.quadraticCurveTo(cx, cy - radius * .16, cx + radius * .17, cy + radius * .12); ctx.stroke();
     ctx.beginPath(); ctx.arc(cx, cy + radius * .26, Math.max(1.5, radius * .06), 0, Math.PI * 2); ctx.fillStyle = palette.accent; ctx.fill();
     for (const offset of [-.18, 0, .18]) { ctx.beginPath(); ctx.arc(cx + radius * offset * 3, cy + radius * .62, Math.max(1.2, radius * .045), 0, Math.PI * 2); ctx.fillStyle = palette.accent; ctx.fill(); }
     const ssid = field("ssid"); const security = field("security-mode");
@@ -990,8 +972,8 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     ctx.restore(); return;
   }
   if (kind.startsWith("er-") && !["er-table", "er-one-one", "er-one-many", "er-many-one", "er-many-many"].includes(kind)) {
-    const erEdge = meta.styleOverrides?.color ?? "#000000";
-    const erFill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? "#ffffff";
+    const erEdge = meta.styleOverrides?.color ?? palette.edge;
+    const erFill = meta.styleOverrides?.fillColor === null ? "transparent" : meta.styleOverrides?.fillColor ?? palette.fill;
     const erName = meta.label ?? name;
     const paintShape = () => { ctx.fillStyle = erFill === "transparent" ? "rgba(0,0,0,0)" : erFill; if (erFill !== "transparent") ctx.fill(); ctx.strokeStyle = erEdge; ctx.lineWidth = strokeWidth; ctx.stroke(); };
     const erLabel = (value = erName, tx = x + w / 2, ty = y + h / 2, maxWidth = w - 14, underline = false) => {
@@ -1083,7 +1065,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
     ctx.restore(); return;
   }
   if (kind.startsWith("bpmn-")) {
-    if (["bpmn-start", "bpmn-event", "bpmn-end"].includes(kind)) { ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) * .44, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = kind === "bpmn-end" ? strokeWidth * 2 : strokeWidth; ctx.stroke(); if (kind === "bpmn-event") { ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) * .34, 0, Math.PI * 2); ctx.stroke(); } }
+    if (["bpmn-start", "bpmn-event", "bpmn-end"].includes(kind)) { ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) * .44, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = kind === "bpmn-end" ? 2 : strokeWidth; ctx.stroke(); if (kind === "bpmn-event") { ctx.beginPath(); ctx.arc(x + w / 2, y + h / 2, Math.min(w, h) * .34, 0, Math.PI * 2); ctx.stroke(); } }
     else if (kind.includes("gateway")) { ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = ink; ctx.stroke(); ctx.beginPath(); if (kind === "bpmn-parallel-gateway") { ctx.moveTo(x + w * .5, y + h * .3); ctx.lineTo(x + w * .5, y + h * .7); ctx.moveTo(x + w * .3, y + h * .5); ctx.lineTo(x + w * .7, y + h * .5); } else { ctx.moveTo(x + w * .34, y + h * .34); ctx.lineTo(x + w * .66, y + h * .66); ctx.moveTo(x + w * .66, y + h * .34); ctx.lineTo(x + w * .34, y + h * .66); } ctx.stroke(); }
     else { shell(kind === "bpmn-pool" ? 4 : 10); if (kind === "bpmn-pool") { ctx.beginPath(); ctx.moveTo(x + 31, y); ctx.lineTo(x + 31, y + h); ctx.moveTo(x + 31, y + h / 2); ctx.lineTo(x + w, y + h / 2); ctx.strokeStyle = palette.edge; ctx.stroke(); } centerHeading(name); }
     ctx.restore(); return;
@@ -1111,35 +1093,105 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   shell(12); centerHeading(name); ctx.restore();
 }
 
-function renderModelComponentSvg(group: GroupElement): string {
-  const guiSvg = guiComponentSvg(group);
+type ComponentBitmap = { canvas: HTMLCanvasElement; pixels: number; lastUsed: number };
+const componentBitmapCache = new Map<string, ComponentBitmap>();
+let componentBitmapPixels = 0;
+let componentBitmapClock = 0;
+const MAX_COMPONENT_BITMAPS = 96;
+const MAX_COMPONENT_BITMAP_PIXELS = 12_000_000;
+function componentBitmapLimits() {
+  const lightweight = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+  return lightweight ? { count: 24, pixels: 2_000_000 } : { count: MAX_COMPONENT_BITMAPS, pixels: MAX_COMPONENT_BITMAP_PIXELS };
+}
+
+function shortHash(value: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+  return (hash >>> 0).toString(36);
+}
+
+function componentRasterKey(group: GroupElement, theme: Theme, zoomBucket: number) {
+  const meta = group.libraryComponent!;
+  const iconUrl = componentIconDataUrl(group); const icon = iconUrl ? componentIconImages.get(iconUrl) : undefined;
+  const fields = JSON.stringify([meta.label, meta.formTitle, meta.componentFields?.map(field => [field.key, field.value]), meta.guiProperties, meta.formOptions, meta.formStates, meta.formState, meta.selectedOption, meta.iconSvg, meta.iconViewBox, icon?.complete && icon.naturalWidth > 0]);
+  const style = JSON.stringify([meta.styleOverrides, meta.textStyle, meta.renderStyle, meta.appearance, theme]);
+  return `${meta.kind}:${group.componentBounds!.w}x${group.componentBounds!.h}:${shortHash(style)}:${zoomBucket}:${shortHash(fields)}`;
+}
+
+function cachedComponentBitmap(group: GroupElement, theme: Theme, zoomBucket: number): ComponentBitmap | undefined {
+  const bounds = group.componentBounds;
+  if (!bounds || typeof document === "undefined") return undefined;
+  const scale = Math.max(1, Math.min(8, 2 ** zoomBucket));
+  const width = Math.ceil(bounds.w * scale); const height = Math.ceil(bounds.h * scale);
+  if (width < 1 || height < 1 || width > 4096 || height > 4096 || width * height > 4_000_000) return undefined;
+  const key = componentRasterKey(group, theme, zoomBucket);
+  let entry = componentBitmapCache.get(key);
+  if (entry) { entry.lastUsed = ++componentBitmapClock; return entry; }
+  const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return undefined;
+  context.scale(scale, scale);
+  const localGroup = { ...group, rotation: 0, componentBounds: { x: 0, y: 0, w: bounds.w, h: bounds.h } };
+  drawModelComponentDirect(context, localGroup, theme);
+  const pixels = width * height;
+  entry = { canvas, pixels, lastUsed: ++componentBitmapClock };
+  componentBitmapCache.set(key, entry); componentBitmapPixels += pixels;
+  const limits = componentBitmapLimits();
+  while ((componentBitmapCache.size > limits.count || componentBitmapPixels > limits.pixels) && componentBitmapCache.size > 1) {
+    const oldest = [...componentBitmapCache.entries()].reduce((candidate, current) => current[1].lastUsed < candidate[1].lastUsed ? current : candidate);
+    componentBitmapCache.delete(oldest[0]); componentBitmapPixels = Math.max(0, componentBitmapPixels - oldest[1].pixels);
+  }
+  return entry;
+}
+
+export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme) {
+  const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
+  if (!bounds || !kind) return;
+  const transform = ctx.getTransform(); const zoom = Math.max(.01, Math.hypot(transform.a, transform.b));
+  const deviceScale = zoom * (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1);
+  const zoomBucket = Math.round(Math.log2(Math.max(.25, deviceScale)) * 2) / 2;
+  const bitmap = cachedComponentBitmap(group, theme, zoomBucket);
+  if (bitmap) { ctx.drawImage(bitmap.canvas, bounds.x, bounds.y, bounds.w, bounds.h); return; }
+  drawModelComponentDirect(ctx, group, theme);
+}
+
+function renderModelComponentSvg(group: GroupElement, theme: Theme): string {
+  const guiSvg = guiComponentSvg(group, theme);
   if (guiSvg) return guiSvg;
   const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return "";
   const { x, y, w, h } = bounds; const meta = group.libraryComponent!;
   const field = (key: string) => componentFieldValue(group, key);
   const simple = true;
-  const basePalette = paletteFor(false);
-  const palette: Palette = kind.startsWith("er-") ? { ...basePalette, ink: "#000000", edge: "#000000", fill: "#ffffff", soft: "#ffffff", muted: "#000000" } : basePalette;
+  const basePalette = paletteFor(theme === "dark");
+  const palette: Palette = basePalette;
   const edge = meta.styleOverrides?.color ?? palette.edge;
   const fill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? group.container?.background ?? palette.fill;
   const rawTitle = meta.formTitle ?? meta.label ?? kind.replace(/-/g, " ");
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
-  const strokeWidth = Math.max(1.25, Math.min(2.5, Math.min(w, h) * .018));
+  const strokeWidth = 1.5;
   const xmlText = (value: string) => value.replace(/[&<>]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[char]!);
   const fitXmlText = (value: string, availableWidth: number, fontSize = size) => {
-    const maxCharacters = Math.max(1, Math.floor(availableWidth / Math.max(1, fontSize * .58)));
-    return xmlText(value.length > maxCharacters ? `${value.slice(0, Math.max(0, maxCharacters - 1)).trimEnd()}…` : value);
+    const fittedFont = Math.max(9, fontSize);
+    const maxCharacters = Math.max(1, Math.floor(availableWidth / Math.max(1, fittedFont * .58)));
+    const lines = wrapComponentApprox(value, availableWidth, fittedFont);
+    if (lines.length > 2) {
+      lines.length = 2;
+      const last = lines[1].slice(0, Math.max(0, maxCharacters - 1)).trimEnd();
+      lines[1] = `${last}…`;
+    }
+    if (lines.length < 2) return xmlText(lines[0]);
+    return `<tspan dy="-0.6em">${xmlText(lines[0])}</tspan><tspan dy="1.2em">${xmlText(lines[1])}</tspan>`;
   };
   const title = xmlText(rawTitle);
   const fitTextAttribute = (value: string, availableWidth: number, fontSize = size) => value.length * fontSize * .58 > availableWidth
     ? ` textLength="${Math.max(1, availableWidth)}" lengthAdjust="spacingAndGlyphs"`
     : "";
   if (meta.renderStyle === "clean" && !kind.startsWith("er-")) {
-    const ink = meta.styleOverrides?.color ?? "#292929"; const cleanFill = fill; const soft = "#eeeeee";
+    const ink = meta.styleOverrides?.color ?? palette.ink; const cleanFill = fill; const soft = palette.soft;
     const t = (value: string, tx: number, ty: number, tw = w - 20, font = size, anchor = "start", weight = 600) => {
-      const fittedFont = Math.min(maxLabelSize, Math.max(5, font));
+      const fittedFont = Math.min(maxLabelSize, Math.max(9, font));
       const textAnchor = meta.textStyle?.textAlign === "center" ? "middle" : meta.textStyle?.textAlign === "right" ? "end" : meta.textStyle?.textAlign === "left" ? "start" : anchor;
       const left = anchor === "middle" ? tx - tw / 2 : anchor === "end" ? tx - tw : tx;
       const textX = textAnchor === "middle" ? left + tw / 2 : textAnchor === "end" ? left + tw : left;
@@ -1157,7 +1209,7 @@ function renderModelComponentSvg(group: GroupElement): string {
         if (line) result.push(line);
         return result.length ? result : [""];
       });
-      const lineHeight = fittedFont * 1.18; const maxLines = 1;
+      const lineHeight = fittedFont * 1.18; const maxLines = Math.min(2, Math.max(1, Math.floor((h - 8) / lineHeight)));
       if (lines.length > maxLines) {
         lines.length = maxLines;
         let last = lines[maxLines - 1].slice(0, Math.max(0, maxChars - 1));
@@ -1167,10 +1219,10 @@ function renderModelComponentSvg(group: GroupElement): string {
       const centerY = Math.max(y + stackHeight / 2 + 2, Math.min(y + h - stackHeight / 2 - 2, ty));
       const firstY = centerY - stackHeight / 2 + lineHeight / 2;
       const tspans = lines.map((line, index) => `<tspan x="${textX}" y="${firstY + index * lineHeight}">${xmlText(line)}</tspan>`).join("");
-      return `<text text-anchor="${textAnchor}" dominant-baseline="middle" fill="${ink}" font-family="sans-serif" font-size="${fittedFont}" font-weight="${weight}">${tspans}</text>`;
+      return `<text text-anchor="${textAnchor}" dominant-baseline="middle" fill="${ink}" font-family="${componentFontFamily(meta.textStyle?.fontFamily)}" font-size="${fittedFont}" font-weight="${weight}">${tspans}</text>`;
     };
     const block = (rows: [string, string][], left: number, top: number, width: number, font: number, height: number) => {
-      const fittedFont = Math.max(6, Math.min(8, font)); const lineHeight = fittedFont * 1.3; const maxLines = Math.max(1, Math.floor(height / lineHeight));
+      const fittedFont = Math.max(9, Math.min(10, font)); const lineHeight = fittedFont * 1.3; const maxLines = Math.max(1, Math.floor(height / lineHeight));
       const lines = rows.flatMap(([label, value]) => wrapComponentApprox(`${label}: ${value.replace(/\s*\n\s*/g, " · ")}`, width, fittedFont));
       const visible = lines.slice(0, maxLines);
       if (lines.length > maxLines && visible.length) visible[visible.length - 1] = `${visible[visible.length - 1].slice(0, Math.max(0, Math.floor(width / (fittedFont * .58)) - 1)).trimEnd()}…`;
@@ -1216,7 +1268,7 @@ function renderModelComponentSvg(group: GroupElement): string {
       return `<path d="M ${x + w / 2} ${y} L ${x + w} ${y + h / 2} L ${x + w / 2} ${y + h} L ${x} ${y + h / 2} Z" fill="${cleanFill}" stroke="${ink}" stroke-width="1.3"/>${t(condition || rawTitle, x + w * .24, y + h * .45, w * .52, Math.max(7, size * .65), "middle")}${guards ? t(guards, x + w / 2, y + h - 5, w - 6, Math.max(6, size * .48), "middle", 400) : ""}`;
     }
     if (kind === "uml-activity-initial" || kind === "uml-activity-final") {
-      const radius = Math.min(w, h) / 2 - 1; const cx = x + w / 2; const cy = y + h / 2; const circle = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${kind === "uml-activity-initial" ? ink : cleanFill}" stroke="${ink}" stroke-width="${kind === "uml-activity-final" ? 2 : 1.3}"/>`;
+      const radius = Math.min(w, h) / 2 - 1; const cx = x + w / 2; const cy = y + h / 2; const circle = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${kind === "uml-activity-initial" ? ink : cleanFill}" stroke="${ink}" stroke-width="${kind === "uml-activity-final" ? 2 : 1.5}"/>`;
       return `${circle}${kind === "uml-activity-final" ? `<circle cx="${cx}" cy="${cy}" r="${radius * .65}" fill="${ink}"/>` : ""}`;
     }
     if (kind === "c4-container-instance" || kind === "c4-component-instance") {
@@ -1381,7 +1433,7 @@ function renderModelComponentSvg(group: GroupElement): string {
     if (["bpmn-start", "bpmn-event", "bpmn-end", "bpmn-boundary-event", "bpmn-message-event", "bpmn-timer-event", "bpmn-error-event", "bpmn-signal-event", "bpmn-terminate-event"].includes(kind)) {
       const diameter = Math.max(0, h >= 72 ? Math.min(58, w, h - 38) : Math.min(w, h - 14)); const cx = x + w / 2; const cy = diameter / 2 + y + 1;
       const marked = !["bpmn-start", "bpmn-end"].includes(kind);
-      const outer = `<circle cx="${cx}" cy="${cy}" r="${diameter * .43}" fill="${kind === "bpmn-terminate-event" ? ink : cleanFill}" stroke="${ink}" stroke-width="${kind === "bpmn-end" || kind === "bpmn-terminate-event" ? 2.5 : 1.3}"/>`;
+      const outer = `<circle cx="${cx}" cy="${cy}" r="${diameter * .43}" fill="${kind === "bpmn-terminate-event" ? ink : cleanFill}" stroke="${ink}" stroke-width="${kind === "bpmn-end" || kind === "bpmn-terminate-event" ? 2 : 1.5}"/>`;
       const inner = marked ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .34}" fill="none" stroke="${kind === "bpmn-terminate-event" ? cleanFill : ink}"${kind === "bpmn-boundary-event" ? " stroke-dasharray=\"3 2\"" : ""}/>` : "";
       const marker = kind === "bpmn-message-event" ? `<path d="M ${cx - 8} ${cy - 5} H ${cx + 8} V ${cy + 5} H ${cx - 8} Z M ${cx - 8} ${cy - 5} L ${cx} ${cy + 1} L ${cx + 8} ${cy - 5}" fill="none" stroke="${ink}"/>`
         : kind === "bpmn-timer-event" ? `<circle cx="${cx}" cy="${cy}" r="${diameter * .17}" fill="none" stroke="${ink}"/><path d="M ${cx} ${cy - 5} V ${cy} L ${cx + 5} ${cy + 3}" stroke="${ink}"/>`
@@ -1472,14 +1524,14 @@ function renderModelComponentSvg(group: GroupElement): string {
     if (kind === "network-router") return `${box}${label}<path d="M ${x + w * .28} ${cy} H ${x + w * .72} M ${cx} ${cy - h * .16} V ${cy + h * .16} M ${cx - 5} ${cy + h * .1} L ${cx} ${cy + h * .16} L ${cx + 5} ${cy + h * .1}" fill="none" stroke="${edge}" stroke-width="1.5"/>`;
     if (kind === "network-access-point") {
       const diameter = Math.min(w * .42, h * .46); const radius = diameter / 2; const cy = y + h * .34; const surface = fill === "transparent" ? palette.fill : fill;
-      const glyph = `<path d="M ${cx - radius * .31} ${cy - radius * .03} Q ${cx} ${cy - radius * .56} ${cx + radius * .31} ${cy - radius * .03} M ${cx - radius * .17} ${cy + radius * .12} Q ${cx} ${cy - radius * .16} ${cx + radius * .17} ${cy + radius * .12}" fill="none" stroke="${palette.accent}" stroke-width="${Math.max(1.4, strokeWidth)}" stroke-linecap="round"/><circle cx="${cx}" cy="${cy + radius * .26}" r="${Math.max(1.5, radius * .06)}" fill="${palette.accent}"/>`;
+      const glyph = `<path d="M ${cx - radius * .31} ${cy - radius * .03} Q ${cx} ${cy - radius * .56} ${cx + radius * .31} ${cy - radius * .03} M ${cx - radius * .17} ${cy + radius * .12} Q ${cx} ${cy - radius * .16} ${cx + radius * .17} ${cy + radius * .12}" fill="none" stroke="${palette.accent}" stroke-width="${strokeWidth}" stroke-linecap="round"/><circle cx="${cx}" cy="${cy + radius * .26}" r="${Math.max(1.5, radius * .06)}" fill="${palette.accent}"/>`;
       const leds = [-.18, 0, .18].map(offset => `<circle cx="${cx + radius * offset * 3}" cy="${cy + radius * .62}" r="${Math.max(1.2, radius * .045)}" fill="${palette.accent}"/>`).join("");
       const ssid = field("ssid"); const security = field("security-mode"); const channel = field("channel");
       const identity = ssid ? `<text x="${cx}" y="${y + h * .72}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${Math.max(7, size * .58)}" font-weight="650"${fitTextAttribute(ssid, w - 12, Math.max(7, size * .58))}>${xmlText(ssid)}</text>` : "";
       const radio = security || channel ? `${xmlText(security)}${security && channel ? " · " : ""}${xmlText(channel)}` : "";
       const settings = radio ? `<text x="${cx}" y="${y + h * .88}" text-anchor="middle" dominant-baseline="middle" fill="${palette.muted}" font-family="sans-serif" font-size="${Math.max(6, size * .48)}"${fitTextAttribute([security, channel].filter(Boolean).join(" · "), w - 12, Math.max(6, size * .48))}>${radio}</text>` : "";
       const heading = `<text x="${cx}" y="${y + 12}" text-anchor="middle" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${Math.max(7, size * .68)}" font-weight="700"${fitTextAttribute(rawTitle.toUpperCase(), w - 8, Math.max(7, size * .68))}>${xmlText(rawTitle.toUpperCase())}</text>`;
-      return `${heading}<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${palette.soft}" stroke="${edge}" stroke-width="${strokeWidth}"/><circle cx="${cx}" cy="${cy}" r="${radius * .78}" fill="${surface}" stroke="${edge}" stroke-width="${Math.max(1, strokeWidth * .7)}"/>${glyph}${leds}${identity}${settings}`;
+      return `${heading}<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${palette.soft}" stroke="${edge}" stroke-width="${strokeWidth}"/><circle cx="${cx}" cy="${cy}" r="${radius * .78}" fill="${surface}" stroke="${edge}" stroke-width="${1}"/>${glyph}${leds}${identity}${settings}`;
     }
     return `${box}${label}<circle cx="${cx}" cy="${cy - 8}" r="10" fill="${palette.soft}" stroke="${edge}"/><path d="M ${cx} ${cy + 2} L ${x + w * .25} ${y + h * .83} M ${cx} ${cy + 2} L ${cx} ${y + h * .83} M ${cx} ${cy + 2} L ${x + w * .75} ${y + h * .83}" stroke="${edge}"/><circle cx="${x + w * .25}" cy="${y + h * .83}" r="4" fill="${palette.accent}"/><circle cx="${cx}" cy="${y + h * .83}" r="4" fill="${palette.accent}"/><circle cx="${x + w * .75}" cy="${y + h * .83}" r="4" fill="${palette.accent}"/>`;
   }
@@ -1572,15 +1624,16 @@ function renderModelComponentSvg(group: GroupElement): string {
 }
 
 /** Keeps component text formatting consistent when the vector renderer exports its dynamic labels. */
-export function modelComponentSvg(group: GroupElement) {
+export function modelComponentSvg(group: GroupElement, theme: Theme = "light") {
   // Nested decorations can be wider than an imported or tightly resized symbol.
   // Keep their SVG geometry valid without changing the saved component bounds.
-  const svg = renderModelComponentSvg(group).replace(/<(?:circle|ellipse|rect)\b[^>]*>/g, tag =>
+  let svg = renderModelComponentSvg(group, theme).replace(/<(?:circle|ellipse|rect)\b[^>]*>/g, tag =>
     tag.replace(/\b(r|rx|ry|width|height)="(-(?:\d|\.)[^"]*)"/g, (_attribute, name: string) => `${name}="0"`));
   const style = group.libraryComponent?.textStyle;
-  if (!svg || !style) return svg;
+  if (!svg) return svg;
+  if (style) {
   const family = componentFontFamily(style.fontFamily);
-  return svg.replace(/<text\b([^>]*)>/g, (_match, rawAttributes: string) => {
+  svg = svg.replace(/<text\b([^>]*)>/g, (_match, rawAttributes: string) => {
     let attributes = rawAttributes;
     const replace = (name: string, value: string) => {
       const pattern = new RegExp(`\\b${name}="[^"]*"`);
@@ -1593,15 +1646,105 @@ export function modelComponentSvg(group: GroupElement) {
     if (style.underline !== undefined) replace("text-decoration", style.underline ? "underline" : "none");
     return `<text${attributes}>`;
   });
+  }
+  const palette = paletteFor(theme === "dark");
+  const colorTokens = new Map<string, string>([
+    ["#000000", palette.ink], ["#252a2e", palette.ink], ["#27313a", palette.ink], ["#292929", palette.ink],
+    ["#46525b", palette.accent], ["#6f777e", palette.edge], ["#737b82", palette.muted], ["#6d7883", palette.muted], ["#bdc8d0", palette.edge],
+    ["#ffffff", palette.fill], ["#fff", palette.fill], ["#edf0f2", palette.soft], ["#eeeeee", palette.soft], ["#f2f5f8", palette.soft], ["#d3dbe3", palette.soft], ["#d9e2eb", palette.soft], ["#eaf1fb", palette.soft],
+    ["#0078d4", componentThemeToken("--diagram-accent-blue", palette.accent, theme === "dark")], ["#376fca", componentThemeToken("--diagram-accent-blue", palette.accent, theme === "dark")], ["#326ce5", componentThemeToken("--diagram-accent-blue", palette.accent, theme === "dark")], ["#4285f4", componentThemeToken("--diagram-accent-blue", palette.accent, theme === "dark")], ["#ed8b00", componentThemeToken("--diagram-accent-warm", palette.accent, theme === "dark")],
+  ]);
+  const explicitColors = new Set([style?.color?.toLowerCase(), group.libraryComponent?.styleOverrides?.color?.toLowerCase(), group.libraryComponent?.styleOverrides?.fillColor?.toLowerCase()]);
+  svg = svg.replace(/\b(fill|stroke|color)="(#[\da-fA-F]{3,8})"/g, (attribute, colorAttribute: string, color: string) => {
+    const lower = color.toLowerCase();
+    if (explicitColors.has(lower)) return attribute;
+    const token = colorTokens.get(lower);
+    return token ? `${colorAttribute}="${token}"` : attribute;
+  });
+  svg = normalizeComponentSvgText(svg, style?.fontFamily);
+  return svg.replace(/\bstroke-width="([\d.]+)"/g, (_match, rawWidth: string) => {
+    const width = Number(rawWidth); const standard = [1, 1.5, 2].reduce((best, current) => Math.abs(current - width) < Math.abs(best - width) ? current : best, 1);
+    return `stroke-width="${standard}"`;
+  });
 }
 
 const componentIconImages = new Map<string, HTMLImageElement>();
+const COMPONENT_ARTWORK_CELL = 64;
+const MAX_COMPONENT_ARTWORK_SPRITES = 512;
+type ComponentArtworkSprite = { signature: string; canvas: HTMLCanvasElement; cells: Map<string, { x: number; y: number }> };
+let componentArtworkSprite: ComponentArtworkSprite | undefined;
+let componentArtworkPreload: { signature: string; promise: Promise<void> } | undefined;
 
 function componentIconDataUrl(group: GroupElement): string | undefined {
   const data = group.libraryComponent;
   if (!data?.iconSvg || !data.iconViewBox) return undefined;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${data.iconViewBox}">${data.iconSvg}</svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function drawProviderArtwork(ctx: CanvasRenderingContext2D, group: GroupElement, x: number, y: number, size: number, background: string, stroke: string) {
+  const url = componentIconDataUrl(group);
+  if (url && componentArtworkSprite?.cells.has(url)) {
+    const cell = componentArtworkSprite.cells.get(url)!;
+    ctx.drawImage(componentArtworkSprite.canvas, cell.x, cell.y, COMPONENT_ARTWORK_CELL, COMPONENT_ARTWORK_CELL, x, y, size, size);
+    return;
+  }
+  const image = url ? componentIconImages.get(url) : undefined;
+  if (image?.complete && image.naturalWidth > 0) {
+    const [, , sourceW, sourceH] = (group.libraryComponent?.iconViewBox ?? "0 0 1 1").split(/\s+/).map(Number);
+    const ratio = sourceW > 0 && sourceH > 0 ? sourceW / sourceH : image.naturalWidth / image.naturalHeight;
+    const drawW = size * Math.min(1, ratio); const drawH = size * Math.min(1, 1 / ratio);
+    ctx.drawImage(image, x + (size - drawW) / 2, y + (size - drawH) / 2, drawW, drawH);
+    return;
+  }
+  // Keep the placeholder shape stable while local artwork is decoded.
+  ctx.fillStyle = background; ctx.fillRect(x, y, size, size);
+  ctx.strokeStyle = stroke; ctx.lineWidth = 1; strokeRectAligned(ctx, x, y, size, size);
+}
+
+/** Decodes local provider artwork once and packs it into a small reusable canvas sprite. */
+export function preloadComponentArtwork(elements: Element[], onReady?: () => void) {
+  const urls = new Set<string>();
+  const visit = (items: Element[]) => items.forEach(item => {
+    if (item.type !== "group") return;
+    if (item.libraryComponent?.iconSvg && item.libraryComponent.iconViewBox) {
+      const url = componentIconDataUrl(item);
+      if (url) { urls.add(url); cacheComponentIconImage(item); }
+    }
+    visit(item.elements);
+  });
+  visit(elements);
+  const mobileLimit = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches ? 64 : MAX_COMPONENT_ARTWORK_SPRITES;
+  const ordered = [...urls].sort().slice(0, mobileLimit);
+  const signature = shortHash(ordered.join("\u0000"));
+  if (componentArtworkSprite?.signature === signature) { onReady?.(); return; }
+  if (componentArtworkPreload?.signature === signature) { void componentArtworkPreload.promise.then(() => onReady?.()); return; }
+  const promise = Promise.all(ordered.map(url => new Promise<void>(resolve => {
+    const image = componentIconImages.get(url);
+    if (!image || image.complete) { resolve(); return; }
+    const done = () => resolve();
+    image.addEventListener("load", done, { once: true }); image.addEventListener("error", done, { once: true });
+  }))).then(() => {
+    const loaded = ordered.filter(url => {
+      const image = componentIconImages.get(url);
+      return !!image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0;
+    });
+    if (!loaded.length || typeof document === "undefined") { componentArtworkSprite = undefined; return; }
+    const columns = Math.min(8, loaded.length); const rows = Math.ceil(loaded.length / columns);
+    const canvas = document.createElement("canvas"); canvas.width = columns * COMPONENT_ARTWORK_CELL; canvas.height = rows * COMPONENT_ARTWORK_CELL;
+    const context = canvas.getContext("2d"); if (!context) { componentArtworkSprite = undefined; return; }
+    const cells = new Map<string, { x: number; y: number }>();
+    loaded.forEach((url, index) => {
+      const image = componentIconImages.get(url)!; const x = index % columns * COMPONENT_ARTWORK_CELL; const y = Math.floor(index / columns) * COMPONENT_ARTWORK_CELL;
+      const scale = Math.min(COMPONENT_ARTWORK_CELL / image.naturalWidth, COMPONENT_ARTWORK_CELL / image.naturalHeight);
+      const width = image.naturalWidth * scale; const height = image.naturalHeight * scale;
+      context.drawImage(image, x + (COMPONENT_ARTWORK_CELL - width) / 2, y + (COMPONENT_ARTWORK_CELL - height) / 2, width, height);
+      cells.set(url, { x, y });
+    });
+    if (componentArtworkPreload?.signature === signature) componentArtworkSprite = { signature, canvas, cells };
+  });
+  componentArtworkPreload = { signature, promise };
+  void promise.then(() => { if (componentArtworkPreload?.signature === signature) onReady?.(); });
 }
 
 export function cacheComponentIconImage(group: GroupElement, onLoad?: () => void): HTMLImageElement | undefined {

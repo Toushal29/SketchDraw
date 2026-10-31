@@ -1,5 +1,5 @@
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ComponentMaster, ConnectionPoint, ContainerMetadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, PrototypeAction, PrototypeCondition, PrototypeVariable, RelationshipDirection, RelationshipType, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
+import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ComponentMaster, ConnectionPoint, ContainerMetadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, PrototypeAction, PrototypeCondition, PrototypeVariable, RelationshipDirection, RelationshipType, ReviewCommentThread, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
 import { ensureCanvasLayerPath, normalizeCanvasLayers } from "../canvas/structure";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { cloudNeutralComponent } from "../diagrams/cloud-providers";
@@ -17,7 +17,8 @@ import { normalizeStyleBindings, normalizeStyleLibrary } from "../styles/style-l
 import { normalizeBookmarks } from "../navigation/frame-navigation";
 import { normalizeDataLink, normalizeDataSources } from "../data/data-binding";
 import { normalizeMetrics } from "../diagrams/metrics";
-import type { ReviewCommentThread } from "../../model";
+import { defaultLibraryChartData, defaultLibraryComponentFields, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, usesCleanModelRenderer, type LibraryComponentKind } from "../components/library-components";
+import { defaultGuiComponentProperties } from "../components/gui-components";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -167,6 +168,8 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && (value.mermaid.diagramType === undefined || ["flowchart", "sequence", "class", "er", "state", "journey", "gantt", "c4"].includes(String(value.mermaid.diagramType)))
       ? { source: value.mermaid.source, ...(value.mermaid.format ? { format: value.mermaid.format } : {}), ...(value.mermaid.diagramType ? { diagramType: value.mermaid.diagramType as MermaidMetadata["diagramType"] } : {}) } : undefined;
     const rawComponent = isRecord(value.libraryComponent) ? value.libraryComponent : undefined;
+    const componentKind = typeof rawComponent?.kind === "string" ? rawComponent.kind : undefined;
+    const catalogComponent = componentKind ? LIBRARY_COMPONENTS.find(component => component.kind === componentKind) : undefined;
     const componentConnectionPoints = rawComponent?.connectionPoints === undefined ? undefined : normalizeConnectionPoints(rawComponent.connectionPoints);
     const iconSvg = rawComponent && typeof rawComponent.iconSvg === "string" ? sanitizeIconSvg(rawComponent.iconSvg) : undefined;
     const iconViewBox = rawComponent && typeof rawComponent.iconViewBox === "string" && /^-?[\d.]+\s+-?[\d.]+\s+[\d.]+\s+[\d.]+$/.test(rawComponent.iconViewBox) ? rawComponent.iconViewBox : undefined;
@@ -198,18 +201,30 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const componentAppearance = rawComponent && (rawComponent.appearance === "simple" || rawComponent.appearance === "modern") ? rawComponent.appearance as "simple" | "modern" : undefined;
     const renderStyle = rawComponent?.renderStyle === "clean" ? "clean" as const : undefined;
     const rawComponentFields = rawComponent && Array.isArray(rawComponent.componentFields) ? rawComponent.componentFields : undefined;
-    const componentFields = rawComponentFields && rawComponentFields.length <= 32 && rawComponentFields.every(field => isRecord(field) && typeof field.key === "string" && /^[\w.-]{1,80}$/.test(field.key) && typeof field.label === "string" && field.label.length <= 80 && typeof field.value === "string" && field.value.length <= 2000 && (field.hint === undefined || typeof field.hint === "string" && field.hint.length <= 240))
-      ? rawComponentFields as LibraryComponentData["componentFields"] : undefined;
+    const defaultFields = componentKind ? defaultLibraryComponentFields(componentKind as LibraryComponentKind) : [];
+    const componentFields = rawComponentFields === undefined ? defaultFields
+      : rawComponentFields.length <= 32 && rawComponentFields.every(field => isRecord(field) && typeof field.key === "string" && /^[\w.-]{1,80}$/.test(field.key) && (field.label === undefined || typeof field.label === "string" && field.label.length <= 80) && typeof field.value === "string" && field.value.length <= 2000 && (field.hint === undefined || typeof field.hint === "string" && field.hint.length <= 240))
+        ? [...defaultFields.map(field => {
+          const saved = rawComponentFields.find(candidate => isRecord(candidate) && candidate.key === field.key) as Record<string, unknown> | undefined;
+          return saved ? { ...field, value: saved.value as string } : field;
+        }), ...rawComponentFields.filter(field => isRecord(field) && !defaultFields.some(defaultField => defaultField.key === field.key)).map(field => ({ key: field.key as string, label: typeof field.label === "string" ? field.label : field.key as string, value: field.value as string, ...(typeof field.hint === "string" ? { hint: field.hint } : {}) }))] as LibraryComponentData["componentFields"]
+        : undefined;
     const trendDirection = rawComponent && (rawComponent.trendDirection === "up" || rawComponent.trendDirection === "down" || rawComponent.trendDirection === "steady") ? rawComponent.trendDirection as "up" | "down" | "steady" : undefined;
     const formOptions = rawComponent && ["form-radio", "form-select", "form-button", "form-checkbox"].includes(String(rawComponent.kind)) && Array.isArray(rawComponent.formOptions)
       && rawComponent.formOptions.length > 0 && rawComponent.formOptions.length <= 12
       && rawComponent.formOptions.every(option => typeof option === "string" && option.length <= 120)
       ? rawComponent.formOptions as string[] : undefined;
     const formTitle = rawComponent && typeof rawComponent.formTitle === "string" && rawComponent.formTitle.length <= 80 ? rawComponent.formTitle : undefined;
+    const resolvedFormOptions = formOptions ?? (rawComponent?.formOptions === undefined && componentKind ? defaultLibraryFormOptions(componentKind as LibraryComponentKind) : undefined);
+    const resolvedFormTitle = formTitle ?? (rawComponent?.formTitle === undefined && componentKind ? defaultLibraryFormTitle(componentKind as LibraryComponentKind) : undefined);
+    const resolvedChartData = chartData ?? (rawComponent?.chartData === undefined && componentKind ? defaultLibraryChartData(componentKind as LibraryComponentKind) : undefined);
+    const resolvedRenderStyle = renderStyle ?? (rawComponent?.renderStyle === undefined && componentKind && usesCleanModelRenderer(componentKind as LibraryComponentKind) ? "clean" as const : undefined);
+    const resolvedPortCount = finite(rawComponent?.portCount) ? Math.round(rawComponent.portCount as number) : componentKind === "network-hub" ? 8 : componentKind === "network-switch" ? 6 : undefined;
+    const resolvedLaneCount = finite(rawComponent?.laneCount) ? Math.round(rawComponent.laneCount as number) : componentKind === "diagram-swimlane" ? 3 : undefined;
     const formStates = rawComponent && Array.isArray(rawComponent.formStates) && rawComponent.formStates.length <= 12 && rawComponent.formStates.every(state => typeof state === "boolean") ? rawComponent.formStates as boolean[] : undefined;
     const rawGuiProperties = rawComponent && isRecord(rawComponent.guiProperties) ? rawComponent.guiProperties : undefined;
     const guiItems = rawGuiProperties && Array.isArray(rawGuiProperties.items) && rawGuiProperties.items.length > 0 && rawGuiProperties.items.length <= 12 && rawGuiProperties.items.every(item => typeof item === "string" && item.length <= 120) ? rawGuiProperties.items as string[] : undefined;
-    const guiProperties: GuiComponentProperties | undefined = rawGuiProperties ? {
+    const parsedGuiProperties: GuiComponentProperties | undefined = rawGuiProperties ? {
       ...(typeof rawGuiProperties.title === "string" && rawGuiProperties.title.length <= 120 ? { title: rawGuiProperties.title } : {}),
       ...(["top", "bottom", "left", "right"].includes(String(rawGuiProperties.titlePosition)) ? { titlePosition: rawGuiProperties.titlePosition as GuiComponentProperties["titlePosition"] } : {}),
       ...(typeof rawGuiProperties.placeholder === "string" && rawGuiProperties.placeholder.length <= 160 ? { placeholder: rawGuiProperties.placeholder } : {}),
@@ -223,6 +238,8 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       ...(guiItems ? { items: guiItems } : {}),
       ...(finite(rawGuiProperties.activeItem) && Number.isInteger(rawGuiProperties.activeItem) && rawGuiProperties.activeItem >= 0 && rawGuiProperties.activeItem < 12 ? { activeItem: rawGuiProperties.activeItem } : {}),
     } : undefined;
+    const guiDefaults = componentKind ? defaultGuiComponentProperties(componentKind) : undefined;
+    const guiProperties = rawGuiProperties ? { ...guiDefaults, ...parsedGuiProperties } : guiDefaults;
     const rawStyleOverrides = rawComponent && isRecord(rawComponent.styleOverrides) ? rawComponent.styleOverrides : undefined;
     const styleOverrides = rawStyleOverrides && (rawStyleOverrides.color === undefined || isColor(rawStyleOverrides.color)) && (rawStyleOverrides.fillColor === undefined || rawStyleOverrides.fillColor === null || isColor(rawStyleOverrides.fillColor)) && (rawStyleOverrides.fillOpacity === undefined || finite(rawStyleOverrides.fillOpacity) && rawStyleOverrides.fillOpacity >= 0 && rawStyleOverrides.fillOpacity <= 1) && (rawStyleOverrides.lineStyle === undefined || ["solid", "dashed", "dotted", "double"].includes(String(rawStyleOverrides.lineStyle)))
       ? { ...(typeof rawStyleOverrides.color === "string" ? { color: rawStyleOverrides.color } : {}), ...(rawStyleOverrides.fillColor === null || typeof rawStyleOverrides.fillColor === "string" ? { fillColor: rawStyleOverrides.fillColor as string | null } : {}), ...(finite(rawStyleOverrides.fillOpacity) ? { fillOpacity: rawStyleOverrides.fillOpacity } : {}), ...(typeof rawStyleOverrides.lineStyle === "string" ? { lineStyle: rawStyleOverrides.lineStyle as StrokeStyle } : {}) } : undefined;
@@ -297,7 +314,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && (rawComponent.trendDirection === undefined || trendDirection !== undefined)
       && (rawComponent.renderStyle === undefined || renderStyle !== undefined)
       && (rawComponent.connectionPoints === undefined || componentConnectionPoints !== undefined)
-      ? { kind: rawComponent.kind, ...(typeof rawComponent.label === "string" ? { label: rawComponent.label } : {}), ...(componentFields ? { componentFields } : {}), ...(renderStyle ? { renderStyle } : {}), ...(iconSvg !== undefined ? { iconSvg, iconViewBox } : {}), ...(finite(rawComponent.portCount) ? { portCount: Math.round(rawComponent.portCount) } : {}), ...(componentConnectionPoints ? { connectionPoints: componentConnectionPoints } : {}), ...(finite(rawComponent.laneCount) ? { laneCount: Math.round(rawComponent.laneCount) } : {}), ...(Array.isArray(rawComponent.laneWeights) ? { laneWeights: rawComponent.laneWeights as number[] } : {}), ...(finite(rawComponent.durationMinutes) && rawComponent.durationMinutes >= 0 && rawComponent.durationMinutes <= 100000 ? { durationMinutes: rawComponent.durationMinutes } : {}), ...(formTitle !== undefined ? { formTitle } : {}), ...(typeof rawComponent.formState === "boolean" ? { formState: rawComponent.formState } : {}), ...(formStates ? { formStates } : {}), ...(finite(rawComponent.selectedOption) ? { selectedOption: Math.floor(rawComponent.selectedOption) } : {}), ...(formOptions ? { formOptions } : {}), ...(guiProperties ? { guiProperties } : {}), ...(chartData ? { chartData } : {}), ...(trendDirection ? { trendDirection } : {}), ...(componentAppearance ? { appearance: componentAppearance } : {}), ...(styleOverrides ? { styleOverrides } : {}), ...(textStyle ? { textStyle } : {}) } : undefined;
+      ? { kind: rawComponent.kind, ...(typeof rawComponent.label === "string" ? { label: rawComponent.label } : catalogComponent ? { label: catalogComponent.label } : {}), ...(componentFields?.length ? { componentFields } : {}), ...(resolvedRenderStyle ? { renderStyle: resolvedRenderStyle } : {}), ...(iconSvg !== undefined ? { iconSvg, iconViewBox } : {}), ...(resolvedPortCount !== undefined ? { portCount: resolvedPortCount } : {}), ...(componentConnectionPoints ? { connectionPoints: componentConnectionPoints } : {}), ...(resolvedLaneCount !== undefined ? { laneCount: resolvedLaneCount } : {}), ...(Array.isArray(rawComponent.laneWeights) ? { laneWeights: rawComponent.laneWeights as number[] } : {}), ...(finite(rawComponent.durationMinutes) && rawComponent.durationMinutes >= 0 && rawComponent.durationMinutes <= 100000 ? { durationMinutes: rawComponent.durationMinutes } : {}), ...(resolvedFormTitle !== undefined ? { formTitle: resolvedFormTitle } : {}), ...(typeof rawComponent.formState === "boolean" ? { formState: rawComponent.formState } : {}), ...(formStates ? { formStates } : {}), ...(finite(rawComponent.selectedOption) ? { selectedOption: Math.floor(rawComponent.selectedOption) } : {}), ...(resolvedFormOptions ? { formOptions: resolvedFormOptions } : {}), ...(guiProperties ? { guiProperties } : {}), ...(resolvedChartData ? { chartData: resolvedChartData } : {}), ...(trendDirection ? { trendDirection } : {}), ...(componentAppearance ? { appearance: componentAppearance } : {}), ...(styleOverrides ? { styleOverrides } : {}), ...(textStyle ? { textStyle } : {}) } : undefined;
     const roleContainer = libraryComponent?.kind === "diagram-frame" || libraryComponent?.kind === "diagram-swimlane"
       ? { kind: libraryComponent.kind === "diagram-frame" ? "frame" as const : "swimlane" as const, name: libraryComponent.label ?? "Frame", clipChildren: false, autoResize: false, padding: 20 }
       : undefined;

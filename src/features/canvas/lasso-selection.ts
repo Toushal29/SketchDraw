@@ -1,5 +1,6 @@
 import type { Element, Point } from "../../model";
 import { elementBounds } from "./bounds";
+import { componentLabelSamples, componentOutlineSamples } from "../components/component-geometry";
 
 const MAX_SAMPLES_PER_ELEMENT = 96;
 
@@ -37,6 +38,10 @@ function boundsGrid(element: Element): Point[] {
 export function elementSamplePoints(element: Element): Point[] {
   if (element.type === "freehand") return strided(element.points, MAX_SAMPLES_PER_ELEMENT).map(point => ({ x: point.x, y: point.y }));
   if (element.type === "line" || element.type === "arrow") return [0, .25, .5, .75, 1].map(ratio => ({ x: element.x + element.w * ratio, y: element.y + element.h * ratio }));
+  if (element.type === "group" && element.libraryComponent) {
+    const outline = componentOutlineSamples(element, MAX_SAMPLES_PER_ELEMENT);
+    if (outline.length) return outline;
+  }
   if (element.type === "group" && !element.note && !element.libraryComponent && !element.container && !element.componentBounds) {
     const children = element.elements.flatMap(elementSamplePoints);
     return children.length ? strided(children, MAX_SAMPLES_PER_ELEMENT) : boundsGrid(element);
@@ -54,6 +59,13 @@ export function lassoSelectIndices(elements: Element[], polygon: Point[], isSele
   const result: number[] = [];
   elements.forEach((element, index) => {
     if (!isSelectable(element)) return;
+    if (element.type === "group" && element.libraryComponent) {
+      const labelSamples = componentLabelSamples(element);
+      const labelCoverage = labelSamples.length
+        ? labelSamples.reduce((count, point) => count + (pointInPolygon(point, polygon) ? 1 : 0), 0) / labelSamples.length
+        : 0;
+      if (labelCoverage >= coverage) { result.push(index); return; }
+    }
     const samples = elementSamplePoints(element);
     if (!samples.length) return;
     const enclosed = samples.reduce((count, point) => count + (pointInPolygon(point, polygon) ? 1 : 0), 0);

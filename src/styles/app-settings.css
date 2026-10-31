@@ -27,16 +27,17 @@
 
 .app-settings-popover {
     display: grid;
-    width: min(330px, calc(100vw - 20px));
-    max-height: min(78vh, 680px);
-    max-height: min(78dvh, 680px);
+    width: min(380px, calc(100vw - 20px));
+    max-height: min(78vh, 620px);
+    max-height: min(78dvh, 620px);
     gap: var(--ui-space-3);
     padding: var(--ui-space-3);
     overflow: auto;
     border: 1px solid var(--theme-border);
-    border-radius: var(--ui-radius-panel);
+    border-radius: 9px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
+    box-shadow: 0 8px 24px rgb(20 28 40 / 16%);
 }
 
 .app-settings-heading {

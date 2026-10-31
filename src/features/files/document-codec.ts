@@ -1,6 +1,7 @@
 import type { CanvasState, ComponentMaster, Element, PersonalLibraryData, SketchFile, SketchFileDocumentV2, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
 import { SKETCH_FORMAT_VERSION } from "../../model";
 import { normalizeElement } from "./parse-sketch";
+import { compactComponentMasterForStorage, compactElementForStorage } from "../components/component-storage";
 
 const pageListMarker = "__SKETCHDRAW_PAGE_CHUNKS_V2__";
 const elementListMarker = "__SKETCHDRAW_ELEMENT_CHUNK_V2__";
@@ -84,7 +85,7 @@ function serializedPage(page: SketchPage): string {
   }
   // Reuse element JSON when page metadata changes. The v2 file stays compact,
   // ordinary JSON, so saved documents remain portable and inspectable.
-  const elementsJson = cached?.elementsJson ?? JSON.stringify(page.elements);
+  const elementsJson = cached?.elementsJson ?? JSON.stringify(page.elements.map(compactElementForStorage));
   const pageShell = JSON.stringify({ id: page.id, name: page.name, canvasState: page.canvasState, ...(page.layers?.length ? { layers: page.layers } : {}), ...(page.visibilityPresets?.length ? { visibilityPresets: page.visibilityPresets } : {}), ...(page.styleLibrary ? { styleLibrary: page.styleLibrary } : {}), ...(page.bookmarks?.length ? { bookmarks: page.bookmarks } : {}), ...(page.dataSources?.length ? { dataSources: page.dataSources } : {}), ...(page.comments?.length ? { comments: page.comments } : {}), elements: elementListMarker });
   const block = pageShell.replace(`"elements":"${elementListMarker}"`, `"elements":${elementsJson}`);
   const bytes = (block.length + elementsJson.length) * 2;
@@ -109,7 +110,7 @@ function serializedPage(page: SketchPage): string {
 function serializedComponentMaster(master: ComponentMaster): string {
   const cached = serializedComponentMasterCache.get(master);
   if (cached) return cached;
-  const encoded = JSON.stringify(master);
+  const encoded = JSON.stringify(compactComponentMasterForStorage(master));
   serializedComponentMasterCache.set(master, encoded);
   return encoded;
 }

@@ -199,14 +199,25 @@ export function adjustShapeAtPoint(element: ShapeElement, handle: ShapeAdjustmen
   return element;
 }
 
+const pathObjectCache = new Map<string, Path2D>();
+function cachedPathObject(data: string): Path2D | undefined {
+  if (typeof Path2D === "undefined") return undefined;
+  let path = pathObjectCache.get(data);
+  if (path) return path;
+  try { path = new Path2D(data); } catch { return undefined; }
+  if (pathObjectCache.size >= 512) pathObjectCache.delete(pathObjectCache.keys().next().value!);
+  pathObjectCache.set(data, path);
+  return path;
+}
+
 export function shapePathObject(element: ShapeElement): Path2D | undefined {
   const data = shapePathData(element);
-  return data ? new Path2D(data) : undefined;
+  return data ? cachedPathObject(data) : undefined;
 }
 
 export function shapeDetailPathObject(element: ShapeElement): Path2D | undefined {
   const data = shapeDetailPathData(element);
-  return data ? new Path2D(data) : undefined;
+  return data ? cachedPathObject(data) : undefined;
 }
 
 /** Shape contours use winding rules; inner contours reverse direction to create holes. */

@@ -330,7 +330,7 @@ h1 em {
 .tool-icon-button svg {
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.7;
+    stroke-width: 1.8;
     stroke-linecap: round;
     stroke-linejoin: round;
 }
@@ -397,9 +397,10 @@ h1 em {
     left: 18px;
     max-height: calc(100% - 36px);
     overflow-y: auto;
-    border: 1px solid var(--theme-border);
-    border-radius: 12px;
+    border: 1px solid var(--theme-border-strong);
+    border-radius: 9px;
     background: var(--theme-surface-elevated);
+    box-shadow: 0 4px 16px rgb(18 26 38 / 9%);
 }
 
 .style-pane.collapsed {
@@ -608,5 +609,5 @@ h1 em {
 .theme-dark .tool-deck,
 .theme-dark .style-pane {
     border-color: var(--theme-border);
-    background-color: color-mix(in srgb, var(--theme-surface) 96.00%, transparent);
+    background-color: var(--theme-surface-elevated);
 }

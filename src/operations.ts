@@ -2,6 +2,7 @@ import type { Binding, ConnectionPoint, Element, GroupElement, ShapeElement, Sch
 import { schemaTableMetrics } from "./features/diagrams/schema-table-layout";
 import { shapePathData } from "./features/shapes/geometry";
 import { connectorPoint } from "./features/connectors/geometry";
+import { componentDefaultPorts, componentOutlinePath, componentPortStrategy } from "./features/components/component-geometry";
 
 export const isConnector = (element: Element): element is ShapeElement => element.type === "line" || element.type === "arrow";
 export const isLabelShape = (element: Element): element is ShapeElement => element.type === "rectangle" || element.type === "circle" || element.type === "diamond" || element.type === "triangle" || element.type === "flowchart" || element.type === "svgPath";
@@ -93,9 +94,27 @@ function shapeOutlineGeometry(shape: ShapeElement): ShapeOutlineGeometry | undef
 
 /** Default connector handles retain box-side spacing while following each shape's visible outline. */
 export function connectionAnchorsFor(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement): Point[] {
+  if (shape.type === "group" && shape.libraryComponent) {
+    const strategy = componentPortStrategy(shape.libraryComponent.kind);
+    if (strategy.type === "outline-projected") return BOX_ANCHORS.map(anchor => projectComponentAnchor(shape, anchor));
+    return componentDefaultPorts(shape, (path, anchor) => projectComponentAnchor(shape, anchor, path)).map(port => port.anchor);
+  }
   return shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath"
     ? shapeOutlineAnchors(shape)
     : [...BOX_ANCHORS];
+}
+
+const componentOutlineProxies = new WeakMap<GroupElement, ShapeElement>();
+function projectComponentAnchor(group: GroupElement, anchor: Point, path?: string): Point {
+  const bounds = group.componentBounds;
+  if (!bounds) return anchor;
+  const outline = path ?? componentOutlinePath(group.libraryComponent?.kind ?? "", bounds.w, bounds.h);
+  let proxy = componentOutlineProxies.get(group);
+  if (!proxy || proxy.pathData !== outline || proxy.w !== bounds.w || proxy.h !== bounds.h) {
+    proxy = { type: "svgPath", x: 0, y: 0, w: bounds.w, h: bounds.h, color: "currentColor", thickness: 1, pathData: outline, pathWidth: 100, pathHeight: 100, svgStroke: true };
+    componentOutlineProxies.set(group, proxy);
+  }
+  return closestOutlineAnchor(proxy, anchor);
 }
 
 function closestOutlineAnchor(shape: ShapeElement, anchor: Point): Point {
@@ -196,6 +215,14 @@ export function ensureIds(items: Element[]): Element[] {
   });
 }
 
+function validBindingPort(target: Element, binding: Binding | undefined): boolean {
+  if (!binding?.portId) return true;
+  if (connectionPointsFor(target as ShapeElement | SchemaTableElement | TextElement | GroupElement).some(point => point.id === binding.portId)) return true;
+  // Older v2 files may bind decorative line components to the old cardinal box ports.
+  return target.type === "group" && !!target.libraryComponent && componentPortStrategy(target.libraryComponent.kind).type === "none"
+    && ["north", "east", "south", "west"].includes(binding.portId);
+}
+
 export function flatten(items: Element[]): Element[] {
   return items.flatMap(item => item.type === "group" ? [item, ...flatten(item.elements)] : [item]);
 }
@@ -209,23 +236,28 @@ export function validReferences(items: Element[]): boolean {
   return all.every(item => !isConnector(item) || [item.startBinding, item.endBinding, item.forkUpper?.endBinding, item.forkLower?.endBinding].every(binding => {
     if (!binding) return true;
     const target = ids.get(binding.elementId);
-    return !!target && isConnectable(target) && (target.type !== "schemaTable" || !binding.rowId || target.columns.some(column => column.id === binding.rowId)) && (!binding.portId || connectionPointsFor(target).some(point => point.id === binding.portId));
+    return !!target && isConnectable(target) && (target.type !== "schemaTable" || !binding.rowId || target.columns.some(column => column.id === binding.rowId)) && validBindingPort(target, binding);
   }));
 }
 
 export function connectionPointsFor(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement): ConnectionPoint[] {
   const custom = shape.type === "group" ? shape.connectionPoints ?? shape.libraryComponent?.connectionPoints ?? shape.container?.connectionPoints ?? [] : "connectionPoints" in shape ? shape.connectionPoints ?? [] : [];
-  const defaults = shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath"
+  const defaults = shape.type === "group" && shape.libraryComponent
+    ? componentDefaultPorts(shape, (path, anchor) => projectComponentAnchor(shape, anchor, path))
+    : shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath"
     ? DEFAULT_CONNECTION_POINTS.map(port => ({ ...port, anchor: closestOutlineAnchor(shape, port.anchor) }))
     : [...DEFAULT_CONNECTION_POINTS];
-  return [...defaults, ...custom.filter(point => !DEFAULT_CONNECTION_POINTS.some(defaultPort => defaultPort.id === point.id))];
+  return [...defaults, ...custom.filter(point => !defaults.some(defaultPort => defaultPort.id === point.id))];
 }
 
 export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextElement | GroupElement, anchor: Point, rowId?: string, portId?: string): Point {
   const box = shape.type === "group" ? shape.componentBounds! : shape.type === "text" ? textElementBox(shape) : { x: shape.x, y: shape.y, w: shape.w, h: shape.h };
   const cx = box.x + box.w / 2; const cy = box.y + box.h / 2;
   let normalized = (portId ? connectionPointsFor(shape).find(port => port.id === portId)?.anchor : undefined) ?? anchor;
-  if (!portId && (shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath")) {
+  if (!portId && shape.type === "group" && shape.libraryComponent) {
+    const currentAnchors = connectionAnchorsFor(shape);
+    normalized = currentAnchors.some(point => Math.abs(point.x - anchor.x) < .000001 && Math.abs(point.y - anchor.y) < .000001) ? anchor : projectComponentAnchor(shape, anchor);
+  } else if (!portId && (shape.type === "rectangle" || shape.type === "circle" || shape.type === "diamond" || shape.type === "triangle" || shape.type === "flowchart" || shape.type === "svgPath")) {
     const currentAnchors = connectionAnchorsFor(shape);
     normalized = currentAnchors.some(point => Math.abs(point.x - anchor.x) < .000001 && Math.abs(point.y - anchor.y) < .000001)
       ? anchor

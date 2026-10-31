@@ -46,10 +46,16 @@
 }
 
 .full-inspector-header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
   display: flex;
   min-width: 0;
   align-items: center;
   justify-content: space-between;
+  padding: 7px 10px 8px 2px;
+  border-bottom: 1px solid var(--theme-border-subtle);
+  background: var(--theme-surface-elevated);
 }
 
 .full-inspector,
@@ -107,8 +113,8 @@
 
 .full-inspector .pane-section {
   min-width: 0;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--theme-border);
+  padding: 10px 10px 11px 2px;
+  border-bottom: 1px solid var(--theme-border-subtle);
 }
 
 .full-inspector .pane-section:last-child {
@@ -117,9 +123,10 @@
 
 .full-inspector .inspector-section-heading {
   margin: 0 0 4px;
-  color: var(--theme-text-secondary);
+  color: var(--theme-text-primary);
   font-size: var(--type-caption);
   font-weight: var(--font-weight-semibold);
+  letter-spacing: .025em;
 }
 
 .full-inspector .property-label {
