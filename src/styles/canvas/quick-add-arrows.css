@@ -1,0 +1,44 @@
+.quick-add-arrows {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.quick-add-arrow {
+  position: absolute;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+  place-items: center;
+  color: var(--theme-primary);
+  background: var(--theme-surface-elevated);
+  border: 1px solid var(--theme-border);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgb(20 30 45 / 18%);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.quick-add-arrow:hover,
+.quick-add-arrow:focus-visible {
+  color: var(--theme-on-primary, #fff);
+  background: var(--theme-primary);
+  outline: 2px solid color-mix(in srgb, var(--theme-primary) 40%, transparent);
+  outline-offset: 2px;
+}
+
+.quick-add-arrow svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.quick-add-arrow-north { left: 50%; top: 0; transform: translate(-50%, -50%); }
+.quick-add-arrow-east { right: 0; top: 50%; transform: translate(50%, -50%); }
+.quick-add-arrow-south { left: 50%; bottom: 0; transform: translate(-50%, 50%); }
+.quick-add-arrow-west { left: 0; top: 50%; transform: translate(-50%, -50%); }

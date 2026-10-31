@@ -6,7 +6,7 @@ import type { ShapeElement } from "../../../model";
 import "./diagram-guides.css";
 
 type Props = { onClose: () => void; onInsert: (id: DiagramGuideId) => void };
-const categories: (DiagramGuideCategory | "All guides")[] = ["All guides", "Architecture", "Flowchart", "UML", "Database", "Data flow", "API", "BPMN", "Network", "Brainstorming", "UX", "DevOps", "Security", "Operations"];
+const categories: (DiagramGuideCategory | "All guides")[] = ["All guides", "Workshop", "Diagram types", "Architecture", "Flowchart", "UML", "Database", "Data flow", "API", "BPMN", "Network", "Brainstorming", "UX", "DevOps", "Security", "Operations"];
 const guideCategoryClass = (category: DiagramGuideCategory) => "diagram-guide-category guide-category-" + category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 function previewPath(node: GuideNode) {
@@ -31,6 +31,7 @@ function GuidePreviewNode(props: { node: GuideNode }) {
   if (kind === "bpmn-gateway") return <g class="guide-preview-node"><path d={`M${x + w / 2} ${y} L${x + w} ${y + h / 2} L${x + w / 2} ${y + h} L${x} ${y + h / 2} Z`} fill="#ffffff"/><path class="guide-preview-detail" d={`M${x + w * .34} ${y + h * .34} L${x + w * .66} ${y + h * .66} M${x + w * .66} ${y + h * .34} L${x + w * .34} ${y + h * .66}`} /></g>;
   if (kind === "c4-person") return <g class="guide-preview-node"><circle cx={x + w / 2} cy={y + 22} r="10" fill="#ffffff"/><path class="guide-preview-detail" d={`M${x + w / 2} ${y + 32} V${y + 72} M${x + w * .28} ${y + 45} H${x + w * .72} M${x + w / 2} ${y + 72} L${x + w * .3} ${y + 92} M${x + w / 2} ${y + 72} L${x + w * .7} ${y + 92}`} /><text x={x + w / 2} y={y + h - 10} text-anchor="middle">{title}</text></g>;
   const path = previewPath(item);
+  if (item.shape === "circle") return <g class="guide-preview-node" opacity={item.fillOpacity ?? 1}><ellipse cx={x + w / 2} cy={y + h / 2} rx={w / 2 - 3} ry={h / 2 - 3} fill={item.fill ?? "#ffffff"}/><text x={x + w / 2} y={y + h / 2} text-anchor="middle">{title}</text></g>;
   return <g class="guide-preview-node">{path ? <path d={path} fill={item.fill ?? "#ffffff"} /> : <rect x={x} y={y} width={w} height={h} rx="12" fill={item.fill ?? "#ffffff"} />}<text x={x + w / 2} y={y + h / 2} text-anchor="middle">{title.length > 18 ? `${title.slice(0, 16)}…` : title}</text></g>;
 }
 
@@ -97,7 +98,7 @@ export function DiagramGuideGallery(props: Props) {
                 <section class="diagram-guide-section diagram-guide-watch"><h4>Common traps</h4><ul><For each={guide().lesson.pitfalls}>{item => <li>{item}</li>}</For></ul></section>
               </div>
               <section class="diagram-guide-tip"><strong>Modeling tip</strong><p>{guide().tip}</p></section>
-              <section class="diagram-guide-section diagram-guide-references"><h4>References</h4><a href={guide().source.href} target="_blank" rel="noreferrer">{guide().source.label}<span aria-hidden="true">↗</span></a></section>
+              <Show when={guide().source}><section class="diagram-guide-section diagram-guide-references"><h4>References</h4><a href={guide().source!.href} target="_blank" rel="noreferrer">{guide().source!.label}<span aria-hidden="true">↗</span></a></section></Show>
               <Show when={guide().lesson.related.length}><section class="diagram-guide-section diagram-guide-related"><h4>Related guides</h4><div><For each={guide().lesson.related}>{id => { const related = DIAGRAM_GUIDES.find(item => item.id === id); return <Show when={related}>{item => <button type="button" onClick={() => openRelated(item().id)}>{item().title}<span aria-hidden="true">→</span></button>}</Show>; }}</For></div></section></Show>
               <Show when={guide().lesson.tags.length}><div class="diagram-guide-tags" aria-label="Guide topics"><For each={guide().lesson.tags}>{tag => <span>{tag}</span>}</For></div></Show>
             </div>

@@ -29,6 +29,9 @@ export type AutoLayoutConfig = { direction: "horizontal" | "vertical" | "grid"; 
 export type ContainerMetadata = { kind: "frame" | "container" | "swimlane"; name: string; autoLayout?: AutoLayoutConfig; background?: string; showBorder?: boolean; showLabel?: boolean; borderColor?: string; borderThickness?: number; borderStyle?: StrokeStyle; clipChildren?: boolean; autoResize?: boolean; lockedSize?: boolean; collapsed?: boolean; expandedBounds?: Bounds; padding?: number; scrollDirection?: "vertical" | "horizontal" | "both"; connectionPoints?: ConnectionPoint[] };
 export type CanvasLayer = { id: string; name: string; parentId?: string; hidden?: boolean; locked?: boolean; order: number };
 export type CanvasLayerVisibilityPreset = { id: string; name: string; hiddenLayerIds: string[] };
+export type ReviewCommentMessage = { id: string; author: string; text: string; createdAt: number };
+/** A local review thread attached to an element by normalized anchor, or to a world-space canvas point. */
+export type ReviewCommentThread = { id: string; elementId?: string; anchor: Point; messages: ReviewCommentMessage[]; resolved?: boolean };
 export type ForkBranch = { end?: Point; routePoints?: Point[]; endHead?: ArrowHead; endBinding?: Binding };
 export type RelationshipType = "association" | "dependency" | "data-flow" | "inheritance" | "aggregation" | "composition" | "sequence" | "network" | "other";
 export type RelationshipDirection = "forward" | "both" | "none";
@@ -103,7 +106,7 @@ export type DataSource = { id: string; name: string; headers: string[]; rows: st
 export type DataLink = { source: string; key: string; value: string; label?: string; rules?: string };
 /** Optional cost and capacity numbers on an object. Totals roll up through frames and containers. */
 export type ElementMetrics = { cost?: number; capacity?: number; unit?: string };
-export type SketchPage = { id: string; dataSources?: DataSource[]; bookmarks?: CanvasBookmark[]; name: string; canvasState: CanvasState; elements: Element[]; layers?: CanvasLayer[]; visibilityPresets?: CanvasLayerVisibilityPreset[]; componentMasters?: ComponentMaster[] ; styleLibrary?: StyleLibrary; prototypeVariables?: PrototypeVariable[] };
+export type SketchPage = { id: string; dataSources?: DataSource[]; bookmarks?: CanvasBookmark[]; name: string; canvasState: CanvasState; elements: Element[]; layers?: CanvasLayer[]; visibilityPresets?: CanvasLayerVisibilityPreset[]; componentMasters?: ComponentMaster[] ; styleLibrary?: StyleLibrary; prototypeVariables?: PrototypeVariable[]; comments?: ReviewCommentThread[] };
 export type ProjectNote = { id: string; title: string; content: string; createdAt: number; updatedAt: number };
 export type ProjectTaskStatus = string;
 export type ProjectWorkflowColumn = { id: string; label: string; completed?: boolean };

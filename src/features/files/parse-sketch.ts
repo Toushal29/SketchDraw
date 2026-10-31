@@ -17,6 +17,7 @@ import { normalizeStyleBindings, normalizeStyleLibrary } from "../styles/style-l
 import { normalizeBookmarks } from "../navigation/frame-navigation";
 import { normalizeDataLink, normalizeDataSources } from "../data/data-binding";
 import { normalizeMetrics } from "../diagrams/metrics";
+import type { ReviewCommentThread } from "../../model";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -497,7 +498,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
       return [group];
     });
   };
-  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, budget: ElementParseBudget, rawLayers?: unknown, rawMasters?: unknown, rawVisibilityPresets?: unknown, rawStyleLibrary?: unknown, rawBookmarks?: unknown, rawPrototypeVariables?: unknown, rawDataSources?: unknown): SketchPage | undefined => {
+  const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, budget: ElementParseBudget, rawLayers?: unknown, rawMasters?: unknown, rawVisibilityPresets?: unknown, rawStyleLibrary?: unknown, rawBookmarks?: unknown, rawPrototypeVariables?: unknown, rawDataSources?: unknown, rawComments?: unknown): SketchPage | undefined => {
     if (typeof id !== "string" || typeof name !== "string" || !isRecord(stateValue) || !Array.isArray(elementsValue) || elementsValue.length > MAX_ELEMENTS_PER_PAGE) return undefined;
     const state = stateValue;
     if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !isColor(state.backgroundColor)) return undefined;
@@ -554,7 +555,23 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
       return [];
     }) : [];
     if (new Set(prototypeVariables.map(item => item.id)).size !== prototypeVariables.length) return undefined;
-    return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff", ...(guides?.length ? { guides } : {}) }, elements: normalizedElements, ...(layers.length ? { layers } : {}), ...(visibilityPresets.length ? { visibilityPresets } : {}), ...(componentMasters.length ? { componentMasters } : {}), ...(normalizeStyleLibrary(rawStyleLibrary) ? { styleLibrary: normalizeStyleLibrary(rawStyleLibrary) } : {}), ...(normalizeBookmarks(rawBookmarks).length ? { bookmarks: normalizeBookmarks(rawBookmarks) } : {}), ...(prototypeVariables.length ? { prototypeVariables } : {}), ...(normalizeDataSources(rawDataSources).length ? { dataSources: normalizeDataSources(rawDataSources) } : {}) };
+    const comments: ReviewCommentThread[] = [];
+    const commentIds = new Set<string>(); let messageCount = 0;
+    if (Array.isArray(rawComments) && rawComments.length <= 500) for (const raw of rawComments) {
+      if (!isRecord(raw) || typeof raw.id !== "string" || !/^[\w.-]{1,100}$/.test(raw.id) || commentIds.has(raw.id) || !isRecord(raw.anchor) || !finite(raw.anchor.x) || !finite(raw.anchor.y) || !Array.isArray(raw.messages) || !raw.messages.length || raw.messages.length > 100) continue;
+      const elementId = typeof raw.elementId === "string" && raw.elementId.length <= 100 ? raw.elementId : undefined;
+      const anchorInRange = elementId ? raw.anchor.x >= 0 && raw.anchor.x <= 1 && raw.anchor.y >= 0 && raw.anchor.y <= 1 : Math.abs(raw.anchor.x) <= 1_000_000_000 && Math.abs(raw.anchor.y) <= 1_000_000_000;
+      if (!anchorInRange) continue;
+      const messages = raw.messages.flatMap(message => {
+        if (!isRecord(message) || typeof message.id !== "string" || !/^[\w.-]{1,100}$/.test(message.id) || typeof message.text !== "string" || !message.text.trim() || message.text.length > 10_000 || typeof message.author !== "string" || message.author.length > 80 || !finite(message.createdAt) || message.createdAt < 0 || messageCount >= 5000) return [];
+        messageCount++;
+        return [{ id: message.id, author: message.author.trim() || "You", text: message.text.trim(), createdAt: message.createdAt }];
+      });
+      if (!messages.length) continue;
+      commentIds.add(raw.id);
+      comments.push({ id: raw.id, ...(elementId ? { elementId } : {}), anchor: { x: raw.anchor.x, y: raw.anchor.y }, messages, ...(typeof raw.resolved === "boolean" ? { resolved: raw.resolved } : {}) });
+    }
+    return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff", ...(guides?.length ? { guides } : {}) }, elements: normalizedElements, ...(layers.length ? { layers } : {}), ...(visibilityPresets.length ? { visibilityPresets } : {}), ...(componentMasters.length ? { componentMasters } : {}), ...(normalizeStyleLibrary(rawStyleLibrary) ? { styleLibrary: normalizeStyleLibrary(rawStyleLibrary) } : {}), ...(normalizeBookmarks(rawBookmarks).length ? { bookmarks: normalizeBookmarks(rawBookmarks) } : {}), ...(prototypeVariables.length ? { prototypeVariables } : {}), ...(normalizeDataSources(rawDataSources).length ? { dataSources: normalizeDataSources(rawDataSources) } : {}), ...(comments.length ? { comments } : {}) };
   };
   const sourcePages = Array.isArray(canvasSection.pages) ? canvasSection.pages : undefined;
   if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100) return undefined;
@@ -563,7 +580,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
     if (!isRecord(page)) return undefined;
     const state = isRecord(page.canvasState) ? page.canvasState : {};
     const migratedState = isLegacyV9 ? { zoom: finite(state.zoom) && state.zoom > 0 ? state.zoom : 1, panX: finite(state.panX) ? state.panX : 0, panY: finite(state.panY) ? state.panY : 0, backgroundColor: isColor(state.backgroundColor) ? state.backgroundColor : "#ffffff", ...(typeof state.boardColorFollowsTheme === "boolean" ? { boardColorFollowsTheme: state.boardColorFollowsTheme } : {}) } : state;
-    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, elementBudget, page.layers, page.componentMasters ?? (index === 0 ? canvasSection.componentMasters : undefined), page.visibilityPresets, page.styleLibrary, page.bookmarks, page.prototypeVariables, page.dataSources);
+    return normalizePage(typeof page.id === "string" ? page.id : crypto.randomUUID(), typeof page.name === "string" ? page.name : "Page " + (index + 1), migratedState, page.elements, elementBudget, page.layers, page.componentMasters ?? (index === 0 ? canvasSection.componentMasters : undefined), page.visibilityPresets, page.styleLibrary, page.bookmarks, page.prototypeVariables, page.dataSources, page.comments);
   });
   if (pages.some((page) => !page)) return undefined;
   const normalized = pages as SketchPage[];

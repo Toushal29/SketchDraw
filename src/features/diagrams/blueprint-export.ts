@@ -1,6 +1,7 @@
 import type { Element, SchemaTableElement } from "../../model";
 
 import { buildScaffoldFiles, type ScaffoldFormat } from "./code-scaffolds";
+import { createStoredZip } from "../files/zip";
 
 export type BlueprintFormat = "java" | "python" | "prisma" | ScaffoldFormat;
 export type BlueprintFile = { path: string; contents: string };
@@ -177,44 +178,10 @@ function prismaFiles(elements: Element[]): BlueprintFile[] {
   return [{ path: "prisma/schema.prisma", contents }, { path: "README.md", contents: "# Prisma schema blueprint\n\nGenerated for PostgreSQL from SketchDraw schema cards. Review provider-specific types and relations before running Prisma validation or migrations. This export does not connect to a database.\n" }];
 }
 
-function crc32(bytes: Uint8Array) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit++) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
 /** Creates a small, standards-compliant uncompressed ZIP for offline scaffold export. */
 export function blueprintZip(files: BlueprintFile[], maximumBytes = 32 * 1024 * 1024) {
-  if (!files.length || files.length > 512) throw new Error("The blueprint contains an unsupported number of files.");
-  const encoder = new TextEncoder();
-  const entries = files.map(file => {
-    const name = encoder.encode(file.path.replace(/\\/g, "/")); const data = encoder.encode(file.contents);
-    if (!name.length || name.length > 1000 || data.length > maximumBytes) throw new Error("A generated ZIP file is too large to package.");
-    return { name, data, crc: crc32(data) };
-  });
-  if (entries.reduce((sum, entry) => sum + entry.data.length, 0) > maximumBytes) throw new Error(`The generated ZIP is larger than ${Math.floor(maximumBytes / 1024 / 1024)} MB.`);
-  const localParts: Uint8Array[] = []; const centralParts: Uint8Array[] = [];
-  let offset = 0;
-  for (const entry of entries) {
-    const local = new Uint8Array(30 + entry.name.length); const localView = new DataView(local.buffer);
-    localView.setUint32(0, 0x04034b50, true); localView.setUint16(4, 20, true); localView.setUint16(6, 0x0800, true); localView.setUint16(8, 0, true);
-    localView.setUint32(14, entry.crc, true); localView.setUint32(18, entry.data.length, true); localView.setUint32(22, entry.data.length, true); localView.setUint16(26, entry.name.length, true); local.set(entry.name, 30);
-    localParts.push(local, entry.data);
-    const central = new Uint8Array(46 + entry.name.length); const centralView = new DataView(central.buffer);
-    centralView.setUint32(0, 0x02014b50, true); centralView.setUint16(4, 20, true); centralView.setUint16(6, 20, true); centralView.setUint16(8, 0x0800, true); centralView.setUint16(10, 0, true);
-    centralView.setUint32(16, entry.crc, true); centralView.setUint32(20, entry.data.length, true); centralView.setUint32(24, entry.data.length, true); centralView.setUint16(28, entry.name.length, true); centralView.setUint32(42, offset, true); central.set(entry.name, 46);
-    centralParts.push(central);
-    offset += local.length + entry.data.length;
-  }
-  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
-  const end = new Uint8Array(22); const endView = new DataView(end.buffer);
-  endView.setUint32(0, 0x06054b50, true); endView.setUint16(8, entries.length, true); endView.setUint16(10, entries.length, true); endView.setUint32(12, centralSize, true); endView.setUint32(16, offset, true);
-  const output = new Uint8Array(offset + centralSize + end.length); let cursor = 0;
-  for (const part of [...localParts, ...centralParts, end]) { output.set(part, cursor); cursor += part.length; }
-  return output;
+  if (files.length > 512) throw new Error("The blueprint contains an unsupported number of files.");
+  return createStoredZip(files, maximumBytes, "generated ZIP");
 }
 
 export function buildBlueprintFiles(format: BlueprintFormat, elements: Element[]) {

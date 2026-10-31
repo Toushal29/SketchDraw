@@ -15,6 +15,7 @@
 .component-library-item:hover:not(:disabled), .component-library-master:hover:not(:disabled) { border-color: var(--theme-border); background: var(--theme-surface-input); }
 .component-library-item:disabled, .component-library-master:disabled { cursor: not-allowed; opacity: .5; }
 .component-library-item>svg, .component-library-item>.stencil-component-model-preview { width: 26px; height: 26px; fill: none; stroke: var(--theme-primary); }
+.component-library-item>svg.component-library-icon-sticker { fill: var(--theme-primary); stroke: none; }
 .component-library-item>span { overflow: hidden; font-size: var(--type-micro); text-overflow: ellipsis; white-space: nowrap; }
 .component-library-subtabs, .component-library-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 7px; }
 .component-library-saved-item { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) 28px 28px; align-items: center; border-bottom: 1px solid var(--theme-border); }

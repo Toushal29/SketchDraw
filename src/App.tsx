@@ -8,6 +8,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Update } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import "/src/styles/app/web-preview.css";
+import "/src/styles/canvas/quick-add-arrows.css";
 import type { PdfRasterPage } from "./features/export/pdf-renderer";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
@@ -20,6 +21,7 @@ import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartDat
 import { parseSchema } from "./schema";
 import { schemaReferences } from "./features/diagrams/schema-visualizer";
 import { importDrawioWithReport, importExcalidraw, exportDrawio, exportExcalidraw } from "./features/diagrams/interchange";
+import { importVsdx, exportVsdx } from "./features/diagrams/visio-vsdx";
 import { cloudProviderComponent, loadCloudProviderGlyph } from "./features/diagrams/cloud-providers";
 import { DiagramGuideGallery } from "./features/diagrams/guides/DiagramGuideGallery";
 import type { DiagramLayoutAlgorithm } from "./features/diagrams/auto-layout";
@@ -83,6 +85,9 @@ import { replaceWithLibraryComponent } from "./features/components/replace-compo
 import { cacheComponentIconImage, drawModelComponent } from "./features/components/model-component-renderer";
 import { createFreehandRenderer } from "./features/canvas/freehand-rendering";
 import { CanvasInteractionOverlay } from "./features/canvas/CanvasInteractionOverlay";
+import { CanvasComments } from "./features/review/CanvasComments";
+import "./features/review/canvas-comments.css";
+import type { ReviewCommentThread } from "./model";
 import { parseEditablePath, updateEditablePath } from "./features/canvas/path-editing";
 import { replaceElementText } from "./features/canvas/text-replace";
 import { ObjectSearchDialog, type ObjectSearchResult } from "./features/canvas/ObjectSearchDialog";
@@ -486,6 +491,9 @@ function App() {
   const initialToolbarLayout = readToolbarLayout();
   const [toolbarOrder, setToolbarOrder] = createSignal<ToolbarItem[]>(initialToolbarLayout.toolbar);
   const [moreToolsOrder, setMoreToolsOrder] = createSignal<ToolbarItem[]>(initialToolbarLayout.more);
+  const [whiteboardMode, setWhiteboardMode] = createSignal(readPreference("sketchdraw-whiteboard-mode", "false") === "true");
+  const [inkToShapeMode, setInkToShapeMode] = createSignal(readPreference("sketchdraw-ink-to-shape", "false") === "true");
+  const [handDrawnMode, setHandDrawnMode] = createSignal(readPreference("sketchdraw-hand-drawn-mode", "false") === "true");
   const [historyActionsVisible, setHistoryActionsVisible] = createSignal(readPreference("sketchdraw-history-actions-visible", "true") !== "false");
   const [mobileOrientation, setMobileOrientation] = createSignal(readPreference("sketchdraw-mobile-orientation", "landscape") === "portrait" ? "portrait" as const : "landscape" as const);
   const [orientationMessage, setOrientationMessage] = createSignal("");
@@ -625,6 +633,29 @@ function App() {
   const [spaceDown, setSpaceDown] = createSignal(false);
   const [historyVersion, setHistoryVersion] = createSignal(0);
   const imageCache = new Map<string, HTMLImageElement>();
+  const sketchFillPatternCache = new Map<string, CanvasPattern>();
+  const sketchOffset = (item: Element) => {
+    const key = item.id ?? `${elementBounds(item).x},${elementBounds(item).y},${item.type}`;
+    let seed = 0; for (const character of key) seed = Math.imul(seed ^ character.charCodeAt(0), 16777619);
+    return { x: ((seed >>> 0) % 7 - 3) * 0.28, y: (((seed >>> 7) % 7) - 3) * 0.28 };
+  };
+  const sketchFillPattern = (ctx: CanvasRenderingContext2D, color: string) => {
+    const cached = sketchFillPatternCache.get(color); if (cached) return cached;
+    const tile = document.createElement("canvas"); tile.width = 14; tile.height = 14;
+    const tileContext = tile.getContext("2d"); if (!tileContext) return undefined;
+    tileContext.globalAlpha = .14; tileContext.strokeStyle = color; tileContext.lineWidth = .8; tileContext.beginPath(); tileContext.moveTo(-3, 14); tileContext.lineTo(14, -3); tileContext.moveTo(4, 17); tileContext.lineTo(17, 4); tileContext.stroke();
+    const pattern = ctx.createPattern(tile, "repeat"); if (pattern) sketchFillPatternCache.set(color, pattern); return pattern ?? undefined;
+  };
+  const fillSketchHatch = (ctx: CanvasRenderingContext2D, path: Path2D, color: string, bounds: Bounds, rule: CanvasFillRule = "nonzero") => {
+    if (!handDrawnMode()) return;
+    const pattern = sketchFillPattern(ctx, color); if (!pattern) return;
+    ctx.save(); ctx.clip(path, rule); ctx.globalAlpha *= .85; ctx.fillStyle = pattern; ctx.fillRect(bounds.x - 1, bounds.y - 1, bounds.w + 2, bounds.h + 2); ctx.restore();
+  };
+  const drawSketchEcho = (ctx: CanvasRenderingContext2D, path: Path2D, item: Element) => {
+    if (!handDrawnMode()) return;
+    const offset = sketchOffset(item);
+    ctx.save(); ctx.translate(offset.x, offset.y); ctx.globalAlpha *= .22; ctx.lineWidth += .35; ctx.stroke(path); ctx.restore();
+  };
   const [canvasAssetRevision, setCanvasAssetRevision] = createSignal(0);
   const textLinesCache = new WeakMap<TextElement, string[]>();
   const [themeMode, setThemeMode] = createSignal<ThemeMode>((() => {
@@ -986,6 +1017,32 @@ function App() {
     pushUndo(before); setSelectedIndices([index]); setTool("select"); setDirty(true); setError("");
   }
 
+  function quickAddConnectedClone(sourceIndex: number, direction: "north" | "east" | "south" | "west") {
+    const source = elements()[sourceIndex];
+    if (!source?.id || !isConnectable(source) || isConnector(source) || isElementLocked(source) || boardLocked() || readOnlyView()) return;
+    const sourceBounds = elementBounds(source); const gap = Math.max(76, 92 / canvasState().zoom);
+    const offset = direction === "north" ? { x: 0, y: -sourceBounds.h - gap }
+      : direction === "east" ? { x: sourceBounds.w + gap, y: 0 }
+        : direction === "south" ? { x: 0, y: sourceBounds.h + gap } : { x: -sourceBounds.w - gap, y: 0 };
+    const clone = copyElements([source], offset.x, offset.y)[0];
+    if (!clone?.id || !isConnectable(clone)) return;
+    const anchors = {
+      north: { source: { x: 0.5, y: 0 }, target: { x: 0.5, y: 1 } },
+      east: { source: { x: 1, y: 0.5 }, target: { x: 0, y: 0.5 } },
+      south: { source: { x: 0.5, y: 1 }, target: { x: 0.5, y: 0 } },
+      west: { source: { x: 0, y: 0.5 }, target: { x: 1, y: 0.5 } },
+    }[direction];
+    const start = anchorPoint(source, anchors.source); const end = anchorPoint(clone, anchors.target);
+    const connector: ShapeElement = {
+      type: "arrow", id: crypto.randomUUID(), x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y,
+      color: "color" in source ? source.color : color(),
+      thickness: 1.8, lineStyle: "solid", arrowRoute: "straight", startHead: "none", endHead: "solid", autoRoute: true,
+      startBinding: { elementId: source.id, anchor: anchors.source }, endBinding: { elementId: clone.id, anchor: anchors.target },
+    };
+    const before = cloneElements(elements()); const nextIndex = elements().length + 1;
+    setElements(items => [...items, connector, clone]); pushUndo(before); setSelectedIndices([nextIndex]); setTool("select"); setDirty(true); setHoveredIndex(nextIndex); setError("");
+  }
+
   function updateSelectedPrototypeAction(action?: PrototypeAction) {
     if (boardLocked() || readOnlyView()) return;
     const index = primarySelection(); if (index === undefined || !elements()[index]) return;
@@ -1102,14 +1159,62 @@ function App() {
     const copies = copyElements(items, at && box ? at.x - box.x : 24, at && box ? at.y - box.y : 24); const start = elements().length;
     pushUndo(cloneElements(elements())); setElements(current => [...current, ...copies]); setSelectedIndices(copies.map((_, index) => start + index)); setTool("select"); setDirty(true);
   }
+  function canvasCenterWorld(): Point {
+    const view = canvasState(); const rect = canvas.getBoundingClientRect();
+    return { x: (rect.width / 2 - view.panX) / view.zoom, y: (rect.height / 2 - view.panY) / view.zoom };
+  }
+  function pasteTextContent(raw: string, at?: Point) {
+    const text = raw.trim(); if (!text || text.length > 200_000) return;
+    let parsed: unknown;
+    try { parsed = JSON.parse(text); } catch { /* Ordinary pasted text becomes a note. */ }
+    if (isRecord(parsed) && parsed.format === "SketchDrawClipboard") { pastePayload(text, at); return; }
+    const position = at ?? canvasCenterWorld();
+    if (!/\s/.test(text) && /^(?:https?:\/\/|www\.)/i.test(text) || !/\s/.test(text) && /^[\w.-]+\.[a-z]{2,}(?:[/:?#]|$)/i.test(text)) {
+      try {
+        const card = makeWebPreviewCard(text);
+        const item: ImageElement = { type: "image", x: 0, y: 0, w: card.width, h: card.height, dataUrl: card.dataUrl, sourceWidth: card.width, sourceHeight: card.height, previewUrl: card.url };
+        insertCopies([item], { x: position.x - card.width / 2, y: position.y - card.height / 2 }); return;
+      } catch { /* Invalid or non-HTTPS addresses become ordinary notes. */ }
+    }
+    const note = buildNoteGroup(0, 0, "sticky", text, { width: 296, title: "Pasted text" });
+    const bounds = elementBounds(note);
+    insertCopies([note], { x: position.x - bounds.w / 2, y: position.y - bounds.h / 2 });
+  }
+  async function pasteImageBlob(blob: Blob, at?: Point) {
+    if (!blob.type.startsWith("image/") || blob.size > 25 * 1024 * 1024) { setError("Pasted images must be a supported image smaller than 25 MB."); return; }
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader(); reader.onerror = () => reject(reader.error ?? new Error("Could not read the pasted image."));
+        reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not read the pasted image.")); reader.readAsDataURL(blob);
+      });
+      const image = new Image(); image.src = dataUrl; await image.decode();
+      const scale = Math.min(1, 720 / image.naturalWidth, 520 / image.naturalHeight);
+      const width = Math.max(1, image.naturalWidth * scale); const height = Math.max(1, image.naturalHeight * scale); const position = at ?? canvasCenterWorld();
+      const item: ImageElement = { type: "image", x: 0, y: 0, w: width, h: height, dataUrl, sourceWidth: image.naturalWidth, sourceHeight: image.naturalHeight };
+      insertCopies([item], { x: position.x - width / 2, y: position.y - height / 2 });
+    } catch (cause) { setError(`Could not paste image: ${cause instanceof Error ? cause.message : String(cause)}`); }
+  }
   async function copySelection() {
     if (!selectedElements().length) return;
     clipboardItems = copyElements(selectedElements(), 0, 0);
     try { await navigator.clipboard.writeText(clipboardPayload()); } catch { /* The in-app clipboard remains available. */ }
   }
   async function pasteSelection(at?: Point) {
-    try { const text = await navigator.clipboard.readText(); pastePayload(text, at); }
-    catch { if (clipboardItems.length) insertCopies(clipboardItems, at); else setError("Press Ctrl/Cmd+V to grant clipboard access."); }
+    try {
+      if (navigator.clipboard.read) {
+        const entries = await navigator.clipboard.read();
+        for (const entry of entries) {
+          const imageType = entry.types.find(type => type.startsWith("image/"));
+          if (imageType) { await pasteImageBlob(await entry.getType(imageType), at); return; }
+        }
+        for (const entry of entries) if (entry.types.includes("text/plain")) { pasteTextContent(await (await entry.getType("text/plain")).text(), at); return; }
+      }
+      pasteTextContent(await navigator.clipboard.readText(), at);
+    }
+    catch {
+      try { const text = await navigator.clipboard.readText(); if (text) { pasteTextContent(text, at); return; } } catch { /* Clipboard permissions may reject both read APIs. */ }
+      if (clipboardItems.length) insertCopies(clipboardItems, at); else setError("Press Ctrl/Cmd+V to grant clipboard access.");
+    }
   }
 
   function copyObjectStyle() {
@@ -1491,6 +1596,31 @@ function App() {
   });
   const fileName = () => activePath() ? displayNameForPath(activePath()!) : "Untitled sketch";
   const currentPage = () => pages().find((page) => page.id === activePageId());
+  const [activeCommentThreadId, setActiveCommentThreadId] = createSignal<string>();
+  const updatePageComments = (operation: (threads: ReviewCommentThread[]) => ReviewCommentThread[]) => {
+    const pageId = activePageId();
+    setPages(items => items.map(page => {
+      if (page.id !== pageId) return page;
+      const comments = operation(page.comments ?? []);
+      return { ...page, comments: comments.length ? comments : undefined };
+    }));
+    setDirty(true);
+  };
+  const addPageComment = (text: string, elementId: string | undefined, anchor: Point) => {
+    const comments = currentPage()?.comments ?? [];
+    if (comments.length >= 500 || comments.reduce((count, thread) => count + thread.messages.length, 0) >= 5000) { setError("This page has reached its saved comment limit."); return; }
+    const id = crypto.randomUUID(); const createdAt = Date.now();
+    updatePageComments(items => [...items, { id, ...(elementId ? { elementId } : {}), anchor, messages: [{ id: crypto.randomUUID(), author: "You", text: text.slice(0, 10_000), createdAt }] }]);
+    setActiveCommentThreadId(id); setError("");
+  };
+  const replyToPageComment = (threadId: string, text: string) => {
+    const comments = currentPage()?.comments ?? [];
+    const thread = comments.find(item => item.id === threadId);
+    if (!thread || thread.messages.length >= 100 || comments.reduce((count, item) => count + item.messages.length, 0) >= 5000) { setError("This comment thread has reached its saved message limit."); return; }
+    updatePageComments(items => items.map(item => item.id === threadId ? { ...item, messages: [...item.messages, { id: crypto.randomUUID(), author: "You", text: text.slice(0, 10_000), createdAt: Date.now() }] } : item));
+    setError("");
+  };
+  const togglePageCommentResolved = (threadId: string) => updatePageComments(items => items.map(item => item.id === threadId ? { ...item, resolved: !item.resolved } : item));
   const currentLayers = () => currentPage()?.layers ?? [];
   const isElementHidden = (item: Element) => item.hidden || layerHidden(currentLayers(), item.layerId);
   const isElementHiddenOnPage = (item: Element, page: SketchPage) => item.hidden || layerHidden(page.layers ?? [], item.layerId);
@@ -4455,8 +4585,8 @@ function App() {
       try {
         const path = new Path2D(element.pathData ?? ""); const sx = element.w / (element.pathWidth ?? element.w); const sy = element.h / (element.pathHeight ?? element.h);
         ctx.save(); ctx.globalAlpha = element.opacity ?? 1; ctx.translate(element.x, element.y); ctx.scale(sx, sy);
-        if (element.fillColor) { ctx.fillStyle = element.fillColor; ctx.globalAlpha = (element.opacity ?? 1) * (element.fillOpacity ?? 1); ctx.fill(path, element.fillRule ?? "nonzero"); }
-        if (element.svgStroke !== false) { ctx.globalAlpha = element.opacity ?? 1; ctx.strokeStyle = themeInk(element.color, theme()); const shapeScale = Math.max(0.001, Math.min(Math.abs(sx), Math.abs(sy))); ctx.lineWidth = element.thickness / (shapeScale * (element.svgNonScalingStroke ? canvasState().zoom : 1)); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.setLineDash(strokeDashPattern(element.lineStyle, ctx.lineWidth)); ctx.stroke(path); if (element.lineStyle === "double") { const pathWidth = element.pathWidth ?? element.w; const pathHeight = element.pathHeight ?? element.h; ctx.setLineDash([]); ctx.translate(pathWidth / 2, pathHeight / 2); ctx.scale(.94, .94); ctx.translate(-pathWidth / 2, -pathHeight / 2); ctx.stroke(path); } ctx.setLineDash([]); }
+        if (element.fillColor) { ctx.fillStyle = element.fillColor; ctx.globalAlpha = (element.opacity ?? 1) * (element.fillOpacity ?? 1); ctx.fill(path, element.fillRule ?? "nonzero"); fillSketchHatch(ctx, path, themeInk(element.color, theme()), { x: 0, y: 0, w: element.pathWidth ?? element.w, h: element.pathHeight ?? element.h }, element.fillRule ?? "nonzero"); }
+        if (element.svgStroke !== false) { ctx.globalAlpha = element.opacity ?? 1; ctx.strokeStyle = themeInk(element.color, theme()); const shapeScale = Math.max(0.001, Math.min(Math.abs(sx), Math.abs(sy))); ctx.lineWidth = element.thickness / (shapeScale * (element.svgNonScalingStroke ? canvasState().zoom : 1)); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.setLineDash(strokeDashPattern(element.lineStyle, ctx.lineWidth)); ctx.stroke(path); if (handDrawnMode()) { const offset = sketchOffset(element); ctx.save(); ctx.translate(offset.x / sx, offset.y / sy); ctx.globalAlpha *= .22; ctx.lineWidth += .35; ctx.stroke(path); ctx.restore(); } if (element.lineStyle === "double") { const pathWidth = element.pathWidth ?? element.w; const pathHeight = element.pathHeight ?? element.h; ctx.setLineDash([]); ctx.translate(pathWidth / 2, pathHeight / 2); ctx.scale(.94, .94); ctx.translate(-pathWidth / 2, -pathHeight / 2); ctx.stroke(path); } ctx.setLineDash([]); }
         ctx.restore();
       } catch { /* Malformed legacy vector paths remain selectable by their bounds. */ }
       if (element.rotation) ctx.restore(); return;
@@ -4515,6 +4645,7 @@ function App() {
         for (const points of paths) { if (!points.length) continue; ctx.moveTo(points[0].x, points[0].y); for (const point of points.slice(1)) ctx.lineTo(point.x, point.y); }
         ctx.stroke();
       } else { traceConnector(ctx, routeElement); ctx.stroke(); }
+      if (handDrawnMode()) { const offset = sketchOffset(element); ctx.save(); ctx.translate(offset.x, offset.y); ctx.globalAlpha *= .2; ctx.lineWidth += .4; traceConnector(ctx, routeElement); ctx.stroke(); ctx.restore(); }
       if (element.type === "arrow" || element.type === "line") {
         for (const { tip, angle: direction, kind } of arrowHeadEntries(routeElement, route)) {
           if (kind === "none") continue;
@@ -4537,14 +4668,15 @@ function App() {
     if (!shapePath) { ctx.restore(); if (element.rotation) ctx.restore(); return; }
     if (element.fillColor) {
       ctx.save(); ctx.globalAlpha = (element.opacity ?? 1) * (element.fillOpacity ?? fillOpacity()); ctx.fillStyle = element.fillColor;
-      ctx.fill(shapePath, shapeFillRule(element)); ctx.restore();
+      ctx.fill(shapePath, shapeFillRule(element)); fillSketchHatch(ctx, shapePath, renderedInk, elementBounds(element), shapeFillRule(element)); ctx.restore();
     }
     ctx.stroke(shapePath);
+    drawSketchEcho(ctx, shapePath, element);
     if (element.lineStyle === "double") {
       ctx.save(); ctx.setLineDash([]); ctx.translate(element.x + element.w / 2, element.y + element.h / 2); ctx.scale(.94, .94); ctx.translate(-(element.x + element.w / 2), -(element.y + element.h / 2)); ctx.stroke(shapePath); ctx.restore();
     }
     const shapeDetails = shapeDetailPathObject(element);
-    if (shapeDetails) ctx.stroke(shapeDetails);
+    if (shapeDetails) { ctx.stroke(shapeDetails); drawSketchEcho(ctx, shapeDetails, element); }
     ctx.restore(); if (isLabelShape(element) && textDraft()?.editingChildId !== element.id && !(textDraft()?.shapeLabel && elements()[textDraft()!.editingIndex!]?.id === element.id)) drawLabel(ctx, element); if (element.rotation) ctx.restore();
   }
 
@@ -4728,7 +4860,7 @@ function App() {
     elements, isHidden: isElementHidden, isLocked: isElementLocked, spatialIndex: () => activeElementSpatialIndex, canvasState, renderedBoardColor, whiteboardStyle, showGrid, gridSize: GRID_SIZE, selectedSet,
     moveOrigin: () => moveOrigin, resizeOrigin: () => resizeOrigin,
     hoveredIndex, boardLocked, tool, attachmentHint, marquee,
-    tileCacheKey: () => `${theme()}|${canvasAssetRevision()}|${currentLayers().map(layer => `${layer.id}:${layer.hidden ? 1 : 0}`).join(",")}`, tileCacheAllowed: () => !textDraft() && !noteEditor() && !resizeOrigin && !labelMoveOrigin,
+    tileCacheKey: () => `${theme()}|${handDrawnMode() ? "hand" : "clean"}|${canvasAssetRevision()}|${currentLayers().map(layer => `${layer.id}:${layer.hidden ? 1 : 0}`).join(",")}`, tileCacheAllowed: () => !textDraft() && !noteEditor() && !resizeOrigin && !labelMoveOrigin,
     laserTrail, laserThickness, preview, simulationTokenId: () => bpmnSimulationIndex() >= 0 ? bpmnSimulationSteps()[bpmnSimulationIndex()]?.elementId : undefined, currentPoints: () => currentPoints,
     lineStyle, edgeStyle, cornerRadius, fillEnabled, fillColor, fillOpacity,
     defaultLineStartHead, defaultLineEndHead, defaultStartHead, defaultEndHead, defaultForkUpperHead, defaultForkLowerHead,
@@ -4748,7 +4880,7 @@ function App() {
   const onChartEngineReady = () => { setCanvasAssetRevision(version => version + 1); scheduleCanvasRender(); };
   onCleanup(canvasRenderScheduler.dispose);
   onCleanup(stopBpmnSimulation);
-  createEffect(() => { workspaceArea(); activePath(); elements(); pages(); projectWorkspaceData(); canvasState(); preview(); bpmnSimulationIndex(); bpmnSimulationSteps(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); scheduleCanvasRender(); });
+  createEffect(() => { workspaceArea(); activePath(); elements(); pages(); projectWorkspaceData(); canvasState(); preview(); bpmnSimulationIndex(); bpmnSimulationSteps(); laserTrail(); laserColor(); laserThickness(); laserRainbow(); laserFadeDuration(); attachmentHint(); tool(); textDraft(); selectedIndices(); hoveredIndex(); showGrid(); whiteboardStyle(); marquee(); theme(); boardColor(); boardColorFollowsTheme(); fillOpacity(); fillEnabled(); fillColor(); lineStyle(); edgeStyle(); cornerRadius(); defaultLineStartHead(); defaultLineEndHead(); defaultStartHead(); defaultEndHead(); defaultForkUpperHead(); defaultForkLowerHead(); boardLocked(); handDrawnMode(); scheduleCanvasRender(); });
   let lastAndroidStylusConfig = "";
   createEffect(() => {
     if (!isAndroidPlatform()) return;
@@ -4977,7 +5109,13 @@ function App() {
     };
     const clipboardAllowed = (target: EventTarget | null) => !readOnlyView() && activePath() && !pageDialog() && !schemaDialog() && !validationOpen() && !objectSearchOpen() && !outlineOpen() && !mermaidDialog() && !webEmbedDialog() && !exportOptionsOpen() && !showClearConfirm() && !recoveryPrompt() && !syncConflict() && !noteEditor() && !(target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea")));
     const copy = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || !selectedElements().length) return; event.preventDefault(); event.clipboardData?.setData("text/plain", clipboardPayload()); clipboardItems = copyElements(selectedElements(), 0, 0); };
-    const paste = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || boardLocked()) return; const raw = event.clipboardData?.getData("text/plain"); if (raw) { event.preventDefault(); pastePayload(raw); } };
+    const paste = (event: ClipboardEvent) => {
+      if (!clipboardAllowed(event.target) || boardLocked()) return;
+      const items = [...(event.clipboardData?.items ?? [])]; const image = items.find(item => item.type.startsWith("image/"))?.getAsFile();
+      if (image) { event.preventDefault(); void pasteImageBlob(image); return; }
+      const raw = event.clipboardData?.getData("text/plain");
+      if (raw) { event.preventDefault(); pasteTextContent(raw); }
+    };
     const cut = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || boardLocked()) return; copy(event); if (event.defaultPrevented) deleteSelected(); };
     document.addEventListener("copy", copy); document.addEventListener("paste", paste); document.addEventListener("cut", cut);
     onCleanup(() => { document.removeEventListener("copy", copy); document.removeEventListener("paste", paste); document.removeEventListener("cut", cut); });
@@ -6006,49 +6144,51 @@ function App() {
     if (!activePath() || readOnlyView() || nativeBusy() || documentBusy() || boardLocked()) return;
     setNativeBusy(true);
     try {
-      const selected = await open({ title: "Import editable diagram or diagram code", multiple: false, filters: [{ name: "Diagrams, schemas, and infrastructure", extensions: ["drawio", "xml", "excalidraw", "csv", "json", "yaml", "yml", "tf", "tf.json", "tfstate", "tfplan", "bicep", "openapi", "ansible", "dot", "d2", "mmd", "mermaid", "puml", "plantuml"] }] });
+      const selected = await open({ title: "Import editable diagram or diagram code", multiple: false, filters: [{ name: "Diagrams, schemas, and infrastructure", extensions: ["drawio", "xml", "vsdx", "excalidraw", "csv", "json", "yaml", "yml", "tf", "tf.json", "tfstate", "tfplan", "bicep", "openapi", "ansible", "dot", "d2", "mmd", "mermaid", "puml", "plantuml"] }] });
       if (!selected || Array.isArray(selected)) return;
       const path = normalizeFileUri(selected); const fileName = path.split(/[\\/]/).pop() ?? ""; const extension = fileName.split(".").pop()?.toLowerCase();
-      const source = await readTextFile(selected);
+      const source = extension === "vsdx" ? undefined : await readTextFile(selected);
       let imported: Element[]; let fidelityReport: { kept: number; simplified: number; skipped: number } | undefined;
-      if (extension === "drawio" || extension === "xml") { const result = await importDrawioWithReport(source); imported = result.elements; fidelityReport = result.report; }
-      else if (extension === "excalidraw") imported = importExcalidraw(source);
-      else if (extension === "csv") imported = csvToDiagram(source);
-      else if (extension === "json" && /\.tf\.json$/i.test(fileName)) imported = terraformToDiagram(source);
-      else if (extension === "json" && /\.openapi\.json$/i.test(fileName)) imported = openApiToDiagram(source);
+      if (extension === "vsdx") imported = await importVsdx(await readFile(selected));
+      else if (extension === "drawio" || extension === "xml") { const result = await importDrawioWithReport(source!); imported = result.elements; fidelityReport = result.report; }
+      else if (extension === "excalidraw") imported = importExcalidraw(source!);
+      else if (extension === "csv") imported = csvToDiagram(source!);
+      else if (extension === "json" && /\.tf\.json$/i.test(fileName)) imported = terraformToDiagram(source!);
+      else if (extension === "json" && /\.openapi\.json$/i.test(fileName)) imported = openApiToDiagram(source!);
       else if (extension === "json") {
-        const data = JSON.parse(source) as Record<string, unknown>;
-        if (typeof data.openapi === "string" || typeof data.swagger === "string") imported = openApiToDiagram(source);
-        else if (data.Resources && typeof data.Resources === "object") imported = cloudFormationToDiagram(source);
-        else if (Array.isArray(data.resources) && (data.$schema || data.contentVersion || data.parameters)) imported = azureArmToDiagram(source);
-        else if (Array.isArray(data.resource_changes) || Array.isArray(data.resource_drift) || data.values && typeof data.values === "object") imported = terraformToDiagram(source);
-        else imported = jsonToDiagram(source);
+        const data = JSON.parse(source!) as Record<string, unknown>;
+        if (typeof data.openapi === "string" || typeof data.swagger === "string") imported = openApiToDiagram(source!);
+        else if (data.Resources && typeof data.Resources === "object") imported = cloudFormationToDiagram(source!);
+        else if (Array.isArray(data.resources) && (data.$schema || data.contentVersion || data.parameters)) imported = azureArmToDiagram(source!);
+        else if (Array.isArray(data.resource_changes) || Array.isArray(data.resource_drift) || data.values && typeof data.values === "object") imported = terraformToDiagram(source!);
+        else imported = jsonToDiagram(source!);
       }
-      else if (extension === "yaml" || extension === "yml" || extension === "openapi" || extension === "ansible") imported = structuredYamlToDiagram(source);
-      else if (extension === "tf") imported = terraformToDiagram(source);
-      else if (extension === "tfstate" || extension === "tfplan") imported = terraformToDiagram(source);
-      else if (extension === "bicep") imported = bicepToDiagram(source);
-      else if (extension === "dot") imported = dotToDiagram(source);
-      else if (extension === "d2") imported = d2ToDiagram(source);
-      else if (extension === "mmd" || extension === "mermaid") { placeMermaidDiagram(source); setError(""); return; }
-      else if (extension === "puml" || extension === "plantuml") { placePlantUmlDiagram(source); setError(""); return; }
-      else throw new Error("Choose a draw.io, Excalidraw, CSV/JSON data, OpenAPI, CloudFormation/CDK, Azure ARM/Bicep, Docker Compose, Ansible, Kubernetes, Terraform config/plan/state, DOT, D2, Mermaid, or PlantUML file.");
+      else if (extension === "yaml" || extension === "yml" || extension === "openapi" || extension === "ansible") imported = structuredYamlToDiagram(source!);
+      else if (extension === "tf") imported = terraformToDiagram(source!);
+      else if (extension === "tfstate" || extension === "tfplan") imported = terraformToDiagram(source!);
+      else if (extension === "bicep") imported = bicepToDiagram(source!);
+      else if (extension === "dot") imported = dotToDiagram(source!);
+      else if (extension === "d2") imported = d2ToDiagram(source!);
+      else if (extension === "mmd" || extension === "mermaid") { placeMermaidDiagram(source!); setError(""); return; }
+      else if (extension === "puml" || extension === "plantuml") { placePlantUmlDiagram(source!); setError(""); return; }
+      else throw new Error("Choose a draw.io, Visio VSDX, Excalidraw, CSV/JSON data, OpenAPI, CloudFormation/CDK, Azure ARM/Bicep, Docker Compose, Ansible, Kubernetes, Terraform config/plan/state, DOT, D2, Mermaid, or PlantUML file.");
       placeImportedElements(imported); setError("");
       if (fidelityReport) setImportSummary({ fileName, ...fidelityReport });
     } catch (cause) { setError(`Could not import editable diagram: ${String(cause)}`); }
     finally { setNativeBusy(false); }
   }
 
-  async function exportEditableDiagram(format: "drawio" | "excalidraw") {
+  async function exportEditableDiagram(format: "drawio" | "excalidraw" | "vsdx") {
     if (!activePath() || readOnlyView() || nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
       commitTextDraft();
-      const source = format === "drawio" ? exportDrawio(elements()) : exportExcalidraw(elements());
-      const selected = await save({ title: `Export editable ${format === "drawio" ? "draw.io" : "Excalidraw"} diagram`, defaultPath: `SketchDraw.${format}`, filters: [{ name: format === "drawio" ? "draw.io diagram" : "Excalidraw scene", extensions: [format] }] });
+      const source = format === "drawio" ? exportDrawio(elements()) : format === "excalidraw" ? exportExcalidraw(elements()) : exportVsdx(elements());
+      const label = format === "drawio" ? "draw.io" : format === "excalidraw" ? "Excalidraw" : "Visio";
+      const selected = await save({ title: `Export editable ${label} diagram`, defaultPath: `SketchDraw.${format}`, filters: [{ name: `${label} diagram`, extensions: [format] }] });
       if (!selected) return;
       const target = selected.toLowerCase().endsWith(`.${format}`) ? selected : `${selected}.${format}`;
-      await writeTextFile(target, source); setError("");
+      if (source instanceof Uint8Array) await writeFile(target, source); else await writeTextFile(target, source); setError("");
     } catch (cause) { setError(`Could not export editable diagram: ${String(cause)}`); }
     finally { setNativeBusy(false); }
   }
@@ -7164,17 +7304,30 @@ function App() {
       currentPoints = []; strokePointLimitReached = false; setPreview(undefined); return;
     }
     if (activePreview) {
-      const item: Element = activePreview.type === "pen"
+      let item: Element = activePreview.type === "pen"
         ? { type: "freehand", points: currentPoints, color: activePreview.color, thickness: activePreview.thickness, opacity: activePreview.opacity }
         : { type: activePreview.type, x: activePreview.start.x, y: activePreview.start.y, w: activePreview.end.x - activePreview.start.x, h: activePreview.end.y - activePreview.start.y, color: activePreview.color, thickness: activePreview.thickness, lineStyle: lineStyle(), edgeStyle: edgeStyle(), cornerRadius: cornerRadius(), flowchartShape: activePreview.type === "flowchart" ? activePreview.flowchartShape : undefined, lineRoute: activePreview.type === "line" ? activePreview.lineRoute : undefined, arrowRoute: activePreview.type === "arrow" ? activePreview.arrowRoute : undefined, ...(fillEnabled() && (activePreview.type === "rectangle" || activePreview.type === "circle" || activePreview.type === "diamond" || activePreview.type === "triangle" || activePreview.type === "flowchart") ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}), ...(activePreview.type === "line" ? { startHead: defaultLineStartHead(), endHead: defaultLineEndHead() } : {}), ...(activePreview.type === "arrow" ? { startHead: defaultStartHead(), endHead: defaultEndHead(), ...(activePreview.arrowRoute === "forked" ? { forkUpper: { endHead: defaultForkUpperHead() }, forkLower: { endHead: defaultForkLowerHead() } } : {}) } : {}) } as ShapeElement;
       const valid = activePreview.type === "pen" ? currentPoints.length > 0 : Math.hypot(activePreview.end.x - activePreview.start.x, activePreview.end.y - activePreview.start.y) > 1;
+      if (valid && activePreview.type === "pen" && item.type === "freehand" && inkToShapeMode()) {
+        const recognized = recognizeStroke(item);
+        if (recognized) {
+          const { points: _points, ...strokeStyle } = item;
+          const outline = { ...strokeStyle, lineStyle: "solid" as const, rotation: 0 };
+          if (recognized.type === "rectangle") item = { ...outline, type: "flowchart", ...recognized.bounds, flowchartShape: "process", ...(fillEnabled() ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}) };
+          else if (recognized.type === "circle") item = { ...outline, type: "circle", ...recognized.bounds, ...(fillEnabled() ? { fillColor: fillColor(), fillOpacity: fillOpacity() } : {}) };
+          else if (recognized.type === "line" && recognized.start && recognized.end) item = { ...outline, type: "line", x: recognized.start.x, y: recognized.start.y, w: recognized.end.x - recognized.start.x, h: recognized.end.y - recognized.start.y, startHead: "none", endHead: "none", lineRoute: "straight" };
+          else if (recognized.type === "arrow" && recognized.start && recognized.end) item = { ...outline, type: "arrow", x: recognized.start.x, y: recognized.start.y, w: recognized.end.x - recognized.start.x, h: recognized.end.y - recognized.start.y, startHead: "none", endHead: "open", arrowRoute: "straight" };
+        }
+      }
       if (item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" || item.type === "svgPath") {
         if (Math.abs(item.w) < 25) item.w = Math.sign(item.w || 1) * 25;
         if (Math.abs(item.h) < 25) item.h = Math.sign(item.h || 1) * 25;
       }
       if (isConnector(item)) {
-        item.startBinding = nearestBinding(elements(), activePreview.start, 18 / canvasState().zoom, target => !isElementHidden(target) && !isElementLocked(target))?.binding;
-        item.endBinding = nearestBinding(elements(), activePreview.end, 18 / canvasState().zoom, target => !isElementHidden(target) && !isElementLocked(target))?.binding;
+        const connectorStart = activePreview.type === "pen" ? { x: item.x, y: item.y } : activePreview.start;
+        const connectorEnd = activePreview.type === "pen" ? { x: item.x + item.w, y: item.y + item.h } : activePreview.end;
+        item.startBinding = nearestBinding(elements(), connectorStart, 18 / canvasState().zoom, target => !isElementHidden(target) && !isElementLocked(target))?.binding;
+        item.endBinding = nearestBinding(elements(), connectorEnd, 18 / canvasState().zoom, target => !isElementHidden(target) && !isElementLocked(target))?.binding;
         if (Math.hypot(item.w, item.h) < 25) {
           const finish = { x: item.x + item.w, y: item.y + item.h };
           const adjustedFinish = connectorEndpointMinimum(finish, { x: item.x, y: item.y }, item, "end");
@@ -7260,9 +7413,28 @@ function App() {
     { id: "precision", label: "Precision tools", tools: ["measure", "pathEdit", "frame"] },
   ];
   const organizerItems = (values: ToolbarItem[]) => values.map(value => ({ value, label: value === "paintBrushes" ? "Paint brushes" : value === "componentLibrary" ? "Components" : tools.find(item => item.value === value)?.label ?? ({ lasso: "Lasso select", measure: "Measure distance", pathEdit: "Edit selected path nodes", frame: "Create frame from selection", codeData: "Code & data" } as const)[value as "measure" | "pathEdit" | "frame" | "codeData"] ?? value, canTransfer: value !== "eraser" }));
+  const whiteboardToolbarItems = new Set<ToolbarItem>(["select", "pen", "paintBrushes", "eraser", "line", "arrow", "rectangle", "circle", "flowchart", "text", "componentLibrary", "frame"]);
+  const visibleToolbarOrder = () => isWindowsPlatform() && whiteboardMode() ? toolbarOrder().filter(value => whiteboardToolbarItems.has(value)) : toolbarOrder();
+  const visibleMoreToolsOrder = () => isWindowsPlatform() && whiteboardMode()
+    ? [...moreToolsOrder(), ...toolbarOrder().filter(value => !whiteboardToolbarItems.has(value) && !moreToolsOrder().includes(value))]
+    : moreToolsOrder();
+  function toggleWhiteboardMode() {
+    const next = !whiteboardMode(); setWhiteboardMode(next);
+    try { localStorage.setItem("sketchdraw-whiteboard-mode", String(next)); } catch { /* Keep the selected toolbar mode for this session. */ }
+    setMoreToolsOpen(false); setMoreBrushPickerOpen(false); closeToolOptions(); setComponentLibraryOpen(false);
+  }
+  function toggleInkToShapeMode() {
+    const next = !inkToShapeMode(); setInkToShapeMode(next);
+    try { localStorage.setItem("sketchdraw-ink-to-shape", String(next)); } catch { /* Use the selected behavior for this session. */ }
+  }
+  function toggleHandDrawnMode() {
+    const next = !handDrawnMode(); setHandDrawnMode(next);
+    try { localStorage.setItem("sketchdraw-hand-drawn-mode", String(next)); } catch { /* Use the selected rendering for this session. */ }
+    scheduleCanvasRender();
+  }
   const orderedToolbarEntries = (): OrderedToolbarEntry[] => {
     const entries: OrderedToolbarEntry[] = [];
-    for (const value of toolbarOrder()) {
+    for (const value of visibleToolbarOrder()) {
       const definition = toolGroups.find(group => group.tools.includes(value));
       if (!definition) continue;
       const previous = entries[entries.length - 1];
@@ -7728,6 +7900,11 @@ function App() {
       recent={recentStencils()}
       masters={activeComponentMasters()}
       onInsertComponent={kind => { const component = LIBRARY_COMPONENTS.find(item => item.kind === kind); closeComponentLibrary(); if (component) insertDesignPaletteItem({ type: "component", kind, label: component.label }); }}
+      onInsertIcon={icon => {
+        closeComponentLibrary(); const side = 96; const center = canvasCenterWorld(); const ink = color();
+        const sticker: ShapeElement = { type: "svgPath", x: 0, y: 0, w: side, h: side, pathData: icon.path, pathWidth: 24, pathHeight: 24, color: ink, thickness: 1, fillColor: ink, fillOpacity: 1, svgStroke: false, fillRule: "nonzero", altText: icon.label };
+        insertCopies([sticker], { x: center.x - side / 2, y: center.y - side / 2 });
+      }}
       onInsertStencil={stencil => { closeComponentLibrary(); insertCustomStencil(stencil); }}
       onInsertMaster={master => { closeComponentLibrary(); insertComponentMaster(master); }}
       onToggleFavorite={toggleStencilFavorite}
@@ -7796,7 +7973,7 @@ function App() {
   const renderMoreToolsFamily = () => <Show when={!readOnlyView()}><div class="tool-family more-tools-family tool-extra-family" classList={{ "options-open": moreToolsOpen() }} onFocusOut={event => { if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null)) { setMoreToolsOpen(false); setMoreBrushPickerOpen(false); } }}>
     <button type="button" class="tool-icon-button has-options mobile-tool-essential" title="More Tools" aria-label="More Tools" aria-haspopup="menu" aria-expanded={moreToolsOpen()} onClick={() => { const opening = !moreToolsOpen(); if (!isWindowsPlatform() && isCompactTouchLayout()) closeTouchMenuBar(); setMoreToolsOpen(opening); setMoreBrushPickerOpen(false); setCanvasOptionsOpen(false); closeToolOptions(); setComponentLibraryOpen(false); scheduleTouchPopoverPlacement(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><svg class="tool-family-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></button>
     <div class="tool-options more-tools-options" role="menu" aria-label="More Tools">
-      <For each={moreToolsOrder()}>{renderMoreToolEntry}</For>
+      <For each={visibleMoreToolsOrder()}>{renderMoreToolEntry}</For>
       <div class="more-tools-divider" />
       <button type="button" role="menuitem" class="more-tools-customize" onClick={() => { setMoreToolsOpen(false); setToolbarOrganizerOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h7v14H4zM13 5h7v14h-7zM7 9h1m-1 4h1m8-4h2m-2 4h2"/></svg><span>Customize toolbar…</span></button>
     </div>
@@ -7857,7 +8034,7 @@ function App() {
       { id: "select-by-layer", label: "Select objects in selected layer", category: "Layers", keywords: "select all contents", run: () => { const key = selectedLayerKeys().find(value => value.startsWith("layer:")); const layer = key ? toolLayers().find(value => value.key === key) : undefined; if (!layer) { setLayerPanelOpen(true); setError("Select a layer in the Layers panel first."); } else setSelectedIndices(layer.indices.filter(index => !isElementHidden(elements()[index]) && !isElementLocked(elements()[index]))); } },
       { id: "import-image", label: "Import image", category: "Import", keywords: "png jpeg webp gif", run: () => void importImage() },
       { id: "import-svg", label: "Import SVG", category: "Import", keywords: "vector", run: () => void importSvg() },
-      { id: "import-editable-diagram", label: "Import diagram or diagram code", category: "Import", keywords: "diagram graphviz csv dot d2 mermaid plantuml drawio excalidraw", run: () => void importDiagramFile() },
+      { id: "import-editable-diagram", label: "Import diagram or diagram code", category: "Import", keywords: "diagram graphviz csv dot d2 mermaid plantuml drawio vsdx visio excalidraw", run: () => void importDiagramFile() },
       { id: "embed-web-page", label: "Embed web page on canvas", category: "Import", keywords: "website document link preview iframe", run: openWebEmbedDialog },
       { id: "import-schema", label: "Import SQL or JSON schema", category: "Import", keywords: "database tables", run: () => openSchemaDialog() },
       { id: "validate-diagram", label: "Validate diagram links and relationships", category: "Diagram", keywords: "errors dangling links foreign keys schema consistency", run: runDiagramValidation },
@@ -7882,6 +8059,7 @@ function App() {
       { id: "export-selection-svg", label: "Export selection as SVG", category: "Export", keywords: "selected objects vector", run: () => openSelectionExportOptions("svg") },
       { id: "export-selection-pdf", label: "Export selection as PDF", category: "Export", keywords: "selected objects print", run: () => openSelectionExportOptions("pdf") },
       { id: "export-drawio", label: "Export editable draw.io diagram", category: "Export", keywords: "mxgraph interchange", run: () => void exportEditableDiagram("drawio") },
+      { id: "export-vsdx", label: "Export editable Visio VSDX diagram", category: "Export", keywords: "visio vsdx interchange", run: () => void exportEditableDiagram("vsdx") },
       { id: "export-excalidraw", label: "Export editable Excalidraw scene", category: "Export", keywords: "json interchange", run: () => void exportEditableDiagram("excalidraw") },
       { id: "export-diagram-code", label: "Export diagram as code", category: "Export", keywords: "mermaid dot csv sql json schema plantuml", run: () => setDiagramCodeExportOpen(true) },
       { id: "export-pdf", label: "Print preview and export PDF", category: "Export", keywords: "page breaks margins", run: () => openExportOptions("pdf") },
@@ -8061,7 +8239,7 @@ function App() {
           />}>
           <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => alignTouchMenuPopover(menu)}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}</div>
             <Show when={workspaceArea() === "planning"}><button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button><button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button><button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button><button disabled={!planningPath() || planningSaving()} onClick={() => closeSystemMenu(() => { if (planningPath()) void closePlanningTab(planningPath()!); })}>Close plan</button><div class="menu-separator" /></Show><Show when={workspaceArea() !== "planning"}>
-            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open sketch as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save sketch <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save sketch as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importPdf())}>Import PDF for markup...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile())}>Import editable diagram/code...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked()} onClick={() => closeSystemMenu(openWebEmbedDialog)}>Embed web page...</button><div class="menu-separator" /><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(false))}>Export interactive HTML...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(true))}>Export clickable prototype...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("drawio"))}>Export draw.io...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("excalidraw"))}>Export Excalidraw...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => setDiagramCodeExportOpen(true))}>Export diagram code...</button><button disabled={!activePath() || !isCanvasWorkspace() || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close sketch</button>
+            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open sketch as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save sketch <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save sketch as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importPdf())}>Import PDF for markup...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile())}>Import editable diagram/code...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked()} onClick={() => closeSystemMenu(openWebEmbedDialog)}>Embed web page...</button><div class="menu-separator" /><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(false))}>Export interactive HTML...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(true))}>Export clickable prototype...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("drawio"))}>Export draw.io...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("vsdx"))}>Export Visio VSDX...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("excalidraw"))}>Export Excalidraw...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => setDiagramCodeExportOpen(true))}>Export diagram code...</button><button disabled={!activePath() || !isCanvasWorkspace() || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close sketch</button>
             <Show when={hasRetiredLibraryData(legacyLibraryData())}><button disabled={!activePath() || readOnlyView() || documentBusy() || nativeBusy()} onClick={() => closeSystemMenu(() => void exportRetiredLibraryArchive())}>Export retired Library data...</button></Show></Show>
           </div></details>
             <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={() => alignViewSettingsPopover()}>
@@ -8218,7 +8396,33 @@ function App() {
               onLaserChange={(key, value) => setLaserPreference(key, value)}
               onBucketColorChange={setFillColor}
             /></Show>
-            <canvas ref={canvas} class="drawing-canvas" classList={{ "color-vision-preview": colorVisionMode() !== "none" }} role="application" aria-roledescription="drawing canvas" aria-label={canvasAccessibleLabel()} title={hoverTooltip()} style={{ filter: colorVisionMode() === "none" ? undefined : `url(#sketchdraw-cvd-${colorVisionMode()})`, cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onWheel={handleCanvasWheel} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); updatePrototypeHover(undefined); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} />
+            <canvas ref={canvas} class="drawing-canvas" classList={{ "color-vision-preview": colorVisionMode() !== "none" }} role="application" aria-roledescription="drawing canvas" aria-label={canvasAccessibleLabel()} title={hoverTooltip()} style={{ filter: colorVisionMode() === "none" ? undefined : `url(#sketchdraw-cvd-${colorVisionMode()})`, cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onWheel={handleCanvasWheel} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={event => { if (!(event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest(".quick-add-arrows"))) { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); updatePrototypeHover(undefined); } }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} />
+            <Show when={isWindowsPlatform() && !readOnlyView() && !boardLocked() && tool() === "select" ? hoveredIndex() : undefined}>
+              {index => {
+                const item = elements()[index()];
+                if (!item || !isConnectable(item) || isConnector(item) || isElementLocked(item)) return null;
+                const bounds = elementBounds(item); const zoom = canvasState().zoom; const view = canvasState();
+                const directions: ("north" | "east" | "south" | "west")[] = ["north", "east", "south", "west"];
+                return <div class="quick-add-arrows" aria-label="Quick add connected copy" style={{ left: `${view.panX + bounds.x * zoom}px`, top: `${view.panY + bounds.y * zoom}px`, width: `${Math.max(20, bounds.w * zoom)}px`, height: `${Math.max(20, bounds.h * zoom)}px` }} onPointerDown={event => event.stopPropagation()} onPointerEnter={() => setHoveredIndex(index())}>
+                  <For each={directions}>{direction => <button type="button" class={`quick-add-arrow quick-add-arrow-${direction}`} aria-label={`Add connected copy ${direction}`} title={`Add connected copy ${direction}`} onClick={() => quickAddConnectedClone(index(), direction)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d={direction === "north" ? "M12 19V5m-6 6 6-6 6 6" : direction === "east" ? "M5 12h14m-6-6 6 6-6 6" : direction === "south" ? "M12 5v14m-6-6 6 6 6-6" : "M19 12H5m6-6-6 6 6 6"}/></svg></button>}</For>
+                </div>;
+              }}
+            </Show>
+            <CanvasComments
+              threads={currentPage()?.comments ?? []}
+              elements={elements()}
+              zoom={canvasState().zoom}
+              panX={canvasState().panX}
+              panY={canvasState().panY}
+              editable={!!activePath() && !readOnlyView() && !boardLocked()}
+              activeThreadId={activeCommentThreadId()}
+              selectedElementId={selectedElements()[0]?.id}
+              canvasAnchor={canvasCenterWorld()}
+              onCreate={addPageComment}
+              onReply={replyToPageComment}
+              onResolve={togglePageCommentResolved}
+              onSelect={setActiveCommentThreadId}
+            />
             <Show when={presentationMode() && presentationTransition()}><div class="canvas-presentation-transition" classList={{ "canvas-presentation-transition-fade": presentationTransition() === "fade", "canvas-presentation-transition-slide": presentationTransition() === "slide" }} aria-hidden="true" /></Show>
             <CanvasInteractionOverlay state={canvasState()} measurement={measurement()} nodeHandles={pathNodeHandles()} disabled={boardLocked() || readOnlyView()} onPathNodePointerDown={beginPathNodeEdit} onPathNodePointerMove={moveEditedPathNode} onPathNodePointerUp={finishPathNodeEdit} onPathNodePointerCancel={cancelPathNodeEdit} />
             <Show when={activeWebPreview()}>{preview => <Show when={elements().find((item): item is ImageElement => item.type === "image" && item.id === preview().id)}>{item => {
@@ -8353,6 +8557,9 @@ function App() {
               />
               <button class="tool-icon-button mobile-tool-essential touch-focus-entry" aria-label={isWindowsPlatform() && windowsFullscreenMode() ? "Exit full screen focus mode" : "Enter full screen focus mode"} title={isWindowsPlatform() && windowsFullscreenMode() ? "Exit full screen focus mode" : "Full screen focus mode"} onClick={() => isWindowsPlatform() ? void toggleWindowsFullscreen() : void toggleTouchFocusMode(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button>
               </div>
+              <Show when={isWindowsPlatform()}><button type="button" class={`tool-icon-button canvas-utility-button ${whiteboardMode() ? "selected" : ""}`} aria-pressed={whiteboardMode()} title={whiteboardMode() ? "Show all canvas tools" : "Switch to whiteboard tools"} aria-label={whiteboardMode() ? "Show all canvas tools" : "Switch to whiteboard tools"} onClick={toggleWhiteboardMode}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h7v7H4zM13 5h7v7h-7zM4 14h7v5H4zM15 14h5v5h-5z"/><path d="m7 8 1 1m8-1 1 1m-8 7 1 1m6-1 1 1"/></svg></button></Show>
+              <Show when={isWindowsPlatform()}><button type="button" class={`tool-icon-button canvas-utility-button ${handDrawnMode() ? "selected" : ""}`} aria-pressed={handDrawnMode()} title={handDrawnMode() ? "Turn off sketchy shape rendering" : "Use sketchy outlines and hatched fills"} aria-label={handDrawnMode() ? "Turn off sketchy rendering" : "Turn on sketchy rendering"} onClick={toggleHandDrawnMode}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c3-9 5 7 8-2s5 3 8-8"/><path d="M4 5h5M16 19h4"/></svg></button></Show>
+              <Show when={isWindowsPlatform()}><button type="button" class={`tool-icon-button canvas-utility-button ${inkToShapeMode() ? "selected" : ""}`} aria-pressed={inkToShapeMode()} title={inkToShapeMode() ? "Turn off ink to shape" : "Convert simple pen strokes to shapes and connectors"} aria-label={inkToShapeMode() ? "Turn off ink to shape" : "Turn on ink to shape"} onClick={toggleInkToShapeMode}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 3.2-.7L19 7.5a2.1 2.1 0 0 0-3-3L5.2 15.3 5 19Zm8.9-12.3 3 3"/><path d="M4 4h4M18 17h3M5 21h5"/></svg></button></Show>
               {orderedToolbarEntries().map(entry => <div class={`tool-cluster tool-cluster-${entry.id}`} classList={{ "mobile-cluster-has-essential": entry.tools.some(value => mobileEssentialTools.has(value)), "mobile-cluster-has-current": entry.tools.includes(tool()) }} role="group" aria-label={entry.label}>{entry.tools.map(renderToolbarItem)}</div>)}
 
               {renderMoreToolsFamily()}

@@ -2,7 +2,7 @@ import type { FontFamily, ShapeElement, Theme } from "../../model";
 import { labelBox, textFont, textLayout } from "../../operations";
 
 export function fontCss(family?: FontFamily): string {
-  return family === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive"
+  return family === "hand" ? "Caveat, 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', 'Chalkboard SE', cursive"
     : family === "serif" ? "Georgia, 'Times New Roman', serif"
       : family === "mono" ? "'Cascadia Mono', Consolas, monospace"
         : family === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif"

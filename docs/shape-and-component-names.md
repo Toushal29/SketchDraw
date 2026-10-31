@@ -1,5 +1,7 @@
 ﻿# SketchDraw shape and component catalog
 
+For local-coordinate paths, default component geometry, editable fields, rendered SVG, and connection points, see [shape-component-geometry.json](shape-component-geometry.json). Regenerate it after changing a shape or component definition with `npm run reference:shapes`.
+
 ## Canvas elements
 
 - Freehand stroke — Pen or stylus marks drawn directly on the canvas.
@@ -14,6 +16,12 @@
 - Note — Text card for notes or Markdown.
 - Sticky note — Compact colored note card.
 - Checklist — Note with checkable items.
+
+## Additional shape element types
+
+- Line — Connector between two points with straight, elbow, or curved routing.
+- Arrow — Directional connector with configurable route and arrowheads.
+- SVG path — Editable vector path with fill and stroke.
 
 ## Basic shapes
 
@@ -638,9 +646,40 @@
 - SQL — Relational schema import and export.
 - DBML — Text format for database models.
 - Graphviz DOT — Text format for graph descriptions.
-- Draw.io — XML format for diagram import.
+- Draw.io — Editable XML interchange for the supported diagram subset.
+- Excalidraw JSON — Editable JSON interchange for supported scene elements.
 - SVG — Scalable vector graphic format.
 - PDF — Portable document import and export format.
+
+## Import sources
+
+### Images and diagrams
+
+- Raster images — Imported and embedded on the canvas.
+- PDF pages — Imported as pages for markup.
+- SVG artwork — Supported vectors become editable paths; other artwork is embedded safely.
+- Draw.io XML — Imports supported shapes, text, styles, connectors, and waypoints; export is also available.
+- Excalidraw JSON — Imports supported scene elements; export is also available.
+- CSV — Creates editable diagrams or charts from tabular data.
+- JSON records and graph data — Creates editable nodes and relationships.
+- Graphviz DOT — Imports supported graph descriptions.
+- Mermaid — Imports supported flowchart and sequence syntax.
+- D2 — Imports supported nodes, groups, styles, and connectors.
+- PlantUML — Imports supported diagram subsets.
+
+### APIs, infrastructure, and schemas
+
+- OpenAPI — Creates editable API operation and schema maps.
+- Kubernetes YAML or JSON — Creates resource nodes and recognized relationships.
+- Terraform HCL or .tf.json — Imports resource, data, and module blocks.
+- Terraform plan or state JSON — Maps resources and planned changes.
+- Docker Compose YAML — Maps services, networks, volumes, and dependencies.
+- Ansible YAML — Maps plays, tasks, handlers, and roles.
+- AWS CloudFormation or CDK templates — Maps declared resources and dependencies.
+- Azure ARM templates — Maps Azure resources and dependencies.
+- Azure Bicep — Maps resource declarations and supported references.
+- SQL CREATE TABLE — Creates editable relational schema cards.
+- JSON table definitions or JSON Schema — Creates editable schema cards.
 
 ## Diagram guides and sample labels
 

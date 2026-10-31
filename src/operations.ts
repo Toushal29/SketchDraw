@@ -392,7 +392,7 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
   return resolveBindings(items.map(visit));
 }
 
-export const textFont = (text: Pick<TextElement, "italic" | "bold" | "fontSize" | "fontFamily">) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "'Comic Sans MS', 'Segoe Print', cursive" : text.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : text.fontFamily === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : text.fontFamily === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif"}`;
+export const textFont = (text: Pick<TextElement, "italic" | "bold" | "fontSize" | "fontFamily">) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "Caveat, 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', 'Chalkboard SE', cursive" : text.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : text.fontFamily === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : text.fontFamily === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif"}`;
 export function labelBox(shape: ShapeElement, labelOverride?: ShapeLabel) {
   // Keep padding proportional only while a shape is small. A fixed inset can
   // consume the entire label area on compact components such as UML lifelines.

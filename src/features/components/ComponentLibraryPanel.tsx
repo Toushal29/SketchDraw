@@ -2,11 +2,12 @@ import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "so
 import { Portal } from "solid-js/web";
 import type { ComponentMaster, Theme } from "../../model";
 import { LibraryComponentIcon } from "../../components/LibraryComponentIcon";
+import { ICON_STICKERS, type IconSticker } from "./icon-stickers";
 import { LIBRARY_COMPONENTS, type LibraryComponentKind } from "./library-components";
 import type { CustomStencil } from "./custom-stencils";
 import "./component-library-panel.css";
 
-type Filter = "all" | "gui" | "stencils" | "masters" | `section:${string}`;
+type Filter = "all" | "gui" | "icons" | "stencils" | "masters" | `section:${string}`;
 type StencilView = "all" | "recent" | "favorites";
 
 type Props = {
@@ -24,6 +25,7 @@ type Props = {
   onPointerEnter: () => void;
   onPointerLeave: () => void;
   onInsertComponent: (kind: LibraryComponentKind) => void;
+  onInsertIcon: (icon: IconSticker) => void;
   onInsertStencil: (stencil: CustomStencil) => void;
   onInsertMaster: (master: ComponentMaster) => void;
   onToggleFavorite: (id: string) => void;
@@ -42,6 +44,7 @@ const sectionName = (section: string) => {
 const filters: { id: Filter; label: string; count?: number }[] = [
   { id: "all", label: "All", count: LIBRARY_COMPONENTS.length },
   { id: "gui", label: "GUI design", count: LIBRARY_COMPONENTS.filter(component => component.section.startsWith("Forms & UI")).length },
+  { id: "icons", label: "Icons & stickers", count: ICON_STICKERS.length },
   ...[...new Set(LIBRARY_COMPONENTS.map(component => component.section))].sort().map(section => ({ id: `section:${section}` as const, label: sectionName(section), count: LIBRARY_COMPONENTS.filter(component => component.section === section).length })),
   { id: "stencils", label: "My stencils" },
   { id: "masters", label: "Document components" },
@@ -123,6 +126,15 @@ export function ComponentLibraryPanel(props: Props) {
     const normalizedQuery = query().trim().toLowerCase();
     return props.masters.filter(master => !normalizedQuery || `${master.name} ${master.template.map(item => item.type).join(" ")}`.toLowerCase().includes(normalizedQuery));
   });
+  const visibleIcons = createMemo(() => {
+    const normalizedQuery = query().trim().toLowerCase();
+    const groups = new Map<string, IconSticker[]>();
+    for (const icon of ICON_STICKERS) {
+      if (normalizedQuery && !`${icon.label} ${icon.category} ${icon.tags.join(" ")}`.toLowerCase().includes(normalizedQuery)) continue;
+      const entries = groups.get(icon.category) ?? []; entries.push(icon); groups.set(icon.category, entries);
+    }
+    return [...groups.entries()].map(([category, entries]) => ({ category, entries }));
+  });
 
   const selectFilter = (next: Filter) => { setFilter(next); setQuery(""); };
 
@@ -140,6 +152,14 @@ export function ComponentLibraryPanel(props: Props) {
               <div class="component-library-grid"><For each={group.entries}>{component => <button type="button" class="component-library-item" title={component.description} disabled={!props.canInsert} onClick={() => props.onInsertComponent(component.kind)}><LibraryComponentIcon kind={component.kind} loadProviderArtwork={props.open} /><span>{component.label}</span></button>}</For></div>
             </section>}</For>
             <Show when={!componentGroups().length}><p class="component-library-empty">No components found.</p></Show>
+          </Show>
+
+          <Show when={filter() === "icons"}>
+            <For each={visibleIcons()}>{group => <section class="component-library-group" aria-label={group.category}>
+              <h3>{group.category}<small>{group.entries.length}</small></h3>
+              <div class="component-library-grid"><For each={group.entries}>{icon => <button type="button" class="component-library-item" title={`${icon.label} · ${icon.tags.join(", ")}`} disabled={!props.canInsert} onClick={() => props.onInsertIcon(icon)}><svg class="component-library-icon-sticker" viewBox="0 0 24 24" aria-hidden="true"><path d={icon.path}/></svg><span>{icon.label}</span></button>}</For></div>
+            </section>}</For>
+            <Show when={!visibleIcons().length}><p class="component-library-empty">No icons match that search.</p></Show>
           </Show>
 
           <Show when={filter() === "stencils"}>
