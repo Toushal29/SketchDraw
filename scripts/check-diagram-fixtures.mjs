@@ -69,6 +69,7 @@ const extendedMermaidCases = [
   ["requirement", `requirementDiagram\n  requirement reqA {\n    id: 1\n    text: Keep data safe\n    risk: high\n    verifymethod: test\n  }\n  element Store {\n    type: database\n  }\n  Store - satisfies -> reqA`],
   ["quadrant", `quadrantChart\n  title Risk review\n  x-axis Low impact --> High impact\n  y-axis Low likelihood --> High likelihood\n  quadrant-1 High and high\n  quadrant-2 Low likelihood\n  point Alpha: [0.8, 0.7]\n  point Beta: [0.2, 0.3]`],
   ["kanban", `kanban\n  backlog[Backlog]\n    task1[Write spec]\n    task2[Review]\n  done[Done]\n    task3[Ship]`],
+  ["sankey", `sankey-beta\n  Source, Process, 4\n  Source, Review, 3\n  Process, Final, 2\n  Review, Final, 1`],
 ];
 for (const [expectedType, source] of extendedMermaidCases) {
   const parsed = mermaidExtended.layoutExtendedMermaid(source, { x: 0, y: 0 });
@@ -88,6 +89,9 @@ const quadrantDiagram = mermaidExtended.layoutExtendedMermaid(extendedMermaidCas
 assert.ok(quadrantDiagram.some(item => item.type === "text" && item.text === "High impact"), "Quadrant axes remain editable labels");
 const kanbanDiagram = mermaidExtended.layoutExtendedMermaid(extendedMermaidCases[5][1], { x: 0, y: 0 }).elements;
 assert.equal(kanbanDiagram.filter(item => item.type !== "group" && item.id?.startsWith("mermaid-node:")).length, 5, "Kanban columns and tasks become editable cards");
+const sankeyDiagram = mermaidExtended.layoutExtendedMermaid(extendedMermaidCases[6][1], { x: 0, y: 0 }).elements;
+assert.equal(sankeyDiagram.filter(item => (item.type === "line" || item.type === "arrow") && item.startBinding && item.endBinding).length, 4, "Sankey weights become editable attached relationships");
+assert.ok(sankeyDiagram.some(item => (item.type === "line" || item.type === "arrow") && item.label?.text === "4"), "Sankey flow values remain visible");
 
 const dotElements = dot.dotToDiagram(fixture("styles.dot"));
 assert.equal(dotElements.filter(item => item.type === "arrow").length, 1);
@@ -585,4 +589,4 @@ assert.match(metricsModule.metricsSummaryText(metricSummary), /Total: \$510\.5 Â
 assert.equal(metricsModule.summarizeMetrics([{ type: "rectangle", id: "n", x: 0, y: 0, w: 1, h: 1, color: "#000000", thickness: 1 }]).page.counted, 0);
 assert.deepEqual(metricsModule.normalizeMetrics({ cost: 5, capacity: "x", unit: " GB " }), { cost: 5, unit: "GB" }); assert.equal(metricsModule.normalizeMetrics({ cost: Infinity }), undefined); assert.equal(metricsModule.normalizeMetrics(null), undefined);
 
-process.stdout.write("Diagram fixtures passed: Mermaid flowchart, sequence, class, ER, state, journey, Gantt, C4, mind map, timeline, Git graph, requirement, quadrant, and Kanban; DOT styles, D2 groups and edge directions, CSV graph and chart mapping, 517 categorized modeling components, BPMN XML import/export and XML safety, OpenAPI callbacks and references, GraphQL, DBML, Protocol Buffers, Avro, Prisma, AsyncAPI 2/3, Structurizr DSL C4 model round-trip, dbt manifest lineage, path bounds, PlantUML subset errors, lasso selection, accessibility checks, and style library bindings.\n");
+process.stdout.write("Diagram fixtures passed: Mermaid flowchart, sequence, class, ER, state, journey, Gantt, C4, mind map, timeline, Git graph, requirement, quadrant, Kanban, and Sankey; DOT styles, D2 groups and edge directions, CSV graph and chart mapping, 517 categorized modeling components, BPMN XML import/export and XML safety, OpenAPI callbacks and references, GraphQL, DBML, Protocol Buffers, Avro, Prisma, AsyncAPI 2/3, Structurizr DSL C4 model round-trip, dbt manifest lineage, path bounds, PlantUML subset errors, lasso selection, accessibility checks, and style library bindings.\n");

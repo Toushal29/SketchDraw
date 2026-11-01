@@ -1,6 +1,6 @@
 import type { Element, Point, ShapeElement } from "../../model";
 
-export type ExtendedMermaidType = "class" | "er" | "state" | "journey" | "gantt" | "c4" | "mindmap" | "timeline" | "git" | "requirement" | "quadrant" | "kanban";
+export type ExtendedMermaidType = "class" | "er" | "state" | "journey" | "gantt" | "c4" | "mindmap" | "timeline" | "git" | "requirement" | "quadrant" | "kanban" | "sankey";
 type Node = { id: string; label: string; shape: "rectangle" | "rounded" | "diamond" | "circle"; role?: string };
 type Edge = { from: string; to: string; label: string; relation?: string };
 type Graph = { nodes: Node[]; edges: Edge[]; title?: string; sections?: string[]; metadata?: Record<string, string> };
@@ -19,6 +19,7 @@ export function detectExtendedMermaidType(source: string): ExtendedMermaidType |
   if (/^requirementDiagram\b/i.test(first)) return "requirement";
   if (/^quadrantChart\b/i.test(first)) return "quadrant";
   if (/^kanban\b/i.test(first)) return "kanban";
+  if (/^sankey-beta\b/i.test(first)) return "sankey";
   return undefined;
 }
 
@@ -49,7 +50,7 @@ function parseGraph(source: string, type: ExtendedMermaidType): Graph {
   for (const raw of source.replace(/\r/g, "").split("\n")) {
     const uncommented = raw.replace(/%%.*$/, ""); const indent = uncommented.match(/^\s*/)?.[0].length ?? 0;
     const line = uncommented.trim(); if (!line) continue;
-    if (/^(?:classDiagram|erDiagram|stateDiagram(?:-v2)?|C4(?:Context|Container|Component|Dynamic|Deployment)|mindmap|timeline|gitGraph|requirementDiagram|quadrantChart|kanban)\b/i.test(line)) continue;
+    if (/^(?:classDiagram|erDiagram|stateDiagram(?:-v2)?|C4(?:Context|Container|Component|Dynamic|Deployment)|mindmap|timeline|gitGraph|requirementDiagram|quadrantChart|kanban|sankey-beta)\b/i.test(line)) continue;
     if (/^direction\s+/i.test(line) || /^layout\s+/i.test(line) || /^dateFormat\s+/i.test(line) || /^axisFormat\s+/i.test(line) || /^tickInterval\s+/i.test(line) || /^excludes\s+/i.test(line) || /^includes\s+/i.test(line) || /^todayMarker\s+/i.test(line)) continue;
     if (/^title\s+/i.test(line)) { title = line.replace(/^title\s+/i, "").replace(/^(["'])(.*)\1$/, "$2"); continue; }
     const sectionMatch = /^section\s+(.+)$/i.exec(line); if (sectionMatch) { section = sectionMatch[1].trim(); sections.push(section); activeClass = ""; if (type === "timeline") previousTimelineEvent = ""; continue; }
@@ -150,6 +151,14 @@ function parseGraph(source: string, type: ExtendedMermaidType): Graph {
       continue;
     }
 
+    if (type === "sankey") {
+      const [sourceName, targetName, rawWeight, ...extra] = parseArgs(line);
+      const weight = Number(rawWeight);
+      if (!sourceName || !targetName || !rawWeight || !Number.isFinite(weight) || weight < 0 || extra.length) throw new Error(`Unsupported Mermaid Sankey syntax: ${line}`);
+      const from = get(sourceName, sourceName, "rectangle", "mermaid-sankey"); const to = get(targetName, targetName, "rectangle", "mermaid-sankey");
+      edges.push({ from, to, label: String(weight) }); continue;
+    }
+
     if (type === "class") {
       const block = /^class\s+([\w.]+)(?:\s*\[\s*([\s\S]*?)\s*\])?\s*\{?$/.exec(line);
       if (block) { activeClass = get(block[1], block[2] || block[1]); fields.set(activeClass, fields.get(activeClass) ?? []); continue; }
@@ -237,7 +246,7 @@ function graphLayout(graph: Graph, center: Point, type: ExtendedMermaidType): El
   const rank = new Map(graph.nodes.map(node => [node.id, 0])); const degree = new Map(incoming); const queue = graph.nodes.filter(node => !degree.get(node.id));
   for (let index = 0; index < queue.length; index++) for (const target of outgoing.get(queue[index].id) ?? []) { rank.set(target, Math.max(rank.get(target) ?? 0, (rank.get(queue[index].id) ?? 0) + 1)); degree.set(target, (degree.get(target) ?? 1) - 1); if (!degree.get(target)) queue.push(graph.nodes.find(node => node.id === target)!); }
   const levels = new Map<number, Node[]>(); graph.nodes.forEach(node => { const level = rank.get(node.id) ?? 0; levels.set(level, [...(levels.get(level) ?? []), node]); });
-  const maxRank = Math.max(...levels.keys()); const positions = new Map<string, ShapeElement>(); const horizontal = type === "class" || type === "c4";
+  const maxRank = Math.max(...levels.keys()); const positions = new Map<string, ShapeElement>(); const horizontal = type === "class" || type === "c4" || type === "sankey";
   for (const [level, members] of levels) members.forEach((node, index) => {
     const width = node.shape === "circle" ? 116 : 218; const height = node.shape === "circle" ? 96 : Math.max(78, Math.min(190, 48 + node.label.split("\n").length * 18));
     const major = (level - maxRank / 2) * 300; const minor = (index - (members.length - 1) / 2) * 166;
@@ -441,6 +450,14 @@ export function exportExtendedMermaid(type: ExtendedMermaidType, elements: Eleme
       for (const card of nodes.filter(node => node.componentRole === `mermaid-kanban-card:${column.id!.slice("mermaid-node:".length)}` || node.componentRole === `mermaid-kanban-card:${safeId(column.id!.slice("mermaid-node:".length), "column")}`)) {
         lines.push(`    ${safeId(card.id!.slice("mermaid-node:".length), "task")}[${quote((card.label?.text ?? "").split("\n")[0])}]`);
       }
+    }
+    return lines.join("\n") + "\n";
+  }
+  if (type === "sankey") {
+    const lines = ["sankey-beta"];
+    for (const { from, to, item } of relationships) {
+      const value = Number(item.label?.text ?? 0);
+      lines.push(`  ${quote((from.label?.text ?? "").split("\n")[0])}, ${quote((to.label?.text ?? "").split("\n")[0])}, ${Number.isFinite(value) ? value : 0}`);
     }
     return lines.join("\n") + "\n";
   }
