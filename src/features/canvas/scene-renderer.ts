@@ -1,7 +1,6 @@
 import type { ArrowHead, Bounds, CanvasSnapGuides, CanvasSnapTarget, CanvasState, EdgeStyle, Element, FreehandElement, Point, Preview, ShapeElement, StrokePoint, StrokeStyle, Tool } from "../../model";
 import { anchorPoint, connectionAnchorsFor, isConnectable, isConnector } from "../../operations";
 import { elementBounds } from "./bounds";
-import { drawConnectorBridges } from "../connectors/crossings";
 import { swimlaneDividerHandles } from "./swimlanes";
 import { ElementSpatialIndex, elementSpatialIndex } from "./spatial-index";
 import { SceneTileCache } from "./scene-tile-cache";
@@ -43,7 +42,6 @@ export type CanvasSceneRendererPorts = {
   selectedSet: () => Set<number>;
   moveOrigin: () => DragState | undefined;
   resizeOrigin: () => { original: Element; guides?: CanvasSnapGuides; endpointGuide?: { axis: "x" | "y"; coordinate: number; point: Point } } | undefined;
-  connectorLabelMoveActive: () => boolean;
   hoveredIndex: () => number | undefined;
   boardLocked: () => boolean;
   tool: () => Tool;
@@ -234,9 +232,6 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     const selected = ports.selectedSet();
     const currentMove = ports.moveOrigin();
     const currentResize = ports.resizeOrigin();
-    const connectorLabelMoving = ports.connectorLabelMoveActive();
-    const previewType = ports.preview()?.type;
-    const connectorDrawing = previewType === "line" || previewType === "arrow";
     const drag = includeSelection && sourceItems === ports.elements() && currentMove?.moved ? currentMove : undefined;
     const spatialItems = drag?.before ?? sourceItems;
     const queriedIndices = (spatialItems === ports.elements() ? ports.spatialIndex() : elementSpatialIndex(spatialItems)).query(viewport);
@@ -305,29 +300,6 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         }
       }
       ctx.restore();
-    }
-    // Intersections are quadratic in the number of connectors. Defer bridges
-    // while moving, resizing, drawing, or moving a connector label; the final
-    // stationary pass restores them.
-    if (!drag && !currentResize && !connectorDrawing && !connectorLabelMoving) {
-      const crossingCandidates: Element[] = [];
-      let crossingConnectorCount = 0;
-      let crossingsDisabled = false;
-      const collectVisible = (items: Element[]) => {
-        for (const item of items) {
-          if (ports.isHidden(item)) continue;
-          if (isConnector(item) && item.autoRoute && !ports.connectorMayIntersect(item, viewport, sourceItems)) continue;
-          const drawn = isConnector(item) && item.autoRoute ? ports.connectorForView(item, sourceItems) : item;
-          if (ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(drawn))) {
-            if (isConnector(drawn) && ++crossingConnectorCount > 160) { crossingsDisabled = true; return; }
-            crossingCandidates.push(drawn);
-          }
-          if (item.type === "group" && !item.container?.collapsed) collectVisible(item.elements);
-          if (crossingsDisabled) return;
-        }
-      };
-      collectVisible(sourceItems);
-      if (!crossingsDisabled) drawConnectorBridges(ctx, crossingCandidates, ports.renderedBoardColor());
     }
     const activeSnapGuides = drag?.guides ?? (includeSelection && sourceItems === ports.elements() ? currentResize?.guides : undefined);
     if (activeSnapGuides && (activeSnapGuides.x || activeSnapGuides.y)) {

@@ -1,5 +1,6 @@
 import type { GroupElement, Point } from "../../model";
 import { cloudNeutralComponent } from "../diagrams/cloud-providers";
+import { proposalComponentForKind } from "./proposal-components";
 
 export type ComponentPortStrategy =
   | { type: "outline-projected" }
@@ -39,6 +40,9 @@ const LINE_COMPONENTS = new Set(["uml-inheritance", "uml-realization", "uml-aggr
 const ER_RELATIONSHIP_SHAPES = new Set(["er-relationship", "er-identifying-relationship"]);
 
 export function componentPortStrategy(kind: string): ComponentPortStrategy {
+  const proposal = proposalComponentForKind(kind);
+  if (proposal?.archetype === "connector") return { type: "along-the-line", axis: "horizontal", inset: 0.04 };
+  if (proposal?.archetype === "table") return { type: "per-row", edge: "right", inset: 0.04 };
   if (LINE_COMPONENTS.has(kind)) return { type: "along-the-line", axis: "horizontal", inset: 0.04 };
   if (kind === "uml-lifeline" || kind === "uml-activation") return { type: "along-the-line", axis: "vertical", inset: 0.04 };
   if (kind === "gui-divider") return { type: "none" };
@@ -48,6 +52,17 @@ export function componentPortStrategy(kind: string): ComponentPortStrategy {
 }
 
 export function componentOutlinePath(kind: string, width = 100, height = 100): string {
+  const proposal = proposalComponentForKind(kind);
+  if (proposal) {
+    if (proposal.archetype === "decision") return DIAMOND;
+    if (proposal.archetype === "event") return ELLIPSE;
+    if (proposal.archetype === "connector") return "M 0 50 H 100";
+    if (proposal.archetype === "database") return "M 8 12 C 8 1 92 1 92 12 V 88 C 92 99 8 99 8 88 Z M 8 12 C 8 23 92 23 92 12";
+    if (proposal.archetype === "document") return "M 4 2 H 76 L 96 22 V 98 H 4 Z M 76 2 V 22 H 96";
+    if (proposal.archetype === "screen") return "M 2 8 Q 2 2 8 2 H 92 Q 98 2 98 8 V 92 Q 98 98 92 98 H 8 Q 2 98 2 92 Z M 2 18 H 98";
+    if (proposal.archetype === "sticky") return "M 3 3 H 97 V 82 L 82 97 H 3 Z M 82 97 V 82 H 97";
+    return RECT;
+  }
   if (kind === "bpmn-gateway" || kind === "bpmn-parallel-gateway" || kind === "bpmn-inclusive-gateway" || kind === "bpmn-event-gateway") {
     const side = Math.max(0, Math.min(width, height - 12, 58)); const cx = width / 2; const cy = side / 2;
     return `M ${pathPoint(cx, 0, width, height)} L ${pathPoint(cx + side / 2, cy, width, height)} L ${pathPoint(cx, side, width, height)} L ${pathPoint(cx - side / 2, cy, width, height)} Z`;
@@ -101,6 +116,8 @@ export function snapComponentDimension(value: number): number {
 }
 
 export function componentMinimumSize(kind: string): { w: number; h: number } {
+  const proposal = proposalComponentForKind(kind);
+  if (proposal) return { w: proposal.archetype === "connector" ? 80 : proposal.archetype === "event" || proposal.archetype === "decision" ? 65 : 100, h: proposal.archetype === "connector" ? 22 : proposal.archetype === "event" || proposal.archetype === "decision" ? 56 : 60 };
   if (cloudNeutralComponent(kind)) return { w: 90, h: 48 };
   if (kind.startsWith("viz-")) return kind === "viz-kpi" ? { w: 125, h: 75 } : { w: 150, h: 100 };
   if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) return { w: 75, h: 75 };
@@ -133,12 +150,14 @@ export function snapComponentSize(kind: string, width: number, height: number) {
 }
 
 export function componentGeometry(kind: string, width: number, height: number): ComponentGeometryDefinition {
-  const aspectLock = kind === "bpmn-start" || kind === "bpmn-gateway" || kind === "uml-initial-state" || kind === "uml-final-state" || kind === "uml-actor" || kind === "c4-person" || kind === "gui-avatar";
+  const proposal = proposalComponentForKind(kind);
+  const aspectLock = kind === "bpmn-start" || kind === "bpmn-gateway" || kind === "uml-initial-state" || kind === "uml-final-state" || kind === "uml-actor" || kind === "c4-person" || kind === "gui-avatar" || proposal?.archetype === "event" || proposal?.archetype === "decision";
   const minSize = componentMinimumSize(kind);
   const fixed = kind.startsWith("aws-") || kind.startsWith("azure-") || kind.startsWith("gcp-") ? ["icon"] : kind.startsWith("uml-") ? ["header"] : [];
   const gateway = kind === "bpmn-gateway" || kind === "bpmn-parallel-gateway" || kind === "bpmn-inclusive-gateway" || kind === "bpmn-event-gateway";
   const event = kind.startsWith("bpmn-") && /(?:start|event|end|boundary)/.test(kind);
-  const labelBox = kind === "uml-actor" ? { x: 0.08, y: 0.76, w: 0.84, h: 0.22 }
+  const labelBox = proposal?.archetype === "event" || proposal?.archetype === "decision" ? { x: 0.14, y: 0.32, w: 0.72, h: 0.5 }
+    : kind === "uml-actor" ? { x: 0.08, y: 0.76, w: 0.84, h: 0.22 }
     : kind === "c4-person" ? { x: 0.08, y: 0.7, w: 0.84, h: 0.28 }
       : kind.startsWith("aws-") || kind.startsWith("azure-") || kind.startsWith("gcp-") ? { x: 0.42, y: 0.25, w: 0.53, h: 0.7 }
         : kind === "form-checkbox" || kind === "form-radio" ? { x: 0.03, y: 0.03, w: 0.94, h: 0.2 }

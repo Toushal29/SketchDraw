@@ -4,6 +4,7 @@ import { cloudNeutralCanvasPath, cloudNeutralIconPath } from "./cloud-neutral-ic
 import { drawGuiComponent, guiComponentSvg } from "./gui-components";
 import { componentBaselineOffset, componentFont as sharedComponentFont, componentFontFamily } from "./component-text";
 import { normalizeComponentSvgText } from "./component-text";
+import { proposalComponentForKind } from "./proposal-components";
 
 type Palette = { ink: string; edge: string; fill: string; soft: string; muted: string; accent: string };
 function componentThemeToken(name: string, fallback: string, dark = false) {
@@ -207,6 +208,59 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
   const name = meta.label ?? kind.replace(/^(network|cloud|software|bpmn|c4)-/, "").replace(/-/g, " ");
   const field = (key: string) => componentFieldValue(group, key);
+  const proposal = proposalComponentForKind(kind);
+  if (proposal) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill;
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    if (proposal.archetype === "decision") {
+      ctx.beginPath(); ctx.moveTo(x + w / 2, y + 1); ctx.lineTo(x + w - 1, y + h / 2); ctx.lineTo(x + w / 2, y + h - 1); ctx.lineTo(x + 1, y + h / 2); ctx.closePath();
+      if (fill !== "transparent") ctx.fill(); ctx.stroke();
+    } else if (proposal.archetype === "event") {
+      ctx.beginPath(); ctx.ellipse(x + w / 2, y + h / 2, Math.max(1, w / 2 - 1), Math.max(1, h / 2 - 1), 0, 0, Math.PI * 2);
+      if (fill !== "transparent") ctx.fill(); ctx.stroke();
+    } else if (proposal.archetype === "database") {
+      const ry = Math.min(12, h * .15);
+      ctx.beginPath(); ctx.moveTo(x + w * .08, y + ry); ctx.bezierCurveTo(x + w * .08, y - ry * .25, x + w * .92, y - ry * .25, x + w * .92, y + ry);
+      ctx.lineTo(x + w * .92, y + h - ry); ctx.bezierCurveTo(x + w * .92, y + h + ry * .25, x + w * .08, y + h + ry * .25, x + w * .08, y + h - ry);
+      ctx.closePath(); if (fill !== "transparent") ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x + w / 2, y + ry, w * .42, ry, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (proposal.archetype === "document") {
+      const fold = Math.min(20, w * .18); ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + w - fold, y + 1); ctx.lineTo(x + w - 1, y + fold); ctx.lineTo(x + w - 1, y + h - 1); ctx.lineTo(x + 1, y + h - 1); ctx.closePath();
+      if (fill !== "transparent") ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x + w - fold, y + 1); ctx.lineTo(x + w - fold, y + fold); ctx.lineTo(x + w - 1, y + fold); ctx.stroke();
+    } else if (proposal.archetype === "screen") {
+      roundRect(ctx, x + 1, y + 1, w - 2, h - 2, 8); if (fill !== "transparent") ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + 1, y + Math.min(22, h * .17)); ctx.lineTo(x + w - 1, y + Math.min(22, h * .17)); ctx.stroke();
+      for (let index = 0; index < 3; index++) { ctx.beginPath(); ctx.arc(x + 10 + index * 9, y + 11, 2, 0, Math.PI * 2); ctx.fillStyle = defaultPalette.muted; ctx.fill(); }
+    } else if (proposal.archetype === "sticky") {
+      const fold = Math.min(18, w * .13, h * .18); ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + w - 1, y + 1); ctx.lineTo(x + w - 1, y + h - fold); ctx.lineTo(x + w - fold, y + h - 1); ctx.lineTo(x + 1, y + h - 1); ctx.closePath();
+      if (fill === "transparent") ctx.fillStyle = defaultPalette.soft; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + w - fold, y + h - 1); ctx.lineTo(x + w - fold, y + h - fold); ctx.lineTo(x + w - 1, y + h - fold); ctx.stroke();
+    } else if (proposal.archetype === "connector") {
+      ctx.beginPath(); ctx.moveTo(x + 3, y + h / 2); ctx.lineTo(x + w - 8, y + h / 2); ctx.lineTo(x + w - 15, y + h / 2 - 5); ctx.moveTo(x + w - 8, y + h / 2); ctx.lineTo(x + w - 15, y + h / 2 + 5); ctx.stroke();
+    } else {
+      if (proposal.archetype === "boundary") ctx.setLineDash([6, 4]);
+      roundRect(ctx, x + 1, y + 1, w - 2, h - 2, proposal.archetype === "boundary" ? 2 : 7);
+      if (fill !== "transparent") ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+      if (proposal.archetype === "table") {
+        const headerHeight = Math.min(28, h * .24); ctx.fillStyle = defaultPalette.soft; ctx.fillRect(x + 2, y + 2, Math.max(0, w - 4), headerHeight);
+        ctx.beginPath(); ctx.moveTo(x + 1, y + headerHeight); ctx.lineTo(x + w - 1, y + headerHeight); ctx.stroke();
+        const rowCount = Math.min(3, Math.max(1, (meta.componentFields ?? []).length));
+        for (let index = 1; index < rowCount; index++) { const rowY = y + headerHeight + (h - headerHeight) * index / rowCount; ctx.beginPath(); ctx.moveTo(x + 1, rowY); ctx.lineTo(x + w - 1, rowY); ctx.stroke(); }
+      }
+    }
+    if (proposal.archetype !== "connector") {
+      const center = proposal.archetype === "event" || proposal.archetype === "decision" || proposal.archetype === "sticky";
+      const titleY = proposal.archetype === "event" || proposal.archetype === "decision" ? y + h * .46 : proposal.archetype === "sticky" ? y + h * .34 : proposal.archetype === "screen" ? y + Math.min(39, h * .31) : proposal.archetype === "table" ? y + Math.min(19, h * .16) : y + Math.min(22, h * .2);
+      fittedComponentText(ctx, name, bounds, center ? x + w / 2 : x + 9, titleY, w - (center ? 20 : 18), size, textInk, 650, center ? "center" : "left", textStyle, 2);
+      const details = (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, 2);
+      const detailsStart = proposal.archetype === "table" ? y + h * .48 : proposal.archetype === "sticky" ? y + h * .58 : proposal.archetype === "event" || proposal.archetype === "decision" ? y + h * .7 : y + h * .54;
+      const available = Math.max(0, y + h - detailsStart - 7);
+      details.forEach((item, index) => fittedComponentText(ctx, `${item.label}: ${item.value}`, bounds, x + 9, detailsStart + available * (index + .5) / details.length, w - 18, Math.max(7, size * .68), textInk, 400, "left", textStyle, 2));
+    }
+    ctx.restore(); return;
+  }
   const provider = cloudProviderComponent(kind);
   if (provider) {
     ctx.save();

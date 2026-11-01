@@ -2,6 +2,7 @@ import type { Element, GroupElement, LibraryChartData, LibraryChartKind, Library
 import { CLOUD_NEUTRAL_COMPONENTS, CLOUD_PROVIDER_COMPONENTS, cloudProviderComponent, type CloudNeutralComponentKind, type CloudProviderComponentKind } from "../diagrams/cloud-providers";
 import { defaultGuiComponentProperties, GUI_COMPONENT_DEFINITIONS, isGuiComponentKind, type GuiComponentKind } from "./gui-components";
 import { componentGeometry, snapComponentSize, type ComponentGeometryDefinition } from "./component-geometry";
+import { PROPOSAL_COMPONENTS, proposalComponentFields, proposalComponentForKind, type ProposalComponentKind } from "./proposal-components";
 
 const text = (x: number, y: number, value: string, color = "#303638", size = 14, family: TextElement["fontFamily"] = "sans", bold = false): TextElement => ({
   type: "text", x, y, text: value, color, fontSize: size, fontFamily: family, bold, textAlign: "left", listType: "none",
@@ -12,7 +13,7 @@ const rect = (x: number, y: number, w: number, h: number, fill: string, color: s
 });
 
 type BaseLibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "uml-state" | "uml-initial-state" | "uml-final-state" | "uml-fork" | "uml-join" | "uml-component" | "uml-node" | "uml-artifact" | "uml-enumeration" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-associative-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-composite-attribute" | "er-key-attribute" | "er-partial-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-message-event" | "bpmn-timer-event" | "bpmn-error-event" | "bpmn-signal-event" | "bpmn-terminate-event" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-user-task" | "bpmn-service-task" | "bpmn-script-task" | "bpmn-call-activity" | "bpmn-subprocess" | "bpmn-data" | "bpmn-data-store" | "bpmn-text-annotation" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-proxy" | "network-bridge" | "network-bastion" | "network-gateway" | "network-printer" | "network-workstation" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | "uml-association" | "uml-dependency" | "uml-include" | "uml-extend" | "c4-code-element" | "c4-infrastructure-node" | "bpmn-manual-task" | "bpmn-business-rule-task" | "bpmn-send-task" | "bpmn-receive-task" | "network-subnet" | CloudProviderComponentKind | CloudNeutralComponentKind;
-export type LibraryComponentKind = BaseLibraryComponentKind | "db-view" | "db-index" | "db-procedure" | "uml-object" | "uml-activity-action" | "uml-activity-decision" | "uml-activity-initial" | "uml-activity-final" | "c4-container-instance" | "c4-component-instance" | "bpmn-group";
+export type LibraryComponentKind = BaseLibraryComponentKind | "db-view" | "db-index" | "db-procedure" | "uml-object" | "uml-activity-action" | "uml-activity-decision" | "uml-activity-initial" | "uml-activity-final" | "c4-container-instance" | "c4-component-instance" | "bpmn-group" | ProposalComponentKind;
 type LibraryComponentDefinition = { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number; geometry: ComponentGeometryDefinition };
 const COMPONENT_CATALOG: Omit<LibraryComponentDefinition, "geometry">[] = [
   { kind: "diagram-frame", section: "General | Layout", label: "Frame", description: "Resizable titled boundary for any diagram", width: 420, height: 280 },
@@ -159,6 +160,7 @@ const COMPONENT_CATALOG: Omit<LibraryComponentDefinition, "geometry">[] = [
   { kind: "network-gateway", section: "Network | Devices", label: "Gateway", description: "Gateway connecting two network domains", width: 150, height: 96 },
   { kind: "network-printer", section: "Network | Devices", label: "Printer", description: "Shared network printer endpoint", width: 130, height: 102 },
   { kind: "network-workstation", section: "Network | Devices", label: "Workstation", description: "User workstation on a local network", width: 150, height: 112 },
+  ...PROPOSAL_COMPONENTS.map(({ kind, section, label, description, width, height }) => ({ kind, section, label, description, width, height })),
 ];
 export const LIBRARY_COMPONENTS: LibraryComponentDefinition[] = COMPONENT_CATALOG.map(component => {
   const { w: width, h: height } = snapComponentSize(component.kind, component.width, component.height);
@@ -170,6 +172,19 @@ export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, 
   const width = LIBRARY_COMPONENTS.find(item => item.kind === kind)?.width;
   const height = LIBRARY_COMPONENTS.find(item => item.kind === kind)?.height;
   if (!width || !height) return undefined;
+  const proposal = proposalComponentForKind(kind);
+  if (proposal?.archetype === "connector") {
+    const bidirectional = /\b(communication|association|trace|dependency|relationship)\b/i.test(proposal.label);
+    const dashed = /\b(derive|refine|trace|dependency|message flow|import|invocation)\b/i.test(proposal.label);
+    const relationship: ShapeElement = {
+      type: "line", id: crypto.randomUUID(), componentRole: kind, relationshipType: "association",
+      x, y: y + height / 2, w: width, h: 0,
+      color: proposal.section.startsWith("Systems") ? "#7563ad" : "#46525b", thickness: 1.8,
+      lineStyle: dashed ? "dashed" : "solid", startHead: "none", endHead: bidirectional ? "open" : "solid",
+      lineRoute: "straight", label: { text: proposal.label, color: "#46525b", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" },
+    };
+    return relationship;
+  }
   const relationships: Partial<Record<LibraryComponentKind, { color: string; lineStyle: ShapeElement["lineStyle"]; startHead: ShapeElement["startHead"]; endHead: ShapeElement["endHead"] }>> = {
     "uml-inheritance": { color: "#7563ad", lineStyle: "solid", startHead: "none", endHead: "hollow" },
     "uml-realization": { color: "#7563ad", lineStyle: "dashed", startHead: "none", endHead: "hollow" },
@@ -238,7 +253,7 @@ export function defaultLibraryChartData(kind: LibraryComponentKind): LibraryChar
 }
 
 const cleanUmlKinds = new Set<LibraryComponentKind>(["uml-state", "uml-initial-state", "uml-final-state", "uml-fork", "uml-join", "uml-component", "uml-node", "uml-artifact", "uml-enumeration", "uml-object", "uml-activity-action", "uml-activity-decision", "uml-activity-initial", "uml-activity-final"]);
-export const usesCleanModelRenderer = (kind: LibraryComponentKind) => kind.startsWith("diagram-") || kind.startsWith("software-") || kind.startsWith("db-") || kind.startsWith("c4-") || kind.startsWith("bpmn-") || kind.startsWith("network-") && kind !== "network-access-point" || kind.startsWith("cloud-") || !!cloudProviderComponent(kind) || kind === "tech-service" || kind === "data-flow" || cleanUmlKinds.has(kind);
+export const usesCleanModelRenderer = (kind: LibraryComponentKind) => kind.startsWith("diagram-") || kind.startsWith("software-") || kind.startsWith("db-") || kind.startsWith("c4-") || kind.startsWith("bpmn-") || kind.startsWith("network-") && kind !== "network-access-point" || kind.startsWith("cloud-") || kind.startsWith("proposal-") || !!cloudProviderComponent(kind) || kind === "tech-service" || kind === "data-flow" || cleanUmlKinds.has(kind);
 
 const componentFields = (...fields: [key: string, label: string, hint: string][]): LibraryComponentFieldValue[] => fields.map(([key, label, hint]) => ({ key, label, hint, value: "" }));
 
@@ -415,6 +430,10 @@ for (const component of CLOUD_NEUTRAL_COMPONENTS) {
     ["region", "Region / location", "Region, zone, or deployment location"],
     ["configuration", "Configuration", "Important settings, policy, or dependencies"],
   );
+}
+
+for (const component of PROPOSAL_COMPONENTS) {
+  MODEL_COMPONENT_FIELDS[component.kind] = proposalComponentFields(component.kind);
 }
 
 export function defaultLibraryComponentFields(kind: LibraryComponentKind): LibraryComponentFieldValue[] {

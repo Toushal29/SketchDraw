@@ -424,6 +424,96 @@
   font-size: var(--type-caption);
 }
 
+.design-palette-category-index {
+  display: grid;
+  gap: 5px;
+  padding: 3px 4px 8px;
+}
+
+.design-palette-category-index > p {
+  margin: 3px 2px 5px;
+  color: var(--theme-text-tertiary);
+  font-size: var(--type-caption);
+}
+
+.design-palette-category-card {
+  display: flex;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 78%, transparent);
+  border-radius: 7px;
+  color: var(--theme-text-primary);
+  background: var(--theme-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-caption);
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.design-palette-category-card:hover,
+.design-palette-category-back:hover {
+  border-color: var(--ui-accent-border);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+}
+
+.design-palette-category-card > span {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.design-palette-category-card > small {
+  flex: 0 0 auto;
+  color: var(--theme-text-tertiary);
+  font-size: var(--type-micro);
+}
+
+.design-palette-category-heading {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 1px 3px 5px;
+}
+
+.design-palette-category-heading > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--theme-text-primary);
+  font-size: var(--type-caption);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.design-palette-category-back {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid var(--theme-border);
+  border-radius: 5px;
+  color: var(--theme-text-secondary);
+  background: var(--theme-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-micro);
+  touch-action: manipulation;
+}
+
+.design-palette-search-result-heading > span {
+  display: grid;
+  gap: 1px;
+}
+
+.design-palette-search-result-heading > span > small {
+  color: var(--theme-text-tertiary);
+  font-size: var(--type-micro);
+  font-weight: var(--font-weight-regular);
+}
+
 .design-toolbar .design-canvas-options {
   border-right: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 14%, transparent);
 }

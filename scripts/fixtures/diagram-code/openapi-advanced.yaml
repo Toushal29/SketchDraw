@@ -1,0 +1,74 @@
+openapi: 3.1.0
+info:
+  title: Orders API
+  version: 1.0.0
+servers:
+  - url: https://api.example.test/v1
+    description: Production
+tags:
+  - name: Orders
+    description: Order operations
+paths:
+  /orders:
+    parameters:
+      - $ref: '#/components/parameters/PageSize'
+    get:
+      operationId: listOrders
+      summary: List orders
+      tags: [Orders]
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+      callbacks:
+        onStatus:
+          '{$request.body#/callbackUrl}':
+            post:
+              operationId: orderStatusCallback
+              responses:
+                '204':
+                  description: Accepted
+webhooks:
+  order-event:
+    post:
+      operationId: receiveOrderEvent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderEvent'
+      responses:
+        '202':
+          description: Accepted
+components:
+  parameters:
+    PageSize:
+      name: limit
+      in: query
+      description: Maximum results
+      schema:
+        type: integer
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    Order:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+        event:
+          $ref: '#/components/schemas/OrderEvent'
+    OrderEvent:
+      type: object
+      properties:
+        status:
+          type: string

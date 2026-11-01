@@ -18,7 +18,7 @@ import type { NoteKind } from "./model";
 import { buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, defaultNoteTitle, toggleChecklistContent } from "./notes";
 import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "./features/components/library-components";
 import { parseSchema } from "./schema";
-import { schemaReferences } from "./features/diagrams/schema-visualizer";
+import { schemaRelationshipConnectors } from "./features/diagrams/schema-visualizer";
 import { importDrawioWithReport, importExcalidraw, exportDrawio, exportExcalidraw } from "./features/diagrams/interchange";
 import { importVsdx, exportVsdx } from "./features/diagrams/visio-vsdx";
 import { cloudProviderComponent, loadCloudProviderGlyph } from "./features/diagrams/cloud-providers";
@@ -36,6 +36,7 @@ import { dotToDiagram } from "./features/diagrams/dot";
 import { d2ToDiagram } from "./features/diagrams/d2";
 import { svgPrimitivesToElements } from "./features/diagrams/svg-vectors";
 import { exportDiagramCode, plantUmlToDiagram, type DiagramCodeFormat } from "./features/diagrams/code-formats";
+import { importBpmnXml } from "./features/diagrams/bpmn-xml";
 import { blueprintZip, buildBlueprintFiles, type BlueprintFormat } from "./features/diagrams/blueprint-export";
 import { makeWebPreviewCard, webEmbedUrl } from "./features/canvas/web-preview";
 import { assignLibraryComponentIds, libraryComponentFields, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryCheckboxOption, setLibraryFormState, setLibraryLifelineLength, setLibraryRadioOption, upgradeLegacyLibraryComponent } from "./features/components/library-component-editor";
@@ -234,7 +235,7 @@ function App() {
         await invoke("write_sketch_document", { uri, contents });
         return true;
       }
-      const labels: Record<DiagramCodeFormat | "html", string> = { html: "Interactive HTML viewer", mmd: "Mermaid flowchart", dot: "Graphviz DOT", d2: "D2 diagram", csv: "Diagram CSV", sql: "SQL schema", json: "JSON Schema", puml: "PlantUML" };
+      const labels: Record<DiagramCodeFormat | "html", string> = { html: "Interactive HTML viewer", mmd: "Mermaid flowchart", dot: "Graphviz DOT", d2: "D2 diagram", csv: "Diagram CSV", sql: "SQL schema", json: "JSON Schema", puml: "PlantUML", bpmn: "BPMN 2.0 XML", structurizr: "Structurizr DSL" };
       const selected = await save({ title: `Export ${labels[extension]}`, defaultPath: fileName, filters: [{ name: labels[extension], extensions: [extension] }] });
       if (!selected) return false;
       const target = selected.toLowerCase().endsWith(`.${extension}`) ? selected : `${selected}.${extension}`;
@@ -710,6 +711,7 @@ function App() {
   const [windowsFullscreenMode, setWindowsFullscreenMode] = createSignal(false);
   const [mobileQuickPropertiesOpen, setMobileQuickPropertiesOpen] = createSignal(false);
   const [designPanelCollapsed, setDesignPanelCollapsed] = createSignal(false);
+  const [schemaEditorCollapsed, setSchemaEditorCollapsed] = createSignal(false);
   const [touchStylePanel, setTouchStylePanel] = createSignal(false);
   const [gestureMenuSection, setGestureMenuSection] = createSignal<"taps" | "gestures">("taps");
   const [oneFingerTapAction, setOneFingerTapAction] = createSignal<TouchTapAction>(readTouchTapAction("sketchdraw-one-finger-tap", "none"));
@@ -1898,6 +1900,12 @@ function App() {
     const selected = selectedRootElement();
     return selected?.type === "schemaTable" ? selected : undefined;
   };
+  let lastSchemaEditorId = selectedSchemaTable()?.id;
+  createEffect(() => {
+    const schemaId = selectedSchemaTable()?.id;
+    if (schemaId !== lastSchemaEditorId) setSchemaEditorCollapsed(false);
+    lastSchemaEditorId = schemaId;
+  });
   let wasInDesignWorkspace = workspaceArea() === "design";
   let lastDesignSchemaId = selectedSchemaTable()?.id;
   // Reopen the Design dock on workspace entry and when selecting a different schema card.
@@ -4510,18 +4518,7 @@ function App() {
         return { type: "schemaTable", id: old?.id ?? crypto.randomUUID(), schemaDiagramId: diagramId, schemaSource: source, name: table.name, columns: fields, ...(table.indexes?.length ? { indexes: table.indexes } : {}), ...(table.constraints?.length ? { constraints: table.constraints } : {}), ...position, w: cardWidth(table), h: cardHeight(table), fontSize, rotation: old?.rotation ?? 0, opacity: old?.opacity ?? 1 };
       });
 
-      const byName = new Map(created.map(table => [table.name.toLowerCase(), table]));
-      const relations: ShapeElement[] = schemaReferences(parsedTables).flatMap(reference => {
-        const child = byName.get(reference.sourceTable.name.toLowerCase()); const parent = byName.get(reference.targetTable.name.toLowerCase());
-        const childField = child?.columns.find(column => column.name.toLowerCase() === reference.sourceColumn.name.toLowerCase());
-        const parentField = parent?.columns.find(column => column.name.toLowerCase() === reference.targetColumn.name.toLowerCase());
-        if (!child?.id || !parent?.id || !childField || !parentField) return [];
-        const parentIsLeft = parent.x + parent.w / 2 <= child.x + child.w / 2;
-        const startBinding: Binding = { elementId: parent.id, rowId: parentField.id, anchor: { x: parentIsLeft ? 1 : 0, y: .5 } };
-        const endBinding: Binding = { elementId: child.id, rowId: childField.id, anchor: { x: parentIsLeft ? 0 : 1, y: .5 } };
-        const start = anchorPoint(parent, startBinding.anchor, startBinding.rowId); const end = anchorPoint(child, endBinding.anchor, endBinding.rowId);
-        return [{ type: "line", id: crypto.randomUUID(), schemaDiagramId: diagramId, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: "#63859d", thickness: 1.6, lineStyle: "solid", startHead: "bar", endHead: "crow", autoRoute: true, lineRoute: "straight", startBinding, endBinding }];
-      });
+      const relations = schemaRelationshipConnectors(created, diagramId);
 
       let imported: Element[] = [...relations, ...created];
       if (!liveUpdate && !existing.length && created.length > 1) {
@@ -4538,6 +4535,11 @@ function App() {
             : isConnector(item) ? { ...item, x: item.x + dx, y: item.y + dy, routePoints: item.routePoints?.map(point => ({ x: point.x + dx, y: point.y + dy })), routeWaypoints: item.routeWaypoints?.map(point => ({ x: point.x + dx, y: point.y + dy })) } : item);
         }
       }
+      // Rebuild links after layout so row anchors use the final table positions,
+      // then route them as a set so parallel relationships keep clear paths.
+      const laidOutTables = imported.filter((item): item is SchemaTableElement => item.type === "schemaTable");
+      const laidOutRelations = schemaRelationshipConnectors(laidOutTables, diagramId);
+      imported = autoRouteConnectorSet([...laidOutRelations, ...laidOutTables], isElementHidden, isElementLocked);
       if (activePath() !== path || elements() !== beforeElements) return;
 
       const existingIds = new Set(existing.flatMap(table => table.id ? [table.id] : []));
@@ -5195,7 +5197,7 @@ function App() {
 
   const sceneRenderer = createCanvasSceneRenderer({
     elements, contentTransforms: groupEditTransforms, contextScenes: groupEditContextScenesMemo, groupEditBoundary, isHidden: isElementHidden, isLocked: isElementLocked, spatialIndex: () => activeElementSpatialIndex, canvasState, renderedBoardColor, whiteboardStyle, showGrid, gridSize: GRID_SIZE, selectedSet,
-    moveOrigin: () => moveOrigin, resizeOrigin: () => resizeOrigin, connectorLabelMoveActive: () => !!labelMoveOrigin,
+    moveOrigin: () => moveOrigin, resizeOrigin: () => resizeOrigin,
     hoveredIndex, boardLocked, tool, attachmentHint, marquee,
     tileCacheKey: () => `${theme()}|${canvasAssetRevision()}|${currentLayers().map(layer => `${layer.id}:${layer.hidden ? 1 : 0}`).join(",")}`, tileCacheAllowed: () => !textDraft() && !noteEditor() && !resizeOrigin && !labelMoveOrigin,
     laserTrail, laserThickness, preview, simulationTokenId: () => bpmnSimulationIndex() >= 0 ? bpmnSimulationSteps()[bpmnSimulationIndex()]?.elementId : undefined, currentPoints: () => currentPoints,
@@ -6488,26 +6490,41 @@ function App() {
     if (!activePath() || readOnlyView() || nativeBusy() || documentBusy() || boardLocked()) return;
     setNativeBusy(true);
     try {
-      const selected = await open({ title: "Import editable diagram or diagram code", multiple: false, filters: [{ name: "Diagrams, schemas, and infrastructure", extensions: ["drawio", "xml", "vsdx", "excalidraw", "csv", "json", "yaml", "yml", "tf", "tf.json", "tfstate", "tfplan", "bicep", "openapi", "ansible", "dot", "d2", "mmd", "mermaid", "puml", "plantuml"] }] });
+      const selected = await open({ title: "Import editable diagram or diagram code", multiple: false, filters: [{ name: "Diagrams, schemas, and infrastructure", extensions: ["drawio", "xml", "bpmn", "bpmn2", "vsdx", "excalidraw", "csv", "json", "yaml", "yml", "tf", "tf.json", "tfstate", "tfplan", "bicep", "openapi", "asyncapi", "ansible", "dot", "d2", "dsl", "structurizr", "mmd", "mermaid", "puml", "plantuml", "graphql", "graphqls", "gql", "dbml", "prisma", "proto", "proto3", "avsc", "avro"] }] });
       if (!selected || Array.isArray(selected)) return;
       const path = normalizeFileUri(selected); const fileName = path.split(/[\\/]/).pop() ?? ""; const extension = fileName.split(".").pop()?.toLowerCase();
       const source = extension === "vsdx" ? undefined : await readTextFile(selected);
       let imported: Element[]; let fidelityReport: { kept: number; simplified: number; skipped: number } | undefined;
       if (extension === "vsdx") imported = await importVsdx(await readFile(selected));
+      else if (extension === "bpmn" || extension === "bpmn2") imported = importBpmnXml(source!);
       else if (extension === "drawio" || extension === "xml") { const result = await importDrawioWithReport(source!); imported = result.elements; fidelityReport = result.report; }
       else if (extension === "excalidraw") imported = importExcalidraw(source!);
       else if (extension === "csv") imported = csvToDiagram(source!);
       else if (extension === "json" && /\.tf\.json$/i.test(fileName)) imported = terraformToDiagram(source!);
       else if (extension === "json" && /\.openapi\.json$/i.test(fileName)) imported = openApiToDiagram(source!);
+      else if (["graphql", "graphqls", "gql"].includes(extension ?? "")) { const { graphQlToDiagram } = await import("./features/diagrams/api-contracts"); imported = graphQlToDiagram(source!); }
+      else if (extension === "dbml") { const { dbmlToDiagram } = await import("./features/diagrams/api-contracts"); imported = dbmlToDiagram(source!); }
+      else if (extension === "prisma") { const { prismaToDiagram } = await import("./features/diagrams/api-contracts"); imported = prismaToDiagram(source!); }
+      else if (extension === "proto" || extension === "proto3") { const { protobufToDiagram } = await import("./features/diagrams/api-contracts"); imported = protobufToDiagram(source!); }
+      else if (extension === "avsc" || extension === "avro") { const { avroToDiagram } = await import("./features/diagrams/api-contracts"); imported = avroToDiagram(source!); }
+      else if (extension === "asyncapi") { const { asyncApiToDiagram } = await import("./features/diagrams/api-contracts"); imported = asyncApiToDiagram(source!); }
+      else if (extension === "dsl" || extension === "structurizr") { const { structurizrDslToDiagram } = await import("./features/diagrams/structurizr-dsl"); imported = structurizrDslToDiagram(source!); }
       else if (extension === "json") {
-        const data = JSON.parse(source!) as Record<string, unknown>;
+        if (source!.length > 5_000_000) throw new Error("JSON diagram input is limited to 5 MB.");
+        const parsed = JSON.parse(source!) as unknown; const data = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
         if (typeof data.openapi === "string" || typeof data.swagger === "string") imported = openApiToDiagram(source!);
+        else if (typeof data.asyncapi === "string") { const { asyncApiToDiagram } = await import("./features/diagrams/api-contracts"); imported = asyncApiToDiagram(parsed); }
+        else if (data.metadata && typeof data.metadata === "object" && data.nodes && typeof data.nodes === "object" && typeof (data.metadata as Record<string, unknown>).dbt_version === "string") { const { dbtManifestToDiagram } = await import("./features/diagrams/data-pipeline"); imported = dbtManifestToDiagram(parsed); }
+        else if (["record", "enum", "fixed"].includes(String(data.type)) && (data.fields || data.symbols || data.size !== undefined) || Array.isArray(parsed) && parsed.some(item => { const record = item && typeof item === "object" ? item as Record<string, unknown> : {}; return ["record", "enum", "fixed"].includes(String(record.type)); })) { const { avroToDiagram } = await import("./features/diagrams/api-contracts"); imported = avroToDiagram(parsed); }
         else if (data.Resources && typeof data.Resources === "object") imported = cloudFormationToDiagram(source!);
         else if (Array.isArray(data.resources) && (data.$schema || data.contentVersion || data.parameters)) imported = azureArmToDiagram(source!);
         else if (Array.isArray(data.resource_changes) || Array.isArray(data.resource_drift) || data.values && typeof data.values === "object") imported = terraformToDiagram(source!);
         else imported = jsonToDiagram(source!);
       }
-      else if (extension === "yaml" || extension === "yml" || extension === "openapi" || extension === "ansible") imported = structuredYamlToDiagram(source!);
+      else if (extension === "yaml" || extension === "yml" || extension === "openapi" || extension === "ansible") {
+        if (/^\s*["']?asyncapi["']?\s*:/m.test(source!)) { const { asyncApiToDiagram } = await import("./features/diagrams/api-contracts"); imported = asyncApiToDiagram(source!); }
+        else imported = structuredYamlToDiagram(source!);
+      }
       else if (extension === "tf") imported = terraformToDiagram(source!);
       else if (extension === "tfstate" || extension === "tfplan") imported = terraformToDiagram(source!);
       else if (extension === "bicep") imported = bicepToDiagram(source!);
@@ -6515,7 +6532,7 @@ function App() {
       else if (extension === "d2") imported = d2ToDiagram(source!);
       else if (extension === "mmd" || extension === "mermaid") { placeMermaidDiagram(source!); setError(""); return; }
       else if (extension === "puml" || extension === "plantuml") { placePlantUmlDiagram(source!); setError(""); return; }
-      else throw new Error("Choose a draw.io, Visio VSDX, Excalidraw, CSV/JSON data, OpenAPI, CloudFormation/CDK, Azure ARM/Bicep, Docker Compose, Ansible, Kubernetes, Terraform config/plan/state, DOT, D2, Mermaid, or PlantUML file.");
+      else throw new Error("Choose a draw.io, Visio VSDX, Excalidraw, CSV/JSON data, dbt manifest, BPMN, OpenAPI/AsyncAPI, GraphQL, DBML, Prisma, Protocol Buffers, Avro, Structurizr DSL, CloudFormation/CDK, Azure ARM/Bicep, Docker Compose, Ansible, Kubernetes, Terraform config/plan/state, DOT, D2, Mermaid, or PlantUML file.");
       placeImportedElements(imported); setError("");
       if (fidelityReport) setImportSummary({ fileName, ...fidelityReport });
     } catch (cause) { setError(`Could not import editable diagram: ${String(cause)}`); }
@@ -6607,9 +6624,13 @@ function App() {
     } catch (cause) { setError(`Could not export interactive HTML: ${cause instanceof Error ? cause.message : String(cause)}`); } finally { setNativeBusy(false); }
   }
 
-  const diagramCodeLimitations = () => diagramCodeFormat() === "mmd"
-    ? "Mermaid keeps supported node shapes, labels, subgraph frames, and common connector styles. Exact coordinates and advanced Mermaid directives are simplified."
-    : diagramCodeFormat() === "dot"
+  const diagramCodeLimitations = () => diagramCodeFormat() === "bpmn"
+    ? "BPMN 2.0 keeps supported process nodes, sequence/message/data relationships, IDs, labels, and diagram bounds. Unsupported extensions and some event, lane, and collaboration semantics are simplified."
+    : diagramCodeFormat() === "structurizr"
+      ? "Structurizr DSL exports supported C4 model elements and relationships. Views, deployment environments, perspectives, styling, and other DSL directives are simplified or omitted."
+    : diagramCodeFormat() === "mmd"
+      ? "Mermaid keeps supported node shapes, labels, subgraph frames, and common connector styles. Exact coordinates and advanced Mermaid directives are simplified."
+      : diagramCodeFormat() === "dot"
       ? "DOT keeps common node shapes, colors, fills, widths, line styles, labels, and arrowheads. Nested subgraphs and exact coordinates are simplified."
       : diagramCodeFormat() === "puml"
         ? "PlantUML exports a class/object subset. Members and simple relationship labels are kept; layout, stereotypes, notes, and behavior are simplified."
@@ -8219,6 +8240,8 @@ function App() {
     else setMobileQuickPropertiesOpen(value => !value);
   };
   const toggleDesignPanel = () => setDesignPanelCollapsed(value => !value);
+  const toggleSchemaEditorPanel = () => workspaceArea() === "design" ? toggleDesignPanel() : setSchemaEditorCollapsed(value => !value);
+  const schemaEditorPanelCollapsed = () => workspaceArea() === "design" ? designPanelCollapsed() : schemaEditorCollapsed();
   const openAdvancedProperties = () => { setMobileQuickPropertiesOpen(true); setStyleMenuMode("full"); };
   const penBrushChoices: { value: BrushMode; label: string; path: string }[] = [
     { value: "fine", label: "Pen", path: "m5 19 13-14M4 21h16" },
@@ -9066,12 +9089,12 @@ function App() {
                 <button class="quiet-button layer-create-button" type="button" disabled={boardLocked() || !selectedIndices().length} onClick={createLayerFromSelection}>Create layer from selection</button>
               </aside>
             </Show>
-            <Show when={sidebarVisible() && (workspaceArea() === "design" || isWindowsPlatform() || !isCompactTouchLayout() || !!selectedSchemaTable() || styleMenuMode() === "full" && mobileQuickPropertiesOpen())}><aside class="style-pane" classList={{ "quick-style-mode": workspaceArea() !== "design" && styleMenuMode() === "quick", "full-style-mode": workspaceArea() !== "design" && styleMenuMode() === "full", "schema-editor-active": !!selectedSchemaTable(), "design-palette-active": workspaceArea() === "design" && !selectedSchemaTable(), "design-panel-collapsed": workspaceArea() === "design" && designPanelCollapsed(), "mobile-properties-collapsed": workspaceArea() !== "design" && !mobileQuickPropertiesOpen() && !selectedSchemaTable(), "mobile-properties-expanded": workspaceArea() === "design" ? !designPanelCollapsed() : mobileQuickPropertiesOpen() || !!selectedSchemaTable(), "quick-style-idle-hidden": workspaceArea() !== "design" && styleMenuMode() === "quick" && !selectedIndices().length && (tool() === "select" || tool() === "pan" || tool() === "crop") }} aria-label={workspaceArea() === "design" ? selectedSchemaTable() ? "Schema editor" : "Design shape library" : selectedSchemaTable() ? "Schema editor" : "Properties"}>
+            <Show when={sidebarVisible() && (workspaceArea() === "design" || isWindowsPlatform() || !isCompactTouchLayout() || !!selectedSchemaTable() || styleMenuMode() === "full" && mobileQuickPropertiesOpen())}><aside class="style-pane" classList={{ "quick-style-mode": workspaceArea() !== "design" && styleMenuMode() === "quick", "full-style-mode": workspaceArea() !== "design" && styleMenuMode() === "full", "schema-editor-active": !!selectedSchemaTable(), "schema-editor-collapsed": !!selectedSchemaTable() && workspaceArea() !== "design" && schemaEditorCollapsed(), "design-palette-active": workspaceArea() === "design" && !selectedSchemaTable(), "design-panel-collapsed": workspaceArea() === "design" && designPanelCollapsed(), "mobile-properties-collapsed": workspaceArea() !== "design" && !mobileQuickPropertiesOpen() && !selectedSchemaTable(), "mobile-properties-expanded": workspaceArea() === "design" ? !designPanelCollapsed() : mobileQuickPropertiesOpen() || (!!selectedSchemaTable() && !schemaEditorCollapsed()), "quick-style-idle-hidden": workspaceArea() !== "design" && styleMenuMode() === "quick" && !selectedIndices().length && (tool() === "select" || tool() === "pan" || tool() === "crop") }} aria-label={workspaceArea() === "design" ? selectedSchemaTable() ? "Schema editor" : "Design shape library" : selectedSchemaTable() ? "Schema editor" : "Properties"}>
               <Show when={workspaceArea() === "design" && !selectedSchemaTable()}>
                 <DesignShapePalette collapsed={designPanelCollapsed()} disabled={!activePath() || readOnlyView() || boardLocked()} stencils={customStencils()} masters={activeComponentMasters()} onToggle={toggleDesignPanel} onInsert={insertDesignPaletteItem} />
               </Show>
               <Show when={selectedSchemaTable()}>{table => <div class="quick-style-panel schema-editor-panel">
-                <header class="schema-editor-heading"><div><span>DATABASE SCHEMA VISUALIZER</span><strong>{table().name}</strong></div><small>LIVE</small><Show when={workspaceArea() === "design"}><button type="button" class="design-library-back" onClick={() => setSelectedIndices([])}>Library</button><button type="button" class="design-panel-toggle" aria-label={designPanelCollapsed() ? "Expand schema editor" : "Collapse schema editor"} title={designPanelCollapsed() ? "Expand panel" : "Collapse panel"} aria-expanded={!designPanelCollapsed()} onClick={toggleDesignPanel}><svg viewBox="0 0 20 20" aria-hidden="true"><path d={designPanelCollapsed() ? "M4 10h12m-5-5 5 5-5 5" : "M16 10H4m5-5-5 5 5 5"} /></svg></button></Show></header>
+                <header class="schema-editor-heading"><div><span>DATABASE SCHEMA VISUALIZER</span><strong>{table().name}</strong></div><small>LIVE</small><Show when={workspaceArea() === "design"}><button type="button" class="design-library-back" onClick={() => setSelectedIndices([])}>Library</button></Show><button type="button" class="design-panel-toggle" aria-label={schemaEditorPanelCollapsed() ? "Expand schema editor" : "Collapse schema editor"} title={schemaEditorPanelCollapsed() ? "Expand schema editor" : "Collapse schema editor"} aria-expanded={!schemaEditorPanelCollapsed()} onClick={toggleSchemaEditorPanel}><svg viewBox="0 0 20 20" aria-hidden="true"><path d={schemaEditorPanelCollapsed() ? "M4 10h12m-5-5 5 5-5 5" : "M16 10H4m5-5-5 5 5 5"} /></svg></button></header>
                 <div class="schema-editor-actions"><button class="quiet-button" type="button" title="Changes redraw the linked cards on the canvas." aria-label="Load SQL or JSON schema file" disabled={boardLocked() || readOnlyView()} onClick={() => void loadSchemaSourceFile(true)}>Load file</button></div>
                 <textarea ref={element => { schemaPanelTextarea = element; }} class="schema-side-input" aria-label="Edit selected schema source" aria-invalid={!!schemaError()} spellcheck={false} rows="12" disabled={boardLocked() || readOnlyView()} value={schemaInput()} onInput={event => scheduleSchemaVisualUpdate(event.currentTarget.value)} onBlur={flushSchemaVisualUpdate} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, scheduleSchemaVisualUpdate); }} />
                 <Show when={schemaError()}><small class="schema-editor-error" role="alert">{schemaError()}</small></Show>
@@ -9510,7 +9533,7 @@ function App() {
         <Show when={csvChartError()}><p class="mermaid-preview-error" role="alert">{csvChartError()}</p></Show>
         <div><button class="quiet-button" onClick={closeCsvChartDialog}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={createChartFromCsv}>{csvEditingChartId() ? "Update chart" : "Create editable chart"}</button></div>
       </section></div></Show>
-      <Show when={diagramCodeExportOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setDiagramCodeExportOpen(false); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="diagram-code-export-title"><header><div><span class="eyebrow">DIAGRAM CODE</span><h2 id="diagram-code-export-title">Export editable diagram data</h2></div><button class="help-close" aria-label="Close code export" onClick={() => setDiagramCodeExportOpen(false)}>&times;</button></header><p>Mermaid, DOT, D2, CSV, and PlantUML export shape labels and simple connector relationships. D2 preserves basic shape types and colors. SQL and JSON Schema export editable database table cards; JSON Schema uses SketchDraw extensions to preserve SQL types and key metadata. Unsupported details are simplified to the format's supported subset.</p><div class="export-scope"><button class={diagramCodeScope() === "page" ? "active" : ""} onClick={() => setDiagramCodeScope("page")}>Current page</button><button class={diagramCodeScope() === "selection" ? "active" : ""} disabled={!selectedIndices().length} onClick={() => setDiagramCodeScope("selection")}>Selection</button></div><p class="diagram-code-limitations">{diagramCodeLimitations()}</p><label>Format<select value={diagramCodeFormat()} onChange={event => setDiagramCodeFormat(event.currentTarget.value as DiagramCodeFormat)}><option value="mmd">Mermaid flowchart / sequence (.mmd)</option><option value="dot">Graphviz DOT (.dot)</option><option value="d2">D2 diagram (.d2)</option><option value="csv">Nodes and relationships (.csv)</option><option value="puml">PlantUML class/object diagram (.puml)</option><option value="sql">SQL schema (.sql)</option><option value="json">JSON Schema (.json)</option></select></label><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setDiagramCodeExportOpen(false)}>Cancel</button><button class="save-button" disabled={nativeBusy() || documentBusy() || !elements().length} onClick={() => void exportDiagramAsCode()}>{nativeBusy() ? "Exporting…" : "Export file"}</button></div></section></div></Show>
+      <Show when={diagramCodeExportOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setDiagramCodeExportOpen(false); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="diagram-code-export-title"><header><div><span class="eyebrow">DIAGRAM CODE</span><h2 id="diagram-code-export-title">Export editable diagram data</h2></div><button class="help-close" aria-label="Close code export" onClick={() => setDiagramCodeExportOpen(false)}>&times;</button></header><p>Mermaid, DOT, D2, CSV, PlantUML, BPMN 2.0, and Structurizr DSL export supported node and connector semantics. D2 preserves basic shape types and colors. SQL and JSON Schema export editable database table cards; JSON Schema uses SketchDraw extensions to preserve SQL types and key metadata. Unsupported details are simplified to the format's supported subset.</p><div class="export-scope"><button class={diagramCodeScope() === "page" ? "active" : ""} onClick={() => setDiagramCodeScope("page")}>Current page</button><button class={diagramCodeScope() === "selection" ? "active" : ""} disabled={!selectedIndices().length} onClick={() => setDiagramCodeScope("selection")}>Selection</button></div><p class="diagram-code-limitations">{diagramCodeLimitations()}</p><label>Format<select value={diagramCodeFormat()} onChange={event => setDiagramCodeFormat(event.currentTarget.value as DiagramCodeFormat)}><option value="mmd">Mermaid flowchart / sequence (.mmd)</option><option value="dot">Graphviz DOT (.dot)</option><option value="d2">D2 diagram (.d2)</option><option value="csv">Nodes and relationships (.csv)</option><option value="puml">PlantUML class/object diagram (.puml)</option><option value="bpmn">BPMN 2.0 XML (.bpmn)</option><option value="structurizr">Structurizr DSL (.dsl)</option><option value="sql">SQL schema (.sql)</option><option value="json">JSON Schema (.json)</option></select></label><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setDiagramCodeExportOpen(false)}>Cancel</button><button class="save-button" disabled={nativeBusy() || documentBusy() || !elements().length} onClick={() => void exportDiagramAsCode()}>{nativeBusy() ? "Exporting…" : "Export file"}</button></div></section></div></Show>
       <Show when={importSummary()}>{summary => <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setImportSummary(undefined); }}><section class="confirm-dialog import-fidelity-dialog" role="dialog" aria-modal="true" aria-labelledby="import-fidelity-title"><header><div><span class="eyebrow">DRAW.IO IMPORT</span><h2 id="import-fidelity-title">Import fidelity</h2></div><button class="help-close" aria-label="Close import report" onClick={() => setImportSummary(undefined)}>&times;</button></header><p>{summary().fileName} was added as editable SketchDraw objects. The import supports common shapes, text, styles, connectors, and waypoints.</p><dl><div><dt>Kept</dt><dd>{summary().kept}</dd></div><div><dt>Simplified</dt><dd>{summary().simplified}</dd></div><div><dt>Skipped</dt><dd>{summary().skipped}</dd></div></dl><footer><button class="save-button" onClick={() => setImportSummary(undefined)}>Done</button></footer></section></div>}</Show>
       <Show when={mermaidDialog()}>
         <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) closeMermaidDialog(); }}>

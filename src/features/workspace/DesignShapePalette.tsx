@@ -19,26 +19,42 @@ export type DesignPaletteItem =
   | { type: "component-master"; master: ComponentMaster; label: string };
 
 type PaletteEntry = { item: DesignPaletteItem; searchText: string };
-type PaletteSection = { name: string; entries: PaletteEntry[] };
+type PaletteSection = { name: string; category: string; entries: PaletteEntry[] };
 
 const COMPONENT_GROUPS = [
-  { name: "Diagram structure", sources: ["General"] },
-  { name: "Database", sources: ["ER", "Database"] },
-  { name: "Architecture", sources: ["Architecture"] },
-  { name: "GUI design", sources: ["Forms & UI"] },
-  { name: "Software", sources: ["Software"] },
-  { name: "Cloud", sources: ["Cloud"] },
-  { name: "Network", sources: ["Network"] },
-  { name: "UML", sources: ["UML"] },
-  { name: "BPMN", sources: ["BPMN"] },
-  { name: "Data visualization", sources: ["Data visualization"] },
-  { name: "Text & annotations", sources: ["Annotations & aids"] },
+  { name: "Diagram structure", category: "Diagram structure", sources: ["General"] },
+  { name: "Database", category: "Database, data & schemas", sources: ["ER", "Database", "Data & schemas"] },
+  { name: "Architecture", category: "Software architecture & integration", sources: ["Architecture", "Architecture patterns"] },
+  { name: "GUI design", category: "Wireframing & UI", sources: ["Forms & UI", "Wireframing & UI"] },
+  { name: "Software", category: "Software architecture & integration", sources: ["Software"] },
+  { name: "Cloud", category: "Cloud", sources: ["Cloud"] },
+  { name: "Network", category: "Network", sources: ["Network"] },
+  { name: "UML", category: "Systems engineering & UML", sources: ["UML", "Systems engineering"] },
+  { name: "BPMN", category: "BPMN & decision modelling", sources: ["BPMN", "Decision modelling"] },
+  { name: "Visual planning & decision", category: "Visual planning & decisions", sources: ["Visual planning"] },
+  { name: "Data visualization", category: "Data visualization", sources: ["Data visualization"] },
+  { name: "Text & annotations", category: "Drawing basics", sources: ["Annotations & aids"] },
+] as const;
+
+const PALETTE_CATEGORY_ORDER = [
+  "Drawing basics",
+  "Systems engineering & UML",
+  "BPMN & decision modelling",
+  "Database, data & schemas",
+  "Software architecture & integration",
+  "Visual planning & decisions",
+  "Wireframing & UI",
+  "Cloud",
+  "Network",
+  "Data visualization",
+  "Diagram structure",
+  "My stencils",
+  "Reusable components",
 ] as const;
 
 const COMPONENT_GROUP_BY_SOURCE = new Map<string, string>(
   COMPONENT_GROUPS.flatMap(group => group.sources.map(source => [source, group.name] as const)),
 );
-
 const connectorPresets: Omit<Extract<DesignPaletteItem, { type: "connector" }>, "type">[] = [
   { connector: "line", route: "straight", lineStyle: "solid", startHead: "none", endHead: "none", label: "Straight line" },
   { connector: "line", route: "elbow", lineStyle: "solid", startHead: "none", endHead: "none", label: "Elbow line" },
@@ -95,26 +111,27 @@ function createPaletteSections(stencils: CustomStencil[], masters: ComponentMast
     searchText: `${preset.label} ${preset.connector} connector ${preset.route} ${preset.lineStyle} line arrow C4 relationship BPMN sequence flow message flow data association`,
   }));
   const sections: PaletteSection[] = [
-    { name: "Basic shapes", entries: basicShapeEntries },
-    { name: "Connectors", entries: connectorEntries },
-    { name: "Flowchart", entries: FLOWCHART_SHAPES.map(shape => ({ item: { type: "flowchart", shape: shape.value, label: shape.label }, searchText: `${shape.label} flowchart ${shape.value}` })) },
-    { name: "Database", entries: databaseEntries },
-    { name: "Architecture", entries: architectureEntries },
-    { name: "GUI design", entries: components.get("GUI design")! },
-    { name: "Software", entries: components.get("Software")! },
-    { name: "Cloud", entries: components.get("Cloud")! },
-    { name: "Network", entries: components.get("Network")! },
-    { name: "UML", entries: components.get("UML")! },
-    { name: "BPMN", entries: bpmnEntries },
-    { name: "Data visualization", entries: components.get("Data visualization")! },
-    { name: "Diagram structure", entries: components.get("Diagram structure")! },
-    { name: "Text & annotations", entries: [
+    { name: "Basic shapes", category: "Drawing basics", entries: basicShapeEntries },
+    { name: "Connectors", category: "Drawing basics", entries: connectorEntries },
+    { name: "Flowchart", category: "Drawing basics", entries: FLOWCHART_SHAPES.map(shape => ({ item: { type: "flowchart", shape: shape.value, label: shape.label }, searchText: `${shape.label} flowchart ${shape.value}` })) },
+    { name: "Database", category: "Database, data & schemas", entries: databaseEntries },
+    { name: "Architecture", category: "Software architecture & integration", entries: architectureEntries },
+    { name: "GUI design", category: "Wireframing & UI", entries: components.get("GUI design")! },
+    { name: "Software", category: "Software architecture & integration", entries: components.get("Software")! },
+    { name: "Cloud", category: "Cloud", entries: components.get("Cloud")! },
+    { name: "Network", category: "Network", entries: components.get("Network")! },
+    { name: "UML", category: "Systems engineering & UML", entries: components.get("UML")! },
+    { name: "BPMN", category: "BPMN & decision modelling", entries: bpmnEntries },
+    { name: "Visual planning", category: "Visual planning & decisions", entries: components.get("Visual planning & decision")! },
+    { name: "Data visualization", category: "Data visualization", entries: components.get("Data visualization")! },
+    { name: "Diagram structure", category: "Diagram structure", entries: components.get("Diagram structure")! },
+    { name: "Text & annotations", category: "Drawing basics", entries: [
       { item: { type: "text", label: "Text" }, searchText: "text label annotation" },
       ...components.get("Text & annotations")!,
     ] },
   ];
-  if (stencils.length) sections.push({ name: "My stencils", entries: stencils.map(stencil => ({ item: { type: "custom-stencil", stencil, label: stencil.name }, searchText: `${stencil.name} ${stencil.tags.join(" ")} ${stencil.folder ?? ""} ${stencil.preview}` })) });
-  if (masters.length) sections.push({ name: "Reusable components", entries: masters.map(master => ({ item: { type: "component-master", master, label: master.name }, searchText: `${master.name} reusable component` })) });
+  if (stencils.length) sections.push({ name: "My stencils", category: "My stencils", entries: stencils.map(stencil => ({ item: { type: "custom-stencil", stencil, label: stencil.name }, searchText: `${stencil.name} ${stencil.tags.join(" ")} ${stencil.folder ?? ""} ${stencil.preview}` })) });
+  if (masters.length) sections.push({ name: "Reusable components", category: "Reusable components", entries: masters.map(master => ({ item: { type: "component-master", master, label: master.name }, searchText: `${master.name} reusable component` })) });
   return sections.filter(section => section.entries.length > 0);
 }
 
@@ -162,6 +179,7 @@ export function DesignShapePalette(props: {
 }) {
   const [search, setSearch] = createSignal("");
   const [openSections, setOpenSections] = createSignal(new Set(["Basic shapes"]));
+  const [activeCategory, setActiveCategory] = createSignal<string>();
   let searchInput: HTMLInputElement | undefined;
   let searchComposing = false;
   // Keep the catalog independent from the query so typing only updates the
@@ -192,12 +210,21 @@ export function DesignShapePalette(props: {
     const words = searchWords();
     const visible = new Map<string, PaletteEntry[]>();
     for (const section of paletteSections()) {
-      const entries = words.length ? section.entries.filter(entry => paletteEntryMatches(entry, section.name, words)) : section.entries;
+      const entries = words.length ? section.entries.filter(entry => paletteEntryMatches(entry, `${section.category} ${section.name}`, words)) : section.entries;
       if (entries.length) visible.set(section.name, entries);
     }
     return visible;
   });
-  const visibleSections = createMemo(() => [...filteredEntries().keys()]);
+  const sectionByName = (name: string) => paletteSections().find(section => section.name === name);
+  const paletteCategories = createMemo(() => {
+    const counts = new Map<string, number>();
+    for (const section of paletteSections()) counts.set(section.category, (counts.get(section.category) ?? 0) + section.entries.length);
+    return PALETTE_CATEGORY_ORDER.flatMap(name => counts.has(name) ? [{ name, count: counts.get(name)! }] : []);
+  });
+  const visibleSections = createMemo(() => [...filteredEntries().keys()].filter(name => {
+    if (searchWords().length) return true;
+    return sectionByName(name)?.category === activeCategory();
+  }));
   const entriesFor = (name: string) => filteredEntries().get(name) ?? [];
 
   return <div class="design-shape-library">
@@ -211,32 +238,52 @@ export function DesignShapePalette(props: {
       </button>
     </header>
     <div class="design-palette-groups">
-      <For each={visibleSections()}>{sectionName => {
-        const sectionId = `design-palette-${sectionName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-        const entries = () => entriesFor(sectionName);
-        const searching = () => !!searchWords().length;
-        const isOpen = () => searching() || openSections().has(sectionName);
-        return <section class="design-palette-section">
-        <Show when={searching()} fallback={<button type="button" class="design-palette-section-toggle" aria-expanded={isOpen()} aria-controls={sectionId} onClick={() => setOpenSections(current => {
-          const next = new Set(current);
-          if (next.has(sectionName)) next.delete(sectionName);
-          else next.add(sectionName);
-          return next;
-        })}>
-          <span>{sectionName}</span><small>{entries().length}</small><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
-        </button>}>
-          <div class="design-palette-section-toggle design-palette-search-result-heading"><span>{sectionName}</span><small>{entries().length}</small></div>
-        </Show>
-          <div class="design-palette-grid" id={sectionId} role="group" aria-label={`${sectionName} shapes`} hidden={!isOpen()}>
-          <Show when={isOpen()}>
-            <For each={entries()}>{entry => <button type="button" class="design-palette-item" classList={{ "design-palette-item-model-component": entry.item.type === "component" && (!!cloudProviderComponent(entry.item.kind) || !!cloudNeutralComponent(entry.item.kind)) }} title={entry.item.label} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
-              <PaletteIcon item={entry.item} />
-              <span>{entry.item.label}</span>
-            </button>}</For>
-          </Show>
+      <Show when={!searchWords().length && !activeCategory()} fallback={<>
+        <Show when={!searchWords().length}>
+          <div class="design-palette-category-heading">
+            <button type="button" class="design-palette-category-back" onClick={() => setActiveCategory(undefined)} aria-label="Back to shape categories">All categories</button>
+            <strong>{activeCategory()}</strong>
           </div>
-      </section>}}</For>
-      <Show when={!visibleSections().length}><p class="design-palette-empty">No matching shapes</p></Show>
+        </Show>
+        <For each={visibleSections()}>{sectionName => {
+          const sectionId = `design-palette-${sectionName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+          const entries = () => entriesFor(sectionName);
+          const section = () => sectionByName(sectionName);
+          const searching = () => !!searchWords().length;
+          const isOpen = () => searching() || openSections().has(sectionName);
+          return <section class="design-palette-section">
+            <Show when={searching()} fallback={<button type="button" class="design-palette-section-toggle" aria-expanded={isOpen()} aria-controls={sectionId} onClick={() => setOpenSections(current => {
+              const next = new Set(current);
+              if (next.has(sectionName)) next.delete(sectionName);
+              else next.add(sectionName);
+              return next;
+            })}>
+              <span>{sectionName}</span><small>{entries().length}</small><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+            </button>}>
+              <div class="design-palette-section-toggle design-palette-search-result-heading"><span><small>{section()?.category}</small>{sectionName}</span><small>{entries().length}</small></div>
+            </Show>
+            <div class="design-palette-grid" id={sectionId} role="group" aria-label={`${sectionName} shapes`} hidden={!isOpen()}>
+              <Show when={isOpen()}>
+                <For each={entries()}>{entry => <button type="button" class="design-palette-item" classList={{ "design-palette-item-model-component": entry.item.type === "component" && (!!cloudProviderComponent(entry.item.kind) || !!cloudNeutralComponent(entry.item.kind)) }} title={entry.item.label} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
+                  <PaletteIcon item={entry.item} />
+                  <span>{entry.item.label}</span>
+                </button>}</For>
+              </Show>
+            </div>
+          </section>;
+        }}</For>
+        <Show when={!visibleSections().length}><p class="design-palette-empty">{searchWords().length ? "No matching shapes" : "No shapes in this category"}</p></Show>
+      </>}>
+        <div class="design-palette-category-index" aria-label="Shape categories">
+          <p>Browse shapes by category</p>
+          <For each={paletteCategories()}>{category => <button type="button" class="design-palette-category-card" onClick={() => {
+            setActiveCategory(category.name);
+            setOpenSections(current => new Set([...current, ...paletteSections().filter(section => section.category === category.name).map(section => section.name)]));
+          }}>
+            <span>{category.name}</span><small>{category.count}</small>
+          </button>}</For>
+        </div>
+      </Show>
     </div>
   </div>;
 }

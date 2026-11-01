@@ -31,6 +31,15 @@ const bounds = loadTs(path.join(root, "src", "features", "canvas", "bounds.ts"))
 const validation = loadTs(path.join(root, "src", "features", "diagrams", "validation.ts"));
 const connectorRouting = loadTs(path.join(root, "src", "features", "diagrams", "connector-routing.ts"));
 const componentMasters = loadTs(path.join(root, "src", "features", "components", "component-masters.ts"));
+const proposalComponents = loadTs(path.join(root, "src", "features", "components", "proposal-components.ts"));
+const libraryComponents = loadTs(path.join(root, "src", "features", "components", "library-components.ts"));
+const bpmnXml = loadTs(path.join(root, "src", "features", "diagrams", "bpmn-xml.ts"));
+const structuredData = loadTs(path.join(root, "src", "features", "diagrams", "structured-data.ts"));
+const apiContracts = loadTs(path.join(root, "src", "features", "diagrams", "api-contracts.ts"));
+const structurizrDsl = loadTs(path.join(root, "src", "features", "diagrams", "structurizr-dsl.ts"));
+const structurizrExport = loadTs(path.join(root, "src", "features", "diagrams", "structurizr-export.ts"));
+const dataPipeline = loadTs(path.join(root, "src", "features", "diagrams", "data-pipeline.ts"));
+const schemaVisualizer = loadTs(path.join(root, "src", "features", "diagrams", "schema-visualizer.ts"));
 
 const flow = mermaid.parseMermaidFlowchart(fixture("flowchart.mmd"));
 assert.equal(flow.nodes.length, 4);
@@ -81,6 +90,97 @@ const d2Collisions = d2.d2ToDiagram("a-b: First\na_b: Second\na-b -> a_b");
 assert.equal(new Set(d2Collisions.map(item => item.id)).size, d2Collisions.length);
 assert.ok(d2Collisions.every(item => item.id.length <= 100));
 assert.throws(() => d2.d2ToDiagram(`${Array.from({ length: 34 }, (_, index) => `${"  ".repeat(index)}g${index}: {`).join("\n")}\n${Array.from({ length: 34 }, (_, index) => `${"  ".repeat(33 - index)}}`).join("\n")}`), /32 levels deep/);
+
+const schemaTables = [
+  { type: "schemaTable", id: "schema-parent", schemaDiagramId: "schema-test", schemaSource: "", name: "Parent", x: 320, y: 0, w: 190, h: 150, columns: [
+    { id: "parent-id", name: "id", dataType: "INTEGER", primaryKey: true },
+    { id: "parent-tenant", name: "tenant_id", dataType: "INTEGER", primaryKey: true },
+  ] },
+  { type: "schemaTable", id: "schema-child", schemaDiagramId: "schema-test", schemaSource: "", name: "Child", x: 0, y: 0, w: 190, h: 150, columns: [
+    { id: "child-id", name: "id", dataType: "INTEGER", primaryKey: true },
+    { id: "child-parent", name: "parent_id", dataType: "INTEGER", foreignTable: "Parent", foreignColumn: "id" },
+    { id: "child-tenant", name: "tenant_ref", dataType: "INTEGER", foreignTable: "Parent", foreignColumn: "tenant_id" },
+  ] },
+];
+const sqlRelations = schemaVisualizer.schemaRelationshipConnectors(schemaTables, "schema-test");
+assert.equal(sqlRelations.length, 2, "SQL foreign keys create one field-bound connector per referenced column pair");
+assert.deepEqual(sqlRelations.map(item => [item.startBinding?.elementId, item.startBinding?.rowId, item.endBinding?.elementId, item.endBinding?.rowId]), [
+  ["schema-parent", "parent-id", "schema-child", "child-parent"],
+  ["schema-parent", "parent-tenant", "schema-child", "child-tenant"],
+]);
+const routedSqlRelations = connectorRouting.autoRouteConnectorSet([...sqlRelations, ...schemaTables]);
+const routedSqlLinks = routedSqlRelations.filter(item => item.type === "line" && item.schemaDiagramId === "schema-test");
+assert.equal(routedSqlLinks.length, 2);
+assert.ok(routedSqlLinks.every(item => item.autoRoute && Array.isArray(item.routePoints)), "SQL links are pre-routed together after table layout");
+
+assert.equal(proposalComponents.PROPOSAL_COMPONENTS.length, 195);
+assert.equal(new Set(proposalComponents.PROPOSAL_COMPONENTS.map(item => item.kind)).size, 195);
+assert.equal(new Set(proposalComponents.PROPOSAL_COMPONENTS.map(item => item.section.split(" | ")[0])).size, 6);
+assert.ok(libraryComponents.LIBRARY_COMPONENTS.length >= 400, "the categorized modeling catalog exceeds 400 usable components");
+for (const proposal of proposalComponents.PROPOSAL_COMPONENTS) {
+  const instance = libraryComponents.buildLibraryComponent(proposal.kind, 12, 24);
+  assert.equal(instance.libraryComponent?.kind, proposal.kind, `palette component ${proposal.label} can be instantiated`);
+  assert.ok(instance.componentBounds && instance.componentBounds.w > 0 && instance.componentBounds.h > 0, `palette component ${proposal.label} has usable default bounds`);
+}
+const bpmnSource = fixture("process.bpmn");
+const bpmnElements = bpmnXml.importBpmnXml(bpmnSource);
+assert.equal(bpmnElements.filter(item => item.componentRole?.startsWith("bpmn-node|")).length, 5);
+assert.equal(bpmnElements.filter(item => item.componentRole?.startsWith("bpmn-edge|")).length, 4);
+assert.equal(bpmnElements.find(item => item.componentRole?.includes("userTask"))?.label?.text, "Review & approve");
+assert.equal(bpmnElements.find(item => item.componentRole?.includes("userTask"))?.x, 160);
+const bpmnExport = bpmnXml.exportBpmnXml(bpmnElements);
+assert.match(bpmnExport, /<bpmn:messageFlow/);
+assert.match(bpmnExport, /<bpmndi:BPMNShape/);
+assert.equal(bpmnXml.importBpmnXml(bpmnExport).filter(item => item.componentRole?.startsWith("bpmn-edge|")).length, 4);
+assert.throws(() => bpmnXml.importBpmnXml("<!DOCTYPE definitions [<!ENTITY x SYSTEM 'file:///etc/passwd'>]><definitions/>"), /DOCTYPE/);
+const openApiElements = structuredData.openApiToDiagram(fixture("openapi-advanced.yaml"));
+const openApiLabels = openApiElements.flatMap(item => item.type === "group" ? [] : [item.label?.text ?? ""]);
+assert.ok(openApiLabels.some(label => label.includes("receiveOrderEvent")), "OpenAPI webhooks become editable operation nodes");
+assert.ok(openApiLabels.some(label => label.includes("orderStatusCallback")), "OpenAPI callbacks become editable operation nodes");
+assert.ok(openApiLabels.some(label => label.includes("ApiKeyAuth")), "OpenAPI security schemes remain visible");
+assert.ok(openApiLabels.some(label => label.includes("PageSize")), "Reusable OpenAPI parameters remain visible");
+assert.ok(openApiElements.filter(item => item.type === "arrow").length >= 6, "OpenAPI references and operation tags become editable relationships");
+const unresolvedOpenApi = structuredData.openApiToDiagram(`openapi: 3.1.0\ninfo: { title: Missing, version: 1 }\npaths:\n  /missing:\n    get:\n      responses:\n        '200':\n          description: Missing schema\n          content:\n            application/json:\n              schema: { $ref: '#/components/schemas/DoesNotExist' }`);
+assert.ok(unresolvedOpenApi.some(item => item.type !== "group" && item.label?.text.includes("Unresolved local OpenAPI reference")), "Unresolved local references are reported as visible objects");
+const graphQl = apiContracts.graphQlToDiagram(`type User {\n  id: ID!\n  posts: [Post!]!\n}\ntype Post {\n  author: User!\n}\nenum Role {\n  ADMIN\n  MEMBER @deprecated(reason: "legacy")\n}`);
+assert.ok(graphQl.some(item => item.type !== "group" && item.label?.text.includes("id: ID!")), "GraphQL fields remain visible");
+assert.ok(graphQl.some(item => item.type === "arrow" && item.label?.text === "posts"), "GraphQL references become relationships");
+assert.ok(graphQl.some(item => item.type !== "group" && item.label?.text.includes("ADMIN")), "GraphQL enum values remain visible");
+assert.ok(!graphQl.some(item => item.type !== "group" && item.label?.text.includes("reason")), "GraphQL enum directives do not become enum values");
+const dbml = apiContracts.dbmlToDiagram(`Table users {\n  id int [pk]\n  name varchar\n}\nTable posts {\n  user_id int [ref: > users.id]\n}`);
+assert.ok(dbml.some(item => item.type !== "group" && item.label?.text.includes("id: int (PK)")), "DBML primary keys are kept");
+assert.ok(dbml.some(item => item.type === "arrow" && item.label?.text.includes("user_id")), "DBML references become relationships");
+const protobuf = apiContracts.protobufToDiagram(`syntax = "proto3";\n// message Ignored { string fake = 1; }\nmessage User { string id = 1; }\nmessage Request { User user = 1; }\nmessage Reply { string value = 1; }\nservice Users { rpc Get(Request) returns (Reply); }`);
+assert.ok(protobuf.some(item => item.type !== "group" && item.label?.text.includes("id: string (#1)")), "Protocol Buffer fields are kept");
+assert.ok(protobuf.some(item => item.type === "arrow" && item.label?.text === "request"), "RPC request types become linked");
+assert.ok(!protobuf.some(item => item.type !== "group" && item.label?.text.includes("Ignored")), "Commented Protocol Buffer declarations are ignored");
+const avro = apiContracts.avroToDiagram(JSON.stringify([{ type: "record", name: "User", namespace: "example", fields: [{ name: "id", type: "string" }, { name: "department", type: "Department" }] }, { type: "record", name: "Department", namespace: "example", fields: [{ name: "name", type: "string" }] }]));
+assert.ok(avro.some(item => item.type !== "group" && item.label?.text.includes("department")), "Avro record fields remain visible");
+assert.ok(avro.some(item => item.type === "arrow" && item.label?.text === "department"), "Avro named types become relationships");
+const prisma = apiContracts.prismaToDiagram(`model User {\n  id Int @id\n  posts Post[]\n}\nmodel Post {\n  id Int @id\n  author User @relation(fields: [authorId], references: [id])\n  authorId Int\n}\nenum Role {\n  ADMIN\n}`);
+assert.ok(prisma.some(item => item.type !== "group" && item.label?.text.includes("id: Int (required, PK)")), "Prisma keys and fields remain visible");
+assert.ok(prisma.some(item => item.type === "arrow" && item.label?.text.includes("author")), "Prisma relation fields become relationships");
+const asyncApi = apiContracts.asyncApiToDiagram(`asyncapi: 2.6.0\ninfo: { title: Orders, version: 1.0.0 }\nchannels:\n  orders:\n    publish:\n      operationId: createOrder\n      message:\n        $ref: '#/components/messages/Order'\ncomponents:\n  messages:\n    Order:\n      name: Order\n      payload:\n        schema:\n          $ref: '#/components/schemas/OrderPayload'\n  schemas:\n    OrderPayload:\n      type: object\nservers:\n  production:\n    host: events.example.com\n    protocol: kafka`);
+assert.ok(asyncApi.some(item => item.type !== "group" && item.label?.text.includes("orders")), "AsyncAPI channels remain visible");
+assert.ok(asyncApi.some(item => item.type !== "group" && item.label?.text.includes("production")), "AsyncAPI servers remain visible");
+assert.ok(asyncApi.some(item => item.type === "arrow" && item.label?.text === "exchanges"), "AsyncAPI operations link to messages");
+const asyncApiThree = apiContracts.asyncApiToDiagram(`asyncapi: 3.0.0\ninfo: { title: Orders, version: 1.0.0 }\nchannels:\n  orders:\n    address: orders\noperations:\n  receiveOrders:\n    action: receive\n    channel: { $ref: '#/channels/orders' }\n    messages:\n      - { $ref: '#/components/messages/Order' }\ncomponents:\n  messages:\n    Order: { name: Order, payload: { type: object } }`);
+assert.equal(asyncApiThree.filter(item => item.type === "arrow" && item.label?.text === "uses channel").length, 1, "AsyncAPI 3 operations link to their channel once");
+const structurizrSource = `workspace "Banking" {\n  model {\n    customer = person "Customer" "Bank customer"\n    bank = softwareSystem "Bank" "The bank" {\n      api = container "API" "Handles requests" "Java"\n      ledger = component "Ledger" "Stores data"\n    }\n    customer -> bank "Uses"\n    api -> ledger "Calls"\n  }\n  views {\n    systemContext bank { include * }\n  }\n}`;
+const structurizrElements = structurizrDsl.structurizrDslToDiagram(structurizrSource);
+assert.equal(structurizrElements.filter(item => item.type !== "group" && item.componentRole?.startsWith("structurizr-node|")).length, 4, "Structurizr C4 elements import");
+assert.ok(structurizrElements.some(item => item.type === "arrow" && item.label?.text === "Calls"), "Structurizr relationships import");
+const structurizrSourceExport = structurizrExport.exportStructurizrDsl(structurizrElements);
+assert.match(structurizrSourceExport, /customer = person "Customer"/);
+assert.match(structurizrSourceExport, /api -> ledger "Calls"/);
+assert.equal(structurizrDsl.structurizrDslToDiagram(structurizrSourceExport).filter(item => item.type === "arrow").length, structurizrElements.filter(item => item.type === "arrow").length, "Structurizr supported subset round-trips");
+const dbtManifest = dataPipeline.dbtManifestToDiagram({ metadata: { dbt_version: "1.8.0" }, nodes: {
+  "model.shop.stg_orders": { unique_id: "model.shop.stg_orders", name: "stg_orders", resource_type: "model", original_file_path: "models/stg_orders.sql", config: { materialized: "view" }, depends_on: { nodes: ["source.shop.raw.orders"] } },
+  "model.shop.fact_orders": { unique_id: "model.shop.fact_orders", name: "fact_orders", resource_type: "model", original_file_path: "models/fact_orders.sql", config: { materialized: "table" }, depends_on: { nodes: ["model.shop.stg_orders"] } },
+  "test.shop.not_null": { unique_id: "test.shop.not_null", name: "not_null_fact_orders_id", resource_type: "test", depends_on: { nodes: ["model.shop.fact_orders"] } },
+}, sources: { "source.shop.raw.orders": { unique_id: "source.shop.raw.orders", name: "orders", source_name: "raw", resource_type: "source", description: "Raw order input." } } });
+assert.equal(dbtManifest.filter(item => item.type !== "group" && item.componentRole?.startsWith("dbt-node|")).length, 4, "dbt models, tests, and sources import");
+assert.equal(dbtManifest.filter(item => item.type === "arrow" && item.label?.text === "feeds").length, 3, "dbt dependencies become lineage arrows");
 const deletedLayers = structure.deleteCanvasLayers([
   { id: "root", name: "Root", order: 0 },
   { id: "parent", name: "Parent", parentId: "root", order: 0 },
@@ -457,4 +557,4 @@ assert.match(metricsModule.metricsSummaryText(metricSummary), /Total: \$510\.5 Â
 assert.equal(metricsModule.summarizeMetrics([{ type: "rectangle", id: "n", x: 0, y: 0, w: 1, h: 1, color: "#000000", thickness: 1 }]).page.counted, 0);
 assert.deepEqual(metricsModule.normalizeMetrics({ cost: 5, capacity: "x", unit: " GB " }), { cost: 5, unit: "GB" }); assert.equal(metricsModule.normalizeMetrics({ cost: Infinity }), undefined); assert.equal(metricsModule.normalizeMetrics(null), undefined);
 
-process.stdout.write("Diagram fixtures passed: Mermaid flowchart and sequence, DOT styles, D2 groups and edge directions, CSV graph and chart mapping, path bounds, PlantUML subset errors, lasso selection, accessibility checks, and style library bindings.\n");
+process.stdout.write("Diagram fixtures passed: Mermaid flowchart and sequence, DOT styles, D2 groups and edge directions, CSV graph and chart mapping, 517 categorized modeling components, BPMN XML import/export and XML safety, OpenAPI callbacks and references, GraphQL, DBML, Protocol Buffers, Avro, Prisma, AsyncAPI 2/3, Structurizr DSL C4 model round-trip, dbt manifest lineage, path bounds, PlantUML subset errors, lasso selection, accessibility checks, and style library bindings.\n");

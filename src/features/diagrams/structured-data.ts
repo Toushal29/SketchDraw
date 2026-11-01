@@ -1,8 +1,10 @@
 import { parseAllDocuments } from "yaml";
 import type { Element, ShapeElement } from "../../model";
 
-type GraphNode = { key: string; title: string; detail?: string; kind?: string; status?: "drift" | "create" | "update" | "delete" };
-type GraphLink = { from: string; to: string; label?: string };
+export type StructuredGraphNode = { key: string; title: string; detail?: string; kind?: string; status?: "drift" | "create" | "update" | "delete"; componentRole?: string; liveKey?: string };
+export type StructuredGraphLink = { from: string; to: string; label?: string; componentRole?: string; liveKey?: string };
+type GraphNode = StructuredGraphNode;
+type GraphLink = StructuredGraphLink;
 const makeId = (prefix: string) => `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
 const stringValue = (value: unknown) => typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : "";
 const objectValue = (value: unknown): Record<string, unknown> | undefined => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
@@ -31,6 +33,7 @@ function graphToElements(nodes: GraphNode[], links: GraphLink[], prefix: string)
     const height = Math.max(76, 42 + label.split("\n").length * 21);
     boxes.set(node.key, {
       type: "rectangle", id: makeId(prefix), x: (index % columns) * 340, y: Math.floor(index / columns) * 240,
+      ...(node.componentRole ? { componentRole: node.componentRole } : {}), ...(node.liveKey ? { liveKey: node.liveKey } : { liveKey: node.key }),
       w: width, h: height, color: node.status === "drift" || node.status === "delete" ? "#b42318" : node.status === "create" ? "#16804a" : node.status === "update" ? "#a15c00" : "#56616d", thickness: 1.6, fillColor: node.status === "drift" ? "#fff1f0" : node.status === "delete" ? "#fff5f4" : node.status === "create" ? "#effaf3" : node.status === "update" ? "#fff8e8" : "#ffffff",
       label: { text: label, color: "#202b36", fontSize: 13, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "left", listType: "none", verticalAlign: "middle", offsetX: 10, offsetY: 2 },
     });
@@ -48,6 +51,7 @@ function graphToElements(nodes: GraphNode[], links: GraphLink[], prefix: string)
       type: "arrow", id: makeId(`${prefix}-link`), x: from.x + from.w * start.x, y: from.y + from.h * start.y,
       w: to.x + to.w * end.x - (from.x + from.w * start.x), h: to.y + to.h * end.y - (from.y + from.h * start.y),
       color: "#718091", thickness: 1.5, startHead: "none", endHead: "solid",
+      ...(link.componentRole ? { componentRole: link.componentRole } : {}), ...(link.liveKey ? { liveKey: link.liveKey } : {}),
       startBinding: { elementId: from.id!, anchor: start }, endBinding: { elementId: to.id!, anchor: end },
     };
     if (link.label) edge.label = { text: link.label.slice(0, 160), color: "#435160", fontSize: 11, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" };
@@ -55,6 +59,8 @@ function graphToElements(nodes: GraphNode[], links: GraphLink[], prefix: string)
   }
   return [...edges, ...boxes.values()];
 }
+
+export { graphToElements as buildStructuredDiagram };
 
 /** Generate editable cards from JSON graph data or record arrays. */
 export function jsonToDiagram(source: string): Element[] {
@@ -424,29 +430,105 @@ export function openApiToDiagram(source: string): Element[] {
   const parsed = parseYamlRoot(source, "The OpenAPI YAML or JSON could not be parsed.");
   const root = objectValue(Array.isArray(parsed) ? parsed[0] : parsed) ?? {};
   if (!stringValue(root.openapi) && !stringValue(root.swagger)) throw new Error("OpenAPI input needs an openapi or swagger version field.");
-  const paths = objectValue(root.paths) ?? {}; const nodes: GraphNode[] = []; const links: GraphLink[] = [];
-  for (const [path, rawPath] of Object.entries(paths)) {
-    const pathItem = objectValue(rawPath) ?? {};
-    for (const [method, rawOperation] of Object.entries(pathItem)) {
-      if (!/^(get|post|put|patch|delete|head|options|trace)$/i.test(method)) continue;
-      const operation = objectValue(rawOperation) ?? {}; const key = `operation:${method.toUpperCase()}:${path}`;
-      const params = Array.isArray(operation.parameters) ? operation.parameters.length : 0;
-      const responses = objectValue(operation.responses) ?? {};
-      nodes.push({ key, title: `${method.toUpperCase()} ${path}`, kind: "OpenAPI operation", detail: [stringValue(operation.summary), stringValue(operation.operationId) ? `ID: ${stringValue(operation.operationId)}` : "", params ? `Parameters: ${params}` : "", `Responses: ${Object.keys(responses).slice(0, 8).join(", ")}`].filter(Boolean).join("\n") });
-      const references = JSON.stringify(operation).matchAll(/#\/components\/schemas\/([^"/]+)/g);
-      for (const reference of references) links.push({ from: key, to: `schema:${reference[1]}`, label: "uses schema" });
+  const paths = objectValue(root.paths) ?? {}; const webhooks = objectValue(root.webhooks) ?? {}; const components = objectValue(root.components) ?? {};
+  const nodes: GraphNode[] = []; const links: GraphLink[] = []; const nodeKeys = new Set<string>(); const referenceTargets = new Map<string, string>(); const unresolvedTargets = new Map<string, string>();
+  const addNode = (node: GraphNode) => {
+    if (nodeKeys.has(node.key)) return;
+    nodeKeys.add(node.key); nodes.push(node);
+    if (nodes.length > 500) throw new Error("OpenAPI diagrams are limited to 500 operations, schemas, and contract objects.");
+  };
+  const addRefLinks = (from: string, value: unknown, relation = "references") => {
+    const seen = new WeakSet<object>();
+    const visit = (candidate: unknown, depth = 0) => {
+      if (depth > 48 || !candidate || typeof candidate !== "object" || seen.has(candidate)) return;
+      seen.add(candidate);
+      if (Array.isArray(candidate)) { candidate.forEach(item => visit(item, depth + 1)); return; }
+      const record = candidate as Record<string, unknown>; const ref = stringValue(record.$ref);
+      if (ref) {
+        let target: string | undefined;
+        if (ref.startsWith("#/components/")) target = referenceTargets.get(ref.slice("#/components/".length)) ?? referenceTargets.get(ref.replace(/^#\/components\//, "").replace(/^schemas\//, "schema:"));
+        else if (ref.startsWith("#/definitions/")) target = referenceTargets.get(`schemas/${ref.slice("#/definitions/".length)}`);
+        if (!target) {
+          const unresolvedKey = ref.startsWith("#/") ? `unresolved:${ref}` : `external:${ref}`;
+          target = unresolvedTargets.get(ref);
+          if (!target) {
+            target = unresolvedKey; unresolvedTargets.set(ref, target);
+            addNode({ key: target, title: ref.slice(0, 110), kind: ref.startsWith("#/") ? "Unresolved local OpenAPI reference" : "External OpenAPI reference (not fetched)", detail: ref.startsWith("#/") ? "This local JSON pointer did not resolve to a declared contract object." : "External references are recorded without network access." });
+          }
+        }
+        links.push({ from, to: target, label: target.startsWith("unresolved:") ? "unresolved reference" : target.startsWith("external:") ? "external reference" : relation });
+      }
+      for (const child of Object.values(record)) visit(child, depth + 1);
+    };
+    visit(value);
+  };
+  const componentObjects: { category: string; name: string; raw: unknown }[] = [];
+  for (const [category, rawCategory] of Object.entries(components)) {
+    const values = objectValue(rawCategory); if (!values) continue;
+    for (const [name, raw] of Object.entries(values)) componentObjects.push({ category, name, raw });
+  }
+  for (const { category, name } of componentObjects) referenceTargets.set(`${category}/${name}`, category === "schemas" ? `schema:${name}` : `component:${category}:${name}`);
+  for (const name of Object.keys(objectValue(root.definitions) ?? {})) referenceTargets.set(`schemas/${name}`, `schema:${name}`);
+  for (const tag of Array.isArray(root.tags) ? root.tags.map(objectValue).filter(Boolean) as Record<string, unknown>[] : []) {
+    const name = stringValue(tag.name); if (name) addNode({ key: `tag:${name}`, title: name, kind: "OpenAPI tag", detail: stringValue(tag.description) });
+  }
+  const addOperation = (operationPath: string, method: string, rawOperation: unknown, operationKind = "OpenAPI operation", parentKey?: string, inheritedParameters: unknown[] = []) => {
+    if (!/^(get|post|put|patch|delete|head|options|trace)$/i.test(method)) return;
+    const operation = objectValue(rawOperation) ?? {}; const key = `${parentKey ? `callback:${parentKey}:` : operationKind === "OpenAPI webhook" ? "webhook:" : "operation:"}${method.toUpperCase()}:${operationPath}`;
+    const operationParameters = Array.isArray(operation.parameters) ? operation.parameters : [];
+    const paramCount = [...inheritedParameters, ...operationParameters].length; const responses = objectValue(operation.responses) ?? {};
+    const securityRequirements = Array.isArray(operation.security) ? operation.security : Array.isArray(root.security) ? root.security : [];
+    const security = securityRequirements.flatMap(item => Object.keys(objectValue(item) ?? {}));
+    const servers = Array.isArray(operation.servers) ? operation.servers.map(objectValue).filter(Boolean) as Record<string, unknown>[] : [];
+    const callbacks = objectValue(operation.callbacks) ?? {};
+    addNode({ key, title: `${method.toUpperCase()} ${operationPath}`, kind: operationKind, detail: [stringValue(operation.summary), stringValue(operation.description), stringValue(operation.operationId) ? `ID: ${stringValue(operation.operationId)}` : "", paramCount ? `Parameters: ${paramCount}` : "", `Responses: ${Object.keys(responses).slice(0, 8).join(", ")}`, security.length ? `Security: ${security.join(", ")}` : "", Object.keys(callbacks).length ? `Callbacks: ${Object.keys(callbacks).join(", ")}` : ""].filter(Boolean).join("\n") });
+    if (parentKey) links.push({ from: parentKey, to: key, label: "callback operation" });
+    addRefLinks(key, [...inheritedParameters, ...operationParameters], "uses parameter");
+    const tagNames = Array.isArray(operation.tags) ? operation.tags.map(stringValue).filter(Boolean) : [];
+    for (const tag of tagNames) { const tagKey = `tag:${tag}`; addNode({ key: tagKey, title: tag, kind: "OpenAPI tag" }); links.push({ from: key, to: tagKey, label: "tagged as" }); }
+    for (const name of security) { const target = referenceTargets.get(`securitySchemes/${name}`); if (target) links.push({ from: key, to: target, label: "secured by" }); else addRefLinks(key, { $ref: `#/components/securitySchemes/${name}` }, "secured by"); }
+    const rootServers = Array.isArray(root.servers) ? root.servers.map(objectValue).filter(Boolean) as Record<string, unknown>[] : [];
+    for (const server of [...rootServers, ...servers]) {
+      const url = stringValue(server.url); if (!url) continue;
+      const serverKey = `server:${url}`; addNode({ key: serverKey, title: url, kind: "OpenAPI server", detail: stringValue(server.description) }); links.push({ from: key, to: serverKey, label: "served by" });
     }
-  }
-  const schemas = objectValue(objectValue(root.components)?.schemas) ?? objectValue(objectValue(root.definitions)) ?? {};
-  for (const [name, rawSchema] of Object.entries(schemas)) {
-    const schema = objectValue(rawSchema) ?? {}; const properties = objectValue(schema.properties) ?? {};
-    const required = Array.isArray(schema.required) ? new Set(schema.required.map(stringValue)) : new Set<string>();
+    addRefLinks(key, operation);
+    for (const [callbackName, rawCallback] of Object.entries(callbacks)) {
+      const callbackKey = `callback:${key}:${callbackName}`; addNode({ key: callbackKey, title: callbackName, kind: "OpenAPI callback" }); links.push({ from: key, to: callbackKey, label: "declares callback" });
+      const callback = objectValue(rawCallback) ?? {};
+      for (const [expression, rawPath] of Object.entries(callback)) {
+        const callbackPath = objectValue(rawPath) ?? {};
+        const callbackParameters = Array.isArray(callbackPath.parameters) ? callbackPath.parameters : [];
+        for (const [callbackMethod, callbackOperation] of Object.entries(callbackPath)) addOperation(`${operationPath} callback ${callbackName} ${expression}`, callbackMethod, callbackOperation, "OpenAPI callback operation", callbackKey, callbackParameters);
+      }
+    }
+  };
+  const walkPathItems = (items: Record<string, unknown>, kind: string) => {
+    for (const [path, rawPath] of Object.entries(items)) {
+      const pathItem = objectValue(rawPath) ?? {};
+      const inheritedParameters = Array.isArray(pathItem.parameters) ? pathItem.parameters : [];
+      for (const [method, operation] of Object.entries(pathItem)) addOperation(path, method, operation, kind, undefined, inheritedParameters);
+    }
+  };
+  walkPathItems(paths, "OpenAPI operation");
+  walkPathItems(webhooks, "OpenAPI webhook");
+
+  for (const { category, name, raw } of componentObjects) {
+    const component = objectValue(raw) ?? {}; const properties = objectValue(component.properties) ?? {}; const required = new Set(Array.isArray(component.required) ? component.required.map(stringValue) : []);
     const fields = Object.entries(properties).slice(0, 30).map(([field, value]) => `${required.has(field) ? "*" : ""}${field}: ${stringValue(objectValue(value)?.type) || "object"}`);
-    nodes.push({ key: `schema:${name}`, title: name, kind: "OpenAPI schema", detail: fields.join("\n") });
-    for (const reference of JSON.stringify(schema).matchAll(/#\/(?:components\/schemas|definitions)\/([^"/]+)/g)) links.push({ from: `schema:${name}`, to: `schema:${reference[1]}`, label: "references" });
+    const key = category === "schemas" ? `schema:${name}` : `component:${category}:${name}`;
+    const details = category === "schemas" ? fields : [stringValue(component.in) ? `In: ${stringValue(component.in)}` : "", stringValue(component.type) ? `Type: ${stringValue(component.type)}` : "", stringValue(component.name) ? `Name: ${stringValue(component.name)}` : "", stringValue(component.description)].filter(Boolean);
+    addNode({ key, title: name, kind: `OpenAPI ${category.replace(/s$/, "")}`, detail: Array.isArray(details) ? details.join("\n") : details });
+    referenceTargets.set(`${category}/${name}`, key);
+    if (category === "schemas") referenceTargets.set(`schema:${name}`, key);
+    addRefLinks(key, raw);
   }
-  if (!nodes.length) throw new Error("The OpenAPI document contains no path operations or component schemas.");
-  if (nodes.length > 500) throw new Error("OpenAPI diagrams are limited to 500 operations and schemas.");
+  const legacySchemas = objectValue(root.definitions) ?? {};
+  for (const [name, raw] of Object.entries(legacySchemas)) {
+    const key = `schema:${name}`; if (!nodeKeys.has(key)) { addNode({ key, title: name, kind: "OpenAPI schema", detail: JSON.stringify(objectValue(raw)?.properties ?? {}).slice(0, 1000) }); referenceTargets.set(`schemas/${name}`, key); }
+    addRefLinks(key, raw);
+  }
+  if (!nodes.length) throw new Error("The OpenAPI document contains no paths, webhooks, or reusable contract objects.");
   return graphToElements(nodes, links, "openapi");
 }
 

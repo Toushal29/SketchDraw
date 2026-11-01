@@ -1,7 +1,9 @@
 import type { Element, SchemaTableElement, ShapeElement } from "../../model";
 import { detectExtendedMermaidType, exportExtendedMermaid } from "./mermaid-extended";
+import { exportBpmnXml } from "./bpmn-xml";
+import { exportStructurizrDsl } from "./structurizr-export";
 
-export type DiagramCodeFormat = "mmd" | "dot" | "d2" | "csv" | "sql" | "json" | "puml";
+export type DiagramCodeFormat = "mmd" | "dot" | "d2" | "csv" | "sql" | "json" | "puml" | "bpmn" | "structurizr";
 
 const flatten = (elements: Element[]): Element[] => elements.flatMap(element => element.hidden ? [] : element.type === "group" ? [...(element.libraryComponent?.kind === "uml-lifeline" ? [element] : []), ...flatten(element.elements)] : [element]);
 const safeId = (value: string, fallback: string) => {
@@ -285,6 +287,8 @@ export function exportDiagramCode(format: DiagramCodeFormat, elements: Element[]
     case "sql": return exportSchema(diagramParts(elements).tables, "sql");
     case "json": return exportSchema(diagramParts(elements).tables, "json");
     case "puml": return exportPlantUml(elements);
+    case "bpmn": return exportBpmnXml(elements);
+    case "structurizr": return exportStructurizrDsl(elements);
   }
 }
 
