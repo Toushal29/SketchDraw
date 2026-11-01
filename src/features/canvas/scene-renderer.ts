@@ -33,6 +33,9 @@ export type CanvasSceneRendererPorts = {
   tileCacheKey: () => string;
   tileCacheAllowed: () => boolean;
   canvasState: () => CanvasState;
+  contentTransforms?: () => { center: Point; rotation: number }[];
+  contextScenes?: () => { elements: Element[]; sourceElements: Element[]; transforms: { center: Point; rotation: number }[] }[];
+  groupEditBoundary?: () => { bounds: Bounds; color: string } | undefined;
   renderedBoardColor: () => string;
   whiteboardStyle: () => string;
   showGrid: () => boolean;
@@ -89,8 +92,15 @@ export function transformHandlePoints(bounds: Bounds, zoom: number, includeRotat
 
 export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
   const tileCache = new SceneTileCache();
+  const contextSpatialIndexes = new WeakMap<Element[], ElementSpatialIndex>();
   const autoRouteIndicesByElements = new WeakMap<Element[], { visibilityKey: string; indices: number[] }>();
   let stationaryAutoRouteCache: { visibilityKey: string; indices: number[] } | undefined;
+
+  function contextSpatialIndex(items: Element[]) {
+    let index = contextSpatialIndexes.get(items);
+    if (!index) { index = new ElementSpatialIndex(); index.update(items); contextSpatialIndexes.set(items, index); }
+    return index;
+  }
 
   function getAutoRouteIndices(items: Element[], reuseStationary = false) {
     const visibilityKey = ports.tileCacheKey();
@@ -191,9 +201,36 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
     if (!transparent) { ctx.fillStyle = ports.renderedBoardColor(); ctx.fillRect(0, 0, width, height); }
     const state = viewOverride ?? ports.canvasState(); if (!transparent && includeGrid) drawGrid(ctx, width, height, state);
+    const contentTransforms = includeSelection && sourceItems === ports.elements() ? (ports.contentTransforms?.() ?? []).filter(transform => transform.rotation % 360 !== 0) : [];
     ctx.save(); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
     const padding = 16 / state.zoom;
-    const viewport = { x: -state.panX / state.zoom - padding, y: -state.panY / state.zoom - padding, w: width / state.zoom + padding * 2, h: height / state.zoom + padding * 2 };
+    const canvasViewport = { x: -state.panX / state.zoom - padding, y: -state.panY / state.zoom - padding, w: width / state.zoom + padding * 2, h: height / state.zoom + padding * 2 };
+    const viewportForTransforms = (transforms: { center: Point; rotation: number }[]) => {
+      const active = transforms.filter(transform => transform.rotation % 360 !== 0);
+      if (!active.length) return canvasViewport;
+      const corners = [{ x: canvasViewport.x, y: canvasViewport.y }, { x: canvasViewport.x + canvasViewport.w, y: canvasViewport.y }, { x: canvasViewport.x + canvasViewport.w, y: canvasViewport.y + canvasViewport.h }, { x: canvasViewport.x, y: canvasViewport.y + canvasViewport.h }].map(point => {
+        for (const transform of active) point = rotatePoint(point, transform.center, -transform.rotation);
+        return point;
+      });
+      const left = Math.min(...corners.map(point => point.x)); const top = Math.min(...corners.map(point => point.y));
+      const right = Math.max(...corners.map(point => point.x)); const bottom = Math.max(...corners.map(point => point.y));
+      return { x: left, y: top, w: right - left, h: bottom - top };
+    };
+    for (const scene of includeSelection && sourceItems === ports.elements() ? ports.contextScenes?.() ?? [] : []) {
+      const contextTransforms = scene.transforms.filter(transform => transform.rotation % 360 !== 0);
+      const contextViewport = viewportForTransforms(contextTransforms);
+      ctx.save();
+      for (const transform of contextTransforms) { ctx.translate(transform.center.x, transform.center.y); ctx.rotate(transform.rotation * Math.PI / 180); ctx.translate(-transform.center.x, -transform.center.y); }
+      for (const index of contextSpatialIndex(scene.elements).query(contextViewport)) {
+        const element = scene.elements[index]; if (!element) continue;
+        if (ports.isHidden(element) || !ports.intersectsBounds(contextViewport.x, contextViewport.y, contextViewport.x + contextViewport.w, contextViewport.y + contextViewport.h, elementBounds(element))) continue;
+        const drawn = isConnector(element) ? ports.connectorForView(element as ShapeElement, scene.sourceElements) : element;
+        ports.drawElement(ctx, drawn, contextViewport, scene.sourceElements);
+      }
+      ctx.restore();
+    }
+    for (const transform of contentTransforms) { ctx.translate(transform.center.x, transform.center.y); ctx.rotate(transform.rotation * Math.PI / 180); ctx.translate(-transform.center.x, -transform.center.y); }
+    const viewport = viewportForTransforms(contentTransforms);
     const selected = ports.selectedSet();
     const currentMove = ports.moveOrigin();
     const currentResize = ports.resizeOrigin();
@@ -231,7 +268,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     const paintIndices = orderedSceneIndices(queriedIndices, addedPaintIndices);
     // Paint vectors directly at 100% and above. Repeated bitmap tile copies
     // soften one-pixel strokes and text even when their nominal scale matches.
-    const tileDrawing = state.zoom < 1 && !hasUnindexedAutoRoutes && includeSelection && !transparent && !viewOverride && !drag && sourceItems === ports.elements() && ports.tileCacheAllowed()
+    const tileDrawing = state.zoom < 1 && !contentTransforms.length && !hasUnindexedAutoRoutes && includeSelection && !transparent && !viewOverride && !drag && sourceItems === ports.elements() && ports.tileCacheAllowed()
       && tileCache.draw(ctx, viewport, state.zoom, dpr, sourceItems, ports.spatialIndex(), ports.tileCacheKey(), (tileContext, element, tileViewport, items) => {
         const drawn = isConnector(element) ? ports.connectorForView(element as ShapeElement, items) : element;
         ports.drawElement(tileContext, drawn, tileViewport, items);
@@ -385,18 +422,39 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       if (type === "pen") { if (ports.tool() === "laser") drawLaserStroke(ctx, ports.currentPoints(), 1, ports.laserThickness() / state.zoom); else ports.drawFreehandPreview(ctx, { type: "freehand", points: ports.currentPoints(), color: stroke, thickness: widthPx, opacity }); }
       else ports.drawElement(ctx, { type, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: stroke, thickness: widthPx, lineStyle: ports.lineStyle(), flowchartShape: activePreview.flowchartShape, lineRoute: activePreview.lineRoute, arrowRoute: activePreview.arrowRoute, edgeStyle: ports.edgeStyle(), cornerRadius: ports.cornerRadius(), ...(ports.fillEnabled() && (type === "rectangle" || type === "circle" || type === "diamond" || type === "triangle" || type === "flowchart") ? { fillColor: ports.fillColor(), fillOpacity: ports.fillOpacity() } : {}), ...(type === "line" ? { startHead: ports.defaultLineStartHead(), endHead: ports.defaultLineEndHead() } : {}), ...(type === "arrow" ? { startHead: ports.defaultStartHead(), endHead: ports.defaultEndHead(), ...(activePreview.arrowRoute === "forked" ? { forkUpper: { endHead: ports.defaultForkUpperHead() }, forkLower: { endHead: ports.defaultForkLowerHead() } } : {}) } : {}) });
     }
+    const groupEditBoundary = includeSelection && sourceItems === ports.elements() ? ports.groupEditBoundary?.() : undefined;
+    if (groupEditBoundary) {
+      const bounds = groupEditBoundary.bounds; const padding = 3 / state.zoom;
+      ctx.save(); ctx.beginPath(); ctx.rect(bounds.x - padding, bounds.y - padding, bounds.w + padding * 2, bounds.h + padding * 2);
+      ctx.setLineDash([]); ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3.5 / state.zoom; ctx.stroke();
+      ctx.strokeStyle = groupEditBoundary.color; ctx.lineWidth = 1.8 / state.zoom; ctx.setLineDash([7 / state.zoom, 4 / state.zoom]); ctx.stroke(); ctx.restore();
+    }
     ctx.restore();
+    const contentPointToScreen = (point: Point) => {
+      for (let index = contentTransforms.length - 1; index >= 0; index--) {
+        const transform = contentTransforms[index];
+        point = rotatePoint(point, transform.center, transform.rotation);
+      }
+      return { x: point.x * state.zoom + state.panX, y: point.y * state.zoom + state.panY };
+    };
     const activeMarquee = ports.marquee();
     if (includeSelection && activeMarquee) {
       if (activeMarquee.lasso && activeMarquee.lasso.length > 1) {
         ctx.save(); ctx.strokeStyle = "#5888c5"; ctx.fillStyle = "#76a7e51a"; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); ctx.lineJoin = "round"; ctx.beginPath();
-        activeMarquee.lasso.forEach((point, index) => { const x = point.x * state.zoom + state.panX; const y = point.y * state.zoom + state.panY; if (index) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+        activeMarquee.lasso.forEach((point, index) => { const screen = contentPointToScreen(point); if (index) ctx.lineTo(screen.x, screen.y); else ctx.moveTo(screen.x, screen.y); });
         ctx.fill(); ctx.stroke(); ctx.restore();
         return;
       }
-      const { start, end } = activeMarquee; const left = Math.min(start.x, end.x) * state.zoom + state.panX; const top = Math.min(start.y, end.y) * state.zoom + state.panY;
-      const marqueeWidth = Math.abs(end.x - start.x) * state.zoom; const marqueeHeight = Math.abs(end.y - start.y) * state.zoom;
-      ctx.save(); ctx.strokeStyle = "#5888c5"; ctx.fillStyle = "#76a7e51a"; ctx.lineWidth = 1; ctx.setLineDash([5, 4]); ctx.fillRect(left, top, marqueeWidth, marqueeHeight); ctx.strokeRect(left, top, marqueeWidth, marqueeHeight); ctx.restore();
+      const { start, end } = activeMarquee;
+      const corners = [
+        { x: Math.min(start.x, end.x), y: Math.min(start.y, end.y) },
+        { x: Math.max(start.x, end.x), y: Math.min(start.y, end.y) },
+        { x: Math.max(start.x, end.x), y: Math.max(start.y, end.y) },
+        { x: Math.min(start.x, end.x), y: Math.max(start.y, end.y) },
+      ].map(contentPointToScreen);
+      ctx.save(); ctx.strokeStyle = "#5888c5"; ctx.fillStyle = "#76a7e51a"; ctx.lineWidth = 1; ctx.setLineDash([5, 4]); ctx.beginPath();
+      corners.forEach((point, index) => { if (index) ctx.lineTo(point.x, point.y); else ctx.moveTo(point.x, point.y); });
+      ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
     }
   }
 
@@ -404,6 +462,9 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     const preview = ports.preview(); if (preview?.type !== "pen") return;
     const state = ports.canvasState();
     ctx.save(); ctx.setTransform(dpr * state.zoom, 0, 0, dpr * state.zoom, dpr * state.panX, dpr * state.panY);
+    for (const transform of ports.contentTransforms?.() ?? []) {
+      ctx.translate(transform.center.x, transform.center.y); ctx.rotate(transform.rotation * Math.PI / 180); ctx.translate(-transform.center.x, -transform.center.y);
+    }
     ports.drawFreehandPreview(ctx, { type: "freehand", points: ports.currentPoints(), color: preview.color, thickness: preview.thickness, opacity: preview.opacity });
     ctx.restore();
   }

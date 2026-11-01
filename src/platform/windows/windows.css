@@ -577,11 +577,13 @@
     position: fixed;
     z-index: 60;
     inset: 0;
-    width: 100vw;
-    height: 100vh;
-    height: 100dvh;
-    min-height: 100vh;
-    min-height: 100dvh;
+    /* The shell dimensions are expanded to offset its interface zoom. Match
+       those dimensions here so the scaled fixed canvas still fills the view. */
+    width: var(--app-shell-width, 100vw);
+    height: var(--app-shell-height-vh, 100vh);
+    height: var(--app-shell-height-dvh, 100dvh);
+    min-height: var(--app-shell-height-vh, 100vh);
+    min-height: var(--app-shell-height-dvh, 100dvh);
 }
 
 .app-shell.platform-windows.windows-fullscreen-mode .canvas-minimap {

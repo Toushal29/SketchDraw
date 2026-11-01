@@ -74,6 +74,50 @@
     vector-effect: non-scaling-stroke;
 }
 
+.canvas-group-edit-status {
+    position: absolute;
+    z-index: 14;
+    bottom: 14px;
+    left: 14px;
+    display: flex;
+    max-width: calc(100% - 28px);
+    min-height: 30px;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 9px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--theme-primary) 32%, var(--theme-border));
+    border-radius: 7px;
+    color: var(--theme-text-secondary);
+    background: color-mix(in srgb, var(--theme-surface-elevated) 94%, transparent);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--theme-shadow) 12%, transparent);
+    font-size: var(--type-caption);
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.group-edit-status-mark {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 auto;
+    border: 1px dashed var(--theme-primary);
+    border-radius: 2px;
+}
+
+.canvas-group-edit-status strong {
+    max-width: min(220px, 35vw);
+    overflow: hidden;
+    color: var(--theme-text-primary);
+    font-weight: var(--font-weight-semibold);
+    text-overflow: ellipsis;
+}
+
+.canvas-group-edit-status kbd {
+    margin-left: 2px;
+    color: var(--theme-text-tertiary);
+    font-size: var(--type-micro);
+}
+
 .app-shell.presentation-mode>.canvas-wrap {
     position: fixed;
     z-index: 60;

@@ -250,6 +250,7 @@
 .component-editor-scroll > * { order: 20; }
 .component-editor-scroll > :is(.library-component-properties, .note-editor-fields, .class-component-properties, .stencil-parameter-editor, .container-properties) { order: 10; }
 .component-editor-scroll > .geometry-properties { order: 30; }
+.component-editor-scroll > .geometry-behavior-panel { order: 35; }
 .component-editor-scroll > .component-structure-actions { order: 40; }
 .component-editor-scroll > :is(.relationship-properties, .component-navigation-details) { order: 60; }
 .component-editor-scroll > .diagram-source-editor { order: 80; }
@@ -782,6 +783,57 @@
 
 .component-editor-dock .structure-container-editor .component-state-control {
     margin: 0;
+}
+
+.component-editor-dock .geometry-behavior-panel {
+    min-width: 0;
+}
+
+.component-editor-dock .geometry-behavior-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+}
+
+.component-editor-dock .geometry-behavior-toggle {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 36px;
+    margin: 0;
+    padding: 5px 6px;
+    gap: 9px;
+    border-radius: 4px;
+    font-size: var(--type-caption);
+    line-height: var(--leading-compact);
+    transition: background-color 120ms ease;
+}
+
+.component-editor-dock .geometry-behavior-toggle:hover {
+    background: color-mix(in srgb, var(--theme-surface-elevated) 72%, transparent);
+}
+
+.component-editor-dock .geometry-behavior-toggle > strong {
+    min-width: 0;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--leading-compact);
+    overflow-wrap: anywhere;
+}
+
+.component-editor-dock .geometry-behavior-toggle > span.component-switch {
+    flex-basis: 36px;
+    width: 36px;
+    height: 21px;
+}
+
+.component-editor-dock .geometry-behavior-toggle > span.component-switch::after {
+    inset: 3px auto 3px 3px;
+    width: 15px;
+    height: 15px;
+}
+
+.component-editor-dock .geometry-behavior-toggle input:checked + span.component-switch::after {
+    transform: translateX(15px);
 }
 
 .component-editor-dock .stencil-parameter-editor>p {

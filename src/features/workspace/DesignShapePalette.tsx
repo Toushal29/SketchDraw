@@ -167,11 +167,24 @@ export function DesignShapePalette(props: {
   // Keep the catalog independent from the query so typing only updates the
   // visible results and never rebuilds or replaces the search control.
   const paletteSections = createMemo(() => createPaletteSections(props.stencils, props.masters));
-  function updateSearch(value: string, keepFocus = false) {
+  function updateSearch(value: string, input?: HTMLInputElement) {
+    const retainFocus = !!input && document.activeElement === input;
+    const selectionStart = input?.selectionStart ?? null;
+    const selectionEnd = input?.selectionEnd ?? null;
     setSearch(current => current === value ? current : value);
-    if (keepFocus) queueMicrotask(() => {
-      const input = searchInput;
-      if (input?.isConnected && document.activeElement !== input) input.focus({ preventScroll: true });
+    if (retainFocus) requestAnimationFrame(() => {
+      const currentInput = searchInput;
+      if (!currentInput?.isConnected) return;
+
+      // A matching-results update can replace the active input while Solid
+      // commits the newly visible palette items. Restore focus after that DOM
+      // commit, but leave focus alone if the user moved to another control.
+      const activeElement = document.activeElement;
+      if (activeElement !== currentInput && activeElement !== document.body && activeElement !== input) return;
+      if (activeElement !== currentInput) currentInput.focus({ preventScroll: true });
+      if (currentInput !== input && selectionStart !== null && selectionEnd !== null) {
+        currentInput.setSelectionRange(selectionStart, selectionEnd);
+      }
     });
   }
   const searchWords = createMemo(() => search().trim().toLocaleLowerCase().split(/\s+/).filter(Boolean));
@@ -191,7 +204,7 @@ export function DesignShapePalette(props: {
     <header class="design-palette-heading">
       <label class="design-palette-search">
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg>
-        <input ref={element => { searchInput = element; element.value = search(); }} type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" spellcheck={false} aria-label="Search shapes" placeholder="Search shapes" onCompositionStart={() => { searchComposing = true; }} onCompositionEnd={event => { searchComposing = false; updateSearch(event.currentTarget.value, true); }} onInput={event => { if (!searchComposing) updateSearch(event.currentTarget.value, true); }} onKeyDown={event => { if (event.key === "Escape" && search()) { event.preventDefault(); event.stopPropagation(); updateSearch("", true); if (searchInput) searchInput.value = ""; } }} />
+        <input ref={element => { searchInput = element; element.value = search(); }} type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" spellcheck={false} aria-label="Search shapes" placeholder="Search shapes" onCompositionStart={() => { searchComposing = true; }} onCompositionEnd={event => { searchComposing = false; updateSearch(event.currentTarget.value, event.currentTarget); }} onInput={event => { if (!searchComposing) updateSearch(event.currentTarget.value, event.currentTarget); }} onKeyDown={event => { if (event.key === "Escape" && search()) { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = ""; updateSearch("", event.currentTarget); } }} />
       </label>
       <button type="button" class="design-panel-toggle" aria-label={props.collapsed ? "Expand shape library" : "Collapse shape library"} title={props.collapsed ? "Expand panel" : "Collapse panel"} aria-expanded={!props.collapsed} onClick={props.onToggle}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d={props.collapsed ? "M4 10h12m-5-5 5 5-5 5" : "M16 10H4m5-5-5 5 5 5"} /></svg>

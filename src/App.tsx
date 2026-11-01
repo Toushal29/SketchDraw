@@ -71,6 +71,7 @@ import { unionBounds, elementBounds, elementGridBounds, visibleElementBounds, di
 import { ElementSpatialIndex } from "./features/canvas/spatial-index";
 import { getToolLayers, reorderToolLayers, toggleToolLayer, type ToolLayerKind } from "./features/canvas/tool-layers";
 import { changeCanvasLayerNesting, deleteCanvasLayers, ensureCanvasLayerPath, fitAutoResizeContainers, fitContainerToContent, layerHidden, layerLocked, moveCanvasLayer, moveElementsIntoContainer, orderCanvasLayers, removeContainer, resizeContainerWithChildren, selectConnectedIndices, selectSimilarIndices } from "./features/canvas/structure";
+import { translateElement } from "./features/canvas/translate";
 import { createCanvasHistory } from "./features/canvas/history";
 import { canvasStateForTouchGesture, gridStepForStyle, gridSvgPattern, isometricRowHeight, isometricRowOffset, pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePoint, zoomCanvasStateAt } from "./features/canvas/input";
 import { canGroupSelection, deletableSelectionCount as countDeletableSelection, focusedSelectionElement, isGroupSelection, primarySelectionIndex, selectedElements as getSelectedElements } from "./features/canvas/selection";
@@ -98,7 +99,6 @@ import { ALT_TEXT_MAX_LENGTH, COLOR_BLIND_SAFE_PALETTE, COLOR_VISION_MODES, buil
 import { MAX_COLOR_TOKENS, MAX_STROKE_STYLES, MAX_STYLE_MODES, MAX_TEXT_STYLES, STYLE_SLOT_LABELS, resolveColorToken, wouldCreateAliasCycle, applyTokenDeep, bindingState, captureToken, countTokenUsage, isStructuralGroup, isStyleLibraryEmpty, mergeStyleLibraries, newColorToken, newStrokeStyleToken, newTextStyleToken, refreshElementList, removeBinding, supportedSlots } from "./features/styles/style-library";
 import "./features/accessibility/accessibility.css";
 import { normalizeAutoLayout, reflowAutoLayoutFrames, type AutoLayoutPorts } from "./features/canvas/auto-layout-frame";
-import { translateElement } from "./features/canvas/translate";
 import { resizeSwimlaneDivider, swimlaneCenterY, swimlaneDividerHandles, swimlaneIndexAtY, swimlaneLayout } from "./features/canvas/swimlanes";
 import { addMindMapChild, addMindMapSibling, createMindMapNode, isMindMapNode, layoutMindMap, mindMapParentId, mindMapRootId, removeMindMapBranch } from "./features/diagrams/mind-map";
 import type { AutoLayoutConfig, CanvasBookmark, LiveDiagramFormat } from "./model";
@@ -249,8 +249,136 @@ function App() {
   let prototypeRuntimeActive = false;
   let prototypeEditDuringRun = false;
   const advanceDocumentRevision = () => { if (!prototypeRuntimeActive) setDocumentRevision(revision => revision + 1); };
-  const [elements, setElementsSignal] = createSignal<Element[]>([]);
+  const [rootElements, setElementsSignal] = createSignal<Element[]>([]);
+  const [groupEditPath, setGroupEditPathSignal] = createSignal<string[]>([]);
   const activeElementSpatialIndex = new ElementSpatialIndex();
+  function elementsAtGroupPath(items: Element[], path: string[]): Element[] | undefined {
+    let scope = items;
+    for (const id of path) {
+      const group = scope.find((item): item is GroupElement => item.type === "group" && item.id === id);
+      if (!group) return undefined;
+      scope = group.elements;
+    }
+    return scope;
+  }
+  function replaceElementsAtGroupPath(items: Element[], path: string[], replacement: Element[]): Element[] {
+    if (!path.length) return replacement;
+    const [id, ...rest] = path;
+    let found = false;
+    const updated = items.map(item => {
+      if (item.type !== "group" || item.id !== id) return item;
+      const children = rest.length ? replaceElementsAtGroupPath(item.elements, rest, replacement) : replacement;
+      if (children === item.elements) return item;
+      found = true;
+      return { ...item, elements: children };
+    });
+    return found ? updated : items;
+  }
+  const tracksGroupEditBounds = (group: GroupElement) => {
+    if (group.libraryComponent || group.note || group.mermaid) return false;
+    if (!group.container) return true;
+    return !group.container.lockedSize && (group.container.kind === "container" && !group.container.clipChildren || group.container.autoResize === true);
+  };
+  function fitEditedGroupBounds(items: Element[], path: string[], depth = 0): Element[] {
+    const id = path[depth];
+    if (!id) return items;
+    const index = items.findIndex((item): item is GroupElement => item.type === "group" && item.id === id);
+    if (index < 0) return items;
+    const group = items[index] as GroupElement;
+    const children = depth === path.length - 1 ? group.elements : fitEditedGroupBounds(group.elements, path, depth + 1);
+    let updated = children === group.elements ? group : { ...group, elements: children };
+    if (tracksGroupEditBounds(updated)) {
+      const fitted = fitContainerToContent(updated, updated.container?.padding ?? 3);
+      const before = updated.componentBounds; const after = fitted.componentBounds;
+      if (after && (!before || before.x !== after.x || before.y !== after.y || before.w !== after.w || before.h !== after.h)) {
+        if (before && updated.rotation) {
+          const centerBefore = { x: before.x + before.w / 2, y: before.y + before.h / 2 };
+          const centerAfter = { x: after.x + after.w / 2, y: after.y + after.h / 2 };
+          const delta = { x: centerAfter.x - centerBefore.x, y: centerAfter.y - centerBefore.y };
+          const rotated = rotateCanvasPoint(delta, { x: 0, y: 0 }, updated.rotation);
+          const correction = { x: rotated.x - delta.x, y: rotated.y - delta.y };
+          if (Math.hypot(correction.x, correction.y) > 1e-7) {
+            updated = { ...fitted, elements: fitted.elements.map(child => translateElement(child, correction.x, correction.y)) };
+            updated = fitContainerToContent(updated, updated.container?.padding ?? 3);
+          } else updated = fitted;
+        } else updated = fitted;
+      }
+    }
+    if (updated === group) return items;
+    const next = items.slice(); next[index] = updated;
+    return next;
+  }
+  const elements = () => elementsAtGroupPath(rootElements(), groupEditPath()) ?? [];
+  const canonicalElements = () => rootElements();
+  const setGroupEditPath = (path: string[]) => {
+    setGroupEditPathSignal(path);
+    activeElementSpatialIndex.update(elementsAtGroupPath(rootElements(), path) ?? rootElements());
+  };
+  const groupEditBreadcrumbs = () => {
+    let scope = rootElements();
+    const groups: GroupElement[] = [];
+    for (const id of groupEditPath()) {
+      const group = scope.find((item): item is GroupElement => item.type === "group" && item.id === id);
+      if (!group) break;
+      groups.push(group); scope = group.elements;
+    }
+    return groups;
+  };
+  const groupEditTransforms = () => groupEditBreadcrumbs().map(group => {
+    const bounds = elementBounds({ ...group, rotation: 0 });
+    return { center: { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }, rotation: group.rotation ?? 0 };
+  });
+  const groupEditContextScenes = () => {
+    const groups = groupEditBreadcrumbs();
+    if (!groups.length) return [];
+    const scenes: { elements: Element[]; sourceElements: Element[]; transforms: { center: Point; rotation: number }[] }[] = [];
+    const roots = canonicalElements();
+    scenes.push({ elements: roots.filter(item => item.id !== groups[0].id), sourceElements: roots, transforms: [] });
+    for (let index = 0; index < groups.length - 1; index++) {
+      const parent = groups[index]; const next = groups[index + 1];
+      scenes.push({ elements: parent.elements.filter(item => item.id !== next.id), sourceElements: parent.elements, transforms: groupEditTransforms().slice(0, index + 1) });
+    }
+    return scenes;
+  };
+  const groupEditContextScenesMemo = createMemo(groupEditContextScenes);
+  const groupEditCurrentName = () => { const groups = groupEditBreadcrumbs(); return groups[groups.length - 1]?.container?.name || "Group"; };
+  const groupEditBoundary = () => {
+    const groups = groupEditBreadcrumbs(); const group = groups[groups.length - 1];
+    if (!group) return undefined;
+    const boundary = tracksGroupEditBounds(group) ? fitContainerToContent(group, group.container?.padding ?? 3) : group;
+    return { bounds: boundary.componentBounds ?? elementBounds({ ...boundary, rotation: 0 }), color: accentColor() };
+  };
+  const groupEditPointToScope = (point: Point): Point => {
+    const transforms = groupEditTransforms();
+    for (const transform of transforms) point = rotateCanvasPoint(point, transform.center, -transform.rotation);
+    return point;
+  };
+  const scopePointToGroupEdit = (point: Point): Point => {
+    const transforms = groupEditTransforms();
+    for (let index = transforms.length - 1; index >= 0; index--) point = rotateCanvasPoint(point, transforms[index].center, transforms[index].rotation);
+    return point;
+  };
+  const exitGroupEditingTo = (depth: number) => {
+    const path = groupEditPath();
+    if (!path.length) return;
+    const targetDepth = Math.max(0, Math.min(path.length, depth));
+    if (targetDepth === path.length) return;
+    if (textDraft()) commitTextDraft();
+    const exitedGroup = groupEditBreadcrumbs()[targetDepth];
+    const parentPath = path.slice(0, targetDepth);
+    setGroupEditPath(parentPath);
+    setSelectedIndices([]);
+    if (exitedGroup) {
+      const index = elements().findIndex(item => item.id === exitedGroup.id);
+      if (index >= 0) setSelectedIndices([index]);
+    }
+  };
+  const enterGroupEditing = (index: number, group: GroupElement) => {
+    if (!group.id || group.locked || boardLocked() || readOnlyView()) return;
+    if (elements()[index]?.id !== group.id) return;
+    setGroupEditPath([...groupEditPath(), group.id]);
+    setSelectedIndices([]); setTool("select"); setSidebarTab("properties"); setStyleMenuMode("full");
+  };
   const autoRoutePresenceCache = new WeakMap<Element, boolean>();
   const hasAutoRoute = (item: Element): boolean => {
     const cached = autoRoutePresenceCache.get(item);
@@ -285,9 +413,15 @@ function App() {
   const reflowFrames = (items: Element[]) => reflowAutoLayoutFrames(items, autoLayoutPorts);
   function setElements(next: Element[] | ((previous: Element[]) => Element[])) {
     advanceDocumentRevision();
-    return setElementsSignal(previous => {
-      const updated = withWindowsRouteSnapshots(reflowFrames(fitAutoResizeContainers(resolveBindings(ensureIds(typeof next === "function" ? next(previous) : next)))));
-      activeElementSpatialIndex.update(updated);
+    const path = groupEditPath();
+    return setElementsSignal(previousRoot => {
+      const previousScope = elementsAtGroupPath(previousRoot, path);
+      if (!previousScope) return previousRoot;
+      const requested = typeof next === "function" ? next(previousScope) : next;
+      const candidate = replaceElementsAtGroupPath(previousRoot, path, requested);
+      const normalized = reflowFrames(fitAutoResizeContainers(resolveBindings(ensureIds(candidate))));
+      const updated = withWindowsRouteSnapshots(fitEditedGroupBounds(normalized, path));
+      activeElementSpatialIndex.update(elementsAtGroupPath(updated, path) ?? updated);
       return updated;
     });
   }
@@ -302,7 +436,10 @@ function App() {
   // index refreshes changed objects only.
   function setElementsTransient(next: Element[] | ((previous: Element[]) => Element[]), changedIndices?: readonly number[], skipLayout = false) {
     advanceDocumentRevision();
-    return setElementsSignal(previous => {
+    const path = groupEditPath();
+    return setElementsSignal(previousRoot => {
+      const previous = elementsAtGroupPath(previousRoot, path);
+      if (!previous) return previousRoot;
       const edited = typeof next === "function" ? next(previous) : next;
       let updated = edited;
       if (!skipLayout) {
@@ -321,22 +458,27 @@ function App() {
           updated = laidOut;
         }
       }
-      if (changedIndices) activeElementSpatialIndex.updateChanged(updated, changedIndices);
-      else activeElementSpatialIndex.update(updated);
-      return updated;
+      const updatedRoot = replaceElementsAtGroupPath(previousRoot, path, updated);
+      const visible = elementsAtGroupPath(updatedRoot, path) ?? updatedRoot;
+      if (changedIndices) activeElementSpatialIndex.updateChanged(visible, changedIndices);
+      else activeElementSpatialIndex.update(visible);
+      return updatedRoot;
     });
   }
   function setElementTransientAt(index: number, operation: (element: Element) => Element) {
     advanceDocumentRevision();
-    return setElementsSignal(previous => {
-      const current = previous[index];
-      if (!current) return previous;
+    const path = groupEditPath();
+    return setElementsSignal(previousRoot => {
+      const previous = elementsAtGroupPath(previousRoot, path);
+      const current = previous?.[index];
+      if (!previous || !current) return previousRoot;
       const updatedElement = operation(current);
-      if (updatedElement === current) return previous;
+      if (updatedElement === current) return previousRoot;
       const updated = [...previous];
       updated[index] = updatedElement;
-      activeElementSpatialIndex.updateChanged(updated, [index]);
-      return updated;
+      const updatedRoot = replaceElementsAtGroupPath(previousRoot, path, updated);
+      activeElementSpatialIndex.updateChanged(elementsAtGroupPath(updatedRoot, path) ?? updatedRoot, [index]);
+      return updatedRoot;
     });
   }
   const [canvasState, setCanvasStateSignal] = createSignal<CanvasState>(emptyCanvas());
@@ -355,7 +497,7 @@ function App() {
     windowsSyncMetadata, setWindowsSyncMetadata,
   } = documentSession;
   const setPages: typeof setPagesSignal = next => { advanceDocumentRevision(); return setPagesSignal(next); };
-  const setActivePageId: typeof setActivePageIdSignal = next => { advanceDocumentRevision(); return setActivePageIdSignal(next); };
+  const setActivePageId: typeof setActivePageIdSignal = next => { advanceDocumentRevision(); setGroupEditPath([]); return setActivePageIdSignal(next); };
   const setLegacyLibraryData: typeof setLegacyLibraryDataSignal = next => { advanceDocumentRevision(); return setLegacyLibraryDataSignal(next); };
   const setDirty = (value: boolean) => {
     if (prototypeRuntimeActive && value) prototypeEditDuringRun = true;
@@ -837,15 +979,25 @@ function App() {
   const [attachmentHint, setAttachmentHint] = createSignal<Point>();
   let clipboardItems: Element[] = [];
   const canvasHistory = createCanvasHistory<Element[]>({
-    getCurrent: elements,
-    setCurrent: setElements,
+    getCurrent: canonicalElements,
+    setCurrent: value => {
+      advanceDocumentRevision(); setElementsSignal(value);
+      if (elementsAtGroupPath(value, groupEditPath())) activeElementSpatialIndex.update(elements());
+      else setGroupEditPath([]);
+    },
     clone: cloneElements,
     canEdit: () => !boardLocked(),
     clearSelection: () => setSelectedIndices([]),
     markDirty: () => setDirty(true),
     changed: () => setHistoryVersion(version => version + 1),
   });
-  const pushUndo = canvasHistory.push;
+  const pushUndo = (before: Element[]) => {
+    const path = groupEditPath();
+    if (!path.length) { canvasHistory.push(before); return; }
+    const canonicalBefore = replaceElementsAtGroupPath(canonicalElements(), path, before);
+    const normalized = reflowFrames(fitAutoResizeContainers(resolveBindings(ensureIds(canonicalBefore))));
+    canvasHistory.push(withWindowsRouteSnapshots(fitEditedGroupBounds(normalized, path)));
+  };
   const rememberPageHistory = () => canvasHistory.rememberPage(activePageId());
   const restorePageHistory = () => canvasHistory.restorePage(activePageId());
   function duplicatePage() {
@@ -1243,7 +1395,7 @@ function App() {
   }
   function onContextMenu(event: MouseEvent) {
     event.preventDefault(); if (!activePath() || readOnlyView()) return;
-    commitTextDraft(); const rect = canvas.getBoundingClientRect(); const view = canvasState(); const point = { x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom };
+    commitTextDraft(); const rect = canvas.getBoundingClientRect(); const view = canvasState(); const point = groupEditPointToScope({ x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom });
     const hit = hitTest(point); if (hit !== undefined && !selectedIndices().includes(hit)) setSelectedIndices([hit]);
     if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false;
     setContextMenu({ x: Math.max(8, Math.min(event.clientX, window.innerWidth - 252)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - 510)), world: point });
@@ -1586,6 +1738,15 @@ function App() {
   function editorLeft(draft: TextDraft) {
     return draft.x - (draft.shapeLabel ? 0 : draft.textAlign === "center" ? editorWidth(draft) / 2 : draft.textAlign === "right" ? editorWidth(draft) : 0);
   }
+  function scopePointToViewport(point: Point) {
+    const projected = scopePointToGroupEdit(point); const view = canvasState();
+    return { x: view.panX + projected.x * view.zoom, y: view.panY + projected.y * view.zoom };
+  }
+  function textEditorViewportPosition(draft: TextDraft) {
+    const width = editorWidth(draft); const height = draft.height ?? Math.max(20, draft.fontSize * 1.4); const view = canvasState();
+    const center = scopePointToViewport({ x: editorLeft(draft) + width / 2, y: draft.y + height / 2 });
+    return { left: center.x - width * view.zoom / 2, top: center.y - height * view.zoom / 2 };
+  }
   function setShapeLabelAt(shape: ShapeElement, labelIndex: number, label: ShapeLabel | undefined): ShapeElement {
     if (labelIndex === 0) return { ...shape, label };
     if (!isConnector(shape)) return shape;
@@ -1780,9 +1941,9 @@ function App() {
     if (scope === "frame") { const frame = selectedFrameElement(); return frame ? [frame] : []; }
     if (scope === "region") {
       const region = exportMarqueeRegion(); if (!region) return [];
-      return elements().filter(item => { const bounds = elementBounds(item); return bounds.x < region.x + region.w && bounds.x + bounds.w > region.x && bounds.y < region.y + region.h && bounds.y + bounds.h > region.y; });
+      return canonicalElements().filter(item => { const bounds = elementBounds(item); return bounds.x < region.x + region.w && bounds.x + bounds.w > region.x && bounds.y < region.y + region.h && bounds.y + bounds.h > region.y; });
     }
-    return elements();
+    return canonicalElements();
   }
   function exportSceneBounds(items: Element[], scope: ReturnType<typeof exportScope>, view = canvasState(), rect = canvas?.getBoundingClientRect()): Bounds {
     const visibleBounds = (source: Element[]) => source.flatMap(item => visibleElementBounds(item, isElementHidden));
@@ -1849,7 +2010,7 @@ function App() {
       return { ...item, [key]: value.trim().slice(0, 2000) || undefined } as ShapeElement;
     });
   }
-  function runProfileValidation(profile: DiagramLintProfile) { const issues = validateDiagram(elements(), pages().map(page => page.id === activePageId() ? { ...page, elements: elements() } : page), { includeOverlaps: validationIncludeOverlaps(), warnEmptyLabels: validationWarnEmptyLabels(), accessibility: { boardColor: renderedBoardColor(), ink: color => themeInk(color, theme()) } }); setValidationIssues(issuesForProfile(issues, profile)); setValidationProfile(profile); setValidationOpen(true); setCanvasOptionsOpen(false); }
+  function runProfileValidation(profile: DiagramLintProfile) { const items = canonicalElements(); const issues = validateDiagram(items, pages().map(page => page.id === activePageId() ? { ...page, elements: items } : page), { includeOverlaps: validationIncludeOverlaps(), warnEmptyLabels: validationWarnEmptyLabels(), accessibility: { boardColor: renderedBoardColor(), ink: color => themeInk(color, theme()) } }); setValidationIssues(issuesForProfile(issues, profile)); setValidationProfile(profile); setValidationOpen(true); setCanvasOptionsOpen(false); }
   function runDiagramValidation() { runProfileValidation("all"); }
   const visibleValidationIssues = () => issuesForProfile(validationIssues(), validationProfile());
   function stopBpmnSimulation() {
@@ -1929,7 +2090,7 @@ function App() {
     const target = restored.pages.find(page => page.id === restored.activePageId) ?? restored.pages[0]; if (!target) return;
     canvasHistory.clearAll();
     batch(() => {
-      setPages(restored.pages); setActivePageId(target.id); setElements(target.elements); setCanvasState({ ...target.canvasState });
+      setGroupEditPath([]); setPages(restored.pages); setActivePageId(target.id); setElements(target.elements); setCanvasState({ ...target.canvasState });
       setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false);
       setSelectedIndices([]); setHoveredIndex(undefined); setDirty(true);
     });
@@ -2219,7 +2380,7 @@ function App() {
   }
   const documentOutline = createMemo(() => outlineOpen() ? buildDocumentOutline(elements()) : []);
   // Frame navigator: jump between pages, frames, and saved views.
-  const livePages = () => pages().map(page => page.id === activePageId() ? { ...page, elements: elements() } : page);
+  const livePages = () => pages().map(page => page.id === activePageId() ? { ...page, elements: canonicalElements() } : page);
   const navigatorPages = () => livePages().map(page => ({ id: page.id, name: page.name, active: page.id === activePageId(), frames: pageFrames(page.elements), bookmarks: page.bookmarks ?? [] }));
   const selectedFrameId = () => { const item = selectedRootElement(); return item?.type === "group" && item.container?.kind === "frame" ? item.id : undefined; };
   function goToFrame(pageId: string, frameId: string) {
@@ -2495,7 +2656,7 @@ function App() {
       });
       for (const page of result.pages) imageCache.set(page.dataUrl, Object.assign(new Image(), { src: page.dataUrl }));
       if (reuseCurrent) {
-        setElements(first.elements); setCanvasState({ ...first.canvasState }); setBoardColor(first.canvasState.backgroundColor); setBoardColorFollowsTheme(first.canvasState.boardColorFollowsTheme ?? true); setSelectedIndices([]);
+        setGroupEditPath([]); setElements(first.elements); setCanvasState({ ...first.canvasState }); setBoardColor(first.canvasState.backgroundColor); setBoardColorFollowsTheme(first.canvasState.boardColorFollowsTheme ?? true); setSelectedIndices([]);
         canvasHistory.resetCurrent();
       } else switchPage(first.id);
       setTool("pen"); setDirty(true); scheduleCanvasRender();
@@ -2780,7 +2941,7 @@ function App() {
   const status = () => !activePath() ? "No file selected" : readOnlyView() ? "View only · changes are not saved" : documentControllerStatus() === "opening" ? "Opening sketch…" : (saving() || documentControllerStatus() === "saving") ? "Saving…" : (dirty() || textDraft()) ? "Unsaved changes" : savedAt() ? `Saved ${savedAt()}` : "Saved locally";
   const documentSnapshotCoordinator = createDocumentSnapshotCoordinator({
     readDocument: () => ({
-      pages: pages(), activePageId: activePageId(), activeElements: elements(), activeCanvasState: canvasState(),
+      pages: pages(), activePageId: activePageId(), activeElements: canonicalElements(), activeCanvasState: canvasState(),
       activeRenderedBoardColor: renderedBoardColor(), theme: theme(), library: legacyLibraryData(),
     }),
     activePath,
@@ -2807,7 +2968,7 @@ function App() {
   function storeCurrentPage() {
     const id = activePageId();
     if (!id) return;
-    setPages((items) => items.map((page) => page.id === id ? { ...page, elements: elements(), canvasState: { ...canvasState(), backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() } } : page));
+    setPages((items) => items.map((page) => page.id === id ? { ...page, elements: canonicalElements(), canvasState: { ...canvasState(), backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() } } : page));
   }
   function prototypeElementsForRun(items: Element[]): Element[] {
     return items.map(item => item.type === "group" ? { ...item, hidden: item.prototypeOverlay ? true : item.hidden, elements: prototypeElementsForRun(item.elements) } : item.prototypeOverlay ? { ...item, hidden: true } as Element : item);
@@ -2913,6 +3074,7 @@ function App() {
     } else {
       commitTextDraft(); rememberPageHistory(); storeCurrentPage();
     }
+    setGroupEditPath([]);
     const nextElements = canvasRunMode() ? prototypeRuntimePages.get(id)?.runtime ?? target.elements : target.elements;
     setElements(nextElements); setCanvasState({ ...target.canvasState }); setBoardColor(target.canvasState.backgroundColor); setBoardColorFollowsTheme(target.canvasState.boardColorFollowsTheme ?? false);
     setActivePageId(id); setSelectedIndices([]); setHoveredIndex(undefined); setTextDraft(undefined); setMarquee(undefined);
@@ -2921,6 +3083,7 @@ function App() {
   }
 
   function toggleCanvasRunMode() {
+    if (groupEditPath().length) exitGroupEditingTo(0);
     if (!canvasRunMode()) {
       if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer);
       syncObservationTimer = undefined;
@@ -2962,12 +3125,15 @@ function App() {
     if (boardLocked()) return;
     if (pages().length >= 100) { setError("A sketch can contain up to 100 pages."); return; }
     commitTextDraft(); storeCurrentPage(); rememberPageHistory();
+    setGroupEditPath([]);
     const number = pages().length + 1; const page: SketchPage = { id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: `Page ${number}`, canvasState: emptyCanvas(), elements: [] };
     setPages((items) => [...items, page]); setActivePageId(page.id); setElements([]); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setDirty(true);
     canvasHistory.resetCurrent();
   }
   function deleteCurrentPage() {
     if (boardLocked() || pages().length <= 1) return;
+    commitTextDraft();
+    setGroupEditPath([]);
     const masters = activeComponentMasters(); const nextPages = pages().filter((page) => page.id !== activePageId());
     if (masters.length) nextPages[0] = { ...nextPages[0], componentMasters: masters };
     const styles = activeStyleLibrary(); if (!isStyleLibraryEmpty(styles)) nextPages[0] = { ...nextPages[0], styleLibrary: styles };
@@ -2977,7 +3143,7 @@ function App() {
   }
   const canUndo = () => { historyVersion(); return canvasHistory.canUndo(); };
   const canRedo = () => { historyVersion(); return canvasHistory.canRedo(); };
-  const toWorld = (event: PointerEvent): Point => pointerToWorld(event.clientX, event.clientY, canvas.getBoundingClientRect(), canvasState());
+  const toWorld = (event: PointerEvent): Point => groupEditPointToScope(pointerToWorld(event.clientX, event.clientY, canvas.getBoundingClientRect(), canvasState()));
   const strokePointFromPointer = (event: PointerEvent, point: Point): StrokePoint => makeStrokePoint(event, point, penPressure(), penTilt());
   function appendStrokePoint(point: StrokePoint) {
     const simplifyInk = activeDrawingTool === "pen" && tool() === "pen";
@@ -3004,7 +3170,7 @@ function App() {
     for (const sample of samples) {
       if (!Number.isFinite(sample.clientX) || !Number.isFinite(sample.clientY)) continue;
       if (!strokeSampleGate.accept("native", sample.time)) continue;
-      const point = pointerToWorld(sample.clientX, sample.clientY, bounds, state);
+      const point = groupEditPointToScope(pointerToWorld(sample.clientX, sample.clientY, bounds, state));
       const previous = currentPoints[currentPoints.length - 1];
       if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) * state.zoom < .01) continue;
       if (!appendStrokePoint({
@@ -3025,7 +3191,7 @@ function App() {
     if (samples.some(sample => sample.phase === "end")) pendingAndroidStylusSamples = [];
     else if (samples.some(sample => sample.phase === "start")) pendingAndroidStylusSamples = samples.slice(-12);
   }
-  const snap = (point: Point): Point => snapCanvasPoint(point, snapToGrid(), whiteboardStyle(), GRID_SIZE, canvasState().zoom);
+  const snap = (point: Point): Point => snapCanvasPoint(point, snapToGrid(), whiteboardStyle(), GRID_SIZE);
   function connectorPreviewEndpoint(start: Point, raw: Point, port: Point | undefined, constrainAngle: boolean, bypassSnap = false) {
     const axisGuide = (point: Point): Preview["alignmentGuide"] => {
       const tolerance = .25 / canvasState().zoom;
@@ -3657,7 +3823,7 @@ function App() {
 
   function handleCanvasDoubleClick(event: MouseEvent) {
     const rect = canvas.getBoundingClientRect(); const view = canvasState();
-    const point = { x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom };
+    const point = groupEditPointToScope({ x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom });
     const hit = hitTest(point) ?? hitInterior(point); const target = hit === undefined ? undefined : elements()[hit];
     if (target?.type === "image" && target.previewUrl) { event.preventDefault(); setActiveWebPreview({ id: target.id!, url: target.previewUrl, embedUrl: webEmbedUrl(target.previewUrl) }); return; }
     if (target?.pageLinkId && pages().some(page => page.id === target.pageLinkId)) { event.preventDefault(); switchPage(target.pageLinkId); return; }
@@ -3668,6 +3834,7 @@ function App() {
     if (target?.type === "group" && target.libraryComponent?.kind?.startsWith("viz-")) { openCsvChartDialog(target.id); return; }
     if (target?.type === "group" && target.mermaid) { openMermaidDialog(target.id); return; }
     if (target?.type === "group" && !target.note && !target.mermaid && hit !== undefined) {
+      if (!target.libraryComponent) { enterGroupEditing(hit, target); return; }
       const nearestEditableChild = (group: GroupElement) => flatten(group.elements)
         .filter((item): item is Element => item.type === "text" || (isLabelShape(item) || isConnector(item)) && !!item.label)
         .map(item => {
@@ -3677,9 +3844,9 @@ function App() {
           return { item, distance: dx * dx + dy * dy };
         })
         .sort((a, b) => a.distance - b.distance)[0]?.item;
+      const child = nearestEditableChild(target);
+      if (child) { editNestedText(hit, target, child); return; }
       if (target.libraryComponent) {
-        const child = nearestEditableChild(target);
-        if (child) { editNestedText(hit, target, child); return; }
         setSelectedIndices([hit]);
         const fields = libraryComponentFields(target);
         const locate = (key: string): Element | undefined => {
@@ -3693,12 +3860,6 @@ function App() {
           if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
         });
         return;
-      }
-      if (!target.libraryComponent) {
-        const before = cloneElements(elements()); const editable = assignLibraryComponentIds(target, "custom" as LibraryComponentKind, target);
-        setElements(items => items.map((item, index) => index === hit ? editable : item)); pushUndo(before); setDirty(true);
-        const child = nearestEditableChild(editable);
-        if (child) { editNestedText(hit, editable, child); return; }
       }
       setSelectedIndices([hit]); setSidebarTab("properties"); setStyleMenuMode("full"); setMobileQuickPropertiesOpen(true); return;
     }
@@ -4992,8 +5153,8 @@ function App() {
     const gridEnabled = snapToGrid();
     const gridStyle = whiteboardStyle();
     const gridCoordinate = (position: number, axis: "x" | "y") => axis === "x"
-      ? snapCanvasPoint({ x: position, y: 0 }, true, gridStyle, GRID_SIZE, canvasState().zoom).x
-      : snapCanvasPoint({ x: 0, y: position }, true, gridStyle, GRID_SIZE, canvasState().zoom).y;
+      ? snapCanvasPoint({ x: position, y: 0 }, true, gridStyle, GRID_SIZE).x
+      : snapCanvasPoint({ x: 0, y: position }, true, gridStyle, GRID_SIZE).y;
     const nearest = (position: number, axis: "x" | "y") => {
       const alignments: { target: number; correction: number; reference?: Bounds }[] = [];
       if (!rotation && snapToObjects()) {
@@ -5033,7 +5194,7 @@ function App() {
   }
 
   const sceneRenderer = createCanvasSceneRenderer({
-    elements, isHidden: isElementHidden, isLocked: isElementLocked, spatialIndex: () => activeElementSpatialIndex, canvasState, renderedBoardColor, whiteboardStyle, showGrid, gridSize: GRID_SIZE, selectedSet,
+    elements, contentTransforms: groupEditTransforms, contextScenes: groupEditContextScenesMemo, groupEditBoundary, isHidden: isElementHidden, isLocked: isElementLocked, spatialIndex: () => activeElementSpatialIndex, canvasState, renderedBoardColor, whiteboardStyle, showGrid, gridSize: GRID_SIZE, selectedSet,
     moveOrigin: () => moveOrigin, resizeOrigin: () => resizeOrigin, connectorLabelMoveActive: () => !!labelMoveOrigin,
     hoveredIndex, boardLocked, tool, attachmentHint, marquee,
     tileCacheKey: () => `${theme()}|${canvasAssetRevision()}|${currentLayers().map(layer => `${layer.id}:${layer.hidden ? 1 : 0}`).join(",")}`, tileCacheAllowed: () => !textDraft() && !noteEditor() && !resizeOrigin && !labelMoveOrigin,
@@ -5222,6 +5383,7 @@ function App() {
         if (exportOptionsOpen()) { event.preventDefault(); setExportOptionsOpen(false); return; }
         if (recoveryPrompt() || syncConflict()) return;
         if (textDraft()) commitTextDraft();
+        if (groupEditPath().length) { event.preventDefault(); exitGroupEditingTo(groupEditPath().length - 1); return; }
         event.preventDefault(); setTool(readOnlyView() ? "laser" : isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform() && !readOnlyView()) setStyleMenuMode("quick"); setTouchStylePanel(false); setQuickStylePopover(undefined); setSelectedIndices([]); setHoveredIndex(undefined); setMarquee(undefined); marqueeOrigin = undefined; resizeOrigin = undefined; moveOrigin = undefined; labelMoveOrigin = undefined; libraryControlOrigin = undefined; setPreview(undefined); drawing = false; setSpaceDown(false); setIsPanning(false); panOrigin = undefined;
         if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; return;
       }
@@ -5554,20 +5716,23 @@ function App() {
     const snapshot = documentSnapshot(); const draft = textDraft(); if (!draft) return snapshot;
     const pageIndex = snapshot.pages.findIndex(page => page.id === snapshot.activePageId); if (pageIndex < 0) return snapshot;
     const page = { ...snapshot.pages[pageIndex], elements: [...snapshot.pages[pageIndex].elements] };
+    const editPath = groupEditPath();
+    let editScope = elementsAtGroupPath(page.elements, editPath) ?? page.elements;
     snapshot.pages = snapshot.pages.map((current, index) => index === pageIndex ? page : current);
     const style = { color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType };
     if (draft.editingChildId && draft.editingIndex !== undefined) {
-      const item = page.elements[draft.editingIndex];
+      const item = editScope[draft.editingIndex];
       if (item?.type === "group") {
         const updated = updateNestedGroupChild(item, draft.editingChildId, child => {
           if (draft.shapeLabel && (isLabelShape(child) || isConnector(child))) return { ...child, label: draft.value.trim() ? { ...child.label, ...style, text: draft.value, verticalAlign: draft.verticalAlign ?? "middle" } : undefined } as Element;
           return child.type === "text" ? { ...child, ...style, text: draft.value } : child;
         });
-        if (updated) page.elements[draft.editingIndex] = updated;
+        if (updated) editScope = replaceElementAtIndex(editScope, draft.editingIndex, updated);
       }
     }
-    else if (draft.shapeLabel && draft.editingIndex !== undefined) { const item = page.elements[draft.editingIndex]; if (item && (isLabelShape(item) || isConnector(item))) { const labelIndex = draft.shapeLabelIndex ?? 0; const currentLabel = labelIndex === 0 ? item.label : isConnector(item) ? item.connectorLabels?.[labelIndex - 1] : undefined; page.elements[draft.editingIndex] = setShapeLabelAt(item, labelIndex, { ...currentLabel, ...style, text: draft.value, verticalAlign: draft.verticalAlign ?? "middle" }); } }
-    else { const item: TextElement = { ...style, type: "text", x: draft.x, y: draft.y, text: draft.value, id: draft.editingIndex !== undefined ? page.elements[draft.editingIndex]?.id : crypto.randomUUID() }; if (draft.editingIndex !== undefined) page.elements[draft.editingIndex] = item; else if (draft.value.trim()) page.elements.push(item); }
+    else if (draft.shapeLabel && draft.editingIndex !== undefined) { const item = editScope[draft.editingIndex]; if (item && (isLabelShape(item) || isConnector(item))) { const labelIndex = draft.shapeLabelIndex ?? 0; const currentLabel = labelIndex === 0 ? item.label : isConnector(item) ? item.connectorLabels?.[labelIndex - 1] : undefined; editScope = replaceElementAtIndex(editScope, draft.editingIndex, setShapeLabelAt(item, labelIndex, { ...currentLabel, ...style, text: draft.value, verticalAlign: draft.verticalAlign ?? "middle" })); } }
+    else { const item: TextElement = { ...style, type: "text", x: draft.x, y: draft.y, text: draft.value, id: draft.editingIndex !== undefined ? editScope[draft.editingIndex]?.id : crypto.randomUUID() }; if (draft.editingIndex !== undefined) editScope = replaceElementAtIndex(editScope, draft.editingIndex, item); else if (draft.value.trim()) editScope = [...editScope, item]; }
+    page.elements = replaceElementsAtGroupPath(page.elements, editPath, editScope);
     return snapshot;
   }
   function persistRecovery() {
@@ -5577,6 +5742,7 @@ function App() {
 
   function applySnapshot(snapshot: SketchFile, path: string, rawText: string, nextWorkspace: WorkspaceArea = "canvas") {
     finishLibraryTextEdit();
+    setGroupEditPath([]);
     canvasHistory.clearAll(); setTextDraft(undefined); setNoteEditor(undefined); setContextMenu(undefined); setLayerPanelOpen(false); setTouchStylePanel(false); setQuickStylePopover(undefined); setCanvasOptionsOpen(false);  setComponentLibraryOpen(false); closeToolOptions(); setPreview(undefined); setMarquee(undefined); drawing = false; moveOrigin = undefined; resizeOrigin = undefined;
     let upgradedComponents = false;
     const pages = snapshot.pages.map(page => ({ ...page, elements: page.elements.map(element => {
@@ -5838,7 +6004,7 @@ function App() {
 
   function resetDocumentSession() {
     if (canvasRunMode()) toggleCanvasRunMode();
-    canvasHistory.clearAll();
+    setGroupEditPath([]); canvasHistory.clearAll();
     setElements([]); setCanvasState(emptyCanvas());
     documentSession.reset();
     setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setHoveredIndex(undefined); setBoardLocked(false);
@@ -6361,7 +6527,7 @@ function App() {
     setNativeBusy(true);
     try {
       commitTextDraft();
-      const source = format === "drawio" ? exportDrawio(elements()) : format === "excalidraw" ? exportExcalidraw(elements()) : exportVsdx(elements());
+      const source = format === "drawio" ? exportDrawio(canonicalElements()) : format === "excalidraw" ? exportExcalidraw(canonicalElements()) : exportVsdx(canonicalElements());
       const label = format === "drawio" ? "draw.io" : format === "excalidraw" ? "Excalidraw" : "Visio";
       const selected = await save({ title: `Export editable ${label} diagram`, defaultPath: `SketchDraw.${format}`, filters: [{ name: `${label} diagram`, extensions: [format] }] });
       if (!selected) return;
@@ -6377,7 +6543,7 @@ function App() {
     try {
       commitTextDraft();
       const format = diagramCodeFormat();
-      const exportItems = diagramCodeScope() === "selection" ? selectedElements() : elements();
+      const exportItems = diagramCodeScope() === "selection" ? selectedElements() : canonicalElements();
       if (!exportItems.length) throw new Error("Select one or more objects to export, or switch to the current page.");
       const contents = exportDiagramCode(format, exportItems);
       const baseName = displayNameForPath(activePath()!).replace(/\.sketch$/i, "") || "SketchDraw";
@@ -6393,7 +6559,7 @@ function App() {
     if (!activePath() || readOnlyView() || nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
-      const exportItems = diagramCodeScope() === "selection" ? selectedElements() : elements();
+      const exportItems = diagramCodeScope() === "selection" ? selectedElements() : canonicalElements();
       if (!exportItems.length) throw new Error("Select one or more objects to export, or switch to the current page.");
       const archive = blueprintZip(buildBlueprintFiles(blueprintFormat(), exportItems));
       const baseName = displayNameForPath(activePath()!).replace(/\.sketch$/i, "") || "SketchDraw";
@@ -6603,7 +6769,7 @@ function App() {
       const document: SketchFile = { format: "SketchDraw", version: SKETCH_FORMAT_VERSION, activePageId: page.id, pages: [page], library, ...(windowsSync ? { windowsSync } : {}) };
       const contents = snapshotRaw(document);
       await sketchFileStore.write(path, contents, null);
-      canvasHistory.clearAll(); documentSession.activate(document, path, "canvas"); setElements(initialElements); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); documentSnapshotCoordinator.seed(document); setDirty(false); setBoardLocked(false); setError(""); docController.setBaselineRaw(contents);
+      setGroupEditPath([]); canvasHistory.clearAll(); documentSession.activate(document, path, "canvas"); setElements(initialElements); setCanvasState(emptyCanvas()); setBoardColor("#ffffff"); setBoardColorFollowsTheme(true); setSelectedIndices([]); setTool("pen"); rememberFile(path); if (isWindowsPlatform()) setOpenSketchPaths(paths => paths.includes(path) ? paths : [...paths, path]); documentSnapshotCoordinator.seed(document); setDirty(false); setBoardLocked(false); setError(""); docController.setBaselineRaw(contents);
       setDiagramGuidesOpen(false);
     } catch (cause) { setError(`Could not create SketchDraw file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
@@ -7087,8 +7253,8 @@ function App() {
     let samples: PointerEvent[] = [];
     try { samples = event.getCoalescedEvents?.() ?? []; } catch { /* Some Android WebViews expose this API without implementing it. */ }
     if (!samples.length) samples = [event];
-    for (const sample of samples) appendStrokeSample(sample, { x: (sample.clientX - bounds.left - state.panX) / state.zoom, y: (sample.clientY - bounds.top - state.panY) / state.zoom });
-    if (appendTerminal && samples[samples.length - 1] !== event) appendStrokeSample(event, { x: (event.clientX - bounds.left - state.panX) / state.zoom, y: (event.clientY - bounds.top - state.panY) / state.zoom });
+    for (const sample of samples) appendStrokeSample(sample, groupEditPointToScope({ x: (sample.clientX - bounds.left - state.panX) / state.zoom, y: (sample.clientY - bounds.top - state.panY) / state.zoom }));
+    if (appendTerminal && samples[samples.length - 1] !== event) appendStrokeSample(event, groupEditPointToScope({ x: (event.clientX - bounds.left - state.panX) / state.zoom, y: (event.clientY - bounds.top - state.panY) / state.zoom }));
   }
 
   function pointerRawUpdate(event: PointerEvent) {
@@ -7322,7 +7488,7 @@ function App() {
     let gridX: number | undefined; let gridY: number | undefined;
     if (gridEnabled) {
       const style = whiteboardStyle();
-      const snapped = snapCanvasPoint({ x: moving.x + dx, y: moving.y + dy }, true, style, GRID_SIZE, canvasState().zoom);
+      const snapped = snapCanvasPoint({ x: moving.x + dx, y: moving.y + dy }, true, style, GRID_SIZE);
       gridX = snapped.x - (moving.x + dx); gridY = snapped.y - (moving.y + dy);
     }
     // A nearby object alignment is the strongest snap; the active grid is used when no guide target is close.
@@ -8579,6 +8745,7 @@ function App() {
       <Show when={activePath()}>
         <>
           <section class="canvas-wrap" ref={canvasWrap} classList={{ "canvas-minimap-visible": showMinimap(), "canvas-notebook-split-open": notebookSplitOpen() }}>
+            <Show when={groupEditPath().length > 0}><div class="canvas-group-edit-status" role="status"><span class="group-edit-status-mark" aria-hidden="true" /><span>Editing group</span><strong>{groupEditCurrentName()}</strong><kbd>Esc to exit</kbd></div></Show>
             <Show when={touchFocusMode()}><TouchFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={chooseFocusTool} onExit={() => void toggleTouchFocusMode(false)} /></Show>
             <Show when={isWindowsPlatform() && windowsFullscreenMode()}><WindowsFocusTools tool={tool()} readOnly={readOnlyView()} onSelect={selectedTool => { if (readOnlyView() && selectedTool !== "select" && selectedTool !== "laser") { setTool("laser"); return; } if (selectedTool === "select") { setTool("select"); setStyleMenuMode("quick"); } else activateTool(selectedTool); }} onExit={() => void toggleWindowsFullscreen(false)} /></Show>
             <Show when={touchStylePanel() && !isWindowsPlatform() && isCompactTouchLayout()}><TouchStylePanel
@@ -9063,9 +9230,14 @@ function App() {
                       </Show>
                       <Show when={styleContainerSelection()}>{container => <>
                         <button type="button" class="quiet-button" disabled={boardLocked() || readOnlyView() || isElementLocked(container())} onClick={toggleSelectedContainerCollapsed}>{container().container?.collapsed ? "Expand group" : "Collapse group"}</button>
-                        <label class="component-state-control"><input type="checkbox" checked={container().container?.showBorder !== false} disabled={boardLocked() || isElementLocked(container())} onChange={event => updateSelectedContainer(value => ({ ...value, showBorder: event.currentTarget.checked }))} /><span class="component-switch" aria-hidden="true" /><strong>Show border</strong></label>
+                        <div class="property-label">Border visibility<div class="choice-deck compact border-visibility-choices">
+                          <button type="button" class={container().container?.showBorder !== false ? "active" : ""} aria-label="Show container border" aria-pressed={container().container?.showBorder !== false} title="Show border" disabled={boardLocked() || isElementLocked(container())} onClick={() => updateSelectedContainer(value => ({ ...value, showBorder: true }))}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1" /></svg><small>Show</small></button>
+                          <button type="button" class={container().container?.showBorder === false ? "active" : ""} aria-label="Hide container border" aria-pressed={container().container?.showBorder === false} title="Hide border" disabled={boardLocked() || isElementLocked(container())} onClick={() => updateSelectedContainer(value => ({ ...value, showBorder: false }))}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1" /><path d="m5 19 14-14" /></svg><small>Hide</small></button>
+                        </div></div>
                         <label class="component-state-control"><input type="checkbox" checked={container().container?.showLabel !== false} disabled={boardLocked() || isElementLocked(container())} onChange={event => updateSelectedContainer(value => ({ ...value, showLabel: event.currentTarget.checked }))} /><span class="component-switch" aria-hidden="true" /><strong>Show label</strong></label>
-                        <label class="property-label">Border style<select value={container().container?.borderStyle ?? (container().container?.kind === "frame" ? "dashed" : "solid")} disabled={boardLocked() || isElementLocked(container())} onChange={event => updateSelectedContainer(value => ({ ...value, borderStyle: event.currentTarget.value as StrokeStyle }))}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option><option value="double">Double</option></select></label>
+                        <div class="property-label">Border style<div class="choice-deck line-choices border-style-choices">
+                          {(["solid", "dashed", "dotted", "double"] as const).map(style => <button type="button" class={(container().container?.borderStyle ?? (container().container?.kind === "frame" ? "dashed" : "solid")) === style ? "active" : ""} aria-pressed={(container().container?.borderStyle ?? (container().container?.kind === "frame" ? "dashed" : "solid")) === style} title={`${style} border`} disabled={boardLocked() || isElementLocked(container())} onClick={() => updateSelectedContainer(value => ({ ...value, borderStyle: style }))}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1" stroke-dasharray={style === "dashed" ? "4 2" : style === "dotted" ? "1 2" : undefined} />{style === "double" ? <rect x="7" y="8" width="10" height="8" rx="1" /> : null}</svg><small>{style === "dashed" ? "Dash" : style === "dotted" ? "Dot" : style === "double" ? "Double" : "Solid"}</small></button>)}
+                        </div></div>
                       </>}</Show>
                     </section>
                   </Show>
@@ -9112,7 +9284,6 @@ function App() {
                       <label>X<input aria-label="Position X" type="number" step="0.1" value={Math.round(bounds().x * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("x", Number(event.currentTarget.value))} /></label>
                       <label>Y<input aria-label="Position Y" type="number" step="0.1" value={Math.round(bounds().y * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("y", Number(event.currentTarget.value))} /></label>
                       <Show when={selectedGeometryCanResize()}><label>Width<input aria-label="Object width" type="number" min={selectedGeometryMin("w")} max="4000" step="0.1" value={Math.round(bounds().w * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("w", Number(event.currentTarget.value))} /></label><label>Height<input aria-label="Object height" type="number" min={selectedGeometryMin("h")} max="4000" step="0.1" value={Math.round(bounds().h * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("h", Number(event.currentTarget.value))} /></label></Show>
-                      <Show when={selectedAspectLockSupported()}><label class="component-state-control geometry-aspect-lock"><input type="checkbox" checked={!!selectedGeometryElement()?.aspectLocked} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => changeSelected(item => ({ ...item, aspectLocked: event.currentTarget.checked || undefined }))} /><span class="component-switch" aria-hidden="true" /><strong>Lock aspect ratio</strong></label></Show>
                       <Show when={selectedLifelineGroup()}>{lifeline => <label>Length<input aria-label="Lifeline length" type="number" min="24" max="4000" step="1" value={libraryLifelineLength(lifeline())} disabled={boardLocked() || !!lifeline().locked} onChange={event => changeSelected(item => item.type === "group" ? setLibraryLifelineLength(item, Number(event.currentTarget.value)) : item)} /></label>}</Show>
                       <Show when={selectedGeometryCanRotate()}><label>Rotation<input aria-label="Rotation degrees" type="number" step="1" value={Math.round((selectedGeometryElement()?.rotation ?? 0) * 10) / 10} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => precision("rotation", Number(event.currentTarget.value))} /></label></Show>
                     </div>}</Show>
@@ -9137,6 +9308,14 @@ function App() {
                 </Show>
 
                 <Show when={primarySelection() !== undefined}>
+                  <Show when={selectedAspectLockSupported() || selectedContainer()}><details class="pane-section geometry-behavior-panel" open={componentDisclosureOpen("geometry-behavior", true)} onToggle={componentDisclosureToggle("geometry-behavior", true)}><summary class="inspector-disclosure-summary">Sizing &amp; child behavior</summary><div class="geometry-behavior-controls">
+                    <Show when={selectedAspectLockSupported()}><label class="component-state-control geometry-behavior-toggle"><input type="checkbox" checked={!!selectedGeometryElement()?.aspectLocked} disabled={boardLocked() || !!selectedGeometryElement()?.locked} onChange={event => changeSelected(item => ({ ...item, aspectLocked: event.currentTarget.checked || undefined }))} /><span class="component-switch" aria-hidden="true" /><strong>Lock aspect ratio</strong></label></Show>
+                    <Show when={selectedContainer()}>{container => <>
+                      <label class="component-state-control geometry-behavior-toggle"><input type="checkbox" checked={container().container?.clipChildren === true} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(current => ({ ...current, clipChildren: event.currentTarget.checked }))} /><span class="component-switch" aria-hidden="true" /><strong>Clip children</strong></label>
+                      <label class="component-state-control geometry-behavior-toggle"><input type="checkbox" checked={container().container?.autoResize === true && container().container?.lockedSize !== true} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(current => ({ ...current, autoResize: event.currentTarget.checked, lockedSize: event.currentTarget.checked ? false : current.lockedSize }))} /><span class="component-switch" aria-hidden="true" /><strong>Auto-resize to children</strong></label>
+                      <label class="component-state-control geometry-behavior-toggle"><input type="checkbox" checked={container().container?.lockedSize === true} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(current => ({ ...current, lockedSize: event.currentTarget.checked }))} /><span class="component-switch" aria-hidden="true" /><strong>Lock size</strong></label>
+                    </>}</Show>
+                  </div></details></Show>
                   <Show when={selectedIndices().length > 0 && !selectedContainer()}><section class="component-editor-content structure-container-editor component-structure-actions"><div class="pane-heading">Structure</div><button class="quiet-button" type="button" disabled={boardLocked() || readOnlyView()} onClick={createFrameFromSelection}>Create frame from selection</button></section></Show>
                 <Show when={selectedContainer()}><section class="component-editor-content structure-container-editor container-properties"><div class="pane-heading">{selectedRootElement()?.type === "group" ? selectedContainer()?.container?.kind === "frame" ? "Frame" : "Container" : "Structure"}</div><label class="property-label">Name<input maxlength="120" value={selectedRootElement()?.type === "group" ? selectedContainer()?.container?.name ?? "" : ""} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(container => ({ ...container, name: event.currentTarget.value.trim().slice(0, 120) || container.name }))} /></label><label class="property-label">Background<div class="container-background-control"><input aria-label="Container background" type="color" value={selectedContainer()?.container?.background ?? "#ffffff"} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onInput={event => updateSelectedContainer(container => ({ ...container, background: event.currentTarget.value }))} /><button class="quiet-button" type="button" disabled={boardLocked() || !selectedContainer()?.container?.background} onClick={() => updateSelectedContainer(container => ({ ...container, background: undefined }))}>Clear</button></div></label><Show when={selectedContainer()?.libraryComponent?.kind === "diagram-swimlane"}><div class="auto-layout-controls swimlane-controls" role="group" aria-label="Swimlane controls"><label class="property-label">Lane count<input type="number" min="2" max="8" step="1" value={selectedContainer()?.libraryComponent?.laneCount ?? 3} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => setSelectedSwimlaneCount(Number(event.currentTarget.value))} /></label><small>Drag the blue divider handles on the canvas to resize lanes.</small><div class="swimlane-order-list">{Array.from({ length: selectedContainer()?.libraryComponent?.laneCount ?? 3 }, (_, lane) => <div class="container-structure-actions"><span>Lane {lane + 1}</span><div><button class="quiet-button" type="button" aria-label={`Move lane ${lane + 1} up`} title="Move lane up" disabled={boardLocked() || isElementLocked(selectedRootElement()!) || lane === 0} onClick={() => reorderSelectedSwimlaneLane(lane, -1)}>↑</button><button class="quiet-button" type="button" aria-label={`Move lane ${lane + 1} down`} title="Move lane down" disabled={boardLocked() || isElementLocked(selectedRootElement()!) || lane === (selectedContainer()?.libraryComponent?.laneCount ?? 3) - 1} onClick={() => reorderSelectedSwimlaneLane(lane, 1)}>↓</button></div></div>)}</div></div></Show><Show when={selectedRootElement()?.type === "group" && selectedContainer()?.container?.kind === "frame"}><div class="auto-layout-controls" role="group" aria-label="Auto layout">
                     <label class="property-label">Auto layout<select aria-label="Auto layout direction" value={selectedContainer()?.container?.autoLayout?.direction ?? "off"} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedFrameLayout(event.currentTarget.value === "off" ? "off" : { direction: event.currentTarget.value as AutoLayoutConfig["direction"] })}><option value="off">Off</option><option value="vertical">Vertical stack</option><option value="horizontal">Horizontal stack</option><option value="grid">Grid</option></select></label>
@@ -9145,12 +9324,11 @@ function App() {
                       <Show when={layout().direction === "grid"}><label class="property-label">Grid columns<input type="number" min="1" max="12" value={layout().columns ?? 3} disabled={boardLocked()} onChange={event => updateSelectedFrameLayout({ columns: Math.max(1, Math.min(12, Number(event.currentTarget.value) || 1)) })} /></label></Show>
                       <Show when={layout().direction !== "grid"}><label class="property-label inline-check"><input type="checkbox" checked={!!layout().wrap} disabled={boardLocked()} onChange={event => updateSelectedFrameLayout({ wrap: event.currentTarget.checked })} /> Wrap to next row or column</label></Show>
                       <label class="property-label">Align children<select aria-label="Auto layout alignment" value={layout().align} disabled={boardLocked()} onChange={event => updateSelectedFrameLayout({ align: event.currentTarget.value as AutoLayoutConfig["align"] })}><option value="start">Start</option><option value="center">Center</option><option value="end">End</option><option value="stretch">Stretch to fill</option></select></label>
-                      <label class="property-label inline-check"><input type="checkbox" checked={!!selectedContainer()?.container?.autoResize && !selectedContainer()?.container?.lockedSize} disabled={boardLocked()} onChange={event => updateSelectedContainer(container => ({ ...container, autoResize: event.currentTarget.checked, lockedSize: event.currentTarget.checked ? false : container.lockedSize }))} /> Hug contents (frame resizes to fit)</label>
                       <Show when={selectedContainer()?.type === "group" && !(selectedContainer()?.container?.autoResize && !selectedContainer()?.container?.lockedSize)}><fieldset class="auto-layout-fill"><legend>Fill remaining space</legend>
                         <For each={(selectedContainer()?.type === "group" ? selectedContainer()!.elements : []).filter(child => !child.hidden && child.type !== "line" && child.type !== "arrow")}>{child => <label class="inline-check"><input type="checkbox" checked={!!child.layoutFill} disabled={boardLocked()} onChange={event => setSelectedFrameChildFill(child.id, event.currentTarget.checked)} /> {describeElement(child).slice(0, 48)}</label>}</For>
                       </fieldset></Show>
                     </>}</Show>
-                  </div><div class="container-structure-actions"><button class="quiet-button" type="button" disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onClick={fitSelectedContainer}>Fit to content</button><button class="quiet-button" type="button" disabled={boardLocked()} onClick={() => reorderSelectedFrame(-1)}>Move frame backward</button><button class="quiet-button" type="button" disabled={boardLocked()} onClick={() => reorderSelectedFrame(1)}>Move frame forward</button></div></Show><label class="component-state-control"><input type="checkbox" checked={selectedRootElement()?.type === "group" && selectedContainer()?.container?.clipChildren === true} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(container => ({ ...container, clipChildren: event.currentTarget.checked }))} /><span class="component-switch" aria-hidden="true"/><strong>Clip children</strong></label><label class="component-state-control"><input type="checkbox" checked={selectedRootElement()?.type === "group" && selectedContainer()?.container?.autoResize === true} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(container => ({ ...container, autoResize: event.currentTarget.checked }))} /><span class="component-switch" aria-hidden="true"/><strong>Auto-resize to children</strong></label><label class="component-state-control"><input type="checkbox" checked={selectedRootElement()?.type === "group" && selectedContainer()?.container?.lockedSize === true} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(container => ({ ...container, lockedSize: event.currentTarget.checked }))} /><span class="component-switch" aria-hidden="true"/><strong>Lock size</strong></label><div class="container-structure-actions"><Show when={selectedIndices().length > 1}><button class="quiet-button" type="button" disabled={boardLocked()} onClick={moveSelectionIntoSelectedContainer}>Move selection into container</button></Show><button class="quiet-button" type="button" disabled={boardLocked()} onClick={removeSelectedContainer}>Remove container</button></div></section></Show>
+                  </div><div class="container-structure-actions"><button class="quiet-button" type="button" disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onClick={fitSelectedContainer}>Fit to content</button><button class="quiet-button" type="button" disabled={boardLocked()} onClick={() => reorderSelectedFrame(-1)}>Move frame backward</button><button class="quiet-button" type="button" disabled={boardLocked()} onClick={() => reorderSelectedFrame(1)}>Move frame forward</button></div></Show><div class="container-structure-actions"><Show when={selectedIndices().length > 1}><button class="quiet-button" type="button" disabled={boardLocked()} onClick={moveSelectionIntoSelectedContainer}>Move selection into container</button></Show><button class="quiet-button" type="button" disabled={boardLocked()} onClick={removeSelectedContainer}>Remove container</button></div></section></Show>
                   <Show when={selectedParameterizedStencil()}>{stencil => <section class="component-editor-content stencil-parameter-editor"><div class="pane-heading">Stencil fields</div><p>Edit named fields while keeping this grouped component intact.</p>{stencil().stencilParameters?.parameters.map(parameter => <label class="property-label">{parameter}<input maxlength="500" value={stencil().stencilParameters?.values[parameter.toLowerCase()] ?? ""} disabled={boardLocked() || !!stencil().locked} onChange={event => editSelectedStencilParameter(parameter, event.currentTarget.value)} /></label>)}</section>}</Show>
                   <Show when={selectedComponentMaster()}>{master => { const instance = () => selectedMasterInstance(); const overrides = () => instance()?.componentOverrides ?? {}; const variants = () => Object.keys(master().variants ?? {}); const instanceCount = () => componentMasterInstanceCount(master().id); const chartDefaults = () => flatten(master().template).find((item): item is GroupElement => item.type === "group" && !!item.libraryComponent?.chartData)?.libraryComponent?.chartData; const formDefaults = () => flatten(master().template).find((item): item is GroupElement => item.type === "group" && !!item.libraryComponent?.formOptions)?.libraryComponent?.formOptions; return <details class="pane-section component-navigation-details inspector-advanced-section" open={componentDisclosureOpen("component-master")} onToggle={componentDisclosureToggle("component-master")}><summary><span>Component master and instance</span><small>{instanceCount()} instance{instanceCount() === 1 ? "" : "s"}</small></summary><section class="component-editor-content component-master-editor"><label class="property-label">Master name<input maxlength="80" value={master().name} disabled={boardLocked()} onChange={event => updateComponentMaster(master().id, current => ({ ...current, name: event.currentTarget.value.trim().slice(0, 80) || current.name }))} /></label><label class="property-label">Default label<input maxlength="240" value={componentPrimaryLabel(master().template)} disabled={boardLocked()} onChange={event => updateMasterDefaultLabel(master().id, event.currentTarget.value)} /></label><div class="component-port-preview" role="img" aria-label={`${master().connectionPoints?.length ?? 0} component connection points`}>{master().connectionPoints?.map(port => <span title={port.name} style={{ left: `${port.anchor.x * 100}%`, top: `${port.anchor.y * 100}%` }} />)}</div><label class="component-state-control"><input type="checkbox" checked={overrides().label !== undefined} disabled={boardLocked()} onChange={event => updateInstanceOverride("label", event.currentTarget.checked ? componentPrimaryLabel(master().template) : undefined)} /><span class="component-switch" aria-hidden="true"/><strong>Override this instance label</strong></label><Show when={overrides().label !== undefined}><label class="property-label">Instance label<input maxlength="240" value={overrides().label ?? ""} disabled={boardLocked()} onChange={event => updateInstanceOverride("label", event.currentTarget.value)} /></label></Show><label class="property-label">Instance color override<input type="color" value={overrides().color ?? "#566579"} disabled={boardLocked()} onInput={event => updateInstanceOverride("color", event.currentTarget.value)} /></label><button class="quiet-button" type="button" disabled={boardLocked() || !overrides().color} onClick={() => updateInstanceOverride("color", undefined)}>Clear color override</button><label class="property-label">Instance fill override<input type="color" value={overrides().fillColor ?? "#ffffff"} disabled={boardLocked()} onInput={event => updateInstanceOverride("fillColor", event.currentTarget.value)} /></label><button class="quiet-button" type="button" disabled={boardLocked() || overrides().fillColor === undefined} onClick={() => updateInstanceOverride("fillColor", undefined)}>Clear fill override</button><Show when={chartDefaults()}><label class="property-label">Chart data override<textarea rows="5" spellcheck="false" value={JSON.stringify(overrides().chartData ?? chartDefaults(), null, 2)} disabled={boardLocked()} onChange={event => { try { const parsed = JSON.parse(event.currentTarget.value) as ComponentOverrides["chartData"]; if (parsed && Array.isArray(parsed.labels) && Array.isArray(parsed.values)) updateInstanceOverride("chartData", parsed); } catch { setError("Chart data override must be valid JSON with labels and values arrays."); } }} /></label><button class="quiet-button" type="button" disabled={boardLocked() || !overrides().chartData} onClick={() => updateInstanceOverride("chartData", undefined)}>Clear chart data override</button></Show><Show when={formDefaults()}><label class="property-label">Form options override<input value={(overrides().formOptions ?? formDefaults() ?? []).join(", ")} disabled={boardLocked()} onChange={event => updateInstanceOverride("formOptions", event.currentTarget.value.split(",").map(value => value.trim()).filter(Boolean).slice(0, 32))} /></label></Show><Show when={master().connectionPoints?.length}><div class="pane-heading">Port label overrides</div>{master().connectionPoints?.map(port => <label class="property-label">{port.name}<input value={overrides().portLabels?.[port.id] ?? port.name} disabled={boardLocked()} onChange={event => updateInstanceOverride("portLabels", { ...overrides().portLabels, [port.id]: event.currentTarget.value.slice(0, 80) })} /></label>)}</Show><Show when={variants().length > 0}><label class="property-label">Variant<select value={instance()?.variantKey ?? "default"} disabled={boardLocked()} onChange={event => switchSelectedMasterVariant(event.currentTarget.value === "default" ? "" : event.currentTarget.value)}><option value="default">Default</option>{variants().map(key => <option value={key}>{key}</option>)}</select></label></Show><div class="container-structure-actions"><button class="quiet-button" type="button" disabled={boardLocked()} onClick={saveSelectedMasterVariant}>Save current as variant…</button><button class="quiet-button" type="button" disabled={boardLocked()} onClick={updateSelectedMasterFromInstance}>Use this instance as the master default</button><button class="quiet-button" type="button" disabled={boardLocked()} onClick={detachSelectedMasterInstance}>Detach instance</button></div></section></details>; }}</Show>
                   <Show when={focusedElement() && isConnector(focusedElement()!)}><details class="pane-section relationship-properties" open={componentDisclosureOpen("relationship-properties")} onToggle={componentDisclosureToggle("relationship-properties")}><summary class="inspector-disclosure-summary">Connection</summary><div class="property-label">Relationship type<div class="choice-deck relationship-type-choices">{RELATIONSHIP_TYPES.map(type => <button type="button" class={(focusedElement() as ShapeElement).relationshipType === type.value ? "active" : ""} aria-pressed={(focusedElement() as ShapeElement).relationshipType === type.value} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateConnectorMetadata("relationshipType", type.value)}>{type.label}</button>)}</div></div><label class="property-label">Cardinality<input maxlength="24" placeholder="1, 0..*, etc." value={(focusedElement() as ShapeElement).cardinality ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateConnectorMetadata("cardinality", event.currentTarget.value)} /></label><div class="property-label">Direction<div class="choice-deck compact">{([{ value: "forward", label: "Forward" }, { value: "both", label: "Both" }, { value: "none", label: "None" }] as const).map(direction => <button type="button" class={(focusedElement() as ShapeElement).relationshipDirection === direction.value || !(focusedElement() as ShapeElement).relationshipDirection && direction.value === "forward" ? "active" : ""} aria-pressed={(focusedElement() as ShapeElement).relationshipDirection === direction.value} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateConnectorMetadata("relationshipDirection", direction.value)}>{direction.label}</button>)}</div></div><label class="property-label">Protocol<input maxlength="48" placeholder="HTTPS, gRPC, SQL" value={(focusedElement() as ShapeElement).protocol ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateConnectorMetadata("protocol", event.currentTarget.value)} /></label><label class="property-label">Port number<input type="number" min="1" max="65535" placeholder="443" value={(focusedElement() as ShapeElement).portNumber ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateConnectorContract("portNumber", event.currentTarget.value)} /></label><div class="property-label">Transport security<div class="choice-deck compact">{([{ value: "unknown", label: "Unknown" }, { value: "encrypted", label: "Encrypted" }, { value: "unencrypted", label: "Unencrypted" }] as const).map(option => <button type="button" class={(focusedElement() as ShapeElement).transportSecurity === option.value || !(focusedElement() as ShapeElement).transportSecurity && option.value === "unknown" ? "active" : ""} aria-pressed={(focusedElement() as ShapeElement).transportSecurity === option.value} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateConnectorMetadata("transportSecurity", option.value)}>{option.label}</button>)}</div></div><label class="property-label">API contract<input maxlength="2000" placeholder="Endpoint or operation" value={(focusedElement() as ShapeElement).apiContract ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateConnectorContract("apiContract", event.currentTarget.value)} /></label><label class="property-label">Data contract<input maxlength="2000" placeholder="Schema, topic, or payload" value={(focusedElement() as ShapeElement).dataContract ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateConnectorContract("dataContract", event.currentTarget.value)} /></label></details></Show>
@@ -9257,7 +9435,7 @@ function App() {
                 </Show>
               </aside>
             </Show>
-            <Show when={textDraft()}>{draft => <div class="text-editor-frame" style={{ left: `${canvasState().panX + editorLeft(draft()) * canvasState().zoom}px`, top: `${canvasState().panY + draft().y * canvasState().zoom}px`, width: `${editorWidth(draft()) * canvasState().zoom}px`, height: draft().height ? `${draft().height! * canvasState().zoom}px` : undefined, transform: `rotate(${draft().rotation ?? 0}deg)`, "justify-content": draft().verticalAlign === "bottom" ? "flex-end" : draft().verticalAlign === "middle" ? "center" : "flex-start", "font-size": `${draft().fontSize * canvasState().zoom}px`, "font-family": fontCss(draft().fontFamily), "font-weight": draft().bold ? 700 : 400, "font-style": draft().italic ? "italic" : "normal", "text-decoration": draft().underline ? "underline" : "none", "text-align": draft().textAlign, color: themeInk(draft().color, theme()), opacity: draft().opacity }}>
+            <Show when={textDraft()}>{draft => <div class="text-editor-frame" style={{ left: `${textEditorViewportPosition(draft()).left}px`, top: `${textEditorViewportPosition(draft()).top}px`, width: `${editorWidth(draft()) * canvasState().zoom}px`, height: draft().height ? `${draft().height! * canvasState().zoom}px` : undefined, transform: `rotate(${(draft().rotation ?? 0) + groupEditTransforms().reduce((total, item) => total + item.rotation, 0)}deg)`, "justify-content": draft().verticalAlign === "bottom" ? "flex-end" : draft().verticalAlign === "middle" ? "center" : "flex-start", "font-size": `${draft().fontSize * canvasState().zoom}px`, "font-family": fontCss(draft().fontFamily), "font-weight": draft().bold ? 700 : 400, "font-style": draft().italic ? "italic" : "normal", "text-decoration": draft().underline ? "underline" : "none", "text-align": draft().textAlign, color: themeInk(draft().color, theme()), opacity: draft().opacity }}>
               <div ref={element => { textEditorElement = element; requestAnimationFrame(() => { if (element.isConnected && textDraft()) { element.innerText = draft().value; if (textEditorPendingPointerId === undefined) element.focus(); const range = document.createRange(); range.selectNodeContents(element); range.collapse(false); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); } }); }} class="canvas-text-editor" contentEditable={true} role="textbox" aria-label="Canvas text" aria-multiline="true" data-placeholder="Type here…" onInput={event => updateTextDraft(event.currentTarget.innerText)} onBlur={event => { if (!isWindowsPlatform()) return; const next = event.relatedTarget; if (!(next instanceof HTMLElement && next.closest(".style-pane, .component-editor-dock, .design-toolbar"))) commitTextDraft(); }} onPointerDown={event => event.stopPropagation()} onPaste={event => { event.preventDefault(); const text = event.clipboardData?.getData("text/plain") ?? ""; const selection = window.getSelection(); if (selection?.rangeCount) { const range = selection.getRangeAt(0); range.deleteContents(); const node = document.createTextNode(text); range.insertNode(node); range.setStartAfter(node); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); updateTextDraft(event.currentTarget.innerText); } }} onKeyDown={event => { event.stopPropagation(); if (event.key === "Escape" || (event.key === "Enter" && (event.ctrlKey || event.metaKey))) { event.preventDefault(); commitTextDraft(); if (event.key === "Escape") { setTool(isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform()) setStyleMenuMode("quick"); setSelectedIndices([]); setHoveredIndex(undefined); } } }} />
             </div>}</Show>
             <div class="canvas-help">Wheel to zoom <span>|</span> Hold Space or select the hand tool to pan <span>|</span> Use Gestures to set touch actions <span>|</span> V to select and drag to move</div>

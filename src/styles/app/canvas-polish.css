@@ -124,7 +124,6 @@
 .canvas-path-node-handle { fill: var(--theme-surface, #fff); stroke: var(--theme-primary, #5b55e7); stroke-width: 2; cursor: grab; pointer-events: all; touch-action: none; }
 .canvas-path-node-handle:hover { fill: var(--theme-primary, #5b55e7); r: 7; }
 .canvas-path-node-handle.selected { fill: var(--theme-primary, #5b55e7); stroke: var(--theme-surface, #fff); }
-.geometry-aspect-lock { grid-column: 1 / -1; margin-top: 3px; }
 .canvas-measurement { pointer-events: none; }
 .canvas-measurement line { stroke: #ec8d16; stroke-width: 1.5; stroke-dasharray: 5 3; }
 .canvas-measurement circle { fill: #fff; stroke: #ec8d16; stroke-width: 1.5; }
