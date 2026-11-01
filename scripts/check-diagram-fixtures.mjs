@@ -20,6 +20,7 @@ function loadTs(file) {
 }
 const fixture = name => readFileSync(path.join(root, "scripts", "fixtures", "diagram-code", name), "utf8");
 const mermaid = loadTs(path.join(root, "src", "mermaid.ts"));
+const mermaidExtended = loadTs(path.join(root, "src", "features", "diagrams", "mermaid-extended.ts"));
 const dot = loadTs(path.join(root, "src", "features", "diagrams", "dot.ts"));
 const csv = loadTs(path.join(root, "src", "features", "diagrams", "csv-diagram.ts"));
 const formats = loadTs(path.join(root, "src", "features", "diagrams", "code-formats.ts"));
@@ -60,6 +61,33 @@ assert.equal(sequence.messages.length, 3);
 const sequenceGroup = { type: "group", id: "fixture-sequence", elements: mermaid.layoutMermaidSequence(sequence, { x: 0, y: 0 }), mermaid: { format: "mermaid", source: fixture("sequence.mmd") } };
 const sequenceExport = formats.exportDiagramCode("mmd", [sequenceGroup]);
 assert.equal(mermaid.parseMermaidSequence(sequenceExport).messages.length, 3);
+
+const extendedMermaidCases = [
+  ["mindmap", `mindmap\n  root((Project))\n    Plan\n      Scope\n    Build\n      API`],
+  ["timeline", `timeline\n  title Product launch\n  section Planning\n    2024-01 : Research\n    2024-02 : Plan\n  section Delivery\n    2024-03 : Build`],
+  ["git", `gitGraph\n  commit id: "init"\n  branch develop\n  checkout develop\n  commit id: "feature"\n  checkout main\n  commit id: "hotfix"\n  merge develop`],
+  ["requirement", `requirementDiagram\n  requirement reqA {\n    id: 1\n    text: Keep data safe\n    risk: high\n    verifymethod: test\n  }\n  element Store {\n    type: database\n  }\n  Store - satisfies -> reqA`],
+  ["quadrant", `quadrantChart\n  title Risk review\n  x-axis Low impact --> High impact\n  y-axis Low likelihood --> High likelihood\n  quadrant-1 High and high\n  quadrant-2 Low likelihood\n  point Alpha: [0.8, 0.7]\n  point Beta: [0.2, 0.3]`],
+  ["kanban", `kanban\n  backlog[Backlog]\n    task1[Write spec]\n    task2[Review]\n  done[Done]\n    task3[Ship]`],
+];
+for (const [expectedType, source] of extendedMermaidCases) {
+  const parsed = mermaidExtended.layoutExtendedMermaid(source, { x: 0, y: 0 });
+  assert.equal(parsed.type, expectedType, `${expectedType} Mermaid family is detected`);
+  const exported = mermaidExtended.exportExtendedMermaid(parsed.type, parsed.elements, source);
+  assert.equal(mermaidExtended.detectExtendedMermaidType(exported), expectedType, `${expectedType} Mermaid source exports in its original family`);
+  const roundTrip = mermaidExtended.layoutExtendedMermaid(exported, { x: 0, y: 0 });
+  const countNodes = elements => elements.filter(item => item.type !== "group" && item.id?.startsWith("mermaid-node:")).length;
+  assert.equal(countNodes(roundTrip.elements), countNodes(parsed.elements), `${expectedType} Mermaid nodes survive an editable round trip`);
+}
+const mindmapDiagram = mermaidExtended.layoutExtendedMermaid(extendedMermaidCases[0][1], { x: 0, y: 0 }).elements;
+assert.equal(mindmapDiagram.filter(item => item.type === "line" && item.id?.startsWith("mermaid-link:")).length, 4, "Mind map hierarchy becomes attached native relationships");
+const requirementDiagram = mermaidExtended.layoutExtendedMermaid(extendedMermaidCases[3][1], { x: 0, y: 0 }).elements;
+assert.ok(requirementDiagram.some(item => item.type !== "group" && item.label?.text.includes("risk: high")), "Requirement properties remain editable on nodes");
+assert.equal(requirementDiagram.filter(item => item.type === "line").length, 1, "Requirement relations become editable connectors");
+const quadrantDiagram = mermaidExtended.layoutExtendedMermaid(extendedMermaidCases[4][1], { x: 0, y: 0 }).elements;
+assert.ok(quadrantDiagram.some(item => item.type === "text" && item.text === "High impact"), "Quadrant axes remain editable labels");
+const kanbanDiagram = mermaidExtended.layoutExtendedMermaid(extendedMermaidCases[5][1], { x: 0, y: 0 }).elements;
+assert.equal(kanbanDiagram.filter(item => item.type !== "group" && item.id?.startsWith("mermaid-node:")).length, 5, "Kanban columns and tasks become editable cards");
 
 const dotElements = dot.dotToDiagram(fixture("styles.dot"));
 assert.equal(dotElements.filter(item => item.type === "arrow").length, 1);
@@ -557,4 +585,4 @@ assert.match(metricsModule.metricsSummaryText(metricSummary), /Total: \$510\.5 Â
 assert.equal(metricsModule.summarizeMetrics([{ type: "rectangle", id: "n", x: 0, y: 0, w: 1, h: 1, color: "#000000", thickness: 1 }]).page.counted, 0);
 assert.deepEqual(metricsModule.normalizeMetrics({ cost: 5, capacity: "x", unit: " GB " }), { cost: 5, unit: "GB" }); assert.equal(metricsModule.normalizeMetrics({ cost: Infinity }), undefined); assert.equal(metricsModule.normalizeMetrics(null), undefined);
 
-process.stdout.write("Diagram fixtures passed: Mermaid flowchart and sequence, DOT styles, D2 groups and edge directions, CSV graph and chart mapping, 517 categorized modeling components, BPMN XML import/export and XML safety, OpenAPI callbacks and references, GraphQL, DBML, Protocol Buffers, Avro, Prisma, AsyncAPI 2/3, Structurizr DSL C4 model round-trip, dbt manifest lineage, path bounds, PlantUML subset errors, lasso selection, accessibility checks, and style library bindings.\n");
+process.stdout.write("Diagram fixtures passed: Mermaid flowchart, sequence, class, ER, state, journey, Gantt, C4, mind map, timeline, Git graph, requirement, quadrant, and Kanban; DOT styles, D2 groups and edge directions, CSV graph and chart mapping, 517 categorized modeling components, BPMN XML import/export and XML safety, OpenAPI callbacks and references, GraphQL, DBML, Protocol Buffers, Avro, Prisma, AsyncAPI 2/3, Structurizr DSL C4 model round-trip, dbt manifest lineage, path bounds, PlantUML subset errors, lasso selection, accessibility checks, and style library bindings.\n");

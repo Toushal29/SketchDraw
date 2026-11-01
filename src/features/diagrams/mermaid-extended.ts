@@ -1,9 +1,9 @@
 import type { Element, Point, ShapeElement } from "../../model";
 
-export type ExtendedMermaidType = "class" | "er" | "state" | "journey" | "gantt" | "c4";
+export type ExtendedMermaidType = "class" | "er" | "state" | "journey" | "gantt" | "c4" | "mindmap" | "timeline" | "git" | "requirement" | "quadrant" | "kanban";
 type Node = { id: string; label: string; shape: "rectangle" | "rounded" | "diamond" | "circle"; role?: string };
 type Edge = { from: string; to: string; label: string; relation?: string };
-type Graph = { nodes: Node[]; edges: Edge[]; title?: string; sections?: string[] };
+type Graph = { nodes: Node[]; edges: Edge[]; title?: string; sections?: string[]; metadata?: Record<string, string> };
 
 export function detectExtendedMermaidType(source: string): ExtendedMermaidType | undefined {
   const first = source.replace(/^\s*%%.*$/gm, "").trim().split(/\r?\n/)[0] ?? "";
@@ -13,6 +13,12 @@ export function detectExtendedMermaidType(source: string): ExtendedMermaidType |
   if (/^journey\b/i.test(first)) return "journey";
   if (/^gantt\b/i.test(first)) return "gantt";
   if (/^C4(?:Context|Container|Component|Dynamic|Deployment)\b/i.test(first)) return "c4";
+  if (/^mindmap\b/i.test(first)) return "mindmap";
+  if (/^timeline\b/i.test(first)) return "timeline";
+  if (/^gitGraph\b/i.test(first)) return "git";
+  if (/^requirementDiagram\b/i.test(first)) return "requirement";
+  if (/^quadrantChart\b/i.test(first)) return "quadrant";
+  if (/^kanban\b/i.test(first)) return "kanban";
   return undefined;
 }
 
@@ -31,7 +37,9 @@ function parseArgs(source: string): string[] {
 
 function parseGraph(source: string, type: ExtendedMermaidType): Graph {
   const nodes = new Map<string, Node>(); const edges: Edge[] = []; const fields = new Map<string, string[]>();
-  let activeClass = ""; let title = ""; let section = ""; const sections: string[] = [];
+  let activeClass = ""; let title = ""; let section = ""; const sections: string[] = []; const metadata: Record<string, string> = {};
+  let currentBranch = "main"; let commitSequence = 0; let previousTimelineEvent = "";
+  const hierarchy: { indent: number; id: string }[] = []; const branchHeads = new Map<string, string>(); const kanbanColumns: string[] = [];
   const get = (id: string, label = id, shape: Node["shape"] = "rectangle", role?: string) => {
     const key = id.replace(/[^\w.-]/g, "_").slice(0, 80) || `node_${nodes.size + 1}`;
     const previous = nodes.get(key);
@@ -39,12 +47,108 @@ function parseGraph(source: string, type: ExtendedMermaidType): Graph {
     return key;
   };
   for (const raw of source.replace(/\r/g, "").split("\n")) {
-    const line = raw.replace(/%%.*$/, "").trim(); if (!line) continue;
-    if (/^(?:classDiagram|erDiagram|stateDiagram(?:-v2)?|C4(?:Context|Container|Component|Dynamic|Deployment))\b/i.test(line)) continue;
+    const uncommented = raw.replace(/%%.*$/, ""); const indent = uncommented.match(/^\s*/)?.[0].length ?? 0;
+    const line = uncommented.trim(); if (!line) continue;
+    if (/^(?:classDiagram|erDiagram|stateDiagram(?:-v2)?|C4(?:Context|Container|Component|Dynamic|Deployment)|mindmap|timeline|gitGraph|requirementDiagram|quadrantChart|kanban)\b/i.test(line)) continue;
     if (/^direction\s+/i.test(line) || /^layout\s+/i.test(line) || /^dateFormat\s+/i.test(line) || /^axisFormat\s+/i.test(line) || /^tickInterval\s+/i.test(line) || /^excludes\s+/i.test(line) || /^includes\s+/i.test(line) || /^todayMarker\s+/i.test(line)) continue;
     if (/^title\s+/i.test(line)) { title = line.replace(/^title\s+/i, "").replace(/^(["'])(.*)\1$/, "$2"); continue; }
-    const sectionMatch = /^section\s+(.+)$/i.exec(line); if (sectionMatch) { section = sectionMatch[1].trim(); sections.push(section); activeClass = ""; continue; }
+    const sectionMatch = /^section\s+(.+)$/i.exec(line); if (sectionMatch) { section = sectionMatch[1].trim(); sections.push(section); activeClass = ""; if (type === "timeline") previousTimelineEvent = ""; continue; }
     if (line === "}" || /^end\s*$/i.test(line)) { activeClass = ""; continue; }
+
+    if (type === "mindmap") {
+      const bracket = /^([A-Za-z_][\w.-]*)\s*\[([^\]]+)\]$/.exec(line);
+      const circle = /^([A-Za-z_][\w.-]*)\(\((.+)\)\)$/.exec(line);
+      const rounded = /^([A-Za-z_][\w.-]*)\((.+)\)$/.exec(line);
+      const label = (bracket?.[2] ?? circle?.[2] ?? rounded?.[2] ?? line.replace(/^[-+*]\s*/, "")).trim().replace(/^(?:"([\s\S]*)"|'([\s\S]*)')$/, (_match, double, single) => double ?? single);
+      const key = bracket?.[1] ?? circle?.[1] ?? rounded?.[1] ?? `mindmap_${nodes.size + 1}`;
+      while (hierarchy.length && hierarchy[hierarchy.length - 1].indent >= indent) hierarchy.pop();
+      const parent = hierarchy[hierarchy.length - 1]?.id;
+      const nodeId = get(key, label.trim(), hierarchy.length ? "rounded" : circle ? "circle" : "rounded", "mermaid-mindmap");
+      if (parent) edges.push({ from: parent, to: nodeId, label: "" });
+      hierarchy.push({ indent, id: nodeId });
+      continue;
+    }
+
+    if (type === "timeline") {
+      const event = /^(.+?)\s*:\s*(.+)$/.exec(line);
+      if (event) {
+        const date = event[1].trim(); const label = event[2].trim(); const id = get(`timeline_${nodes.size + 1}`, label, "rounded", `mermaid-timeline:${encodeURIComponent(date)}:${encodeURIComponent(section || "Timeline")}`);
+        if (previousTimelineEvent) edges.push({ from: previousTimelineEvent, to: id, label: "" });
+        previousTimelineEvent = id; continue;
+      }
+      if (/^(?:accTitle\s|accDescr\s)/i.test(line)) continue;
+      throw new Error(`Unsupported Mermaid timeline syntax: ${line}`);
+    }
+
+    if (type === "git") {
+      const branch = /^(?:branch|checkout)\s+([\w.-]+)$/i.exec(line);
+      if (branch) {
+        const name = branch[1];
+        if (/^branch/i.test(line)) branchHeads.set(name, branchHeads.get(currentBranch) ?? "");
+        currentBranch = name; continue;
+      }
+      const commit = /^(commit|merge|cherry-pick)(?:\s+([\s\S]*))?$/i.exec(line);
+      if (commit) {
+        const command = commit[1].toLowerCase(); const args = commit[2] ?? "";
+        const idMatch = /\bid\s*:\s*(?:"([^"]+)"|'([^']+)'|([\w.-]+))/i.exec(args);
+        const labelMatch = /\btag\s*:\s*(?:"([^"]+)"|'([^']+)'|([\w.-]+))/i.exec(args);
+        const key = `git_${++commitSequence}`; const label = idMatch?.[1] ?? idMatch?.[2] ?? idMatch?.[3] ?? labelMatch?.[1] ?? labelMatch?.[2] ?? labelMatch?.[3] ?? `Commit ${commitSequence}`;
+        const id = get(key, label, "circle", `mermaid-git:${encodeURIComponent(currentBranch)}:${encodeURIComponent(label)}`);
+        const previous = branchHeads.get(currentBranch); if (previous) edges.push({ from: previous, to: id, label: command === "merge" ? "merge" : command === "cherry-pick" ? "cherry-pick" : "" });
+        if (command === "merge") {
+          const sourceBranch = args.trim().split(/\s+/)[0]; const otherHead = branchHeads.get(sourceBranch);
+          if (otherHead && otherHead !== previous) edges.push({ from: otherHead, to: id, label: "merge" });
+        }
+        branchHeads.set(currentBranch, id); continue;
+      }
+      if (/^%%/.test(raw) || /^acc(?:Title|Descr)\s/i.test(line)) continue;
+      throw new Error(`Unsupported Mermaid gitGraph syntax: ${line}`);
+    }
+
+    if (type === "requirement") {
+      const declaration = /^(requirement|functionalRequirement|interfaceRequirement|performanceRequirement|physicalRequirement|designConstraint|element)\s+([\w.-]+)\s*\{?$/i.exec(line);
+      if (declaration) {
+        const key = get(declaration[2], `${declaration[1]}\n${declaration[2]}`, "rounded", `mermaid-requirement:${declaration[1]}`);
+        fields.set(key, fields.get(key) ?? []); activeClass = key; continue;
+      }
+      const field = /^(id|text|risk|verifymethod|type)\s*:\s*(.+)$/i.exec(line);
+      if (activeClass && field) { fields.set(activeClass, [...(fields.get(activeClass) ?? []), `${field[1]}: ${field[2]}`].slice(0, 12)); continue; }
+      const relation = /^([\w.-]+)\s+-\s*(satisfies|verifies|refines|traces|contains|derives|copies|derives from)\s*->\s*([\w.-]+)$/i.exec(line);
+      if (relation) { const from = get(relation[1]); const to = get(relation[3]); edges.push({ from, to, label: relation[2], relation: relation[2] }); continue; }
+      if (/^(?:accTitle\s|accDescr\s)/i.test(line)) continue;
+      throw new Error(`Unsupported Mermaid requirement syntax: ${line}`);
+    }
+
+    if (type === "quadrant") {
+      const point = /^point\s+(.+?)\s*:\s*\[\s*([\d.]+)\s*,\s*([\d.]+)\s*\]$/i.exec(line);
+      if (point) {
+        const x = Math.max(0, Math.min(1, Number(point[2]))); const y = Math.max(0, Math.min(1, Number(point[3])));
+        const label = point[1].trim().replace(/^(?:"([\s\S]*)"|'([\s\S]*)')$/, (_match, double, single) => double ?? single);
+        get(`quadrant_${nodes.size + 1}`, label, "circle", `mermaid-quadrant:${x}:${y}`); continue;
+      }
+      const axis = /^(x-axis|y-axis)\s+(.+?)(?:\s+-->\s+(.+))?$/i.exec(line);
+      if (axis) { metadata[`${axis[1].toLowerCase()}-low`] = axis[2].trim(); if (axis[3]) metadata[`${axis[1].toLowerCase()}-high`] = axis[3].trim(); continue; }
+      const quadrantLabel = /^quadrant-([1-4])\s+(.+)$/i.exec(line);
+      if (quadrantLabel) { metadata[`quadrant-${quadrantLabel[1]}`] = quadrantLabel[2].trim(); continue; }
+      if (/^(?:accTitle|accDescr)\b/i.test(line)) continue;
+      throw new Error(`Unsupported Mermaid quadrant syntax: ${line}`);
+    }
+
+    if (type === "kanban") {
+      const item = /^([A-Za-z_][\w.-]*)\s*\[([^\]]+)\]$/.exec(line);
+      const label = (item?.[2] ?? line.replace(/^\[|\]$/g, "").trim()).trim().replace(/^(?:"([\s\S]*)"|'([\s\S]*)')$/, (_match, double, single) => double ?? single);
+      if (!label) throw new Error(`Unsupported Mermaid kanban syntax: ${line}`);
+      while (hierarchy.length && hierarchy[hierarchy.length - 1].indent >= indent) hierarchy.pop();
+      if (!hierarchy.length || indent <= (hierarchy[0]?.indent ?? indent)) {
+        const key = get(item?.[1] ?? `kanban_column_${kanbanColumns.length + 1}`, label, "rounded", "mermaid-kanban-column");
+        kanbanColumns.push(key); hierarchy.push({ indent, id: key });
+      } else {
+        const columnId = hierarchy[0]?.id ?? "kanban_column_1";
+        const key = get(item?.[1] ?? `kanban_task_${nodes.size + 1}`, label, "rectangle", `mermaid-kanban-card:${columnId}`);
+        hierarchy.push({ indent, id: key });
+      }
+      continue;
+    }
 
     if (type === "class") {
       const block = /^class\s+([\w.]+)(?:\s*\[\s*([\s\S]*?)\s*\])?\s*\{?$/.exec(line);
@@ -119,7 +223,7 @@ function parseGraph(source: string, type: ExtendedMermaidType): Graph {
   if (!nodes.size) throw new Error(`The ${type} diagram has no supported elements.`);
   if (nodes.size > 300 || edges.length > 500) throw new Error("Mermaid diagrams are limited to 300 objects and 500 relationships.");
   for (const [id, members] of fields) { const node = nodes.get(id); if (node) node.label = [node.label, ...members].join("\n"); }
-  return { nodes: [...nodes.values()], edges, ...(title ? { title } : {}), ...(sections.length ? { sections } : {}) };
+  return { nodes: [...nodes.values()], edges, ...(title ? { title } : {}), ...(sections.length ? { sections } : {}), ...(Object.keys(metadata).length ? { metadata } : {}) };
 }
 
 function boxShape(node: Node, x: number, y: number, width: number, height: number): ShapeElement {
@@ -153,9 +257,28 @@ function graphLayout(graph: Graph, center: Point, type: ExtendedMermaidType): El
   return [...positions.values(), ...links];
 }
 
-function timelineLayout(graph: Graph, center: Point, type: "journey" | "gantt"): Element[] {
+function timelineLayout(graph: Graph, center: Point, type: "journey" | "gantt" | "timeline"): Element[] {
   const rows: Element[] = []; const positions = new Map<string, ShapeElement>(); const nodes = graph.nodes; const rowHeight = type === "journey" ? 88 : 54; const left = center.x - 430; const top = center.y - Math.max(160, nodes.length * rowHeight / 2);
   if (graph.title) rows.push({ type: "text", id: "mermaid-title", x: left, y: top - 42, text: graph.title, color: "#34495e", fontSize: 18, bold: true, fontFamily: "sans", textAlign: "left", listType: "none" });
+  if (type === "timeline") {
+    const sectionNames = [...new Set(nodes.map(node => { const match = /^mermaid-timeline:[^:]*:(.*)$/.exec(node.role ?? ""); return match ? decodePart(match[1]) : "Timeline"; }))];
+    const dates = nodes.map(node => { const match = /^mermaid-timeline:([^:]*):/.exec(node.role ?? ""); const raw = match ? decodePart(match[1]) : ""; const value = Date.parse(raw); return Number.isFinite(value) ? value : Number.NaN; });
+    const validDates = dates.filter(Number.isFinite); const firstDate = validDates.length ? Math.min(...validDates) : undefined; const lastDate = validDates.length ? Math.max(...validDates) : undefined;
+    const sectionSeen = new Set<string>();
+    nodes.forEach((node, index) => {
+      const match = /^mermaid-timeline:([^:]*):(.*)$/.exec(node.role ?? ""); const date = match ? decodePart(match[1]) : ""; const lane = match ? decodePart(match[2]) : "Timeline"; const laneIndex = Math.max(0, sectionNames.indexOf(lane));
+      const dateValue = dates[index]; const x = firstDate !== undefined && lastDate !== undefined && Number.isFinite(dateValue) && lastDate > firstDate ? left + (dateValue - firstDate) / (lastDate - firstDate) * 650 : left + 20 + (index % 4) * 170;
+      const y = top + laneIndex * 108; if (!sectionSeen.has(lane)) { sectionSeen.add(lane); rows.push({ type: "text", id: `mermaid-timeline-section:${laneIndex}`, x: left, y: y + 19, text: lane, color: "#34495e", fontSize: 13, bold: true, fontFamily: "sans", textAlign: "left", listType: "none" }); }
+      const shape = boxShape(node, x, y, 164, 58); positions.set(node.id, shape); rows.push(shape);
+      if (date) rows.push({ type: "text", id: `mermaid-timeline-date:${node.id}`, x, y: y + 62, text: date, color: "#667085", fontSize: 10, fontFamily: "sans", textAlign: "center", listType: "none" });
+    });
+    graph.edges.forEach((edge, index) => {
+      const from = positions.get(edge.from); const to = positions.get(edge.to); if (!from || !to) return;
+      const start = { x: from.x + from.w, y: from.y + from.h / 2 }; const end = { x: to.x, y: to.y + to.h / 2 };
+      rows.push({ type: "arrow", id: `mermaid-link:${index}`, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: "#71869b", thickness: 1.2, autoRoute: true, arrowRoute: "elbow", endHead: "solid", startBinding: { elementId: from.id!, anchor: { x: 1, y: .5 } }, endBinding: { elementId: to.id!, anchor: { x: 0, y: .5 } } });
+    });
+    return rows;
+  }
   const dependencyRank = new Map(nodes.map(node => [node.id, 0]));
   for (let pass = 0; pass < nodes.length; pass++) for (const edge of graph.edges) dependencyRank.set(edge.to, Math.max(dependencyRank.get(edge.to) ?? 0, (dependencyRank.get(edge.from) ?? 0) + 1));
   const startDates = nodes.flatMap(node => { const match = /^mermaid-gantt:([^:]+):([^:]+):([^:]+)$/.exec(node.role ?? ""); if (!match?.[3]) return []; const time = Date.parse(decodePart(match[3])); return Number.isFinite(time) ? [time] : []; });
@@ -176,10 +299,47 @@ function timelineLayout(graph: Graph, center: Point, type: "journey" | "gantt"):
   return rows;
 }
 
+function quadrantLayout(graph: Graph, center: Point): Element[] {
+  const left = center.x - 360; const top = center.y - 220; const width = 720; const height = 440;
+  const elements: Element[] = [];
+  if (graph.title) elements.push({ type: "text", id: "mermaid-title", x: left, y: top - 40, text: graph.title, color: "#34495e", fontSize: 18, bold: true, fontFamily: "sans", textAlign: "left", listType: "none" });
+  elements.push(
+    { type: "line", id: "mermaid-quadrant-x-axis", x: center.x, y: top, w: 0, h: height, color: "#a6b2bf", thickness: 1 },
+    { type: "line", id: "mermaid-quadrant-y-axis", x: left, y: center.y, w: width, h: 0, color: "#a6b2bf", thickness: 1 },
+    { type: "text", id: "mermaid-quadrant-x-low", x: left, y: top + height + 12, text: graph.metadata?.["x-axis-low"] ?? "Low", color: "#667085", fontSize: 11, fontFamily: "sans", textAlign: "left", listType: "none" },
+    { type: "text", id: "mermaid-quadrant-x-high", x: left + width - 100, y: top + height + 12, text: graph.metadata?.["x-axis-high"] ?? "High", color: "#667085", fontSize: 11, fontFamily: "sans", textAlign: "right", listType: "none" },
+    { type: "text", id: "mermaid-quadrant-y-low", x: left - 10, y: top + height - 18, text: graph.metadata?.["y-axis-low"] ?? "Low", color: "#667085", fontSize: 11, fontFamily: "sans", textAlign: "right", listType: "none" },
+    { type: "text", id: "mermaid-quadrant-y-high", x: left - 10, y: top, text: graph.metadata?.["y-axis-high"] ?? "High", color: "#667085", fontSize: 11, fontFamily: "sans", textAlign: "right", listType: "none" },
+  );
+  const quadrantTextPositions: Record<string, Point> = { "quadrant-1": { x: left + width / 2 + 12, y: top + 10 }, "quadrant-2": { x: left + 12, y: top + 10 }, "quadrant-3": { x: left + 12, y: center.y + 10 }, "quadrant-4": { x: left + width / 2 + 12, y: center.y + 10 } };
+  for (const name of ["quadrant-1", "quadrant-2", "quadrant-3", "quadrant-4"]) if (graph.metadata?.[name]) elements.push({ type: "text", id: `mermaid-quadrant-label-${name.slice(-1)}`, ...quadrantTextPositions[name], text: graph.metadata[name], color: "#8290a0", fontSize: 11, fontFamily: "sans", textAlign: "left", listType: "none" });
+  for (const node of graph.nodes) {
+    const match = /^mermaid-quadrant:([\d.]+):([\d.]+)$/.exec(node.role ?? ""); const x = Number(match?.[1] ?? .5); const y = Number(match?.[2] ?? .5);
+    elements.push(boxShape(node, left + x * width - 74, top + (1 - y) * height - 30, 148, 60));
+  }
+  return elements;
+}
+
+function kanbanLayout(graph: Graph, center: Point): Element[] {
+  const columns = graph.nodes.filter(node => node.role === "mermaid-kanban-column");
+  const cards = graph.nodes.filter(node => node.role?.startsWith("mermaid-kanban-card:"));
+  const columnWidth = 230; const columnGap = 20; const cardHeight = 64; const cardGap = 14; const totalWidth = columns.length * columnWidth + Math.max(0, columns.length - 1) * columnGap;
+  const left = center.x - totalWidth / 2; const top = center.y - 260; const result: Element[] = [];
+  if (graph.title) result.push({ type: "text", id: "mermaid-title", x: left, y: top - 38, text: graph.title, color: "#34495e", fontSize: 18, bold: true, fontFamily: "sans", textAlign: "left", listType: "none" });
+  columns.forEach((column, index) => {
+    const x = left + index * (columnWidth + columnGap); const columnCards = cards.filter(card => card.role === `mermaid-kanban-card:${column.id}`);
+    const height = Math.max(172, 72 + columnCards.length * (cardHeight + cardGap));
+    result.push(boxShape(column, x, top, columnWidth, height));
+    columnCards.forEach((card, cardIndex) => result.push(boxShape(card, x + 10, top + 54 + cardIndex * (cardHeight + cardGap), columnWidth - 20, cardHeight)));
+  });
+  return result;
+}
+
 export function layoutExtendedMermaid(source: string, center: Point): { type: ExtendedMermaidType; elements: Element[] } {
   const type = detectExtendedMermaidType(source); if (!type) throw new Error("This source is not one of the supported extended Mermaid diagram types.");
   const graph = parseGraph(source, type);
-  return { type, elements: type === "journey" || type === "gantt" ? timelineLayout(graph, center, type) : graphLayout(graph, center, type) };
+  const elements = type === "journey" || type === "gantt" || type === "timeline" ? timelineLayout(graph, center, type) : type === "quadrant" ? quadrantLayout(graph, center) : type === "kanban" ? kanbanLayout(graph, center) : graphLayout(graph, center, type);
+  return { type, elements };
 }
 
 function flatten(elements: Element[]): Element[] { return elements.flatMap(item => item.hidden ? [] : item.type === "group" ? flatten(item.elements) : [item]); }
@@ -193,6 +353,97 @@ export function exportExtendedMermaid(type: ExtendedMermaidType, elements: Eleme
   const items = flatten(elements); const nodes = items.filter((item): item is ShapeElement => ["rectangle", "circle", "diamond", "triangle", "flowchart"].includes(item.type) && item.id?.startsWith("mermaid-node:") === true);
   const byId = new Map(nodes.map((node, index) => [node.id!, { node, id: safeId(node.id!.slice("mermaid-node:".length), `node_${index + 1}`) }]));
   if (!nodes.length) throw new Error("This generated Mermaid diagram has no editable nodes to export.");
+  const nodeForElement = new Map(nodes.map(node => [node.id!, node]));
+  const relationships = items.flatMap(item => {
+    if ((item.type !== "line" && item.type !== "arrow") || !item.startBinding?.elementId || !item.endBinding?.elementId) return [];
+    const from = nodeForElement.get(item.startBinding.elementId); const to = nodeForElement.get(item.endBinding.elementId);
+    return from && to ? [{ item, from, to }] : [];
+  });
+  if (type === "mindmap") {
+    const incoming = new Set(relationships.map(edge => edge.to.id)); const outgoing = new Map<string, ShapeElement[]>();
+    for (const edge of relationships) outgoing.set(edge.from.id!, [...(outgoing.get(edge.from.id!) ?? []), edge.to]);
+    const lines = ["mindmap"]; const visited = new Set<string>();
+    const visit = (node: ShapeElement, depth: number) => {
+      if (!node.id || visited.has(node.id)) return; visited.add(node.id);
+      const key = safeId(node.id.slice("mermaid-node:".length), `mindmap_${visited.size}`); const label = (node.label?.text ?? key).split("\n")[0];
+      const marker = depth === 0 ? `((${quote(label)}))` : `[${quote(label)}]`;
+      lines.push(`${"  ".repeat(depth + 1)}${key}${marker}`);
+      for (const child of outgoing.get(node.id) ?? []) visit(child, depth + 1);
+    };
+    for (const node of nodes) if (!incoming.has(node.id!)) visit(node, 0);
+    for (const node of nodes) visit(node, 0);
+    return lines.join("\n") + "\n";
+  }
+  if (type === "timeline") {
+    const lines = ["timeline"]; const title = items.find((item): item is Extract<Element, { type: "text" }> => item.type === "text" && item.id === "mermaid-title");
+    if (title) lines.push(`  title ${title.text}`);
+    let active = "";
+    for (const node of nodes) {
+      const match = /^mermaid-timeline:([^:]*):(.*)$/.exec(node.componentRole ?? ""); const date = match ? decodePart(match[1]) : ""; const section = match ? decodePart(match[2]) : "Timeline";
+      if (section !== active) { active = section; lines.push(`  section ${section}`); }
+      lines.push(`  ${date || ""} : ${(node.label?.text ?? "").split("\n")[0]}`);
+    }
+    return lines.join("\n") + "\n";
+  }
+  if (type === "git") {
+    const lines = ["gitGraph"]; let activeBranch = "main"; const declared = new Set(["main"]);
+    for (const node of nodes) {
+      const match = /^mermaid-git:([^:]*):([\s\S]*)$/.exec(node.componentRole ?? ""); const branch = match ? decodePart(match[1]) : "main"; const label = match ? decodePart(match[2]) : node.label?.text ?? "Commit";
+      if (branch !== activeBranch) {
+        if (!declared.has(branch)) { lines.push(`  branch ${safeId(branch, "branch")}`); declared.add(branch); }
+        lines.push(`  checkout ${safeId(branch, "branch")}`); activeBranch = branch;
+      }
+      const nodeEdges = relationships.filter(edge => edge.to.id === node.id);
+      const mergeParent = nodeEdges.find(edge => edge.item.label?.text === "merge" && edge.from.componentRole?.startsWith("mermaid-git:") && decodePart(edge.from.componentRole.slice("mermaid-git:".length).split(":")[0]) !== branch);
+      if (mergeParent) {
+        const parentBranch = decodePart(mergeParent.from.componentRole!.slice("mermaid-git:".length).split(":")[0]);
+        lines.push(`  merge ${safeId(parentBranch, "branch")}`);
+      } else lines.push(`  commit id: ${quote(label)}`);
+    }
+    return lines.join("\n") + "\n";
+  }
+  if (type === "requirement") {
+    const lines = ["requirementDiagram"];
+    for (const node of nodes) {
+      const kind = node.componentRole?.replace(/^mermaid-requirement:/, "") ?? "requirement"; const label = (node.label?.text ?? "").split("\n");
+      const id = safeId(label[1] ?? node.id?.slice("mermaid-node:".length) ?? "requirement", "requirement");
+      lines.push(`  ${kind} ${id} {`);
+      for (const field of label.slice(2)) lines.push(`    ${field}`);
+      lines.push("  }");
+    }
+    for (const { from, to, item } of relationships) {
+      const relation = item.label?.text ?? (item.componentRole?.startsWith("mermaid-relation:") ? decodePart(item.componentRole.slice("mermaid-relation:".length)) : "traces");
+      lines.push(`  ${safeId(from.id!.slice("mermaid-node:".length), "from")} - ${relation} -> ${safeId(to.id!.slice("mermaid-node:".length), "to")}`);
+    }
+    return lines.join("\n") + "\n";
+  }
+  if (type === "quadrant") {
+    const byTextId = (id: string) => (items.find((item): item is Extract<Element, { type: "text" }> => item.type === "text" && item.id === id)?.text ?? "").trim();
+    const lines = ["quadrantChart"]; const title = byTextId("mermaid-title");
+    if (title) lines.push(`  title ${title}`);
+    lines.push(`  x-axis ${byTextId("mermaid-quadrant-x-low") || "Low"} --> ${byTextId("mermaid-quadrant-x-high") || "High"}`, `  y-axis ${byTextId("mermaid-quadrant-y-low") || "Low"} --> ${byTextId("mermaid-quadrant-y-high") || "High"}`);
+    for (let index = 1; index <= 4; index++) { const label = byTextId(`mermaid-quadrant-label-${index}`); if (label) lines.push(`  quadrant-${index} ${label}`); }
+    const verticalAxis = items.find((item): item is ShapeElement => item.type === "line" && item.id === "mermaid-quadrant-x-axis"); const horizontalAxis = items.find((item): item is ShapeElement => item.type === "line" && item.id === "mermaid-quadrant-y-axis");
+    const plotLeft = horizontalAxis?.x ?? Math.min(...nodes.map(item => item.x)); const plotWidth = horizontalAxis?.w ?? 720; const plotTop = verticalAxis?.y ?? Math.min(...nodes.map(item => item.y)); const plotHeight = verticalAxis?.h ?? 440;
+    for (const node of nodes) {
+      const role = /^mermaid-quadrant:([\d.]+):([\d.]+)$/.exec(node.componentRole ?? "");
+      const x = plotWidth ? Math.max(0, Math.min(1, (node.x + node.w / 2 - plotLeft) / plotWidth)) : Number(role?.[1] ?? .5); const y = plotHeight ? Math.max(0, Math.min(1, 1 - (node.y + node.h / 2 - plotTop) / plotHeight)) : Number(role?.[2] ?? .5);
+      lines.push(`  point ${quote((node.label?.text ?? "").split("\n")[0])}: [${x.toFixed(3)}, ${y.toFixed(3)}]`);
+    }
+    return lines.join("\n") + "\n";
+  }
+  if (type === "kanban") {
+    const lines = ["kanban"]; const title = items.find((item): item is Extract<Element, { type: "text" }> => item.type === "text" && item.id === "mermaid-title");
+    if (title) lines.push(`  title ${title.text}`);
+    const columns = nodes.filter(node => node.componentRole === "mermaid-kanban-column");
+    for (const column of columns) {
+      const columnId = safeId(column.id!.slice("mermaid-node:".length), "column"); lines.push(`  ${columnId}[${quote((column.label?.text ?? columnId).split("\n")[0])}]`);
+      for (const card of nodes.filter(node => node.componentRole === `mermaid-kanban-card:${column.id!.slice("mermaid-node:".length)}` || node.componentRole === `mermaid-kanban-card:${safeId(column.id!.slice("mermaid-node:".length), "column")}`)) {
+        lines.push(`    ${safeId(card.id!.slice("mermaid-node:".length), "task")}[${quote((card.label?.text ?? "").split("\n")[0])}]`);
+      }
+    }
+    return lines.join("\n") + "\n";
+  }
   const lines: string[] = type === "class" ? ["classDiagram"] : type === "er" ? ["erDiagram"] : type === "state" ? ["stateDiagram-v2"] : type === "journey" ? ["journey"] : type === "gantt" ? ["gantt", "  dateFormat YYYY-MM-DD", "  axisFormat %b %d"] : ["C4Context"];
   if ((type === "journey" || type === "gantt") && items.some(item => item.id === "mermaid-title" && item.type === "text")) { const title = items.find(item => item.id === "mermaid-title" && item.type === "text") as Extract<Element, { type: "text" }>; lines.push(`  title ${title.text}`); }
   let activeSection = "";

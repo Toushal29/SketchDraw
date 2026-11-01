@@ -1,9 +1,10 @@
 import { createMemo, For, Show } from "solid-js";
-import type { ShapeElement } from "./model";
+import type { Element, ShapeElement } from "./model";
 import { layoutMermaidFlowchart, parseMermaidFlowchart } from "./mermaid";
 import { parseMermaidSequence } from "./mermaid";
+import { detectExtendedMermaidType, layoutExtendedMermaid } from "./features/diagrams/mermaid-extended";
 
-type PreviewModel = { error?: string; frames: ShapeElement[]; nodes: ShapeElement[]; links: LinkPreview[]; viewBox: string };
+type PreviewModel = { error?: string; frames: ShapeElement[]; nodes: ShapeElement[]; links: LinkPreview[]; texts: Extract<Element, { type: "text" }>[]; viewBox: string };
 type LinkPreview = { shape: ShapeElement; start: { x: number; y: number }; end: { x: number; y: number } };
 
 export function MermaidPreview(props: { source: string }) {
@@ -16,6 +17,17 @@ export function MermaidPreview(props: { source: string }) {
   });
   const preview = createMemo<PreviewModel>(() => {
     try {
+      const extendedType = detectExtendedMermaidType(props.source);
+      if (extendedType) {
+        const elements = layoutExtendedMermaid(props.source, { x: 0, y: 0 }).elements;
+        const shapes = elements.filter((element): element is ShapeElement => element.type !== "text" && element.type !== "line" && element.type !== "arrow");
+        const texts = elements.filter((element): element is Extract<Element, { type: "text" }> => element.type === "text");
+        const links: LinkPreview[] = elements.filter((element): element is ShapeElement => element.type === "line" || element.type === "arrow").map(shape => ({ shape, start: { x: shape.x, y: shape.y }, end: { x: shape.x + shape.w, y: shape.y + shape.h } }));
+        const xs = shapes.flatMap(shape => [shape.x, shape.x + shape.w]).concat(texts.flatMap(text => [text.x, text.x + (text.wrapWidth ?? text.text.length * text.fontSize * .65)])).concat(links.flatMap(link => [link.start.x, link.end.x]));
+        const ys = shapes.flatMap(shape => [shape.y, shape.y + shape.h]).concat(texts.flatMap(text => [text.y, text.y + text.fontSize * Math.max(1, text.text.split("\n").length)])).concat(links.flatMap(link => [link.start.y, link.end.y]));
+        const minX = Math.min(...xs); const minY = Math.min(...ys);
+        return { frames: [], nodes: shapes, links, texts, viewBox: `${minX - 24} ${minY - 24} ${Math.max(1, Math.max(...xs) - minX + 48)} ${Math.max(160, Math.max(...ys) - minY + 48)}` };
+      }
       const parsed = parseMermaidFlowchart(props.source);
       const elements = layoutMermaidFlowchart(parsed, { x: 0, y: 0 });
       const shapes = elements.filter((element): element is ShapeElement => element.type !== "line" && element.type !== "arrow");
@@ -25,9 +37,9 @@ export function MermaidPreview(props: { source: string }) {
       const xs = shapes.flatMap(shape => [shape.x, shape.x + shape.w]).concat(links.flatMap(link => [link.start.x, link.end.x]));
       const ys = shapes.flatMap(shape => [shape.y, shape.y + shape.h]).concat(links.flatMap(link => [link.start.y, link.end.y]));
       const x = Math.min(...xs) - 24; const y = Math.min(...ys) - 24; const width = Math.max(1, Math.max(...xs) - Math.min(...xs) + 48); const height = Math.max(160, Math.max(...ys) - Math.min(...ys) + 48);
-      return { frames, nodes, links, viewBox: x + " " + y + " " + width + " " + height };
+      return { frames, nodes, links, texts: [], viewBox: x + " " + y + " " + width + " " + height };
     } catch (cause) {
-      return { error: cause instanceof Error ? cause.message : String(cause), frames: [], nodes: [], links: [], viewBox: "0 0 1 1" };
+      return { error: cause instanceof Error ? cause.message : String(cause), frames: [], nodes: [], links: [], texts: [], viewBox: "0 0 1 1" };
     }
   });
   const headMarker = (head: ShapeElement["endHead"]) => head === "none" || head === "dot" || head === "bar" ? undefined : "url(#mermaid-preview-" + (head === "open" ? "open" : "solid") + ")";
@@ -53,8 +65,9 @@ export function MermaidPreview(props: { source: string }) {
         </g>}</For>
         <For each={preview().nodes}>{node => <g>
           <Show when={node.type === "diamond"} fallback={<Show when={node.type === "circle"} fallback={<rect x={node.x} y={node.y} width={node.w} height={node.h} rx={node.edgeStyle === "pill" ? 24 : 10} fill="#f3f7fb" stroke="#657f98" stroke-width="1.6" />}><ellipse cx={node.x + node.w / 2} cy={node.y + node.h / 2} rx={node.w / 2} ry={node.h / 2} fill="#f3f7fb" stroke="#657f98" stroke-width="1.6" /></Show>}><path d={"M " + (node.x + node.w / 2) + " " + node.y + " L " + (node.x + node.w) + " " + (node.y + node.h / 2) + " L " + (node.x + node.w / 2) + " " + (node.y + node.h) + " L " + node.x + " " + (node.y + node.h / 2) + " Z"} fill="#f3f7fb" stroke="#657f98" stroke-width="1.6" /></Show>
-          <text x={node.x + node.w / 2} y={node.y + node.h / 2 - ((node.label?.text.split("\n").length ?? 1) - 1) * 7} fill="#33495d" font-size="12" text-anchor="middle" dominant-baseline="middle"><For each={(node.label?.text ?? "").split("\n")}>{(line, index) => <tspan x={node.x + node.w / 2} dy={index() === 0 ? 0 : 14}>{line}</tspan>}</For></text>
+          <Show when={!!node.label?.text}><text x={node.x + node.w / 2} y={node.y + node.h / 2 - ((node.label?.text.split("\n").length ?? 1) - 1) * 7} fill="#33495d" font-size="12" text-anchor="middle" dominant-baseline="middle"><For each={(node.label?.text ?? "").split("\n")}>{(line, index) => <tspan x={node.x + node.w / 2} dy={index() === 0 ? 0 : 14}>{line}</tspan>}</For></text></Show>
         </g>}</For>
+        <For each={preview().texts}>{text => <text x={text.x} y={text.y + text.fontSize} fill={text.color} font-size={String(text.fontSize)} font-weight={text.bold ? 700 : 400} text-anchor={text.textAlign === "center" ? "middle" : text.textAlign === "right" ? "end" : "start"}>{text.text}</text>}</For>
       </svg>
     </Show>}>
       {model => <Show when={!model().error} fallback={<div class="mermaid-preview-error">{model().error}</div>}><svg class="mermaid-preview-svg" viewBox={`0 0 ${model().width} ${model().height}`} role="img" aria-label="Preview of the generated sequence diagram" preserveAspectRatio="xMidYMid meet">
