@@ -1,0 +1,19 @@
+@startuml
+start
+:Read request;
+if (Valid request?) then (yes)
+  :Save order;
+else (no)
+  :Reject request;
+endif
+| Worker lane |
+while (Retry?) is (yes)
+  :Attempt again;
+endwhile (done)
+fork
+  :Send receipt;
+fork again
+  :Update metrics;
+end fork
+stop
+@enduml

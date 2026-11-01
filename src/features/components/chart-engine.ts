@@ -238,11 +238,14 @@ function chartOption(group: GroupElement, theme: Theme, width: number, height: n
       data: sortedLabels.map((name, index) => ({ name, value: Math.max(0, sortedValues[index] ?? 0), itemStyle: { color: categoryColor(name, sortedIndexes[index]) } })),
     }];
   } else if (kind === "viz-radar") {
-    const maxValue = Math.max(1, ...series.flatMap(item => item.values.map(value => Math.abs(value))));
+    const maxValue = finite(settings.maxValue ?? Math.max(1, ...series.flatMap(item => item.values.map(value => Math.abs(value)))));
+    const minValue = finite(settings.minValue ?? 0);
     baseOption.radar = {
+      shape: settings.radarGraticule ?? "circle",
+      splitNumber: settings.radarTicks ?? 5,
       center: [rightLegend ? "37%" : "50%", "58%"],
       radius: rightLegend ? "63%" : "67%",
-      indicator: labels.map(name => ({ name, max: maxValue })),
+      indicator: labels.map(name => ({ name, min: minValue, max: maxValue })),
       axisName: { color: muted, fontFamily, fontSize: 9 },
       axisLine: { lineStyle: { color: edge } },
       splitLine: { lineStyle: { color: gridColor } },
@@ -271,7 +274,7 @@ function chartOption(group: GroupElement, theme: Theme, width: number, height: n
     const defaultType = kind === "viz-bar" || kind === "viz-horizontal-bar" || kind === "viz-stacked-bar" ? "bar" : kind === "viz-scatter" ? "scatter" : kind === "viz-area" ? "area" : "line";
     const hasSecondary = (kind === "viz-line" || kind === "viz-area") && series.some(item => item.axis === "secondary");
     const categoryAxis = { type: "category", data: sortedLabels, boundaryGap: defaultType === "bar", axisLine: { lineStyle: { color: edge } }, axisTick: { show: false }, axisLabel: { color: muted, fontFamily, fontSize: 8, hideOverlap: true, rotate: labels.length > 7 ? 25 : 0 }, name: horizontal ? data.yAxisLabel : data.xAxisLabel, nameLocation: "middle", nameGap: 24 };
-    const valueAxis = { type: "value", axisLine: { show: true, lineStyle: { color: edge } }, axisTick: { show: false }, axisLabel: { color: muted, fontFamily, fontSize: 8, formatter: (value: number) => compactNumber(value) }, splitLine: { show: settings.showGrid !== false, lineStyle: { color: gridColor, type: "dashed" } }, name: horizontal ? data.xAxisLabel : data.yAxisLabel, nameLocation: "middle", nameGap: horizontal ? 28 : 34 };
+    const valueAxis = { type: "value", ...(Number.isFinite(settings.minValue) ? { min: settings.minValue } : {}), ...(Number.isFinite(settings.maxValue) ? { max: settings.maxValue } : {}), axisLine: { show: true, lineStyle: { color: edge } }, axisTick: { show: false }, axisLabel: { color: muted, fontFamily, fontSize: 8, formatter: (value: number) => compactNumber(value) }, splitLine: { show: settings.showGrid !== false, lineStyle: { color: gridColor, type: "dashed" } }, name: horizontal ? data.xAxisLabel : data.yAxisLabel, nameLocation: "middle", nameGap: horizontal ? 28 : 34 };
     baseOption.xAxis = horizontal ? valueAxis : categoryAxis;
     baseOption.yAxis = horizontal ? { ...categoryAxis, data: sortedLabels, inverse: true } : valueAxis;
     if (hasSecondary) baseOption.yAxis = [valueAxis, { ...valueAxis, position: "right", name: data.secondaryYAxisLabel, splitLine: { show: false } }];

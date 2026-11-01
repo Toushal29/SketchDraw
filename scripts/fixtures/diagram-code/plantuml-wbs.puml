@@ -1,0 +1,7 @@
+@startwbs
+* Release
+** Design
+** Build
+*** Quality checks
+** Launch
+@endwbs

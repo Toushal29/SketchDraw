@@ -574,11 +574,13 @@
 
 .mermaid-dialog {
     box-sizing: border-box;
-    width: min(760px, calc(100vw - 32px));
-    max-height: min(86dvh, 740px);
-    overflow-y: auto;
+    display: grid;
     padding: 16px;
     gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    overflow: hidden;
 }
 
 .mermaid-dialog>header {
@@ -600,6 +602,9 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
     gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
     align-items: stretch;
 }
 
@@ -607,7 +612,9 @@
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
-    min-height: 230px;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
     resize: vertical;
     padding: 10px;
     border: 1px solid var(--theme-border);
@@ -625,10 +632,11 @@
 
 .plantuml-editor-layout {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .plantuml-editor-layout .mermaid-input {
-    min-height: 260px;
+    min-height: 0;
 }
 
 .plantuml-editor-layout .mermaid-preview-loading {
@@ -642,7 +650,8 @@
 .mermaid-preview-panel {
     display: flex;
     min-width: 0;
-    min-height: 230px;
+    min-height: 0;
+    height: 100%;
     flex-direction: column;
     overflow: hidden;
     border: 1px solid var(--theme-border);
@@ -670,15 +679,56 @@
     letter-spacing: 0;
 }
 
+.mermaid-preview-controls {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 3px;
+    letter-spacing: 0;
+}
+
+.mermaid-preview-controls button {
+    display: inline-grid;
+    min-width: 25px;
+    height: 24px;
+    place-items: center;
+    padding: 0 5px;
+    border: 1px solid var(--theme-border);
+    border-radius: 5px;
+    background: var(--theme-surface);
+    color: var(--theme-text);
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+}
+
+.mermaid-preview-controls button:hover {
+    background: var(--theme-surface-hover);
+}
+
+.mermaid-preview-controls output {
+    min-width: 36px;
+    color: var(--theme-text-secondary);
+    font-size: var(--type-micro);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
 .mermaid-preview-svg {
     display: block;
     width: 100%;
     height: 100%;
-    min-height: 200px;
+    min-height: 0;
     flex: 1;
     background-color: var(--theme-surface);
     background-image: radial-gradient(var(--theme-surface-hover) 1px, transparent 1px);
     background-size: 18px 18px;
+    cursor: grab;
+    touch-action: none;
+}
+
+.mermaid-preview-svg.preview-panning {
+    cursor: grabbing;
 }
 
 .mermaid-preview-error {
@@ -689,6 +739,22 @@
     color: var(--theme-error);
     font-size: var(--type-control);
     text-align: center;
+}
+
+@media (max-width: 760px) {
+    .mermaid-preview-heading {
+        gap: 5px;
+        padding-inline: 8px;
+    }
+
+    .mermaid-preview-heading small {
+        display: none;
+    }
+
+    .mermaid-preview-controls button {
+        min-width: 23px;
+        height: 23px;
+    }
 }
 
 .mermaid-dialog-footer {
@@ -713,31 +779,33 @@
 }
 
 @media (max-width: 760px) {
-    .mermaid-dialog {
-        width: calc(100vw - 24px);
-        max-height: calc(100dvh - 24px);
-        padding: 12px;
-    }
-
     .mermaid-dialog-footer {
         align-items: flex-start;
         flex-direction: column;
     }
 
     .mermaid-editor-layout {
+        height: auto;
         grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(200px, 1fr) minmax(210px, 1fr);
     }
 
     .mermaid-input {
+        height: auto;
         min-height: 200px;
     }
 
     .mermaid-preview-panel {
         min-height: 210px;
+        height: auto;
     }
 
     .mermaid-preview-svg {
         min-height: 180px;
+    }
+
+    .plantuml-editor-layout {
+        grid-template-rows: minmax(200px, 1fr) auto;
     }
 }
 
@@ -994,13 +1062,14 @@
 
 .database-schema-dialog {
     box-sizing: border-box;
-    width: min(700px, calc(100vw - 32px));
-    height: min(78dvh, 680px);
-    max-height: calc(100dvh - 32px);
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     gap: 8px;
     overflow: hidden;
     padding: 16px;
+}
+
+.database-schema-dialog.schema-error-present {
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
 }
 
 .schema-dialog-heading {
@@ -1040,16 +1109,40 @@
     border-radius: 6px;
 }
 
+.database-schema-dialog .schema-code-editor-dialog {
+    height: 100%;
+    min-height: 0;
+}
+
 .app-shell .style-pane .quick-style-heading {
     background: var(--theme-surface-input);
 }
 
 @media (max-width: 760px) {
     .database-schema-dialog {
-        width: calc(100vw - 24px);
-        height: min(86dvh, 740px);
-        max-height: calc(100dvh - 24px);
         padding: 12px;
+    }
+}
+
+/* Code editors share one large, viewport-bounded dialog size so their input and preview area have stable room. */
+.app-shell .confirm-dialog:is(.schema-dialog, .mermaid-dialog, .database-schema-dialog) {
+    width: min(1080px, calc(100vw - 48px));
+    height: min(82dvh, 820px);
+    max-width: calc(100vw - 48px);
+    max-height: calc(100dvh - 32px);
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+@media (max-width: 760px) {
+    .app-shell .confirm-dialog:is(.schema-dialog, .mermaid-dialog, .database-schema-dialog) {
+        width: calc(100vw - 24px);
+        height: calc(100dvh - 24px);
+        max-width: calc(100vw - 24px);
+        max-height: calc(100dvh - 24px);
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 }
 
@@ -1122,4 +1215,286 @@
 .dialog-info-content code {
     color: var(--theme-diagram-data);
     font: var(--type-micro) var(--font-mono);
+}
+
+/* Keep every code/data workflow on the same clear, elevated dialog surface. */
+.app-shell .confirm-dialog:is(
+    .code-data-dialog,
+    .database-schema-dialog,
+    .mermaid-dialog,
+    .csv-chart-dialog,
+    [aria-labelledby="blueprint-export-title"],
+    [aria-labelledby="diagram-code-export-title"]
+) {
+    border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--ui-accent-border));
+    border-radius: 15px;
+    background: var(--theme-surface-elevated);
+    box-shadow: 0 24px 72px color-mix(in srgb, var(--theme-shadow) 70%, transparent);
+}
+
+.app-shell .confirm-dialog:is(.database-schema-dialog, .mermaid-dialog, .csv-chart-dialog, [aria-labelledby="blueprint-export-title"], [aria-labelledby="diagram-code-export-title"]) > header {
+    padding-bottom: 11px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.app-shell .confirm-dialog:is(.database-schema-dialog, .mermaid-dialog, .csv-chart-dialog, [aria-labelledby="blueprint-export-title"], [aria-labelledby="diagram-code-export-title"]) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea:not(.schema-code-textarea)) {
+    border-color: var(--theme-border);
+    border-radius: 8px;
+    background-color: var(--theme-surface-input);
+}
+
+.app-shell .confirm-dialog:is(.database-schema-dialog, .mermaid-dialog, .csv-chart-dialog, [aria-labelledby="blueprint-export-title"], [aria-labelledby="diagram-code-export-title"]) :is(input, select, textarea):focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--theme-primary) 58%, transparent);
+    outline-offset: 1px;
+}
+
+/* Data to Visual: make the CSV editor the primary workspace and keep mapping controls grouped beside it. */
+.app-shell .confirm-dialog.data-to-visual-dialog {
+    box-sizing: border-box;
+    display: grid;
+    width: min(900px, calc(100vw - 40px));
+    max-width: calc(100vw - 40px);
+    max-height: min(88dvh, 900px);
+    grid-template-columns: minmax(0, 1.25fr) minmax(250px, .75fr);
+    align-content: start;
+    gap: 14px 18px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.data-to-visual-dialog > header,
+.data-to-visual-dialog > .data-to-visual-intro,
+.data-to-visual-dialog > .code-data-load-file,
+.data-to-visual-dialog > .csv-chart-data-field,
+.data-to-visual-dialog > .data-to-visual-actions {
+    grid-column: 1 / -1;
+}
+
+.data-to-visual-dialog > header,
+.code-blueprint-dialog > header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding-bottom: 13px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.data-to-visual-intro,
+.code-blueprint-dialog > .code-blueprint-intro {
+    max-width: 70ch;
+    color: var(--theme-text-secondary);
+    line-height: var(--leading-relaxed);
+}
+
+.data-to-visual-dialog > .code-data-load-file {
+    justify-self: start;
+    min-height: 34px;
+    margin: 0;
+}
+
+.data-to-visual-dialog .csv-chart-data-field,
+.data-to-visual-dialog .csv-chart-type,
+.code-blueprint-dialog .code-blueprint-format {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: 7px;
+    color: var(--theme-text-secondary);
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-semibold);
+}
+
+.data-to-visual-dialog .csv-chart-data-field textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: clamp(180px, 30vh, 320px);
+    max-height: 46vh;
+    resize: vertical;
+    padding: 13px;
+    border: 1px solid var(--theme-border);
+    border-radius: 10px;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
+    font: var(--type-control)/var(--leading-relaxed) var(--font-mono, ui-monospace, Consolas, monospace);
+    tab-size: 2;
+}
+
+.data-to-visual-dialog .csv-chart-mapping {
+    grid-column: 1;
+    grid-template-columns: minmax(110px, .8fr) minmax(0, 1.2fr);
+    gap: 12px;
+}
+
+.data-to-visual-dialog .csv-chart-mapping > label {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: 7px;
+    color: var(--theme-text-secondary);
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-semibold);
+}
+
+.data-to-visual-dialog .csv-chart-mapping fieldset {
+    min-height: 100%;
+    align-content: start;
+    gap: 8px;
+    padding: 12px;
+    border-color: var(--theme-border);
+    border-radius: 10px;
+    background: var(--theme-surface);
+}
+
+.data-to-visual-dialog .csv-chart-mapping legend {
+    padding: 0 4px;
+    color: var(--theme-text-secondary);
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-semibold);
+}
+
+.data-to-visual-dialog .csv-chart-series {
+    min-width: 0;
+    color: var(--theme-text-primary);
+}
+
+.data-to-visual-dialog .csv-chart-type {
+    grid-column: 2;
+    grid-row: span 1;
+}
+
+.data-to-visual-dialog .csv-chart-type select,
+.code-blueprint-dialog .code-blueprint-format select {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 42px;
+    padding: 0 11px;
+    border: 1px solid var(--theme-border);
+    border-radius: 9px;
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
+}
+
+.data-to-visual-dialog > .mermaid-preview-error {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+
+.data-to-visual-actions,
+.code-blueprint-actions {
+    display: flex;
+    min-width: 0;
+    justify-content: flex-end;
+    gap: 9px;
+    margin-top: 2px;
+    padding-top: 14px;
+    border-top: 1px solid var(--theme-border);
+}
+
+/* Code Blueprint: separate the export target from the scope and explain its output before download. */
+.app-shell .confirm-dialog.code-blueprint-dialog {
+    box-sizing: border-box;
+    display: grid;
+    width: min(760px, calc(100vw - 40px));
+    max-width: calc(100vw - 40px);
+    max-height: min(86dvh, 820px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 16px 20px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.code-blueprint-dialog > header,
+.code-blueprint-dialog > p:first-of-type,
+.code-blueprint-dialog > .export-scope,
+.code-blueprint-dialog > .code-blueprint-actions {
+    grid-column: 1 / -1;
+}
+
+.code-blueprint-dialog > p:first-of-type {
+    max-width: 72ch;
+    color: var(--theme-text-secondary);
+    line-height: var(--leading-relaxed);
+}
+
+.code-blueprint-dialog .export-scope {
+    display: flex;
+    width: fit-content;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--theme-border);
+    border-radius: 10px;
+    background: var(--theme-surface);
+}
+
+.code-blueprint-dialog .export-scope button {
+    min-height: 36px;
+    padding-inline: 12px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: var(--theme-text-secondary);
+    background: transparent;
+}
+
+.code-blueprint-dialog .export-scope button.active {
+    border-color: var(--ui-accent-border);
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+}
+
+.code-blueprint-dialog .code-blueprint-format {
+    grid-column: 1;
+}
+
+.code-blueprint-dialog .code-blueprint-note {
+    grid-column: 2;
+    align-self: stretch;
+    margin: 0;
+    padding: 14px;
+    border: 1px solid var(--theme-border);
+    border-radius: 10px;
+    background: var(--theme-surface);
+}
+
+@media (max-width: 700px) {
+    .app-shell .confirm-dialog.data-to-visual-dialog,
+    .app-shell .confirm-dialog.code-blueprint-dialog {
+        width: calc(100vw - 20px);
+        max-width: calc(100vw - 20px);
+        max-height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        padding: 16px;
+    }
+
+    .data-to-visual-dialog > *,
+    .data-to-visual-dialog .csv-chart-mapping,
+    .data-to-visual-dialog .csv-chart-type,
+    .code-blueprint-dialog > *,
+    .code-blueprint-dialog .code-blueprint-format,
+    .code-blueprint-dialog .code-blueprint-note {
+        grid-column: 1;
+    }
+
+    .data-to-visual-dialog .csv-chart-mapping {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .data-to-visual-dialog .csv-chart-data-field textarea {
+        min-height: 190px;
+        max-height: 42vh;
+    }
+
+    .data-to-visual-actions,
+    .code-blueprint-actions {
+        position: sticky;
+        bottom: -16px;
+        margin: 0 -16px -16px;
+        padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+        background: var(--theme-surface-elevated);
+    }
 }

@@ -1,5 +1,4 @@
 import { BaseDirectory, mkdir, readDir, remove, writeFile } from "@tauri-apps/plugin-fs";
-import { blueprintZip } from "../diagrams/blueprint-export";
 
 export type ArchiveDocument = { name: string; contents: string };
 const ARCHIVE_FOLDER = ".sdbackup";
@@ -9,6 +8,7 @@ const safeName = (value: string) => value.replace(/[<>:"/\\|?*\u0000-\u001f]/g, 
 
 export async function createLocalDocumentArchive(documents: ArchiveDocument[], now = Date.now()) {
   if (!documents.length) throw new Error("There are no open documents to archive.");
+  const { blueprintZip } = await import("../diagrams/blueprint-export");
   await mkdir(ARCHIVE_FOLDER, { baseDir: BaseDirectory.AppLocalData, recursive: true });
   const timestamp = new Date(now).toISOString().replace(/[:.]/g, "-");
   const files = documents.map((document, index) => ({ path: `${index + 1}-${safeName(document.name)}`, contents: document.contents }));

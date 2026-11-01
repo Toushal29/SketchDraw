@@ -160,7 +160,14 @@ const COMPONENT_CATALOG: Omit<LibraryComponentDefinition, "geometry">[] = [
   { kind: "network-gateway", section: "Network | Devices", label: "Gateway", description: "Gateway connecting two network domains", width: 150, height: 96 },
   { kind: "network-printer", section: "Network | Devices", label: "Printer", description: "Shared network printer endpoint", width: 130, height: 102 },
   { kind: "network-workstation", section: "Network | Devices", label: "Workstation", description: "User workstation on a local network", width: 150, height: 112 },
-  ...PROPOSAL_COMPONENTS.map(({ kind, section, label, description, width, height }) => ({ kind, section, label, description, width, height })),
+  ...PROPOSAL_COMPONENTS.map(({ kind, section, label, description, width, height, archetype }) => {
+    const systems = section.startsWith("Systems engineering");
+    return {
+      kind, section, label, description,
+      width: archetype === "connector" ? width : Math.max(width, systems ? archetype === "boundary" ? 280 : 245 : archetype === "boundary" || archetype === "screen" ? 250 : 210),
+      height: archetype === "connector" ? height : Math.max(height, systems ? archetype === "boundary" ? 220 : archetype === "event" ? 176 : 190 : archetype === "boundary" || archetype === "screen" ? 190 : archetype === "event" || archetype === "decision" ? 160 : 150),
+    };
+  }),
 ];
 export const LIBRARY_COMPONENTS: LibraryComponentDefinition[] = COMPONENT_CATALOG.map(component => {
   const { w: width, h: height } = snapComponentSize(component.kind, component.width, component.height);
@@ -174,15 +181,38 @@ export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, 
   if (!width || !height) return undefined;
   const proposal = proposalComponentForKind(kind);
   if (proposal?.archetype === "connector") {
-    const bidirectional = /\b(communication|association|trace|dependency|relationship)\b/i.test(proposal.label);
-    const dashed = /\b(derive|refine|trace|dependency|message flow|import|invocation)\b/i.test(proposal.label);
+    const planningDependency = kind === "proposal-planning-dependency-connector";
+    const noArrow = /composite-part-connector|parametric-constraint/.test(kind);
+    const messageFlow = kind.endsWith("bpmn-message-flow");
+    const dataAssociation = kind.endsWith("data-association");
+    const dashed = messageFlow || !planningDependency && /decomposition|derive|refine|trace|dependency|import|merge|invocation|verify-link|satisfy-link|allocation-relationship/.test(kind);
+    const relationshipType: RelationshipType = /item-flow|lineage|data-association|bpmn-message-flow/.test(kind) ? "data-flow" : /communication-message/.test(kind) ? "sequence" : /requirement|allocation|dependency|decision|invocation|package-import|package-merge/.test(kind) ? "dependency" : "association";
+    const stereotype = kind.endsWith("requirement-decomposition-link") ? "<<deriveReqt>>"
+      : kind.endsWith("requirement-satisfy-link") ? "<<satisfy>>"
+        : kind.endsWith("requirement-verify-link") ? "<<verify>>"
+          : kind.endsWith("requirement-derive-link") ? "<<deriveReqt>>"
+            : kind.endsWith("requirement-refine-link") ? "<<refine>>"
+              : kind.endsWith("requirement-trace-link") ? "<<trace>>"
+                : kind.endsWith("allocation-relationship") ? "<<allocate>>"
+                  : kind.endsWith("parametric-constraint") ? "="
+                    : kind.endsWith("package-import") ? "<<import>>"
+                      : kind.endsWith("package-merge") ? "<<merge>>"
+                        : kind.endsWith("composite-part-connector") ? "connector"
+                          : proposal.label;
+    const hollowEnd = relationshipType === "dependency" || relationshipType === "sequence" || messageFlow || dataAssociation;
+    const relationshipFields = proposalComponentFields(kind).map(field => planningDependency
+      ? field.key === "relationship" ? { ...field, value: "FS" } : field.key === "lag" ? { ...field, value: "0" } : field
+      : field);
     const relationship: ShapeElement = {
-      type: "line", id: crypto.randomUUID(), componentRole: kind, relationshipType: "association",
+      type: "line", id: crypto.randomUUID(), componentRole: kind, relationshipType,
       x, y: y + height / 2, w: width, h: 0,
       color: proposal.section.startsWith("Systems") ? "#7563ad" : "#46525b", thickness: 1.8,
-      lineStyle: dashed ? "dashed" : "solid", startHead: "none", endHead: bidirectional ? "open" : "solid",
-      lineRoute: "straight", label: { text: proposal.label, color: "#46525b", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" },
+      lineStyle: dataAssociation ? "dotted" : dashed ? "dashed" : "solid", startHead: "none", endHead: noArrow ? "none" : planningDependency ? "solid" : hollowEnd ? "open" : "solid",
+      lineRoute: "straight", label: { text: planningDependency ? "FS" : proposal.label, color: "#46525b", fontSize: 12, fontFamily: "sans", bold: false, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "top" },
+      relationshipFields,
     };
+    if (["proposal-systems-requirement-decomposition-link", "proposal-systems-requirement-satisfy-link", "proposal-systems-requirement-verify-link", "proposal-systems-requirement-derive-link", "proposal-systems-requirement-refine-link", "proposal-systems-requirement-trace-link", "proposal-systems-allocation-relationship", "proposal-systems-parametric-constraint", "proposal-systems-package-import", "proposal-systems-package-merge"].includes(kind)) relationship.label = { ...relationship.label!, text: stereotype };
+    if (kind === "proposal-systems-composite-part-connector") relationship.label = { ...relationship.label!, text: "" };
     return relationship;
   }
   const relationships: Partial<Record<LibraryComponentKind, { color: string; lineStyle: ShapeElement["lineStyle"]; startHead: ShapeElement["startHead"]; endHead: ShapeElement["endHead"] }>> = {

@@ -1,0 +1,7 @@
+@startuml
+!include <archimate/Archimate>
+title Orders solution
+Application_Component(api, "Orders API")
+Technology_Service(store, "Order Store")
+Rel_Realization_Up(api, store, "persists")
+@enduml

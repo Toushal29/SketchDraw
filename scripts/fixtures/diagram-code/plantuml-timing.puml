@@ -1,0 +1,7 @@
+@startuml
+clock "Order controller" as ctrl
+binary "Worker" as worker
+@0 ctrl is idle, worker is waiting
+@+5 ctrl is validating, worker is waiting
+@+4 ctrl is saving, worker is active
+@enduml

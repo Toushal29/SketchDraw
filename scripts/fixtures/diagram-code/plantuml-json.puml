@@ -1,0 +1,6 @@
+@startjson
+{
+  "service": {"name": "orders", "replicas": 3},
+  "enabled": true
+}
+@endjson

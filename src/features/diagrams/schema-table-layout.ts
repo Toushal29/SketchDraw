@@ -48,7 +48,7 @@ export function schemaTableRowLayout(left: number, width: number, column: Schema
   const typeRight = left + width - inset;
   const availableWidth = Math.max(0, typeRight - fieldX);
   const typeFontSize = Math.max(6, size * .7);
-  const preferredTypeWidth = Math.max(16, (column.dataType || "type").length * typeFontSize * .62 + 1);
+  const preferredTypeWidth = column.dataType ? Math.max(16, column.dataType.length * typeFontSize * .62 + 1) : 0;
   // A smaller field reserve lets long SQL types remain visible as cards are narrowed.
   const minimumFieldWidth = Math.min(availableWidth, Math.max(16, size * 1.5));
   const typeWidth = Math.min(preferredTypeWidth, Math.max(0, availableWidth - minimumFieldWidth - fieldTypeGap));
@@ -86,7 +86,7 @@ export function schemaTableMinimumWidth(
   const inset = schemaTableContentInset(size);
   const markerStep = schemaMarkerStep(size);
   const fieldTypeGap = schemaFieldTypeGap(size);
-  const rowWidth = Math.max(0, ...columns.map(column => column.name.length * size * .82 * .62 + markerStep + (column.dataType || "type").length * size * .7 * .62 + fieldTypeGap + inset * 2 + MARKER_TEXT_GAP));
+  const rowWidth = Math.max(0, ...columns.map(column => column.name.length * size * .82 * .62 + markerStep + (column.dataType ? column.dataType.length * size * .7 * .62 + fieldTypeGap : 0) + inset * 2 + MARKER_TEXT_GAP));
   const titleWidth = tableName.length * size * .96 * .62 + inset * 2;
   return Math.max(minimumWidth, rowWidth, titleWidth);
 }

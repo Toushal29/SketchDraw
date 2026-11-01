@@ -1,0 +1,13 @@
+@startnwdiag
+nwdiag {
+  network DMZ {
+    address = "10.0.0.0/24";
+    web [address = "10.0.0.10", description = "Web server"];
+  }
+  network Internal {
+    address = "10.0.1.0/24";
+    api [address = "10.0.1.10", shape = server];
+    database [address = "10.0.1.20", shape = database];
+  }
+}
+@endnwdiag

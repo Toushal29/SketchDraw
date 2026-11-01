@@ -530,6 +530,7 @@
 .import-fidelity-dialog dl > div { padding: 12px; border: 1px solid var(--theme-border); border-radius: 8px; background: var(--theme-surface); }
 .import-fidelity-dialog dt { color: var(--theme-text-secondary); font-size: var(--type-micro); text-transform: uppercase; }
 .import-fidelity-dialog dd { margin: 3px 0 0; font-size: var(--type-display); font-weight: var(--font-weight-bold); }
+.import-fidelity-details { display: grid; gap: 6px; max-height: 220px; overflow: auto; margin: 12px 0 18px; padding-left: 20px; color: var(--theme-text-secondary); font-size: var(--type-caption); line-height: 1.45; overflow-wrap: anywhere; }
 .import-fidelity-dialog footer { display: flex; justify-content: flex-end; }
 .named-snapshot-diff { max-height: 150px; overflow: auto; padding: 8px 10px; border: 1px solid var(--panel-border, #d8dde4); border-radius: 8px; }
 .named-snapshot-diff ul { margin: 6px 0 0; padding-left: 18px; }

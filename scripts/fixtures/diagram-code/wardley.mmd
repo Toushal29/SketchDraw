@@ -1,0 +1,30 @@
+wardley-beta
+title Digital platform strategy
+size [1100, 800]
+evolution Genesis@0 -> Custom@0.25 -> Product@0.65 -> Commodity@1
+
+anchor Customer [0.92, 0.95]
+component "Mobile App" [0.80, 0.83] (build)
+component API [0.65, 0.64] (buy)
+component "Data Platform" [0.38, 0.46] (outsource) (inertia) label [-42, 12]
+component Cloud [0.18, 0.86] (market)
+
+pipeline "Data Platform" {
+  component "Relational store" [0.42]
+  component "Managed database" [0.78]
+}
+
+Customer -> "Mobile App"
+"Mobile App" +'calls'> API
+API +<> "Data Platform"
+"Data Platform" -.-> Cloud
+Cloud +< API
+API --> Cloud; "replication"
+
+evolve API 0.82
+Cloud -.- (0.74, 0.24)
+note "Migrate legacy ownership" [0.45, 0.43]
+accelerator "Managed operations" [0.55, 0.34]
+deaccelerator "Data residency review" [0.28, 0.48]
+annotations [0.08, 0.12]
+annotation 1,[0.60, 0.70] "High value chain risk"

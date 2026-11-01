@@ -13,6 +13,11 @@ export function componentFont(size: number, weight: number, family?: FontFamily,
   return `${italic ? "italic " : ""}${weight} ${size}px ${componentFontFamily(family)}`;
 }
 
+/** Convert a text box's left edge and width to the anchor coordinate used by Canvas/SVG text APIs. */
+export function componentBoxTextAnchor(x: number, width: number, align: "left" | "center" | "right"): number {
+  return align === "center" ? x + width / 2 : align === "right" ? x + width : x;
+}
+
 /** Offset from a centered line position to a stable alphabetic SVG/canvas baseline. */
 export function componentBaselineOffset(size: number, weight: number, family?: FontFamily, italic = false): number {
   const font = componentFont(size, weight, family, italic);
@@ -46,7 +51,9 @@ export function normalizeComponentSvgText(svg: string, family?: FontFamily): str
   const measured = svg.replace(/<text\b([^>]*)>([\s\S]*?)<\/text>/g, (_whole, rawAttributes: string, content: string) => {
     let attributes = rawAttributes;
     const sizeMatch = /\bfont-size="([\d.]+)"/.exec(attributes);
-    const size = Math.max(9, Number(sizeMatch?.[1] ?? 12));
+    // SVG must keep compact component labels at their designed size. Clamping
+    // these to 9 px makes otherwise centered labels spill out of small cells.
+    const size = Math.max(5, Number(sizeMatch?.[1] ?? 12));
     const weight = Number(/\bfont-weight="(\d+)/.exec(attributes)?.[1] ?? 500);
     const italic = /\bfont-style="italic"/.test(attributes);
     const replace = (name: string, value: string) => {

@@ -1,0 +1,67 @@
+{
+  "id": 123456,
+  "name": "Payments Platform",
+  "description": "Workspace interchange fixture",
+  "version": "1.0",
+  "model": {
+    "enterprise": { "name": "Example Group" },
+    "properties": { "owner": "Architecture" },
+    "people": [
+      {
+        "id": "1",
+        "name": "Customer",
+        "description": "Places and tracks orders.",
+        "tags": "Person,External",
+        "location": "External",
+        "relationships": [
+          { "id": "r1", "sourceId": "1", "destinationId": "2", "description": "Uses", "technology": "HTTPS", "tags": "synchronous" }
+        ]
+      }
+    ],
+    "softwareSystems": [
+      {
+        "id": "2",
+        "name": "Payments",
+        "description": "Processes customer payments.",
+        "tags": "System,Critical",
+        "containers": [
+          {
+            "id": "3",
+            "name": "Payment API",
+            "description": "Handles payment requests.",
+            "technology": "Node.js",
+            "tags": "Container,API",
+            "components": [
+              { "id": "4", "name": "Ledger service", "description": "Records transactions.", "technology": "TypeScript", "tags": "Component" }
+            ],
+            "relationships": [
+              { "id": "r2", "sourceId": "3", "destinationId": "5", "description": "Runs on", "technology": "HTTPS", "interactionStyle": "Synchronous" }
+            ]
+          }
+        ]
+      }
+    ],
+    "deploymentNodes": [
+      {
+        "id": "5",
+        "name": "Production cluster",
+        "description": "Primary deployment environment.",
+        "technology": "Kubernetes",
+        "environment": "Production",
+        "instances": "2",
+        "children": [],
+        "infrastructureNodes": [
+          { "id": "6", "name": "Ledger database", "description": "Stores payment records.", "technology": "PostgreSQL", "environment": "Production" }
+        ],
+        "containerInstances": [
+          { "id": "7", "containerId": "3", "instanceId": 1, "environment": "Production" }
+        ]
+      }
+    ]
+  },
+  "views": {
+    "systemLandscapeViews": [
+      { "key": "landscape", "elements": [{ "id": "1", "x": 40, "y": 80 }, { "id": "2", "x": 260, "y": 80 }], "relationships": [{ "id": "r1" }] }
+    ]
+  }
+}

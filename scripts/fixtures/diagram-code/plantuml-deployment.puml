@@ -1,0 +1,9 @@
+@startuml
+node "Application host" as app {
+  artifact "orders.jar" as service
+  database "Order store" as store
+}
+cloud "Public network" as internet
+internet --> app : HTTPS
+app --> store : SQL
+@enduml

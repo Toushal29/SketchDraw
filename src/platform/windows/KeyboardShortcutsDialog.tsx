@@ -125,7 +125,6 @@ export function KeyboardShortcutsDialog(props: Props) {
       <header>
         <div>
           <h2 id="windows-shortcuts-title">Keyboard shortcuts</h2>
-          <p>Browse shortcuts and change assignments. Each action can have a keyboard shortcut and an additional shortcut. Select a field, then press a key combination or mouse button. Backspace clears it; Escape cancels recording.</p>
         </div>
         <button type="button" class="windows-shortcut-close" autofocus aria-label="Close shortcuts" title="Close" onClick={props.onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg></button>
       </header>

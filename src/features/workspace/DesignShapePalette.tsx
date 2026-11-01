@@ -5,6 +5,7 @@ import { BASIC_SHAPES, FLOWCHART_SHAPES, GENERAL_SHAPES, type BasicShapeTool } f
 import type { CustomStencil } from "../components/custom-stencils";
 import { LibraryComponentIcon } from "../../components/LibraryComponentIcon";
 import { cloudNeutralComponent, cloudProviderComponent } from "../diagrams/cloud-providers";
+import { proposalComponentSubcategory } from "../components/proposal-components";
 
 type PrimitiveShape = BasicShapeTool;
 
@@ -34,22 +35,6 @@ const COMPONENT_GROUPS = [
   { name: "Visual planning & decision", category: "Visual planning & decisions", sources: ["Visual planning"] },
   { name: "Data visualization", category: "Data visualization", sources: ["Data visualization"] },
   { name: "Text & annotations", category: "Drawing basics", sources: ["Annotations & aids"] },
-] as const;
-
-const PALETTE_CATEGORY_ORDER = [
-  "Drawing basics",
-  "Systems engineering & UML",
-  "BPMN & decision modelling",
-  "Database, data & schemas",
-  "Software architecture & integration",
-  "Visual planning & decisions",
-  "Wireframing & UI",
-  "Cloud",
-  "Network",
-  "Data visualization",
-  "Diagram structure",
-  "My stencils",
-  "Reusable components",
 ] as const;
 
 const COMPONENT_GROUP_BY_SOURCE = new Map<string, string>(
@@ -86,12 +71,17 @@ function connectorIconPath(item: Extract<DesignPaletteItem, { type: "connector" 
 
 function createPaletteSections(stencils: CustomStencil[], masters: ComponentMaster[]): PaletteSection[] {
   const components = new Map<string, PaletteEntry[]>(COMPONENT_GROUPS.map(group => [group.name, []]));
+  const proposalSectionCategories = new Map<string, string>();
   for (const component of LIBRARY_COMPONENTS) {
     const sourceGroup = component.section.split("|")[0].trim();
     const category = COMPONENT_GROUP_BY_SOURCE.get(sourceGroup);
     // New component families must be assigned to a real palette group before they are shown.
     if (!category) continue;
-    const entries = components.get(category)!;
+    const proposalSection = proposalComponentSubcategory(component.kind);
+    const sectionName = proposalSection ?? category;
+    if (proposalSection) proposalSectionCategories.set(sectionName, category);
+    if (!components.has(sectionName)) components.set(sectionName, []);
+    const entries = components.get(sectionName)!;
     entries.push({ item: { type: "component", kind: component.kind, label: component.label }, searchText: `${component.label} ${component.description} ${component.section}` });
   }
 
@@ -130,6 +120,7 @@ function createPaletteSections(stencils: CustomStencil[], masters: ComponentMast
       ...components.get("Text & annotations")!,
     ] },
   ];
+  for (const [name, category] of proposalSectionCategories) sections.push({ name, category, entries: components.get(name) ?? [] });
   if (stencils.length) sections.push({ name: "My stencils", category: "My stencils", entries: stencils.map(stencil => ({ item: { type: "custom-stencil", stencil, label: stencil.name }, searchText: `${stencil.name} ${stencil.tags.join(" ")} ${stencil.folder ?? ""} ${stencil.preview}` })) });
   if (masters.length) sections.push({ name: "Reusable components", category: "Reusable components", entries: masters.map(master => ({ item: { type: "component-master", master, label: master.name }, searchText: `${master.name} reusable component` })) });
   return sections.filter(section => section.entries.length > 0);
@@ -178,8 +169,7 @@ export function DesignShapePalette(props: {
   onInsert: (item: DesignPaletteItem) => void;
 }) {
   const [search, setSearch] = createSignal("");
-  const [openSections, setOpenSections] = createSignal(new Set(["Basic shapes"]));
-  const [activeCategory, setActiveCategory] = createSignal<string>();
+  const [expandedSections, setExpandedSections] = createSignal(new Set<string>());
   let searchInput: HTMLInputElement | undefined;
   let searchComposing = false;
   // Keep the catalog independent from the query so typing only updates the
@@ -216,16 +206,13 @@ export function DesignShapePalette(props: {
     return visible;
   });
   const sectionByName = (name: string) => paletteSections().find(section => section.name === name);
-  const paletteCategories = createMemo(() => {
-    const counts = new Map<string, number>();
-    for (const section of paletteSections()) counts.set(section.category, (counts.get(section.category) ?? 0) + section.entries.length);
-    return PALETTE_CATEGORY_ORDER.flatMap(name => counts.has(name) ? [{ name, count: counts.get(name)! }] : []);
-  });
-  const visibleSections = createMemo(() => [...filteredEntries().keys()].filter(name => {
-    if (searchWords().length) return true;
-    return sectionByName(name)?.category === activeCategory();
-  }));
+  const visibleSections = createMemo(() => [...filteredEntries().keys()]);
   const entriesFor = (name: string) => filteredEntries().get(name) ?? [];
+  const allSectionsExpanded = () => visibleSections().length > 0 && visibleSections().every(name => expandedSections().has(name));
+  const toggleAllSections = () => setExpandedSections(() => {
+    if (allSectionsExpanded()) return new Set<string>();
+    return new Set(visibleSections());
+  });
 
   return <div class="design-shape-library">
     <header class="design-palette-heading">
@@ -233,57 +220,40 @@ export function DesignShapePalette(props: {
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg>
         <input ref={element => { searchInput = element; element.value = search(); }} type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" spellcheck={false} aria-label="Search shapes" placeholder="Search shapes" onCompositionStart={() => { searchComposing = true; }} onCompositionEnd={event => { searchComposing = false; updateSearch(event.currentTarget.value, event.currentTarget); }} onInput={event => { if (!searchComposing) updateSearch(event.currentTarget.value, event.currentTarget); }} onKeyDown={event => { if (event.key === "Escape" && search()) { event.preventDefault(); event.stopPropagation(); event.currentTarget.value = ""; updateSearch("", event.currentTarget); } }} />
       </label>
+      <button type="button" class="design-palette-sections-toggle" aria-label={allSectionsExpanded() ? "Collapse all shape categories" : "Expand all shape categories"} title={allSectionsExpanded() ? "Collapse all categories" : "Expand all categories"} aria-expanded={allSectionsExpanded()} disabled={!!searchWords().length || !visibleSections().length} onClick={toggleAllSections}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d={allSectionsExpanded() ? "m5 12 5-5 5 5m-10 5 5-5 5 5" : "m5 8 5 5 5-5m-10-5 5 5 5-5"} /></svg>
+      </button>
       <button type="button" class="design-panel-toggle" aria-label={props.collapsed ? "Expand shape library" : "Collapse shape library"} title={props.collapsed ? "Expand panel" : "Collapse panel"} aria-expanded={!props.collapsed} onClick={props.onToggle}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d={props.collapsed ? "M4 10h12m-5-5 5 5-5 5" : "M16 10H4m5-5-5 5 5 5"} /></svg>
       </button>
     </header>
     <div class="design-palette-groups">
-      <Show when={!searchWords().length && !activeCategory()} fallback={<>
-        <Show when={!searchWords().length}>
-          <div class="design-palette-category-heading">
-            <button type="button" class="design-palette-category-back" onClick={() => setActiveCategory(undefined)} aria-label="Back to shape categories">All categories</button>
-            <strong>{activeCategory()}</strong>
-          </div>
-        </Show>
-        <For each={visibleSections()}>{sectionName => {
-          const sectionId = `design-palette-${sectionName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-          const entries = () => entriesFor(sectionName);
-          const section = () => sectionByName(sectionName);
-          const searching = () => !!searchWords().length;
-          const isOpen = () => searching() || openSections().has(sectionName);
-          return <section class="design-palette-section">
-            <Show when={searching()} fallback={<button type="button" class="design-palette-section-toggle" aria-expanded={isOpen()} aria-controls={sectionId} onClick={() => setOpenSections(current => {
-              const next = new Set(current);
-              if (next.has(sectionName)) next.delete(sectionName);
-              else next.add(sectionName);
-              return next;
-            })}>
-              <span>{sectionName}</span><small>{entries().length}</small><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
-            </button>}>
-              <div class="design-palette-section-toggle design-palette-search-result-heading"><span><small>{section()?.category}</small>{sectionName}</span><small>{entries().length}</small></div>
+      <For each={visibleSections()}>{sectionName => {
+        const sectionId = `design-palette-${sectionName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+        const entries = () => entriesFor(sectionName);
+        const section = () => sectionByName(sectionName);
+        const isExpanded = () => !!searchWords().length || expandedSections().has(sectionName);
+        return <section class="design-palette-section" aria-labelledby={`${sectionId}-heading`}>
+          <button type="button" class="design-palette-section-toggle" id={`${sectionId}-heading`} aria-controls={sectionId} aria-expanded={isExpanded()} onClick={() => setExpandedSections(current => {
+            const next = new Set(current);
+            if (next.has(sectionName)) next.delete(sectionName);
+            else next.add(sectionName);
+            return next;
+          })}>
+            <span><small>{section()?.category}</small>{sectionName}</span><small>{entries().length}</small>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+          </button>
+          <div class="design-palette-grid" id={sectionId} role="group" aria-label={`${sectionName} shapes`} hidden={!isExpanded()}>
+            <Show when={isExpanded()}>
+              <For each={entries()}>{entry => <button type="button" class="design-palette-item" classList={{ "design-palette-item-model-component": entry.item.type === "component" && (!!cloudProviderComponent(entry.item.kind) || !!cloudNeutralComponent(entry.item.kind)) }} title={entry.item.label} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
+                <PaletteIcon item={entry.item} />
+                <span>{entry.item.label}</span>
+              </button>}</For>
             </Show>
-            <div class="design-palette-grid" id={sectionId} role="group" aria-label={`${sectionName} shapes`} hidden={!isOpen()}>
-              <Show when={isOpen()}>
-                <For each={entries()}>{entry => <button type="button" class="design-palette-item" classList={{ "design-palette-item-model-component": entry.item.type === "component" && (!!cloudProviderComponent(entry.item.kind) || !!cloudNeutralComponent(entry.item.kind)) }} title={entry.item.label} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
-                  <PaletteIcon item={entry.item} />
-                  <span>{entry.item.label}</span>
-                </button>}</For>
-              </Show>
-            </div>
-          </section>;
-        }}</For>
-        <Show when={!visibleSections().length}><p class="design-palette-empty">{searchWords().length ? "No matching shapes" : "No shapes in this category"}</p></Show>
-      </>}>
-        <div class="design-palette-category-index" aria-label="Shape categories">
-          <p>Browse shapes by category</p>
-          <For each={paletteCategories()}>{category => <button type="button" class="design-palette-category-card" onClick={() => {
-            setActiveCategory(category.name);
-            setOpenSections(current => new Set([...current, ...paletteSections().filter(section => section.category === category.name).map(section => section.name)]));
-          }}>
-            <span>{category.name}</span><small>{category.count}</small>
-          </button>}</For>
-        </div>
-      </Show>
+          </div>
+        </section>;
+      }}</For>
+      <Show when={!visibleSections().length}><p class="design-palette-empty">No matching shapes</p></Show>
     </div>
   </div>;
 }

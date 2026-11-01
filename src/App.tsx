@@ -1,4 +1,4 @@
-import { batch, createEffect, createMemo, createSignal, For, lazy, on, onCleanup, onMount, Show, Suspense } from "solid-js";
+import { batch, createEffect, createMemo, createSignal, For, Index, lazy, on, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile, watch, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getVersion } from "@tauri-apps/api/app";
@@ -17,7 +17,7 @@ import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabel
 import type { NoteKind } from "./model";
 import { buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, defaultNoteTitle, toggleChecklistContent } from "./notes";
 import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "./features/components/library-components";
-import { parseSchema } from "./schema";
+import { MAX_SCHEMA_SOURCE_CHARACTERS, parseSchema } from "./schema";
 import { schemaRelationshipConnectors } from "./features/diagrams/schema-visualizer";
 import { importDrawioWithReport, importExcalidraw, exportDrawio, exportExcalidraw } from "./features/diagrams/interchange";
 import { importVsdx, exportVsdx } from "./features/diagrams/visio-vsdx";
@@ -26,23 +26,20 @@ import type { DiagramLayoutAlgorithm } from "./features/diagrams/auto-layout";
 import type { DiagramGuideId } from "./features/diagram-guides/guide-diagrams";
 import { csvToDiagram, parseCsv } from "./features/diagrams/csv-diagram";
 import { chartDataFromCsv, chartDataToCsv } from "./features/components/chart-import";
-import { azureArmToDiagram, bicepToDiagram, cloudFormationToDiagram, jsonToDiagram, openApiToDiagram, structuredYamlToDiagram, terraformToDiagram } from "./features/diagrams/structured-data";
 import { readCustomStencils, writeCustomStencils, readStencilFavorites, writeStencilFavorites, readRecentStencils, rememberRecentStencil, exportPortableStencilLibrary, parsePortableStencilLibrary, stencilPreviewText, substituteStencilParameters, updateStencilParameter, type CustomStencil } from "./features/components/custom-stencils";
 import { applyInstanceOverrides, componentPrimaryLabel, createComponentMaster, instantiateComponentMaster, normalizeMasterVariant, refreshComponentInstances, setComponentMasterLabel } from "./features/components/component-masters";
 import { DIAGRAM_LINT_PROFILES, checkDocumentLinks, issuesForProfile, validateDiagram, type DiagramIssue, type DiagramLintProfile } from "./features/diagrams/validation";
 import { parseBpmnContext, simulateBpmn, type BpmnSimulationStep } from "./features/diagrams/bpmn-analysis";
 import { relationshipDirectionHeads, relationshipDisplayElement } from "./features/diagrams/relationships";
-import { dotToDiagram } from "./features/diagrams/dot";
-import { d2ToDiagram } from "./features/diagrams/d2";
 import { svgPrimitivesToElements } from "./features/diagrams/svg-vectors";
-import { exportDiagramCode, plantUmlToDiagram, type DiagramCodeFormat } from "./features/diagrams/code-formats";
-import { importBpmnXml } from "./features/diagrams/bpmn-xml";
-import { blueprintZip, buildBlueprintFiles, type BlueprintFormat } from "./features/diagrams/blueprint-export";
+import { dotExportLosses, exportDiagramCode, isPlantUmlClassDiagram, isPlantUmlSequence, plantUmlToDiagram, sqlSchemaExportLosses, type DiagramCodeFormat, type SqlDialect } from "./features/diagrams/code-formats";
+import { detectPlantUmlFamily, plantUmlCapabilitySummary } from "./features/diagrams/plantuml-diagrams";
+import type { BlueprintFormat } from "./features/diagrams/blueprint-export";
 import { makeWebPreviewCard, webEmbedUrl } from "./features/canvas/web-preview";
-import { assignLibraryComponentIds, libraryComponentFields, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryCheckboxOption, setLibraryFormState, setLibraryLifelineLength, setLibraryRadioOption, upgradeLegacyLibraryComponent } from "./features/components/library-component-editor";
+import { assignLibraryComponentIds, libraryComponentFields, libraryComponentMinimum, libraryLifelineLength, rebuildLibraryFormOptions, resizeLibraryFont, resizeLibraryGroup, restoreDirectLibraryComponent, setLibraryCheckboxOption, setLibraryFormState, setLibraryLifelineLength, setLibraryRadioOption, setLibraryRelationshipField, upgradeLegacyLibraryComponent } from "./features/components/library-component-editor";
 import { guiOptionIndexAtPoint } from "./features/components/gui-components";
 import { layoutMermaidFlowchart, layoutMermaidSequence, parseMermaidFlowchart, parseMermaidSequence } from "./mermaid";
-import { detectExtendedMermaidType, layoutExtendedMermaid } from "./features/diagrams/mermaid-extended";
+import { detectExtendedMermaidType, layoutExtendedMermaid, mermaidCapabilitySummary } from "./features/diagrams/mermaid-extended";
 import { GestureSettings, TOUCH_GESTURE_ACTIONS, TOUCH_TAP_ACTIONS, readTouchGestureAction, readTouchTapAction, type OneFingerDragAction, type TouchGestureAction, type TouchTapAction } from "./platform/mobile/GestureSettings";
 import { MobileWorkspaceHeader } from "./platform/mobile/MobileWorkspaceHeader";
 import { TouchPageMenu } from "./platform/mobile/TouchPageMenu";
@@ -60,6 +57,7 @@ import { WelcomeScreen } from "./components/WelcomeScreen";
 import { AppSettingsMenu } from "./components/AppSettingsMenu";
 import { ToolbarOrderEditor, type ToolbarZone } from "./components/ToolbarOrderEditor";
 import { DialogInfoTip } from "./components/DialogInfoTip";
+import { SchemaCodeEditor } from "./features/diagrams/SchemaCodeEditor";
 import { ViewSettingsPopover } from "./components/ViewSettingsPopover";
 import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/PropertyPanelIcons";
 import { DesignShapePalette, type DesignPaletteItem } from "./features/workspace/DesignShapePalette";
@@ -103,7 +101,7 @@ import { normalizeAutoLayout, reflowAutoLayoutFrames, type AutoLayoutPorts } fro
 import { resizeSwimlaneDivider, swimlaneCenterY, swimlaneDividerHandles, swimlaneIndexAtY, swimlaneLayout } from "./features/canvas/swimlanes";
 import { addMindMapChild, addMindMapSibling, createMindMapNode, isMindMapNode, layoutMindMap, mindMapParentId, mindMapRootId, removeMindMapBranch } from "./features/diagrams/mind-map";
 import type { AutoLayoutConfig, CanvasBookmark, LiveDiagramFormat } from "./model";
-import { LIVE_DIAGRAM_FORMATS, findLineForElement, generateLiveDiagram, matchLineElements } from "./features/diagrams/live-diagram";
+import { LIVE_DIAGRAM_FORMATS, findLineForElement, generateLiveDiagram, loadLiveDiagramParser, matchLineElements } from "./features/diagrams/live-diagram";
 import { MAX_BOOKMARKS_PER_PAGE, adjacentFrame, collectFrames, pageFrames } from "./features/navigation/frame-navigation";
 import { MAX_PDF_IMPORT_PAGES, renderPdfPages } from "./features/files/pdf-import";
 import { parseTypedHref } from "./features/links/links";
@@ -235,10 +233,11 @@ function App() {
         await invoke("write_sketch_document", { uri, contents });
         return true;
       }
-      const labels: Record<DiagramCodeFormat | "html", string> = { html: "Interactive HTML viewer", mmd: "Mermaid flowchart", dot: "Graphviz DOT", d2: "D2 diagram", csv: "Diagram CSV", sql: "SQL schema", json: "JSON Schema", puml: "PlantUML", bpmn: "BPMN 2.0 XML", structurizr: "Structurizr DSL" };
-      const selected = await save({ title: `Export ${labels[extension]}`, defaultPath: fileName, filters: [{ name: labels[extension], extensions: [extension] }] });
+      const labels: Record<DiagramCodeFormat | "html", string> = { html: "Interactive HTML viewer", mmd: "Mermaid flowchart", dot: "Graphviz DOT", d2: "D2 diagram", csv: "Diagram CSV", sql: "SQL schema", json: "JSON Schema", puml: "PlantUML", bpmn: "BPMN 2.0 XML", "structurizr-json": "Structurizr workspace JSON" };
+      const fileExtension = extension === "structurizr-json" ? "json" : extension;
+      const selected = await save({ title: `Export ${labels[extension]}`, defaultPath: fileName, filters: [{ name: labels[extension], extensions: [fileExtension] }] });
       if (!selected) return false;
-      const target = selected.toLowerCase().endsWith(`.${extension}`) ? selected : `${selected}.${extension}`;
+      const target = selected.toLowerCase().endsWith(`.${fileExtension}`) ? selected : `${selected}.${fileExtension}`;
       await writeTextFile(target, contents);
       return true;
     } catch (cause) {
@@ -534,7 +533,7 @@ function App() {
   const [liveEditor, setLiveEditor] = createSignal<{ sessionId: string; format: LiveDiagramFormat; source: string }>();
   const [liveStatus, setLiveStatus] = createSignal<{ kind: "idle" | "ok" | "error"; message: string }>({ kind: "idle", message: "" });
   const [liveLinkedLine, setLiveLinkedLine] = createSignal<number>();
-  let liveTextarea: HTMLTextAreaElement | undefined; let liveApplyTimer: number | undefined; let liveSyncSuppressed = false; let liveUndoAt = 0;
+  let liveTextarea: HTMLTextAreaElement | undefined; let liveApplyTimer: number | undefined; let liveApplyGeneration = 0; let liveSyncSuppressed = false; let liveUndoAt = 0;
   const [screenReaderMessage, setScreenReaderMessage] = createSignal("");
   const setSafeColorPalette = (enabled: boolean) => { setSafeColorPaletteValue(enabled); try { localStorage.setItem("sketchdraw-safe-palette", String(enabled)); } catch { /* The setting still applies for this session. */ } };
   const [laserColor, setLaserColor] = createSignal((() => { const value = readPreference("sketchdraw-laser-color", "#ff3265"); return /^#[\da-f]{6}$/i.test(value) ? value : "#ff3265"; })());
@@ -733,6 +732,9 @@ function App() {
   const [exportFormat, setExportFormat] = createSignal<"png" | "svg" | "pdf">("png");
   const [exportWidth, setExportWidth] = createSignal(1600);
   const [exportHeight, setExportHeight] = createSignal(1000);
+  const [exportPaper, setExportPaper] = createSignal<"custom" | "fit" | "a0" | "a1" | "a2" | "a3" | "a4" | "a5" | "b4" | "b5" | "letter" | "legal" | "tabloid" | "slide" | "square">("custom");
+  const [exportOrientation, setExportOrientation] = createSignal<"portrait" | "landscape">("portrait");
+  const [exportQuality, setExportQuality] = createSignal<"screen" | "high" | "print">("screen");
   const [exportTransparent, setExportTransparent] = createSignal(false);
   const [textDraft, setTextDraft] = createSignal<TextDraft>();
   const [textMode, setTextMode] = createSignal<"text" | "markdown" | "table" | NoteKind>("text");
@@ -747,6 +749,10 @@ function App() {
   const [schemaDialog, setSchemaDialog] = createSignal(false);
   const [schemaImporting, setSchemaImporting] = createSignal(false);
   const [schemaInput, setSchemaInput] = createSignal("");
+  const [schemaPanelTextWrap, setSchemaPanelTextWrap] = createSignal(true);
+  const savedSchemaEditorWidth = Number(readPreference("sketchdraw-schema-editor-width", "380"));
+  const [schemaEditorWidth, setSchemaEditorWidth] = createSignal(Math.max(220, Math.min(720, Number.isFinite(savedSchemaEditorWidth) ? savedSchemaEditorWidth : 380)));
+  let schemaEditorResize: { pointerId: number; startX: number; startWidth: number } | undefined;
   const [schemaError, setSchemaError] = createSignal("");
   const [schemaEditingDiagram, setSchemaEditingDiagram] = createSignal<string>();
   const [schemaPanelDiagramId, setSchemaPanelDiagramId] = createSignal<string>();
@@ -763,7 +769,7 @@ function App() {
   const [validationProfile, setValidationProfile] = createSignal<DiagramLintProfile>("general");
   const [validationIncludeOverlaps, setValidationIncludeOverlaps] = createSignal(false);
   const [validationWarnEmptyLabels, setValidationWarnEmptyLabels] = createSignal(false);
-  const [importSummary, setImportSummary] = createSignal<{ fileName: string; kept: number; simplified: number; skipped: number }>();
+  const [importSummary, setImportSummary] = createSignal<{ fileName: string; format: string; kept: number; simplified: number; skipped: number; details?: string[] }>();
   const [bpmnSimulationOpen, setBpmnSimulationOpen] = createSignal(false);
   const [bpmnSimulationSteps, setBpmnSimulationSteps] = createSignal<BpmnSimulationStep[]>([]);
   const [bpmnSimulationIndex, setBpmnSimulationIndex] = createSignal(-1);
@@ -798,6 +804,7 @@ function App() {
   const [diagramCodeExportOpen, setDiagramCodeExportOpen] = createSignal(false);
   const [diagramCodeFormat, setDiagramCodeFormat] = createSignal<DiagramCodeFormat>("mmd");
   const [diagramCodeScope, setDiagramCodeScope] = createSignal<"page" | "selection">("page");
+  const [sqlExportDialect, setSqlExportDialect] = createSignal<SqlDialect>("postgresql");
   const [blueprintExportOpen, setBlueprintExportOpen] = createSignal(false);
   const [blueprintFormat, setBlueprintFormat] = createSignal<BlueprintFormat>("java");
   const [webEmbedDialog, setWebEmbedDialog] = createSignal(false);
@@ -959,9 +966,9 @@ function App() {
   const [pageName, setPageName] = createSignal("");
   const [exportScope, setExportScope] = createSignal<"drawing" | "selection" | "viewport" | "region" | "frame">("drawing");
   const [exportMarqueeRegion, setExportMarqueeRegion] = createSignal<Bounds>();
-  const [exportPadding, setExportPadding] = createSignal(24);
+  const [exportPadding, setExportPadding] = createSignal(20);
   const [exportGrid, setExportGrid] = createSignal(false);
-  const [pdfPaper, setPdfPaper] = createSignal<"a4" | "letter" | "a3" | "legal" | "tabloid" | "custom">("a4");
+  const [pdfPaper, setPdfPaper] = createSignal<"fit" | "a0" | "a1" | "a2" | "a3" | "a4" | "a5" | "b4" | "b5" | "letter" | "legal" | "tabloid" | "executive" | "custom">("a4");
   const [pdfPageSet, setPdfPageSet] = createSignal<"current" | "all" | "range" | "frames">("current");
   const [pdfRangeStart, setPdfRangeStart] = createSignal(1);
   const [pdfRangeEnd, setPdfRangeEnd] = createSignal(1);
@@ -2018,6 +2025,9 @@ function App() {
       return { ...item, [key]: value.trim().slice(0, 2000) || undefined } as ShapeElement;
     });
   }
+  function updateConnectorRelationshipField(key: string, value: string) {
+    changeSelected(item => isConnector(item) ? setLibraryRelationshipField(item, key, value) : item);
+  }
   function runProfileValidation(profile: DiagramLintProfile) { const items = canonicalElements(); const issues = validateDiagram(items, pages().map(page => page.id === activePageId() ? { ...page, elements: items } : page), { includeOverlaps: validationIncludeOverlaps(), warnEmptyLabels: validationWarnEmptyLabels(), accessibility: { boardColor: renderedBoardColor(), ink: color => themeInk(color, theme()) } }); setValidationIssues(issuesForProfile(issues, profile)); setValidationProfile(profile); setValidationOpen(true); setCanvasOptionsOpen(false); }
   function runDiagramValidation() { runProfileValidation("all"); }
   const visibleValidationIssues = () => issuesForProfile(validationIssues(), validationProfile());
@@ -2509,14 +2519,19 @@ function App() {
   // Live diagram editor: code on the left rebuilds editable shapes on the canvas; caret and selection stay linked.
   function openLiveEditor() {
     if (!activePath() || !isCanvasWorkspace()) return;
+    liveApplyGeneration++;
     const selected = selectedIndices().length ? elements()[selectedIndices()[selectedIndices().length - 1]] : undefined;
     const carrier = selected?.liveSourceId ? elements().find(item => item.liveSourceId === selected.liveSourceId && item.liveSource) : undefined;
     if (carrier?.liveSource && carrier.liveSourceId) { setLiveEditor({ sessionId: carrier.liveSourceId, format: carrier.liveSource.format, source: carrier.liveSource.source }); setLiveStatus({ kind: "idle", message: "Opened the code behind this diagram." }); }
     else { setLiveEditor({ sessionId: crypto.randomUUID(), format: "mermaid", source: LIVE_DIAGRAM_FORMATS[0].example }); setLiveStatus({ kind: "idle", message: "" }); scheduleLiveApply(0); }
     setLiveLinkedLine(undefined); setCanvasOptionsOpen(false);
   }
-  function closeLiveEditor() { if (liveApplyTimer !== undefined) window.clearTimeout(liveApplyTimer); liveApplyTimer = undefined; setLiveEditor(undefined); setLiveLinkedLine(undefined); }
-  function scheduleLiveApply(delay = 350) { if (liveApplyTimer !== undefined) window.clearTimeout(liveApplyTimer); liveApplyTimer = window.setTimeout(() => { liveApplyTimer = undefined; applyLiveDiagram(); }, delay); }
+  function closeLiveEditor() { liveApplyGeneration++; if (liveApplyTimer !== undefined) window.clearTimeout(liveApplyTimer); liveApplyTimer = undefined; setLiveEditor(undefined); setLiveLinkedLine(undefined); }
+  function scheduleLiveApply(delay = 350) {
+    const generation = ++liveApplyGeneration;
+    if (liveApplyTimer !== undefined) window.clearTimeout(liveApplyTimer);
+    liveApplyTimer = window.setTimeout(() => { liveApplyTimer = undefined; void applyLiveDiagram(generation); }, delay);
+  }
   function updateLiveSource(source: string) { const session = liveEditor(); if (!session) return; setLiveEditor({ ...session, source }); scheduleLiveApply(); }
   function changeLiveFormat(format: LiveDiagramFormat) {
     const session = liveEditor(); if (!session) return;
@@ -2524,15 +2539,19 @@ function App() {
     const replaceSource = !session.source.trim() || session.source === previous;
     setLiveEditor({ ...session, format, source: replaceSource ? LIVE_DIAGRAM_FORMATS.find(item => item.id === format)!.example : session.source }); scheduleLiveApply(0);
   }
-  function applyLiveDiagram() {
-    const session = liveEditor(); if (!session || !activePath() || boardLocked() || readOnlyView() || !canvas) return;
+  async function applyLiveDiagram(generation: number) {
+    const session = liveEditor(); const documentPath = activePath();
+    if (!session || !documentPath || boardLocked() || readOnlyView() || !canvas) return;
     if (!session.source.trim()) { setLiveStatus({ kind: "idle", message: "Type some code to generate a diagram." }); return; }
     try {
+      const d2ParserLoad = loadLiveDiagramParser(session.format);
+      const d2Parser = d2ParserLoad ? await d2ParserLoad : undefined;
+      if (generation !== liveApplyGeneration || activePath() !== documentPath || boardLocked() || readOnlyView() || !canvas || liveEditor()?.sessionId !== session.sessionId || liveEditor()?.source !== session.source || liveEditor()?.format !== session.format) return;
       const current = elements(); const existing = current.filter(item => item.liveSourceId === session.sessionId);
       const box = existing.length ? unionBounds(existing.map(elementBounds)) : undefined;
       const rect = canvas.getBoundingClientRect(); const view = canvasState();
       const center = box ? { x: box.x + box.w / 2, y: box.y + box.h / 2 } : { x: (rect.width / 2 - view.panX) / view.zoom, y: (rect.height / 2 - view.panY) / view.zoom };
-      const result = generateLiveDiagram(session.format, session.source, center, session.sessionId);
+      const result = generateLiveDiagram(session.format, session.source, center, session.sessionId, d2Parser);
       const kept = current.filter(item => item.liveSourceId !== session.sessionId);
       const firstIndex = existing.length ? current.findIndex(item => item.liveSourceId === session.sessionId) : current.length;
       const insertAt = Math.min(firstIndex, kept.length); const before = cloneElements(current);
@@ -2543,7 +2562,12 @@ function App() {
       liveUndoAt = Date.now(); setDirty(true); setSelectedIndices([]);
       setLiveStatus({ kind: "ok", message: result.warnings.length ? result.warnings.join(" ") : `${result.elements.length} objects generated.` });
       queueMicrotask(() => { liveSyncSuppressed = false; });
-    } catch (cause) { liveSyncSuppressed = false; setLiveStatus({ kind: "error", message: cause instanceof Error ? cause.message : String(cause) }); }
+    } catch (cause) {
+      if (generation === liveApplyGeneration) {
+        liveSyncSuppressed = false;
+        setLiveStatus({ kind: "error", message: cause instanceof Error ? cause.message : String(cause) });
+      }
+    }
   }
   function linkLiveLine(lineIndex: number, text: string) {
     const session = liveEditor(); if (!session) return;
@@ -2564,7 +2588,7 @@ function App() {
     const lineHeight = Number.parseFloat(getComputedStyle(liveTextarea).lineHeight) || 18;
     liveTextarea.scrollTop = Math.max(0, (line - 2) * lineHeight); setLiveLinkedLine(line);
   }, { defer: true }));
-  onCleanup(() => { if (liveApplyTimer !== undefined) window.clearTimeout(liveApplyTimer); });
+  onCleanup(() => { liveApplyGeneration++; if (liveApplyTimer !== undefined) window.clearTimeout(liveApplyTimer); });
   // Mind maps: Tab adds a child, Enter adds a sibling, Shift+Tab selects the parent. Layout is automatic.
   function addMindMapIdea(kind: "child" | "sibling") {
     const node = selectedIndices().length === 1 ? elements()[selectedIndices()[0]] : undefined;
@@ -4295,6 +4319,28 @@ function App() {
     setMermaidError(""); setMermaidEditingDiagram(existing?.id); setMermaidDialog(true); setComponentLibraryOpen(false);
   }
 
+  function createUmlClassDiagram() {
+    openMermaidDialog();
+    setMermaidInput(`classDiagram
+  class Customer {
+    +UUID id
+    +String name
+    +placeOrder(): Order
+  }
+  class Order {
+    +UUID id
+    +Date createdAt
+    +total(): Decimal
+  }
+  class OrderLine {
+    +Integer quantity
+    +Decimal unitPrice
+    +subtotal(): Decimal
+  }
+  Customer "1" --> "*" Order : places
+  Order "1" *-- "1..*" OrderLine : contains`);
+  }
+
   async function loadDiagramCodeSourceFile() {
     const plantUml = mermaidFormat() === "plantuml";
     try {
@@ -4308,6 +4354,8 @@ function App() {
     try {
       const source = mermaidInput().trim(); const format = mermaidFormat();
       const isSequence = format === "mermaid" && /^\s*sequenceDiagram\b/im.test(source);
+      const isPlantSequence = format === "plantuml" && isPlantUmlSequence(source);
+      const plantFamily = format === "plantuml" ? detectPlantUmlFamily(source) : undefined;
       const extendedType = format === "mermaid" ? detectExtendedMermaidType(source) : undefined;
       const parsed = format === "mermaid" && !isSequence && !extendedType ? parseMermaidFlowchart(source) : undefined;
       const parsedSequence = isSequence ? parseMermaidSequence(source) : undefined;
@@ -4319,7 +4367,7 @@ function App() {
       const center = bounds ? { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 } : { x: (rect.width / 2 - view.panX) / view.zoom, y: (rect.height / 2 - view.panY) / view.zoom };
       let children = format === "mermaid" ? extendedType ? layoutExtendedMermaid(source, center).elements : isSequence ? layoutMermaidSequence(parsedSequence!, center) : layoutMermaidFlowchart(parsed!, center) : plantUmlToDiagram(source);
       if (format === "plantuml") { const sourceBounds = unionBounds(children.map(elementBounds)); if (sourceBounds) children = children.map(item => moveElement(item, center.x - sourceBounds.x - sourceBounds.w / 2, center.y - sourceBounds.y - sourceBounds.h / 2)); }
-      const diagramType = format === "plantuml" ? undefined : extendedType ?? (isSequence ? "sequence" as const : "flowchart" as const);
+      const diagramType = format === "plantuml" ? plantFamily ?? (isPlantSequence ? "sequence" as const : isPlantUmlClassDiagram(source) ? "class" as const : undefined) : extendedType ?? (isSequence ? "sequence" as const : "flowchart" as const);
       const group: Extract<Element, { type: "group" }> = existing
         ? { ...existing, elements: children, mermaid: { source, format, ...(diagramType ? { diagramType } : {}) } }
         : { type: "group", id: crypto.randomUUID(), elements: children, mermaid: { source, format, ...(diagramType ? { diagramType } : {}) } };
@@ -4443,16 +4491,19 @@ function App() {
     const rect = canvas.getBoundingClientRect(); const view = canvasState();
     const center = { x: (rect.width / 2 - view.panX) / view.zoom, y: (rect.height / 2 - view.panY) / view.zoom };
     const positioned = children.map(item => moveElement(item, center.x - sourceBounds.x - sourceBounds.w / 2, center.y - sourceBounds.y - sourceBounds.h / 2));
-    const group: GroupElement = { type: "group", id: crypto.randomUUID(), elements: positioned, mermaid: { source, format: "plantuml" } };
+    const group: GroupElement = { type: "group", id: crypto.randomUUID(), elements: positioned, mermaid: { source, format: "plantuml", ...(detectPlantUmlFamily(source) ? { diagramType: detectPlantUmlFamily(source)! } : isPlantUmlSequence(source) ? { diagramType: "sequence" as const } : isPlantUmlClassDiagram(source) ? { diagramType: "class" as const } : {}) } };
     const index = elements().length; pushUndo(cloneElements(elements())); setElements(items => [...items, group]); setSelectedIndices([index]); setTool("select"); setSidebarTab("properties"); setDirty(true);
   }
 
   function placeMermaidDiagram(source: string) {
     if (!activePath() || boardLocked() || !canvas) return;
-    const parsed = parseMermaidFlowchart(source);
+    const isSequence = /^\s*sequenceDiagram\b/im.test(source);
+    const extendedType = detectExtendedMermaidType(source);
+    const parsed = !isSequence && !extendedType ? parseMermaidFlowchart(source) : undefined;
     const rect = canvas.getBoundingClientRect(); const view = canvasState();
     const center = { x: (rect.width / 2 - view.panX) / view.zoom, y: (rect.height / 2 - view.panY) / view.zoom };
-    const group: GroupElement = { type: "group", id: crypto.randomUUID(), elements: layoutMermaidFlowchart(parsed, center), mermaid: { source, format: "mermaid" } };
+    const children = extendedType ? layoutExtendedMermaid(source, center).elements : isSequence ? layoutMermaidSequence(parseMermaidSequence(source), center) : layoutMermaidFlowchart(parsed!, center);
+    const group: GroupElement = { type: "group", id: crypto.randomUUID(), elements: children, mermaid: { source, format: "mermaid", diagramType: extendedType ?? (isSequence ? "sequence" : "flowchart") } };
     const index = elements().length; pushUndo(cloneElements(elements())); setElements(items => [...items, group]); setSelectedIndices([index]); setTool("select"); setSidebarTab("properties"); setDirty(true);
   }
 
@@ -4468,21 +4519,22 @@ function App() {
       const source = (liveUpdate ? liveSource : schemaInput())?.trim() ?? "";
       const parsedTables = parseSchema(source); const tableNames = new Set<string>();
       for (const table of parsedTables) {
-        const tableName = table.name.toLowerCase(); if (tableNames.has(tableName)) throw new Error(`Table "${table.name}" appears more than once.`); tableNames.add(tableName);
+        const tableName = `${table.objectKind ?? "table"}:${table.name.toLowerCase()}`; if (tableNames.has(tableName)) throw new Error(`${table.objectKind ?? "table"} "${table.name}" appears more than once.`); tableNames.add(tableName);
         const columnNames = new Set<string>(); for (const column of table.columns) { const columnName = column.name.toLowerCase(); if (columnNames.has(columnName)) throw new Error(`Column "${column.name}" appears more than once in table "${table.name}".`); columnNames.add(columnName); }
       }
 
       const width = 170; const gapX = 64; const gapY = 42;
       const columnsPerRow = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(parsedTables.length))));
       const existing = editingId ? beforeElements.filter((item): item is SchemaTableElement => item.type === "schemaTable" && item.schemaDiagramId === editingId) : [];
-      if (liveUpdate && !existing.length) throw new Error("Select a schema table before editing its source.");
+      if (liveUpdate && !existing.length) throw new Error("Select a schema card before editing its source.");
       if (liveUpdate && existing.every(table => table.schemaSource === source)) return;
       const selectedTableIds = liveUpdate ? selectedElements().filter((item): item is SchemaTableElement => item.type === "schemaTable" && item.schemaDiagramId === editingId).flatMap(item => item.id ? [item.id] : []) : [];
       const selectedPrimaryId = liveUpdate ? selectedRootElement()?.id : undefined;
-      const oldByName = new Map(existing.map(table => [table.name.toLowerCase(), table]));
-      const cardFontSize = (table: (typeof parsedTables)[number]) => oldByName.get(table.name.toLowerCase())?.fontSize ?? defaultFontSize();
+      const objectKey = (table: (typeof parsedTables)[number] | SchemaTableElement) => `${table.objectKind ?? "table"}:${table.name.toLowerCase()}`;
+      const oldByName = new Map(existing.map(table => [objectKey(table), table]));
+      const cardFontSize = (table: (typeof parsedTables)[number]) => oldByName.get(objectKey(table))?.fontSize ?? defaultFontSize();
       const cardWidth = (table: (typeof parsedTables)[number]) => {
-        const old = oldByName.get(table.name.toLowerCase());
+        const old = oldByName.get(objectKey(table));
         return old?.w ?? Math.max(width, schemaTableMinimumWidth(table.columns.map(column => ({ name: column.name, dataType: column.type })), cardFontSize(table), width, table.name));
       };
       const cardHeight = (table: (typeof parsedTables)[number]) => schemaTableMinimumHeight(table.columns.length, cardFontSize(table));
@@ -4497,28 +4549,28 @@ function App() {
         const originY = (rect.height / 2 - view.panY) / view.zoom - totalHeight / 2;
         parsedTables.forEach((table, index) => {
           const row = Math.floor(index / columnsPerRow); const col = index % columnsPerRow;
-          positions.set(table.name.toLowerCase(), { x: originX + columnWidths.slice(0, col).reduce((sum, current) => sum + current + gapX, 0), y: originY + rowHeights.slice(0, row).reduce((sum, current) => sum + current + gapY, 0) });
+          positions.set(objectKey(table), { x: originX + columnWidths.slice(0, col).reduce((sum, current) => sum + current + gapX, 0), y: originY + rowHeights.slice(0, row).reduce((sum, current) => sum + current + gapY, 0) });
         });
       } else {
         const right = Math.max(...existing.map(table => table.x + table.w));
         let nextY = Math.min(...existing.map(table => table.y));
         for (const table of parsedTables) {
-          const old = oldByName.get(table.name.toLowerCase());
-          if (old) positions.set(table.name.toLowerCase(), { x: old.x, y: old.y });
-          else { positions.set(table.name.toLowerCase(), { x: right + gapX, y: nextY }); nextY += cardHeight(table) + gapY; }
+          const key = objectKey(table); const old = oldByName.get(key);
+          if (old) positions.set(key, { x: old.x, y: old.y });
+          else { positions.set(key, { x: right + gapX, y: nextY }); nextY += cardHeight(table) + gapY; }
         }
       }
 
       const diagramId = editingId ?? crypto.randomUUID();
       const created: SchemaTableElement[] = parsedTables.map(table => {
-        const old = oldByName.get(table.name.toLowerCase());
+        const old = oldByName.get(objectKey(table));
         const fieldsByName = new Map(old?.columns.map(field => [field.name.toLowerCase(), field]) ?? []);
         const fields: SchemaField[] = table.columns.map(column => ({ id: fieldsByName.get(column.name.toLowerCase())?.id ?? crypto.randomUUID(), name: column.name, dataType: column.type, primaryKey: column.primaryKey, foreignTable: column.foreignTable, foreignColumn: column.foreignColumn, nullable: column.nullable }));
-        const fontSize = old?.fontSize ?? defaultFontSize(); const position = positions.get(table.name.toLowerCase())!;
-        return { type: "schemaTable", id: old?.id ?? crypto.randomUUID(), schemaDiagramId: diagramId, schemaSource: source, name: table.name, columns: fields, ...(table.indexes?.length ? { indexes: table.indexes } : {}), ...(table.constraints?.length ? { constraints: table.constraints } : {}), ...position, w: cardWidth(table), h: cardHeight(table), fontSize, rotation: old?.rotation ?? 0, opacity: old?.opacity ?? 1 };
+        const fontSize = old?.fontSize ?? defaultFontSize(); const position = positions.get(objectKey(table))!;
+        return { type: "schemaTable", id: old?.id ?? crypto.randomUUID(), schemaDiagramId: diagramId, schemaSource: source, name: table.name, objectKind: table.objectKind ?? "table", ...(table.viewQuery ? { viewQuery: table.viewQuery } : {}), ...(table.enumValues?.length ? { enumValues: table.enumValues } : {}), columns: fields, ...(table.indexes?.length ? { indexes: table.indexes } : {}), ...(table.constraints?.length ? { constraints: table.constraints } : {}), ...position, w: cardWidth(table), h: cardHeight(table), fontSize, rotation: old?.rotation ?? 0, opacity: old?.opacity ?? 1 };
       });
 
-      const relations = schemaRelationshipConnectors(created, diagramId);
+      const relations = schemaRelationshipConnectors(created.filter(table => (table.objectKind ?? "table") === "table"), diagramId);
 
       let imported: Element[] = [...relations, ...created];
       if (!liveUpdate && !existing.length && created.length > 1) {
@@ -4538,7 +4590,7 @@ function App() {
       // Rebuild links after layout so row anchors use the final table positions,
       // then route them as a set so parallel relationships keep clear paths.
       const laidOutTables = imported.filter((item): item is SchemaTableElement => item.type === "schemaTable");
-      const laidOutRelations = schemaRelationshipConnectors(laidOutTables, diagramId);
+      const laidOutRelations = schemaRelationshipConnectors(laidOutTables.filter(table => (table.objectKind ?? "table") === "table"), diagramId);
       imported = autoRouteConnectorSet([...laidOutRelations, ...laidOutTables], isElementHidden, isElementLocked);
       if (activePath() !== path || elements() !== beforeElements) return;
 
@@ -4570,6 +4622,21 @@ function App() {
       }
       setDirty(true);
     } catch (cause) {
+      if (activePath() === path && liveUpdate && editingId && typeof liveSource === "string" && liveSource.length > MAX_SCHEMA_SOURCE_CHARACTERS && schemaPanelDiagramId() === editingId) {
+        const existingSchema = beforeElements.filter((item): item is SchemaTableElement => item.type === "schemaTable" && item.schemaDiagramId === editingId);
+        if (existingSchema.length) {
+          if (schemaLiveUndoDiagramId !== editingId || !schemaLiveUndoBefore) {
+            schemaLiveUndoDiagramId = editingId;
+            schemaLiveUndoBefore = cloneElements(beforeElements);
+            pushUndo(schemaLiveUndoBefore);
+          }
+          lastAppliedSchemaSource = liveSource;
+          setElements(beforeElements.map(item => item.type === "schemaTable" && item.schemaDiagramId === editingId ? { ...item, schemaSource: liveSource } : item));
+          setDirty(true);
+          setSchemaError(`The full source text was saved. Diagram preview updates are limited to ${MAX_SCHEMA_SOURCE_CHARACTERS.toLocaleString()} characters.`);
+          return;
+        }
+      }
       if (activePath() === path && (!liveUpdate || schemaPanelDiagramId() === editingId)) setSchemaError(cause instanceof Error ? cause.message : String(cause));
     }
     finally { if (liveUpdate) schemaLiveApplying = false; else setSchemaImporting(false); }
@@ -4703,6 +4770,7 @@ function App() {
 
   type SimpleComponentAppearance = { ink: string; stroke: string; fillOverride?: string | null; fillOpacity?: number; lineStyle?: StrokeStyle };
   const componentViewCache = new WeakMap<Element, { key: string; element: Element }>();
+  const simpleComponentChildrenCache = new WeakMap<Element[], Map<string, Element[]>>();
   function simpleComponentAppearance(group: GroupElement): SimpleComponentAppearance {
     const overrides = group.libraryComponent?.styleOverrides;
     return { ink: overrides?.color ?? (theme() === "dark" ? "#e5e7eb" : "#26313b"), stroke: overrides?.color ?? (theme() === "dark" ? "#aeb8c2" : "#52606d"), fillOverride: overrides?.fillColor, fillOpacity: overrides?.fillOpacity, lineStyle: overrides?.lineStyle };
@@ -4729,7 +4797,19 @@ function App() {
     const simplify = (item: Element): Element => item.type === "group"
       ? { ...item, elements: item.elements.map(simplify) }
       : applySimpleComponentAppearance(item, appearance);
-    const styled = librarySimple && element.type === "group" ? { ...element, elements: element.elements.map(simplify) } : simplify(element);
+    let styled: Element;
+    if (librarySimple && element.type === "group") {
+      const appearanceKey = `${key}:${JSON.stringify(appearance)}`;
+      let variants = simpleComponentChildrenCache.get(element.elements);
+      let styledChildren = variants?.get(appearanceKey);
+      if (!styledChildren) {
+        styledChildren = element.elements.map(simplify);
+        if (!variants) simpleComponentChildrenCache.set(element.elements, variants = new Map());
+        variants.set(appearanceKey, styledChildren);
+        if (variants.size > 4) variants.delete(variants.keys().next().value!);
+      }
+      styled = { ...element, elements: styledChildren };
+    } else styled = simplify(element);
     componentViewCache.set(element, { key, element: styled });
     return styled;
   }
@@ -4853,7 +4933,7 @@ function App() {
         const isResizePreview = resizeOrigin?.original.id !== undefined && resizeOrigin.original.id === element.id;
         if (element.rotation) { const bounds = element.componentBounds; const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
         if (element.libraryComponent.kind?.startsWith("viz-")) drawLibraryChartLazy(ctx, element, theme(), onChartEngineReady, isResizePreview);
-        else drawModelComponent(ctx, element, theme(), !isResizePreview);
+        else drawModelComponent(ctx, element, theme(), !isResizePreview, sourceItems);
         if (element.container) {
           if (element.container.clipChildren) { ctx.save(); ctx.beginPath(); ctx.rect(element.componentBounds.x, element.componentBounds.y, element.componentBounds.w, element.componentBounds.h); ctx.clip(); }
           for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems, componentAppearance);
@@ -4931,7 +5011,9 @@ function App() {
       ctx.fillStyle = colors.header; ctx.fill(); ctx.fillRect(left, top + titleHeight - 4, width, 4);
       ctx.beginPath(); ctx.moveTo(left, rowsTop); ctx.lineTo(right, rowsTop); ctx.strokeStyle = colors.divider; ctx.stroke();
       ctx.fillStyle = colors.title; ctx.font = `600 ${fontSize * .96}px ${fontCss("sans")}`; ctx.textBaseline = "middle"; ctx.textAlign = "left";
-      ctx.fillText(fitSchemaTableText(element.name, width - contentInset * 2, fontSize * .96), left + contentInset, top + titleHeight / 2);
+      const objectBadge = element.objectKind === "view" ? "VIEW" : element.objectKind === "enum" ? "ENUM" : "";
+      ctx.fillText(fitSchemaTableText(element.name, width - contentInset * 2 - (objectBadge ? 38 : 0), fontSize * .96), left + contentInset, top + titleHeight / 2);
+      if (objectBadge) { ctx.textAlign = "right"; ctx.fillStyle = colors.muted; ctx.font = `700 ${fontSize * .58}px ${fontCss("sans")}`; ctx.fillText(objectBadge, right - contentInset, top + titleHeight / 2); ctx.textAlign = "left"; }
       element.columns.forEach((column, index) => {
         const rowTop = rowsTop + index * rowHeight; const middle = rowTop + rowHeight / 2;
         const unique = element.constraints?.some(constraint => constraint.kind === "unique" && constraint.columns?.some(name => name.toLowerCase() === column.name.toLowerCase())) ?? false;
@@ -4943,8 +5025,8 @@ function App() {
         });
         ctx.font = `600 ${fontSize * .82}px ${fontCss("mono")}`; ctx.textAlign = "left"; ctx.fillStyle = colors.text;
         ctx.fillText(fitSchemaTableText(column.name, layout.fieldWidth, fontSize * .82), layout.fieldX, middle);
-        ctx.font = `${fontSize * .7}px ${fontCss("mono")}`; ctx.textAlign = "right"; ctx.fillStyle = colors.muted;
-        ctx.fillText(fitSchemaTableText(column.dataType || "type", layout.typeWidth, fontSize * .7), layout.typeRight, middle); ctx.textAlign = "left";
+        if (column.dataType) { ctx.font = `${fontSize * .7}px ${fontCss("mono")}`; ctx.textAlign = "right"; ctx.fillStyle = colors.muted;
+          ctx.fillText(fitSchemaTableText(column.dataType, layout.typeWidth, fontSize * .7), layout.typeRight, middle); ctx.textAlign = "left"; }
       });
       ctx.beginPath(); if (typeof ctx.roundRect === "function") ctx.roundRect(left, top, width, height, 4); else ctx.rect(left, top, width, height); ctx.strokeStyle = colors.border; ctx.lineWidth = 1; ctx.stroke();
       ctx.restore(); if (element.rotation) ctx.restore(); return;
@@ -5269,7 +5351,14 @@ function App() {
     onCleanup(() => window.clearTimeout(timer));
   });
   createEffect(() => { const session = noteEditorSession(); if (!session) return; requestAnimationFrame(() => { if (noteEditorTextarea?.isConnected) noteEditorTextarea.focus(); }); });
-  createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportMarqueeRegion(); exportPadding(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); boardColor(); whiteboardStyle(); renderExportPreview(); });
+  createEffect(() => { exportOptionsOpen(); exportFormat(); exportScope(); exportMarqueeRegion(); exportPadding(); exportGrid(); exportTransparent(); exportWidth(); exportHeight(); exportPaper(); exportOrientation(); exportQuality(); pdfPaper(); pdfPageSet(); pdfRangeStart(); pdfRangeEnd(); pdfOrientation(); pdfLayout(); pages(); pdfDpi(); pdfMarginMm(); pdfOverlapMm(); pdfCustomWidthMm(); pdfCustomHeightMm(); pdfPreviewPage(); pdfColorMode(); pdfBleedMm(); pdfCropMarks(); pdfHeader(); pdfFooter(); elements(); selectedIndices(); canvasState(); theme(); boardColor(); whiteboardStyle(); renderExportPreview(); });
+  createEffect(() => {
+    if (!exportOptionsOpen() || exportFormat() === "pdf" || exportPaper() !== "fit") return;
+    const size = fitExportPixelSize();
+    if (exportWidth() !== size.width) setExportWidth(size.width);
+    if (exportHeight() !== size.height) setExportHeight(size.height);
+    fitExportQualityToSize();
+  });
   function handleCanvasWheel(event: WheelEvent) {
     event.preventDefault();
     const target = event.currentTarget as HTMLCanvasElement;
@@ -6490,49 +6579,42 @@ function App() {
     if (!activePath() || readOnlyView() || nativeBusy() || documentBusy() || boardLocked()) return;
     setNativeBusy(true);
     try {
-      const selected = await open({ title: "Import editable diagram or diagram code", multiple: false, filters: [{ name: "Diagrams, schemas, and infrastructure", extensions: ["drawio", "xml", "bpmn", "bpmn2", "vsdx", "excalidraw", "csv", "json", "yaml", "yml", "tf", "tf.json", "tfstate", "tfplan", "bicep", "openapi", "asyncapi", "ansible", "dot", "d2", "dsl", "structurizr", "mmd", "mermaid", "puml", "plantuml", "graphql", "graphqls", "gql", "dbml", "prisma", "proto", "proto3", "avsc", "avro"] }] });
+      const selected = await open({ title: "Import editable diagram or diagram code", multiple: false, filters: [{ name: "Diagrams and schemas", extensions: ["drawio", "xml", "bpmn", "bpmn2", "vsdx", "excalidraw", "csv", "json", "yaml", "yml", "dot", "d2", "mmd", "mermaid", "puml", "plantuml", "sql", "py"] }] });
       if (!selected || Array.isArray(selected)) return;
       const path = normalizeFileUri(selected); const fileName = path.split(/[\\/]/).pop() ?? ""; const extension = fileName.split(".").pop()?.toLowerCase();
       const source = extension === "vsdx" ? undefined : await readTextFile(selected);
-      let imported: Element[]; let fidelityReport: { kept: number; simplified: number; skipped: number } | undefined;
+      let imported: Element[]; let fidelityReport: { format: string; kept: number; simplified: number; skipped: number; details?: string[] } | undefined;
       if (extension === "vsdx") imported = await importVsdx(await readFile(selected));
-      else if (extension === "bpmn" || extension === "bpmn2") imported = importBpmnXml(source!);
-      else if (extension === "drawio" || extension === "xml") { const result = await importDrawioWithReport(source!); imported = result.elements; fidelityReport = result.report; }
+      else if (extension === "bpmn" || extension === "bpmn2") {
+        const { importBpmnXmlWithReport } = await import("./features/diagrams/bpmn-xml");
+        const result = importBpmnXmlWithReport(source!); imported = result.elements; fidelityReport = { format: "BPMN 2.0", ...result.report };
+      }
+      else if (extension === "sql") { const { sqlLineageToDiagram } = await import("./features/diagrams/pipeline-sql"); imported = sqlLineageToDiagram(source!); }
+      else if (extension === "py") { const { airflowDagToDiagram } = await import("./features/diagrams/pipeline-workflows"); imported = airflowDagToDiagram(source!); }
+      else if (extension === "drawio" || extension === "xml") { const result = await importDrawioWithReport(source!); imported = result.elements; fidelityReport = { format: "draw.io", ...result.report }; }
       else if (extension === "excalidraw") imported = importExcalidraw(source!);
       else if (extension === "csv") imported = csvToDiagram(source!);
-      else if (extension === "json" && /\.tf\.json$/i.test(fileName)) imported = terraformToDiagram(source!);
-      else if (extension === "json" && /\.openapi\.json$/i.test(fileName)) imported = openApiToDiagram(source!);
-      else if (["graphql", "graphqls", "gql"].includes(extension ?? "")) { const { graphQlToDiagram } = await import("./features/diagrams/api-contracts"); imported = graphQlToDiagram(source!); }
-      else if (extension === "dbml") { const { dbmlToDiagram } = await import("./features/diagrams/api-contracts"); imported = dbmlToDiagram(source!); }
-      else if (extension === "prisma") { const { prismaToDiagram } = await import("./features/diagrams/api-contracts"); imported = prismaToDiagram(source!); }
-      else if (extension === "proto" || extension === "proto3") { const { protobufToDiagram } = await import("./features/diagrams/api-contracts"); imported = protobufToDiagram(source!); }
-      else if (extension === "avsc" || extension === "avro") { const { avroToDiagram } = await import("./features/diagrams/api-contracts"); imported = avroToDiagram(source!); }
-      else if (extension === "asyncapi") { const { asyncApiToDiagram } = await import("./features/diagrams/api-contracts"); imported = asyncApiToDiagram(source!); }
-      else if (extension === "dsl" || extension === "structurizr") { const { structurizrDslToDiagram } = await import("./features/diagrams/structurizr-dsl"); imported = structurizrDslToDiagram(source!); }
       else if (extension === "json") {
         if (source!.length > 5_000_000) throw new Error("JSON diagram input is limited to 5 MB.");
         const parsed = JSON.parse(source!) as unknown; const data = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
-        if (typeof data.openapi === "string" || typeof data.swagger === "string") imported = openApiToDiagram(source!);
-        else if (typeof data.asyncapi === "string") { const { asyncApiToDiagram } = await import("./features/diagrams/api-contracts"); imported = asyncApiToDiagram(parsed); }
+        if (isRecord(data.model) && (isRecord(data.views) || /\.structurizr(?:\.workspace)?\.json$/i.test(fileName))) {
+          const { structurizrWorkspaceJsonToDiagram } = await import("./features/diagrams/structurizr-workspace");
+          imported = structurizrWorkspaceJsonToDiagram(source!);
+        }
         else if (data.metadata && typeof data.metadata === "object" && data.nodes && typeof data.nodes === "object" && typeof (data.metadata as Record<string, unknown>).dbt_version === "string") { const { dbtManifestToDiagram } = await import("./features/diagrams/data-pipeline"); imported = dbtManifestToDiagram(parsed); }
-        else if (["record", "enum", "fixed"].includes(String(data.type)) && (data.fields || data.symbols || data.size !== undefined) || Array.isArray(parsed) && parsed.some(item => { const record = item && typeof item === "object" ? item as Record<string, unknown> : {}; return ["record", "enum", "fixed"].includes(String(record.type)); })) { const { avroToDiagram } = await import("./features/diagrams/api-contracts"); imported = avroToDiagram(parsed); }
-        else if (data.Resources && typeof data.Resources === "object") imported = cloudFormationToDiagram(source!);
-        else if (Array.isArray(data.resources) && (data.$schema || data.contentVersion || data.parameters)) imported = azureArmToDiagram(source!);
-        else if (Array.isArray(data.resource_changes) || Array.isArray(data.resource_drift) || data.values && typeof data.values === "object") imported = terraformToDiagram(source!);
-        else imported = jsonToDiagram(source!);
+        else { const { jsonToDiagram } = await import("./features/diagrams/structured-data"); imported = jsonToDiagram(source!); }
       }
-      else if (extension === "yaml" || extension === "yml" || extension === "openapi" || extension === "ansible") {
-        if (/^\s*["']?asyncapi["']?\s*:/m.test(source!)) { const { asyncApiToDiagram } = await import("./features/diagrams/api-contracts"); imported = asyncApiToDiagram(source!); }
-        else imported = structuredYamlToDiagram(source!);
+      else if (extension === "yaml" || extension === "yml") {
+        const { githubActionsWorkflowToDiagram } = await import("./features/diagrams/pipeline-workflows");
+        const githubWorkflow = githubActionsWorkflowToDiagram(source!);
+        if (githubWorkflow) imported = githubWorkflow;
+        else throw new Error("YAML import currently supports GitHub Actions workflow files.");
       }
-      else if (extension === "tf") imported = terraformToDiagram(source!);
-      else if (extension === "tfstate" || extension === "tfplan") imported = terraformToDiagram(source!);
-      else if (extension === "bicep") imported = bicepToDiagram(source!);
-      else if (extension === "dot") imported = dotToDiagram(source!);
-      else if (extension === "d2") imported = d2ToDiagram(source!);
+      else if (extension === "dot") { const { dotToDiagram } = await import("./features/diagrams/dot"); imported = dotToDiagram(source!); }
+      else if (extension === "d2") { const { d2ToDiagram } = await import("./features/diagrams/d2"); imported = d2ToDiagram(source!); }
       else if (extension === "mmd" || extension === "mermaid") { placeMermaidDiagram(source!); setError(""); return; }
       else if (extension === "puml" || extension === "plantuml") { placePlantUmlDiagram(source!); setError(""); return; }
-      else throw new Error("Choose a draw.io, Visio VSDX, Excalidraw, CSV/JSON data, dbt manifest, BPMN, OpenAPI/AsyncAPI, GraphQL, DBML, Prisma, Protocol Buffers, Avro, Structurizr DSL, CloudFormation/CDK, Azure ARM/Bicep, Docker Compose, Ansible, Kubernetes, Terraform config/plan/state, DOT, D2, Mermaid, or PlantUML file.");
+      else throw new Error("Choose a draw.io, Visio VSDX, Excalidraw, CSV/JSON data, Structurizr workspace JSON, dbt manifest, SQL lineage, Airflow DAG, GitHub Actions workflow, BPMN, DOT, D2, Mermaid, or PlantUML file.");
       placeImportedElements(imported); setError("");
       if (fidelityReport) setImportSummary({ fileName, ...fidelityReport });
     } catch (cause) { setError(`Could not import editable diagram: ${String(cause)}`); }
@@ -6562,9 +6644,10 @@ function App() {
       const format = diagramCodeFormat();
       const exportItems = diagramCodeScope() === "selection" ? selectedElements() : canonicalElements();
       if (!exportItems.length) throw new Error("Select one or more objects to export, or switch to the current page.");
-      const contents = exportDiagramCode(format, exportItems);
+      const contents = exportDiagramCode(format, exportItems, { sqlDialect: sqlExportDialect(), ...(format === "bpmn" ? { bpmnContextElements: canonicalElements() } : {}) });
       const baseName = displayNameForPath(activePath()!).replace(/\.sketch$/i, "") || "SketchDraw";
-      const saved = await exportTextDocument(`${baseName}.${format}`, format, contents);
+      const fileName = format === "structurizr-json" ? `${baseName}.structurizr.json` : `${baseName}.${format}`;
+      const saved = await exportTextDocument(fileName, format, contents);
       if (saved) setError("");
       setDiagramCodeExportOpen(false);
     } catch (cause) {
@@ -6578,6 +6661,7 @@ function App() {
     try {
       const exportItems = diagramCodeScope() === "selection" ? selectedElements() : canonicalElements();
       if (!exportItems.length) throw new Error("Select one or more objects to export, or switch to the current page.");
+      const { blueprintZip, buildBlueprintFiles } = await import("./features/diagrams/blueprint-export");
       const archive = blueprintZip(buildBlueprintFiles(blueprintFormat(), exportItems));
       const baseName = displayNameForPath(activePath()!).replace(/\.sketch$/i, "") || "SketchDraw";
       const fileName = `${baseName}-${blueprintFormat()}-blueprint.zip`;
@@ -6605,7 +6689,7 @@ function App() {
       const [{ createSvgElementSerializer }, { buildInteractiveViewer }] = await Promise.all([import("./features/export/svg-renderer"), import("./features/export/interactive-viewer")]);
       const viewerPages: ViewerPage[] = livePages().map(page => {
         const pageItems = page.elements;
-        const serialize = createSvgElementSerializer({ theme, isHidden: item => !!item.hidden, simpleComponentElement, connectorForView: item => connectorForView(item, pageItems), labelSvg });
+        const serialize = createSvgElementSerializer({ theme, isHidden: item => !!item.hidden, sourceItems: pageItems, simpleComponentElement, connectorForView: item => connectorForView(item, pageItems), labelSvg });
         const visible = pageItems.filter(item => !item.hidden);
         const box = unionBounds(visible.map(elementBounds)) ?? { x: 0, y: 0, w: 800, h: 600 };
         const layers = page.layers ?? [];
@@ -6624,21 +6708,24 @@ function App() {
     } catch (cause) { setError(`Could not export interactive HTML: ${cause instanceof Error ? cause.message : String(cause)}`); } finally { setNativeBusy(false); }
   }
 
+  const schemaTablesIn = (items: Element[]): SchemaTableElement[] => items.flatMap(item => item.type === "schemaTable" ? [item] : item.type === "group" ? schemaTablesIn(item.elements) : []);
   const diagramCodeLimitations = () => diagramCodeFormat() === "bpmn"
     ? "BPMN 2.0 keeps supported process nodes, sequence/message/data relationships, IDs, labels, and diagram bounds. Unsupported extensions and some event, lane, and collaboration semantics are simplified."
-    : diagramCodeFormat() === "structurizr"
-      ? "Structurizr DSL exports supported C4 model elements and relationships. Views, deployment environments, perspectives, styling, and other DSL directives are simplified or omitted."
+    : diagramCodeFormat() === "structurizr-json"
+      ? "Structurizr workspace JSON preserves supported model IDs, C4/deployment types, tags, properties, relationships, and parent nesting. It creates a generated system-landscape view; original view layouts, styling, documentation, and cloud configuration are not retained."
     : diagramCodeFormat() === "mmd"
       ? "Mermaid keeps supported node shapes, labels, subgraph frames, and common connector styles. Exact coordinates and advanced Mermaid directives are simplified."
       : diagramCodeFormat() === "dot"
-      ? "DOT keeps common node shapes, colors, fills, widths, line styles, labels, and arrowheads. Nested subgraphs and exact coordinates are simplified."
+      ? ["DOT export limitations:", ...dotExportLosses(diagramCodeScope() === "selection" ? selectedElements() : canonicalElements())].join(" ")
       : diagramCodeFormat() === "puml"
         ? "PlantUML exports a class/object subset. Members and simple relationship labels are kept; layout, stereotypes, notes, and behavior are simplified."
         : diagramCodeFormat() === "csv"
           ? "CSV exports stable node IDs, labels, and simple relationships. Shape styling, layout, and routing are omitted."
           : diagramCodeFormat() === "d2"
-            ? "D2 keeps common labels, shapes, groups, colors, and connectors. Unsupported styles and layout details are simplified."
-            : "Schema exports preserve supported table, column, key, constraint, and index metadata.";
+            ? "D2 keeps source IDs, nested containers, SQL tables, UML classes, simple sequences, supported shapes and styles, and layout hints. Near positions are approximate; icon URLs are retained as metadata but not fetched or drawn. D2 has no documented far-position attribute."
+            : diagramCodeFormat() === "sql"
+              ? [`SQL export target: ${sqlExportDialect()}. Tables, qualified names, common keys/constraints, indexes, views, and enum values are emitted in that dialect's syntax.`, ...sqlSchemaExportLosses(schemaTablesIn(diagramCodeScope() === "selection" ? selectedElements() : canonicalElements()), sqlExportDialect())].join(" ")
+              : "JSON Schema exports table, column, key, constraint, and index metadata using SketchDraw extensions.";
 
   function openWebEmbedDialog() {
     if (!activePath() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()) return;
@@ -6806,22 +6893,98 @@ function App() {
     setPdfPageSet("current"); setExportScope("selection"); openExportOptions(format);
   }
 
+  function fitExportPixelSize() {
+    const scope = exportScope(); const items = exportItemsForScope(scope).filter(item => !item.hidden);
+    const raw = exportSceneBounds(items, scope, canvasState(), canvas?.getBoundingClientRect());
+    const bounds = paddedExportBounds(raw, scope);
+    return { width: Math.max(1, Math.ceil(bounds.w)), height: Math.max(1, Math.ceil(bounds.h)) };
+  }
+
+  function exportPresetPixels(preset = exportPaper(), orientation = exportOrientation()) {
+    const paperMm: Partial<Record<Exclude<ReturnType<typeof exportPaper>, "custom" | "fit">, readonly [number, number]>> = {
+      a0: [841, 1189], a1: [594, 841], a2: [420, 594], a3: [297, 420], a4: [210, 297], a5: [148, 210],
+      b4: [250, 353], b5: [176, 250], letter: [215.9, 279.4], legal: [215.9, 355.6], tabloid: [279.4, 431.8],
+      slide: [338.67, 190.5], square: [254, 254],
+    };
+    if (preset === "custom") return { width: exportWidth(), height: exportHeight() };
+    if (preset === "fit") return fitExportPixelSize();
+    let [widthMm, heightMm] = paperMm[preset] ?? [210, 297];
+    if (orientation === "landscape" && heightMm > widthMm || orientation === "portrait" && widthMm > heightMm) [widthMm, heightMm] = [heightMm, widthMm];
+    return { width: Math.round(widthMm * 96 / 25.4), height: Math.round(heightMm * 96 / 25.4) };
+  }
+
+  function chooseExportPaper(preset: ReturnType<typeof exportPaper>) {
+    setExportPaper(preset);
+    if (preset !== "custom") { const size = exportPresetPixels(preset); setExportWidth(size.width); setExportHeight(size.height); }
+    fitExportQualityToSize();
+  }
+
+  function chooseExportOrientation(orientation: "portrait" | "landscape") {
+    setExportOrientation(orientation);
+    if (exportPaper() !== "custom") { const size = exportPresetPixels(exportPaper(), orientation); setExportWidth(size.width); setExportHeight(size.height); }
+    fitExportQualityToSize();
+  }
+
+  function fitExportQualityToSize() {
+    if (exportPngDimensionsFit(exportQuality())) return;
+    if (exportPngDimensionsFit("high")) setExportQuality("high");
+    else if (exportPngDimensionsFit("screen")) setExportQuality("screen");
+  }
+
+  function changeExportBaseDimension(axis: "width" | "height", value: number) {
+    setExportPaper("custom");
+    if (axis === "width") setExportWidth(value); else setExportHeight(value);
+    fitExportQualityToSize();
+  }
+
+  function exportPngDimensions(quality = exportQuality()) {
+    const dpi = quality === "screen" ? 96 : quality === "high" ? 144 : 300;
+    const scale = dpi / 96;
+    return { width: Math.round(exportWidth() * scale), height: Math.round(exportHeight() * scale), dpi };
+  }
+
+  function exportPngDimensionsFit(quality = exportQuality()) {
+    const { width, height } = exportPngDimensions(quality);
+    return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0 && width <= 12000 && height <= 12000 && width * height <= 60_000_000;
+  }
+
+  function changePdfPaper(paper: ReturnType<typeof pdfPaper>) {
+    setPdfPaper(paper);
+    if (paper === "fit") setPdfLayout("fit");
+    if (pdfDpi() === 300 && !pdfQualityFits(300)) setPdfDpi(150);
+  }
+
+  function fitPdfContentSizeMm() {
+    const paddingFor = (scope: ReturnType<typeof exportScope>) => scope === "viewport" || scope === "region" ? 0 : Math.max(0, Math.min(2000, Number(exportPadding()) || 0));
+    let sizes: { width: number; height: number }[];
+    if (pdfPageSet() === "current") {
+      const scope = exportScope(); const raw = exportSceneBounds(exportItemsForScope(scope), scope, canvasState(), canvas?.getBoundingClientRect()); const padding = paddingFor(scope);
+      sizes = [{ width: raw.w + padding * 2, height: raw.h + padding * 2 }];
+    } else if (pdfPageSet() === "frames") {
+      sizes = allFrameExportTargets().map(({ frame, page }) => { const isHidden = (item: Element) => isElementHiddenOnPage(item, page); const bounds = unionBounds(visibleElementBounds(frame, isHidden)) ?? elementBounds(frame); const padding = paddingFor("frame"); return { width: bounds.w + padding * 2, height: bounds.h + padding * 2 }; });
+    } else {
+      sizes = selectedPdfPages().map(page => { const isHidden = (item: Element) => isElementHiddenOnPage(item, page); const bounds = unionBounds(page.elements.flatMap(item => visibleElementBounds(item, isHidden))) ?? { x: 0, y: 0, w: 800, h: 600 }; const padding = paddingFor("drawing"); return { width: bounds.w + padding * 2, height: bounds.h + padding * 2 }; });
+    }
+    const largest = { width: Math.max(1, ...sizes.map(size => size.width)), height: Math.max(1, ...sizes.map(size => size.height)) };
+    const margin = Math.max(0, Math.min(50, Number(pdfMarginMm()) || 0));
+    return { widthMm: largest.width * 25.4 / 96 + margin * 2, heightMm: largest.height * 25.4 / 96 + margin * 2 };
+  }
+
   function pdfPageSpec() {
-    const preset: Record<"a4" | "letter" | "a3" | "legal" | "tabloid", readonly [number, number]> = { a4: [210, 297], letter: [215.9, 279.4], a3: [297, 420], legal: [215.9, 355.6], tabloid: [279.4, 431.8] };
+    const preset: Partial<Record<Exclude<ReturnType<typeof pdfPaper>, "custom">, readonly [number, number]>> = { a0: [841, 1189], a1: [594, 841], a2: [420, 594], a3: [297, 420], a4: [210, 297], a5: [148, 210], b4: [250, 353], b5: [176, 250], letter: [215.9, 279.4], legal: [215.9, 355.6], tabloid: [279.4, 431.8], executive: [184.15, 266.7] };
     const paper = pdfPaper();
-    let [widthMm, heightMm] = paper === "custom"
-      ? [pdfCustomWidthMm(), pdfCustomHeightMm()]
-      : preset[paper];
+    const content = paper === "fit" ? fitPdfContentSizeMm() : undefined;
+    let [widthMm, heightMm] = paper === "custom" ? [pdfCustomWidthMm(), pdfCustomHeightMm()] : content ? [content.widthMm, content.heightMm] : preset[paper] ?? [210, 297];
     widthMm = Math.max(25, Math.min(1000, Number.isFinite(widthMm) ? widthMm : 210));
     heightMm = Math.max(25, Math.min(1000, Number.isFinite(heightMm) ? heightMm : 297));
-    if (pdfOrientation() === "landscape" && heightMm > widthMm || pdfOrientation() === "portrait" && widthMm > heightMm) [widthMm, heightMm] = [heightMm, widthMm];
+    if (paper !== "fit" && (pdfOrientation() === "landscape" && heightMm > widthMm || pdfOrientation() === "portrait" && widthMm > heightMm)) [widthMm, heightMm] = [heightMm, widthMm];
     return { widthMm, heightMm, widthPt: widthMm * 72 / 25.4, heightPt: heightMm * 72 / 25.4 };
   }
 
-  function pdfMetrics() {
+  function pdfMetrics(dpiOverride?: 150 | 300) {
     const page = pdfPageSpec();
     const marginMm = Math.max(0, Math.min(50, Number.isFinite(pdfMarginMm()) ? pdfMarginMm() : 0));
-    const dpi = pdfDpi();
+    const dpi = dpiOverride ?? pdfDpi();
     const innerWidthPx = Math.max(1, Math.floor((page.widthMm - marginMm * 2) * dpi / 25.4));
     const innerHeightPx = Math.max(1, Math.floor((page.heightMm - marginMm * 2) * dpi / 25.4));
     const overlapPx = pdfLayout() === "tiled" ? Math.max(0, Math.min(Math.floor(Math.min(innerWidthPx, innerHeightPx) / 3), Math.floor(Math.max(0, pdfOverlapMm()) * dpi / 25.4))) : 0;
@@ -6830,6 +6993,12 @@ function App() {
     const rows = pdfLayout() === "fit" ? 1 : Math.max(1, Math.ceil(Math.max(1, exportHeight() - overlapPx) / stepY));
     const pageCount = pdfPageSet() === "current" ? columns * rows : pdfPageSet() === "frames" ? allFrameExportTargets().length : selectedPdfPages().length;
     return { page, marginMm, dpi, innerWidthPx, innerHeightPx, overlapPx, stepX, stepY, columns, rows, pageCount };
+  }
+
+  function pdfQualityFits(dpi: 150 | 300) {
+    if (pdfLayout() === "fit") return pdfMetrics(dpi).pageCount <= 1000;
+    const metrics = pdfMetrics(dpi); const pagePixels = metrics.innerWidthPx * metrics.innerHeightPx;
+    return metrics.pageCount <= 1000 && pagePixels <= 60_000_000 && metrics.pageCount * pagePixels <= 240_000_000 && (pdfLayout() !== "tiled" || exportWidth() * exportHeight() <= 60_000_000);
   }
 
   function selectedPdfPages() {
@@ -6910,7 +7079,8 @@ function App() {
     if (!canvas || nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
-      if ((!Number.isFinite(exportWidth()) || !Number.isFinite(exportHeight()) || exportWidth() < 1 || exportHeight() < 1 || exportWidth() > 12000 || exportHeight() > 12000 || exportWidth() * exportHeight() > 60_000_000)) throw new Error("Choose dimensions between 1 and 12,000 pixels, totaling no more than 60 megapixels.");
+      const requestedPixels = format === "png" ? exportPngDimensions() : { width: exportWidth(), height: exportHeight() };
+      if ((!Number.isFinite(requestedPixels.width) || !Number.isFinite(requestedPixels.height) || requestedPixels.width < 1 || requestedPixels.height < 1 || requestedPixels.width > 12000 || requestedPixels.height > 12000 || requestedPixels.width * requestedPixels.height > 60_000_000)) throw new Error("Choose output dimensions between 1 and 12,000 pixels, totaling no more than 60 megapixels.");
       commitTextDraft();
       const scope = exportScope();
       const exportItems = cloneElements(exportItemsForScope(scope)).filter(item => !item.hidden);
@@ -6931,11 +7101,11 @@ function App() {
       if (format === "pdf") {
         const metrics = pdfMetrics();
         if (metrics.pageCount > 1000) throw new Error("This layout would create more than 1,000 PDF pages. Increase the page size, reduce the artwork dimensions, or lower the overlap.");
-        if (metrics.innerWidthPx * metrics.innerHeightPx > 60_000_000 || (pdfLayout() === "tiled" && exportWidth() * exportHeight() > 60_000_000)) throw new Error("PDF raster dimensions exceed 60 megapixels. Reduce the page DPI or artwork size.");
-        if (metrics.pageCount * metrics.innerWidthPx * metrics.innerHeightPx > 240_000_000) throw new Error("This PDF would exceed the 240-megapixel output budget. Lower print quality, reduce the page count, or use a smaller paper size.");
+        if (pdfLayout() === "tiled" && (metrics.innerWidthPx * metrics.innerHeightPx > 60_000_000 || exportWidth() * exportHeight() > 60_000_000)) throw new Error("PDF raster dimensions exceed 60 megapixels. Reduce the page DPI or artwork size.");
+        if (pdfLayout() === "tiled" && metrics.pageCount * metrics.innerWidthPx * metrics.innerHeightPx > 240_000_000) throw new Error("This PDF would exceed the 240-megapixel output budget. Lower print quality, reduce the page count, or use a smaller paper size.");
         const pdfRenderer = await import("./features/export/pdf-renderer");
         if (pdfLayout() === "fit") {
-          const scenes = pdfPageSet() === "current" ? [{ items: exportItems, view, bounds: rawBounds, padding: scope === "viewport" || scope === "region" ? 0 : exportPadding() }] : pdfPageSet() === "frames" ? framePdfTargets.map(({ frame, page }) => { const isHidden = (item: Element) => isElementHiddenOnPage(item, page); return { items: [frame], view: page.canvasState, bounds: unionBounds(visibleElementBounds(frame, isHidden)) ?? elementBounds(frame), padding: exportPadding(), isHidden }; }) : selectedPdfPages().map(page => ({ items: cloneElements(page.elements).filter(item => !item.hidden), view: page.canvasState, isHidden: (item: Element) => isElementHiddenOnPage(item, page) }));
+          const scenes = pdfPageSet() === "current" ? [{ items: exportItems, view, bounds: rawBounds, padding: scope === "viewport" || scope === "region" ? 0 : exportPadding() }] : pdfPageSet() === "frames" ? framePdfTargets.map(({ frame, page }) => { const isHidden = (item: Element) => isElementHiddenOnPage(item, page); return { items: [frame], view: page.canvasState, bounds: unionBounds(visibleElementBounds(frame, isHidden)) ?? elementBounds(frame), padding: exportPadding(), isHidden }; }) : selectedPdfPages().map(page => ({ items: cloneElements(page.elements).filter(item => !item.hidden), view: page.canvasState, padding: exportPadding(), isHidden: (item: Element) => isElementHiddenOnPage(item, page) }));
           await writeFile(target, await pdfRenderer.makeVectorPdf(scenes, { widthPt: metrics.page.widthPt, heightPt: metrics.page.heightPt }, metrics.marginMm, { pdfColorMode, pdfBleedMm, pdfHeader, pdfFooter, pdfCropMarks, imageCache, theme, isHidden: isElementHidden, simpleComponentElement, drawElement, drawNoteCard }));
           setError("");
           return;
@@ -6963,7 +7133,7 @@ function App() {
         }
         await writeFile(target, pdfRenderer.imagePdfPages(rasterPages, { pdfHeader, pdfFooter, pdfCropMarks }));
       } else if (format === "png") {
-        const width = Math.max(1, Math.min(12000, Math.floor(exportWidth()))); const height = Math.max(1, Math.min(12000, Math.floor(exportHeight())));
+        const outputDimensions = exportPngDimensions(); const width = Math.floor(outputDimensions.width); const height = Math.floor(outputDimensions.height);
         if (width * height > 60_000_000) throw new Error("Export is too large. Choose dimensions totaling no more than 60 megapixels.");
         const output = document.createElement("canvas"); output.width = width; output.height = height;
         const ctx = output.getContext("2d"); if (!ctx) throw new Error("Could not create PNG image.");
@@ -6973,7 +7143,7 @@ function App() {
       } else {
         const state = exportViewFor(exportWidth(), exportHeight());
         const { createSvgElementSerializer } = await import("./features/export/svg-renderer");
-    const elementToSvg = createSvgElementSerializer({ theme, isHidden: isElementHidden, simpleComponentElement, connectorForView, labelSvg });
+    const elementToSvg = createSvgElementSerializer({ theme, isHidden: isElementHidden, sourceItems: exportItems, simpleComponentElement, connectorForView, labelSvg });
         const shapes = exportItems.map(elementToSvg).join("\n");
         const pattern = whiteboardStyle(); const svgGridColor = theme() === "dark" ? "#414653" : "#deddd6"; const gridStep = gridStepForStyle(pattern as "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric", GRID_SIZE, state.zoom) * state.zoom;
         const gridPattern = gridSvgPattern(pattern as "plain" | "dots" | "lines" | "small-dots" | "ruled" | "small-grid" | "isometric", gridStep);
@@ -7097,22 +7267,24 @@ function App() {
           const row = checklistIndexAt(target, point);
           if (row !== undefined) { toggleChecklist(hit, row); canvas.setPointerCapture(event.pointerId); return; }
         }
-        const current = selectedIndices();
-        const next = event.shiftKey
+        const current = selectedIndices(); const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+        const next = additive
           ? current.includes(hit) ? current.filter((index) => index !== hit) : [...current, hit]
           : current.includes(hit) ? current : [hit];
         setSelectedIndices(next);
         setSidebarTab("properties");
+        if (additive && current.includes(hit)) { canvas.setPointerCapture(event.pointerId); return; }
         const movable = next.filter((index) => { const element = elements()[index]; return !!element && canMoveElement(element); });
         if (movable.includes(hit)) {
           const before = elements();
           moveOrigin = { indices: movable, point, before, moved: false, dx: 0, dy: 0, snapTargets: collectSnapTargets(movable, before), targets: collectMoveTargets(movable, before) };
         }
       } else {
-        if (!event.shiftKey) setSelectedIndices([]);
+        const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+        if (!additive) setSelectedIndices([]);
         // Alt flips between box and freeform selection for this drag.
         const lasso = (selectionMode() === "lasso") !== event.altKey;
-        marqueeOrigin = { point, additive: event.shiftKey, moved: false, ...(lasso ? { lasso: [point] } : {}) };
+        marqueeOrigin = { point, additive, moved: false, ...(lasso ? { lasso: [point] } : {}) };
         setMarquee({ start: point, end: point, ...(lasso ? { lasso: [point] } : {}) });
       }
       canvas.setPointerCapture(event.pointerId); return;
@@ -8242,6 +8414,39 @@ function App() {
   const toggleDesignPanel = () => setDesignPanelCollapsed(value => !value);
   const toggleSchemaEditorPanel = () => workspaceArea() === "design" ? toggleDesignPanel() : setSchemaEditorCollapsed(value => !value);
   const schemaEditorPanelCollapsed = () => workspaceArea() === "design" ? designPanelCollapsed() : schemaEditorCollapsed();
+  const resizeSchemaEditor = (width: number, persist = true) => {
+    const maxWidth = Math.max(220, Math.min(720, window.innerWidth / interfaceScale() - 32));
+    const nextWidth = Math.round(Math.max(220, Math.min(maxWidth, width)));
+    setSchemaEditorWidth(nextWidth);
+    if (persist) try { localStorage.setItem("sketchdraw-schema-editor-width", String(nextWidth)); } catch { /* Keep the new width for this session if preferences are unavailable. */ }
+  };
+  const beginSchemaEditorResize = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    schemaEditorResize = { pointerId: event.pointerId, startX: event.clientX, startWidth: schemaEditorWidth() };
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Pointer capture may be unavailable in an embedded webview. */ }
+  };
+  const moveSchemaEditorResize = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+    const current = schemaEditorResize;
+    if (!current || current.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    resizeSchemaEditor(current.startWidth + (event.clientX - current.startX) / interfaceScale(), false);
+  };
+  const finishSchemaEditorResize = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+    const current = schemaEditorResize;
+    if (!current || current.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    schemaEditorResize = undefined;
+    resizeSchemaEditor(schemaEditorWidth());
+    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* The pointer may already have been released. */ }
+  };
+  const keySchemaEditorResize = (event: KeyboardEvent & { currentTarget: HTMLDivElement }) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    resizeSchemaEditor(schemaEditorWidth() + (event.key === "ArrowRight" ? 12 : -12));
+  };
   const openAdvancedProperties = () => { setMobileQuickPropertiesOpen(true); setStyleMenuMode("full"); };
   const penBrushChoices: { value: BrushMode; label: string; path: string }[] = [
     { value: "fine", label: "Pen", path: "m5 19 13-14M4 21h16" },
@@ -8463,6 +8668,7 @@ function App() {
       { id: "present-screens", label: "Present screen frames", category: "GUI Design", keywords: "preview prototype screens", run: () => { if (!currentFrameElements().length) setError("Create a screen frame before presenting screens."); else { setPresentationTarget("frames"); void togglePresentationMode(true); } } },
       { id: "export-selected-frame", label: "Export selected screen frame", category: "GUI Design", keywords: "PNG SVG PDF mockup artboard", run: () => { if (!selectedFrameElement()) setError("Select a screen frame before exporting it."); else { setPdfPageSet("current"); setExportScope("frame"); openExportOptions("png"); } } },
       { id: "mermaid", label: "Create Mermaid diagram", category: "Create", keywords: "flowchart code", run: () => openMermaidDialog() },
+      { id: "uml-class-diagram", label: "Create UML class diagram", category: "Create", keywords: "class object model attributes methods inheritance association Mermaid PlantUML", run: createUmlClassDiagram },
       { id: "plantuml", label: "Create PlantUML diagram", category: "Create", keywords: "UML class sequence code", run: () => openMermaidDialog(undefined, "plantuml") },
       { id: "chart-from-csv", label: "Create chart from pasted CSV", category: "Create", keywords: "data chart table series", run: () => { setCsvChartError(""); setCsvChartOpen(true); } },
       { id: "chart-from-table", label: "Create chart from selected table", category: "Create", keywords: "schema markdown note data", run: () => runPaletteSelectionAction("creating a chart", 1, createChartFromSelectedTable) },
@@ -9089,16 +9295,17 @@ function App() {
                 <button class="quiet-button layer-create-button" type="button" disabled={boardLocked() || !selectedIndices().length} onClick={createLayerFromSelection}>Create layer from selection</button>
               </aside>
             </Show>
-            <Show when={sidebarVisible() && (workspaceArea() === "design" || isWindowsPlatform() || !isCompactTouchLayout() || !!selectedSchemaTable() || styleMenuMode() === "full" && mobileQuickPropertiesOpen())}><aside class="style-pane" classList={{ "quick-style-mode": workspaceArea() !== "design" && styleMenuMode() === "quick", "full-style-mode": workspaceArea() !== "design" && styleMenuMode() === "full", "schema-editor-active": !!selectedSchemaTable(), "schema-editor-collapsed": !!selectedSchemaTable() && workspaceArea() !== "design" && schemaEditorCollapsed(), "design-palette-active": workspaceArea() === "design" && !selectedSchemaTable(), "design-panel-collapsed": workspaceArea() === "design" && designPanelCollapsed(), "mobile-properties-collapsed": workspaceArea() !== "design" && !mobileQuickPropertiesOpen() && !selectedSchemaTable(), "mobile-properties-expanded": workspaceArea() === "design" ? !designPanelCollapsed() : mobileQuickPropertiesOpen() || (!!selectedSchemaTable() && !schemaEditorCollapsed()), "quick-style-idle-hidden": workspaceArea() !== "design" && styleMenuMode() === "quick" && !selectedIndices().length && (tool() === "select" || tool() === "pan" || tool() === "crop") }} aria-label={workspaceArea() === "design" ? selectedSchemaTable() ? "Schema editor" : "Design shape library" : selectedSchemaTable() ? "Schema editor" : "Properties"}>
+            <Show when={sidebarVisible() && (workspaceArea() === "design" || isWindowsPlatform() || !isCompactTouchLayout() || !!selectedSchemaTable() || styleMenuMode() === "full" && mobileQuickPropertiesOpen())}><aside class="style-pane" style={selectedSchemaTable() ? `--schema-editor-width: ${schemaEditorWidth()}px;` : undefined} classList={{ "quick-style-mode": workspaceArea() !== "design" && styleMenuMode() === "quick", "full-style-mode": workspaceArea() !== "design" && styleMenuMode() === "full", "schema-editor-active": !!selectedSchemaTable(), "schema-editor-collapsed": !!selectedSchemaTable() && workspaceArea() !== "design" && schemaEditorCollapsed(), "design-palette-active": workspaceArea() === "design" && !selectedSchemaTable(), "design-panel-collapsed": workspaceArea() === "design" && designPanelCollapsed(), "mobile-properties-collapsed": workspaceArea() !== "design" && !mobileQuickPropertiesOpen() && !selectedSchemaTable(), "mobile-properties-expanded": workspaceArea() === "design" ? !designPanelCollapsed() : mobileQuickPropertiesOpen() || (!!selectedSchemaTable() && !schemaEditorCollapsed()), "quick-style-idle-hidden": workspaceArea() !== "design" && styleMenuMode() === "quick" && !selectedIndices().length && (tool() === "select" || tool() === "pan" || tool() === "crop") }} aria-label={workspaceArea() === "design" ? selectedSchemaTable() ? "Schema editor" : "Design shape library" : selectedSchemaTable() ? "Schema editor" : "Properties"}>
               <Show when={workspaceArea() === "design" && !selectedSchemaTable()}>
                 <DesignShapePalette collapsed={designPanelCollapsed()} disabled={!activePath() || readOnlyView() || boardLocked()} stencils={customStencils()} masters={activeComponentMasters()} onToggle={toggleDesignPanel} onInsert={insertDesignPaletteItem} />
               </Show>
               <Show when={selectedSchemaTable()}>{table => <div class="quick-style-panel schema-editor-panel">
                 <header class="schema-editor-heading"><div><span>DATABASE SCHEMA VISUALIZER</span><strong>{table().name}</strong></div><small>LIVE</small><Show when={workspaceArea() === "design"}><button type="button" class="design-library-back" onClick={() => setSelectedIndices([])}>Library</button></Show><button type="button" class="design-panel-toggle" aria-label={schemaEditorPanelCollapsed() ? "Expand schema editor" : "Collapse schema editor"} title={schemaEditorPanelCollapsed() ? "Expand schema editor" : "Collapse schema editor"} aria-expanded={!schemaEditorPanelCollapsed()} onClick={toggleSchemaEditorPanel}><svg viewBox="0 0 20 20" aria-hidden="true"><path d={schemaEditorPanelCollapsed() ? "M4 10h12m-5-5 5 5-5 5" : "M16 10H4m5-5-5 5 5 5"} /></svg></button></header>
-                <div class="schema-editor-actions"><button class="quiet-button" type="button" title="Changes redraw the linked cards on the canvas." aria-label="Load SQL or JSON schema file" disabled={boardLocked() || readOnlyView()} onClick={() => void loadSchemaSourceFile(true)}>Load file</button></div>
-                <textarea ref={element => { schemaPanelTextarea = element; }} class="schema-side-input" aria-label="Edit selected schema source" aria-invalid={!!schemaError()} spellcheck={false} rows="12" disabled={boardLocked() || readOnlyView()} value={schemaInput()} onInput={event => scheduleSchemaVisualUpdate(event.currentTarget.value)} onBlur={flushSchemaVisualUpdate} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, scheduleSchemaVisualUpdate); }} />
+                <div class="schema-editor-actions"><button class="quiet-button" type="button" title="Changes redraw the linked cards on the canvas." aria-label="Load SQL or JSON schema file" disabled={boardLocked() || readOnlyView()} onClick={() => void loadSchemaSourceFile(true)}>Load file</button><button class="quiet-button schema-editor-wrap-toggle" classList={{ active: schemaPanelTextWrap() }} type="button" title={schemaPanelTextWrap() ? "Disable text wrapping" : "Enable text wrapping"} aria-label="Toggle schema text wrapping" aria-pressed={schemaPanelTextWrap()} onClick={() => setSchemaPanelTextWrap(value => !value)}>Text wrap: {schemaPanelTextWrap() ? "On" : "Off"}</button></div>
+                <SchemaCodeEditor className="schema-side-input" wrap={schemaPanelTextWrap()} label="Edit selected schema source" invalid={!!schemaError()} disabled={boardLocked() || readOnlyView()} value={schemaInput()} onTextarea={element => { schemaPanelTextarea = element; }} onInput={scheduleSchemaVisualUpdate} onBlur={flushSchemaVisualUpdate} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, scheduleSchemaVisualUpdate); }} />
                 <Show when={schemaError()}><small class="schema-editor-error" role="alert">{schemaError()}</small></Show>
                 <label class="schema-editor-font">Card font size<input type="number" min="8" max="48" step="1" value={table().fontSize ?? 12} disabled={boardLocked() || !!table().locked} onChange={event => updateProperty("fontSize", Math.round(Number(event.currentTarget.value)))} /></label>
+                <Show when={!schemaEditorPanelCollapsed()}><div class="component-editor-resize-handle component-editor-resize-right" role="separator" aria-orientation="vertical" aria-label="Resize editor panel" aria-valuemin="220" aria-valuemax={Math.max(220, Math.min(720, Math.floor(window.innerWidth / interfaceScale() - 32)))} aria-valuenow={Math.round(schemaEditorWidth())} aria-valuetext={`${Math.round(schemaEditorWidth())} pixels`} tabindex="0" title="Drag to resize; use Left and Right arrow keys for fine adjustments" onPointerDown={beginSchemaEditorResize} onPointerMove={moveSchemaEditorResize} onPointerUp={finishSchemaEditorResize} onPointerCancel={finishSchemaEditorResize} onKeyDown={keySchemaEditorResize} /></Show>
               </div>}</Show>
               <Show when={!selectedSchemaTable() && workspaceArea() !== "design"}>
               <div class="quick-style-panel">
@@ -9338,7 +9545,7 @@ function App() {
                       <label class="component-state-control geometry-behavior-toggle"><input type="checkbox" checked={container().container?.autoResize === true && container().container?.lockedSize !== true} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(current => ({ ...current, autoResize: event.currentTarget.checked, lockedSize: event.currentTarget.checked ? false : current.lockedSize }))} /><span class="component-switch" aria-hidden="true" /><strong>Auto-resize to children</strong></label>
                       <label class="component-state-control geometry-behavior-toggle"><input type="checkbox" checked={container().container?.lockedSize === true} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(current => ({ ...current, lockedSize: event.currentTarget.checked }))} /><span class="component-switch" aria-hidden="true" /><strong>Lock size</strong></label>
                     </>}</Show>
-                  </div></details></Show>
+                  </div></details><Show when={(focusedElement() as ShapeElement).relationshipFields?.length}><div class="relationship-model-fields"><div class="pane-heading">Model details</div><Index each={(focusedElement() as ShapeElement).relationshipFields ?? []}>{field => <label class="property-label">{field().label}<textarea rows={2} maxLength={2000} placeholder={field().hint} value={field().value} disabled={boardLocked() || !!focusedElement()?.locked} onInput={event => updateConnectorRelationshipField(field().key, event.currentTarget.value)} /></label>}</Index></div></Show></Show>
                   <Show when={selectedIndices().length > 0 && !selectedContainer()}><section class="component-editor-content structure-container-editor component-structure-actions"><div class="pane-heading">Structure</div><button class="quiet-button" type="button" disabled={boardLocked() || readOnlyView()} onClick={createFrameFromSelection}>Create frame from selection</button></section></Show>
                 <Show when={selectedContainer()}><section class="component-editor-content structure-container-editor container-properties"><div class="pane-heading">{selectedRootElement()?.type === "group" ? selectedContainer()?.container?.kind === "frame" ? "Frame" : "Container" : "Structure"}</div><label class="property-label">Name<input maxlength="120" value={selectedRootElement()?.type === "group" ? selectedContainer()?.container?.name ?? "" : ""} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(container => ({ ...container, name: event.currentTarget.value.trim().slice(0, 120) || container.name }))} /></label><label class="property-label">Background<div class="container-background-control"><input aria-label="Container background" type="color" value={selectedContainer()?.container?.background ?? "#ffffff"} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onInput={event => updateSelectedContainer(container => ({ ...container, background: event.currentTarget.value }))} /><button class="quiet-button" type="button" disabled={boardLocked() || !selectedContainer()?.container?.background} onClick={() => updateSelectedContainer(container => ({ ...container, background: undefined }))}>Clear</button></div></label><Show when={selectedContainer()?.libraryComponent?.kind === "diagram-swimlane"}><div class="auto-layout-controls swimlane-controls" role="group" aria-label="Swimlane controls"><label class="property-label">Lane count<input type="number" min="2" max="8" step="1" value={selectedContainer()?.libraryComponent?.laneCount ?? 3} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => setSelectedSwimlaneCount(Number(event.currentTarget.value))} /></label><small>Drag the blue divider handles on the canvas to resize lanes.</small><div class="swimlane-order-list">{Array.from({ length: selectedContainer()?.libraryComponent?.laneCount ?? 3 }, (_, lane) => <div class="container-structure-actions"><span>Lane {lane + 1}</span><div><button class="quiet-button" type="button" aria-label={`Move lane ${lane + 1} up`} title="Move lane up" disabled={boardLocked() || isElementLocked(selectedRootElement()!) || lane === 0} onClick={() => reorderSelectedSwimlaneLane(lane, -1)}>↑</button><button class="quiet-button" type="button" aria-label={`Move lane ${lane + 1} down`} title="Move lane down" disabled={boardLocked() || isElementLocked(selectedRootElement()!) || lane === (selectedContainer()?.libraryComponent?.laneCount ?? 3) - 1} onClick={() => reorderSelectedSwimlaneLane(lane, 1)}>↓</button></div></div>)}</div></div></Show><Show when={selectedRootElement()?.type === "group" && selectedContainer()?.container?.kind === "frame"}><div class="auto-layout-controls" role="group" aria-label="Auto layout">
                     <label class="property-label">Auto layout<select aria-label="Auto layout direction" value={selectedContainer()?.container?.autoLayout?.direction ?? "off"} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedFrameLayout(event.currentTarget.value === "off" ? "off" : { direction: event.currentTarget.value as AutoLayoutConfig["direction"] })}><option value="off">Off</option><option value="vertical">Vertical stack</option><option value="horizontal">Horizontal stack</option><option value="grid">Grid</option></select></label>
@@ -9438,7 +9645,7 @@ function App() {
                 <Show when={selectedDiagramCodeGroup()}>{group => <details class="pane-section component-navigation-details inspector-advanced-section diagram-source-disclosure" open={componentDisclosureOpen("diagram-source")} onToggle={componentDisclosureToggle("diagram-source")}>
                   <summary><span>Diagram as code</span></summary>
                   <section class="component-editor-content diagram-source-editor">
-                  <small>{group().mermaid?.format === "plantuml" ? "PlantUML class and object subset" : `${group().mermaid?.diagramType ?? (detectExtendedMermaidType(diagramSourceDraft()) ?? (/^\s*sequenceDiagram\b/im.test(diagramSourceDraft()) ? "sequence" : "flowchart"))} Mermaid diagram`}</small>
+                  <small>{group().mermaid?.format === "plantuml" ? `${group().mermaid?.diagramType ?? "class/object/sequence"} PlantUML subset` : `${group().mermaid?.diagramType ?? (detectExtendedMermaidType(diagramSourceDraft()) ?? (/^\s*sequenceDiagram\b/im.test(diagramSourceDraft()) ? "sequence" : "flowchart"))} Mermaid diagram`}</small>
                   <textarea aria-label="Diagram source" spellcheck="false" rows="9" value={diagramSourceDraft()} onInput={event => { setDiagramSourceDraft(event.currentTarget.value); setDiagramSourceMessage(""); }} />
                   <div class="container-structure-actions">
                     <button class="quiet-button" type="button" onClick={() => setDiagramSourcePreviewOpen(value => !value)}>{diagramSourcePreviewOpen() ? "Hide preview" : "Preview"}</button>
@@ -9508,12 +9715,13 @@ function App() {
         <div class="code-data-actions">
           <h3>Create</h3>
           <button type="button" onClick={() => { setCodeDataOpen(false); openMermaidDialog(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="m8 5-6 7 6 7m8-14 6 7-6 7M14 3l-4 18"/></svg></i><span><strong>Diagram as code</strong><small>Generate editable shapes from Mermaid</small></span></button>
+          <button type="button" onClick={() => { setCodeDataOpen(false); createUmlClassDiagram(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M10 9v12m7-12v12"/></svg></i><span><strong>UML class diagram</strong><small>Create editable class cards and relationships from source</small></span></button>
           <button type="button" onClick={() => { setCodeDataOpen(false); openMermaidDialog(undefined, "plantuml"); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1"/><rect x="14" y="15" width="7" height="6" rx="1"/><path d="M10 6h4a2 2 0 0 1 2 2v7M7 9v6a2 2 0 0 0 2 2h5"/></svg></i><span><strong>PlantUML source</strong><small>Generate editable UML diagrams</small></span></button>
           <button type="button" onClick={() => { setCodeDataOpen(false); openCsvChartDialog(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M4 20V11m5 9V5m5 15v-7m5 7V8"/><path d="M2 20h20"/></svg></i><span><strong>Chart from CSV</strong><small>Map columns to labels and data series</small></span></button>
           <button type="button" onClick={() => { setCodeDataOpen(false); openSchemaDialog(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M9 3v18m6-12v12"/></svg></i><span><strong>Database schema visualizer</strong><small>Generate linked cards from SQL or JSON</small></span></button>
           <button type="button" onClick={() => { setCodeDataOpen(false); setBlueprintExportOpen(true); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h4"/><path d="m16 17 2 2 4-5"/></svg></i><span><strong>Export framework blueprint</strong><small>UML class stubs or a Prisma schema in a ZIP</small></span></button>
           <h3>Files</h3>
-          <button type="button" onClick={() => { setCodeDataOpen(false); void importDiagramFile(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M12 15V3m-5 5 5-5 5 5M4 14v6h16v-6"/></svg></i><span><strong>Import code or data</strong><small>Open Mermaid, PlantUML, CSV, DOT, D2, or schema files</small></span></button>
+          <button type="button" onClick={() => { setCodeDataOpen(false); void importDiagramFile(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M12 15V3m-5 5 5-5 5 5M4 14v6h16v-6"/></svg></i><span><strong>Import code or data</strong><small>Open diagram code, SQL lineage, Airflow, GitHub Actions, or schema data</small></span></button>
           <button type="button" onClick={() => { setCodeDataOpen(false); setDiagramCodeExportOpen(true); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></i><span><strong>Export diagram code</strong><small>Write Mermaid, DOT, D2, CSV, PlantUML, SQL, or JSON Schema</small></span></button>
           <Show when={selectedRootElement()?.type === "schemaTable" || selectedRootElement()?.type === "group" && (!!(selectedRootElement() as GroupElement).note || !!(selectedRootElement() as GroupElement).libraryComponent?.kind?.startsWith("viz-")) || !!selectedDiagramCodeGroup()}><h3>Selected content</h3></Show>
           <Show when={selectedRootElement()?.type === "schemaTable" || selectedRootElement()?.type === "group" && !!(selectedRootElement() as GroupElement).note}><button type="button" disabled={boardLocked()} onClick={() => { setCodeDataOpen(false); createChartFromSelectedTable(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><path d="M4 20V11m5 9V5m5 15v-7m5 7V8M2 20h20"/></svg></i><span><strong>Chart selected table</strong><small>Turn selected table data into an editable chart</small></span></button></Show>
@@ -9522,24 +9730,24 @@ function App() {
       <Show when={selectedRootElement()?.type === "schemaTable"}><button type="button" onClick={() => { setCodeDataOpen(false); schemaPanelTextarea?.focus(); }}><i class="code-data-action-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M9 3v18m6-12v12"/></svg></i><span><strong>Focus schema editor</strong><small>Edit source in the left panel and see the canvas update</small></span></button></Show>
         </div>
       </section></div></Show>
-      <Show when={blueprintExportOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setBlueprintExportOpen(false); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="blueprint-export-title"><header><div><span class="eyebrow">CODE BLUEPRINT</span><h2 id="blueprint-export-title">Export framework scaffold</h2></div><button class="help-close" aria-label="Close framework export" onClick={() => setBlueprintExportOpen(false)}>&times;</button></header><p>Generate editable starter files from UML class cards, database schema cards, cloud components, API endpoints, or screen frames. The ZIP is built locally; nothing is deployed and no database is contacted.</p><div class="export-scope"><button class={diagramCodeScope() === "page" ? "active" : ""} onClick={() => setDiagramCodeScope("page")}>Current page</button><button class={diagramCodeScope() === "selection" ? "active" : ""} disabled={!selectedIndices().length} onClick={() => setDiagramCodeScope("selection")}>Selection</button></div><label>Blueprint<select value={blueprintFormat()} onChange={event => setBlueprintFormat(event.currentTarget.value as BlueprintFormat)}><option value="java">Java classes from UML cards</option><option value="python">Python classes from UML cards</option><option value="prisma">Prisma schema from database cards</option><option value="terraform">Terraform skeleton from AWS, Azure, and Google Cloud components</option><option value="openapi">OpenAPI stub from API endpoint components</option><option value="html">HTML and CSS from screen frames</option><option value="react">React app from screen frames</option></select></label><p class="diagram-code-limitations">Java and Python output one starter class per UML class card. Prisma targets PostgreSQL; inspect relations and provider-specific types before use.</p><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setBlueprintExportOpen(false)}>Cancel</button><button class="save-button" disabled={nativeBusy() || documentBusy() || !elements().length} onClick={() => void exportFrameworkBlueprint()}>{nativeBusy() ? "Building…" : "Export ZIP"}</button></div></section></div></Show>
-      <Show when={csvChartOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) closeCsvChartDialog(); }}><section class="confirm-dialog csv-chart-dialog" role="dialog" aria-modal="true" aria-labelledby="csv-chart-title">
+      <Show when={blueprintExportOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setBlueprintExportOpen(false); }}><section class="confirm-dialog code-blueprint-dialog" role="dialog" aria-modal="true" aria-labelledby="blueprint-export-title"><header><div><span class="eyebrow">CODE BLUEPRINT</span><h2 id="blueprint-export-title">Export framework scaffold</h2></div><button class="help-close" aria-label="Close framework export" onClick={() => setBlueprintExportOpen(false)}>&times;</button></header><p class="code-blueprint-intro">Generate editable starter files from UML class cards, database schema cards, cloud components, API endpoints, or screen frames. The ZIP is built locally; nothing is deployed and no database is contacted.</p><div class="export-scope"><button class={diagramCodeScope() === "page" ? "active" : ""} onClick={() => setDiagramCodeScope("page")}>Current page</button><button class={diagramCodeScope() === "selection" ? "active" : ""} disabled={!selectedIndices().length} onClick={() => setDiagramCodeScope("selection")}>Selection</button></div><label class="code-blueprint-format">Blueprint<select value={blueprintFormat()} onChange={event => setBlueprintFormat(event.currentTarget.value as BlueprintFormat)}><option value="java">Java classes from UML cards</option><option value="python">Python classes from UML cards</option><option value="prisma">Prisma schema from database cards</option><option value="terraform">Terraform skeleton from AWS, Azure, and Google Cloud components</option><option value="openapi">OpenAPI stub from API endpoint components</option><option value="html">HTML and CSS from screen frames</option><option value="react">React app from screen frames</option></select></label><p class="diagram-code-limitations code-blueprint-note">Java and Python output one starter class per UML class card. Prisma targets PostgreSQL; inspect relations and provider-specific types before use.</p><div class="code-blueprint-actions"><button class="quiet-button" disabled={nativeBusy()} onClick={() => setBlueprintExportOpen(false)}>Cancel</button><button class="save-button" disabled={nativeBusy() || documentBusy() || !elements().length} onClick={() => void exportFrameworkBlueprint()}>{nativeBusy() ? "Building…" : "Export ZIP"}</button></div></section></div></Show>
+      <Show when={csvChartOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) closeCsvChartDialog(); }}><section class="confirm-dialog csv-chart-dialog data-to-visual-dialog" role="dialog" aria-modal="true" aria-labelledby="csv-chart-title">
         <header><div><span class="eyebrow">DATA TO VISUAL</span><h2 id="csv-chart-title">{csvEditingChartId() ? "Edit chart from CSV" : "Create chart from CSV"}</h2></div><button class="help-close" aria-label="Close CSV chart wizard" onClick={closeCsvChartDialog}>&times;</button></header>
-        <p>Paste or load a header row with up to 20 data rows. Choose one label column and up to eight numeric series.</p>
+        <p class="data-to-visual-intro">Paste or load a header row with up to 20 data rows. Choose one label column and up to eight numeric series.</p>
         <button type="button" class="quiet-button code-data-load-file" onClick={() => void loadCsvChartSourceFile()}>Load CSV file…</button>
-        <label>CSV data<textarea aria-label="CSV chart data" rows="9" spellcheck="false" value={csvChartInput()} onInput={event => updateCsvChartInput(event.currentTarget.value)} /></label>
+        <label class="csv-chart-data-field">CSV data<textarea aria-label="CSV chart data" rows="9" spellcheck="false" value={csvChartInput()} onInput={event => updateCsvChartInput(event.currentTarget.value)} /></label>
         <div class="csv-chart-mapping"><label>Labels<select value={csvChartLabelColumn()} onChange={event => { const label = Number(event.currentTarget.value); setCsvChartLabelColumn(label); setCsvChartSeriesColumns(values => values.filter(value => value !== label)); }}>{csvChartColumns().map((name, index) => <option value={index}>{name || `Column ${index + 1}`}</option>)}</select></label><fieldset><legend>Numeric series</legend><For each={csvChartColumns()}>{(name, index) => <label class="csv-chart-series"><input type="checkbox" checked={csvChartSeriesColumns().includes(index())} disabled={index() === csvChartLabelColumn()} onChange={event => setCsvChartSeriesColumns(values => event.currentTarget.checked ? [...values, index()] : values.filter(value => value !== index()))} />{name || `Column ${index() + 1}`}</label>}</For></fieldset></div>
-        <label>Chart type<select value={csvChartKind()} disabled={!!csvEditingChart()?.masterId} onChange={event => setCsvChartKind(event.currentTarget.value as LibraryChartKind)}>{LIBRARY_COMPONENTS.filter(component => component.kind.startsWith("viz-")).map(component => <option value={component.kind}>{component.label}</option>)}</select></label>
+        <label class="csv-chart-type">Chart type<select value={csvChartKind()} disabled={!!csvEditingChart()?.masterId} onChange={event => setCsvChartKind(event.currentTarget.value as LibraryChartKind)}>{LIBRARY_COMPONENTS.filter(component => component.kind.startsWith("viz-")).map(component => <option value={component.kind}>{component.label}</option>)}</select></label>
         <Show when={csvChartError()}><p class="mermaid-preview-error" role="alert">{csvChartError()}</p></Show>
-        <div><button class="quiet-button" onClick={closeCsvChartDialog}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={createChartFromCsv}>{csvEditingChartId() ? "Update chart" : "Create editable chart"}</button></div>
+        <div class="data-to-visual-actions"><button class="quiet-button" onClick={closeCsvChartDialog}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={createChartFromCsv}>{csvEditingChartId() ? "Update chart" : "Create editable chart"}</button></div>
       </section></div></Show>
-      <Show when={diagramCodeExportOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setDiagramCodeExportOpen(false); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="diagram-code-export-title"><header><div><span class="eyebrow">DIAGRAM CODE</span><h2 id="diagram-code-export-title">Export editable diagram data</h2></div><button class="help-close" aria-label="Close code export" onClick={() => setDiagramCodeExportOpen(false)}>&times;</button></header><p>Mermaid, DOT, D2, CSV, PlantUML, BPMN 2.0, and Structurizr DSL export supported node and connector semantics. D2 preserves basic shape types and colors. SQL and JSON Schema export editable database table cards; JSON Schema uses SketchDraw extensions to preserve SQL types and key metadata. Unsupported details are simplified to the format's supported subset.</p><div class="export-scope"><button class={diagramCodeScope() === "page" ? "active" : ""} onClick={() => setDiagramCodeScope("page")}>Current page</button><button class={diagramCodeScope() === "selection" ? "active" : ""} disabled={!selectedIndices().length} onClick={() => setDiagramCodeScope("selection")}>Selection</button></div><p class="diagram-code-limitations">{diagramCodeLimitations()}</p><label>Format<select value={diagramCodeFormat()} onChange={event => setDiagramCodeFormat(event.currentTarget.value as DiagramCodeFormat)}><option value="mmd">Mermaid flowchart / sequence (.mmd)</option><option value="dot">Graphviz DOT (.dot)</option><option value="d2">D2 diagram (.d2)</option><option value="csv">Nodes and relationships (.csv)</option><option value="puml">PlantUML class/object diagram (.puml)</option><option value="bpmn">BPMN 2.0 XML (.bpmn)</option><option value="structurizr">Structurizr DSL (.dsl)</option><option value="sql">SQL schema (.sql)</option><option value="json">JSON Schema (.json)</option></select></label><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setDiagramCodeExportOpen(false)}>Cancel</button><button class="save-button" disabled={nativeBusy() || documentBusy() || !elements().length} onClick={() => void exportDiagramAsCode()}>{nativeBusy() ? "Exporting…" : "Export file"}</button></div></section></div></Show>
-      <Show when={importSummary()}>{summary => <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setImportSummary(undefined); }}><section class="confirm-dialog import-fidelity-dialog" role="dialog" aria-modal="true" aria-labelledby="import-fidelity-title"><header><div><span class="eyebrow">DRAW.IO IMPORT</span><h2 id="import-fidelity-title">Import fidelity</h2></div><button class="help-close" aria-label="Close import report" onClick={() => setImportSummary(undefined)}>&times;</button></header><p>{summary().fileName} was added as editable SketchDraw objects. The import supports common shapes, text, styles, connectors, and waypoints.</p><dl><div><dt>Kept</dt><dd>{summary().kept}</dd></div><div><dt>Simplified</dt><dd>{summary().simplified}</dd></div><div><dt>Skipped</dt><dd>{summary().skipped}</dd></div></dl><footer><button class="save-button" onClick={() => setImportSummary(undefined)}>Done</button></footer></section></div>}</Show>
+      <Show when={diagramCodeExportOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setDiagramCodeExportOpen(false); }}><section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="diagram-code-export-title"><header><div><span class="eyebrow">DIAGRAM CODE</span><h2 id="diagram-code-export-title">Export editable diagram data</h2></div><button class="help-close" aria-label="Close code export" onClick={() => setDiagramCodeExportOpen(false)}>&times;</button></header><p>Mermaid, DOT, D2, CSV, PlantUML, BPMN 2.0, and Structurizr workspace JSON export supported model data. D2 preserves IDs, nested groups, tables, classes, simple sequences, supported styles, and layout hints. Structurizr workspace JSON retains supported C4/deployment model semantics and generates a system-landscape view. SQL exports database objects to the selected dialect; JSON Schema uses SketchDraw extensions to preserve SQL types and key metadata. Unsupported details are listed before export.</p><div class="export-scope"><button class={diagramCodeScope() === "page" ? "active" : ""} onClick={() => setDiagramCodeScope("page")}>Current page</button><button class={diagramCodeScope() === "selection" ? "active" : ""} disabled={!selectedIndices().length} onClick={() => setDiagramCodeScope("selection")}>Selection</button></div><label>Format<select value={diagramCodeFormat()} onChange={event => setDiagramCodeFormat(event.currentTarget.value as DiagramCodeFormat)}><option value="mmd">Mermaid diagram (.mmd)</option><option value="dot">Graphviz DOT (.dot)</option><option value="d2">D2 diagram (.d2)</option><option value="csv">Nodes and relationships (.csv)</option><option value="puml">PlantUML diagram (.puml)</option><option value="bpmn">BPMN 2.0 XML (.bpmn)</option><option value="structurizr-json">Structurizr workspace JSON (.structurizr.json)</option><option value="sql">SQL schema (.sql)</option><option value="json">JSON Schema (.json)</option></select></label><Show when={diagramCodeFormat() === "sql"}><label>SQL dialect<select value={sqlExportDialect()} onChange={event => setSqlExportDialect(event.currentTarget.value as SqlDialect)}><option value="postgresql">PostgreSQL</option><option value="mysql">MySQL</option><option value="mariadb">MariaDB</option><option value="sqlite">SQLite</option><option value="sqlserver">SQL Server</option></select></label></Show><p class="diagram-code-limitations">{diagramCodeLimitations()}</p><div><button class="quiet-button" disabled={nativeBusy()} onClick={() => setDiagramCodeExportOpen(false)}>Cancel</button><button class="save-button" disabled={nativeBusy() || documentBusy() || !elements().length} onClick={() => void exportDiagramAsCode()}>{nativeBusy() ? "Exporting…" : "Export file"}</button></div></section></div></Show>
+      <Show when={importSummary()}>{summary => <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setImportSummary(undefined); }}><section class="confirm-dialog import-fidelity-dialog" role="dialog" aria-modal="true" aria-labelledby="import-fidelity-title"><header><div><span class="eyebrow">{summary().format} IMPORT</span><h2 id="import-fidelity-title">Import compatibility</h2></div><button class="help-close" aria-label="Close import report" onClick={() => setImportSummary(undefined)}>&times;</button></header><p>{summary().fileName} was added as editable SketchDraw objects. The counts summarize imported content and any known conversion losses.</p><dl><div><dt>Kept</dt><dd>{summary().kept}</dd></div><div><dt>Simplified</dt><dd>{summary().simplified}</dd></div><div><dt>Skipped</dt><dd>{summary().skipped}</dd></div></dl><Show when={summary().details?.length}><ul class="import-fidelity-details"><For each={summary().details}>{detail => <li>{detail}</li>}</For></ul></Show><footer><button class="save-button" onClick={() => setImportSummary(undefined)}>Done</button></footer></section></div>}</Show>
       <Show when={mermaidDialog()}>
         <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) closeMermaidDialog(); }}>
           <section class="confirm-dialog schema-dialog mermaid-dialog" role="dialog" aria-modal="true" aria-labelledby="mermaid-title">
             <header><div class="schema-dialog-title"><span class="eyebrow">DIAGRAM AS CODE</span><div class="schema-dialog-title-row"><h2 id="mermaid-title">{mermaidEditingDiagram() ? `Update editable ${mermaidFormat() === "plantuml" ? "PlantUML" : "Mermaid"} diagram` : `Generate an editable ${mermaidFormat() === "plantuml" ? "PlantUML" : "Mermaid"} diagram`}</h2><DialogInfoTip label={`${mermaidFormat() === "plantuml" ? "PlantUML" : "Mermaid"} diagram help`}>
-              {mermaidFormat() === "plantuml" ? <p>Paste PlantUML class or object source. SketchDraw stores the source inside the .sketch file and creates editable canvas objects. Double-click the generated diagram to revise its code. Class fields and common relationship operators are supported.</p> : <p>Paste Mermaid flowchart, sequence, class, ER, state, journey, Gantt, C4, mind map, timeline, Git graph, requirement, quadrant, Kanban, Sankey, or block source. The preview updates as you type. SketchDraw keeps the original source with the document and creates editable canvas shapes and connectors. Replacing a generated diagram asks before rebuilding its layout.</p>}
+              {mermaidFormat() === "plantuml" ? <><p>Paste PlantUML class, object, sequence, or a supported PlantUML family. SketchDraw keeps the source with the sketch and turns the documented subset into editable shapes and connectors.</p><Show when={plantUmlCapabilitySummary(mermaidInput())}>{summary => <p><strong>{summary().family} subset.</strong> {summary().supported}<br /><strong>Known limits:</strong> {summary().knownLimits}</p>}</Show></> : <><p>Paste Mermaid flowchart, swimlane, Event Modeling, ZenUML, and sequence syntax, plus extended class, ER, state, use case, Ishikawa, TreeView, Cynefin, Wardley map, journey, Gantt, C4, mind map, timeline, Git graph, requirement, quadrant, Kanban, Sankey, block, pie, XY chart, packet, architecture, radar, treemap, and Venn subsets. The preview updates as you type. SketchDraw keeps the original source with the document and creates editable canvas shapes and connectors. Replacing a generated diagram asks before rebuilding its layout.</p><Show when={mermaidCapabilitySummary(mermaidInput())}>{summary => <p><strong>{summary().family} subset.</strong> {summary().supported} <br /><strong>Known limits:</strong> {summary().knownLimits}</p>}</Show></>}
             </DialogInfoTip></div></div><button class="help-close" aria-label="Close diagram code editor" onClick={closeMermaidDialog}>&times;</button></header>
             <button type="button" class="quiet-button code-data-load-file" onClick={() => void loadDiagramCodeSourceFile()}>Load source file…</button>
             <div class="mermaid-editor-layout" classList={{ "plantuml-editor-layout": mermaidFormat() === "plantuml" }}>
@@ -9547,35 +9755,35 @@ function App() {
               <Show when={mermaidFormat() === "mermaid"} fallback={<div class="mermaid-preview-loading" role="note">PlantUML source is checked when you generate the diagram.</div>}><Suspense fallback={<div class="mermaid-preview-loading" role="status">Loading live preview…</div>}><MermaidPreview source={mermaidInput()} /></Suspense></Show>
             </div>
             <Show when={mermaidError()}><p class="schema-error" role="alert">{mermaidError()}</p></Show>
-            <div class="mermaid-dialog-footer"><span>{mermaidFormat() === "plantuml" ? "Supports common class, object, component, and relationship syntax" : "Supported families create editable canvas shapes; advanced directives may not be preserved."}</span><div><button class="quiet-button" onClick={closeMermaidDialog}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={insertMermaidDiagram}>{mermaidEditingDiagram() ? "Update diagram" : "Generate canvas diagram"}</button></div></div>
+            <div class="mermaid-dialog-footer"><span>{mermaidFormat() === "plantuml" ? "PlantUML syntax is imported by its documented editable subset; unsupported constructs report their source location." : "Supported families create editable canvas shapes; advanced directives may not be preserved."}</span><div><button class="quiet-button" onClick={closeMermaidDialog}>Cancel</button><button class="save-button" disabled={boardLocked()} onClick={insertMermaidDiagram}>{mermaidEditingDiagram() ? "Update diagram" : "Generate canvas diagram"}</button></div></div>
           </section>
         </div>
       </Show>
       <Show when={webEmbedDialog()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setWebEmbedDialog(false); }}><section class="confirm-dialog web-embed-dialog" role="dialog" aria-modal="true" aria-labelledby="web-embed-title"><header><div><span class="eyebrow">CANVAS CONTENT</span><h2 id="web-embed-title">Embed a web page</h2></div><button class="help-close" aria-label="Close web embed dialog" onClick={() => setWebEmbedDialog(false)}>&times;</button></header><p>Add a lightweight card to the canvas. Double-click it to load the live page. YouTube, Vimeo, Google Drive, Google Docs, and websites that allow embedded views can preview here; others can still open in your browser.</p><label>HTTPS address<input autofocus type="url" maxlength="2048" value={webEmbedInput()} placeholder="https://example.com" onInput={event => { setWebEmbedInput(event.currentTarget.value); setWebEmbedError(""); }} onKeyDown={event => { if (event.key === "Enter") insertWebEmbed(); }} /></label><Show when={webEmbedError()}><p class="schema-error" role="alert">{webEmbedError()}</p></Show><div><button class="quiet-button" onClick={() => setWebEmbedDialog(false)}>Cancel</button><button class="save-button" disabled={boardLocked() || !webEmbedInput().trim()} onClick={insertWebEmbed}>Add to canvas</button></div></section></div></Show>
       <Show when={schemaDialog()}>
         <div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) { setSchemaDialog(false); setSchemaEditingDiagram(undefined); } }}>
-          <section class="confirm-dialog schema-dialog database-schema-dialog" role="dialog" aria-modal="true" aria-labelledby="schema-title">
+          <section class="confirm-dialog schema-dialog database-schema-dialog" classList={{ "schema-error-present": !!schemaError() }} role="dialog" aria-modal="true" aria-labelledby="schema-title">
             <header class="schema-dialog-header">
               <div class="schema-dialog-heading">
                 <span class="eyebrow">DATABASE SCHEMA VISUALIZER</span>
                 <div class="schema-dialog-title-row">
-                  <h2 id="schema-title">{schemaEditingDiagram() ? "Update linked table cards" : "Generate linked table cards"}</h2>
+                  <h2 id="schema-title">{schemaEditingDiagram() ? "Update linked schema cards" : "Generate linked schema cards"}</h2>
                   <DialogInfoTip label="Database schema visualizer help">
-                    <p>Paste common SQL <code>CREATE TABLE</code> statements, JSON with a <code>tables</code> array, or Draft 2020-12 JSON Schema objects with <code>properties</code> or <code>$defs</code>.</p>
-                    <p>Backtick, double-quoted, and bracketed SQL identifiers are accepted. Declared SQL types are kept as written; primary and foreign keys and common constraints are shown on each table.</p>
+                    <p>Paste PostgreSQL, MySQL/MariaDB, SQLite, or SQL Server table and view DDL. PostgreSQL enum types, JSON with a <code>tables</code> array, and Draft 2020-12 JSON Schema objects are also supported.</p>
+                    <p>Backtick, double-quoted, and bracketed identifiers are accepted. Qualified object names, declared SQL types, common keys, foreign-key actions, constraints, indexes, view queries, and enum values are retained where supported.</p>
                     <p>New imports are arranged around their foreign-key relationships. Links attach to the matching fields; drag and resize the cards on the canvas to refine the layout.</p>
-                    <p>The visualizer reads schema definitions only; vendor migration commands are not executed. Select a generated table to edit its source in the left panel.</p>
-                    <p>Press Tab to indent and Shift+Tab to outdent. Imports support up to 50 tables.</p>
+                    <p>The visualizer reads schema definitions only; it does not connect to a database or execute vendor migration commands. Select a generated schema card to edit its source in the left panel.</p>
+                    <p>Press Tab to indent and Shift+Tab to outdent. Source files can contain up to {MAX_SCHEMA_SOURCE_CHARACTERS.toLocaleString()} characters; each import supports up to 50 schema objects.</p>
                   </DialogInfoTip>
                 </div>
               </div>
               <button class="help-close" aria-label="Close schema visualizer" onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>&times;</button>
             </header>
             <button type="button" class="quiet-button code-data-load-file" onClick={() => void loadSchemaSourceFile()}>Load SQL or JSON file…</button>
-            <textarea autofocus class="schema-input" rows="16" disabled={schemaImporting()} aria-label="SQL or JSON schema" value={schemaInput()} placeholder={'CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  name VARCHAR(80) NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  user_id INTEGER REFERENCES users(id)\n);'} onInput={event => { setSchemaInput(event.currentTarget.value); setSchemaError(""); }} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, setSchemaInput); }} />
+            <SchemaCodeEditor className="schema-input" autofocus rows={16} disabled={schemaImporting()} label="SQL or JSON schema" invalid={!!schemaError()} value={schemaInput()} placeholder={'CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  name VARCHAR(80) NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  user_id INTEGER REFERENCES users(id)\n);'} onInput={value => { setSchemaInput(value); setSchemaError(""); }} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, setSchemaInput); }} />
             <Show when={schemaError()}><p class="schema-error" role="alert">{schemaError()}</p></Show>
             <div class="schema-dialog-footer">
-              <span>Up to 50 tables per import</span>
+              <span>{schemaInput().length.toLocaleString()} / {MAX_SCHEMA_SOURCE_CHARACTERS.toLocaleString()} characters · up to 50 schema objects per import</span>
               <div><button class="quiet-button" disabled={schemaImporting()} onClick={() => { setSchemaDialog(false); setSchemaEditingDiagram(undefined); }}>Cancel</button><button class="save-button" disabled={boardLocked() || schemaImporting()} onClick={() => void insertSchemaVisual()}>{schemaImporting() ? "Arranging tables…" : schemaEditingDiagram() ? "Update diagram" : "Add to canvas"}</button></div>
             </div>
           </section>
@@ -9587,21 +9795,29 @@ function App() {
         <header class="export-heading"><div><span class="eyebrow">EXPORT PREVIEW</span><h2 id="export-title">Export {exportFormat().toUpperCase()}</h2></div><button class="help-close" aria-label="Close export dialog" onClick={() => setExportOptionsOpen(false)}>&times;</button></header>
         <div class="export-layout"><div class="export-controls"><p>Choose what to export and review the result before saving.</p>
           <div class="export-scope">{(["drawing", "selection", "viewport", "region", "frame"] as const).map(scope => <button class={exportScope() === scope ? "active" : ""} disabled={(scope === "selection" && !selectedIndices().length) || (scope === "region" && !exportMarqueeRegion()) || (scope === "frame" && !selectedFrameElement()) || (exportFormat() === "pdf" && pdfPageSet() !== "current" && scope !== "drawing")} onClick={() => setExportScope(scope)}>{scope === "drawing" ? "Whole drawing" : scope === "selection" ? "Selection" : scope === "viewport" ? "Viewport" : scope === "region" ? "Marquee region" : "Frame"}</button>)}</div>
-          <Show when={exportScope() !== "viewport" && exportScope() !== "region"}><label class="export-padding-control">Padding (canvas units)<input type="number" min="0" max="2000" step="1" value={exportPadding()} onInput={event => setExportPadding(Math.max(0, Math.min(2000, Number(event.currentTarget.value) || 0)))} /></label></Show>
+          <Show when={exportScope() !== "viewport" && exportScope() !== "region"}><label class="export-padding-control">Content padding (canvas units)<input type="number" min="0" max="2000" step="1" value={exportPadding()} onInput={event => setExportPadding(Math.max(0, Math.min(2000, Number(event.currentTarget.value) || 0)))} /></label></Show>
           <label class="export-transparent"><input type="checkbox" checked={exportGrid()} onChange={event => setExportGrid(event.currentTarget.checked)} /> Include visible grid</label>
           <Show when={exportFormat() === "pdf"}>
-            <section class="pdf-settings"><div class="pdf-setting-heading">Sketch pages</div><div class="pdf-choice-row"><button class={pdfPageSet() === "current" ? "active" : ""} onClick={() => { setPdfPageSet("current"); setPdfPreviewPage(1); }}>Current page</button><button disabled={!allFrameExportTargets().length} class={pdfPageSet() === "frames" ? "active" : ""} onClick={() => { setPdfPageSet("frames"); setExportScope("drawing"); setPdfLayout("fit"); setPdfPreviewPage(1); }}>Each frame ({allFrameExportTargets().length})</button><button class={pdfPageSet() === "all" ? "active" : ""} onClick={() => { setPdfPageSet("all"); setExportScope("drawing"); setPdfLayout("fit"); setPdfPreviewPage(1); }}>All pages ({pages().length})</button><button class={pdfPageSet() === "range" ? "active" : ""} onClick={() => { setPdfPageSet("range"); setExportScope("drawing"); setPdfLayout("fit"); setPdfRangeStart(value => Math.min(value, pages().length)); setPdfRangeEnd(pages().length); setPdfPreviewPage(1); }}>Page range</button></div><Show when={pdfPageSet() === "range"}><div class="pdf-custom-size"><label>From page<input type="number" min="1" max={pages().length} value={pdfRangeStart()} onInput={event => setPdfRangeStart(Math.max(1, Math.min(pages().length, Number(event.currentTarget.value))))} /></label><label>To page<input type="number" min={pdfRangeStart()} max={pages().length} value={pdfRangeEnd()} onInput={event => setPdfRangeEnd(Math.max(pdfRangeStart(), Math.min(pages().length, Number(event.currentTarget.value))))} /></label></div></Show><div class="pdf-setting-heading">Paper size</div><div class="pdf-paper-grid">{([{ id: "a4", label: "A4" }, { id: "letter", label: "Letter" }, { id: "a3", label: "A3" }, { id: "legal", label: "Legal" }, { id: "tabloid", label: "Tabloid" }, { id: "custom", label: "Custom" }] as const).map(({ id, label }) => <button class={pdfPaper() === id ? "active" : ""} onClick={() => setPdfPaper(id)}>{label}</button>)}</div>
-              <Show when={pdfPaper() === "custom"}><div class="pdf-custom-size"><label>Width (mm)<input type="number" min="25" max="1000" value={pdfCustomWidthMm()} onInput={event => setPdfCustomWidthMm(Number(event.currentTarget.value))} /></label><label>Height (mm)<input type="number" min="25" max="1000" value={pdfCustomHeightMm()} onInput={event => setPdfCustomHeightMm(Number(event.currentTarget.value))} /></label></div></Show>
-              <div class="pdf-setting-heading">Orientation</div><div class="pdf-choice-row"><button class={pdfOrientation() === "portrait" ? "active" : ""} onClick={() => setPdfOrientation("portrait")}><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="1"/></svg><span>Portrait</span></button><button class={pdfOrientation() === "landscape" ? "active" : ""} onClick={() => setPdfOrientation("landscape")}><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1"/></svg><span>Landscape</span></button></div>
-              <div class="pdf-setting-heading">Page layout</div><div class="pdf-choice-row"><button class={pdfLayout() === "fit" ? "active" : ""} onClick={() => { setPdfLayout("fit"); setPdfPreviewPage(1); }}><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6zM9 8h6m-6 4h6m-6 4h4"/></svg><span>Fit on one page</span></button><button disabled={pdfPageSet() !== "current" || pdfColorMode() === "cmyk"} class={pdfLayout() === "tiled" ? "active" : ""} onClick={() => { setPdfLayout("tiled"); setPdfPreviewPage(1); }}><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>Multiple pages</span></button></div>
-              <div class="pdf-custom-size pdf-output-settings"><label>Print quality<select value={pdfDpi()} onChange={event => setPdfDpi(Number(event.currentTarget.value) as 150 | 300)}><option value="150">150 DPI - standard</option><option value="300">300 DPI - high quality</option></select></label><label>Margins (mm)<input type="number" min="0" max="50" value={pdfMarginMm()} onInput={event => setPdfMarginMm(Number(event.currentTarget.value))} /></label></div>
+            <section class="pdf-settings"><div class="pdf-setting-heading">Sketch pages</div><div class="pdf-choice-row"><button class={pdfPageSet() === "current" ? "active" : ""} onClick={() => { setPdfPageSet("current"); setPdfPreviewPage(1); }}>Current page</button><button disabled={!allFrameExportTargets().length} class={pdfPageSet() === "frames" ? "active" : ""} onClick={() => { setPdfPageSet("frames"); setExportScope("drawing"); setPdfLayout("fit"); setPdfPreviewPage(1); }}>Each frame ({allFrameExportTargets().length})</button><button class={pdfPageSet() === "all" ? "active" : ""} onClick={() => { setPdfPageSet("all"); setExportScope("drawing"); setPdfLayout("fit"); setPdfPreviewPage(1); }}>All pages ({pages().length})</button><button class={pdfPageSet() === "range" ? "active" : ""} onClick={() => { setPdfPageSet("range"); setExportScope("drawing"); setPdfLayout("fit"); setPdfRangeStart(value => Math.min(value, pages().length)); setPdfRangeEnd(pages().length); setPdfPreviewPage(1); }}>Page range</button></div><Show when={pdfPageSet() === "range"}><div class="pdf-custom-size"><label>From page<input type="number" min="1" max={pages().length} value={pdfRangeStart()} onInput={event => setPdfRangeStart(Math.max(1, Math.min(pages().length, Number(event.currentTarget.value))))} /></label><label>To page<input type="number" min={pdfRangeStart()} max={pages().length} value={pdfRangeEnd()} onInput={event => setPdfRangeEnd(Math.max(pdfRangeStart(), Math.min(pages().length, Number(event.currentTarget.value))))} /></label></div></Show><div class="pdf-setting-heading">Paper size</div><div class="pdf-paper-grid">{([{ id: "fit", label: "Fit to content" }, { id: "a0", label: "A0" }, { id: "a1", label: "A1" }, { id: "a2", label: "A2" }, { id: "a3", label: "A3" }, { id: "a4", label: "A4" }, { id: "a5", label: "A5" }, { id: "b4", label: "B4" }, { id: "b5", label: "B5" }, { id: "letter", label: "Letter" }, { id: "legal", label: "Legal" }, { id: "tabloid", label: "Tabloid" }, { id: "executive", label: "Executive" }, { id: "custom", label: "Custom" }] as const).map(({ id, label }) => <button type="button" class={pdfPaper() === id ? "active" : ""} aria-pressed={pdfPaper() === id} onClick={() => changePdfPaper(id)}>{label}</button>)}</div><Show when={pdfPaper() === "fit"}><small class="export-quality-note">Matches the content bounds and padding. Multi-page exports use a page size that fits the largest selected page.</small></Show>
+              <Show when={pdfPaper() === "custom"}><div class="pdf-custom-size"><label>Width (mm)<input type="number" min="25" max="1000" value={pdfCustomWidthMm()} onInput={event => { setPdfCustomWidthMm(Number(event.currentTarget.value)); if (pdfDpi() === 300 && !pdfQualityFits(300)) setPdfDpi(150); }} /></label><label>Height (mm)<input type="number" min="25" max="1000" value={pdfCustomHeightMm()} onInput={event => { setPdfCustomHeightMm(Number(event.currentTarget.value)); if (pdfDpi() === 300 && !pdfQualityFits(300)) setPdfDpi(150); }} /></label></div></Show>
+              <Show when={pdfPaper() !== "fit"}><div class="pdf-setting-heading">Orientation</div><div class="pdf-choice-row"><button class={pdfOrientation() === "portrait" ? "active" : ""} onClick={() => setPdfOrientation("portrait")}><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="1"/></svg><span>Portrait</span></button><button class={pdfOrientation() === "landscape" ? "active" : ""} onClick={() => setPdfOrientation("landscape")}><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1"/></svg><span>Landscape</span></button></div></Show>
+              <div class="pdf-setting-heading">Page layout</div><div class="pdf-choice-row"><button class={pdfLayout() === "fit" ? "active" : ""} onClick={() => { setPdfLayout("fit"); setPdfPreviewPage(1); }}><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6zM9 8h6m-6 4h6m-6 4h4"/></svg><span>Fit on one page</span></button><button disabled={pdfPageSet() !== "current" || pdfColorMode() === "cmyk" || pdfPaper() === "fit"} class={pdfLayout() === "tiled" ? "active" : ""} onClick={() => { setPdfLayout("tiled"); if (pdfDpi() === 300 && !pdfQualityFits(300)) setPdfDpi(150); setPdfPreviewPage(1); }}><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>Multiple pages</span></button></div>
+              <div class="pdf-custom-size pdf-output-settings"><Show when={pdfLayout() === "tiled"}><div class="pdf-quality-control"><div class="pdf-setting-heading">Raster quality</div><div class="pdf-quality-grid"><button type="button" class={pdfDpi() === 150 ? "active" : ""} aria-pressed={pdfDpi() === 150} onClick={() => setPdfDpi(150)}>Standard · 150 DPI</button><button type="button" class={pdfDpi() === 300 ? "active" : ""} aria-pressed={pdfDpi() === 300} disabled={!pdfQualityFits(300)} onClick={() => setPdfDpi(300)}>High · 300 DPI</button></div><small>Raster quality controls are capped at 60 megapixels per page and 240 megapixels per export.</small><Show when={!pdfQualityFits(pdfDpi())}><small class="export-limit-message">Selected PDF quality exceeds the output budget. Choose standard resolution or reduce the page count.</small></Show></div></Show><Show when={pdfLayout() === "fit"}><small class="export-quality-note">Fit-to-page PDF uses vector output and remains crisp at any resolution.</small></Show><label>Margins (mm)<input type="number" min="0" max="50" value={pdfMarginMm()} onInput={event => { setPdfMarginMm(Number(event.currentTarget.value)); if (pdfDpi() === 300 && !pdfQualityFits(300)) setPdfDpi(150); }} /></label></div>
               <Show when={pdfLayout() === "tiled"}><div class="pdf-custom-size pdf-output-settings"><label>Artwork width (px)<input type="number" min="1" max="12000" value={exportWidth()} onInput={event => setExportWidth(Number(event.currentTarget.value))} /></label><label>Artwork height (px)<input type="number" min="1" max="12000" value={exportHeight()} onInput={event => setExportHeight(Number(event.currentTarget.value))} /></label></div><label class="pdf-overlap-control">Page overlap <input type="range" min="0" max="20" value={pdfOverlapMm()} onInput={event => setPdfOverlapMm(Number(event.currentTarget.value))} /><span>{pdfOverlapMm()} mm</span></label></Show>
               <div class="pdf-custom-size pdf-output-settings"><label>Print color mode<select value={pdfColorMode()} disabled={pdfLayout() === "tiled"} onChange={event => setPdfColorMode(event.currentTarget.value as "rgb" | "cmyk" | "grayscale")}><option value="rgb">RGB color</option><option value="cmyk">CMYK press colors</option><option value="grayscale">Grayscale</option></select></label><label>Bleed (mm)<input type="number" min="0" max="20" value={pdfBleedMm()} onInput={event => setPdfBleedMm(Math.max(0, Math.min(20, Number(event.currentTarget.value))))} /></label></div><div class="pdf-custom-size pdf-output-settings"><label>PDF header<input maxlength="100" value={pdfHeader()} onInput={event => setPdfHeader(event.currentTarget.value)} placeholder="Optional header" /></label><label>PDF footer<input maxlength="100" value={pdfFooter()} onInput={event => setPdfFooter(event.currentTarget.value)} placeholder="Optional footer" /></label></div><label class="export-transparent"><input type="checkbox" checked={pdfCropMarks()} onChange={event => setPdfCropMarks(event.currentTarget.checked)} /> Add crop marks</label><div class="pdf-page-count"><strong>{pdfMetrics().pageCount} {pdfMetrics().pageCount === 1 ? "page" : "pages"}</strong><span>{pdfLayout() === "fit" ? "Vector shapes, selectable text, and images fit the printable area." : `${pdfMetrics().columns} columns by ${pdfMetrics().rows} rows, with matching edges overlapping.`}</span></div>
             </section>
           </Show>
-          <Show when={exportFormat() !== "pdf"}><div class="export-dimensions"><label>Width<input type="number" min="1" max="12000" value={exportWidth()} onInput={event => setExportWidth(Number(event.currentTarget.value))} /></label><span>&times;</span><label>Height<input type="number" min="1" max="12000" value={exportHeight()} onInput={event => setExportHeight(Number(event.currentTarget.value))} /></label></div><label class="export-transparent"><input type="checkbox" checked={exportTransparent()} onChange={event => setExportTransparent(event.currentTarget.checked)} /> Transparent background</label></Show>
-          <div class="export-actions"><button class="quiet-button" onClick={() => setExportOptionsOpen(false)}>Cancel</button><button class="save-button" onClick={() => { const format = exportFormat(); setExportOptionsOpen(false); void exportAs(format); }}>Export {exportFormat().toUpperCase()}{exportFormat() === "pdf" ? ` (${pdfMetrics().pageCount} pages)` : ""}</button></div>
-        </div><div class="export-preview-panel"><div class="export-preview-label"><strong>Preview</strong><Show when={exportFormat() === "pdf"} fallback={<span>{exportWidth()} &times; {exportHeight()} px</span>}><div class="pdf-preview-pages"><button disabled={pdfPreviewPage() <= 1} aria-label="Previous PDF page" onClick={() => setPdfPreviewPage(value => Math.max(1, value - 1))}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5"/></svg></button><span>Page {pdfPreviewPage()} of {pdfMetrics().pageCount}</span><button disabled={pdfPreviewPage() >= pdfMetrics().pageCount} aria-label="Next PDF page" onClick={() => setPdfPreviewPage(value => Math.min(pdfMetrics().pageCount, value + 1))}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button></div></Show></div><div class="export-preview-frame" classList={{ transparent: exportFormat() !== "pdf" && exportTransparent() }}><canvas ref={exportPreviewCanvas} aria-label={`${exportFormat().toUpperCase()} export preview`} /></div><small>{exportFormat() === "pdf" && pdfPageSet() === "frames" ? `Frame ${allFrameExportTargets()[pdfPreviewPage() - 1]?.frame.container?.name ?? ""} · ${allFrameExportTargets()[pdfPreviewPage() - 1]?.page.name ?? ""} · ${pdfPreviewPage()} of ${allFrameExportTargets().length}` : exportFormat() === "pdf" && pdfPageSet() === "all" ? `Sketch page ${pdfPreviewPage()} of ${pages().length}` : exportScope() === "drawing" ? "Whole drawing" : exportScope() === "selection" ? "Selected objects" : exportScope() === "region" ? "Marquee region" : exportScope() === "frame" ? "Selected frame" : "Current viewport"}{exportFormat() === "pdf" ? ` / ${pdfPageSpec().widthMm.toFixed(0)} x ${pdfPageSpec().heightMm.toFixed(0)} mm / ${pdfDpi()} DPI` : exportTransparent() ? " / transparent" : " / whiteboard background"}</small></div></div>
+          <Show when={exportFormat() !== "pdf"}><section class="export-size-settings">
+            <div class="pdf-setting-heading">Output size</div>
+            <div class="export-paper-grid"><button type="button" class={exportPaper() === "fit" ? "active" : ""} aria-pressed={exportPaper() === "fit"} onClick={() => chooseExportPaper("fit")}><strong>Fit to content</strong><small>Content + padding</small></button>{([{ id: "a0", label: "A0", detail: "841 × 1189 mm" }, { id: "a1", label: "A1", detail: "594 × 841 mm" }, { id: "a2", label: "A2", detail: "420 × 594 mm" }, { id: "a3", label: "A3", detail: "297 × 420 mm" }, { id: "a4", label: "A4", detail: "210 × 297 mm" }, { id: "a5", label: "A5", detail: "148 × 210 mm" }, { id: "b4", label: "B4", detail: "250 × 353 mm" }, { id: "b5", label: "B5", detail: "176 × 250 mm" }, { id: "letter", label: "Letter", detail: "8.5 × 11 in" }, { id: "legal", label: "Legal", detail: "8.5 × 14 in" }, { id: "tabloid", label: "Tabloid", detail: "11 × 17 in" }, { id: "slide", label: "Slide", detail: "16:9 · 13.33 in" }, { id: "square", label: "Square", detail: "10 × 10 in" }, { id: "custom", label: "Custom", detail: "Set pixels" }] as const).map(({ id, label, detail }) => <button type="button" class={exportPaper() === id ? "active" : ""} aria-pressed={exportPaper() === id} title={detail} onClick={() => chooseExportPaper(id)}><strong>{label}</strong><small>{detail}</small></button>)}</div>
+            <Show when={exportPaper() === "fit"}><p class="export-quality-note">{exportScope() === "viewport" || exportScope() === "region" ? "Uses the captured viewport or marquee bounds." : `Fits the current ${exportScope() === "selection" ? "selection" : exportScope() === "frame" ? "frame" : "drawing"} bounds with ${exportPadding()} canvas units of padding on each edge; adjust Content padding above.`}</p></Show>
+            <Show when={exportPaper() !== "custom" && exportPaper() !== "fit"}><div class="pdf-setting-heading">Orientation</div><div class="pdf-choice-row"><button type="button" class={exportOrientation() === "portrait" ? "active" : ""} aria-pressed={exportOrientation() === "portrait"} onClick={() => chooseExportOrientation("portrait")}>Portrait</button><button type="button" class={exportOrientation() === "landscape" ? "active" : ""} aria-pressed={exportOrientation() === "landscape"} onClick={() => chooseExportOrientation("landscape")}>Landscape</button></div></Show>
+            <div class="export-dimensions"><label>Width (base px)<input type="number" min="1" max="12000" value={exportWidth()} onInput={event => changeExportBaseDimension("width", Number(event.currentTarget.value))} /></label><span>×</span><label>Height (base px)<input type="number" min="1" max="12000" value={exportHeight()} onInput={event => changeExportBaseDimension("height", Number(event.currentTarget.value))} /></label></div>
+            <Show when={exportFormat() === "png"}><div class="pdf-setting-heading">PNG resolution</div><div class="export-quality-grid">{([{ id: "screen", label: "Screen", detail: "96 DPI · 1×" }, { id: "high", label: "High", detail: "144 DPI · 1.5×" }, { id: "print", label: "Print", detail: "300 DPI · 3.125×" }] as const).map(({ id, label, detail }) => <button type="button" class={exportQuality() === id ? "active" : ""} aria-pressed={exportQuality() === id} disabled={!exportPngDimensionsFit(id)} onClick={() => setExportQuality(id)}><strong>{label}</strong><small>{detail}</small></button>)}</div><p class="export-quality-note">Higher resolution sharpens vector lines and text. Embedded raster images retain their source resolution.</p><Show when={!exportPngDimensionsFit()}><p class="export-limit-message" role="alert">This size exceeds the 12,000 px or 60 megapixel limit at the selected quality. Choose a smaller size or lower resolution.</p></Show></Show>
+            <Show when={exportFormat() === "svg"}><p class="export-quality-note">SVG is vector based and remains crisp at any zoom. Paper presets set its physical page ratio.</p></Show>
+          </section><label class="export-transparent"><input type="checkbox" checked={exportTransparent()} onChange={event => setExportTransparent(event.currentTarget.checked)} /> Transparent background</label></Show>
+          <div class="export-actions"><button class="quiet-button" onClick={() => setExportOptionsOpen(false)}>Cancel</button><button class="save-button" disabled={exportFormat() === "png" ? !exportPngDimensionsFit() : exportFormat() === "pdf" && !pdfQualityFits(pdfDpi())} onClick={() => { const format = exportFormat(); setExportOptionsOpen(false); void exportAs(format); }}>Export {exportFormat().toUpperCase()}{exportFormat() === "pdf" ? ` (${pdfMetrics().pageCount} pages)` : exportFormat() === "png" ? ` (${exportPngDimensions().width} x ${exportPngDimensions().height} px)` : ""}</button></div>
+        </div><div class="export-preview-panel"><div class="export-preview-label"><strong>Preview</strong><Show when={exportFormat() === "pdf"} fallback={<span>{exportFormat() === "png" ? exportPngDimensions().width : exportWidth()} &times; {exportFormat() === "png" ? exportPngDimensions().height : exportHeight()} px</span>}><div class="pdf-preview-pages"><button disabled={pdfPreviewPage() <= 1} aria-label="Previous PDF page" onClick={() => setPdfPreviewPage(value => Math.max(1, value - 1))}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5"/></svg></button><span>Page {pdfPreviewPage()} of {pdfMetrics().pageCount}</span><button disabled={pdfPreviewPage() >= pdfMetrics().pageCount} aria-label="Next PDF page" onClick={() => setPdfPreviewPage(value => Math.min(pdfMetrics().pageCount, value + 1))}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button></div></Show></div><div class="export-preview-frame" classList={{ transparent: exportFormat() !== "pdf" && exportTransparent() }}><canvas ref={exportPreviewCanvas} aria-label={`${exportFormat().toUpperCase()} export preview`} /></div><small>{exportFormat() === "pdf" && pdfPageSet() === "frames" ? `Frame ${allFrameExportTargets()[pdfPreviewPage() - 1]?.frame.container?.name ?? ""} · ${allFrameExportTargets()[pdfPreviewPage() - 1]?.page.name ?? ""} · ${pdfPreviewPage()} of ${allFrameExportTargets().length}` : exportFormat() === "pdf" && pdfPageSet() === "all" ? `Sketch page ${pdfPreviewPage()} of ${pages().length}` : exportScope() === "drawing" ? "Whole drawing" : exportScope() === "selection" ? "Selected objects" : exportScope() === "region" ? "Marquee region" : exportScope() === "frame" ? "Selected frame" : "Current viewport"}{exportFormat() === "pdf" ? ` / ${pdfPageSpec().widthMm.toFixed(0)} x ${pdfPageSpec().heightMm.toFixed(0)} mm / ${pdfDpi()} DPI` : exportTransparent() ? " / transparent" : " / whiteboard background"}</small></div></div>
       </section></div></Show>
       <Show when={recoveryPrompt()}>{(recovery) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="recovery-title"><h2 id="recovery-title">Recover unsaved work?</h2><p>SketchDraw found a local recovery copy for <strong>{recovery().path.split(/[\\/]/).pop()}</strong>. Restore it or continue with the saved file.</p><div><button class="quiet-button" onClick={discardRecovery}>Use saved file</button><button class="save-button" onClick={restoreRecovery}>Restore recovery</button></div></section></div>}</Show>
       <Show when={syncConflict()}>{(conflict) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title"><h2 id="conflict-title">File changed elsewhere</h2><p><strong>{displayPathName(conflict().path)}</strong> changed after you opened it, so SketchDraw paused this save to protect the newer copy. Your current work is still open. Save it as a separate file or load the disk version, which replaces your current work.</p><div class="conflict-actions"><button class="quiet-button" onClick={() => void saveAs()}>Save my version as…</button><button class="quiet-button" onClick={reloadConflictingFile}>Load disk version</button></div></section></div>}</Show>

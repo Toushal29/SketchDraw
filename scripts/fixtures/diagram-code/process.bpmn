@@ -1,22 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:vendor="https://example.test/bpmn/vendor">
+  <bpmn:message id="OrderMessage" name="Order details"><bpmn:extensionElements><vendor:messageMetadata channel="email"/></bpmn:extensionElements></bpmn:message>
   <bpmn:process id="OrderProcess" isExecutable="false">
-    <bpmn:startEvent id="Start" name="Order received" />
-    <bpmn:userTask id="Review" name="Review &amp; approve" />
+    <bpmn:startEvent id="Start" name="Order received">
+      <bpmn:timerEventDefinition id="StartTimer" vendor:cycle="daily">
+        <bpmn:timeDate>2026-11-01T00:00:00Z</bpmn:timeDate>
+        <bpmn:extensionElements><vendor:timerMetadata>local schedule</vendor:timerMetadata></bpmn:extensionElements>
+      </bpmn:timerEventDefinition>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Review" name="Review &amp; approve" vendor:priority="high">
+      <bpmn:extensionElements><vendor:taskMetadata owner="ops">before <vendor:tag>Escalation &amp; SLA</vendor:tag> after</vendor:taskMetadata></bpmn:extensionElements>
+    </bpmn:userTask>
     <bpmn:exclusiveGateway id="Decision" name="Accepted?" />
     <bpmn:endEvent id="Complete" name="Complete" />
+    <bpmn:dataObject id="DecisionData" name="Decision data" />
+    <bpmn:dataObjectReference id="DecisionDataRef" name="Decision data" dataObjectRef="DecisionData" />
     <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Review" />
-    <bpmn:sequenceFlow id="Flow_2" name="yes" sourceRef="Review" targetRef="Decision" />
+    <bpmn:sequenceFlow id="Flow_2" name="yes" sourceRef="Review" targetRef="Decision"><bpmn:extensionElements><vendor:flowMetadata key="decision" /></bpmn:extensionElements></bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_3" sourceRef="Decision" targetRef="Complete" />
   </bpmn:process>
   <bpmn:collaboration id="Collaboration_1">
     <bpmn:participant id="Buyer" name="Buyer" processRef="OrderProcess" />
-    <bpmn:messageFlow id="Message_1" name="Order details" sourceRef="Buyer" targetRef="Review" />
+    <bpmn:messageFlow id="Message_1" name="Order details" sourceRef="Buyer" targetRef="Review" messageRef="OrderMessage" />
   </bpmn:collaboration>
   <bpmndi:BPMNDiagram id="Diagram_1">
     <bpmndi:BPMNPlane id="Plane_1" bpmnElement="OrderProcess">
       <bpmndi:BPMNShape id="DI_Start" bpmnElement="Start"><dc:Bounds x="40" y="60" width="48" height="48" /></bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="DI_Review" bpmnElement="Review"><dc:Bounds x="160" y="48" width="150" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_Review" bpmnElement="Review" vendor:layer="foreground"><dc:Bounds x="160" y="48" width="150" height="72" /><vendor:visual>soft <vendor:token color="blue"/> border</vendor:visual></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="DI_Decision" bpmnElement="Decision"><dc:Bounds x="370" y="55" width="60" height="60" /></bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="DI_Complete" bpmnElement="Complete"><dc:Bounds x="500" y="60" width="48" height="48" /></bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="DI_Flow_1" bpmnElement="Flow_1"><di:waypoint x="88" y="84" /><di:waypoint x="160" y="84" /></bpmndi:BPMNEdge>

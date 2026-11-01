@@ -1,0 +1,7 @@
+@startuml
+component "Orders API" as api
+interface IAuth as auth
+database "Order store" as store
+api ..> auth : requires
+api --> store : persists
+@enduml

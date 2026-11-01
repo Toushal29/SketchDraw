@@ -47,6 +47,19 @@ export function setLibraryComponentField(group: GroupElement, key: string, value
   return { ...group, elements };
 }
 
+export function setLibraryRelationshipField(connector: ShapeElement, key: string, value: string): ShapeElement {
+  if (!connector.relationshipFields?.some(field => field.key === key)) return connector;
+  const relationshipFields = connector.relationshipFields.map(field => field.key === key ? { ...field, value: value.slice(0, 2000) } : field);
+  if (connector.componentRole !== "proposal-planning-dependency-connector") return { ...connector, relationshipFields };
+  const rawType = relationshipFields.find(field => field.key === "relationship")?.value.trim().toUpperCase() ?? "FS";
+  const type = ["FS", "SS", "FF", "SF"].includes(rawType) ? rawType : "FS";
+  const rawLag = Number(relationshipFields.find(field => field.key === "lag")?.value ?? 0);
+  const lag = Number.isFinite(rawLag) ? rawLag : 0;
+  const lagLabel = lag === 0 ? "" : ` ${lag > 0 ? "+" : ""}${lag}d`;
+  const label = connector.label ? { ...connector.label, text: `${type}${lagLabel}` } : undefined;
+  return { ...connector, relationshipFields, ...(label ? { label } : {}) };
+}
+
 /** Upgrade child-drawn built-ins when loading a document so the current renderer owns their appearance. */
 export function upgradeLegacyLibraryComponent(group: GroupElement): GroupElement | undefined {
   const kind = group.libraryComponent?.kind as LibraryComponentKind | undefined;

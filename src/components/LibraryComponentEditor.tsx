@@ -23,6 +23,7 @@ import {
   setLibraryPortCount,
   setLibraryRadioOption,
 } from "../features/components/library-component-editor";
+import { applyWireframeViewportPreset, wireframeViewportPresets } from "../features/components/wireframe-presets";
 
 type Props = {
   group: () => GroupElement;
@@ -66,6 +67,9 @@ export function LibraryComponentEditor(props: Props) {
     props.onRememberFontSize(requestedSize);
     changeGroup(current => resizeLibraryFont(current, requestedSize));
   };
+  const viewportPresets = () => wireframeViewportPresets(kind());
+  const applyViewportPreset = (preset: ReturnType<typeof wireframeViewportPresets>[number]) => changeGroup(current => applyWireframeViewportPreset(current, preset));
+  const viewportValue = () => group().libraryComponent?.componentFields?.find(field => field.key === "viewport")?.value.trim();
   const updateOption = (current: GroupElement, index: number, value: string) => {
     const next = [...optionsFor(current)];
     next[index] = value.slice(0, 120);
@@ -120,6 +124,7 @@ export function LibraryComponentEditor(props: Props) {
 
   return <div class="component-editor-content library-component-properties">
     <Show when={libraryComponentFields(group()).length > 0}><div class="component-field-list"><For each={libraryComponentFields(group()).map(field => field.key)}>{key => { const field = () => libraryComponentFields(group()).find(entry => entry.key === key)!; return <label class="property-label"><span>{field().label}</span><textarea data-component-field-key={key} rows={Math.min(4, Math.max(1, field().value.split(/\r?\n/).length))} maxlength="2000" placeholder={field().hint} value={field().value} disabled={locked()} onInput={event => editText(event, current => setLibraryComponentField(current, key, event.currentTarget.value))} onBlur={finishTextEdit} /></label>; }}</For></div></Show>
+    <Show when={viewportPresets().length > 0}><section class="component-property-choice"><span>Viewport size preset</span><div class="component-editor-choice-group component-editor-choice-wrap" role="group" aria-label="Viewport size preset"><For each={viewportPresets()}>{preset => { const selected = () => viewportValue() === `${preset.label} · ${preset.w} × ${preset.h}`; return <button type="button" class={selected() ? "active" : ""} aria-pressed={selected()} disabled={locked()} onClick={() => applyViewportPreset(preset)}>{preset.label} · {preset.w} × {preset.h}</button>; }}</For></div></section></Show>
     <Show when={kind() === "uml-lifeline"}><label class="property-label">Lifeline length<input aria-label="Lifeline length" type="number" min="24" max="4000" step="1" value={libraryLifelineLength(group())} disabled={locked()} onChange={event => changeGroup(current => setLibraryLifelineLength(current, Number(event.currentTarget.value)))} /></label></Show>
     <Show when={kind() === "bpmn-task"}><label class="property-label">Task duration (minutes)<input aria-label="BPMN task duration in minutes" type="number" min="0" max="100000" step="1" value={group().libraryComponent?.durationMinutes ?? 0} disabled={locked()} onChange={event => changeTaskDuration(Number(event.currentTarget.value))} /></label></Show>
     <Show when={kind() === "form-toggle"}>

@@ -1,0 +1,6 @@
+@startyaml
+service:
+  name: orders
+  replicas: 3
+enabled: true
+@endyaml

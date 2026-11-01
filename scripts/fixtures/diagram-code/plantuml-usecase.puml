@@ -1,0 +1,9 @@
+@startuml
+actor Customer as customer
+usecase "Place order" as place
+rectangle "Storefront" {
+  usecase "Checkout" as checkout
+}
+customer --> place : starts
+place ..> checkout : includes
+@enduml

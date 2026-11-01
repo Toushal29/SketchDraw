@@ -1,0 +1,11 @@
+@startuml
+[*] --> Draft
+Draft --> Review : submit
+Review --> Published : approve
+Review --> Draft : revise
+Published --> [*]
+state Payment {
+  state Pending
+  state Authorized
+}
+@enduml

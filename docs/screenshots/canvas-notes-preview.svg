@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="520" viewBox="0 0 1120 520" role="img" aria-labelledby="title desc">
   <title id="title">Modern canvas note, sticky note, and checklist cards</title>
-  <desc id="desc">Three clean note cards have custom titles, fixed-size text, syntax-highlighted code in simple appearance, and aligned checklist rows. Card colors adapt to the app light or dark appearance.</desc>
+  <desc id="desc">Three clean note cards have custom titles, fixed-size plain-text code, and aligned checklist rows. Card colors adapt to the app light or dark appearance.</desc>
   <defs><filter id="shadow" x="-20%" y="-20%" width="145%" height="160%"><feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#26352c" flood-opacity=".12"/></filter></defs>
   <rect width="1120" height="520" rx="22" fill="#f2f5f3"/>
   <text x="42" y="50" fill="#64746a" font-family="Segoe UI, sans-serif" font-size="12" font-weight="700" letter-spacing="2">DIRECT CANVAS WRITING</text>
@@ -22,8 +22,8 @@
   <text x="80" y="237" fill="#263445" font-family="Segoe UI, sans-serif" font-size="12">implementation details.</text>
   <rect x="77" y="265" width="278" height="132" rx="3" fill="#ffffff" stroke="#c6c6c6"/>
   <text x="91" y="280" fill="#606060" font-family="Segoe UI, sans-serif" font-size="9" font-weight="650">TYPESCRIPT · SIMPLE</text>
-  <text x="91" y="307" fill="#2458a8" font-family="Cascadia Code, Consolas, monospace" font-size="12">const</text><text x="130" y="307" fill="#202020" font-family="Cascadia Code, Consolas, monospace" font-size="12">nextStep =</text><text x="218" y="307" fill="#945a16" font-family="Cascadia Code, Consolas, monospace" font-size="12">"review";</text>
-  <text x="91" y="332" fill="#2458a8" font-family="Cascadia Code, Consolas, monospace" font-size="12">if</text><text x="108" y="332" fill="#202020" font-family="Cascadia Code, Consolas, monospace" font-size="12">(ready) publish();</text>
+  <text x="91" y="307" fill="#202020" font-family="Cascadia Code, Consolas, monospace" font-size="12">const nextStep = "review";</text>
+  <text x="91" y="332" fill="#202020" font-family="Cascadia Code, Consolas, monospace" font-size="12">if (ready) publish();</text>
   <text x="80" y="420" fill="#738196" font-family="Segoe UI, sans-serif" font-size="9">Light appearance &#183; 12 px text</text>
   <text x="424" y="163" fill="#49402d" font-family="Segoe UI, sans-serif" font-size="14" font-weight="650">Design question</text>
   <text x="424" y="183" fill="#93845f" font-family="Segoe UI, sans-serif" font-size="9" font-weight="650" letter-spacing=".7">STICKY</text>
@@ -43,5 +43,5 @@
   <rect x="770" y="292" width="16" height="16" rx="4" fill="#f2f8f4" stroke="#cedfd4"/><text x="797" y="294" dominant-baseline="hanging" fill="#2d4035" font-family="Segoe UI, sans-serif" font-size="12">Check row attachments</text>
   <rect x="770" y="326" width="16" height="16" rx="4" fill="#f2f8f4" stroke="#cedfd4"/><text x="797" y="328" dominant-baseline="hanging" fill="#2d4035" font-family="Segoe UI, sans-serif" font-size="12">Save a preview</text>
   <text x="768" y="420" fill="#72897a" font-family="Segoe UI, sans-serif" font-size="9">Aligned rows &#183; click boxes to track progress</text>
-  <text x="42" y="500" fill="#7a867e" font-family="Segoe UI, sans-serif" font-size="10">Simple appearance keeps language syntax colors; text size stays fixed when cards resize.</text>
+  <text x="42" y="500" fill="#7a867e" font-family="Segoe UI, sans-serif" font-size="10">Code stays plain and readable; text size stays fixed when cards resize.</text>
 </svg>

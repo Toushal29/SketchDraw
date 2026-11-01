@@ -2,6 +2,7 @@ import type { Binding, Element, SchemaTableElement, ShapeElement, SketchPage } f
 import { elementBounds } from "../canvas/bounds";
 import { connectionPointsFor, flatten, isConnectable, isConnector } from "../../operations";
 import { accessibilityIssues } from "../accessibility/accessibility";
+import { ADVANCED_BPMN_SEQUENCE_KINDS, isBpmnSequenceKind } from "./bpmn-analysis";
 
 export type DiagramIssue = { code: string; severity: "error" | "warning"; message: string; elementId?: string; pageId?: string };
 
@@ -87,7 +88,7 @@ export function validateDiagram(elements: Element[], pages: SketchPage[] = [], o
     return item.note || item.mermaid || item.componentBounds || item.libraryComponent ? [item] : diagramNodes(item.elements);
   });
   const nodes = diagramNodes(elements).filter(item => !isConnector(item));
-  const bpmnNodes = nodes.filter(item => libraryKind(item).startsWith("bpmn-") && item.id);
+  const bpmnNodes = nodes.filter(item => isBpmnSequenceKind(libraryKind(item)) && item.id);
   const bpmnIds = new Set(bpmnNodes.map(item => item.id!));
   const bpmnFlows = connectorPairs.filter(({ connector, start, end }) => !!start?.id && !!end?.id && bpmnIds.has(start.id) && bpmnIds.has(end.id)
     && (!connector.relationshipType || connector.relationshipType === "sequence"));
@@ -106,12 +107,43 @@ export function validateDiagram(elements: Element[], pages: SketchPage[] = [], o
         if (defaults.length !== 1) issues.push({ code: "bpmn-gateway-default", severity: "warning", message: "Give an exclusive gateway exactly one default outgoing sequence flow.", elementId: item.id });
         for (const flow of outgoing) if (!flow.connector.sequenceDefault && !flow.connector.sequenceCondition?.trim()) issues.push({ code: "bpmn-gateway-condition", severity: "warning", message: "Add a condition or mark this as the default path from its exclusive gateway.", elementId: flow.connector.id });
       }
-    } else if ((kind === "bpmn-task" || kind === "bpmn-subprocess") && (!incoming.length || !outgoing.length)) {
+    } else if ((kind === "bpmn-task" || kind === "bpmn-subprocess" || ADVANCED_BPMN_SEQUENCE_KINDS.has(kind) && /(?:subprocess|choreography)/.test(kind)) && (!incoming.length || !outgoing.length)) {
       issues.push({ code: "bpmn-task-flow", severity: "warning", message: "This BPMN task needs an incoming and outgoing sequence flow.", elementId: item.id });
+    }
+    if (/^proposal-decision-(?:conditional|escalation|compensation|link|multiple|parallel-multiple|cancel)-event$/.test(kind)) {
+      const behavior = item.type === "group" ? item.libraryComponent?.componentFields?.find(field => field.key === "behavior")?.value.toLowerCase() ?? "" : "";
+      if (behavior.includes("catch") && !incoming.length) issues.push({ code: "bpmn-event-catch-flow", severity: "warning", message: "A catching intermediate event should have an incoming sequence flow.", elementId: item.id });
+      if (behavior.includes("throw") && !outgoing.length) issues.push({ code: "bpmn-event-throw-flow", severity: "warning", message: "A throwing intermediate event should have an outgoing sequence flow.", elementId: item.id });
     }
   }
   for (const flow of bpmnFlows) if (flow.connector.sequenceDefault && flow.connector.sequenceCondition?.trim()) {
     issues.push({ code: "bpmn-default-condition", severity: "warning", message: "A default sequence flow should not also have a condition.", elementId: flow.connector.id });
+  }
+  const dmnKind = (item: Element | undefined) => item ? libraryKind(item) : "";
+  for (const { connector, start, end } of connectorPairs) {
+    const role = connector.componentRole ?? "";
+    if (!role.startsWith("proposal-decision-dmn-") || !role.endsWith("requirement") && !role.endsWith("invocation")) continue;
+    const from = dmnKind(start); const to = dmnKind(end);
+    const decisionKinds = new Set(["proposal-decision-dmn-decision", "proposal-decision-dmn-decision-service"]);
+    const expected = role.endsWith("information-requirement")
+      ? from === "proposal-decision-dmn-input-data" || decisionKinds.has(from) ? decisionKinds.has(to) : false
+      : role.endsWith("knowledge-requirement")
+        ? from === "proposal-decision-business-knowledge-model" && decisionKinds.has(to)
+        : role.endsWith("authority-requirement")
+          ? from === "proposal-decision-dmn-knowledge-source" && decisionKinds.has(to)
+          : role.endsWith("invocation")
+            ? decisionKinds.has(from) && to === "proposal-decision-business-knowledge-model"
+            : true;
+    if (!expected) issues.push({ code: "dmn-link-direction", severity: "error", message: `The ${connector.label?.text || "DMN relationship"} must connect the appropriate DMN source to its target decision or knowledge model.`, elementId: connector.id });
+  }
+  for (const item of nodes) if (libraryKind(item) === "proposal-decision-dmn-decision-table" && item.type === "group") {
+    const fields = item.libraryComponent?.componentFields ?? [];
+    const inputs = fields.find(field => field.key === "inputs")?.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) ?? [];
+    const rules = fields.find(field => field.key === "rules")?.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) ?? [];
+    for (const [index, rule] of rules.entries()) {
+      const cells = rule.split("|").map(value => value.trim());
+      if (inputs.length && cells.length !== inputs.length + 1) issues.push({ code: "dmn-table-rule-width", severity: "warning", message: `Rule ${index + 1} has ${cells.length} cells; expected ${inputs.length} input cells and one output cell.`, elementId: item.id });
+    }
   }
   if (options.includeOverlaps !== false) for (let first = 0; first < nodes.length; first++) for (let second = first + 1; second < nodes.length; second++) {
     const a = elementBounds(nodes[first]); const b = elementBounds(nodes[second]);

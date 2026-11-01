@@ -24,7 +24,7 @@
     top: 10px;
     bottom: 10px;
     left: 0;
-    width: 14px;
+    width: 10px;
     padding: 0;
     border: 0;
     border-radius: 8px 0 0 8px;
@@ -462,6 +462,37 @@
 
 .relationship-properties .property-label {
     margin-block: 6px;
+}
+
+.relationship-model-fields {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--theme-border);
+}
+
+.relationship-model-fields textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    resize: vertical;
+    padding: 6px 8px;
+    border: 1px solid var(--theme-border);
+    border-radius: 4px;
+    background: var(--theme-surface-elevated);
+    color: var(--theme-text-primary);
+    font: inherit;
+    font-size: var(--type-caption);
+    line-height: 1.35;
+}
+
+.relationship-model-fields textarea:focus-visible {
+    border-color: var(--theme-accent);
+    outline: 2px solid color-mix(in srgb, var(--theme-accent) 28%, transparent);
+    outline-offset: 1px;
 }
 
 .relationship-properties .choice-deck {

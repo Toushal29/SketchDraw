@@ -1,0 +1,8 @@
+shape: sequence_diagram
+alice: Alice
+bob: Bob
+database: Database
+alice -> bob: create order
+bob -> database: insert order
+database --> bob: order id
+bob -> alice: confirmation

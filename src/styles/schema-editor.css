@@ -5,7 +5,7 @@
   top: 65px;
   bottom: max(12px, env(safe-area-inset-bottom));
   display: flex;
-  width: min(380px, calc(100vw - 36px));
+  width: min(var(--schema-editor-width, 380px), calc(100vw - 36px));
   min-width: 0;
   height: auto;
   min-height: 0;
@@ -60,8 +60,9 @@
 .schema-editor-collapsed .schema-editor-heading .design-library-back,
 .schema-editor-collapsed .schema-editor-panel > :not(.schema-editor-heading) { display: none; }
 .schema-editor-collapsed .schema-editor-heading .design-panel-toggle { width: 32px; height: 32px; flex-basis: 32px; }
-.schema-editor-actions { display: flex; min-width: 0; align-items: center; margin: 0; }
+.schema-editor-actions { display: flex; min-width: 0; align-items: center; gap: 6px; margin: 0; flex-wrap: wrap; }
 .schema-editor-actions .quiet-button { min-height: 28px; margin: 0; padding: 4px 7px; white-space: nowrap; }
+.schema-editor-actions .schema-editor-wrap-toggle[aria-pressed="true"] { border-color: var(--ui-accent-border, var(--theme-primary)); color: var(--ui-accent-ink, var(--theme-primary)); background: var(--ui-accent-soft, var(--theme-surface-input)); }
 
 .schema-side-input {
   box-sizing: border-box;
@@ -86,7 +87,7 @@
 .schema-editor-font input { box-sizing: border-box; width: 100%; height: 28px; padding: 3px 6px; border: 1px solid var(--theme-border); border-radius: 5px; color: var(--theme-text-primary); background: var(--theme-surface-input); }
 
 @media (max-width: 900px) {
-  .style-pane.schema-editor-active { bottom: calc(env(safe-area-inset-bottom) + 70px); width: min(380px, calc(100vw - 16px)); }
+  .style-pane.schema-editor-active { bottom: calc(env(safe-area-inset-bottom) + 70px); width: min(var(--schema-editor-width, 380px), calc(100vw - 16px)); }
   .app-shell:not(.platform-windows) .style-pane.schema-editor-active.mobile-properties-expanded {
     right: 8px;
     bottom: calc(env(safe-area-inset-bottom) + 66px);
@@ -120,7 +121,7 @@
     right: auto;
     bottom: calc(env(safe-area-inset-bottom) + 66px);
     left: 8px;
-    width: min(380px, calc(100vw - 16px));
+    width: min(var(--schema-editor-width, 380px), calc(100vw - 16px));
     padding: 8px;
   }
   .style-pane.schema-editor-active.schema-editor-collapsed {
@@ -146,3 +147,64 @@
     left: auto;
   }
 }
+
+/* The quick-style rail normally collapses to a narrow icon strip. A live schema
+   editor is a full panel and must restore its own width, stacking, and scrolling. */
+.style-pane.quick-style-mode.schema-editor-active {
+  z-index: 80;
+  display: flex;
+  width: min(var(--schema-editor-width, 380px), calc(100vw - 30px));
+  min-width: 0;
+  max-width: calc(100vw - 30px);
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--theme-surface-elevated);
+}
+
+.style-pane.quick-style-mode.schema-editor-active > .schema-editor-panel {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.style-pane.schema-editor-active:not(.schema-editor-collapsed):not(.design-panel-collapsed) > .schema-editor-panel {
+  box-sizing: border-box;
+  padding-right: 14px;
+}
+
+.style-pane.quick-style-mode.schema-editor-active .schema-code-editor-side {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 90px;
+  flex: 1 1 180px;
+}
+
+.style-pane.quick-style-mode.schema-editor-active .schema-editor-heading {
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.style-pane.quick-style-mode.schema-editor-active .schema-editor-actions,
+.style-pane.quick-style-mode.schema-editor-active .schema-editor-error,
+.style-pane.quick-style-mode.schema-editor-active .schema-editor-font {
+  flex: 0 0 auto;
+}
+
+@media (min-width: 901px) and (pointer: fine) {
+  .app-shell.platform-windows .style-pane.quick-style-mode.schema-editor-active.mobile-properties-expanded {
+    position: fixed;
+    top: 65px;
+    right: auto;
+    bottom: 16px;
+    left: 15px;
+    width: min(var(--schema-editor-width, 380px), calc(100vw - 30px));
+    height: auto;
+    max-height: none;
+  }
+}
+
+.style-pane.schema-editor-active.schema-editor-collapsed { width: 42px; min-width: 42px; max-width: 42px; }

@@ -52,6 +52,8 @@ function linkAt(line: string, offset: number): { link: Omit<MermaidLink, "from" 
     const operators: [string, Partial<Omit<MermaidLink, "from" | "to" | "label">>][] = [
       ["o--o", { startHead: "dot", endHead: "dot" }], ["x--x", { startHead: "bar", endHead: "bar" }],
       ["<-->", { startHead: "solid", endHead: "solid" }], ["o-->", { startHead: "dot" }], ["x-->", { startHead: "bar" }], ["<--o", { startHead: "solid", endHead: "dot" }], ["<--x", { startHead: "solid", endHead: "bar" }],
+      ["<--", { startHead: "solid", endHead: "none" }], ["o--", { startHead: "dot", endHead: "none" }], ["x--", { startHead: "bar", endHead: "none" }],
+      ["---o", { endHead: "dot" }], ["---x", { endHead: "bar" }],
       ["-.->", { lineStyle: "dotted" }], ["-.-", { lineStyle: "dotted", endHead: "none" }], ["==>", { thickness: 3.2 }], ["===", { thickness: 3.2, endHead: "none" }],
       ["--o", { endHead: "dot" }], ["--x", { endHead: "bar" }], ["-->", {}], ["---", { endHead: "none" }],
     ];
@@ -76,15 +78,17 @@ export function parseMermaidFlowchart(source: string): MermaidFlowchart {
   const nodes = new Map<string, MermaidNode>(); const links: MermaidLink[] = []; const subgraphs: MermaidSubgraph[] = []; const stack: MermaidSubgraph[] = []; const nodeStyles = new Map<string, Record<string, string>>(); const linkStyles = new Map<number, Record<string, string>>();
   const lines = source.replace(/\r/g, "").split("\n");
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    const raw = lines[lineIndex].split("%%", 1)[0].trim(); if (!raw) continue;
+    const sourceLine = lines[lineIndex].split("%%", 1)[0]; const raw = sourceLine.trim(); if (!raw) continue;
+    const baseColumn = sourceLine.indexOf(raw) + 1;
+    const location = (columnOffset = 0) => ` (line ${lineIndex + 1}, column ${baseColumn + columnOffset}).`;
     const header = /^(?:flowchart|graph)\s+(TD|TB|BT|LR|RL)\b/i.exec(raw);
     if (header) { direction = header[1].toUpperCase() === "TB" ? "TD" : header[1].toUpperCase() as MermaidDirection; continue; }
     const subgraph = subgraphAt(raw, stack[stack.length - 1]?.id, subgraphs.length + 1);
     if (subgraph) {
-      if (subgraphs.some(item => item.id === subgraph.id)) throw new Error("Duplicate Mermaid subgraph ID on line " + (lineIndex + 1) + ".");
+      if (subgraphs.some(item => item.id === subgraph.id)) throw new Error(`Duplicate Mermaid subgraph ID${location()}`);
       subgraphs.push(subgraph); if (subgraphs.length > 50) throw new Error("A Mermaid import can contain up to 50 subgraphs."); stack.push(subgraph); continue;
     }
-    if (/^end\s*$/i.test(raw)) { if (!stack.length) throw new Error("Unexpected subgraph end on line " + (lineIndex + 1) + "."); stack.pop(); continue; }
+    if (/^end\s*$/i.test(raw)) { if (!stack.length) throw new Error(`Unexpected subgraph end${location()}`); stack.pop(); continue; }
     const style = /^style\s+([A-Za-z_]\w*)\s+(.+)$/i.exec(raw);
     if (style) { nodeStyles.set(style[1], Object.fromEntries(style[2].split(",").map(part => { const [key, ...value] = part.split(":"); return [key.trim().toLowerCase(), value.join(":").trim()]; }).filter(([key, value]) => !!key && !!value))); continue; }
     const linkStyle = /^linkStyle\s+(\d+|default)\s+(.+)$/i.exec(raw);
@@ -93,9 +97,9 @@ export function parseMermaidFlowchart(source: string): MermaidFlowchart {
       if (linkStyle[1].toLowerCase() === "default") links.forEach((_, index) => linkStyles.set(index, { ...linkStyles.get(index), ...values })); else linkStyles.set(Number(linkStyle[1]), values);
       continue;
     }
-    if (/^(?:classDef\b|class\s|click\s|direction\s)/i.test(raw)) continue;
+    if (/^(?:classDef\b|class\s|click\s|direction\s)/i.test(raw)) throw new Error(`This Mermaid flowchart directive is outside the editable subset${location()}`);
     let cursor = 0; const first = nodeAt(raw, cursor);
-    if (!first) throw new Error("Unsupported Mermaid flowchart syntax on line " + (lineIndex + 1) + ".");
+    if (!first) throw new Error(`Unsupported Mermaid flowchart syntax${location()}`);
     const remember = (node: MermaidNode) => {
       const previous = nodes.get(node.key);
       const assignedSubgraph = stack[stack.length - 1]?.id;
@@ -107,10 +111,10 @@ export function parseMermaidFlowchart(source: string): MermaidFlowchart {
       const edge = linkAt(raw, cursor);
       if (!edge) {
         if (!hadLink && !raw.slice(cursor).trim()) break;
-        throw new Error("Unsupported Mermaid connector on line " + (lineIndex + 1) + ".");
+        throw new Error(`Unsupported Mermaid connector${location(cursor)}`);
       }
       const target = nodeAt(raw, edge.next);
-      if (!target) throw new Error("Expected a node after the connector on line " + (lineIndex + 1) + ".");
+      if (!target) throw new Error(`Expected a node after the connector${location(edge.next)}`);
       remember(target.node); links.push({ from, to: target.node.key, ...edge.link });
       if (links.length > 500) throw new Error("A Mermaid import can contain up to 500 connectors.");
       from = target.node.key; cursor = target.next; hadLink = true;
@@ -194,10 +198,11 @@ export function parseMermaidSequence(source: string): MermaidSequence {
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index].replace(/%%.*$/, "").trim();
     if (!line || /^sequenceDiagram\b/i.test(line)) continue;
+    const column = lines[index].indexOf(line) + 1;
     const declaration = /^(participant|actor)\s+([A-Za-z_]\w*)(?:\s+as\s+(.+))?$/i.exec(line);
     if (declaration) {
       const id = declaration[2];
-      if (participants.has(id)) throw new Error(`Duplicate Mermaid participant "${id}" on line ${index + 1}.`);
+      if (participants.has(id)) throw new Error(`Duplicate Mermaid participant "${id}" (line ${index + 1}, column ${column}).`);
       participants.set(id, { id, label: (declaration[3] ?? id).replace(/^(["'])(.*)\1$/, "$2"), kind: declaration[1].toLowerCase() as "participant" | "actor" });
       continue;
     }
@@ -210,9 +215,9 @@ export function parseMermaidSequence(source: string): MermaidSequence {
       continue;
     }
     if (/^(?:activate|deactivate|autonumber|title|note\b|loop\b|alt\b|else\b|opt\b|par\b|and\b|end\b|critical\b|break\b|rect\b|links\b)/i.test(line)) {
-      throw new Error(`Mermaid sequence construct on line ${index + 1} is not supported yet: ${line.split(/\s/, 1)[0]}.`);
+      throw new Error(`Mermaid sequence construct is not supported yet: ${line.split(/\s/, 1)[0]} (line ${index + 1}, column ${column}).`);
     }
-    throw new Error(`Unsupported Mermaid sequence syntax on line ${index + 1}.`);
+    throw new Error(`Unsupported Mermaid sequence syntax (line ${index + 1}, column ${column}).`);
   }
   if (!participants.size) throw new Error("Add at least one participant or message to the Mermaid sequence diagram.");
   if (participants.size > 100) throw new Error("A Mermaid sequence diagram can contain up to 100 participants.");

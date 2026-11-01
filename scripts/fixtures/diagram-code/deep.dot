@@ -1,0 +1,24 @@
+digraph Pipeline {
+  graph [rankdir=LR, nodesep=0.35, ranksep="0.8 equally"]
+  node [color="#223344", style=filled, fillcolor="#f0f5ff", fontcolor="#123456", fontsize=14]
+  edge [color="#556677", penwidth=2]
+
+  subgraph cluster_ingest {
+    graph [label="Ingest", color="#2680eb", style="rounded,filled", fillcolor="#f6faff"]
+    source [shape=record, label="{<out> Source|row_id|payload}"]
+    subgraph cluster_parse {
+      graph [label="Parse", color="#536dfe"]
+      parser [shape=hexagon, label=<<TABLE BORDER="0"><TR><TD PORT="input">Parse rows</TD></TR></TABLE>>]
+    }
+    subgraph rank_pair {
+      graph [rank=same]
+      source
+      parser
+    }
+    source:out -> parser:input [dir=both, arrowhead=diamond, arrowtail=odot, style=dotted]
+  }
+
+  sink [shape=folder, label="Store", fillcolor="#eaf3ed"]
+  fallback [shape=nonagon, label="Unmapped shape"]
+  parser -> sink [label="persist", color="#007755", penwidth=2.4]
+}

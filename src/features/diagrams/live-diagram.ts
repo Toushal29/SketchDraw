@@ -1,10 +1,10 @@
 import type { Element, LiveDiagramFormat, Point } from "../../model";
 import { layoutMermaidFlowchart, layoutMermaidSequence, parseMermaidFlowchart, parseMermaidSequence } from "../../mermaid";
+import { detectExtendedMermaidType, layoutExtendedMermaid } from "./mermaid-extended";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { translateElement } from "../canvas/translate";
 import { isConnector } from "../../operations";
 import { plantUmlToDiagram } from "./code-formats";
-import { d2ToDiagram } from "./d2";
 import { cloudDiagramFromText } from "./cloud-diagram";
 import { ORG_CHART_EXAMPLE, buildOrgChart } from "./org-chart";
 
@@ -33,17 +33,26 @@ const keyFromId = (id: string | undefined) => { const at = id?.indexOf(":") ?? -
 
 export type LiveDiagramResult = { elements: Element[]; warnings: string[] };
 
+/** Load the parser only when the editor is actually asked to render D2 source. */
+export function loadLiveDiagramParser(format: LiveDiagramFormat): Promise<(source: string) => Element[]> | undefined {
+  return format === "d2" ? import("./d2").then(module => module.d2ToDiagram) : undefined;
+}
+
 /**
  * Turns diagram code into editable canvas objects centered on `center`. Every object is tagged with the live
  * session so the next edit can replace it, and the first carries the source so the editor can reopen from the file.
  */
-export function generateLiveDiagram(format: LiveDiagramFormat, source: string, center: Point, sessionId: string): LiveDiagramResult {
+export function generateLiveDiagram(format: LiveDiagramFormat, source: string, center: Point, sessionId: string, d2Parser?: (source: string) => Element[]): LiveDiagramResult {
   let elements: Element[]; let warnings: string[] = [];
-  if (format === "mermaid") elements = /^\s*sequenceDiagram\b/im.test(source) ? layoutMermaidSequence(parseMermaidSequence(source), center) : layoutMermaidFlowchart(parseMermaidFlowchart(source), center);
+  if (format === "mermaid") {
+    const extended = detectExtendedMermaidType(source);
+    elements = /^\s*sequenceDiagram\b/im.test(source) ? layoutMermaidSequence(parseMermaidSequence(source), center) : extended ? layoutExtendedMermaid(source, center).elements : layoutMermaidFlowchart(parseMermaidFlowchart(source), center);
+  }
   else if (format === "org") { const built = buildOrgChart(source, center); elements = built.elements; warnings = built.warnings; }
   else if (format === "cloud") { const built = cloudDiagramFromText(source, center); elements = built.elements; warnings = built.warnings; }
   else {
-    const generated = format === "plantuml" ? plantUmlToDiagram(source) : d2ToDiagram(source);
+    const generated = format === "plantuml" ? plantUmlToDiagram(source) : d2Parser ? d2Parser(source) : [];
+    if (format === "d2" && !d2Parser) throw new Error("The D2 parser has not been loaded yet.");
     const bounds = unionBounds(generated.map(elementBounds));
     elements = bounds ? generated.map(item => translateElement(item, center.x - bounds.x - bounds.w / 2, center.y - bounds.y - bounds.h / 2)) : generated;
   }

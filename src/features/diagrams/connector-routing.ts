@@ -5,14 +5,16 @@ import { ElementSpatialIndex } from "../canvas/spatial-index";
 type Rect = { left: number; top: number; right: number; bottom: number };
 type CachedRoute = { key: string; context: AutoRouteContext; points: Point[]; bounds: Bounds };
 const routeCache = new WeakMap<ShapeElement, CachedRoute>();
-export type AutoRouteContext = { flatItems: Element[]; candidates: Map<Element, Bounds>; index: ElementSpatialIndex; routeEnvelopes: WeakMap<ShapeElement, Bounds> };
+export type AutoRouteContext = { flatItems: Element[]; byId: Map<string, Element>; candidates: Map<Element, Bounds>; index: ElementSpatialIndex; routeEnvelopes: WeakMap<ShapeElement, Bounds> };
 
 const isRouteObstacle = (item: Element) => item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" || item.type === "svgPath" || item.type === "text" || item.type === "image" || item.type === "schemaTable" || item.type === "group" && (!!item.componentBounds || !!item.libraryComponent || !!item.note || !!item.mermaid);
 
 export function createAutoRouteContext(items: Element[], isHidden: (item: Element) => boolean = item => !!item.hidden): AutoRouteContext {
   const flatItems = flat(items, isHidden);
+  const byId = new Map<string, Element>();
+  for (const item of flatItems) if (item.id && !byId.has(item.id)) byId.set(item.id, item);
   const candidates = new Map(flatItems.filter(isRouteObstacle).map(item => [item, elementBounds(item)] as const));
-  return { flatItems, candidates, index: new ElementSpatialIndex(flatItems), routeEnvelopes: new WeakMap() };
+  return { flatItems, byId, candidates, index: new ElementSpatialIndex(flatItems), routeEnvelopes: new WeakMap() };
 }
 
 function intersects(a: Bounds, b: Bounds) {
@@ -58,13 +60,19 @@ export function autoRouteMayIntersect(connector: ShapeElement, context: AutoRout
   return intersects(envelope, viewport);
 }
 
-function flat(items: Element[], isHidden: (item: Element) => boolean, parentHidden = false): Element[] {
-  return items.flatMap(item => {
-    if (parentHidden || isHidden(item)) return [];
-    return item.type === "group" && !item.componentBounds && !item.libraryComponent && !item.note && !item.mermaid
-      ? flat(item.elements, isHidden, parentHidden || isHidden(item))
-      : [item];
-  });
+function flat(items: Element[], isHidden: (item: Element) => boolean): Element[] {
+  const result: Element[] = [];
+  const pending = items.slice().reverse();
+  while (pending.length) {
+    const item = pending.pop()!;
+    if (isHidden(item)) continue;
+    if (item.type === "group" && !item.componentBounds && !item.libraryComponent && !item.note && !item.mermaid) {
+      for (let index = item.elements.length - 1; index >= 0; index--) pending.push(item.elements[index]);
+      continue;
+    }
+    result.push(item);
+  }
+  return result;
 }
 
 function isConnector(element: Element): element is ShapeElement & { type: "line" | "arrow" } {
@@ -208,7 +216,7 @@ export function autoRoutePoints(connector: ShapeElement, items: Element[] | Auto
   // Keep bound tables in the obstacle set and route from a short stub outside their edge.
   const endpointStub = (endpoint: Point, other: Point, binding: ShapeElement["startBinding"] | ShapeElement["endBinding"]): Point => {
     if (!binding) return endpoint;
-    const target = flatItems.find(item => item.id === binding.elementId);
+    const target = context.byId.get(binding.elementId);
     const bounds = target && context.candidates.get(target);
     if (!target || !bounds) return endpoint;
     const anchor = binding.anchor ?? { x: .5, y: .5 };

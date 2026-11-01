@@ -191,6 +191,27 @@
         border-radius: 21px;
     }
 
+    .app-shell:not(.platform-windows) .confirm-dialog:is(.schema-dialog, .mermaid-dialog, .database-schema-dialog) {
+        width: min(1080px, calc(100vw - 48px));
+        height: min(82dvh, 820px);
+        max-width: calc(100vw - 48px);
+        max-height: calc(100dvh - 32px);
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    @media (max-width: 760px) {
+        .app-shell:not(.platform-windows) .confirm-dialog:is(.schema-dialog, .mermaid-dialog, .database-schema-dialog) {
+            width: calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right));
+            height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+            max-width: calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right));
+            max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+    }
+
     @media (max-width: 560px) {
         .app-shell:not(.platform-windows) .gesture-action-card {
             grid-template-columns: 34px minmax(64px, .55fr) minmax(0, 1fr);

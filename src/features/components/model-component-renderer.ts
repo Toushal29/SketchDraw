@@ -2,9 +2,11 @@ import type { Element, GroupElement, Theme } from "../../model";
 import { cloudNeutralComponent, cloudProviderComponent } from "../diagrams/cloud-providers";
 import { cloudNeutralCanvasPath, cloudNeutralIconPath } from "./cloud-neutral-icons";
 import { drawGuiComponent, guiComponentSvg } from "./gui-components";
-import { componentBaselineOffset, componentFont as sharedComponentFont, componentFontFamily } from "./component-text";
+import { componentBaselineOffset, componentBoxTextAnchor, componentFont as sharedComponentFont, componentFontFamily } from "./component-text";
 import { normalizeComponentSvgText } from "./component-text";
-import { proposalComponentForKind } from "./proposal-components";
+import { proposalComponentForKind, proposalComponentScore } from "./proposal-components";
+import { drawProposalPlanningComponent, proposalPlanningComponentSvg } from "./proposal-planning-renderer";
+import { drawProposalWireframeComponent, proposalWireframeComponentSvg } from "./proposal-wireframe-renderer";
 
 type Palette = { ink: string; edge: string; fill: string; soft: string; muted: string; accent: string };
 function componentThemeToken(name: string, fallback: string, dark = false) {
@@ -65,7 +67,7 @@ function componentTextAnchor(x: number, width: number, from: CanvasTextAlign, to
   return to === "center" ? left + width / 2 : to === "right" ? left + width : left;
 }
 function text(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, maxWidth: number, size: number, color: string, weight = 500, align: CanvasTextAlign = "left", style?: ComponentTextStyle) {
-  const fontSize = Math.max(9, size);
+  const fontSize = Math.max(5, size);
   const actualWeight = style?.bold === undefined ? weight : style.bold ? 700 : 400;
   ctx.fillStyle = color; ctx.font = componentFont(fontSize, weight, style); ctx.textAlign = align; ctx.textBaseline = "alphabetic";
   ctx.fillText(value, x, y + componentBaselineOffset(fontSize, actualWeight, style?.fontFamily, style?.italic), Math.max(1, maxWidth));
@@ -135,7 +137,10 @@ function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bound
     maxWidth = Math.min(width, right - x);
   }
   if (maxWidth < 2) return;
-  let size = Math.max(9, Math.min(48, requestedSize, bottom - top));
+  // Small labels inside compact architecture cards intentionally use 6–8 px.
+  // Raising them to 9 px made these labels wrap beyond their own sub-boxes.
+  const minimumSize = Math.max(5, Math.min(9, requestedSize));
+  let size = Math.max(minimumSize, Math.min(48, requestedSize, bottom - top));
   let lines: string[] = [];
   let lineHeight = size * 1.18;
   let maxLines = Math.max(1, Math.floor((bottom - top) / lineHeight));
@@ -144,8 +149,8 @@ function fittedComponentText(ctx: CanvasRenderingContext2D, value: string, bound
     lines = wrapComponentLabel(ctx, value, maxWidth);
     lineHeight = size * 1.18;
     maxLines = Math.min(maxLineLimit, Math.max(1, Math.floor((bottom - top) / lineHeight)));
-    if (lines.length <= maxLines || size <= 9) break;
-    size = Math.max(9, size - 1);
+    if (lines.length <= maxLines || size <= minimumSize) break;
+    size = Math.max(minimumSize, size - 1);
   }
   if (lines.length > maxLines) {
     lines = lines.slice(0, maxLines);
@@ -193,7 +198,610 @@ function drawPorts(ctx: CanvasRenderingContext2D, x: number, y: number, width: n
   return rows;
 }
 
-function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme) {
+function drawProposalSystemsComponent(
+  ctx: CanvasRenderingContext2D,
+  group: GroupElement,
+  bounds: { x: number; y: number; w: number; h: number },
+  kind: string,
+  name: string,
+  fill: string,
+  edge: string,
+  textInk: string,
+  size: number,
+  textStyle: ComponentTextStyle | undefined,
+  palette: Palette,
+): boolean {
+  const definition = proposalComponentForKind(kind);
+  if (!definition?.section.startsWith("Systems engineering") || definition.archetype === "connector") return false;
+  const { x, y, w, h } = bounds;
+  const fields = group.libraryComponent?.componentFields ?? [];
+  const value = (key: string) => fields.find(item => item.key === key)?.value.trim() ?? "";
+  const label = (key: string) => fields.find(item => item.key === key)?.label ?? key.replace(/-/g, " ");
+  const ink = edge;
+  const fillShape = (rounded = 4, dashed = false) => {
+    ctx.beginPath();
+    if (rounded) roundRect(ctx, x + 1, y + 1, w - 2, h - 2, rounded);
+    else ctx.rect(x + 1, y + 1, w - 2, h - 2);
+    ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill;
+    if (fill !== "transparent") ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.5; ctx.setLineDash(dashed ? [6, 4] : []); ctx.stroke(); ctx.setLineDash([]);
+  };
+  const rule = (atY: number, left = x + 1, right = x + w - 1) => {
+    ctx.beginPath(); ctx.moveTo(left, atY); ctx.lineTo(right, atY); ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.stroke();
+  };
+  const title = (stereotype: string, titleY = y + 33, titleSize = Math.min(size, 15), centered = false) => {
+    fittedComponentText(ctx, `«${stereotype}»`, bounds, centered ? x + w / 2 : x + 10, y + 16, w - 20, Math.min(10, size * .72), palette.accent, 600, centered ? "center" : "left", textStyle, 1);
+    fittedComponentText(ctx, name, bounds, centered ? x + w / 2 : x + 10, titleY, w - 20, titleSize, textInk, 650, centered ? "center" : "left", textStyle, 2);
+  };
+  const rows = (keys: string[], top: number, bottom: number, options: { inset?: number; fontSize?: number; maxLines?: number } = {}) => {
+    const visible = keys.map(key => ({ key, text: value(key) })).filter(item => item.text);
+    if (!visible.length || bottom <= top) return;
+    const rowHeight = (bottom - top) / visible.length;
+    visible.forEach((item, index) => {
+      const rowTop = top + rowHeight * index;
+      if (index) rule(rowTop, x + 1, x + w - 1);
+      const rowText = `${label(item.key)}: ${item.text.replace(/\s*\n\s*/g, " · ")}`;
+      fittedComponentText(ctx, rowText, bounds, x + (options.inset ?? 9), rowTop + rowHeight / 2, w - (options.inset ?? 9) - 8, Math.min(options.fontSize ?? size * .72, rowHeight * .72), textInk, 400, "left", textStyle, options.maxLines ?? 1);
+    });
+  };
+  const drawPortIcon = (atX: number, atY: number) => {
+    ctx.fillStyle = fill === "transparent" ? palette.fill : fill;
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.4;
+    ctx.fillRect(atX - 5, atY - 5, 10, 10); ctx.strokeRect(atX - 5, atY - 5, 10, 10);
+  };
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+
+  if (kind === "proposal-systems-sysml-requirement") {
+    fillShape(2);
+    fittedComponentText(ctx, "«requirement»", bounds, x + 10, y + 14, w - 20, 10, palette.accent, 600, "left", textStyle, 1);
+    const id = value("requirement-id");
+    fittedComponentText(ctx, id ? `ID: ${id}` : name, bounds, x + 10, y + 34, w - 20, Math.min(size, 16), textInk, 650, "left", textStyle, 1);
+    rule(y + 43);
+    const statement = value("statement");
+    if (statement) fittedComponentText(ctx, statement, bounds, x + 10, y + 75, w - 20, Math.min(size, 13), textInk, 500, "left", textStyle, 3);
+    rule(y + h * .61);
+    rows(["rationale", "verification"], y + h * .61, y + h - 1, { fontSize: Math.min(11, size * .72), maxLines: 2 });
+  } else if (kind === "proposal-systems-sysml-block") {
+    fillShape(2);
+    fittedComponentText(ctx, "«block»", bounds, x + 10, y + 14, w - 20, 10, palette.accent, 600, "left", textStyle, 1);
+    fittedComponentText(ctx, name, bounds, x + 10, y + 35, w - 20, Math.min(size, 16), textInk, 650, "left", textStyle, 2);
+    rule(y + 45);
+    rows(["stereotype", "parts", "values", "interfaces"], y + 45, y + h - 1, { fontSize: Math.min(12, size * .72), maxLines: 2 });
+  } else if (kind === "proposal-systems-activity-partition") {
+    fillShape(1, true);
+    ctx.fillStyle = palette.soft; ctx.fillRect(x + 2, y + 2, w - 4, 30);
+    rule(y + 33);
+    fittedComponentText(ctx, value("responsibility") || name, bounds, x + 10, y + 18, w - 20, Math.min(size, 13), textInk, 650, "left", textStyle, 1);
+    rows(["actions", "inputs", "outputs"], y + 34, y + h - 8, { inset: 10, fontSize: Math.min(12, size * .72), maxLines: 2 });
+  } else if (kind === "proposal-systems-time-event" || kind === "proposal-systems-change-event") {
+    const radius = Math.max(16, Math.min(24, h * .16, w * .12)); const cx = x + radius + 12; const cy = y + h / 2;
+    ctx.beginPath(); ctx.ellipse(cx, cy, radius, radius, 0, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 1.5; ctx.stroke();
+    if (kind.endsWith("time-event")) {
+      ctx.beginPath(); ctx.ellipse(cx, cy, radius - 5, radius - 5, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx, cy - 7); ctx.lineTo(cx, cy); ctx.lineTo(cx + 6, cy + 4); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(cx - 10, cy); ctx.quadraticCurveTo(cx - 5, cy - 9, cx, cy); ctx.quadraticCurveTo(cx + 5, cy + 9, cx + 10, cy); ctx.stroke();
+    }
+    const contentX = x + radius * 2 + 22; const contentWidth = Math.max(24, w - (contentX - x) - 10);
+    fittedComponentText(ctx, kind.endsWith("time-event") ? "«time event»" : "«change event»", bounds, contentX, y + 16, contentWidth, 9, palette.accent, 600, "left", textStyle, 1);
+    fittedComponentText(ctx, name, bounds, contentX, y + 36, contentWidth, Math.min(size, 14), textInk, 650, "left", textStyle, 2);
+    rows(["trigger", "expression", "transition", "scope"], y + 52, y + h - 4, { inset: contentX - x, fontSize: Math.min(10, size * .64), maxLines: 2 });
+  } else if (kind === "proposal-systems-action-pin" || kind === "proposal-systems-object-node") {
+    fillShape(kind.endsWith("action-pin") ? 5 : 14);
+    const stereotype = kind.endsWith("action-pin") ? "pin" : "object";
+    fittedComponentText(ctx, `«${stereotype}»`, bounds, x + 9, y + 14, w - 18, 9, palette.accent, 600, "left", textStyle, 1);
+    fittedComponentText(ctx, value(kind.endsWith("action-pin") ? "pin-name" : "object") || name, bounds, x + w / 2, y + h * .43, w - 22, Math.min(size, 15), textInk, 600, "center", textStyle, 2);
+    rows(kind.endsWith("action-pin") ? ["type", "direction", "multiplicity"] : ["state", "direction", "pins"], y + h * .62, y + h - 5, { fontSize: Math.min(11, size * .65), maxLines: 1 });
+    if (kind.endsWith("action-pin")) {
+      const output = value("direction").toLowerCase().startsWith("out"); const pinX = output ? x + w - 2 : x + 2; const cy = y + h / 2;
+      ctx.beginPath(); ctx.moveTo(pinX, cy - 8); ctx.lineTo(pinX + (output ? 8 : -8), cy - 8); ctx.lineTo(pinX + (output ? 8 : -8), cy + 8); ctx.lineTo(pinX, cy + 8); ctx.strokeStyle = ink; ctx.lineWidth = 1.4; ctx.stroke();
+    }
+  } else if (kind === "proposal-systems-send-signal-action" || kind === "proposal-systems-accept-signal-action") {
+    fillShape(9);
+    fittedComponentText(ctx, kind.endsWith("send-signal-action") ? "sendSignal" : "acceptEvent", bounds, x + 10, y + 23, w - 20, Math.min(size, 15), palette.accent, 650, "left", textStyle, 1);
+    fittedComponentText(ctx, name, bounds, x + 10, y + 44, w - 20, Math.min(size, 14), textInk, 600, "left", textStyle, 2);
+    rule(y + 55);
+    rows(["signal", "payload", "source-target", "guard"], y + 55, y + h - 2, { fontSize: Math.min(11, size * .68), maxLines: 1 });
+  } else if (kind === "proposal-systems-provided-interface" || kind === "proposal-systems-required-interface") {
+    const cx = x + w * .16; const cy = y + h / 2; const radius = Math.max(10, Math.min(18, h * .16, w * .08));
+    ctx.strokeStyle = ink; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x + 1, cy); ctx.lineTo(cx - radius, cy); ctx.stroke();
+    if (kind.endsWith("provided-interface")) {
+      ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; ctx.fill(); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(cx + radius * .55, cy, radius, Math.PI * .65, Math.PI * 1.35); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + radius * .18, cy - radius * .76); ctx.lineTo(cx + radius * .18, cy + radius * .76); ctx.stroke();
+    }
+    fittedComponentText(ctx, kind.endsWith("provided-interface") ? "«provided»" : "«required»", bounds, x + w * .34, cy - 19, w * .62, 10, palette.accent, 600, "left", textStyle, 1);
+    fittedComponentText(ctx, value("interface") || name, bounds, x + w * .34, cy + 1, w * .62, Math.min(size, 14), textInk, 650, "left", textStyle, 2);
+    const responsible = kind.endsWith("provided-interface") ? value("provider") : value("consumer");
+    const interfaceDetails = [["Role", responsible], ["Operations", value("operations")], ["Protocol", value("protocol")]].filter(([, item]) => item);
+    interfaceDetails.forEach(([label, item], index) => fittedComponentText(ctx, `${label}: ${item}`, bounds, x + w * .34, cy + 24 + index * 17, w * .62, Math.min(10, size * .65), textInk, 400, "left", textStyle, 1));
+  } else if (kind === "proposal-systems-uml-combined-fragment") {
+    fillShape(1);
+    const tabWidth = Math.min(82, w * .38); const tabHeight = Math.min(30, h * .22);
+    ctx.beginPath(); ctx.moveTo(x + 1, y + tabHeight); ctx.lineTo(x + 1, y + 1); ctx.lineTo(x + tabWidth, y + 1); ctx.lineTo(x + tabWidth + 13, y + tabHeight); ctx.closePath();
+    ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 1.2; ctx.stroke();
+    fittedComponentText(ctx, value("operator") || "alt", bounds, x + 8, y + tabHeight * .64, tabWidth - 10, 11, palette.accent, 700, "left", textStyle, 1);
+    fittedComponentText(ctx, value("guard") || name, bounds, x + tabWidth + 16, y + tabHeight + 17, w - tabWidth - 22, Math.min(size, 13), textInk, 600, "left", textStyle, 2);
+    rows(["operands", "lifelines"], y + tabHeight + 30, y + h - 2, { fontSize: Math.min(12, size * .72), maxLines: 2 });
+  } else if (kind === "proposal-systems-constraint-block" || kind === "proposal-systems-parametric-constraint") {
+    fillShape(2);
+    fittedComponentText(ctx, "«constraint»", bounds, x + 10, y + 14, w - 20, 10, palette.accent, 600, "left", textStyle, 1);
+    fittedComponentText(ctx, name, bounds, x + 10, y + 34, w - 20, Math.min(size, 14), textInk, 650, "left", textStyle, 1);
+    rule(y + 43);
+    const expression = value("expression");
+    if (expression) fittedComponentText(ctx, expression, bounds, x + w / 2, y + h * .62, w - 24, Math.min(15, size), textInk, 500, "center", textStyle, 3);
+    rows(["inputs", "outputs", "variables", "units", "assumptions", "source"], y + h * .72, y + h - 2, { fontSize: Math.min(10, size * .65), maxLines: 1 });
+  } else if (kind === "proposal-systems-interface-block" || /proposal-systems-(?:full-port|proxy-port|uml-port)$/.test(kind)) {
+    fillShape(2);
+    const port = /port$/.test(kind);
+    fittedComponentText(ctx, port ? `«${kind.endsWith("full-port") ? "full port" : kind.endsWith("proxy-port") ? "proxy port" : "port"}»` : "«interface block»", bounds, x + 10, y + 15, w - 28, 10, palette.accent, 600, "left", textStyle, 1);
+    fittedComponentText(ctx, value(port ? "port-name" : "interface-name") || name, bounds, x + 10, y + 37, w - 22, Math.min(size, 15), textInk, 650, "left", textStyle, 2);
+    if (port) drawPortIcon(x + w - 2, y + h / 2);
+    rule(y + 48);
+    rows(port ? ["direction", "interface", "delegation"] : ["provided", "required", "protocol"], y + 48, y + h - 2, { fontSize: Math.min(11, size * .68), maxLines: 2 });
+  } else if (kind === "proposal-systems-protocol-state") {
+    fillShape(18);
+    fittedComponentText(ctx, value("state") || name, bounds, x + w / 2, y + 25, w - 24, Math.min(size, 16), textInk, 650, "center", textStyle, 2);
+    rule(y + 39, x + 10, x + w - 10);
+    rows(["entry-exit", "allowed-transitions", "protocol"], y + 39, y + h - 3, { inset: 12, fontSize: Math.min(11, size * .68), maxLines: 2 });
+  } else {
+    const property = /property$/.test(kind) || kind.endsWith("value-type");
+    fillShape(property ? 1 : 3);
+    const stereotype = kind.endsWith("part-property") ? "part" : kind.endsWith("reference-property") ? "reference" : kind.endsWith("value-property") ? "value" : kind.endsWith("value-type") ? "value type" : kind.endsWith("requirement-stakeholder") ? "requirement stakeholder" : kind.endsWith("requirement-test-case") ? "test case" : kind.endsWith("requirement-risk") ? "requirement risk" : "element";
+    title(stereotype, y + 36, Math.min(size, 15));
+    rule(y + 45);
+    const propertyFields = kind.endsWith("part-property") ? ["part-name", "type", "owner", "constraint"]
+      : kind.endsWith("reference-property") ? ["reference-name", "type", "target", "role"]
+        : kind.endsWith("value-property") ? ["value-name", "type", "value", "range"]
+          : kind.endsWith("value-type") ? ["type-name", "base-type", "unit", "constraint"]
+            : kind.endsWith("requirement-stakeholder") ? ["stakeholder", "need", "priority", "trace"]
+              : kind.endsWith("requirement-test-case") ? ["test-id", "preconditions", "procedure", "expected"]
+                : kind.endsWith("requirement-risk") ? ["risk", "likelihood", "impact", "mitigation"]
+                  : kind.endsWith("provided-interface") ? ["interface", "provider", "operations", "protocol"]
+                    : kind.endsWith("required-interface") ? ["interface", "consumer", "operations", "protocol"]
+                      : ["element", "specification", "properties", "trace"];
+    rows(propertyFields, y + 45, y + h - 2, { fontSize: Math.min(12, size * .7), maxLines: 2 });
+  }
+  ctx.restore();
+  return true;
+}
+
+function drawProposalDecisionComponent(
+  ctx: CanvasRenderingContext2D,
+  group: GroupElement,
+  bounds: { x: number; y: number; w: number; h: number },
+  kind: string,
+  name: string,
+  fill: string,
+  edge: string,
+  textInk: string,
+  size: number,
+  textStyle: ComponentTextStyle | undefined,
+  palette: Palette,
+): boolean {
+  const definition = proposalComponentForKind(kind);
+  if (!definition?.section.startsWith("Decision modelling") || definition.archetype === "connector") return false;
+  const { x, y, w, h } = bounds;
+  const fields = group.libraryComponent?.componentFields ?? [];
+  const value = (key: string) => fields.find(item => item.key === key)?.value.trim() ?? "";
+  const fieldLabel = (key: string) => fields.find(item => item.key === key)?.label ?? key.replace(/-/g, " ");
+  const compactLabels: Record<string, string> = { "event-definition": "Definition", behavior: "Behavior", flow: "Flow", "outputs-policy": "Policy", "source-target": "Participants", "associated-work": "Activity" };
+  const panel = (radius = 4, dash: number[] = []) => {
+    ctx.beginPath(); roundRect(ctx, x + 1, y + 1, w - 2, h - 2, radius);
+    if (fill !== "transparent") { ctx.fillStyle = fill; ctx.fill(); }
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.setLineDash(dash); ctx.stroke(); ctx.setLineDash([]);
+  };
+  const rule = (y1: number, x1 = x + 1, x2 = x + w - 1, dash: number[] = []) => {
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y1); ctx.strokeStyle = edge; ctx.lineWidth = 1; ctx.setLineDash(dash); ctx.stroke(); ctx.setLineDash([]);
+  };
+  const title = (stereotype: string, left = x + 10, top = y + 16, width = w - 20, centered = false, displayName = name) => {
+    fittedComponentText(ctx, `${stereotype}`, bounds, centered ? left + width / 2 : left, top, width, 9, palette.accent, 600, centered ? "center" : "left", textStyle, 1);
+    fittedComponentText(ctx, displayName, bounds, centered ? left + width / 2 : left, top + 19, width, Math.min(size, 14), textInk, 650, centered ? "center" : "left", textStyle, 2);
+  };
+  const rows = (keys: string[], top: number, bottom: number, left = x + 10, width = w - 20, font = Math.min(11, size * .68)) => {
+    const visible = keys.map(key => ({ key, text: value(key) })).filter(item => item.text);
+    if (!visible.length || bottom <= top) return;
+    const rowHeight = (bottom - top) / visible.length;
+    visible.forEach((item, index) => {
+      const rowTop = top + rowHeight * index;
+      if (index) rule(rowTop, left - 2, left + width + 2);
+      const detail = `${compactLabels[item.key] ?? fieldLabel(item.key)}: ${item.text.replace(/\s*\n\s*/g, " | ")}`;
+      fittedComponentText(ctx, detail, bounds, left, rowTop + rowHeight / 2, width, Math.min(font, rowHeight * .72), textInk, 400, "left", textStyle, rowHeight >= 20 ? 2 : 1);
+    });
+  };
+
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+  if (/proposal-decision-(?:conditional|escalation|compensation|link|multiple|parallel-multiple|cancel)-event$/.test(kind)) {
+    const radius = Math.max(18, Math.min(29, h * .22, w * .12)); const cx = x + radius + 12; const cy = y + h / 2;
+    const behavior = value("behavior").toLowerCase(); const nonInterrupting = behavior.includes("non-interrupt");
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = nonInterrupting ? 1.5 : 2.4; ctx.setLineDash(nonInterrupting ? [4, 3] : []); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.fillStyle = edge;
+    if (kind.endsWith("conditional-event")) { ctx.beginPath(); ctx.moveTo(cx - 7, cy - 9); ctx.lineTo(cx + 7, cy - 9); ctx.lineTo(cx + 7, cy + 3); ctx.lineTo(cx, cy + 9); ctx.lineTo(cx - 7, cy + 3); ctx.closePath(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx - 4, cy - 3); ctx.lineTo(cx + 4, cy - 3); ctx.moveTo(cx - 4, cy + 1); ctx.lineTo(cx + 4, cy + 1); ctx.stroke(); }
+    else if (kind.endsWith("escalation-event")) { ctx.beginPath(); ctx.moveTo(cx, cy + 8); ctx.lineTo(cx, cy - 8); ctx.lineTo(cx - 6, cy - 2); ctx.moveTo(cx, cy - 8); ctx.lineTo(cx + 6, cy - 2); ctx.stroke(); }
+    else if (kind.endsWith("compensation-event")) { ctx.beginPath(); ctx.moveTo(cx - 8, cy); ctx.lineTo(cx - 1, cy - 6); ctx.lineTo(cx - 1, cy + 6); ctx.closePath(); ctx.moveTo(cx + 1, cy); ctx.lineTo(cx + 8, cy - 6); ctx.lineTo(cx + 8, cy + 6); ctx.closePath(); ctx.stroke(); }
+    else if (kind.endsWith("link-event")) { ctx.beginPath(); ctx.arc(cx - 4, cy, 5, -.8, 2.3); ctx.moveTo(cx + 8, cy); ctx.arc(cx + 4, cy, 5, 2.3, 5.5); ctx.stroke(); }
+    else if (kind.endsWith("parallel-multiple-event")) { ctx.beginPath(); ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8); ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy); ctx.moveTo(cx - 6, cy - 6); ctx.lineTo(cx + 6, cy + 6); ctx.moveTo(cx + 6, cy - 6); ctx.lineTo(cx - 6, cy + 6); ctx.stroke(); }
+    else if (kind.endsWith("multiple-event")) { for (const [dx, dy] of [[0, -7], [7, 0], [0, 7], [-7, 0]]) { ctx.beginPath(); ctx.moveTo(cx + dx, cy + dy - 2); ctx.lineTo(cx + dx + 2, cy + dy); ctx.lineTo(cx + dx, cy + dy + 2); ctx.lineTo(cx + dx - 2, cy + dy); ctx.closePath(); ctx.fill(); } }
+    else { ctx.beginPath(); ctx.moveTo(cx - 7, cy - 7); ctx.lineTo(cx + 7, cy + 7); ctx.moveTo(cx + 7, cy - 7); ctx.lineTo(cx - 7, cy + 7); ctx.stroke(); }
+    const contentX = x + radius * 2 + 22; const contentWidth = Math.max(24, w - (contentX - x) - 10);
+    title("BPMN event", contentX, y + 14, contentWidth);
+    rows(["trigger", "event-definition", "behavior", "flow"], y + 54, y + h - 4, contentX, contentWidth, Math.min(10, size * .62));
+  } else if (/proposal-decision-(?:event-subprocess|transaction-subprocess|ad-hoc-subprocess)$/.test(kind)) {
+    const dash = kind.endsWith("event-subprocess") ? [2, 3] : kind.endsWith("ad-hoc-subprocess") ? [7, 4] : [];
+    panel(2, dash);
+    if (kind.endsWith("transaction-subprocess")) { ctx.strokeStyle = edge; ctx.lineWidth = 1; ctx.strokeRect(x + 5, y + 5, w - 10, h - 10); }
+    title(kind.endsWith("event-subprocess") ? "event subprocess" : kind.endsWith("transaction-subprocess") ? "transaction" : "ad hoc");
+    rule(y + 44);
+    rows(["purpose", "participants", "completion", "messages"], y + 45, y + h - 3);
+    if (kind.endsWith("ad-hoc-subprocess")) fittedComponentText(ctx, "~", bounds, x + w - 16, y + h - 9, 12, 13, edge, 700, "center", textStyle, 1);
+    else if (kind.endsWith("event-subprocess")) fittedComponentText(ctx, "O", bounds, x + w - 17, y + h - 10, 14, 11, edge, 700, "center", textStyle, 1);
+  } else if (kind.endsWith("choreography-task") || kind.endsWith("call-choreography")) {
+    panel(3);
+    if (kind.endsWith("call-choreography")) { ctx.strokeStyle = edge; ctx.lineWidth = 2.5; ctx.strokeRect(x + 2, y + 2, w - 4, h - 4); }
+    const top = value("participants").split(/[\r\n,]+/).map(item => item.trim()).filter(Boolean);
+    const bandHeight = Math.min(24, h * .18);
+    ctx.fillStyle = palette.soft; ctx.fillRect(x + 2, y + 2, w - 4, bandHeight);
+    ctx.fillRect(x + 2, y + h - bandHeight - 2, w - 4, bandHeight);
+    rule(y + bandHeight + 2); rule(y + h - bandHeight - 2);
+    fittedComponentText(ctx, top[0] ?? "Participant", bounds, x + 9, y + bandHeight / 2 + 2, w - 18, 9, textInk, 600, "left", textStyle, 1);
+    fittedComponentText(ctx, top[1] ?? "Participant", bounds, x + 9, y + h - bandHeight / 2 - 2, w - 18, 9, textInk, 600, "left", textStyle, 1);
+    fittedComponentText(ctx, name, bounds, x + 10, y + bandHeight + 14, w - 20, Math.min(size, 13), textInk, 650, "center", textStyle, 1);
+    const details = [["Purpose", value("purpose")], ["Completion", value("completion")], ["Messages", value("messages")]].filter(([, detail]) => detail);
+    details.forEach(([label, detail], index) => fittedComponentText(ctx, `${label}: ${detail}`, bounds, x + 10, y + bandHeight + 27 + index * 11, w - 20, 8, palette.muted, 400, "center", textStyle, 1));
+  } else if (kind.endsWith("conversation-node")) {
+    const inset = Math.min(18, w * .12);
+    ctx.beginPath(); ctx.moveTo(x + inset, y + 1); ctx.lineTo(x + w - inset, y + 1); ctx.lineTo(x + w - 1, y + h / 2); ctx.lineTo(x + w - inset, y + h - 1); ctx.lineTo(x + inset, y + h - 1); ctx.lineTo(x + 1, y + h / 2); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    title("conversation", x + 18, y + 12, w - 36, true); rows(["purpose", "participants", "completion", "messages"], y + 49, y + h - 3, x + 18, w - 36, Math.min(9, size * .58));
+  } else if (kind.endsWith("bpmn-message")) {
+    panel(2); const left = x + 15; const top = y + 18; const iconW = Math.min(45, w * .2); const iconH = 30;
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.strokeRect(left, top, iconW, iconH); ctx.beginPath(); ctx.moveTo(left, top); ctx.lineTo(left + iconW / 2, top + iconH * .56); ctx.lineTo(left + iconW, top); ctx.stroke();
+    const textLeft = left + iconW + 12; const textWidth = w - (textLeft - x) - 10;
+    title("message", textLeft, y + 14, textWidth); rows(["message-name", "payload", "correlation", "source-target"], y + 54, y + h - 4, textLeft, textWidth, Math.min(10, size * .62));
+  } else if (/proposal-decision-data-(?:input|output)$/.test(kind)) {
+    const fold = Math.min(18, w * .13); ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + w - fold, y + 1); ctx.lineTo(x + w - 1, y + fold); ctx.lineTo(x + w - 1, y + h - 1); ctx.lineTo(x + 1, y + h - 1); ctx.closePath(); ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + w - fold, y + 1); ctx.lineTo(x + w - fold, y + fold); ctx.lineTo(x + w - 1, y + fold); ctx.stroke();
+    title(kind.endsWith("data-input") ? "data input" : "data output"); rule(y + 44); rows(["data-name", "structure", "direction", "associated-work"], y + 45, y + h - 3);
+  } else if (kind.endsWith("data-collection")) {
+    panel(1); const cy = y + 17; ctx.beginPath(); ctx.ellipse(x + w / 2, cy, w * .48, 9, 0, 0, Math.PI * 2); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 2, cy); ctx.lineTo(x + 2, y + h - 14); ctx.moveTo(x + w - 2, cy); ctx.lineTo(x + w - 2, y + h - 14); ctx.ellipse(x + w / 2, y + h - 14, w * .48, 9, 0, 0, Math.PI); ctx.stroke();
+    title("data collection", x + 12, y + 8, w - 24, true); rows(["data-name", "structure", "direction", "associated-work"], y + 50, y + h - 16);
+  } else if (/proposal-decision-dmn-decision-table$/.test(kind)) {
+    panel(2);
+    fittedComponentText(ctx, value("question") || name, bounds, x + 10, y + 17, w - 20, Math.min(13, size), textInk, 650, "left", textStyle, 2);
+    const inputNames = value("inputs").split(/\r?\n/).map(item => item.trim()).filter(Boolean).slice(0, 3);
+    const outputSpec = value("outputs-policy");
+    const outputName = outputSpec.replace(/hit\s*policy\s*[:=].*$/im, "").replace(/^\s*outputs?\s*[:=]\s*/i, "").trim();
+    const headers = [...inputNames.map(item => item.split(/[:(]/)[0].trim()), outputName || "Output"];
+    const policy = (outputSpec.match(/(?:hit\s*policy\s*[:=]\s*)?(unique|first|any|collect|rule\s*order|output\s*order|priority|any\s*order)/i)?.[1] ?? "FIRST").toUpperCase();
+    const gridTop = y + 38; const gridBottom = y + h - 19; const rowsData = value("rules").split(/\r?\n/).map(line => line.split("|").map(cell => cell.trim())).filter(cells => cells.some(Boolean)).slice(0, 4);
+    const displayedRows = Math.max(2, rowsData.length + 1); const rowHeight = Math.max(15, (gridBottom - gridTop) / displayedRows); const columnWidth = (w - 2) / headers.length;
+    ctx.fillStyle = palette.soft; ctx.fillRect(x + 1, gridTop, w - 2, rowHeight);
+    for (let column = 0; column <= headers.length; column++) { const columnX = x + columnWidth * column; ctx.beginPath(); ctx.moveTo(columnX, gridTop); ctx.lineTo(columnX, gridTop + rowHeight * displayedRows); ctx.strokeStyle = edge; ctx.lineWidth = .9; ctx.stroke(); }
+    for (let row = 0; row <= displayedRows; row++) rule(gridTop + rowHeight * row, x + 1, x + w - 1);
+    headers.forEach((header, index) => fittedComponentText(ctx, header, bounds, x + columnWidth * index + columnWidth / 2, gridTop + rowHeight / 2, columnWidth - 6, 9, textInk, 650, "center", textStyle, 1));
+    rowsData.forEach((cells, rowIndex) => headers.forEach((_, colIndex) => fittedComponentText(ctx, cells[colIndex] ?? "-", bounds, x + columnWidth * colIndex + columnWidth / 2, gridTop + rowHeight * (rowIndex + 1.5), columnWidth - 6, 9, textInk, 400, "center", textStyle, 1)));
+    fittedComponentText(ctx, `Hit policy: ${policy}`, bounds, x + 9, y + h - 7, w - 18, 8, palette.muted, 600, "left", textStyle, 1);
+  } else if (kind.endsWith("dmn-decision") || kind.endsWith("dmn-decision-service")) {
+    panel(6);
+    const service = kind.endsWith("dmn-decision-service");
+    title(service ? "DMN decision service" : "DMN decision", x + 10, y + 9, w - 20);
+    rule(y + 42);
+    rows(service ? ["service", "inputs", "decisions", "outputs"] : ["question", "inputs", "logic", "result"], y + 44, y + h - 3, x + 10, w - 20, Math.min(10, size * .65));
+  } else if (kind.endsWith("dmn-input-data") || kind.endsWith("dmn-knowledge-source") || kind.endsWith("business-knowledge-model")) {
+    const knowledge = !kind.endsWith("dmn-input-data"); const side = knowledge ? Math.min(22, w * .12) : 0;
+    ctx.beginPath();
+    if (knowledge) { ctx.moveTo(x + side, y + 1); ctx.lineTo(x + w - 1, y + 1); ctx.lineTo(x + w - side, y + h - 1); ctx.lineTo(x + 1, y + h - 1); ctx.closePath(); }
+    else ctx.rect(x + 1, y + 1, w - 2, h - 2);
+    ctx.fillStyle = fill === "transparent" ? "rgba(0,0,0,0)" : fill; if (fill !== "transparent") ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    const stereotype = kind.endsWith("business-knowledge-model") ? "business knowledge model" : knowledge ? "knowledge source" : "input data";
+    title(stereotype, x + 12, y + 14, w - 24);
+    const keys = kind.endsWith("dmn-input-data") ? ["variable", "source", "constraints", "consumers"] : kind.endsWith("business-knowledge-model") ? ["source", "owner", "authority", "decisions"] : ["source", "owner", "authority", "decisions"];
+    rule(y + 47); rows(keys, y + 48, y + h - 3);
+  } else if (kind.endsWith("dmn-context-expression")) {
+    panel(3); title("context expression", x + 10, y + 14, w - 20, false, value("context") || name); rule(y + 44);
+    const entries = value("entries").split(/\r?\n/).filter(Boolean).slice(0, 3);
+    const lines = [...entries, value("result") ? `Result: ${value("result")}` : "", value("type") ? `Type: ${value("type")}` : ""].filter(Boolean);
+    const rowHeight = Math.max(13, (h - 49) / Math.max(1, lines.length));
+    lines.forEach((line, index) => fittedComponentText(ctx, line, bounds, x + 11, y + 48 + rowHeight * (index + .5), w - 22, Math.min(10, size * .66), textInk, 400, "left", textStyle, 1));
+  } else {
+    panel(definition.archetype === "boundary" ? 1 : 5, definition.archetype === "boundary" ? [6, 4] : []);
+    title(kind.endsWith("call-choreography") ? "call choreography" : "BPMN element");
+    rows((fields.map(field => field.key)), y + 44, y + h - 2);
+  }
+  ctx.restore();
+  return true;
+}
+
+function drawProposalDataComponent(
+  ctx: CanvasRenderingContext2D,
+  group: GroupElement,
+  bounds: { x: number; y: number; w: number; h: number },
+  kind: string,
+  name: string,
+  fill: string,
+  edge: string,
+  textInk: string,
+  size: number,
+  textStyle: ComponentTextStyle | undefined,
+  palette: Palette,
+): boolean {
+  const definition = proposalComponentForKind(kind);
+  if (!definition?.section.startsWith("Data & schemas") || definition.archetype === "connector") return false;
+  const { x, y, w, h } = bounds; const fields = group.libraryComponent?.componentFields ?? [];
+  const value = (key: string) => fields.find(item => item.key === key)?.value.trim() ?? "";
+  const fieldLabel = (key: string) => fields.find(item => item.key === key)?.label ?? key.replace(/-/g, " ");
+  const compactLabels: Record<string, string> = { "producer-consumer": "Producers / consumers", "source-item": "Source item", "column-families": "Families", "foreign-keys": "Dimension keys", "tracking-columns": "Tracked fields", "vector-index": "Vector index", "on-failure": "On failure" };
+  const panel = (radius = 4, dashed = false) => {
+    ctx.beginPath(); roundRect(ctx, x + 1, y + 1, w - 2, h - 2, radius);
+    if (fill !== "transparent") { ctx.fillStyle = fill; ctx.fill(); }
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.setLineDash(dashed ? [6, 4] : []); ctx.stroke(); ctx.setLineDash([]);
+  };
+  const rule = (atY: number, left = x + 1, right = x + w - 1) => { ctx.beginPath(); ctx.moveTo(left, atY); ctx.lineTo(right, atY); ctx.strokeStyle = edge; ctx.lineWidth = 1; ctx.stroke(); };
+  const rows = (keys: string[], top: number, bottom: number, left = x + 9, width = w - 18, font = Math.min(10, size * .66)) => {
+    if (bottom <= top || !keys.length) return;
+    const rowHeight = (bottom - top) / keys.length;
+    keys.forEach((key, index) => {
+      const rowY = top + index * rowHeight;
+      if (index) rule(rowY, left - 2, left + width + 2);
+      const detail = `${compactLabels[key] ?? fieldLabel(key)}${value(key) ? `: ${value(key).replace(/\s*\n\s*/g, " | ")}` : ""}`;
+      fittedComponentText(ctx, detail, bounds, left, rowY + rowHeight / 2, width, Math.min(font, rowHeight * .72), textInk, 400, "left", textStyle, rowHeight >= 20 ? 2 : 1);
+    });
+  };
+  const databaseRows = (rowKeys: string[], top: number, bottom: number, inset: number) => {
+    if (bottom <= top || !rowKeys.length) return;
+    const rowHeight = (bottom - top) / rowKeys.length; const left = x + inset + 7; const width = Math.max(4, w - (inset + 7) * 2);
+    rowKeys.forEach((key, index) => {
+      const rowY = top + index * rowHeight;
+      if (index) rule(rowY, x + inset + 2, x + w - inset - 2);
+      const detail = `${compactLabels[key] ?? fieldLabel(key)}${value(key) ? `: ${value(key).replace(/\s*\n\s*/g, " | ")}` : ""}`;
+      fittedComponentText(ctx, detail, bounds, left, rowY + rowHeight / 2, width, Math.min(10, size * .62, rowHeight * .72), textInk, 400, "left", textStyle, rowHeight >= 20 ? 2 : 1);
+    });
+  };
+  const graphInsetAt = (localY: number) => {
+    const midHeight = Math.max(1, h / 2); const ratio = Math.min(1, Math.max(0, Math.min(localY, h - localY) / midHeight));
+    return 1 + Math.max(0, w * .16 - 1) * (1 - ratio);
+  };
+  const graphRows = (rowKeys: string[], top: number, bottom: number) => {
+    if (bottom <= top || !rowKeys.length) return;
+    const rowHeight = (bottom - top) / rowKeys.length;
+    rowKeys.forEach((key, index) => {
+      const rowY = top + index * rowHeight; const inset = Math.max(graphInsetAt(rowY + 2 - y), graphInsetAt(rowY + rowHeight - 2 - y));
+      const left = x + inset + 7; const width = Math.max(4, w - 2 * (inset + 7));
+      if (index) rule(rowY, x + inset + 3, x + w - inset - 3);
+      const detail = `${compactLabels[key] ?? fieldLabel(key)}${value(key) ? `: ${value(key).replace(/\s*\n\s*/g, " | ")}` : ""}`;
+      fittedComponentText(ctx, detail, bounds, left, rowY + rowHeight / 2, width, Math.min(9, size * .58, rowHeight * .72), textInk, 400, "left", textStyle, rowHeight >= 20 ? 2 : 1);
+    });
+  };
+  const heading = (caption = name, top = y + 16, left = x + 10, width = w - 20) => {
+    fittedComponentText(ctx, caption, bounds, left, top, width, Math.min(size, 13), textInk, 650, "left", textStyle, 2);
+  };
+  const keys = fields.map(field => field.key);
+  const tableRows = (top = y + 35, bottom = y + h - 3) => {
+    const headerHeight = Math.min(30, Math.max(24, h * .23));
+    ctx.fillStyle = palette.soft; ctx.fillRect(x + 2, y + 2, w - 4, headerHeight);
+    rule(y + headerHeight);
+    const dataTop = Math.max(top, y + headerHeight + 2);
+    const count = Math.max(1, keys.length); const rowHeight = Math.max(1, (bottom - dataTop) / count);
+    rows(keys, dataTop, bottom, x + 8, w - 16, Math.min(10, size * .62));
+    return rowHeight;
+  };
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+  if (definition.archetype === "database" || kind.endsWith("document-collection")) {
+    const ry = Math.min(11, h * .11); const inset = Math.min(13, w * .08); const cx = x + w / 2;
+    ctx.beginPath(); ctx.moveTo(x + inset, y + ry); ctx.bezierCurveTo(x + inset, y - 1, x + w - inset, y - 1, x + w - inset, y + ry); ctx.lineTo(x + w - inset, y + h - ry); ctx.bezierCurveTo(x + w - inset, y + h + 1, x + inset, y + h + 1, x + inset, y + h - ry); ctx.closePath();
+    if (fill !== "transparent") { ctx.fillStyle = fill; ctx.fill(); } ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx, y + ry, (w - inset * 2) / 2, ry, 0, 0, Math.PI * 2); ctx.stroke();
+    heading(name, y + 31, x + inset + 7, w - 2 * (inset + 7)); databaseRows(keys, y + 44, y + h - ry - 2, inset);
+  } else if (kind.endsWith("graph-vertex")) {
+    ctx.beginPath(); ctx.moveTo(x + w * .16, y + 1); ctx.lineTo(x + w * .84, y + 1); ctx.lineTo(x + w - 1, y + h / 2); ctx.lineTo(x + w * .84, y + h - 1); ctx.lineTo(x + w * .16, y + h - 1); ctx.lineTo(x + 1, y + h / 2); ctx.closePath();
+    if (fill !== "transparent") { ctx.fillStyle = fill; ctx.fill(); } ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.save(); ctx.beginPath(); ctx.moveTo(x + w * .16, y + 1); ctx.lineTo(x + w * .84, y + 1); ctx.lineTo(x + w - 1, y + h / 2); ctx.lineTo(x + w * .84, y + h - 1); ctx.lineTo(x + w * .16, y + h - 1); ctx.lineTo(x + 1, y + h / 2); ctx.closePath(); ctx.clip();
+    const titleWidth = w * .62; fittedComponentText(ctx, value("type") || name, bounds, x + w / 2, y + 19, titleWidth, Math.min(size, 13), textInk, 650, "center", textStyle, 1);
+    rule(y + 32, x + w * .15, x + w * .85); graphRows(keys.filter(key => key !== "type"), y + 36, y + h - 4); ctx.restore();
+  } else if (kind.endsWith("graph-edge-type")) {
+    panel(5); ctx.strokeStyle = edge; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(x + 10, y + 25); ctx.lineTo(x + w - 16, y + 25); ctx.lineTo(x + w - 23, y + 19); ctx.moveTo(x + w - 16, y + 25); ctx.lineTo(x + w - 23, y + 31); ctx.stroke();
+    heading(value("type") || name, y + 17); rule(y + 39); rows(keys.filter(key => key !== "type"), y + 42, y + h - 3);
+  } else if (kind.endsWith("wide-column-table")) {
+    panel(2); tableRows(); heading(value("table") || name, y + 17);
+    const markerX = x + w - 25; ctx.strokeStyle = edge; ctx.beginPath(); ctx.moveTo(markerX, y + 2); ctx.lineTo(markerX, y + 29); ctx.stroke();
+  } else if (kind.endsWith("table-partition") || kind.endsWith("star-schema-boundary")) {
+    panel(2, true); heading(value("partition") || value("fact") || name, y + 17); rule(y + 34);
+    if (kind.endsWith("star-schema-boundary")) {
+      const center = { x: x + w / 2, y: y + 62 }; const nodes = [x + 30, x + w - 30, x + w / 2];
+      nodes.forEach((nodeX, index) => { ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(nodeX, y + 45 + (index === 2 ? 28 : 5)); ctx.strokeStyle = edge; ctx.stroke(); });
+      roundRect(ctx, center.x - 21, center.y - 10, 42, 20, 2); ctx.fillStyle = palette.soft; ctx.fill(); ctx.stroke();
+      nodes.forEach((nodeX, index) => { roundRect(ctx, nodeX - 22, index === 2 ? y + 73 : y + 39, 44, 18, 2); ctx.stroke(); });
+      rows(keys, y + 103, y + h - 3, x + 9, w - 18, 8);
+    } else rows(keys, y + 37, y + h - 3);
+  } else if (kind.endsWith("data-classification-badge")) {
+    const classification = value("classification").toLowerCase(); const badgeColor = classification.includes("restrict") ? "#b34a4a" : classification.includes("confidential") ? "#bd7921" : classification.includes("internal") ? "#426da7" : "#39815c";
+    panel(12); roundRect(ctx, x + 9, y + 9, Math.min(w - 18, 112), 24, 12); ctx.fillStyle = badgeColor; ctx.fill();
+    fittedComponentText(ctx, value("classification") || "Classification", bounds, x + 15, y + 21, Math.min(w - 30, 100), 9, "#ffffff", 700, "left", textStyle, 1);
+    rows(keys.filter(key => key !== "classification"), y + 40, y + h - 3);
+  } else if (kind.endsWith("data-quality-check")) {
+    panel(5); const status = /pass|ok|valid/i.test(value("severity"));
+    ctx.beginPath(); roundRect(ctx, x + 9, y + 10, 18, 18, 3); ctx.strokeStyle = edge; ctx.stroke();
+    if (status) { ctx.beginPath(); ctx.moveTo(x + 13, y + 19); ctx.lineTo(x + 17, y + 23); ctx.lineTo(x + 24, y + 14); ctx.stroke(); }
+    heading(value("rule") || name, y + 21, x + 34, w - 44); rule(y + 37); rows(keys.filter(key => key !== "rule"), y + 40, y + h - 3);
+  } else if (definition.archetype === "table" && !/primary-key|foreign-key/.test(kind)) {
+    panel(2); tableRows(); heading(value("store") || value("table") || value("type-name") || value("event-name") || value("contract") || name, y + 17);
+  } else if (kind.endsWith("data-contract") || kind.endsWith("json-schema-object") || kind.endsWith("graphql-resolver") || kind.endsWith("standalone-database-column")) {
+    const fold = Math.min(18, w * .12); ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + w - fold, y + 1); ctx.lineTo(x + w - 1, y + fold); ctx.lineTo(x + w - 1, y + h - 1); ctx.lineTo(x + 1, y + h - 1); ctx.closePath();
+    if (fill !== "transparent") { ctx.fillStyle = fill; ctx.fill(); } ctx.strokeStyle = edge; ctx.stroke(); ctx.beginPath(); ctx.moveTo(x + w - fold, y + 1); ctx.lineTo(x + w - fold, y + fold); ctx.lineTo(x + w - 1, y + fold); ctx.stroke();
+    heading(value("contract") || value("title") || value("column") || value("parent-field") || name, y + 18); rule(y + 36); rows(keys, y + 39, y + h - 3);
+  } else if (/primary-key|foreign-key|unique-constraint|check-constraint/.test(kind)) {
+    panel(4); const badge = kind.includes("primary") ? "PK" : kind.includes("foreign") ? "FK" : kind.includes("unique") ? "UN" : "CK";
+    roundRect(ctx, x + 9, y + 9, 30, 20, 4); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = edge; ctx.stroke();
+    fittedComponentText(ctx, badge, bounds, x + 24, y + 19, 25, 9, textInk, 700, "center", textStyle, 1);
+    heading(value("constraint") || name, y + 20, x + 47, w - 56); rule(y + 36); rows(keys.filter(key => key !== "constraint"), y + 39, y + h - 3);
+  } else {
+    panel(5); heading(value("store") || value("dataset") || value("type-name") || value("index") || value("type") || name, y + 17); rule(y + 35); rows(keys, y + 38, y + h - 3);
+  }
+  ctx.restore();
+  return true;
+}
+
+function drawProposalArchitectureComponent(
+  ctx: CanvasRenderingContext2D,
+  group: GroupElement,
+  bounds: { x: number; y: number; w: number; h: number },
+  kind: string,
+  name: string,
+  fill: string,
+  edge: string,
+  textInk: string,
+  size: number,
+  textStyle: ComponentTextStyle | undefined,
+  palette: Palette,
+): boolean {
+  const definition = proposalComponentForKind(kind);
+  if (!definition?.section.startsWith("Architecture patterns")) return false;
+  const { x, y, w, h } = bounds; const fields = group.libraryComponent?.componentFields ?? [];
+  const value = (key: string) => fields.find(item => item.key === key)?.value.trim() ?? "";
+  const fieldLabel = (key: string) => fields.find(item => item.key === key)?.label ?? key.replace(/-/g, " ");
+  const keys = fields.map(field => field.key);
+  const frame = (radius = 6, dashed = false) => {
+    ctx.beginPath(); roundRect(ctx, x + 1, y + 1, w - 2, h - 2, radius);
+    if (fill !== "transparent") { ctx.fillStyle = fill; ctx.fill(); }
+    ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.setLineDash(dashed ? [6, 4] : []); ctx.stroke(); ctx.setLineDash([]);
+  };
+  const rule = (atY: number, left = x + 1, right = x + w - 1) => { ctx.beginPath(); ctx.moveTo(left, atY); ctx.lineTo(right, atY); ctx.strokeStyle = edge; ctx.lineWidth = 1; ctx.stroke(); };
+  const text = (copy: string, tx: number, ty: number, width: number, font = 10, weight = 400, align: CanvasTextAlign = "left", maxLines = 1) =>
+    fittedComponentText(ctx, copy, bounds, align === "center" || align === "right" ? componentBoxTextAnchor(tx, width, align) : tx, ty, width, font, textInk, weight, align, textStyle, maxLines);
+  const heading = (copy = name, ty = y + 19, tx = x + 10, width = w - 20) => text(copy, tx, ty, width, Math.min(size, 13), 650, "left", 2);
+  const rows = (rowKeys: string[] = keys, top = y + 43, bottom = y + h - 3, left = x + 10, width = w - 20) => {
+    if (bottom <= top || !rowKeys.length) return;
+    const rowHeight = (bottom - top) / rowKeys.length;
+    rowKeys.forEach((key, index) => {
+      const rowY = top + rowHeight * index;
+      if (index) rule(rowY, left - 2, left + width + 2);
+      const current = value(key);
+      text(`${fieldLabel(key)}${current ? `: ${current.replace(/\s*\n\s*/g, " | ")}` : ""}`, left, rowY + rowHeight / 2, width, Math.min(9, size * .62, rowHeight * .66), 400, "left", rowHeight >= 20 ? 2 : 1);
+    });
+  };
+  const box = (bx: number, by: number, bw: number, bh: number, radius = 3, color = palette.soft) => {
+    roundRect(ctx, bx, by, bw, bh, radius); if (color !== "transparent") { ctx.fillStyle = color; ctx.fill(); }
+    ctx.strokeStyle = edge; ctx.lineWidth = 1; ctx.stroke();
+  };
+  const line = (x1: number, y1: number, x2: number, y2: number, dashed = false) => {
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = edge; ctx.lineWidth = 1.4; ctx.setLineDash(dashed ? [4, 3] : []); ctx.stroke(); ctx.setLineDash([]);
+  };
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+
+  if (kind === "proposal-architecture-web-frontend" || kind === "proposal-architecture-mobile-client") {
+    frame(8); const band = Math.min(27, h * .2); ctx.fillStyle = palette.soft; ctx.fillRect(x + 2, y + 2, w - 4, band);
+    rule(y + band + 1); [0, 1, 2].forEach(index => { ctx.beginPath(); ctx.arc(x + 12 + index * 8, y + band / 2 + 1, 2, 0, Math.PI * 2); ctx.fillStyle = palette.muted; ctx.fill(); });
+    heading(value("application") || name, y + band + 15); rows(keys.filter(key => key !== "application"), y + band + 29);
+  } else if (kind === "proposal-architecture-api-operation" || kind === "proposal-architecture-graphql-endpoint" || kind === "proposal-architecture-grpc-service" || kind === "proposal-architecture-webhook-endpoint") {
+    frame(5); const badge = kind.endsWith("api-operation") ? (value("method-path").split(/\s+/)[0] || "HTTP") : kind.endsWith("graphql-endpoint") ? "GRAPHQL" : kind.endsWith("grpc-service") ? "gRPC" : "WEBHOOK";
+    box(x + 9, y + 8, Math.min(w * .36, 68), 21, 4); text(badge.toUpperCase(), x + 12, y + 18, Math.min(w * .36, 62), 8, 700, "center");
+    const primary = kind.endsWith("api-operation") ? "method-path" : kind.endsWith("graphql-endpoint") ? "endpoint" : kind.endsWith("grpc-service") ? "service" : "route-event";
+    heading(value(primary) || name, y + 20, x + Math.min(w * .36, 68) + 17, w - Math.min(w * .36, 68) - 26); rule(y + 36);
+    rows(keys.filter(key => key !== primary), y + 39);
+  } else if (/background-worker|batch-job|scheduler/.test(kind)) {
+    frame(7); const cx = x + 24; const cy = y + 24; ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2); ctx.strokeStyle = edge; ctx.stroke();
+    if (kind.endsWith("scheduler")) { ctx.beginPath(); ctx.moveTo(cx, cy - 7); ctx.lineTo(cx, cy); ctx.lineTo(cx + 6, cy + 3); ctx.stroke(); }
+    else { ctx.beginPath(); ctx.moveTo(cx - 7, cy); ctx.lineTo(cx + 6, cy); ctx.lineTo(cx + 2, cy - 4); ctx.moveTo(cx + 6, cy); ctx.lineTo(cx + 2, cy + 4); ctx.stroke(); }
+    heading(name, y + 20, x + 43, w - 53); rule(y + 39); rows(keys, y + 42);
+  } else if (/event-producer|event-consumer|event-topic|stream-partition/.test(kind)) {
+    const partition = kind.endsWith("stream-partition"); frame(partition ? 2 : 8, partition);
+    if (partition) {
+      heading(value("partition") || name, y + 19); rule(y + 34);
+      const col = (w - 24) / 4; for (let index = 0; index < 4; index++) { box(x + 10 + index * col, y + 39, Math.max(8, col - 3), 13, 2, index === 0 ? palette.accent : palette.soft); text(String(index), x + 10 + index * col, y + 45, Math.max(8, col - 3), 7, 600, "center"); }
+      rows(keys.filter(key => key !== "partition"), y + 57);
+    } else {
+      const producer = kind.endsWith("event-producer"); const consumer = kind.endsWith("event-consumer");
+      box(x + 9, y + 9, 32, 22, 4); text(producer ? "PUB" : consumer ? "SUB" : "BUS", x + 11, y + 20, 28, 8, 700, "center");
+      const primary = producer ? "producer" : consumer ? "consumer" : "topic";
+      heading(value(primary) || name, y + 21, x + 49, w - 59); rule(y + 38);
+      const detailKeys = kind.endsWith("event-topic") ? keys.filter(key => key !== "topic") : keys.filter(key => key !== primary);
+      rows(detailKeys, y + 41);
+    }
+  } else if (/saga-orchestrator|saga-participant/.test(kind)) {
+    frame(5); heading(value(kind.endsWith("saga-orchestrator") ? "saga" : "participant") || name);
+    const midY = y + 39; const stageWidth = Math.max(24, (w - 40) / 3);
+    for (let index = 0; index < 3; index++) {
+      const sx = x + 10 + index * (stageWidth + 10); box(sx, midY, stageWidth, 16, 3, index === 1 ? palette.soft : fill);
+      text(["Step", "Commit", "Compensate"][index], sx + 2, midY + 8, stageWidth - 4, 7, 500, "center");
+      if (index < 2) { line(sx + stageWidth + 1, midY + 8, sx + stageWidth + 8, midY + 8); ctx.beginPath(); ctx.moveTo(sx + stageWidth + 5, midY + 5); ctx.lineTo(sx + stageWidth + 8, midY + 8); ctx.lineTo(sx + stageWidth + 5, midY + 11); ctx.stroke(); }
+    }
+    rule(y + 61); rows(keys.filter(key => key !== (kind.endsWith("saga-orchestrator") ? "saga" : "participant")), y + 64);
+  } else if (kind.endsWith("transactional-outbox") || kind.endsWith("change-data-capture")) {
+    frame(5); heading(name); const cy = y + 38; box(x + 10, cy, 37, 24, 3); text(kind.endsWith("transactional-outbox") ? "DB" : "LOG", x + 12, cy + 12, 33, 8, 700, "center");
+    line(x + 48, cy + 12, x + w - 50, cy + 12); ctx.beginPath(); ctx.moveTo(x + w - 56, cy + 8); ctx.lineTo(x + w - 50, cy + 12); ctx.lineTo(x + w - 56, cy + 16); ctx.stroke();
+    box(x + w - 47, cy, 37, 24, 3); text("BUS", x + w - 45, cy + 12, 33, 8, 700, "center"); rule(y + 68); rows(keys, y + 71);
+  } else if (kind.endsWith("service-mesh-sidecar")) {
+    frame(6); heading(name); const top = y + 34; const cardWidth = (w - 32) / 2;
+    box(x + 10, top, cardWidth, 24); text("Workload", x + 12, top + 12, cardWidth - 4, 8, 600, "center");
+    box(x + 22 + cardWidth, top, cardWidth, 24); text("Sidecar proxy", x + 24 + cardWidth, top + 12, cardWidth - 4, 8, 600, "center");
+    line(x + 10 + cardWidth, top + 12, x + 20 + cardWidth, top + 12);
+    rule(y + 64); rows(keys, y + 67);
+  } else if (kind.endsWith("circuit-breaker")) {
+    frame(6); heading(name, y + 16); const state = value("fallback").toLowerCase(); const labels = ["Closed", "Open", "Half-open"];
+    const statusY = y + 32; const cellWidth = (w - 26) / 3;
+    labels.forEach((label, index) => { const bx = x + 10 + index * cellWidth; const active = state.includes(label.toLowerCase()); box(bx, statusY, cellWidth - 4, 19, 4, active ? palette.accent : palette.soft); text(label, bx + 1, statusY + 9, cellWidth - 6, 7, 600, "center"); });
+    rule(y + 56); rows(keys, y + 59);
+  } else if (kind.endsWith("adapter")) {
+    frame(6); heading(name); const mid = y + 40; const half = (w - 40) / 2;
+    box(x + 10, mid, half, 22); text("Source", x + 12, mid + 11, half - 4, 8, 600, "center");
+    box(x + w - half - 10, mid, half, 22); text("Target", x + w - half - 8, mid + 11, half - 4, 8, 600, "center");
+    line(x + half + 12, mid + 11, x + w - half - 12, mid + 11); rule(y + 69); rows(keys, y + 72);
+  } else if (kind.endsWith("backend-for-frontend")) {
+    frame(6); heading(name); const cy = y + 42; const clientWidth = 43; const serviceWidth = 42;
+    box(x + 9, cy - 8, clientWidth, 22); text("Client", x + 11, cy + 3, clientWidth - 4, 7, 600, "center");
+    box(x + w / 2 - 29, cy - 8, 58, 22); text("BFF", x + w / 2 - 27, cy + 3, 54, 8, 700, "center");
+    box(x + w - serviceWidth - 9, cy - 8, serviceWidth, 22); text("APIs", x + w - serviceWidth - 7, cy + 3, serviceWidth - 4, 7, 600, "center");
+    line(x + 53, cy + 3, x + w / 2 - 30, cy + 3); line(x + w / 2 + 30, cy + 3, x + w - serviceWidth - 10, cy + 3); rule(y + 67); rows(keys, y + 70);
+  } else if (kind.endsWith("bounded-context")) {
+    frame(2, true); heading(value("context") || name, y + 20); text("BOUNDARY / UBIQUITOUS LANGUAGE", x + 10, y + 37, w - 20, 7, 600);
+    rule(y + 47); rows(keys.filter(key => key !== "context"), y + 50);
+  } else if (kind.endsWith("aggregate-root")) {
+    frame(4, true); heading(value("root") || name, y + 18); box(x + 12, y + 31, w - 24, 22, 3); text("Aggregate root", x + 14, y + 42, w - 28, 8, 700, "center");
+    rule(y + 59); rows(keys.filter(key => key !== "root"), y + 62);
+  } else if (kind.endsWith("domain-entity")) {
+    frame(4); ctx.fillStyle = palette.soft; ctx.fillRect(x + 2, y + 2, w - 4, 27); heading(value("entity") || name, y + 17); text(`ID: ${value("entity") || "identity"}`, x + w - 62, y + 17, 52, 8, 600, "right");
+    rule(y + 31); rows(keys.filter(key => key !== "entity"), y + 34);
+  } else if (kind.endsWith("value-object")) {
+    frame(18); box(x + 10, y + 8, 28, 19, 9); text("IMM", x + 11, y + 17, 26, 7, 700, "center"); heading(value("value") || name, y + 19, x + 45, w - 55); rule(y + 34); rows(keys.filter(key => key !== "value"), y + 37);
+  } else if (kind.endsWith("domain-event")) {
+    frame(6); const envelope = y + 31; ctx.beginPath(); ctx.moveTo(x + 10, envelope); ctx.lineTo(x + w - 10, envelope); ctx.lineTo(x + w - 10, envelope + 15); ctx.lineTo(x + w / 2, envelope + 28); ctx.lineTo(x + 10, envelope + 15); ctx.closePath(); ctx.strokeStyle = edge; ctx.stroke();
+    heading(value("event") || name, y + 18); rule(y + 64); rows(keys.filter(key => key !== "event"), y + 67);
+  } else if (kind.endsWith("application-component")) {
+    frame(2); box(x + 7, y + 12, 15, 9, 1); box(x + 7, y + 25, 15, 9, 1); heading(value("component") || name, y + 22, x + 29, w - 39); rule(y + 39); rows(keys.filter(key => key !== "component"), y + 42);
+  } else if (kind.endsWith("application-service")) {
+    frame(6); heading(value("service") || name, y + 19); ctx.beginPath(); ctx.moveTo(x + 11, y + 29); ctx.lineTo(x + 11, y + 42); ctx.lineTo(x + 18, y + 42); ctx.moveTo(x + 11, y + 29); ctx.lineTo(x + 18, y + 29); ctx.strokeStyle = edge; ctx.stroke();
+    rule(y + 44); rows(keys.filter(key => key !== "service"), y + 47);
+  } else if (kind.endsWith("business-actor")) {
+    frame(7); const cx = x + 26; const cy = y + 27; ctx.beginPath(); ctx.arc(cx, cy - 8, 5, 0, Math.PI * 2); ctx.strokeStyle = edge; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - 3); ctx.lineTo(cx, cy + 11); ctx.moveTo(cx - 9, cy + 2); ctx.lineTo(cx + 9, cy + 2); ctx.moveTo(cx, cy + 11); ctx.lineTo(cx - 7, cy + 19); ctx.moveTo(cx, cy + 11); ctx.lineTo(cx + 7, cy + 19); ctx.stroke();
+    heading(value("actor") || name, y + 21, x + 43, w - 53); rule(y + 48); rows(keys.filter(key => key !== "actor"), y + 51);
+  } else if (kind.endsWith("business-role")) {
+    frame(6); box(x + 10, y + 9, 24, 24, 12); text("R", x + 11, y + 21, 22, 10, 700, "center"); heading(value("role") || name, y + 21, x + 42, w - 52); rule(y + 39); rows(keys.filter(key => key !== "role"), y + 42);
+  } else if (kind.endsWith("business-process")) {
+    frame(6); heading(value("process") || name, y + 18); const mid = y + 37; const bw = (w - 34) / 3;
+    ["Trigger", "Work", "Result"].forEach((step, index) => { const bx = x + 9 + index * (bw + 8); box(bx, mid, bw, 16, 3); text(step, bx + 1, mid + 8, bw - 2, 7, 600, "center"); if (index < 2) line(bx + bw + 1, mid + 8, bx + bw + 7, mid + 8); });
+    rule(y + 60); rows(keys.filter(key => key !== "process"), y + 63);
+  } else if (kind.endsWith("data-object")) {
+    const fold = Math.min(20, w * .14); ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + w - fold, y + 1); ctx.lineTo(x + w - 1, y + fold); ctx.lineTo(x + w - 1, y + h - 1); ctx.lineTo(x + 1, y + h - 1); ctx.closePath();
+    if (fill !== "transparent") { ctx.fillStyle = fill; ctx.fill(); } ctx.strokeStyle = edge; ctx.stroke(); ctx.beginPath(); ctx.moveTo(x + w - fold, y + 1); ctx.lineTo(x + w - fold, y + fold); ctx.lineTo(x + w - 1, y + fold); ctx.stroke();
+    heading(value("object") || name, y + 18); rule(y + 36); rows(keys.filter(key => key !== "object"), y + 39);
+  } else if (kind.endsWith("technology-node")) {
+    frame(1); const dx = Math.min(16, w * .1); ctx.beginPath(); ctx.moveTo(x + dx, y + 12); ctx.lineTo(x + w / 2, y + 2); ctx.lineTo(x + w - dx, y + 12); ctx.lineTo(x + w - dx, y + h - 10); ctx.lineTo(x + w / 2, y + h - 1); ctx.lineTo(x + dx, y + h - 10); ctx.closePath(); ctx.strokeStyle = edge; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + dx, y + 12); ctx.lineTo(x + w / 2, y + 22); ctx.lineTo(x + w - dx, y + 12); ctx.moveTo(x + w / 2, y + 22); ctx.lineTo(x + w / 2, y + h - 1); ctx.stroke();
+    heading(value("node") || name, y + 19); rule(y + 33, x + dx + 5, x + w - dx - 5); rows(keys.filter(key => key !== "node"), y + 36, y + h - 8, x + dx + 7, w - dx * 2 - 14);
+  } else {
+    frame(definition.archetype === "boundary" ? 2 : 6, definition.archetype === "boundary"); heading(); rule(y + 34); rows(keys, y + 37);
+  }
+  ctx.restore();
+  return true;
+}
+
+function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, allElements?: readonly Element[]) {
   const bounds = group.componentBounds; const meta = group.libraryComponent;
   if (!bounds || !meta) return;
   const { x, y, w, h } = bounds; const kind = meta.kind;
@@ -209,6 +817,12 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   const name = meta.label ?? kind.replace(/^(network|cloud|software|bpmn|c4)-/, "").replace(/-/g, " ");
   const field = (key: string) => componentFieldValue(group, key);
   const proposal = proposalComponentForKind(kind);
+  if (proposal && drawProposalPlanningComponent(ctx, group, theme, allElements)) return;
+  if (proposal && drawProposalWireframeComponent(ctx, group, theme)) return;
+  if (proposal && drawProposalSystemsComponent(ctx, group, bounds, kind, name, fill, edge, textInk, size, textStyle, defaultPalette)) return;
+  if (proposal && drawProposalDecisionComponent(ctx, group, bounds, kind, name, fill, edge, textInk, size, textStyle, defaultPalette)) return;
+  if (proposal && drawProposalDataComponent(ctx, group, bounds, kind, name, fill, edge, textInk, size, textStyle, defaultPalette)) return;
+  if (proposal && drawProposalArchitectureComponent(ctx, group, bounds, kind, name, fill, edge, textInk, size, textStyle, defaultPalette)) return;
   if (proposal) {
     ctx.save();
     ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
@@ -254,10 +868,13 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
       const center = proposal.archetype === "event" || proposal.archetype === "decision" || proposal.archetype === "sticky";
       const titleY = proposal.archetype === "event" || proposal.archetype === "decision" ? y + h * .46 : proposal.archetype === "sticky" ? y + h * .34 : proposal.archetype === "screen" ? y + Math.min(39, h * .31) : proposal.archetype === "table" ? y + Math.min(19, h * .16) : y + Math.min(22, h * .2);
       fittedComponentText(ctx, name, bounds, center ? x + w / 2 : x + 9, titleY, w - (center ? 20 : 18), size, textInk, 650, center ? "center" : "left", textStyle, 2);
-      const details = (meta.componentFields ?? []).filter(item => item.value.trim()).slice(0, 2);
+      const details = (meta.componentFields ?? []).filter(item => item.value.trim());
+      const score = proposalComponentScore(kind, meta.componentFields ?? []);
+      if (score) details.push({ key: "calculated-score", ...score });
       const detailsStart = proposal.archetype === "table" ? y + h * .48 : proposal.archetype === "sticky" ? y + h * .58 : proposal.archetype === "event" || proposal.archetype === "decision" ? y + h * .7 : y + h * .54;
       const available = Math.max(0, y + h - detailsStart - 7);
-      details.forEach((item, index) => fittedComponentText(ctx, `${item.label}: ${item.value}`, bounds, x + 9, detailsStart + available * (index + .5) / details.length, w - 18, Math.max(7, size * .68), textInk, 400, "left", textStyle, 2));
+      const rowHeight = details.length ? available / details.length : 0;
+      details.forEach((item, index) => fittedComponentText(ctx, `${item.label}: ${item.value}`, bounds, x + 9, detailsStart + rowHeight * (index + .5), w - 18, Math.max(6, Math.min(size * .68, rowHeight * .76)), textInk, 400, "left", textStyle, rowHeight >= size * 1.45 ? 2 : 1));
     }
     ctx.restore(); return;
   }
@@ -832,7 +1449,7 @@ function drawCleanModelComponent(ctx: CanvasRenderingContext2D, group: GroupElem
   ctx.restore();
 }
 
-function drawModelComponentDirect(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme) {
+function drawModelComponentDirect(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, allElements?: readonly Element[]) {
   const bounds = group.componentBounds;
   const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return;
@@ -840,7 +1457,7 @@ function drawModelComponentDirect(ctx: CanvasRenderingContext2D, group: GroupEle
   const meta = group.libraryComponent!;
   const textStyle = meta.textStyle;
   if (drawGuiComponent(ctx, group, theme)) return;
-  if (meta.renderStyle === "clean" && !kind.startsWith("er-")) { drawCleanModelComponent(ctx, group, theme); return; }
+  if (meta.renderStyle === "clean" && !kind.startsWith("er-")) { drawCleanModelComponent(ctx, group, theme, allElements); return; }
   // Modeling components share one plain visual language.
   const simple = true;
   const basePalette = paletteFor(theme === "dark");
@@ -1204,9 +1821,11 @@ function cachedComponentBitmap(group: GroupElement, theme: Theme, pixelWidth: nu
   return entry;
 }
 
-export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, allowRasterCache = true) {
+export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, allowRasterCache = true, allElements?: readonly Element[]) {
   const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return;
+  const proposal = proposalComponentForKind(kind);
+  const pageAwarePlanning = proposal?.section.startsWith("Visual planning") ?? false;
   const transform = ctx.getTransform();
   const isIntegerPixel = (value: number) => Math.abs(value - Math.round(value)) < 1e-7;
   const pixelX = transform.a * bounds.x + transform.e;
@@ -1219,7 +1838,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   const cacheable = Math.abs(transform.b) < 1e-8 && Math.abs(transform.c) < 1e-8
     && transform.a > 0 && transform.d > 0 && Math.abs(transform.a - transform.d) < 1e-7
     && [pixelX, pixelY, pixelWidth, pixelHeight].every(isIntegerPixel);
-  if (cacheable && allowRasterCache) {
+  if (cacheable && allowRasterCache && !pageAwarePlanning) {
     const bitmap = cachedComponentBitmap(group, theme, Math.round(pixelWidth), Math.round(pixelHeight));
     if (bitmap) {
       ctx.save(); ctx.imageSmoothingEnabled = false;
@@ -1227,10 +1846,10 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
       return;
     }
   }
-  drawModelComponentDirect(ctx, group, theme);
+  drawModelComponentDirect(ctx, group, theme, allElements);
 }
 
-function renderModelComponentSvg(group: GroupElement, theme: Theme): string {
+function renderModelComponentSvg(group: GroupElement, theme: Theme, allElements?: readonly Element[]): string {
   const guiSvg = guiComponentSvg(group, theme);
   if (guiSvg) return guiSvg;
   const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
@@ -1266,7 +1885,7 @@ function renderModelComponentSvg(group: GroupElement, theme: Theme): string {
   if (meta.renderStyle === "clean" && !kind.startsWith("er-")) {
     const ink = meta.styleOverrides?.color ?? palette.ink; const cleanFill = fill; const soft = palette.soft;
     const t = (value: string, tx: number, ty: number, tw = w - 20, font = size, anchor = "start", weight = 600) => {
-      const fittedFont = Math.min(maxLabelSize, Math.max(9, font));
+      const fittedFont = Math.max(5, Math.min(maxLabelSize, font));
       const textAnchor = meta.textStyle?.textAlign === "center" ? "middle" : meta.textStyle?.textAlign === "right" ? "end" : meta.textStyle?.textAlign === "left" ? "start" : anchor;
       const left = anchor === "middle" ? tx - tw / 2 : anchor === "end" ? tx - tw : tx;
       const textX = textAnchor === "middle" ? left + tw / 2 : textAnchor === "end" ? left + tw : left;
@@ -1307,6 +1926,303 @@ function renderModelComponentSvg(group: GroupElement, theme: Theme): string {
     const field = (key: string) => componentFieldValue(group, key);
     const r = (rx = x, ry = y, rw = w, rh = h, color = cleanFill, radius = 0) => `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}"${radius > 0 ? ` rx="${Math.min(radius, rw / 2, rh / 2)}" ry="${Math.min(radius, rw / 2, rh / 2)}"` : ""} fill="${color}" stroke="${ink}" stroke-width="1.3"/>`;
     const p = (d: string, dash = "") => `<path d="${d}" fill="none" stroke="${ink}" stroke-width="1.3"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
+    const proposal = proposalComponentForKind(kind);
+    const planningSvg = proposalPlanningComponentSvg(group, theme, allElements);
+    if (planningSvg !== undefined) return planningSvg;
+    const wireframeSvg = proposalWireframeComponentSvg(group, theme);
+    if (wireframeSvg !== undefined) return wireframeSvg;
+    if (kind === "proposal-systems-provided-interface" || kind === "proposal-systems-required-interface") {
+      const cx = x + w * .16; const cy = y + h / 2; const radius = Math.max(10, Math.min(18, h * .16, w * .08));
+      const glyph = kind.endsWith("provided-interface")
+        ? `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${cleanFill}" stroke="${ink}"/>`
+        : `<path d="M ${cx + radius * .18} ${cy - radius * .76} A ${radius} ${radius} 0 0 0 ${cx + radius * .18} ${cy + radius * .76} M ${cx + radius * .18} ${cy - radius * .76} V ${cy + radius * .76}" fill="none" stroke="${ink}"/>`;
+      const responsible = kind.endsWith("provided-interface") ? field("provider") : field("consumer");
+      const details = [["Role", responsible], ["Operations", field("operations")], ["Protocol", field("protocol")]].filter(([, item]) => !!item);
+      return `${p(`M ${x} ${cy} H ${cx - radius}`)}${glyph}${t(kind.endsWith("provided-interface") ? "provided interface" : "required interface", x + w * .34, cy - 18, w * .62, 9, "start", 600)}${t(field("interface") || rawTitle, x + w * .34, cy + 1, w * .62, Math.min(14, size), "start", 650)}${details.map(([label, item], index) => t(`${label}: ${item}`, x + w * .34, cy + 23 + index * 16, w * .62, 9, "start", 400)).join("")}`;
+    }
+    if (proposal?.section.startsWith("Systems engineering") && proposal.archetype !== "connector") {
+      const fieldLabel = (key: string) => meta.componentFields?.find(item => item.key === key)?.label ?? key.replace(/-/g, " ");
+      const rows = (keys: string[], top: number, bottom: number, left = x + 10, width = w - 20) => {
+        const renderedKeys = kind === "proposal-systems-sysml-block" && !keys.includes("stereotype") ? ["stereotype", ...keys] : keys;
+        return block(
+          renderedKeys.map(key => [fieldLabel(key), field(key)] as [string, string]).filter(([, value]) => !!value),
+          left, top, width, Math.min(10, size * .7), Math.max(0, bottom - top),
+        );
+      };
+      if (kind === "proposal-systems-sysml-requirement") {
+        const id = field("requirement-id"); const statement = field("statement");
+        return `${r(x, y, w, h, cleanFill, 2)}${t("«requirement»", x + 10, y + 14, w - 20, 9, "start", 600)}${t(id ? `ID: ${id}` : rawTitle, x + 10, y + 33, w - 20, Math.min(15, size), "start", 650)}${p(`M ${x} ${y + 43} H ${x + w}`)}${statement ? t(statement, x + 10, y + 72, w - 20, Math.min(13, size), "start", 500) : ""}${p(`M ${x} ${y + h * .61} H ${x + w}`)}${rows(["rationale", "verification"], y + h * .61, y + h)}`;
+      }
+      if (kind === "proposal-systems-sysml-block") return `${r(x, y, w, h, cleanFill, 2)}${t("«block»", x + 10, y + 14, w - 20, 9, "start", 600)}${t(rawTitle, x + 10, y + 34, w - 20, Math.min(15, size), "start", 650)}${p(`M ${x} ${y + 44} H ${x + w}`)}${rows(["parts", "values", "interfaces"], y + 45, y + h)}`;
+      if (kind === "proposal-systems-activity-partition") return `${r(x, y, w, h, cleanFill, 0)}<rect x="${x + 1}" y="${y + 1}" width="${w - 2}" height="31" fill="${soft}"/><path d="M ${x} ${y + 33} H ${x + w}" fill="none" stroke="${ink}"/>${t(field("responsibility") || rawTitle, x + 10, y + 18, w - 20, Math.min(13, size), "start", 650)}${rows(["actions", "inputs", "outputs"], y + 34, y + h - 8)}`;
+      if (kind === "proposal-systems-time-event" || kind === "proposal-systems-change-event") {
+        const radius = Math.max(16, Math.min(24, h * .16, w * .12)); const cx = x + radius + 12; const cy = y + h / 2; const contentX = x + radius * 2 + 22; const contentWidth = Math.max(24, w - (contentX - x) - 10);
+        const marker = kind.endsWith("time-event")
+          ? `<circle cx="${cx}" cy="${cy}" r="${radius - 5}" fill="none" stroke="${ink}"/><path d="M ${cx} ${cy - 7} V ${cy} L ${cx + 6} ${cy + 4}" stroke="${ink}"/>`
+          : `<path d="M ${cx - 10} ${cy} Q ${cx - 5} ${cy - 9} ${cx} ${cy} Q ${cx + 5} ${cy + 9} ${cx + 10} ${cy}" fill="none" stroke="${ink}"/>`;
+        return `<ellipse cx="${cx}" cy="${cy}" rx="${radius}" ry="${radius}" fill="${cleanFill}" stroke="${ink}" stroke-width="1.5"/>${marker}${t(kind.endsWith("time-event") ? "«time event»" : "«change event»", contentX, y + 15, contentWidth, 9, "start", 600)}${t(rawTitle, contentX, y + 34, contentWidth, Math.min(size, 14), "start", 650)}${rows(["trigger", "expression", "transition", "scope"], y + 52, y + h - 3, contentX, contentWidth)}`;
+      }
+      if (kind === "proposal-systems-action-pin" || kind === "proposal-systems-object-node") {
+        const pin = kind.endsWith("action-pin"); const direction = field("direction").toLowerCase(); const output = direction.startsWith("out");
+        const tabX = output ? x + w - 2 : x - 6;
+        const connectorTab = pin ? `<path d="M ${tabX} ${y + h / 2 - 8} h 8 v 16 h -8" fill="${cleanFill}" stroke="${ink}"/>` : "";
+        return `${r(x, y, w, h, cleanFill, pin ? 5 : 14)}${connectorTab}${t(pin ? "«pin»" : "«object»", x + 9, y + 14, w - 18, 9, "start", 600)}${t(field(pin ? "pin-name" : "object") || rawTitle, x + w / 2, y + h * .43, w - 22, Math.min(size, 14), "middle", 600)}${rows(pin ? ["type", "direction", "multiplicity"] : ["state", "direction", "pins"], y + h * .62, y + h - 4)}`;
+      }
+      if (kind === "proposal-systems-send-signal-action" || kind === "proposal-systems-accept-signal-action") {
+        const signalAction = kind.endsWith("send-signal-action") ? "sendSignal" : "acceptEvent";
+        return `${r(x, y, w, h, cleanFill, 9)}${t(signalAction, x + 10, y + 22, w - 20, Math.min(13, size), "start", 650)}${t(rawTitle, x + 10, y + 42, w - 20, Math.min(13, size), "start", 600)}${p(`M ${x} ${y + 53} H ${x + w}`)}${rows(["signal", "payload", "source-target", "guard"], y + 54, y + h)}`;
+      }
+      if (kind === "proposal-systems-provided-interface" || kind === "proposal-systems-required-interface") {
+        const cx = x + w * .16; const cy = y + h / 2; const radius = Math.max(10, Math.min(18, h * .16, w * .08));
+        const glyph = kind.endsWith("provided-interface")
+          ? `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${cleanFill === "none" ? "none" : cleanFill}" stroke="${ink}"/>`
+          : `<path d="M ${cx + radius * .18} ${cy - radius * .76} A ${radius} ${radius} 0 0 0 ${cx + radius * .18} ${cy + radius * .76} M ${cx + radius * .18} ${cy - radius * .76} V ${cy + radius * .76}" fill="none" stroke="${ink}"/>`;
+        return `${p(`M ${x} ${cy} H ${cx - radius}`)}${glyph}${t(kind.endsWith("provided-interface") ? "«provided»" : "«required»", x + w * .34, cy - 18, w * .62, 9, "start", 600)}${t(field("interface") || rawTitle, x + w * .34, cy + 1, w * .62, Math.min(14, size), "start", 650)}${t(field("operations") || field("protocol"), x + w * .34, cy + 23, w * .62, 10, "start", 400)}`;
+      }
+      if (kind === "proposal-systems-uml-combined-fragment") {
+        const tabWidth = Math.min(82, w * .38); const tabHeight = Math.min(30, h * .22);
+        return `${r(x, y, w, h, cleanFill)}<path d="M ${x} ${y + tabHeight} V ${y + 1} H ${x + tabWidth} L ${x + tabWidth + 13} ${y + tabHeight} Z" fill="${soft}" stroke="${ink}"/>${t(field("operator") || "alt", x + 8, y + tabHeight * .64, tabWidth - 10, 10, "start", 700)}${t(field("guard") || rawTitle, x + tabWidth + 15, y + tabHeight + 16, w - tabWidth - 22, Math.min(13, size), "start", 600)}${rows(["operands", "lifelines"], y + tabHeight + 28, y + h)}`;
+      }
+      if (kind === "proposal-systems-constraint-block" || kind === "proposal-systems-parametric-constraint") return `${r(x, y, w, h, cleanFill, 2)}${t("«constraint»", x + 10, y + 14, w - 20, 9, "start", 600)}${t(rawTitle, x + 10, y + 33, w - 20, Math.min(13, size), "start", 650)}${p(`M ${x} ${y + 43} H ${x + w}`)}${t(field("expression"), x + w / 2, y + h * .62, w - 24, Math.min(15, size), "middle", 500)}${rows(["inputs", "outputs", "variables", "units", "assumptions", "source"], y + h * .72, y + h)}`;
+      if (kind === "proposal-systems-interface-block" || /proposal-systems-(?:full-port|proxy-port|uml-port)$/.test(kind)) {
+        const port = /port$/.test(kind); const portName = kind.endsWith("full-port") ? "full port" : kind.endsWith("proxy-port") ? "proxy port" : "port";
+        const portGlyph = port ? `<rect x="${x + w - 7}" y="${y + h / 2 - 5}" width="10" height="10" fill="${cleanFill}" stroke="${ink}"/>` : "";
+        return `${r(x, y, w, h, cleanFill, 2)}${t(port ? `«${portName}»` : "«interface block»", x + 10, y + 14, w - 28, 9, "start", 600)}${t(field(port ? "port-name" : "interface-name") || rawTitle, x + 10, y + 35, w - 22, Math.min(14, size), "start", 650)}${portGlyph}${p(`M ${x} ${y + 46} H ${x + w}`)}${rows(port ? ["direction", "interface", "delegation"] : ["provided", "required", "protocol"], y + 47, y + h)}`;
+      }
+      if (kind === "proposal-systems-protocol-state") return `${r(x, y, w, h, cleanFill, 18)}${t(field("state") || rawTitle, x + w / 2, y + 25, w - 24, Math.min(15, size), "middle", 650)}${p(`M ${x + 10} ${y + 39} H ${x + w - 10}`)}${rows(["entry-exit", "allowed-transitions", "protocol"], y + 40, y + h - 2, x + 12, w - 24)}`;
+      const propertyKind = kind.endsWith("part-property") ? "part" : kind.endsWith("reference-property") ? "reference" : kind.endsWith("value-property") ? "value" : kind.endsWith("value-type") ? "value type" : kind.endsWith("requirement-stakeholder") ? "requirement stakeholder" : kind.endsWith("requirement-test-case") ? "test case" : kind.endsWith("requirement-risk") ? "requirement risk" : "element";
+      const keys = kind.endsWith("part-property") ? ["part-name", "type", "owner", "constraint"]
+        : kind.endsWith("reference-property") ? ["reference-name", "type", "target", "role"]
+          : kind.endsWith("value-property") ? ["value-name", "type", "value", "range"]
+            : kind.endsWith("value-type") ? ["type-name", "base-type", "unit", "constraint"]
+              : kind.endsWith("requirement-stakeholder") ? ["stakeholder", "need", "priority", "trace"]
+                : kind.endsWith("requirement-test-case") ? ["test-id", "preconditions", "procedure", "expected"]
+                  : kind.endsWith("requirement-risk") ? ["risk", "likelihood", "impact", "mitigation"]
+                    : ["element", "specification", "properties", "trace"];
+      return `${r(x, y, w, h, cleanFill)}${t(`«${propertyKind}»`, x + 10, y + 14, w - 20, 9, "start", 600)}${t(rawTitle, x + 10, y + 34, w - 20, Math.min(14, size), "start", 650)}${p(`M ${x} ${y + 44} H ${x + w}`)}${rows(keys, y + 45, y + h)}`;
+    }
+    if (proposal?.section.startsWith("Decision modelling") && proposal.archetype !== "connector") {
+      const decisionFields = meta.componentFields ?? [];
+      const compactLabel: Record<string, string> = { "event-definition": "Definition", behavior: "Behavior", flow: "Flow", "outputs-policy": "Policy", "source-target": "Participants", "associated-work": "Activity" };
+      const fieldRows = (keys: string[], top: number, bottom: number, left = x + 10, width = w - 20) => block(
+        keys.map(key => [compactLabel[key] ?? decisionFields.find(item => item.key === key)?.label ?? key.replace(/-/g, " "), field(key)] as [string, string]).filter(([, value]) => !!value),
+        left, top, width, Math.min(10, size * .68), Math.max(0, bottom - top),
+      );
+      if (/proposal-decision-(?:conditional|escalation|compensation|link|multiple|parallel-multiple|cancel)-event$/.test(kind)) {
+        const radius = Math.max(18, Math.min(29, h * .22, w * .12)); const cx = x + radius + 12; const cy = y + h / 2;
+        const nonInterrupting = field("behavior").toLowerCase().includes("non-interrupt");
+        const ring = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${cleanFill}" stroke="${ink}" stroke-width="${nonInterrupting ? 1.5 : 2.4}"${nonInterrupting ? ' stroke-dasharray="4 3"' : ""}/>`;
+        const symbol = kind.endsWith("conditional-event") ? `<path d="M ${cx - 7} ${cy - 8} h14 v11 l-7 6-7-6 Z M ${cx - 4} ${cy - 3} h8 M ${cx - 4} ${cy + 1} h8" fill="none" stroke="${ink}"/>`
+          : kind.endsWith("escalation-event") ? `<path d="M ${cx} ${cy + 8} V ${cy - 8} l-6 6 m6-6 6 6" fill="none" stroke="${ink}"/>`
+            : kind.endsWith("compensation-event") ? `<path d="M ${cx - 8} ${cy} l7-6 v12 Z m3-6 7-6 v12 Z" fill="none" stroke="${ink}"/>`
+              : kind.endsWith("link-event") ? `<path d="M ${cx - 7} ${cy - 2} a5 5 0 0 1 8-4 m4 8 a5 5 0 0 1-8 4" fill="none" stroke="${ink}"/>`
+                : kind.endsWith("parallel-multiple-event") ? `<path d="M ${cx} ${cy - 8} v16 m-8-8 h16 m-14-6 12 12 m0-12-12 12" fill="none" stroke="${ink}"/>`
+                  : kind.endsWith("multiple-event") ? `<path d="M ${cx} ${cy - 8} l2 6 6 2-6 2-2 6-2-6-6-2 6-2 Z" fill="${ink}"/>`
+                    : `<path d="M ${cx - 7} ${cy - 7} l14 14 m0-14-14 14" stroke="${ink}"/>`;
+        const contentX = x + radius * 2 + 22; const contentWidth = Math.max(24, w - (contentX - x) - 10);
+        return `${ring}${symbol}${t("BPMN event", contentX, y + 15, contentWidth, 9, "start", 600)}${t(rawTitle, contentX, y + 34, contentWidth, Math.min(size, 14), "start", 650)}${fieldRows(["trigger", "event-definition", "behavior", "flow"], y + 50, y + h - 3, contentX, contentWidth)}`;
+      }
+      if (/proposal-decision-(?:event-subprocess|transaction-subprocess|ad-hoc-subprocess)$/.test(kind)) {
+        const dash = kind.endsWith("event-subprocess") ? ' stroke-dasharray="2 3"' : kind.endsWith("ad-hoc-subprocess") ? ' stroke-dasharray="7 4"' : "";
+        const inner = kind.endsWith("transaction-subprocess") ? r(x + 5, y + 5, w - 10, h - 10, "none", 1) : "";
+        const marker = kind.endsWith("ad-hoc-subprocess") ? t("~", x + w - 16, y + h - 8, 12, 13, "middle", 700) : kind.endsWith("event-subprocess") ? t("O", x + w - 16, y + h - 8, 12, 11, "middle", 700) : "";
+        return `<rect x="${x + 1}" y="${y + 1}" width="${w - 2}" height="${h - 2}" fill="${cleanFill}" stroke="${ink}"${dash}/>${inner}${t(rawTitle, x + 10, y + 20, w - 20, Math.min(14, size), "start", 650)}${p(`M ${x} ${y + 39} H ${x + w}`)}${fieldRows(["purpose", "participants", "completion", "messages"], y + 42, y + h - 3)}${marker}`;
+      }
+      if (kind.endsWith("choreography-task") || kind.endsWith("call-choreography")) {
+        const band = Math.min(24, h * .18); const participants = field("participants").split(/[\r\n,]+/).map(item => item.trim()).filter(Boolean);
+        const border = kind.endsWith("call-choreography") ? 2.5 : 1.3;
+        const participantBands = `<rect x="${x + 2}" y="${y + 2}" width="${w - 4}" height="${band}" fill="${soft}"/><rect x="${x + 2}" y="${y + h - band - 2}" width="${w - 4}" height="${band}" fill="${soft}"/><path d="M ${x} ${y + band + 2} H ${x + w} M ${x} ${y + h - band - 2} H ${x + w}" stroke="${ink}"/>`;
+        return `<rect x="${x + 1}" y="${y + 1}" width="${w - 2}" height="${h - 2}" rx="3" fill="${cleanFill}" stroke="${ink}" stroke-width="${border}"/>${participantBands}${t(participants[0] ?? "Participant", x + 9, y + band / 2 + 2, w - 18, 9, "start", 600)}${t(participants[1] ?? "Participant", x + 9, y + h - band / 2 - 2, w - 18, 9, "start", 600)}${t(rawTitle, x + w / 2, y + band + 14, w - 20, Math.min(size, 13), "middle", 650)}${fieldRows(["purpose", "completion", "messages"], y + band + 23, y + h - band - 3, x + 8, w - 16)}`;
+      }
+      if (kind.endsWith("conversation-node")) {
+        return `<path d="M ${x + 18} ${y + 1} H ${x + w - 18} L ${x + w - 1} ${y + h / 2} L ${x + w - 18} ${y + h - 1} H ${x + 18} L ${x + 1} ${y + h / 2} Z" fill="${cleanFill}" stroke="${ink}"/>${t("Conversation", x + w / 2, y + 16, w - 36, 9, "middle", 600)}${t(rawTitle, x + w / 2, y + 34, w - 36, Math.min(size, 13), "middle", 650)}${fieldRows(["purpose", "participants", "completion", "messages"], y + 45, y + h - 3, x + 18, w - 36)}`;
+      }
+      if (kind.endsWith("bpmn-message")) {
+        const iconX = x + 15; const iconY = y + 14; const iconW = Math.min(45, w * .2); const iconH = 28;
+        return `${r(x, y, w, h, cleanFill, 2)}<rect x="${iconX}" y="${iconY}" width="${iconW}" height="${iconH}" fill="none" stroke="${ink}"/><path d="M ${iconX} ${iconY} l${iconW / 2} ${iconH * .56} ${iconW / 2}-${iconH * .56}" fill="none" stroke="${ink}"/>${t("Message", x + 15 + iconW + 10, y + 18, w - iconW - 35, 9, "start", 600)}${t(rawTitle, x + 15 + iconW + 10, y + 36, w - iconW - 35, Math.min(size, 13), "start", 650)}${fieldRows(["message-name", "payload", "correlation", "source-target"], y + 51, y + h - 3, x + 15 + iconW + 10, w - iconW - 35)}`;
+      }
+      if (/proposal-decision-data-(?:input|output)$/.test(kind)) {
+        const fold = Math.min(18, w * .13); const path = `M ${x + 1} ${y + 1} H ${x + w - fold} L ${x + w - 1} ${y + fold} V ${y + h - 1} H ${x + 1} Z M ${x + w - fold} ${y + 1} V ${y + fold} H ${x + w - 1}`;
+        return `<path d="${path}" fill="${cleanFill}" stroke="${ink}"/>${t(kind.endsWith("data-input") ? "Data input" : "Data output", x + 10, y + 17, w - 24, 9, "start", 600)}${t(rawTitle, x + 10, y + 35, w - 24, Math.min(size, 13), "start", 650)}${p(`M ${x} ${y + 44} H ${x + w}`)}${fieldRows(["data-name", "structure", "direction", "associated-work"], y + 47, y + h - 3)}`;
+      }
+      if (kind.endsWith("data-collection")) {
+        const cy = y + 14; const ry = 9;
+        return `<ellipse cx="${x + w / 2}" cy="${cy}" rx="${w * .48}" ry="${ry}" fill="${soft}" stroke="${ink}"/><path d="M ${x + 2} ${cy} V ${y + h - 14} M ${x + w - 2} ${cy} V ${y + h - 14} M ${x + w / 2 - w * .48} ${y + h - 14} A ${w * .48} ${ry} 0 0 0 ${x + w / 2 + w * .48} ${y + h - 14}" fill="none" stroke="${ink}"/>${t(rawTitle, x + w / 2, y + 34, w - 24, Math.min(size, 13), "middle", 650)}${fieldRows(["data-name", "structure", "direction", "associated-work"], y + 49, y + h - 15)}`;
+      }
+      if (kind.endsWith("dmn-decision-table")) {
+        const inputNames = field("inputs").split(/\r?\n/).map(item => item.trim()).filter(Boolean).slice(0, 3).map(item => item.split(/[:(]/)[0].trim());
+        const outputSpec = field("outputs-policy"); const outputName = outputSpec.replace(/hit\s*policy\s*[:=].*$/im, "").replace(/^\s*outputs?\s*[:=]\s*/i, "").trim() || "Output";
+        const headers = [...inputNames, outputName]; const dataRows = field("rules").split(/\r?\n/).map(line => line.split("|").map(cell => cell.trim())).filter(row => row.some(Boolean)).slice(0, 4);
+        const top = y + 37; const rowHeight = Math.max(14, (h - 57) / Math.max(2, dataRows.length + 1)); const colWidth = w / headers.length;
+        const grid = Array.from({ length: headers.length + 1 }, (_, col) => `<path d="M ${x + col * colWidth} ${top} V ${top + rowHeight * (dataRows.length + 1)}" stroke="${ink}"/>`).join("") + Array.from({ length: dataRows.length + 2 }, (_, row) => `<path d="M ${x} ${top + row * rowHeight} H ${x + w}" stroke="${ink}"/>`).join("");
+        const headerText = headers.map((header, col) => t(header, x + col * colWidth + colWidth / 2, top + rowHeight / 2, colWidth - 5, 8, "middle", 650)).join("");
+        const bodyText = dataRows.flatMap((row, rowIndex) => headers.map((_, col) => t(row[col] ?? "-", x + col * colWidth + colWidth / 2, top + rowHeight * (rowIndex + 1.5), colWidth - 5, 8, "middle", 400))).join("");
+        const policy = outputSpec.match(/(?:hit\s*policy\s*[:=]\s*)?(unique|first|any|collect|rule\s*order|output\s*order|priority|any\s*order)/i)?.[1] ?? "FIRST";
+        return `${r(x, y, w, h, cleanFill, 2)}${t(field("question") || rawTitle, x + 10, y + 16, w - 20, Math.min(size, 12), "start", 650)}<rect x="${x}" y="${top}" width="${w}" height="${rowHeight}" fill="${soft}"/>${grid}${headerText}${bodyText}${t(`Hit policy: ${policy.toUpperCase()}`, x + 9, y + h - 6, w - 18, 8, "start", 600)}`;
+      }
+      if (kind.endsWith("dmn-decision") || kind.endsWith("dmn-decision-service")) {
+        const service = kind.endsWith("dmn-decision-service"); const keys = service ? ["service", "inputs", "decisions", "outputs"] : ["question", "inputs", "logic", "result"];
+        return `${r(x, y, w, h, cleanFill, 6)}${t(service ? "DMN decision service" : "DMN decision", x + 10, y + 14, w - 20, 9, "start", 600)}${t(rawTitle, x + 10, y + 32, w - 20, Math.min(size, 13), "start", 650)}${p(`M ${x} ${y + 42} H ${x + w}`)}${fieldRows(keys, y + 44, y + h - 3)}`;
+      }
+      if (kind.endsWith("dmn-input-data") || kind.endsWith("dmn-knowledge-source") || kind.endsWith("business-knowledge-model")) {
+        const knowledge = !kind.endsWith("dmn-input-data");
+        const shape = knowledge ? `<path d="M ${x + 20} ${y + 1} H ${x + w - 1} L ${x + w - 20} ${y + h - 1} H ${x + 1} Z" fill="${cleanFill}" stroke="${ink}"/>` : r(x, y, w, h, cleanFill);
+        const stereotype = kind.endsWith("business-knowledge-model") ? "Business knowledge model" : knowledge ? "Knowledge source" : "Input data";
+        const keys = kind.endsWith("dmn-input-data") ? ["variable", "source", "constraints", "consumers"] : ["source", "owner", "authority", "decisions"];
+        return `${shape}${t(stereotype, x + 10, y + 17, w - 20, 9, "start", 600)}${t(rawTitle, x + 10, y + 35, w - 20, Math.min(size, 13), "start", 650)}${p(`M ${x} ${y + 44} H ${x + w}`)}${fieldRows(keys, y + 47, y + h - 3)}`;
+      }
+      if (kind.endsWith("dmn-context-expression")) {
+        const entries = field("entries").split(/\r?\n/).filter(Boolean).slice(0, 3);
+        const details = [...entries.map((entry, index) => [`Entry ${index + 1}`, entry] as [string, string]), ["Result", field("result")] as [string, string], ["Type", field("type")] as [string, string]].filter(([, value]) => !!value);
+        return `${r(x, y, w, h, cleanFill, 3)}${t("Context expression", x + 10, y + 14, w - 20, 9, "start", 600)}${t(field("context") || rawTitle, x + 10, y + 32, w - 20, Math.min(size, 13), "start", 650)}${p(`M ${x} ${y + 42} H ${x + w}`)}${block(details, x + 10, y + 44, w - 20, Math.min(10, size * .65), h - 47)}`;
+      }
+      const keys = decisionFields.map(item => item.key);
+      return `${r(x, y, w, h, cleanFill, proposal.archetype === "boundary" ? 1 : 5)}${t(rawTitle, x + 10, y + 20, w - 20, Math.min(size, 14), "start", 650)}${p(`M ${x} ${y + 36} H ${x + w}`)}${fieldRows(keys, y + 39, y + h - 3)}`;
+    }
+    if (proposal?.section.startsWith("Data & schemas") && proposal.archetype !== "connector") {
+      const dataFields = meta.componentFields ?? [];
+      const dataLabel = (key: string) => dataFields.find(item => item.key === key)?.label ?? key.replace(/-/g, " ");
+      const dataRows = (keys: string[], top: number, bottom: number, left = x + 9, width = w - 18) => block(
+        keys.map(key => [dataLabel(key), field(key)] as [string, string]), left, top, width, Math.min(10, size * .66), Math.max(0, bottom - top),
+      );
+      const keys = dataFields.map(item => item.key);
+      if (proposal.archetype === "database" || kind.endsWith("document-collection")) {
+        const inset = Math.min(13, w * .08); const ry = Math.min(11, h * .11); const cx = x + w / 2;
+        const cylinder = `<path d="M ${x + inset} ${y + ry} V ${y + h - ry} C ${x + inset} ${y + h + 1} ${x + w - inset} ${y + h + 1} ${x + w - inset} ${y + h - ry} V ${y + ry}" fill="${cleanFill}" stroke="${ink}"/><ellipse cx="${cx}" cy="${y + ry}" rx="${(w - inset * 2) / 2}" ry="${ry}" fill="${cleanFill}" stroke="${ink}"/>`;
+        const contentLeft = x + inset + 7; const contentWidth = w - 2 * (inset + 7); const top = y + 44; const bottom = y + h - ry - 3; const rowHeight = (bottom - top) / Math.max(1, keys.length);
+        const rowMarkup = keys.map((key, index) => {
+          const rowY = top + index * rowHeight; const label = dataLabel(key); const value = field(key).replace(/\s*\n\s*/g, " | "); const detail = `${label}${value ? `: ${value}` : ""}`;
+          const divider = index ? p(`M ${x + inset + 2} ${rowY} H ${x + w - inset - 2}`) : "";
+          return `${divider}${t(detail, contentLeft, rowY + rowHeight / 2, contentWidth, Math.min(10, size * .62, rowHeight * .72), "start", 400)}`;
+        }).join("");
+        return `${cylinder}${t(rawTitle, contentLeft, y + 31, contentWidth, Math.min(size, 12))}${rowMarkup}`;
+      }
+      if (kind.endsWith("graph-vertex")) {
+        const shape = `M ${x + w * .16} ${y + 1} H ${x + w * .84} L ${x + w - 1} ${y + h / 2} L ${x + w * .84} ${y + h - 1} H ${x + w * .16} L ${x + 1} ${y + h / 2} Z`;
+        const graphInsetAt = (localY: number) => { const halfHeight = Math.max(1, h / 2); const ratio = Math.min(1, Math.max(0, Math.min(localY, h - localY) / halfHeight)); return 1 + Math.max(0, w * .16 - 1) * (1 - ratio); };
+        const rowKeys = keys.filter(key => key !== "type"); const top = y + 36; const bottom = y + h - 4; const rowHeight = (bottom - top) / Math.max(1, rowKeys.length);
+        const rowMarkup = rowKeys.map((key, index) => {
+          const rowY = top + index * rowHeight; const inset = Math.max(graphInsetAt(rowY + 2 - y), graphInsetAt(rowY + rowHeight - 2 - y)); const left = x + inset + 7; const width = Math.max(4, w - 2 * (inset + 7));
+          const value = field(key).replace(/\s*\n\s*/g, " | "); const detail = `${dataLabel(key)}${value ? `: ${value}` : ""}`;
+          const divider = index ? p(`M ${x + inset + 3} ${rowY} H ${x + w - inset - 3}`) : "";
+          return `${divider}${t(detail, left, rowY + rowHeight / 2, width, Math.min(9, size * .58, rowHeight * .72), "start", 400)}`;
+        }).join("");
+        const clipId = `graph-vertex-${String(group.id ?? kind).replace(/[^\w-]/g, "_") || "vertex"}`;
+        return `<path d="${shape}" fill="${cleanFill}" stroke="${ink}"/><defs><clipPath id="${clipId}"><path d="${shape}"/></clipPath></defs><g clip-path="url(#${clipId})">${t(field("type") || rawTitle, x + w / 2, y + 19, w * .62, Math.min(size, 13), "middle", 650)}${p(`M ${x + w * .15} ${y + 32} H ${x + w * .85}`)}${rowMarkup}</g>`;
+      }
+      if (kind.endsWith("graph-edge-type")) return `${r(x, y, w, h, cleanFill, 5)}${t(field("type") || rawTitle, x + 10, y + 17, w - 20, Math.min(size, 12))}${p(`M ${x + 10} ${y + 31} H ${x + w - 17} l-7-6 m7 6-7 6`)}${dataRows(keys.filter(key => key !== "type"), y + 38, y + h - 3)}`;
+      if (kind.endsWith("wide-column-table") || proposal.archetype === "table") {
+        const headerHeight = Math.min(29, Math.max(24, h * .22)); const top = y + headerHeight + 2; const bottom = y + h - 3;
+        const lines = Array.from({ length: keys.length + 1 }, (_, index) => `<path d="M ${x} ${top + (bottom - top) * index / Math.max(1, keys.length)} H ${x + w}" stroke="${ink}"/>`).join("");
+        return `${r(x, y, w, h, cleanFill, 2)}<rect x="${x + 1}" y="${y + 1}" width="${w - 2}" height="${headerHeight}" fill="${soft}"/>${t(rawTitle, x + 9, y + 17, w - 18, Math.min(size, 12))}${lines}${dataRows(keys, top + 1, bottom, x + 8, w - 16)}`;
+      }
+      if (kind.endsWith("table-partition") || kind.endsWith("star-schema-boundary")) {
+        const border = r(x + 1, y + 1, w - 2, h - 2, cleanFill, 1).replace("stroke-width=\"1.3\"", "stroke-width=\"1.3\" stroke-dasharray=\"6 4\"");
+        if (kind.endsWith("star-schema-boundary")) {
+          const cx = x + w / 2; const cy = y + 57;
+          const mini = `<path d="M ${cx} ${cy} L ${x + 28} ${y + 48} M ${cx} ${cy} L ${x + w - 28} ${y + 48} M ${cx} ${cy} L ${cx} ${y + 78}" stroke="${ink}"/><rect x="${cx - 20}" y="${cy - 9}" width="40" height="18" fill="${soft}" stroke="${ink}"/><rect x="${x + 9}" y="${y + 41}" width="38" height="16" fill="${cleanFill}" stroke="${ink}"/><rect x="${x + w - 47}" y="${y + 41}" width="38" height="16" fill="${cleanFill}" stroke="${ink}"/><rect x="${cx - 19}" y="${y + 71}" width="38" height="16" fill="${cleanFill}" stroke="${ink}"/>`;
+          return `${border}${t(rawTitle, x + 10, y + 17, w - 20, Math.min(size, 12))}${mini}${dataRows(keys, y + 103, y + h - 3, x + 9, w - 18)}`;
+        }
+        return `${border}${t(field("partition") || rawTitle, x + 10, y + 18, w - 20, Math.min(size, 12))}${p(`M ${x} ${y + 35} H ${x + w}`)}${dataRows(keys, y + 38, y + h - 3)}`;
+      }
+      if (kind.endsWith("data-classification-badge")) {
+        const classification = field("classification").toLowerCase(); const badge = classification.includes("restrict") ? "#b34a4a" : classification.includes("confidential") ? "#bd7921" : classification.includes("internal") ? "#426da7" : "#39815c";
+        return `${r(x, y, w, h, cleanFill, 12)}<rect x="${x + 9}" y="${y + 9}" width="${Math.min(w - 18, 112)}" height="24" rx="12" fill="${badge}"/>${t(field("classification") || "Classification", x + 15, y + 21, Math.min(w - 30, 100), 9, "start", 700)}${dataRows(keys.filter(key => key !== "classification"), y + 40, y + h - 3)}`;
+      }
+      if (kind.endsWith("data-quality-check")) {
+        return `${r(x, y, w, h, cleanFill, 5)}<rect x="${x + 9}" y="${y + 10}" width="18" height="18" rx="3" fill="none" stroke="${ink}"/>${t(field("rule") || rawTitle, x + 34, y + 21, w - 44, Math.min(size, 11))}${p(`M ${x} ${y + 37} H ${x + w}`)}${dataRows(keys.filter(key => key !== "rule"), y + 40, y + h - 3)}`;
+      }
+      if (kind.endsWith("data-contract") || kind.endsWith("json-schema-object") || kind.endsWith("graphql-resolver") || kind.endsWith("standalone-database-column")) {
+        const fold = Math.min(18, w * .12); const path = `M ${x + 1} ${y + 1} H ${x + w - fold} L ${x + w - 1} ${y + fold} V ${y + h - 1} H ${x + 1} Z M ${x + w - fold} ${y + 1} V ${y + fold} H ${x + w - 1}`;
+        const top = field("contract") || field("title") || field("column") || field("parent-field") || rawTitle;
+        return `<path d="${path}" fill="${cleanFill}" stroke="${ink}"/>${t(top, x + 10, y + 18, w - 24, Math.min(size, 12))}${p(`M ${x} ${y + 36} H ${x + w}`)}${dataRows(keys, y + 39, y + h - 3)}`;
+      }
+      if (/primary-key|foreign-key|unique-constraint|check-constraint/.test(kind)) {
+        const badge = kind.includes("primary") ? "PK" : kind.includes("foreign") ? "FK" : kind.includes("unique") ? "UN" : "CK";
+        return `${r(x, y, w, h, cleanFill, 4)}<rect x="${x + 9}" y="${y + 9}" width="30" height="20" rx="4" fill="${soft}" stroke="${ink}"/>${t(badge, x + 24, y + 19, 25, 9, "middle", 700)}${t(field("constraint") || rawTitle, x + 47, y + 20, w - 56, Math.min(size, 12))}${p(`M ${x} ${y + 36} H ${x + w}`)}${dataRows(keys.filter(key => key !== "constraint"), y + 39, y + h - 3)}`;
+      }
+      return `${r(x, y, w, h, cleanFill, 5)}${t(field("store") || field("dataset") || field("type-name") || field("index") || field("type") || rawTitle, x + 10, y + 17, w - 20, Math.min(size, 12))}${p(`M ${x} ${y + 35} H ${x + w}`)}${dataRows(keys, y + 38, y + h - 3)}`;
+    }
+    if (proposal?.section.startsWith("Architecture patterns")) {
+      const architectureText = (value: string, left: number, top: number, width = w - 20, font = size, anchor = "start", weight = 600) =>
+        t(value, componentBoxTextAnchor(left, width, anchor === "middle" ? "center" : anchor === "end" ? "right" : "left"), top, width, font, anchor, weight);
+      const architectureFields = meta.componentFields ?? [];
+      const keys = architectureFields.map(item => item.key);
+      const rows = (rowKeys = keys, top = y + 45, bottom = y + h - 3, left = x + 10, width = w - 20) => block(
+        rowKeys.map(key => [architectureFields.find(item => item.key === key)?.label ?? key.replace(/-/g, " "), field(key)] as [string, string]),
+        left, top, width, Math.min(10, size * .66), Math.max(0, bottom - top),
+      );
+      const panel = (radius = 6, dash = "") => `${r(x, y, w, h, cleanFill, radius).replace("stroke-width=\"1.3\"", `stroke-width=\"1.3\"${dash ? ` stroke-dasharray=\"${dash}\"` : ""}`)}`;
+      const separator = (atY: number, left = x, right = x + w) => p(`M ${left} ${atY} H ${right}`);
+      if (["proposal-architecture-web-frontend", "proposal-architecture-mobile-client"].includes(kind)) {
+        const band = Math.min(27, h * .2);
+        return `${panel(8)}<rect x="${x + 2}" y="${y + 2}" width="${w - 4}" height="${band}" fill="${soft}"/>${architectureText("●  ●  ●", x + 10, y + band / 2 + 1, 50, 7)}${architectureText(field("application") || rawTitle, x + 10, y + band + 16, w - 20, Math.min(size, 13))}${separator(y + band + 22)}${rows(keys.filter(key => key !== "application"), y + band + 26)}`;
+      }
+      if (/api-operation|graphql-endpoint|grpc-service|webhook-endpoint/.test(kind)) {
+        const badge = kind.endsWith("api-operation") ? field("method-path").split(/\s+/)[0] || "HTTP" : kind.endsWith("graphql-endpoint") ? "GRAPHQL" : kind.endsWith("grpc-service") ? "gRPC" : "WEBHOOK";
+        return `${panel(5)}${r(x + 9, y + 8, Math.min(w * .36, 68), 21, soft, 4)}${architectureText(badge.toUpperCase(), x + 11, y + 19, Math.min(w * .36, 64), 8, "middle", 700)}${architectureText(rawTitle, x + Math.min(w * .36, 68) + 17, y + 20, w - Math.min(w * .36, 68) - 25, Math.min(size, 12), "start", 650)}${separator(y + 36)}${rows(keys, y + 39)}`;
+      }
+      if (/background-worker|batch-job|scheduler/.test(kind)) {
+        const cx = x + 23; const cy = y + 24;
+        return `${panel(6)}<circle cx="${cx}" cy="${cy}" r="12" fill="none" stroke="${ink}"/>${p(`M ${cx - 7} ${cy} H ${cx + 6} l-4-4 m4 4-4 4`)}${architectureText(rawTitle, x + 43, y + 21, w - 53, Math.min(size, 13))}${separator(y + 39)}${rows(keys, y + 42)}`;
+      }
+      if (/event-producer|event-consumer|event-topic|stream-partition/.test(kind)) {
+        const partition = kind.endsWith("stream-partition"); const publish = kind.endsWith("event-producer"); const subscribe = kind.endsWith("event-consumer");
+        const top = partition ? y + 56 : y + 42;
+        const lanes = partition ? `<rect x="${x + 10}" y="${y + 39}" width="${w - 20}" height="13" fill="${soft}" stroke="${ink}"/>${architectureText("0             1             2             3", x + 13, y + 46, w - 26, 7)}` : `${r(x + 9, y + 9, 34, 22, soft, 4)}${architectureText(publish ? "PUB" : subscribe ? "SUB" : "BUS", x + 10, y + 20, 32, 8, "middle", 700)}`;
+        const first = field(partition ? "partition" : publish ? "producer" : subscribe ? "consumer" : "topic") || rawTitle;
+        return `${panel(partition ? 2 : 8, partition ? "6 4" : "")}${lanes}${architectureText(first, x + (partition ? 10 : 50), partition ? y + 19 : y + 21, w - (partition ? 20 : 60), Math.min(size, 13), "start", 650)}${separator(top - 4)}${rows(keys.filter(key => key !== (partition ? "partition" : publish ? "producer" : subscribe ? "consumer" : "topic")), top)}`;
+      }
+      if (/saga-orchestrator|saga-participant/.test(kind)) {
+        const lead = kind.endsWith("saga-orchestrator") ? "saga" : "participant"; const first = field(lead) || rawTitle;
+        const steps = `<rect x="${x + 10}" y="${y + 37}" width="${(w - 40) / 3}" height="16" rx="3" fill="${soft}" stroke="${ink}"/><rect x="${x + w / 2 - (w - 40) / 6}" y="${y + 37}" width="${(w - 40) / 3}" height="16" rx="3" fill="${soft}" stroke="${ink}"/><rect x="${x + w - 10 - (w - 40) / 3}" y="${y + 37}" width="${(w - 40) / 3}" height="16" rx="3" fill="${soft}" stroke="${ink}"/>${architectureText("Step", x + 10, y + 45, (w - 40) / 3, 7, "middle")}${architectureText("Commit", x + w / 2 - (w - 40) / 6, y + 45, (w - 40) / 3, 7, "middle")}${architectureText("Compensate", x + w - 10 - (w - 40) / 3, y + 45, (w - 40) / 3, 7, "middle")}`;
+        return `${panel(5)}${architectureText(first, x + 10, y + 20, w - 20, Math.min(size, 13), "start", 650)}${steps}${separator(y + 60)}${rows(keys.filter(key => key !== lead), y + 63)}`;
+      }
+      if (kind.endsWith("transactional-outbox") || kind.endsWith("change-data-capture")) {
+        const labels = kind.endsWith("transactional-outbox") ? ["DB", "BUS"] : ["LOG", "SINK"];
+        return `${panel(5)}${architectureText(rawTitle, x + 10, y + 18, w - 20, Math.min(size, 13))}${r(x + 10, y + 29, 37, 23, soft, 3)}${architectureText(labels[0], x + 11, y + 41, 35, 8, "middle", 700)}${p(`M ${x + 49} ${y + 40} H ${x + w - 49} l-6-4 m6 4-6 4`)}${r(x + w - 47, y + 29, 37, 23, soft, 3)}${architectureText(labels[1], x + w - 46, y + 41, 35, 8, "middle", 700)}${separator(y + 62)}${rows(keys, y + 65)}`;
+      }
+      if (kind.endsWith("service-mesh-sidecar")) {
+        const cardWidth = (w - 32) / 2; const top = y + 32;
+        return `${panel(6)}${architectureText(rawTitle, x + 10, y + 18, w - 20, Math.min(size, 13))}${r(x + 10, top, cardWidth, 24, soft, 3)}${architectureText("Workload", x + 12, top + 13, cardWidth - 4, 8, "middle", 600)}${r(x + 22 + cardWidth, top, cardWidth, 24, soft, 3)}${architectureText("Sidecar proxy", x + 24 + cardWidth, top + 13, cardWidth - 4, 8, "middle", 600)}${p(`M ${x + 10 + cardWidth} ${top + 12} H ${x + 22 + cardWidth}`)}${separator(y + 62)}${rows(keys, y + 65)}`;
+      }
+      if (kind.endsWith("circuit-breaker")) {
+        const cellWidth = (w - 26) / 3; const atY = y + 31;
+        const states = ["Closed", "Open", "Half-open"].map((label, index) => `${r(x + 10 + index * cellWidth, atY, cellWidth - 4, 18, soft, 4)}${architectureText(label, x + 11 + index * cellWidth, atY + 10, cellWidth - 6, 7, "middle", 600)}`).join("");
+        return `${panel(6)}${architectureText(rawTitle, x + 10, y + 17, w - 20, Math.min(size, 13), "start", 650)}${states}${separator(y + 55)}${rows(keys, y + 58)}`;
+      }
+      if (kind.endsWith("adapter") || kind.endsWith("backend-for-frontend")) {
+        const adapter = kind.endsWith("adapter"); const leftLabel = adapter ? "Source" : "Client"; const centerLabel = adapter ? "Map" : "BFF"; const rightLabel = adapter ? "Target" : "APIs";
+        const mid = y + 34; const boxWidth = adapter ? (w - 40) / 2 : 48; const leftX = x + 10; const centerX = x + w / 2 - (adapter ? 13 : 25); const rightX = x + w - boxWidth - 10;
+        const flow = `${r(leftX, mid, boxWidth, 20, soft, 3)}${architectureText(leftLabel, leftX + 1, mid + 11, boxWidth - 2, 8, "middle", 600)}${r(centerX, mid, adapter ? 26 : 50, 20, soft, 3)}${architectureText(centerLabel, centerX + 1, mid + 11, (adapter ? 26 : 50) - 2, 8, "middle", 700)}${r(rightX, mid, boxWidth, 20, soft, 3)}${architectureText(rightLabel, rightX + 1, mid + 11, boxWidth - 2, 8, "middle", 600)}${p(`M ${leftX + boxWidth} ${mid + 10} H ${centerX}`)}${p(`M ${centerX + (adapter ? 26 : 50)} ${mid + 10} H ${rightX}`)}`;
+        return `${panel(6)}${architectureText(rawTitle, x + 10, y + 18, w - 20, Math.min(size, 13))}${flow}${separator(y + 62)}${rows(keys, y + 65)}`;
+      }
+      if (kind.endsWith("bounded-context") || kind.endsWith("aggregate-root")) {
+        const aggregate = kind.endsWith("aggregate-root"); const lead = aggregate ? "root" : "context"; const border = panel(aggregate ? 4 : 2, "6 4");
+        const title = field(lead) || rawTitle; const inner = aggregate ? `${r(x + 12, y + 31, w - 24, 23, soft, 3)}${architectureText("Aggregate root", x + 14, y + 43, w - 28, 8, "middle", 700)}` : architectureText("BOUNDARY / UBIQUITOUS LANGUAGE", x + 10, y + 36, w - 20, 7, "start", 600);
+        const top = aggregate ? y + 63 : y + 49;
+        return `${border}${architectureText(title, x + 10, y + 19, w - 20, Math.min(size, 13), "start", 650)}${inner}${separator(top - 3)}${rows(keys.filter(key => key !== lead), top)}`;
+      }
+      if (kind.endsWith("domain-entity") || kind.endsWith("value-object") || kind.endsWith("domain-event") || kind.endsWith("application-component") || kind.endsWith("application-service") || kind.endsWith("business-actor") || kind.endsWith("business-role") || kind.endsWith("business-process") || kind.endsWith("data-object") || kind.endsWith("technology-node")) {
+        const lead = kind.endsWith("domain-entity") ? "entity" : kind.endsWith("value-object") ? "value" : kind.endsWith("domain-event") ? "event" : kind.endsWith("application-component") ? "component" : kind.endsWith("application-service") ? "service" : kind.endsWith("business-actor") ? "actor" : kind.endsWith("business-role") ? "role" : kind.endsWith("business-process") ? "process" : kind.endsWith("data-object") ? "object" : "node";
+        const data = kind.endsWith("data-object"); const technology = kind.endsWith("technology-node"); const process = kind.endsWith("business-process");
+        const shell = technology ? `<path d="M ${x + 13} ${y + 12} L ${x + w / 2} ${y + 1} L ${x + w - 13} ${y + 12} V ${y + h - 10} L ${x + w / 2} ${y + h - 1} L ${x + 13} ${y + h - 10} Z M ${x + 13} ${y + 12} L ${x + w / 2} ${y + 23} L ${x + w - 13} ${y + 12} M ${x + w / 2} ${y + 23} V ${y + h - 1}" fill="${cleanFill}" stroke="${ink}"/>` : data ? `<path d="M ${x + 1} ${y + 1} H ${x + w - 19} L ${x + w - 1} ${y + 19} V ${y + h - 1} H ${x + 1} Z M ${x + w - 19} ${y + 1} V ${y + 19} H ${x + w - 1}" fill="${cleanFill}" stroke="${ink}"/>` : panel(kind.endsWith("domain-event") ? 6 : kind.endsWith("value-object") ? 16 : 4);
+        const actor = kind.endsWith("business-actor"); const role = kind.endsWith("business-role"); const application = kind.endsWith("application-component"); const service = kind.endsWith("application-service"); const valueObject = kind.endsWith("value-object");
+        const top = process ? y + 62 : kind.endsWith("domain-event") ? y + 67 : actor ? y + 51 : service ? y + 47 : data ? y + 39 : y + 39;
+        const middle = process ? `${["Trigger", "Work", "Result"].map((label, index) => `${r(x + 10 + index * (w - 26) / 3, y + 37, (w - 34) / 3, 16, soft, 3)}${architectureText(label, x + 11 + index * (w - 26) / 3, y + 45, (w - 36) / 3, 7, "middle", 600)}`).join("")}`
+          : actor ? `<circle cx="${x + 26}" cy="${y + 30}" r="4" fill="none" stroke="${ink}"/><path d="M ${x + 26} ${y + 34} V ${y + 41} M ${x + 18} ${y + 38} H ${x + 34} M ${x + 26} ${y + 41} L ${x + 20} ${y + 48} M ${x + 26} ${y + 41} L ${x + 32} ${y + 48}" stroke="${ink}"/>`
+            : kind.endsWith("domain-event") ? p(`M ${x + 10} ${y + 31} H ${x + w - 10} V ${y + 46} L ${x + w / 2} ${y + 60} L ${x + 10} ${y + 46} Z`)
+              : application ? `${r(x + 7, y + 12, 15, 9, soft, 1)}${r(x + 7, y + 25, 15, 9, soft, 1)}`
+                : service ? p(`M ${x + 11} ${y + 29} V ${y + 42} H ${x + 18} M ${x + 11} ${y + 29} H ${x + 18}`)
+                  : role ? `${r(x + 10, y + 9, 24, 24, soft, 12)}${architectureText("R", x + 11, y + 21, 22, 10, "middle", 700)}`
+                    : valueObject ? `${r(x + 10, y + 8, 28, 19, soft, 9)}${architectureText("IMM", x + 11, y + 17, 26, 7, "middle", 700)}` : "";
+        const headingX = actor || role || application || valueObject ? x + (actor ? 43 : role ? 42 : application ? 29 : 45) : x + 10;
+        const headingWidth = w - (headingX - x) - 10;
+        const entityTitleWidth = kind.endsWith("domain-entity") ? w - 82 : headingWidth;
+        return `${shell}${architectureText(field(lead) || rawTitle, headingX, y + 19, entityTitleWidth, Math.min(size, 13), "start", 650)}${kind.endsWith("domain-entity") ? architectureText(`ID: ${field("entity") || "identity"}`, x + w - 65, y + 19, 55, 8, "end", 600) : ""}${middle}${separator(top - 3)}${rows(keys.filter(key => key !== lead), top)}`;
+      }
+      return `${panel(proposal.archetype === "boundary" ? 2 : 6, proposal.archetype === "boundary" ? "6 4" : "")}${architectureText(rawTitle, x + 10, y + 20, w - 20, Math.min(size, 13), "start", 650)}${separator(y + 36)}${rows(keys, y + 39)}`;
+    }
     const neutralCloud = cloudNeutralComponent(kind);
     if (neutralCloud) {
       const iconSide = Math.min(25, Math.max(14, h - 20), Math.max(14, w * .22));
@@ -1699,10 +2615,10 @@ function renderModelComponentSvg(group: GroupElement, theme: Theme): string {
 }
 
 /** Keeps component text formatting consistent when the vector renderer exports its dynamic labels. */
-export function modelComponentSvg(group: GroupElement, theme: Theme = "light") {
+export function modelComponentSvg(group: GroupElement, theme: Theme = "light", allElements?: readonly Element[]) {
   // Nested decorations can be wider than an imported or tightly resized symbol.
   // Keep their SVG geometry valid without changing the saved component bounds.
-  let svg = renderModelComponentSvg(group, theme).replace(/<(?:circle|ellipse|rect)\b[^>]*>/g, tag =>
+  let svg = renderModelComponentSvg(group, theme, allElements).replace(/<(?:circle|ellipse|rect)\b[^>]*>/g, tag =>
     tag.replace(/\b(r|rx|ry|width|height)="(-(?:\d|\.)[^"]*)"/g, (_attribute, name: string) => `${name}="0"`));
   const style = group.libraryComponent?.textStyle;
   if (!svg) return svg;

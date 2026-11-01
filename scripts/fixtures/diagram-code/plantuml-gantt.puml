@@ -1,0 +1,6 @@
+@startgantt
+Project starts 2026-11-01
+[Design] lasts 3 days
+[Build] starts 2026-11-04 and lasts 5 days and depends on [Design]'s end
+[Release] happens at 2026-11-10
+@endgantt

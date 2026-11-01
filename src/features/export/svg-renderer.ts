@@ -11,12 +11,13 @@ import { modelComponentSvg } from "../components/model-component-renderer";
 import { renderLibraryChartSvg } from "../components/chart-engine";
 import { relationshipDisplayElement } from "../diagrams/relationships";
 import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
-import { checklistRows, defaultNoteTitle, isMarkdownTableDivider, markdownCells, noteCardPalette, syntaxTokenColor, syntaxTokens } from "../../notes";
+import { checklistRows, defaultNoteTitle, isMarkdownTableDivider, markdownCells, noteCardPalette } from "../../notes";
 import { standaloneMarkdownTableRows } from "../../app/markdown-table";
 
 type SvgRendererPorts = {
   theme: () => Theme;
   isHidden?: (element: Element) => boolean;
+  sourceItems?: readonly Element[];
   simpleComponentElement: (element: Element) => Element;
   connectorForView: (element: ShapeElement, sourceItems?: Element[]) => ShapeElement;
   labelSvg: (shape: ShapeElement) => string;
@@ -32,7 +33,7 @@ export function createSvgElementSerializer(ports: SvgRendererPorts) {
   const stableHash = (value: string) => { let hash = 2166136261; for (let index = 0; index < value.length; index++) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619); return (hash >>> 0).toString(36); };
   function componentUseSvg(element: Extract<Element, { type: "group" }>, bounds: NonNullable<Extract<Element, { type: "group" }>["componentBounds"]>) {
     const local = { ...element, rotation: 0, componentBounds: { x: 0, y: 0, w: bounds.w, h: bounds.h } };
-    const vector = modelComponentSvg(local, theme());
+    const vector = modelComponentSvg(local, theme(), ports.sourceItems);
     const key = `${bounds.w}x${bounds.h}:${vector}`;
     let id = componentSymbolIds.get(key);
     if (!id) {
@@ -65,7 +66,7 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
         body += rows.map(row => { const boxX = x + row.boxX, boxY = y + row.top + Math.max(0, (row.height - 14) / 2), textY = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2; return `<rect x="${boxX}" y="${boxY}" width="14" height="14" rx="1" fill="${row.done ? palette.check : palette.surface}" stroke="${row.done ? palette.check : palette.border}"/>${row.done ? `<path d="M ${boxX + 3} ${boxY + 7} l3 3 5 -6" fill="none" stroke="${simple ? palette.ink : "#fff"}" stroke-width="1.6"/>` : ""}${row.labelLines.map((line, index) => `<text x="${x + row.textX}" y="${textY + index * row.lineHeight}" dominant-baseline="hanging" font-family="sans-serif" font-size="${meta.fontSize ?? 12}" fill="${row.done ? palette.muted : palette.ink}">${escapeXml(line)}</text>`).join("")}`; }).join("");
       } else {
         let cursor = y + 30, inCode = false, language = "text", codeLines: string[] = [];
-        const addCode = () => { const fontSize = meta.fontSize ?? 12; const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => { const chunks: string[] = []; for (let index = 0; index < Math.max(1, line.length); index += max) chunks.push(line.slice(index, index + max)); return chunks; }); const blockHeight = Math.max(32, lines.length * fontSize * 1.5 + 20); body += `<rect x="${x + 10}" y="${cursor}" width="${width - 20}" height="${blockHeight}" rx="${simple ? 0 : 7}" fill="${simple ? palette.surface : "#202936"}" stroke="${simple ? palette.rule : "#344154"}"/><text x="${x + 20}" y="${cursor + 7}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" font-weight="600" fill="${simple ? palette.muted : "#91a1b5"}">${escapeXml(language.toUpperCase())}</text>${lines.map((line, index) => { let column = 0; return syntaxTokens(line, language).map(token => { const rendered = `<text x="${x + 20 + column * fontSize * .62}" y="${cursor + 22 + index * fontSize * 1.5}" dominant-baseline="hanging" font-family="monospace" font-size="${fontSize}" fill="${syntaxTokenColor(token.color, theme(), "simple")}">${escapeXml(token.value)}</text>`; column += token.value.length; return rendered; }).join(""); }).join("")}`; cursor += blockHeight + 5; codeLines = []; inCode = false; };
+        const addCode = () => { const fontSize = meta.fontSize ?? 12; const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => { const chunks: string[] = []; for (let index = 0; index < Math.max(1, line.length); index += max) chunks.push(line.slice(index, index + max)); return chunks; }); const blockHeight = Math.max(32, lines.length * fontSize * 1.5 + 20); body += `<rect x="${x + 10}" y="${cursor}" width="${width - 20}" height="${blockHeight}" rx="${simple ? 0 : 7}" fill="${simple ? palette.surface : "#202936"}" stroke="${simple ? palette.rule : "#344154"}"/><text x="${x + 20}" y="${cursor + 7}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" font-weight="600" fill="${simple ? palette.muted : "#91a1b5"}">${escapeXml(language.toUpperCase())}</text>${lines.map((line, index) => `<text x="${x + 20}" y="${cursor + 22 + index * fontSize * 1.5}" dominant-baseline="hanging" font-family="monospace" font-size="${fontSize}" fill="${palette.ink}">${escapeXml(line)}</text>`).join("")}`; cursor += blockHeight + 5; codeLines = []; inCode = false; };
         const maxChars = Math.max(8, Math.floor((width - 36) / ((meta.fontSize ?? 12) * .56)));
         const sourceLines = meta.content.split(/\r?\n/);
         for (let lineIndex = 0; lineIndex < sourceLines.length;) {
@@ -166,16 +167,18 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
           const ink = marker.kind === "primary" ? colors.primaryKey : marker.kind === "foreign" ? colors.foreignKey : colors.required;
           return `<text x="${marker.x}" y="${middle + fontSize * .2}" font-family="sans-serif" font-size="${Math.max(6, fontSize * .58)}" font-weight="700" fill="${ink}">${marker.label}</text>`;
         }).join("");
-        return `${markers}
+          return `${markers}
           <text x="${layout.fieldX}" y="${middle + fontSize * .29}" font-family="monospace" font-size="${fontSize * .82}" font-weight="600" fill="${colors.text}">${escapeXml(fitSchemaTableText(column.name, layout.fieldWidth, fontSize * .82))}</text>
-          <text x="${layout.typeRight}" y="${middle + fontSize * .24}" text-anchor="end" font-family="monospace" font-size="${fontSize * .7}" fill="${colors.muted}">${escapeXml(fitSchemaTableText(column.dataType || "type", layout.typeWidth, fontSize * .7))}</text>`;
+            ${column.dataType ? `<text x="${layout.typeRight}" y="${middle + fontSize * .24}" text-anchor="end" font-family="monospace" font-size="${fontSize * .7}" fill="${colors.muted}">${escapeXml(fitSchemaTableText(column.dataType, layout.typeWidth, fontSize * .7))}</text>` : ""}`;
       }).join("");
+        const objectBadge = element.objectKind === "view" ? "VIEW" : element.objectKind === "enum" ? "ENUM" : "";
       return `<g opacity="${element.opacity ?? 1}">
         <rect x="${left + 1}" y="${top + 2}" width="${element.w}" height="${element.h}" rx="4" fill="${theme() === "dark" ? "rgba(0,0,0,.28)" : "rgba(33,43,54,.14)"}"/>
         <rect x="${left}" y="${top}" width="${element.w}" height="${element.h}" rx="4" fill="${colors.surface}"/>
         <path d="M ${left + 4} ${top} H ${right - 4} Q ${right} ${top} ${right} ${top + 4} V ${top + titleHeight} H ${left} V ${top + 4} Q ${left} ${top} ${left + 4} ${top} Z" fill="${colors.header}"/>
         <line x1="${left}" y1="${top + titleHeight}" x2="${right}" y2="${top + titleHeight}" stroke="${colors.divider}"/>
-        <text x="${left + contentInset}" y="${top + titleHeight * .68}" font-family="sans-serif" font-size="${fontSize * .96}" font-weight="600" fill="${colors.title}">${escapeXml(fitSchemaTableText(element.name, element.w - contentInset * 2, fontSize * .96))}</text>
+          <text x="${left + contentInset}" y="${top + titleHeight * .68}" font-family="sans-serif" font-size="${fontSize * .96}" font-weight="600" fill="${colors.title}">${escapeXml(fitSchemaTableText(element.name, element.w - contentInset * 2 - (objectBadge ? 38 : 0), fontSize * .96))}</text>
+          ${objectBadge ? `<text x="${right - contentInset}" y="${top + titleHeight * .65}" text-anchor="end" font-family="sans-serif" font-size="${fontSize * .58}" font-weight="700" fill="${colors.muted}">${objectBadge}</text>` : ""}
         ${rows}
         <rect x="${left}" y="${top}" width="${element.w}" height="${element.h}" rx="4" fill="none" stroke="${colors.border}" stroke-width="1"/>
       </g>`;

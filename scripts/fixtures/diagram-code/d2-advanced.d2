@@ -1,0 +1,53 @@
+direction: right
+vars: {
+  d2-config: {
+    pad: 36
+  }
+}
+
+platform: Platform {
+  gateway: Public API {
+    shape: hexagon
+    style: {
+      fill: "#dbeafe"
+      stroke: "#2563eb"
+      stroke-width: 2
+    }
+    icon: "https://example.test/api.svg"
+    near: top-left
+  }
+  inventory: {
+    shape: sql_table
+    id: int {constraint: primary_key}
+    sku: string {constraint: unique}
+    owner_id: int {constraint: foreign_key}
+  }
+  platform.inventory.owner_id -> platform.accounts.id
+  accounts: {
+    shape: sql_table
+    id: int {constraint: primary_key}
+    name: string
+  }
+  service: {
+    shape: class
+    label: Inventory service
+    +get(id: int): Item
+    -cache: Map
+    refresh(): void
+  }
+}
+
+platform.gateway.shape: hexagon
+platform.gateway.style.font-color: "#102a43"
+platform.service -> platform.inventory: reads
+
+tiles: {
+  shape: grid
+  grid-rows: 2
+  grid-columns: 2
+  grid-gap: 28
+  alpha: Alpha
+  beta: Beta
+  gamma: Gamma
+  delta: Delta
+}

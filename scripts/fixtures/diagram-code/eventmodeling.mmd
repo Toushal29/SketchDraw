@@ -1,0 +1,22 @@
+eventmodeling
+// Keep UI actions, commands, and recorded facts on their inferred lanes.
+tf 01 ui CartUI
+timeframe 02 command AddItem { description: 'Book', quantity: 2 }
+tf 03 evt ItemAdded [[ItemAdded]]
+tf 04 rmo CartItems ->> 02 ->> 03
+
+rf 05 evt External.InventoryChanged ->> 03
+timeframe 06 processor Inventory.InventoryProcessor
+tf 07 cmd Inventory.ApplyInventory
+tf 08 evt Cart.InventoryChanged
+tf 09 rmo CartSummary [[CartSummary]]
+
+data ItemAdded {
+  itemId: string
+  description: string
+  quantity: number
+}
+
+data CartSummary `json`{
+  { "count": 2, "total": 48.5 }
+}

@@ -1,0 +1,19 @@
+---
+config:
+  theme: default
+  look: classic
+---
+swimlane-beta LR
+  accTitle: Order approval
+  accDescr: Customer submits an order, then staff review it and the system confirms it.
+  subgraph customer [Customer]
+    submit([Submit order])
+    receive((Receive confirmation))
+  end
+  subgraph staff [Operations]
+    review{Approve?}
+    fulfill[Prepare shipment]
+  end
+  submit -->|New order| review
+  review -->|Approved| fulfill
+  fulfill -.->|Confirmation sent| receive

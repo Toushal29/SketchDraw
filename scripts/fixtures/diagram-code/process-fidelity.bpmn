@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:vendor="https://example.test/bpmn/vendor" id="FidelityDefinitions" targetNamespace="https://example.test/processes" vendor:edition="reviewed">
+  <bpmn:extensionElements><vendor:definitionsMeta owner="process-team">definitions-level detail</vendor:definitionsMeta></bpmn:extensionElements>
+  <bpmn:signal id="GlobalSignal" name="Inventory changed"><bpmn:extensionElements><vendor:signalMeta priority="high"/></bpmn:extensionElements></bpmn:signal>
+  <bpmn:process id="Process_Main" isExecutable="true" vendor:owner="operations">
+    <bpmn:extensionElements><vendor:processMeta region="west"/></bpmn:extensionElements>
+    <bpmn:documentation>Primary fulfillment process</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Main" vendor:layout="horizontal">
+      <bpmn:lane id="Lane_Operations" name="Operations" vendor:team="day-shift">
+        <bpmn:flowNodeRef>Start_Main</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Main</bpmn:flowNodeRef>
+        <bpmn:childLaneSet id="LaneSet_Review" vendor:layout="vertical">
+          <bpmn:lane id="Lane_Review" name="Review">
+            <bpmn:flowNodeRef>Task_Main</bpmn:flowNodeRef>
+          </bpmn:lane>
+        </bpmn:childLaneSet>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_Main" name="Order received"/>
+    <bpmn:task id="Task_Main" name="Check stock">
+      <bpmn:dataInputAssociation id="Data_Association" vendor:mode="fan">
+        <bpmn:sourceRef>Start_Main</bpmn:sourceRef>
+        <bpmn:sourceRef>Task_Main</bpmn:sourceRef>
+        <bpmn:targetRef>Task_Main</bpmn:targetRef>
+        <bpmn:targetRef>End_Main</bpmn:targetRef>
+        <bpmn:transformation>inventoryAvailable</bpmn:transformation>
+        <bpmn:extensionElements><vendor:dataMapping preserve="yes"/></bpmn:extensionElements>
+      </bpmn:dataInputAssociation>
+    </bpmn:task>
+    <bpmn:endEvent id="End_Main" name="Stock checked"/>
+    <bpmn:sequenceFlow id="Flow_Main_1" sourceRef="Start_Main" targetRef="Task_Main"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">inventoryAvailable = true</bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Main_2" sourceRef="Task_Main" targetRef="End_Main"/>
+    <bpmn:association id="Unmapped_Association" sourceRef="Missing_Source" targetRef="Missing_Target"><bpmn:extensionElements><vendor:unmapped reason="missing-endpoints"/></bpmn:extensionElements></bpmn:association>
+    <bpmn:implicitThrowEvent id="Unsupported_Event" name="Vendor-specific event"/>
+  </bpmn:process>
+  <bpmn:process id="Process_Archive" isExecutable="false" vendor:owner="archive">
+    <bpmn:extensionElements><vendor:processMeta region="east"/></bpmn:extensionElements>
+    <bpmn:task id="Task_Archive" name="Archive record"/>
+  </bpmn:process>
+  <bpmn:collaboration id="Collaboration_Orders" vendor:region="west">
+    <bpmn:extensionElements><vendor:collaborationMeta channel="orders"/></bpmn:extensionElements>
+    <bpmn:participant id="Participant_Orders" name="Order desk" processRef="Process_Main"/>
+    <bpmn:messageFlow id="Message_Orders" sourceRef="Participant_Orders" targetRef="Task_Main"/>
+  </bpmn:collaboration>
+  <bpmn:collaboration id="Collaboration_Archive" vendor:region="east">
+    <bpmn:extensionElements><vendor:collaborationMeta channel="archive"/></bpmn:extensionElements>
+    <bpmn:participant id="Participant_Archive" name="Archive desk" processRef="Process_Archive"/>
+    <bpmn:messageFlow id="Message_Archive" sourceRef="Participant_Archive" targetRef="Task_Archive"/>
+  </bpmn:collaboration>
+  <bpmndi:BPMNDiagram id="Diagram_Main" vendor:theme="blue">
+    <bpmndi:BPMNPlane id="Plane_Main" bpmnElement="Process_Main" vendor:plane="primary">
+      <bpmndi:BPMNShape id="DI_Start_Main" bpmnElement="Start_Main"><dc:Bounds x="30" y="80" width="48" height="48"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_Task_Main" bpmnElement="Task_Main"><dc:Bounds x="140" y="68" width="120" height="72"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_End_Main" bpmnElement="End_Main"><dc:Bounds x="320" y="80" width="48" height="48"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DI_Lane_Operations" bpmnElement="Lane_Operations"><dc:Bounds x="20" y="40" width="380" height="140"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="DI_Data_Association" bpmnElement="Data_Association"><di:waypoint x="78" y="104"/><di:waypoint x="140" y="104"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="Diagram_Alternate" vendor:theme="alternate"><bpmndi:BPMNPlane id="Plane_Alternate" bpmnElement="Process_Main"><bpmndi:BPMNShape id="DI_Alternate" bpmnElement="Task_Main"><dc:Bounds x="600" y="500" width="220" height="90"/></bpmndi:BPMNShape></bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="Diagram_Archive"><bpmndi:BPMNPlane id="Plane_Archive" bpmnElement="Process_Archive"><bpmndi:BPMNShape id="DI_Task_Archive" bpmnElement="Task_Archive"><dc:Bounds x="50" y="240" width="140" height="80"/></bpmndi:BPMNShape></bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>

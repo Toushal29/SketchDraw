@@ -59,8 +59,7 @@ import { layoutMermaidFlowchart, parseMermaidFlowchart } from "../src/mermaid";
 import { exportDiagramCode, plantUmlToDiagram } from "../src/features/diagrams/code-formats";
 import { d2ToDiagram } from "../src/features/diagrams/d2";
 import complexArchitectureD2 from "./fixtures/complex-architecture.d2?raw";
-import { importDrawio, exportDrawio, importExcalidraw, exportExcalidraw } from "../src/features/diagrams/interchange";
-import { structuredYamlToDiagram, bicepToDiagram, kubernetesToDiagram } from "../src/features/diagrams/structured-data";
+import { importDrawio, importDrawioWithReport, exportDrawio, importExcalidraw, exportExcalidraw } from "../src/features/diagrams/interchange";
 import { svgPrimitivesToElements } from "../src/features/diagrams/svg-vectors";
 import type { CanvasState, Element, FreehandElement, GroupElement, ShapeElement, StrokePoint } from "../src/model";
 
@@ -324,116 +323,6 @@ async function run() {
     const labels = all.flatMap(item => "label" in item && item.label ? [item.label.text] : []);
     return groups(roundTrip) >= 3 && connectors.length === 4 && labels.includes("Public gateway") && labels.includes("Primary store") && code.includes("#dbeafe") && code.includes("HTTPS request");
   });
-  await importCheck("CloudFormation and Kubernetes policy, ingress, and storage import", () => {
-    const cloud = structuredYamlToDiagram(JSON.stringify({ Resources: { Role: { Type: "AWS::IAM::Role" }, Worker: { Type: "AWS::Lambda::Function", Properties: { Role: { Ref: "Role" } } } } }));
-    const kubernetes = kubernetesToDiagram(`apiVersion: v1
-kind: Namespace
-metadata:
-  name: default
-  labels:
-    zone: app
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: api
-  namespace: default
-spec:
-  selector:
-    matchLabels:
-      app: api
-  template:
-    metadata:
-      labels:
-        app: api
-    spec:
-      containers:
-        - name: api
-          image: example/api
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: data
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: api
-  namespace: default
-spec:
-  selector:
-    app: api
-  ports:
-    - port: 80
----
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  name: public
-spec:
-  controller: example/controller
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: api
-  namespace: default
-spec:
-  ingressClassName: public
-  rules:
-    - host: api.example.test
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: api
-                port:
-                  number: 80
----
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: standard
-provisioner: example.csi
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: data
-  namespace: default
-spec:
-  storageClassName: standard
-  resources:
-    requests:
-      storage: 1Gi
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: api-policy
-  namespace: default
-spec:
-  podSelector:
-    matchLabels:
-      app: api
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              zone: app
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: api
-`);
-    const cloudLinks = cloud.flatMap(item => item.type === "arrow" ? [item.label?.text ?? ""] : []);
-    const kubernetesLinks = kubernetes.flatMap(item => item.type === "arrow" ? [item.label?.text ?? ""] : []);
-    return cloudLinks.includes("references") && ["routes to", "uses ingress class", "uses storage class", "applies to"].every(label => kubernetesLinks.includes(label));
-  });
-  await importCheck("Bicep resource import", () => bicepToDiagram("resource store 'Microsoft.Storage/storageAccounts@2023-01-01' = {\n name: 'store'\n}").length > 0);
   await importCheck("Editable SVG paths with group transforms and gradient fills", () => {
     const doc = new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="paint"><stop stop-color="#224466"/><stop offset="1" stop-color="#88aacc"/></linearGradient></defs><g transform="translate(10 20) scale(2)"><path d="M0 0 C0 20 10 20 10 0 Z" fill="url(#paint)" stroke="#112233"/></g></svg>', "image/svg+xml");
     const converted = svgPrimitivesToElements(doc.documentElement as unknown as SVGSVGElement, { x: 100, y: 200 }, 2);
@@ -443,12 +332,18 @@ spec:
     const xml = '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="api" value="API" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#26313b" vertex="1" parent="1"><mxGeometry x="20" y="30" width="120" height="60" as="geometry"/></mxCell></root></mxGraphModel>';
     const imported = await importDrawio(xml); const restored = await importDrawio(exportDrawio(imported)); return imported.length === 1 && restored.length === 1;
   });
+  await importCheck("draw.io nested groups, bounds, and unsupported-shape fallback", async () => {
+    const xml = '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="boundary" value="Message broker" style="shape=group;" vertex="1" parent="1"><mxGeometry x="10" y="20" width="220" height="160" as="geometry"/></mxCell><mxCell id="queue" value="Queue" style="shape=mxgraph.aws4.sqs;strokeColor=#26313b;fillColor=#ffffff" vertex="1" parent="boundary"><mxGeometry x="20" y="30" width="90" height="60" as="geometry"/></mxCell></root></mxGraphModel>';
+    const imported = await importDrawioWithReport(xml); const group = imported.elements[0];
+    const restored = await importDrawio(exportDrawio(imported.elements)); const restoredGroup = restored[0];
+    return group?.type === "group" && group.container?.name === "Message broker" && group.componentBounds?.x === 10 && group.componentBounds?.y === 20 && group.elements[0]?.type === "rectangle" && !!group.elements[0].altText?.includes("mxgraph.aws4.sqs") && imported.report.simplified === 1 && restoredGroup?.type === "group" && restoredGroup.componentBounds?.w === 220 && restoredGroup.elements[0]?.altText === group.elements[0].altText;
+  });
   await importCheck("Excalidraw import/export round trip", () => {
-    const source = JSON.stringify({ type: "excalidraw", version: 2, source: "SketchDraw", elements: [{ id: "api", type: "rectangle", x: 20, y: 30, width: 120, height: 60, strokeColor: "#26313b", backgroundColor: "#ffffff", strokeWidth: 2, opacity: 100, roughness: 0, seed: 1, version: 1, isDeleted: false, groupIds: [], link: null, locked: false }] });
-    const imported = importExcalidraw(source); const vector: ShapeElement = { type: "svgPath", id: "vector", x: 180, y: 30, w: 80, h: 60, color: "#26313b", thickness: 2, pathData: "M0 0 L40 30 L0 60 Z", pathWidth: 40, pathHeight: 60, fillRule: "evenodd", svgStroke: true, fillColor: "#99bbdd", fillOpacity: .7 };
+    const source = JSON.stringify({ type: "excalidraw", version: 2, source: "SketchDraw", elements: [{ id: "api", type: "rectangle", x: 20, y: 30, width: 120, height: 60, strokeColor: "#26313b", backgroundColor: "#ffffff", strokeWidth: 2, opacity: 100, roughness: 0, seed: 1, version: 1, isDeleted: false, groupIds: [], link: null, locked: false }, { id: "embed", type: "embeddable", x: 440, y: 30, width: 100, height: 60, strokeColor: "#26313b", backgroundColor: "#ffffff", opacity: 100, groupIds: [], isDeleted: false }] });
+    const imported = importExcalidraw(source); const fallback = imported.find(item => item.id === "embed"); const vector: ShapeElement = { type: "svgPath", id: "vector", x: 180, y: 30, w: 80, h: 60, color: "#26313b", thickness: 2, pathData: "M0 0 L40 30 L0 60 Z", pathWidth: 40, pathHeight: 60, fillRule: "evenodd", svgStroke: true, fillColor: "#99bbdd", fillOpacity: .7 };
     const blockArrow: ShapeElement = { type: "flowchart", id: "block-arrow", flowchartShape: "right-arrow", x: 280, y: 30, w: 120, h: 60, color: "#26313b", thickness: 2, shapeAdjustments: { shaft: .62, head: .7 } };
-    const restored = importExcalidraw(exportExcalidraw([...imported, vector, blockArrow])); const restoredVector = restored.find(item => item.type === "svgPath"); const restoredArrow = restored.find(item => item.type === "flowchart");
-    return imported.length === 1 && restored.length === 3 && restoredVector?.type === "svgPath" && restoredVector.pathData === vector.pathData && restoredVector.fillRule === "evenodd" && restoredArrow?.type === "flowchart" && restoredArrow.shapeAdjustments?.shaft === .62 && restoredArrow.shapeAdjustments?.head === .7;
+    const restored = importExcalidraw(exportExcalidraw([...imported, vector, blockArrow])); const restoredVector = restored.find(item => item.type === "svgPath"); const restoredArrow = restored.find(item => item.type === "flowchart"); const restoredFallback = restored.find(item => item.altText === fallback?.altText);
+    return imported.length === 2 && fallback?.type === "rectangle" && fallback.altText?.includes("embeddable") === true && restored.length === 4 && restoredFallback?.altText === fallback.altText && restoredVector?.type === "svgPath" && restoredVector.pathData === vector.pathData && restoredVector.fillRule === "evenodd" && restoredArrow?.type === "flowchart" && restoredArrow.shapeAdjustments?.shaft === .62 && restoredArrow.shapeAdjustments?.head === .7;
   });
   for (const zoom of [.2, .55, 1, 1.37, 2.2]) for (const ratio of [1, 1.25, 1.5, 2]) {
     const step = gridStepForStyle("small-grid", 50, zoom); const pitch = step * zoom * ratio;

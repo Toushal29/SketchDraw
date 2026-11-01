@@ -59,47 +59,6 @@ export function checklistRows(content: string, width: number, fontSize: number) 
   });
 }
 
-export function syntaxTokens(line: string, language: string): { value: string; color: string }[] {
-  const langs = language.toLowerCase();
-  const generalKeywords = /\b(const|let|var|function|return|if|else|for|while|class|new|import|from|export|default|async|await|throw|try|catch|interface|type|public|private|static|def|elif|in|and|or|not|True|False|None|pass|with|as|yield|extends|implements|void|number|string|boolean|true|false|null)\b/g;
-  const sqlKeywords = /\b(select|from|where|join|left|right|inner|outer|on|as|group|by|order|limit|create|table|insert|into|values|update|set|delete|primary|key|foreign|references|not|null|unique|and|or|count|having|distinct)\b/g;
-  const cssKeywords = /\b(color|background|display|position|flex|grid|margin|padding|width|height|border|font|align|justify|gap|transform|opacity|overflow|top|right|bottom|left)\b/g;
-  const isHtml = ["html", "xml", "svg", "jsx", "tsx"].includes(langs);
-  const tokenPattern = isHtml
-    ? /(<!--.*?-->|<\/?[A-Za-z][^>]*>|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$]*\b)/g
-    : /(\/\/.*|#.*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$]*\b)/g;
-  const tokens: { value: string; color: string }[] = [];
-  let cursor = 0;
-  for (const match of line.matchAll(tokenPattern)) {
-    const value = match[0]; const start = match.index ?? 0;
-    if (start > cursor) tokens.push({ value: line.slice(cursor, start), color: "#dce5f4" });
-    let color = "#dce5f4";
-    if (value.startsWith("//") || value.startsWith("#") || value.startsWith("<!--")) color = "#91a78d";
-    else if (isHtml && value.startsWith("<")) color = "#85b8ee";
-    else if (/^["'`]/.test(value)) color = langs === "json" ? "#a9d887" : "#e7b579";
-    else if (/^\d/.test(value)) color = "#c5a6ed";
-    else if (new RegExp((langs === "sql" ? sqlKeywords : ["css", "scss", "less"].includes(langs) ? cssKeywords : generalKeywords).source).test(value)) color = "#85b8ee";
-    else if (/^[A-Z]/.test(value)) color = "#dfc477";
-    tokens.push({ value, color }); cursor = start + value.length;
-  }
-  if (cursor < line.length) tokens.push({ value: line.slice(cursor), color: "#dce5f4" });
-  return tokens.filter(token => token.value).reduce((runs, token) => {
-    const previous = runs[runs.length - 1];
-    if (previous?.color === token.color) previous.value += token.value;
-    else runs.push({ ...token });
-    return runs;
-  }, [] as { value: string; color: string }[]);
-}
-
-export function syntaxTokenColor(color: string, theme: Theme, appearance: "modern" | "simple") {
-  if (appearance !== "simple" || theme === "dark") return color;
-  const lightColors: Record<string, string> = {
-    "#dce5f4": "#334155", "#91a78d": "#557044", "#85b8ee": "#1c5d96",
-    "#a9d887": "#49751f", "#e7b579": "#98561d", "#c5a6ed": "#7043a5", "#dfc477": "#81620b",
-  };
-  return lightColors[color] ?? "#334155";
-}
-
 /** Store card content in metadata and one backing shape inside the Canvas section. */
 export function buildNoteGroup(x: number, y: number, kind: NoteKind, source: string, dimensions: { width?: number; height?: number; fontSize?: number; collapsed?: boolean; title?: string } = {}): GroupElement {
   const content = normalizeNoteContent(source, kind);
@@ -187,7 +146,8 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
       const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => wrap(line, max)); const blockHeight = Math.max(32, lines.length * fontSize * 1.5 + 20);
       ctx.beginPath(); ctx.roundRect(x + 10, cursor, width - 20, blockHeight, appearance === "simple" ? 0 : 7); ctx.fillStyle = appearance === "simple" ? palette.surface : "#202936"; ctx.fill(); ctx.strokeStyle = appearance === "simple" ? palette.rule : "#344154"; ctx.stroke();
       ctx.font = "600 9px system-ui, sans-serif"; ctx.fillStyle = appearance === "simple" ? palette.muted : "#91a1b5"; ctx.fillText(language.toUpperCase(), x + 20, cursor + 7);
-      lines.forEach((line, index) => { let px = x + 20; const py = cursor + 22 + index * fontSize * 1.5; for (const token of syntaxTokens(line, language)) { ctx.font = `${fontSize}px ui-monospace, SFMono-Regular, Consolas, monospace`; ctx.fillStyle = syntaxTokenColor(token.color, theme, appearance); ctx.fillText(token.value, px, py); px += ctx.measureText(token.value).width; } });
+      ctx.font = `${fontSize}px ui-monospace, SFMono-Regular, Consolas, monospace`; ctx.fillStyle = appearance === "simple" ? palette.ink : "#dce5f4";
+      lines.forEach((line, index) => ctx.fillText(line, x + 20, cursor + 22 + index * fontSize * 1.5));
       cursor += blockHeight + 5; codeLines = []; inCode = false;
     };
     const maxChars = Math.max(8, Math.floor((width - 36) / (fontSize * .56)));

@@ -1,0 +1,39 @@
+---
+config:
+  cynefin:
+    width: 920
+    height: 700
+    showDomainDescriptions: true
+    boundaryAmplitude: 10
+    seed: 412
+  themeVariables:
+    cynefin:
+      complexBg: "#eee8f7"
+      arrowColor: "#3b617c"
+---
+cynefin-beta
+  title Incident response map
+  accTitle: Incident response domains
+  accDescr: A decision map for classifying and moving response work.
+
+  complex
+    "Investigate the new failure"
+    "Run a controlled experiment"
+  complicated
+    "Review service telemetry"
+    "Ask a database specialist"
+  clear
+    "Restart the worker"
+  chaotic
+    "Page the incident lead"
+  confusion
+    "Unknown failure mode"
+    "Unclear system owner"
+    "Conflicting evidence"
+    "Undocumented dependency"
+
+  complex --> complicated : "Pattern identified"
+  complicated --> clear : "Practice codified"
+  clear --> chaotic : "Complacency"
+  chaotic --> complex : "Stabilized"
+  complex --> complex : "Ignored by Mermaid"

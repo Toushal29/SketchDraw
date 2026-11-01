@@ -4,6 +4,17 @@ import { flatten, isConnector } from "../../operations";
 export type BpmnSimulationStep = { elementId: string; label: string; kind: "node" | "flow"; elapsedMinutes: number; durationMinutes?: number; branch?: number };
 export type BpmnContext = Record<string, string | number | boolean>;
 
+export const ADVANCED_BPMN_SEQUENCE_KINDS = new Set([
+  "proposal-decision-conditional-event", "proposal-decision-escalation-event", "proposal-decision-compensation-event",
+  "proposal-decision-link-event", "proposal-decision-multiple-event", "proposal-decision-parallel-multiple-event",
+  "proposal-decision-cancel-event", "proposal-decision-event-subprocess", "proposal-decision-transaction-subprocess",
+  "proposal-decision-ad-hoc-subprocess", "proposal-decision-choreography-task", "proposal-decision-call-choreography",
+]);
+
+export function isBpmnSequenceKind(kind: string) {
+  return kind.startsWith("bpmn-") || ADVANCED_BPMN_SEQUENCE_KINDS.has(kind);
+}
+
 /** Parse a small, editable context list such as `approved=true` and `amount=500`. */
 export function parseBpmnContext(source: string): BpmnContext {
   const values: BpmnContext = {};
@@ -47,7 +58,7 @@ type Token = { nodeId: string; elapsed: number; branch: number; visits: Map<stri
 /** Simulate exclusive decisions and parallel splits/joins with deterministic token scheduling. */
 export function simulateBpmn(elements: Element[], context: BpmnContext = {}): BpmnSimulationStep[] {
   const all = flatten(elements);
-  const nodes = all.filter((item): item is Extract<Element, { type: "group" }> => item.type === "group" && !!item.id && !!item.libraryComponent?.kind?.startsWith("bpmn-"));
+  const nodes = all.filter((item): item is Extract<Element, { type: "group" }> => item.type === "group" && !!item.id && isBpmnSequenceKind(item.libraryComponent?.kind ?? ""));
   const byId = new Map(nodes.map(node => [node.id!, node]));
   const flows = all.filter((item): item is ShapeElement => isConnector(item) && !!item.id
     && !!item.startBinding && !!item.endBinding && byId.has(item.startBinding.elementId) && byId.has(item.endBinding.elementId)
@@ -59,7 +70,7 @@ export function simulateBpmn(elements: Element[], context: BpmnContext = {}): Bp
     const start = flow.startBinding!.elementId; const end = flow.endBinding!.elementId;
     outgoing.set(start, [...outgoing.get(start) ?? [], flow]); incoming.set(end, [...incoming.get(end) ?? [], flow]);
   }
-  const label = (node: typeof nodes[number]) => node.libraryComponent?.label ?? node.libraryComponent?.formTitle ?? node.libraryComponent?.kind.replace(/^bpmn-/, "") ?? "BPMN item";
+  const label = (node: typeof nodes[number]) => node.libraryComponent?.label ?? node.libraryComponent?.formTitle ?? node.libraryComponent?.kind.replace(/^(?:bpmn-|proposal-decision-)/, "") ?? "BPMN item";
   const trace: BpmnSimulationStep[] = []; const queue: Token[] = [];
   starts.forEach((node, index) => queue.push({ nodeId: node.id!, elapsed: 0, branch: index + 1, visits: new Map(), visitedFlows: new Set() }));
   let branchId = Math.max(1, starts.length); let processed = 0;

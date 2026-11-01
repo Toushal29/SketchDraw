@@ -1,0 +1,44 @@
+zenuml
+  title Order service interaction
+  @Actor Customer
+  @Service API
+  @Database Orders
+  Web as Store client
+  Customer->API: Place order
+  API->Web: Show loading state
+  API.validateOrder(orderId) {
+    if (isValid) {
+      API->Orders: Save order
+      Orders.insert(orderId)
+      return savedOrder
+    } else {
+      API->Customer: Reject order
+    }
+  }
+  new Receipt(with, orderId)
+  SomeType saved = API.loadOrder()
+  while (hasMore) {
+    API.fetchNext()
+  }
+  for (item in items) {
+    API.process(item)
+  }
+  forEach (item in queue) {
+    API.enqueue(item)
+  }
+  opt {
+    API.writeAudit()
+  }
+  try {
+    API.commit()
+  } catch {
+    API.rollback()
+  } finally {
+    API.close()
+  }
+  par {
+    API->Orders: Update index
+    API->Customer: Send confirmation
+  }
+  @return
+  API->Customer: Order accepted

@@ -1,4 +1,4 @@
-import type { ComponentMaster, Element, GroupElement } from "../../model";
+import type { ComponentMaster, Element, GroupElement, PrototypeComponentState } from "../../model";
 import { validReferences } from "../../operations";
 
 export type CustomStencil = { id: string; name: string; elements: Element[]; tags: string[]; preview: string; folder?: string; parameters?: string[] };
@@ -106,8 +106,9 @@ export function rememberRecentStencil(id: string) { writeStencilIds(RECENT_KEY, 
 
 /** Serialize reusable diagram parts into a versioned file that can move between devices. */
 export function exportPortableStencilLibrary(stencils: CustomStencil[], masters: ComponentMaster[] = []): string {
+  if (stencils.length > MAX_STENCILS) throw new Error(`A portable stencil library can include up to ${MAX_STENCILS} components.`);
   if (masters.length > 100 || masters.some(master => !master.name.trim() || !master.template.length || !validReferences(master.template) || !Number.isFinite(master.bounds.w) || !Number.isFinite(master.bounds.h) || master.bounds.w <= 0 || master.bounds.h <= 0 || JSON.stringify(master).length > MAX_STENCIL_BYTES)) throw new Error("The component library contains an invalid or oversized master.");
-  const library: PortableStencilLibrary = { format: "SketchDrawStencilLibrary", version: 2, stencils: stencils.slice(0, MAX_STENCILS).map(stencil => ({ ...stencil, tags: cleanTags(stencil.tags), preview: stencil.preview.slice(0, 240), ...(stencil.folder?.trim() ? { folder: stencil.folder.trim().replace(/[\\/]+/g, " / ").slice(0, 80) } : {}), ...(cleanParameters(stencil.parameters).length ? { parameters: cleanParameters(stencil.parameters) } : {}) })), ...(masters.length ? { masters: masters.slice(0, 100) } : {}) };
+  const library: PortableStencilLibrary = { format: "SketchDrawStencilLibrary", version: 2, stencils: stencils.map(stencil => ({ ...stencil, tags: cleanTags(stencil.tags), preview: stencil.preview.slice(0, 240), ...(stencil.folder?.trim() ? { folder: stencil.folder.trim().replace(/[\\/]+/g, " / ").slice(0, 80) } : {}), ...(cleanParameters(stencil.parameters).length ? { parameters: cleanParameters(stencil.parameters) } : {}) })), ...(masters.length ? { masters: masters.slice(0, 100) } : {}) };
   if (library.stencils.some(stencil => !stencil.name.trim() || !stencil.elements.length || !validReferences(stencil.elements) || JSON.stringify(stencil.elements).length > MAX_STENCIL_BYTES)) throw new Error("The stencil library contains an invalid or oversized component.");
   const serialized = JSON.stringify(library, null, 2);
   if (serialized.length > MAX_STENCIL_BYTES * MAX_STENCILS) throw new Error("The portable stencil library exceeds the size limit.");
@@ -139,7 +140,9 @@ export function parsePortableStencilLibrary(source: string): PortableStencilLibr
     const template = item.template as Element[];
     if (JSON.stringify(template).length > MAX_STENCIL_BYTES || !validReferences(template)) throw new Error(`Component master “${item.name}” has invalid references or is too large.`);
     const variants = item.variants && typeof item.variants === "object" && !Array.isArray(item.variants) ? Object.fromEntries(Object.entries(item.variants as Record<string, unknown>).filter(([key, value]) => /^[\p{L}\p{N}_.=-]{1,80}$/u.test(key) && Array.isArray(value) && (value as Element[]).length > 0 && JSON.stringify(value).length <= MAX_STENCIL_BYTES && validReferences(value as Element[])).slice(0, 24)) as Record<string, Element[]> : undefined;
-    return [{ id: item.id.slice(0, 80), name: item.name.trim().slice(0, 80), template, bounds: item.bounds, ...(variants && Object.keys(variants).length ? { variants } : {}), ...(typeof item.variantKey === "string" ? { variantKey: item.variantKey.slice(0, 80) } : {}), ...(Array.isArray(item.connectionPoints) ? { connectionPoints: item.connectionPoints.slice(0, 32) as ComponentMaster["connectionPoints"] } : {}), ...(typeof item.createdAt === "number" && Number.isFinite(item.createdAt) ? { createdAt: item.createdAt } : {}) }];
+    const validStates = new Set<PrototypeComponentState>(["hover", "pressed", "selected", "disabled"]);
+    const states = item.states && typeof item.states === "object" && !Array.isArray(item.states) ? Object.fromEntries(Object.entries(item.states as Record<string, unknown>).filter(([state, key]) => validStates.has(state as PrototypeComponentState) && typeof key === "string" && /^[\p{L}\p{N}_.=-]{1,80}$/u.test(key)).slice(0, 4)) as ComponentMaster["states"] : undefined;
+    return [{ id: item.id.slice(0, 80), name: item.name.trim().slice(0, 80), template, bounds: item.bounds, ...(variants && Object.keys(variants).length ? { variants } : {}), ...(typeof item.variantKey === "string" ? { variantKey: item.variantKey.slice(0, 80) } : {}), ...(states && Object.keys(states).length ? { states } : {}), ...(Array.isArray(item.connectionPoints) ? { connectionPoints: item.connectionPoints.slice(0, 32) as ComponentMaster["connectionPoints"] } : {}), ...(typeof item.createdAt === "number" && Number.isFinite(item.createdAt) ? { createdAt: item.createdAt } : {}) }];
   }) : [];
   if (masters.length > 100) throw new Error("A portable library can include up to 100 component masters.");
   return { format: "SketchDrawStencilLibrary", version: 2, stencils, ...(masters.length ? { masters } : {}) };

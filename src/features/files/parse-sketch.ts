@@ -1,5 +1,5 @@
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ComponentMaster, ConnectionPoint, ContainerMetadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, PrototypeAction, PrototypeCondition, PrototypeVariable, RelationshipDirection, RelationshipType, ReviewCommentThread, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
+import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ComponentMaster, ConnectionPoint, ContainerMetadata, D2Metadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, PrototypeAction, PrototypeCondition, PrototypeVariable, RelationshipDirection, RelationshipType, ReviewCommentThread, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
 import { ensureCanvasLayerPath, normalizeCanvasLayers } from "../canvas/structure";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { cloudNeutralComponent } from "../diagrams/cloud-providers";
@@ -110,6 +110,35 @@ const MAX_DOCUMENT_ELEMENT_NODES = 100_000;
 export const MAX_CANVAS_TEXT_LENGTH = 100_000;
 type ElementParseBudget = { remaining: number; remainingStrokePoints: number };
 
+function normalizeD2Metadata(value: unknown): D2Metadata | undefined {
+  if (!isRecord(value)) return undefined;
+  const rawLayout = isRecord(value.layout) ? value.layout : undefined;
+  const layout = rawLayout ? {
+    ...(rawLayout.direction === "up" || rawLayout.direction === "down" || rawLayout.direction === "left" || rawLayout.direction === "right" ? { direction: rawLayout.direction as "up" | "down" | "left" | "right" } : {}),
+    ...(finite(rawLayout.gridGap) ? { gridGap: Math.max(0, Math.min(2000, rawLayout.gridGap as number)) } : {}),
+    ...(finite(rawLayout.horizontalGap) ? { horizontalGap: Math.max(0, Math.min(2000, rawLayout.horizontalGap as number)) } : {}),
+    ...(finite(rawLayout.verticalGap) ? { verticalGap: Math.max(0, Math.min(2000, rawLayout.verticalGap as number)) } : {}),
+    ...(finite(rawLayout.padding) ? { padding: Math.max(0, Math.min(2000, rawLayout.padding as number)) } : {}),
+  } : undefined;
+  const metadata: D2Metadata = {
+    ...(typeof value.shape === "string" && value.shape.length <= 80 ? { shape: value.shape } : {}),
+    ...(typeof value.icon === "string" && value.icon.length <= 2048 ? { icon: value.icon } : {}),
+    ...(typeof value.near === "string" && value.near.length <= 120 ? { near: value.near } : {}),
+    ...(typeof value.fill === "string" && value.fill.length <= 64 ? { fill: value.fill } : {}),
+    ...(typeof value.stroke === "string" && value.stroke.length <= 64 ? { stroke: value.stroke } : {}),
+    ...(typeof value.fontColor === "string" && value.fontColor.length <= 64 ? { fontColor: value.fontColor } : {}),
+    ...(finite(value.strokeWidth) ? { strokeWidth: Math.max(0, Math.min(100, value.strokeWidth)) } : {}),
+    ...(typeof value.strokeDash === "string" && value.strokeDash.length <= 80 ? { strokeDash: value.strokeDash } : {}),
+    ...(finite(value.fontSize) ? { fontSize: Math.max(6, Math.min(100, value.fontSize)) } : {}),
+    ...(finite(value.gridRows) ? { gridRows: Math.max(1, Math.min(100, Math.floor(value.gridRows))) } : {}),
+    ...(finite(value.gridColumns) ? { gridColumns: Math.max(1, Math.min(100, Math.floor(value.gridColumns))) } : {}),
+    ...(value.sequenceKind === "participant" || value.sequenceKind === "message" ? { sequenceKind: value.sequenceKind } : {}),
+    ...(finite(value.sequenceOrder) ? { sequenceOrder: Math.max(0, Math.min(10_000, Math.floor(value.sequenceOrder))) } : {}),
+    ...(layout && Object.keys(layout).length ? { layout } : {}),
+  };
+  return Object.keys(metadata).length ? metadata : undefined;
+}
+
 export function normalizeElement(value: unknown): Element | undefined {
   return normalizeElementWithinBudget(value, 0, { remaining: MAX_DOCUMENT_ELEMENT_NODES, remainingStrokePoints: MAX_DOCUMENT_STROKE_POINTS });
 }
@@ -143,8 +172,9 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     ...(normalizeExternalHref(value.href) ? { href: normalizeExternalHref(value.href) } : {}),
     ...(typeof value.tooltip === "string" && value.tooltip.trim() ? { tooltip: value.tooltip.trim().slice(0, MAX_TOOLTIP_LENGTH) } : {}),
     ...(typeof value.liveSourceId === "string" && /^[\w.-]{1,100}$/.test(value.liveSourceId) ? { liveSourceId: value.liveSourceId } : {}),
-    ...(typeof value.liveKey === "string" && value.liveKey.length > 0 && value.liveKey.length <= 100 ? { liveKey: value.liveKey } : {}),
+    ...(typeof value.liveKey === "string" && value.liveKey.length > 0 && value.liveKey.length <= 4096 ? { liveKey: value.liveKey } : {}),
     ...(isRecord(value.liveSource) && ["mermaid", "plantuml", "d2", "cloud", "org"].includes(String(value.liveSource.format)) && typeof value.liveSource.source === "string" && value.liveSource.source.length <= 100_000 && typeof value.liveSourceId === "string" ? { liveSource: { format: value.liveSource.format as "mermaid" | "plantuml" | "d2" | "cloud" | "org", source: value.liveSource.source } } : {}),
+    ...(normalizeD2Metadata(value.d2) ? { d2: normalizeD2Metadata(value.d2) } : {}),
     ...(typeof value.altText === "string" && value.altText.trim() ? { altText: value.altText.trim().slice(0, ALT_TEXT_MAX_LENGTH) } : {}),
     ...(normalizeStyleBindings(value.styleBindings) ? { styleBindings: normalizeStyleBindings(value.styleBindings) } : {}),
     ...(Array.isArray(value.strideThreats) ? { strideThreats: [...new Set(value.strideThreats.filter((threat): threat is StrideThreatCategory => ["spoofing", "tampering", "repudiation", "information-disclosure", "denial-of-service", "elevation-of-privilege"].includes(String(threat))))].slice(0, 6) } : {}),
@@ -165,7 +195,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       ? { kind: value.note.kind as NoteKind, content: value.note.content, ...(typeof value.note.title === "string" ? { title: value.note.title } : {}), ...(finite(value.note.width) ? { width: value.note.width } : {}), ...(finite(value.note.height) ? { height: value.note.height } : {}), ...(finite(value.note.fontSize) ? { fontSize: Math.round(value.note.fontSize) } : {}), ...(typeof value.note.collapsed === "boolean" ? { collapsed: value.note.collapsed } : {}), ...(Array.isArray(value.note.tags) && value.note.tags.length ? { tags: [...new Set(value.note.tags.map(tag => (tag as string).trim()).filter(Boolean))].slice(0, 16) } : {}) } : undefined;
     const mermaid: MermaidMetadata | undefined = isRecord(value.mermaid) && typeof value.mermaid.source === "string" && value.mermaid.source.length <= 100_000
       && (value.mermaid.format === undefined || value.mermaid.format === "mermaid" || value.mermaid.format === "plantuml")
-      && (value.mermaid.diagramType === undefined || ["flowchart", "sequence", "class", "er", "state", "journey", "gantt", "c4", "mindmap", "timeline", "git", "requirement", "quadrant", "kanban", "sankey", "block"].includes(String(value.mermaid.diagramType)))
+      && (value.mermaid.diagramType === undefined || ["flowchart", "sequence", "class", "er", "state", "journey", "gantt", "c4", "mindmap", "timeline", "git", "requirement", "quadrant", "kanban", "sankey", "block", "pie", "xychart", "packet", "architecture", "radar", "treemap", "venn", "usecase", "ishikawa", "treeview", "swimlane", "cynefin", "wardley", "eventmodeling", "zenuml", "activity", "component", "deployment", "timing", "wbs", "network", "json", "yaml", "archimate"].includes(String(value.mermaid.diagramType)))
       ? { source: value.mermaid.source, ...(value.mermaid.format ? { format: value.mermaid.format } : {}), ...(value.mermaid.diagramType ? { diagramType: value.mermaid.diagramType as MermaidMetadata["diagramType"] } : {}) } : undefined;
     const rawComponent = isRecord(value.libraryComponent) ? value.libraryComponent : undefined;
     const componentKind = typeof rawComponent?.kind === "string" ? rawComponent.kind : undefined;
@@ -371,7 +401,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     return { type: "image", ...flags, x: value.x, y: value.y, w: value.w, h: value.h, dataUrl: value.dataUrl, sourceWidth, sourceHeight, cropX, cropY, cropW, cropH, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(previewUrl ? { previewUrl } : {}) };
   }
   if (value.type === "schemaTable") {
-    if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w < 120 || !finite(value.h) || value.h < 45 || typeof value.name !== "string" || !value.name.trim() || value.name.length > 200 || typeof value.schemaDiagramId !== "string" || !value.schemaDiagramId || typeof value.schemaSource !== "string" || value.schemaSource.length > 500_000 || !Array.isArray(value.columns) || !value.columns.length || value.columns.length > 500) return undefined;
+    if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w < 120 || !finite(value.h) || value.h < 45 || typeof value.name !== "string" || !value.name.trim() || value.name.length > 200 || typeof value.schemaDiagramId !== "string" || !value.schemaDiagramId || typeof value.schemaSource !== "string" || !Array.isArray(value.columns) || !value.columns.length || value.columns.length > 500) return undefined;
     const columns: SchemaField[] = [];
     for (let index = 0; index < value.columns.length; index++) {
       const raw = value.columns[index];
@@ -381,17 +411,22 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     }
     const indexes: SchemaIndex[] = Array.isArray(value.indexes) ? value.indexes.slice(0, 200).flatMap(raw => {
       if (!isRecord(raw) || typeof raw.name !== "string" || raw.name.length > 200 || !Array.isArray(raw.columns) || raw.columns.length > 100 || !raw.columns.every(column => typeof column === "string" && column.length <= 200)) return [];
-      return [{ name: raw.name, columns: raw.columns as string[], unique: raw.unique === true, ...(typeof raw.expression === "string" && raw.expression.length <= 2000 ? { expression: raw.expression } : {}) }];
+      const orders = Array.isArray(raw.orders) && raw.orders.length <= 100 ? raw.orders.map(value => String(value).toUpperCase()).map(value => value === "DESC" ? "DESC" as const : "ASC" as const) : undefined;
+      return [{ name: raw.name, columns: raw.columns as string[], ...(orders ? { orders } : {}), ...(typeof raw.method === "string" && /^[\w]{1,40}$/.test(raw.method) ? { method: raw.method.toLowerCase() } : {}), unique: raw.unique === true, ...(typeof raw.expression === "string" && raw.expression.length <= 2000 ? { expression: raw.expression } : {}) }];
     }) : [];
     const constraints: SchemaConstraint[] = Array.isArray(value.constraints) ? value.constraints.slice(0, 200).flatMap(raw => {
       if (!isRecord(raw) || !["unique", "check", "foreign-key", "primary-key"].includes(String(raw.kind))) return [];
       const columns = Array.isArray(raw.columns) && raw.columns.length <= 100 && raw.columns.every(column => typeof column === "string" && column.length <= 200) ? raw.columns as string[] : undefined;
-      return [{ kind: raw.kind as SchemaConstraint["kind"], ...(typeof raw.name === "string" ? { name: raw.name.slice(0, 200) } : {}), ...(columns ? { columns } : {}), ...(typeof raw.expression === "string" && raw.expression.length <= 2000 ? { expression: raw.expression } : {}), ...(typeof raw.referencedTable === "string" ? { referencedTable: raw.referencedTable.slice(0, 200) } : {}), ...(Array.isArray(raw.referencedColumns) && raw.referencedColumns.length <= 100 && raw.referencedColumns.every(column => typeof column === "string" && column.length <= 200) ? { referencedColumns: raw.referencedColumns as string[] } : {}) }];
+      const validAction = (action: unknown) => ["NO ACTION", "RESTRICT", "CASCADE", "SET NULL", "SET DEFAULT"].includes(String(action).toUpperCase()) ? String(action).toUpperCase() as SchemaConstraint["onDelete"] : undefined;
+      return [{ kind: raw.kind as SchemaConstraint["kind"], ...(typeof raw.name === "string" ? { name: raw.name.slice(0, 200) } : {}), ...(columns ? { columns } : {}), ...(typeof raw.expression === "string" && raw.expression.length <= 2000 ? { expression: raw.expression } : {}), ...(typeof raw.referencedTable === "string" ? { referencedTable: raw.referencedTable.slice(0, 200) } : {}), ...(Array.isArray(raw.referencedColumns) && raw.referencedColumns.length <= 100 && raw.referencedColumns.every(column => typeof column === "string" && column.length <= 200) ? { referencedColumns: raw.referencedColumns as string[] } : {}), ...(validAction(raw.onDelete) ? { onDelete: validAction(raw.onDelete) } : {}), ...(validAction(raw.onUpdate) ? { onUpdate: validAction(raw.onUpdate) } : {}) }];
     }) : [];
     // Refit saved cards to the shared compact row metrics while preserving their positions and widths.
     const fontSize = finite(value.fontSize) ? Math.max(8, Math.min(48, Math.round(value.fontSize))) : 14; const neededHeight = schemaTableMinimumHeight(columns.length, fontSize);
     const neededWidth = schemaTableResizeMinimumWidth();
-    return { type: "schemaTable", ...flags, x: value.x, y: value.y, w: Math.max(value.w, neededWidth), h: neededHeight, name: value.name, columns, ...(indexes.length ? { indexes } : {}), ...(constraints.length ? { constraints } : {}), schemaDiagramId: value.schemaDiagramId, schemaSource: value.schemaSource, fontSize, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
+    const objectKind = ["table", "view", "enum"].includes(String(value.objectKind)) ? value.objectKind as "table" | "view" | "enum" : "table";
+    const enumValues = Array.isArray(value.enumValues) && value.enumValues.length <= 100 && value.enumValues.every(entry => typeof entry === "string" && entry.length <= 500) ? value.enumValues as string[] : undefined;
+    const viewQuery = typeof value.viewQuery === "string" && value.viewQuery.length <= 100_000 ? value.viewQuery : undefined;
+    return { type: "schemaTable", ...flags, x: value.x, y: value.y, w: Math.max(value.w, neededWidth), h: neededHeight, name: value.name, objectKind, ...(viewQuery ? { viewQuery } : {}), ...(enumValues?.length ? { enumValues } : {}), columns, ...(indexes.length ? { indexes } : {}), ...(constraints.length ? { constraints } : {}), schemaDiagramId: value.schemaDiagramId, schemaSource: value.schemaSource, fontSize, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
   }
   if (value.type === "svgPath") {
     if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w <= 0 || !finite(value.h) || value.h <= 0 || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0 || typeof value.pathData !== "string" || !value.pathData.trim() || value.pathData.length > 500_000 || !finite(value.pathWidth) || value.pathWidth <= 0 || value.pathWidth > 100_000 || !finite(value.pathHeight) || value.pathHeight <= 0 || value.pathHeight > 100_000 || (value.fillRule !== undefined && value.fillRule !== "nonzero" && value.fillRule !== "evenodd")) return undefined;
@@ -448,6 +483,11 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     };
     const connectorLabels = value.connectorLabels === undefined ? undefined : Array.isArray(value.connectorLabels) && value.connectorLabels.length <= 16 ? value.connectorLabels.map(normalizeConnectorLabel) : null;
     if (connectorLabels === null || connectorLabels?.some(label => !label) || connectorLabels?.length && value.type !== "line" && value.type !== "arrow") return undefined;
+    const relationshipFields = Array.isArray(value.relationshipFields) && value.relationshipFields.length <= 32
+      ? value.relationshipFields.flatMap(raw => isRecord(raw) && typeof raw.key === "string" && /^[\w.-]{1,100}$/.test(raw.key) && typeof raw.label === "string" && raw.label.length <= 120 && typeof raw.value === "string" && raw.value.length <= 2000
+        ? [{ key: raw.key, label: raw.label, value: raw.value, ...(typeof raw.hint === "string" && raw.hint.length <= 500 ? { hint: raw.hint } : {}) }]
+        : [])
+      : undefined;
     const storedRoutePoints = value.routePoints as Point[] | undefined;
     const straightOnly = (value.type === "line" || value.type === "arrow") && value.straightOnly === true;
     const autoRoute = !straightOnly && (value.type === "line" || value.type === "arrow") && value.autoRoute === true;
@@ -459,7 +499,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const relationshipType: RelationshipType | undefined = ["association", "dependency", "data-flow", "inheritance", "aggregation", "composition", "sequence", "network", "other"].includes(String(value.relationshipType)) ? value.relationshipType as RelationshipType : undefined;
     const relationshipDirection: RelationshipDirection | undefined = ["forward", "both", "none"].includes(String(value.relationshipDirection)) ? value.relationshipDirection as RelationshipDirection : undefined;
     const transportSecurity: TransportSecurity | undefined = ["encrypted", "unencrypted", "unknown"].includes(String(value.transportSecurity)) ? value.transportSecurity as TransportSecurity : undefined;
-    return { type: value.type as ShapeElement["type"], ...flags, ...(connectionPoints ? { connectionPoints } : {}), startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, ...(autoRoute ? { autoRoute: true, routeWaypoints: value.routeWaypoints as Point[] | undefined } : {}), ...(straightOnly ? { straightOnly: true } : {}), forkUpper: straightOnly ? undefined : forkUpper ?? undefined, label, ...(connectorLabels?.length ? { connectorLabels: connectorLabels as ShapeLabel[] } : {}), x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, ...(value.type === "flowchart" && shapeAdjustments && Object.keys(shapeAdjustments).length ? { shapeAdjustments } : {}), lineRoute: value.type === "line" ? straightOnly ? "straight" : lineRoute : undefined, arrowRoute: value.type === "arrow" ? straightOnly ? "straight" : arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(typeof value.cardinality === "string" && value.cardinality.length <= 40 ? { cardinality: value.cardinality } : {}), ...(typeof value.protocol === "string" && value.protocol.length <= 40 ? { protocol: value.protocol } : {}), ...(finite(value.portNumber) && value.portNumber >= 1 && value.portNumber <= 65535 ? { portNumber: Math.round(value.portNumber) } : {}), ...(typeof value.apiContract === "string" && value.apiContract.length <= 2000 ? { apiContract: value.apiContract } : {}), ...(typeof value.dataContract === "string" && value.dataContract.length <= 2000 ? { dataContract: value.dataContract } : {}), ...(typeof value.sequenceCondition === "string" && value.sequenceCondition.length <= 500 ? { sequenceCondition: value.sequenceCondition } : {}), ...(value.sequenceDefault === true ? { sequenceDefault: true } : {}), ...(relationshipType ? { relationshipType } : {}), ...(relationshipDirection ? { relationshipDirection } : {}), ...(transportSecurity ? { transportSecurity } : {}), ...(typeof value.schemaDiagramId === "string" ? { schemaDiagramId: value.schemaDiagramId } : {}) };
+    return { type: value.type as ShapeElement["type"], ...flags, ...(connectionPoints ? { connectionPoints } : {}), startBinding: binding(value.startBinding), endBinding: binding(value.endBinding), routePoints: normalizedRoutePoints, ...(autoRoute ? { autoRoute: true, routeWaypoints: value.routeWaypoints as Point[] | undefined } : {}), ...(straightOnly ? { straightOnly: true } : {}), forkUpper: straightOnly ? undefined : forkUpper ?? undefined, label, ...(connectorLabels?.length ? { connectorLabels: connectorLabels as ShapeLabel[] } : {}), ...(relationshipFields?.length ? { relationshipFields } : {}), x: value.x, y: value.y, w: value.w, h: value.h, color: value.color, thickness, fillColor, fillOpacity, lineStyle, edgeStyle, cornerRadius, flowchartShape: value.type === "flowchart" ? flowchartShape : undefined, ...(value.type === "flowchart" && shapeAdjustments && Object.keys(shapeAdjustments).length ? { shapeAdjustments } : {}), lineRoute: value.type === "line" ? straightOnly ? "straight" : lineRoute : undefined, arrowRoute: value.type === "arrow" ? straightOnly ? "straight" : arrowRoute : undefined, startHead: value.type === "arrow" || value.type === "line" ? validHead(value.startHead) ? value.startHead : "none" : undefined, endHead: value.type === "arrow" || value.type === "line" ? validHead(value.endHead) ? value.endHead : value.type === "arrow" ? "open" : "none" : undefined, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1, ...(typeof value.cardinality === "string" && value.cardinality.length <= 40 ? { cardinality: value.cardinality } : {}), ...(typeof value.protocol === "string" && value.protocol.length <= 40 ? { protocol: value.protocol } : {}), ...(finite(value.portNumber) && value.portNumber >= 1 && value.portNumber <= 65535 ? { portNumber: Math.round(value.portNumber) } : {}), ...(typeof value.apiContract === "string" && value.apiContract.length <= 2000 ? { apiContract: value.apiContract } : {}), ...(typeof value.dataContract === "string" && value.dataContract.length <= 2000 ? { dataContract: value.dataContract } : {}), ...(typeof value.sequenceCondition === "string" && value.sequenceCondition.length <= 500 ? { sequenceCondition: value.sequenceCondition } : {}), ...(value.sequenceDefault === true ? { sequenceDefault: true } : {}), ...(relationshipType ? { relationshipType } : {}), ...(relationshipDirection ? { relationshipDirection } : {}), ...(transportSecurity ? { transportSecurity } : {}), ...(typeof value.schemaDiagramId === "string" ? { schemaDiagramId: value.schemaDiagramId } : {}) };
   }
   return undefined;
 }

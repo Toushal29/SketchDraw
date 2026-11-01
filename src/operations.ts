@@ -235,7 +235,16 @@ function validBindingPort(target: Element, binding: Binding | undefined): boolea
 }
 
 export function flatten(items: Element[]): Element[] {
-  return items.flatMap(item => item.type === "group" ? [item, ...flatten(item.elements)] : [item]);
+  const result: Element[] = [];
+  const pending = items.slice().reverse();
+  while (pending.length) {
+    const item = pending.pop()!;
+    result.push(item);
+    if (item.type === "group") {
+      for (let index = item.elements.length - 1; index >= 0; index--) pending.push(item.elements[index]);
+    }
+  }
+  return result;
 }
 
 /** Validate page-local identities and bindings. Missing targets are never silently retargeted. */
