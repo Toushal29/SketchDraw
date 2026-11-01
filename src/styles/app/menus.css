@@ -50,12 +50,6 @@
     display: none;
 }
 
-.menu-dropdown>summary:hover,
-.menu-dropdown[open]>summary {
-    border-color: var(--theme-border);
-    background: var(--theme-surface-elevated);
-}
-
 .menu-dropdown>summary svg {
     width: 13px;
     height: 13px;
@@ -142,7 +136,7 @@
     background: color-mix(in srgb, var(--theme-surface) 94.00%, transparent);
 }
 
-.theme-dark .tool-deck-reopen {
+:is(.theme-dark, .theme-ai) .tool-deck-reopen {
     border-color: var(--theme-border);
 }
 
@@ -232,7 +226,7 @@
     background: var(--theme-error-muted);
 }
 
-.theme-dark .confirm-dialog {
+:is(.theme-dark, .theme-ai) .confirm-dialog {
     border-color: var(--theme-border);
 }
 
@@ -285,7 +279,7 @@
     background: var(--theme-surface-hover);
 }
 
-.theme-dark .page-tabs {
+:is(.theme-dark, .theme-ai) .page-tabs {
     border-color: var(--theme-border);
 }
 
@@ -340,7 +334,7 @@
     flex-wrap: wrap;
 }
 
-.theme-dark .export-dimensions input {
+:is(.theme-dark, .theme-ai) .export-dimensions input {
     border-color: var(--theme-border);
 }
 
@@ -572,16 +566,16 @@
     background: color-mix(in srgb, var(--theme-surface) 85.10%, transparent);
 }
 
-.theme-dark .canvas-context-menu,
-.theme-dark .page-actions {
+:is(.theme-dark, .theme-ai) .canvas-context-menu,
+:is(.theme-dark, .theme-ai) .page-actions {
     color: var(--theme-text-primary);
     border-color: var(--theme-border);
 }
 
-.theme-dark .precision-grid input,
-.theme-dark .alignment-grid button,
-.theme-dark .export-scope button,
-.theme-dark .confirm-dialog>label>input {
+:is(.theme-dark, .theme-ai) .precision-grid input,
+:is(.theme-dark, .theme-ai) .alignment-grid button,
+:is(.theme-dark, .theme-ai) .export-scope button,
+:is(.theme-dark, .theme-ai) .confirm-dialog>label>input {
     border-color: var(--theme-border);
 }
 
@@ -616,7 +610,7 @@ summary:focus-visible {
     }
 }
 
-.theme-dark .custom-color-swatch {
+:is(.theme-dark, .theme-ai) .custom-color-swatch {
     border-color: var(--theme-border);
 }
 
@@ -635,15 +629,21 @@ summary:focus-visible {
     gap: 5px;
     min-height: 53px;
     border: 1px solid var(--theme-border);
-    border-radius: 7px;
+    border-radius: 9px;
     color: var(--theme-text-secondary);
     background: var(--theme-surface-input);
 }
 
+.choice-deck button:hover:not(.active) {
+    border-color: var(--theme-control-outline);
+    color: var(--theme-text-primary);
+    background: var(--theme-control-hover);
+}
+
 .choice-deck button.active {
-    border-color: var(--theme-primary-border);
+    border-color: var(--theme-control-outline);
     color: var(--theme-primary);
-    background: var(--theme-primary-muted);
+    background: var(--theme-control-selected);
 }
 
 .choice-deck button svg {
@@ -687,8 +687,4 @@ summary:focus-visible {
 .line-choices button svg {
     width: 30px;
     height: 19px;
-}
-
-.theme-dark .choice-deck button {
-    border-color: var(--theme-border);
 }

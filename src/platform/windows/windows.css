@@ -75,7 +75,7 @@
     padding: 0 3px;
     border: 1px solid var(--toolbar-surface, var(--theme-surface-elevated));
     border-radius: 999px;
-    color: #fff;
+    color: var(--theme-on-danger);
     background: var(--theme-error);
     font: var(--font-weight-bold) var(--type-micro)/var(--leading-icon) var(--font-sans, sans-serif);
     pointer-events: none;
@@ -265,8 +265,8 @@
     top: 65px;
 }
 
-.theme-dark.platform-windows .tool-deck .tool-collapse,
-.theme-dark.platform-windows .tool-deck-reopen {
+:is(.theme-dark, .theme-ai).platform-windows .tool-deck .tool-collapse,
+:is(.theme-dark, .theme-ai).platform-windows .tool-deck-reopen {
     border-color: color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
 }
 

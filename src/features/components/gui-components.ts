@@ -132,7 +132,7 @@ export function guiCardCompactThreshold(group: GroupElement): number {
 type Style = { ink: string; muted: string; edge: string; surface: string; soft: string; accent: string };
 function styleFor(group: GroupElement, theme: Theme): Style {
   const dark = theme === "dark";
-  const host = typeof document === "undefined" ? undefined : document.querySelector<HTMLElement>(dark ? ".app-shell.theme-dark" : ".app-shell:not(.theme-dark)") ?? document.documentElement;
+  const host = typeof document === "undefined" ? undefined : document.querySelector<HTMLElement>(dark ? ".app-shell:is(.theme-dark, .theme-ai)" : ".app-shell.theme-light") ?? document.documentElement;
   const token = (name: string, fallback: string) => host && typeof getComputedStyle === "function" ? getComputedStyle(host).getPropertyValue(name).trim() || fallback : fallback;
   const safe = (value: string | null | undefined, fallback: string) => value && /^(#[\da-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]+)$/i.test(value) ? value : fallback;
   const overrides = group.libraryComponent?.styleOverrides;

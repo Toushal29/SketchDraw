@@ -33,11 +33,11 @@
     gap: var(--ui-space-3);
     padding: var(--ui-space-3);
     overflow: auto;
-    border: 1px solid var(--theme-border);
-    border-radius: 9px;
+    border: 1px solid var(--theme-border-floating);
+    border-radius: var(--ui-radius-popover);
     color: var(--theme-text-primary);
-    background: var(--theme-surface-elevated);
-    box-shadow: 0 8px 24px rgb(20 28 40 / 16%);
+    background: var(--theme-surface-floating);
+    box-shadow: var(--theme-elevation-popover);
 }
 
 .app-settings-heading {

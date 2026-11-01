@@ -10,7 +10,7 @@ import { drawProposalWireframeComponent, proposalWireframeComponentSvg } from ".
 
 type Palette = { ink: string; edge: string; fill: string; soft: string; muted: string; accent: string };
 function componentThemeToken(name: string, fallback: string, dark = false) {
-  const host = typeof document === "undefined" ? undefined : document.querySelector<HTMLElement>(dark ? ".app-shell.theme-dark" : ".app-shell:not(.theme-dark)") ?? document.documentElement;
+  const host = typeof document === "undefined" ? undefined : document.querySelector<HTMLElement>(dark ? ".app-shell:is(.theme-dark, .theme-ai)" : ".app-shell.theme-light") ?? document.documentElement;
   const value = host && typeof getComputedStyle === "function" ? getComputedStyle(host).getPropertyValue(name).trim() : "";
   return value || fallback;
 }

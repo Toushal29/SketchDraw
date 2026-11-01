@@ -18,6 +18,7 @@ type Props = {
   canSaveSelection: boolean;
   busy: boolean;
   theme: Theme;
+  aiTheme: boolean;
   stencils: CustomStencil[];
   favorites: string[];
   recent: string[];
@@ -140,7 +141,7 @@ export function ComponentLibraryPanel(props: Props) {
 
   return <Portal mount={document.body}>
     <Show when={props.open}>
-      <aside ref={element => { panelElement = element; if (props.open) placePanel(); }} class="component-library-panel" classList={{ "theme-dark": props.theme === "dark", "theme-light": props.theme === "light" }} role="dialog" aria-label="Components" onPointerDown={event => event.stopPropagation()} onPointerEnter={props.onPointerEnter} onPointerLeave={event => { if (event.pointerType === "mouse") props.onPointerLeave(); }}>
+      <aside ref={element => { panelElement = element; if (props.open) placePanel(); }} class="component-library-panel" classList={{ "theme-dark": props.theme === "dark" && !props.aiTheme, "theme-light": props.theme === "light", "theme-ai": props.aiTheme }} role="dialog" aria-label="Components" onPointerDown={event => event.stopPropagation()} onPointerEnter={props.onPointerEnter} onPointerLeave={event => { if (event.pointerType === "mouse") props.onPointerLeave(); }}>
         <label class="component-library-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input type="search" aria-label="Search components" placeholder="Search components" value={query()} onInput={event => setQuery(event.currentTarget.value)} /></label>
         <nav class="component-library-tabs" aria-label="Filter components">
           <For each={filters}>{item => <button type="button" class={filter() === item.id ? "active" : ""} aria-pressed={filter() === item.id} onClick={() => selectFilter(item.id)}>{item.label}<Show when={item.count !== undefined}><small>{item.count}</small></Show></button>}</For>

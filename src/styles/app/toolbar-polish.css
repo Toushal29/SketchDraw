@@ -36,7 +36,6 @@
     width: max-content;
     max-width: calc(100vw - 24px);
     border: 1px solid var(--theme-border);
-    border-radius: 20px;
 }
 
 .tool-cluster {
@@ -64,16 +63,16 @@
 }
 
 .tool-cluster-connectors {
-    background: var(--theme-surface-elevated);
+    background: transparent;
 }
 
 .tool-cluster-shapes {
-    background: var(--theme-surface-elevated);
+    background: transparent;
 }
 
 .tool-cluster-content,
 .tool-cluster-history {
-    background: var(--theme-surface-elevated);
+    background: transparent;
 }
 
 .tool-icon-button {
@@ -82,9 +81,9 @@
 }
 
 .tool-icon-button:hover:not(:disabled) {
-    border-color: var(--theme-border);
-    color: var(--theme-text-tertiary);
-    background: var(--theme-surface-input);
+    border-color: var(--theme-control-outline);
+    color: var(--theme-primary);
+    background: var(--theme-control-hover);
 }
 
 .tool-icon-button.selected {
@@ -92,8 +91,8 @@
 }
 
 .tool-icon-button.selected:hover {
-    border-color: var(--theme-primary-border);
-    background: var(--theme-primary-muted);
+    border-color: var(--theme-control-outline);
+    background: var(--theme-control-selected);
 }
 
 .tool-icon-button kbd {
@@ -152,7 +151,7 @@
     color: var(--theme-text-secondary);
 }
 
-.theme-dark .tool-icon-button .tool-family-caret {
+:is(.theme-dark, .theme-ai) .tool-icon-button .tool-family-caret {
     border-color: var(--theme-border);
 }
 

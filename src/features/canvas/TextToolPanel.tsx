@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { For } from "solid-js";
 import type { NoteKind } from "../../model";
 import "./text-tool-panel.css";
 
@@ -19,21 +19,9 @@ const OPTIONS: { mode: TextToolMode; label: string; path: string }[] = [
 ];
 
 export function TextToolPanel(props: Props) {
-  const [collapsed, setCollapsed] = createSignal(false);
-
-  return <div class="tool-options text-options text-tool-panel" classList={{ "text-tool-panel-collapsed": collapsed() }} role="menu" aria-label="Text tools">
-    <div class="text-tool-panel-heading">
-      <span>Text tools</span>
-      <button type="button" role="menuitem" aria-label={collapsed() ? "Expand text tools" : "Collapse text tools"} title={collapsed() ? "Expand" : "Collapse"} aria-expanded={!collapsed()} onClick={() => setCollapsed(value => !value)}>
-        <svg viewBox="0 0 12 12" aria-hidden="true"><path d={collapsed() ? "m2.5 4.5 3.5 3 3.5-3" : "m2.5 7.5 3.5-3 3.5 3"} /></svg>
-      </button>
-    </div>
-    <Show when={!collapsed()}>
-      <div class="text-tool-panel-options">
-        <For each={OPTIONS}>{option => <button type="button" role="menuitemradio" class="text-tool-option" classList={{ active: props.activeMode === option.mode }} aria-checked={props.activeMode === option.mode} title={option.label} onClick={() => props.onSelect(option.mode)}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d={option.path} /></svg><span>{option.label}</span>
-        </button>}</For>
-      </div>
-    </Show>
+  return <div class="tool-options text-tool-panel" role="menu" aria-label="Text tools">
+    <For each={OPTIONS}>{option => <button type="button" role="menuitemradio" classList={{ active: props.activeMode === option.mode }} aria-checked={props.activeMode === option.mode} title={option.label} onClick={() => props.onSelect(option.mode)}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={option.path} /></svg><span>{option.label}</span>
+    </button>}</For>
   </div>;
 }

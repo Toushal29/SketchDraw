@@ -49,7 +49,7 @@ export function ViewSettingsPopover(props: Props) {
       <div class="view-settings-row">
         <span>Theme</span>
         <div class="view-theme-options" role="group" aria-label="Application theme">
-          {([{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }] as const).map(option =>
+          {([{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }, { value: "ai", label: "AI" }] as const).map(option =>
             <button type="button" class={props.themeMode === option.value ? "active" : ""} aria-pressed={props.themeMode === option.value} onClick={() => props.onThemeChange(option.value)}>{option.label}</button>)}
         </div>
       </div>

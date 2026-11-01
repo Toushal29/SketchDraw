@@ -78,7 +78,7 @@
   border-color: var(--theme-border);
   color: var(--theme-text-primary);
   background: var(--theme-surface-elevated);
-  box-shadow: 0 1px 3px rgb(20 30 45 / 8%);
+  box-shadow: 0 1px 3px var(--theme-shadow-control);
 }
 
 .chart-workbench-tabs small {
@@ -191,7 +191,7 @@
 .chart-workbench-csv p { margin: 6px 0; color: var(--theme-text-secondary); font-size: 10px; line-height: var(--leading-normal); }
 .chart-workbench-csv textarea { width: 100%; min-height: 82px; padding: 7px; border: 1px solid var(--theme-border); border-radius: 6px; color: var(--theme-text-primary); background: var(--theme-surface); font: 10px/1.4 ui-monospace, Consolas, monospace; resize: vertical; }
 .chart-workbench-csv-actions { justify-content: end; margin-top: 5px; }
-.chart-workbench-error { display: block; margin-top: 5px; color: #c43f4e; font-size: 10px; line-height: var(--leading-normal); }
+.chart-workbench-error { display: block; margin-top: 5px; color: var(--theme-error); font-size: 10px; line-height: var(--leading-normal); }
 
 .chart-workbench-style { gap: 8px; }
 .chart-workbench-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }

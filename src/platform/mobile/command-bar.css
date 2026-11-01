@@ -41,7 +41,7 @@
         border: 1px solid var(--touch-control-line, var(--theme-border));
         border-radius: 15px;
         color: var(--toolbar-ink, var(--theme-text-primary));
-        background: var(--toolbar-surface, var(--theme-background));
+        background: var(--theme-toolbar-custom-surface);
         box-shadow: 0 16px 48px var(--theme-shadow);
     }
     .app-shell:not(.platform-windows) .mobile-file-dropdown {

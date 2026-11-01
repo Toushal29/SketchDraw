@@ -87,11 +87,12 @@ h6 {
     height: 44px;
     min-height: 44px;
     flex: 0 0 44px;
-    border-bottom: 1px solid var(--theme-border);
+    border-bottom: 1px solid var(--theme-separator);
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 12px;
+    background: var(--theme-toolbar-surface);
 }
 
 .brand,
@@ -163,9 +164,9 @@ h6 {
     top: 42px;
     width: 220px;
     padding: var(--ui-space-2);
-    border: 1px solid var(--theme-border);
+    border: 1px solid var(--theme-border-floating);
     border-radius: var(--ui-radius-popover);
-    background: var(--theme-surface-elevated);
+    background: var(--theme-surface-floating);
 }
 
 .system-menu-popover button {
@@ -183,7 +184,7 @@ h6 {
 }
 
 .system-menu-popover button:hover {
-    background: var(--theme-surface-elevated);
+    background: var(--theme-control-hover);
 }
 
 .system-menu-popover button:disabled {
@@ -209,7 +210,7 @@ h6 {
 .menu-separator {
     height: 1px;
     margin: 5px 4px;
-    background: var(--theme-surface-elevated);
+    background: var(--theme-separator);
 }
 
 .save-status {
@@ -336,8 +337,9 @@ h1 em {
 }
 
 .tool-icon-button:hover {
-    color: var(--theme-info);
-    background: var(--theme-surface-input);
+    border-color: var(--theme-control-outline);
+    color: var(--theme-primary);
+    background: var(--theme-control-hover);
 }
 
 .tool-icon-button .tool-family-caret {
@@ -397,10 +399,10 @@ h1 em {
     left: 18px;
     max-height: calc(100% - 36px);
     overflow-y: auto;
-    border: 1px solid var(--theme-border-strong);
-    border-radius: 9px;
+    border: 1px solid var(--theme-border);
+    border-radius: 12px;
     background: var(--theme-surface-elevated);
-    box-shadow: 0 4px 16px rgb(18 26 38 / 9%);
+    box-shadow: var(--theme-elevation-popover);
 }
 
 .style-pane.collapsed {
@@ -589,25 +591,4 @@ h1 em {
     .canvas-help {
         display: none;
     }
-}
-
-.theme-dark {
-    color: var(--theme-text-primary);
-}
-
-.theme-dark .topbar {
-    border-color: var(--theme-border);
-}
-
-.theme-dark .brand,
-.theme-dark .file-name,
-.theme-dark .save-status {
-    color: var(--theme-text-primary);
-}
-
-.theme-dark .system-menu-popover,
-.theme-dark .tool-deck,
-.theme-dark .style-pane {
-    border-color: var(--theme-border);
-    background-color: var(--theme-surface-elevated);
 }

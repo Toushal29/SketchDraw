@@ -36,7 +36,7 @@
   resize: none;
   overflow-x: hidden;
   overflow-y: auto;
-  color: var(--theme-text-primary, var(--theme-text));
+  color: var(--theme-text-primary);
   -webkit-text-fill-color: currentColor;
   background: var(--theme-diagram-data-muted, var(--theme-surface-input));
   font: var(--type-control)/var(--leading-relaxed) var(--font-mono, ui-monospace, Consolas, monospace);
@@ -54,12 +54,12 @@
 }
 
 .schema-code-editor > .schema-code-textarea[aria-invalid="true"] {
-  border-color: var(--theme-danger, #b42318);
+  border-color: var(--theme-error);
 }
 
 .schema-code-editor > .schema-code-textarea.schema-input::selection,
 .schema-code-editor > .schema-code-textarea.schema-side-input::selection {
-  color: var(--theme-text-primary, var(--theme-text));
+  color: var(--theme-text-primary);
   -webkit-text-fill-color: currentColor;
   background: color-mix(in srgb, var(--theme-primary) 28%, transparent);
 }

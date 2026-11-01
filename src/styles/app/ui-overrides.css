@@ -2,7 +2,7 @@
 .tool-options {
     gap: 4px;
     padding: 4px;
-    border-radius: 8px;
+    border-radius: var(--ui-radius-popover);
 }
 
 .tool-options button {
@@ -10,7 +10,7 @@
     min-height: 40px;
     gap: 0px;
     padding: 0px 0px;
-    border-radius: 0px;
+    border-radius: var(--ui-radius-control);
 }
 
 .tool-options button>svg {
@@ -73,7 +73,7 @@
     border-radius: 9px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
-    box-shadow: 0 4px 16px color-mix(in srgb, #000 10%, transparent);
+    box-shadow: var(--theme-shadow-soft);
     font: inherit;
     font-size: var(--type-micro);
     cursor: pointer;
@@ -104,7 +104,7 @@
     border-radius: 5px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
-    box-shadow: 0 14px 40px color-mix(in srgb, #000 18%, transparent);
+    box-shadow: var(--theme-elevation-dialog);
 }
 
 .canvas-notebook-split>header,
@@ -431,18 +431,18 @@
     font-size: var(--type-micro);
 }
 
-.app-shell.theme-dark .floating-layer-panel .layer-row {
+.app-shell:is(.theme-dark, .theme-ai) .floating-layer-panel .layer-row {
     border-color: var(--layer-border);
     color: var(--layer-ink);
-    background: var(--dark-ui-raised, var(--theme-background));
+    background: var(--theme-surface-elevated);
 }
 
-.app-shell.theme-dark .floating-layer-panel .layer-row.selected {
+.app-shell:is(.theme-dark, .theme-ai) .floating-layer-panel .layer-row.selected {
     border-color: var(--ui-accent-border);
     background: var(--ui-accent-soft);
 }
 
-.app-shell.theme-dark .floating-layer-panel .layer-row .layer-action[aria-pressed="true"] {
+.app-shell:is(.theme-dark, .theme-ai) .floating-layer-panel .layer-row .layer-action[aria-pressed="true"] {
     color: var(--ui-accent-ink);
 }
 
@@ -452,7 +452,7 @@
 
 /* Compact controls and presentation options added for the 4.0 UI. */
 .app-shell .tool-deck {
-    background-color: var(--toolbar-surface);
+    background-color: var(--theme-toolbar-custom-surface);
     color: var(--toolbar-ink);
 }
 
@@ -696,7 +696,7 @@
     border: 1px solid var(--theme-border);
     border-radius: 5px;
     background: var(--theme-surface);
-    color: var(--theme-text);
+    color: var(--theme-text-primary);
     font-size: var(--type-caption);
     font-weight: var(--font-weight-semibold);
     cursor: pointer;
@@ -774,7 +774,7 @@
     gap: 8px;
 }
 
-.theme-dark .mermaid-input {
+:is(.theme-dark, .theme-ai) .mermaid-input {
     border-color: var(--theme-border);
 }
 
@@ -809,13 +809,13 @@
     }
 }
 
-.theme-dark .mermaid-preview-panel,
-.theme-dark .mermaid-preview-svg {
+:is(.theme-dark, .theme-ai) .mermaid-preview-panel,
+:is(.theme-dark, .theme-ai) .mermaid-preview-svg {
     border-color: var(--theme-border);
     background-color: var(--theme-surface-elevated);
 }
 
-.theme-dark .mermaid-preview-heading {
+:is(.theme-dark, .theme-ai) .mermaid-preview-heading {
     border-color: var(--theme-border);
 }
 
@@ -895,11 +895,11 @@
     font: var(--type-micro) var(--font-mono);
 }
 
-.theme-dark .thickness-tuner>button {
+:is(.theme-dark, .theme-ai) .thickness-tuner>button {
     border-color: var(--theme-border);
 }
 
-.theme-dark .thickness-preview {
+:is(.theme-dark, .theme-ai) .thickness-preview {
     border-color: var(--theme-border);
 }
 
@@ -915,7 +915,7 @@
     letter-spacing: .08em;
 }
 
-.theme-dark .view-only-badge {
+:is(.theme-dark, .theme-ai) .view-only-badge {
     border-color: var(--theme-border);
 }
 
@@ -1056,7 +1056,7 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent, var(--theme-shadow)) 25%, transparent);
 }
 
-.theme-dark .component-field-list textarea {
+:is(.theme-dark, .theme-ai) .component-field-list textarea {
     border-color: var(--theme-border);
 }
 

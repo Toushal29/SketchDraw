@@ -177,7 +177,7 @@ export type SnapGuideLine = { coordinate: number; moving: Bounds; reference: Bou
 export type CanvasSnapGuides = { x?: SnapGuideLine; y?: SnapGuideLine };
 export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; editingChildId?: string; shapeLabel?: boolean; shapeLabelIndex?: number; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };
 export type Theme = "light" | "dark";
-export type ThemeMode = Theme | "system";
+export type ThemeMode = Theme | "system" | "ai";
 
 export type Binding = { elementId: string; anchor: Point; rowId?: string; portId?: string };
 export type ShapeLabel = Omit<TextElement, keyof LayerFlags | "type" | "x" | "y"> & { verticalAlign: "top" | "middle" | "bottom"; offsetX?: number; offsetY?: number; routePosition?: number };

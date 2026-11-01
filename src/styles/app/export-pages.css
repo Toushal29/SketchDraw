@@ -276,22 +276,22 @@
     white-space: nowrap;
 }
 
-.theme-dark .pdf-settings {
+:is(.theme-dark, .theme-ai) .pdf-settings {
     border-color: var(--theme-border);
 }
 
-.theme-dark .export-size-settings {
+:is(.theme-dark, .theme-ai) .export-size-settings {
     border-color: var(--theme-border);
 }
 
-.theme-dark .pdf-paper-grid button,
-.theme-dark .export-paper-grid button,
-.theme-dark .export-quality-grid button,
-.theme-dark .pdf-quality-grid button,
-.theme-dark .pdf-choice-row button,
-.theme-dark .pdf-custom-size input,
-.theme-dark .pdf-custom-size select,
-.theme-dark .pdf-preview-pages button {
+:is(.theme-dark, .theme-ai) .pdf-paper-grid button,
+:is(.theme-dark, .theme-ai) .export-paper-grid button,
+:is(.theme-dark, .theme-ai) .export-quality-grid button,
+:is(.theme-dark, .theme-ai) .pdf-quality-grid button,
+:is(.theme-dark, .theme-ai) .pdf-choice-row button,
+:is(.theme-dark, .theme-ai) .pdf-custom-size input,
+:is(.theme-dark, .theme-ai) .pdf-custom-size select,
+:is(.theme-dark, .theme-ai) .pdf-preview-pages button {
     border-color: var(--theme-border);
 }
 

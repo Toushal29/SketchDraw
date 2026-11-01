@@ -1,7 +1,7 @@
 /* Refined canvas chrome and note editing surfaces. */
 .topbar {
-    border-bottom-color: var(--theme-border);
-    background: color-mix(in srgb, var(--theme-surface) 96.00%, transparent);
+    border-bottom-color: var(--theme-separator);
+    background: var(--theme-toolbar-surface);
 }
 
 .topbar .brand-mark-image {
@@ -17,22 +17,26 @@
 
 .menu-dropdown>summary:hover,
 .menu-dropdown[open]>summary {
-    color: var(--theme-text-secondary);
+    border-color: var(--theme-separator);
+    color: var(--theme-text-primary);
+    background: var(--theme-control-hover);
 }
 
 .tool-deck {
     gap: 0px;
     padding: 0px;
     border-color: var(--theme-border);
-    background: color-mix(in srgb, var(--theme-surface) 96.00%, transparent);
+    border-radius: 14px;
+    background: var(--theme-surface-floating);
+    box-shadow: var(--theme-elevation-popover);
 }
 
 .tool-cluster {
     gap: 2px;
     padding: 2px;
     border-radius: 12px;
-    border-color: var(--theme-border);
-    background: var(--theme-surface-elevated);
+    border-color: transparent;
+    background: transparent;
 }
 
 .tool-cluster-canvas {
@@ -52,8 +56,9 @@
 }
 
 .tool-options {
-    border-color: var(--theme-border);
-    background: color-mix(in srgb, var(--theme-surface-elevated) 98.50%, transparent);
+    border-color: var(--theme-border-floating);
+    background: var(--theme-surface-floating);
+    box-shadow: var(--theme-elevation-popover);
 }
 
 .tool-options button:focus-visible,
@@ -121,10 +126,10 @@
     pointer-events: none;
 }
 .canvas-interaction-overlay > svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.canvas-path-node-handle { fill: var(--theme-surface, #fff); stroke: var(--theme-primary, #5b55e7); stroke-width: 2; cursor: grab; pointer-events: all; touch-action: none; }
-.canvas-path-node-handle:hover { fill: var(--theme-primary, #5b55e7); r: 7; }
-.canvas-path-node-handle.selected { fill: var(--theme-primary, #5b55e7); stroke: var(--theme-surface, #fff); }
+.canvas-path-node-handle { fill: var(--theme-surface); stroke: var(--theme-primary); stroke-width: 2; cursor: grab; pointer-events: all; touch-action: none; }
+.canvas-path-node-handle:hover { fill: var(--theme-primary); r: 7; }
+.canvas-path-node-handle.selected { fill: var(--theme-primary); stroke: var(--theme-surface); }
 .canvas-measurement { pointer-events: none; }
-.canvas-measurement line { stroke: #ec8d16; stroke-width: 1.5; stroke-dasharray: 5 3; }
-.canvas-measurement circle { fill: #fff; stroke: #ec8d16; stroke-width: 1.5; }
-.canvas-measurement text { paint-order: stroke; stroke: var(--theme-surface-elevated, #fff); stroke-width: 4px; stroke-linejoin: round; fill: var(--theme-text-primary, #202124); font: var(--font-weight-semibold) var(--type-control) var(--font-ui, system-ui); }
+.canvas-measurement line { stroke: var(--theme-measurement); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.canvas-measurement circle { fill: var(--theme-surface); stroke: var(--theme-measurement); stroke-width: 1.5; }
+.canvas-measurement text { paint-order: stroke; stroke: var(--theme-surface-elevated); stroke-width: 4px; stroke-linejoin: round; fill: var(--theme-text-primary); font: var(--font-weight-semibold) var(--type-control) var(--font-ui, system-ui); }

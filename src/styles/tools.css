@@ -174,11 +174,11 @@
         font: inherit;
     }
 
-    .theme-dark .gesture-menu-heading {
+    :is(.theme-dark, .theme-ai) .gesture-menu-heading {
         border-color: var(--theme-border);
     }
 
-    .theme-dark .gesture-settings-popover select {
+    :is(.theme-dark, .theme-ai) .gesture-settings-popover select {
         border-color: var(--theme-border);
         background-color: var(--theme-surface-input);
     }

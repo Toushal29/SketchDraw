@@ -821,7 +821,7 @@ function App() {
   const imageCache = new Map<string, HTMLImageElement>();
   const [canvasAssetRevision, setCanvasAssetRevision] = createSignal(0);
   const [themeMode, setThemeMode] = createSignal<ThemeMode>((() => {
-    try { const saved = localStorage.getItem("sketchdraw-theme"); return saved === "light" || saved === "dark" ? saved : "system"; }
+    try { const saved = localStorage.getItem("sketchdraw-theme"); return saved === "light" || saved === "dark" || saved === "ai" ? saved : "system"; }
     catch { return "system"; }
   })());
   const [accentColor, setAccentColor] = createSignal((() => {
@@ -1891,7 +1891,7 @@ function App() {
     setSelectedLayerPresetId("");
     setDirty(true);
   }
-  const theme = (): Theme => themeMode() === "dark" ? "dark" : themeMode() === "light" ? "light" : systemDark() ? "dark" : "light";
+  const theme = (): Theme => themeMode() === "light" ? "light" : themeMode() === "system" ? systemDark() ? "dark" : "light" : "dark";
   const accentForTheme = () => accentColor() === DEFAULT_UI_ACCENT ? "var(--theme-primary)" : accentColor();
   const toolbarColor = () => toolbarColorChoice() === "auto" ? "var(--theme-surface)" : toolbarColorChoice();
   const selectedSet = createMemo(() => new Set(selectedIndices()));
@@ -2965,7 +2965,8 @@ function App() {
   const quickFocusedHasLineStyle = () => { const focused = styleTargetElement(); return !!styleContainerSelection() || !!focused && ("lineStyle" in focused || focused.type === "group" && (!!focused.libraryComponent || !!focused.masterId)); };
   const updateQuickLineStyle = (value: StrokeStyle) => { if (styleContainerSelection()) updateSelectedContainer(container => ({ ...container, borderStyle: value })); else if (quickFocusedHasLineStyle()) updateProperty("lineStyle", value); else setLineStyle(value); };
   const quickArrowHead = (end: "start" | "end") => { const focused = styleTargetElement(); if (focused && isConnector(focused)) return (end === "start" ? focused.startHead : focused.endHead) ?? (focused.type === "arrow" && end === "end" ? "open" : "none"); if (tool() === "line") return end === "start" ? defaultLineStartHead() : defaultLineEndHead(); return end === "start" ? defaultStartHead() : defaultEndHead(); };
-  const renderedBoardColor = () => boardColorFollowsTheme() ? theme() === "dark" ? "#17191f" : "#ffffff" : boardColor();
+  const automaticBoardColor = () => getComputedStyle(document.querySelector<HTMLElement>(".app-shell") ?? document.documentElement).getPropertyValue("--theme-board-background").trim();
+  const renderedBoardColor = () => boardColorFollowsTheme() ? automaticBoardColor() : boardColor();
   createEffect(() => { if (boardColorFollowsTheme()) { theme(); advanceDocumentRevision(); } });
   const updateStrokeColor = (value: string) => { const selected = styleTargetElement(); if (boardLocked() || selected?.locked) return; if (textDraft()?.shapeLabel) { updateLabel("color", value); return; } setColor(value); setTextDraft((draft) => draft ? { ...draft, color: value } : undefined); if (styleContainerSelection()) updateSelectedContainer(container => ({ ...container, borderColor: value })); else if (hasStyleSelection()) updateProperty("color", value); };
   const updateThickness = (value: number) => { const bounded = Math.max(1, Math.min(24, Math.round(value))); if (tool() === "eraser") { setEraserSize(ERASER_SIZE_PRESETS.some(([size]) => size === bounded) ? bounded : 2); return; } setThickness(bounded); if (styleContainerSelection()) updateSelectedContainer(container => ({ ...container, borderThickness: bounded })); else if (hasStyleSelection()) updateProperty("thickness", bounded); };
@@ -3000,7 +3001,7 @@ function App() {
   function storeCurrentPage() {
     const id = activePageId();
     if (!id) return;
-    setPages((items) => items.map((page) => page.id === id ? { ...page, elements: canonicalElements(), canvasState: { ...canvasState(), backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() } } : page));
+      setPages((items) => items.map((page) => page.id === id ? { ...page, elements: canonicalElements(), canvasState: { ...canvasState(), backgroundColor: renderedBoardColor(), boardColorFollowsTheme: boardColorFollowsTheme() } } : page));
   }
   function prototypeElementsForRun(items: Element[]): Element[] {
     return items.map(item => item.type === "group" ? { ...item, hidden: item.prototypeOverlay ? true : item.hidden, elements: prototypeElementsForRun(item.elements) } : item.prototypeOverlay ? { ...item, hidden: true } as Element : item);
@@ -6694,7 +6695,7 @@ function App() {
         const box = unionBounds(visible.map(elementBounds)) ?? { x: 0, y: 0, w: 800, h: 600 };
         const layers = page.layers ?? [];
         const layerName = (layer: CanvasLayer): string => { const names: string[] = []; let current: CanvasLayer | undefined = layer; let guard = 0; while (current && guard++ < 16) { names.unshift(current.name); current = current.parentId ? layers.find(candidate => candidate.id === current!.parentId) : undefined; } return names.join(" / "); };
-        const background = page.id === activePageId() ? renderedBoardColor() : page.canvasState.boardColorFollowsTheme ? (theme() === "dark" ? "#17191f" : "#ffffff") : page.canvasState.backgroundColor;
+        const background = page.id === activePageId() ? renderedBoardColor() : page.canvasState.boardColorFollowsTheme ? automaticBoardColor() : page.canvasState.backgroundColor;
         return {
           id: page.id, name: page.name, bounds: box, background, svg: visible.map(serialize).join("\n"),
           layers: layers.map(layer => ({ id: layer.id, name: layerName(layer), hidden: !!layer.hidden })),
@@ -8513,6 +8514,7 @@ function App() {
       canSaveSelection={selectedIndices().length > 0 && !readOnlyView()}
       busy={componentCatalogBusy() || nativeBusy()}
       theme={theme()}
+      aiTheme={themeMode() === "ai"}
       stencils={customStencils()}
       favorites={stencilFavorites()}
       recent={recentStencils()}
@@ -8691,6 +8693,7 @@ function App() {
       { id: "theme-system", label: "Use system theme", category: "View", keywords: "appearance light dark", run: () => setThemePreference("system") },
       { id: "theme-light", label: "Use light theme", category: "View", keywords: "appearance system dark", run: () => setThemePreference("light") },
       { id: "theme-dark", label: "Use dark theme", category: "View", keywords: "appearance system light", run: () => setThemePreference("dark") },
+      { id: "theme-ai", label: "Use AI theme", category: "View", keywords: "appearance custom neural aurora", run: () => setThemePreference("ai") },
       { id: "measure-distance", label: "Measure distance on canvas", category: "Tools", shortcut: formatShortcutBindings(shortcuts().measureTool), run: toggleMeasureMode },
       { id: "select-previous-object", label: "Select previous object", category: "Selection", shortcut: formatShortcutBindings(shortcuts().cycleSelectionPrevious), run: () => cycleSelection(-1) },
       { id: "select-next-object", label: "Select next object", category: "Selection", shortcut: formatShortcutBindings(shortcuts().cycleSelectionNext), run: () => cycleSelection(1) },
@@ -8800,7 +8803,7 @@ function App() {
   /></Suspense>;
 
   return (
-    <main class="app-shell" classList={{ "theme-light": theme() === "light", "theme-dark": theme() === "dark", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": showWelcomeScreen(), "design-workspace-active": workspaceArea() === "design", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() === "planning", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "prototype-run-mode": canvasRunMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 88%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-shell-width: ${displayMetrics().viewportWidth / interfaceScale()}px; --app-shell-height-vh: ${100 / interfaceScale()}vh; --app-shell-height-dvh: ${100 / interfaceScale()}dvh; --app-topbar-height: ${topbarHeight()}px;`}>
+    <main class="app-shell" classList={{ "theme-light": themeMode() !== "ai" && theme() === "light", "theme-dark": themeMode() !== "ai" && theme() === "dark", "theme-ai": themeMode() === "ai", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": showWelcomeScreen(), "design-workspace-active": workspaceArea() === "design", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() === "planning", "touch-focus-mode": touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && presentationMode(), "presentation-mode": presentationMode(), "prototype-run-mode": canvasRunMode(), "windows-fullscreen-mode": isWindowsPlatform() && windowsFullscreenMode(), "read-only-view": readOnlyView() }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 88%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-shell-width: ${displayMetrics().viewportWidth / interfaceScale()}px; --app-shell-height-vh: ${100 / interfaceScale()}vh; --app-shell-height-dvh: ${100 / interfaceScale()}dvh; --app-topbar-height: ${topbarHeight()}px;`}>
       <Show when={toolbarOrganizerOpen()}><ToolbarOrderEditor toolbarItems={organizerItems(toolbarOrder())} moreItems={organizerItems(moreToolsOrder())} historyActionsVisible={historyActionsVisible()} onHistoryActionsVisibleChange={setHistoryActionsVisiblePreference} onMove={moveToolbarTool} onReorder={reorderToolbarTool} onReset={resetToolbarOrder} onClose={() => setToolbarOrganizerOpen(false)} /></Show>
       <Show when={designWorkbenchOpen() && activePath() && isCanvasWorkspace()}><DesignWorkbenchPanel
         elements={elements()} selectedIndices={selectedIndices()} selected={selectedIndices().length === 1 ? elements()[selectedIndices()[0]] : undefined}

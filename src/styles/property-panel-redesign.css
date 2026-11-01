@@ -490,8 +490,8 @@
 }
 
 .relationship-model-fields textarea:focus-visible {
-    border-color: var(--theme-accent);
-    outline: 2px solid color-mix(in srgb, var(--theme-accent) 28%, transparent);
+    border-color: var(--ui-accent);
+    outline: 2px solid color-mix(in srgb, var(--ui-accent) 28%, transparent);
     outline-offset: 1px;
 }
 

@@ -20,9 +20,9 @@
 | Project planning | `src/features/project/project-workspace.css` owns the lazily loaded Planning workspace, `.sdplan` toolbar, responsive layouts, report printing, and scoped coarse-pointer navigation behavior. | The Planning component stylesheet contains the small touch-specific navigation rule under `.app-shell:not(.platform-windows)`. `src/platform/mobile/layout-fixes.css` only owns shared workspace-shell sizing. | No separate Windows Planning overrides currently exist; add them in `src/platform/windows/windows.css` only when needed. |
 | Design shape library and text toolbar | `src/features/workspace/database-workspace.css` owns the shared expanded palette surface, searchable shape list, and text formatting controls. | `src/platform/mobile/design-workspace.css` positions the expanded palette around touch toolbars and improves palette tiles on narrow screens. | `src/platform/windows/windows.css` positions the expanded palette as a Windows side panel. |
 
-## Modern theme
+## Interface themes
 
-`src/styles/app/theme-modern.css` is the last stylesheet in the manifest and is scoped to `.app-shell.theme-modern`. It owns how the Modern theme shapes components: frosted surfaces, hairline edges, filled controls, segmented tabs, switches, sliders, macOS-style menus, and the command palette. Its palette tokens stay in `theme.css`; it only derives translucent fills with `color-mix`. It must not change geometry that belongs to touch layouts. Light, Dark, and System are unaffected because every rule starts with `.theme-modern`.
+`src/styles/app/theme.css` is the single source for interface colors, semantic states, diagram-family accents, floating surfaces, and elevation colors. The AI theme defines its own opaque blue-slate and mint palette. Components and platform styles consume shared tokens, and the canvas renderers read those tokens for model previews. Object colors saved in a sketch remain document data and are not interface theme colors.
 
 ## Shared refinement sheets
 
@@ -35,6 +35,7 @@
 - Shared rules may use responsive media queries, but platform-specific behavior must include an explicit platform selector.
 - `src/platform/mobile/workspace.css`, `mobile.css`, `overrides.css`, `home.css`, and `touch-style.css` now scope their mobile component selectors to a non-Windows app shell. Preserve that boundary when adding rules.
 - `src/platform/mobile/touch-toolbar.css` owns touch toolbar and subtool geometry. The positioning helpers in `src/App.tsx` and `src/platform/mobile/MobileCommandBar.tsx` set per-open viewport coordinates as ordinary inline styles; keep static appearance and responsive defaults in CSS.
+- `TextToolPanel` uses the shared `.tool-options > button` sizing, typography, focus, and active-state styles so its options match Line and Arrow. Keep `text-tool-panel.css` limited to panel layout; touch styles may adjust the grid and width but should not recreate the button appearance.
 - Avoid `!important` for ordinary component layout and appearance. The remaining CSS uses are limited to state rules for Windows-only visibility, read-only hiding, and switching quick-style mode children. Prefer a stronger scoped state selector when extending those components.
 - Do not add another late global override for a component already owned above. Edit the owner, then remove the superseded declaration where behavior is verified. Component styles imported from the owning TSX should not also be repeated in `App.css`.
 - Keep the current `src/App.css` order in mind until the imported styles are consolidated. The manifest links here so ownership can be checked before adding a rule.

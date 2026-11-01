@@ -106,9 +106,9 @@
         max-height: min(48dvh, 320px);
         transform: none;
     }
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-heading > button,
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > button,
-    .app-shell.theme-dark:not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
+    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .style-pane.mobile-properties-collapsed .quick-style-heading > button,
+    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > button,
+    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .style-pane.quick-style-mode.mobile-properties-expanded .quick-style-heading > .mobile-advanced-properties {
         border-color: var(--theme-border);
         color: var(--theme-text-primary);
         background: var(--theme-surface-elevated);

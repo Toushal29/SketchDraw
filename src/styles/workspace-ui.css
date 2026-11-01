@@ -367,24 +367,24 @@
     min-width: 58px;
 }
 
-.theme-dark .component-option-actions button {
+:is(.theme-dark, .theme-ai) .component-option-actions button {
     border-color: var(--theme-border);
 }
 
-.theme-dark .component-editor-content .property-label input,
-.theme-dark .component-editor-content .property-label select,
-.theme-dark .component-editor-content .property-label textarea,
-.theme-dark .component-option-list input {
+:is(.theme-dark, .theme-ai) .component-editor-content .property-label input,
+:is(.theme-dark, .theme-ai) .component-editor-content .property-label select,
+:is(.theme-dark, .theme-ai) .component-editor-content .property-label textarea,
+:is(.theme-dark, .theme-ai) .component-option-list input {
     border-color: var(--theme-border);
 }
 
-.app-shell.theme-dark.platform-windows>.topbar .header-leading,
-.app-shell.theme-dark.platform-windows>.topbar>.app-menus,
-.app-shell.theme-dark.platform-windows>.topbar .top-actions {
+.app-shell:is(.theme-dark, .theme-ai).platform-windows>.topbar .header-leading,
+.app-shell:is(.theme-dark, .theme-ai).platform-windows>.topbar>.app-menus,
+.app-shell:is(.theme-dark, .theme-ai).platform-windows>.topbar .top-actions {
     border-color: var(--theme-border);
 }
 
-.app-shell.theme-dark.platform-windows .topbar .settings-menu-dropdown>summary {
+.app-shell:is(.theme-dark, .theme-ai).platform-windows .topbar .settings-menu-dropdown>summary {
     border-color: var(--theme-border);
 }
 

@@ -150,11 +150,11 @@
 }
 
 .validation-severity.error {
-    color: #c33b3b;
+    color: var(--theme-error);
 }
 
 .validation-severity.warning {
-    color: #a46b10;
+    color: var(--theme-warning);
 }
 
 .schema-dialog>header,
@@ -210,7 +210,7 @@
     font-size: var(--type-control);
 }
 
-.theme-dark .schema-input {
+:is(.theme-dark, .theme-ai) .schema-input {
     border-color: var(--theme-diagram-data);
 }
 

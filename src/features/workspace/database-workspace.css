@@ -72,7 +72,7 @@
   height: 29px;
   border: 1px solid var(--theme-border);
   border-radius: 6px;
-  color: var(--theme-text);
+  color: var(--theme-text-primary);
   background: var(--theme-surface-elevated);
   font: inherit;
   font-size: var(--type-control);

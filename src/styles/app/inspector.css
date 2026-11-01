@@ -7,7 +7,7 @@
 .style-pane.full-style-mode {
     padding: 0;
     border-color: var(--theme-border);
-    border-radius: 9px;
+    border-radius: 12px;
 }
 
 .style-pane.full-style-mode.mobile-properties-collapsed {
@@ -82,7 +82,7 @@
 .format-row button.active {
     color: var(--theme-primary);
     border-color: var(--theme-primary-border);
-    background: var(--theme-primary-muted);
+    background: var(--theme-control-selected);
 }
 
 .layer-list {
@@ -178,9 +178,9 @@
     height: 8px;
 }
 
-.theme-dark .property-label input,
-.theme-dark .property-label select,
-.theme-dark .format-row button {
+:is(.theme-dark, .theme-ai) .property-label input,
+:is(.theme-dark, .theme-ai) .property-label select,
+:is(.theme-dark, .theme-ai) .format-row button {
     border-color: var(--theme-border);
 }
 

@@ -183,8 +183,8 @@
     border: 1px solid var(--theme-border);
     border-radius: 9px;
     color: var(--theme-text-primary);
-    background: var(--theme-surface-elevated);
-    box-shadow: 0 8px 24px rgb(20 28 40 / 16%);
+    background: var(--theme-surface-floating);
+    box-shadow: var(--theme-elevation-popover);
 }
 
 .view-settings-popover > .view-settings-action:first-child,
@@ -306,7 +306,7 @@
 }
 
 .view-appearance-color-options > button:disabled { opacity: .45; cursor: default; }
-.view-auto-color { background: linear-gradient(135deg, #fff 0 48%, #31343b 50% 100%); }
+.view-auto-color { background: linear-gradient(135deg, var(--theme-auto-preview-light) 0 48%, var(--theme-auto-preview-dark) 50% 100%); }
 .view-custom-color-choice {
     position: relative;
     display: flex;
