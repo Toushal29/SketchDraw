@@ -198,30 +198,32 @@ function shapeOutlineAnchors(shape: ShapeElement): Point[] {
 
 let textBoundsContext: CanvasRenderingContext2D | null | undefined;
 const textBoxCache = new WeakMap<TextElement, Bounds>();
+const textLineCache = new WeakMap<TextElement, string[]>();
+export const DEFAULT_TEXT_WRAP_WIDTH = 240;
 export function alignedTextStartX(anchorX: number, width: number, alignment: TextElement["textAlign"] = "left"): number {
   return alignment === "center" ? anchorX - width / 2 : alignment === "right" ? anchorX - width : anchorX;
 }
-/** Text has no stored width, so ports use the same measured box as selection. */
-export function textElementBox(element: TextElement): Bounds {
-  const cached = textBoxCache.get(element); if (cached) return cached;
-  const lines = element.text.split(/\r?\n/).map((line, index) => element.listType === "bullet" ? `\u2022 ${line}` : element.listType === "number" ? `${index + 1}. ${line}` : line);
-  if (textBoundsContext === undefined && typeof document !== "undefined") textBoundsContext = document.createElement("canvas").getContext("2d");
-  if (textBoundsContext) textBoundsContext.font = textFont(element);
-  let width = element.fontSize * .5;
-  for (const line of lines) width = Math.max(width, textBoundsContext?.measureText(line).width ?? line.length * element.fontSize * .6);
-  const bounds = { x: alignedTextStartX(element.x, width, element.textAlign), y: element.y, w: width, h: lines.length * element.fontSize * 1.25 };
-  textBoxCache.set(element, bounds);
-  return bounds;
+
+const identifiedElements = new WeakSet<Element>();
+function ensureElementId(item: Element): Element {
+  if (identifiedElements.has(item)) return item;
+  const identified = item.id ? item : { ...item, id: crypto.randomUUID() } as Element;
+  if (identified.type !== "group") { identifiedElements.add(identified); return identified; }
+  const sourceChildren = identified.libraryComponent?.kind === "uml-activation" ? identified.elements.filter(child => child.type !== "text") : identified.elements;
+  const children = ensureIds(sourceChildren);
+  const result = children.length === identified.elements.length && children.every((child, index) => child === identified.elements[index]) ? identified : { ...identified, elements: children };
+  identifiedElements.add(result);
+  return result;
 }
 
 export function ensureIds(items: Element[]): Element[] {
-  return items.map(item => {
-    const identified = item.id ? item : { ...item, id: crypto.randomUUID() };
-    if (identified.type !== "group") return identified;
-    const sourceChildren = identified.libraryComponent?.kind === "uml-activation" ? identified.elements.filter(child => child.type !== "text") : identified.elements;
-    const children = ensureIds(sourceChildren);
-    return children.length === identified.elements.length && children.every((child, index) => child === identified.elements[index]) ? identified : { ...identified, elements: children };
-  });
+  let next: Element[] | undefined;
+  for (let index = 0; index < items.length; index++) {
+    const identified = ensureElementId(items[index]);
+    if (identified === items[index]) continue;
+    (next ??= items.slice())[index] = identified;
+  }
+  return next ?? items;
 }
 
 function validBindingPort(target: Element, binding: Binding | undefined): boolean {
@@ -395,12 +397,28 @@ export function reattachDanglingConnectors(items: Element[], threshold: number, 
 }
 
 /** Re-evaluate attachments after every geometry edit, undo, group move, and load. */
+const bindingPresenceCache = new WeakMap<Element, boolean>();
+
+function subtreeHasBindings(item: Element): boolean {
+  const cached = bindingPresenceCache.get(item);
+  if (cached !== undefined) return cached;
+  const hasBindings = isConnector(item)
+    ? !!(item.startBinding || item.endBinding || item.forkUpper?.endBinding || item.forkLower?.endBinding)
+    : item.type === "group" && item.elements.some(subtreeHasBindings);
+  bindingPresenceCache.set(item, hasBindings);
+  return hasBindings;
+}
+
 export function resolveBindings(items: Element[]): Element[] {
-  const hasBindings = (children: Element[]): boolean => children.some(item => item.type === "group"
-    ? hasBindings(item.elements)
-    : isConnector(item) && !!(item.startBinding || item.endBinding || item.forkUpper?.endBinding || item.forkLower?.endBinding));
-  if (!hasBindings(items)) return items;
-  const lookup = new Map(flatten(items).map(item => [item.id, item]));
+  if (!items.some(subtreeHasBindings)) return items;
+  const lookup = new Map<string, Element>();
+  const collect = (children: Element[]) => {
+    for (const item of children) {
+      if (item.id) lookup.set(item.id, item);
+      if (item.type === "group") collect(item.elements);
+    }
+  };
+  collect(items);
   const visit = (item: Element): Element => {
     if (item.type === "group") {
       const children = item.elements.map(visit);
@@ -464,6 +482,47 @@ export function copyElements(items: Element[], dx = 24, dy = 24): Element[] {
 }
 
 export const textFont = (text: Pick<TextElement, "italic" | "bold" | "fontSize" | "fontFamily">) => `${text.italic ? "italic " : ""}${text.bold ? "700" : "400"} ${text.fontSize}px ${text.fontFamily === "hand" ? "Caveat, 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', 'Chalkboard SE', cursive" : text.fontFamily === "serif" ? "Georgia, 'Times New Roman', serif" : text.fontFamily === "mono" ? "'Cascadia Mono', Consolas, monospace" : text.fontFamily === "rounded" ? "'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif" : text.fontFamily === "display" ? "'Arial Black', Impact, sans-serif" : "system-ui, 'Segoe UI', sans-serif"}`;
+/** Lay out text with the same explicit paragraphs and width in editing, canvas, and exports. */
+export function textElementLines(element: TextElement, context?: CanvasRenderingContext2D): string[] {
+  const cached = textLineCache.get(element); if (cached) return cached;
+  if (textBoundsContext === undefined && typeof document !== "undefined") textBoundsContext = document.createElement("canvas").getContext("2d");
+  const ctx = context ?? textBoundsContext ?? null;
+  if (ctx) { ctx.save(); ctx.font = textFont(element); }
+  const measure = (value: string) => ctx?.measureText(value).width ?? value.length * element.fontSize * .6;
+  const width = Number.isFinite(element.wrapWidth) && element.wrapWidth! > 0 ? element.wrapWidth! : Infinity;
+  const lines: string[] = [];
+  element.text.split(/\r?\n/).forEach((paragraph, index) => {
+    const prefix = element.listType === "bullet" ? "• " : element.listType === "number" ? `${index + 1}. ` : "";
+    const words = (prefix + paragraph).split(/\s+/);
+    let line = "";
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (line && measure(candidate) > width) { lines.push(line); line = ""; }
+      for (const character of (line ? " " : "") + word) {
+        if (line && measure(line + character) > width) { lines.push(line); line = ""; }
+        line += character;
+      }
+    }
+    lines.push(line);
+  });
+  if (ctx) ctx.restore();
+  textLineCache.set(element, lines);
+  return lines;
+}
+
+/** Use the same wrapped dimensions for text rendering, hit testing, and selection. */
+export function textElementBox(element: TextElement): Bounds {
+  const cached = textBoxCache.get(element); if (cached) return cached;
+  const lines = textElementLines(element);
+  if (textBoundsContext) textBoundsContext.font = textFont(element);
+  let width = element.fontSize * .5;
+  for (const line of lines) width = Math.max(width, textBoundsContext?.measureText(line).width ?? line.length * element.fontSize * .6);
+  if (Number.isFinite(element.wrapWidth) && element.wrapWidth! > 0) width = element.wrapWidth!;
+  const bounds = { x: alignedTextStartX(element.x, width, element.textAlign), y: element.y, w: width, h: lines.length * element.fontSize * 1.25 };
+  textBoxCache.set(element, bounds);
+  return bounds;
+}
+
 export function labelBox(shape: ShapeElement, labelOverride?: ShapeLabel) {
   // Keep padding proportional only while a shape is small. A fixed inset can
   // consume the entire label area on compact components such as UML lifelines.
@@ -504,7 +563,9 @@ export function textLayout(ctx: CanvasRenderingContext2D, shape: ShapeElement) {
     }
     lines.push({ text: line, last: true });
   });
-  const step = label.fontSize * 1.25; const total = lines.length * step;
+  const step = label.fontSize * 1.25;
+  // The last line has no trailing line gap; include only its glyph line box.
+  const total = lines.length ? label.fontSize + (lines.length - 1) * step : 0;
   const top = box.y + (label.verticalAlign === "bottom" ? Math.max(0, box.h - total) : label.verticalAlign === "middle" ? Math.max(0, (box.h - total) / 2) : 0);
   const output = lines.flatMap((line, index) => {
     const y = top + index * step; if (y + label.fontSize > box.y + box.h + .01) return [];

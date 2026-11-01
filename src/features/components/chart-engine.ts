@@ -55,7 +55,8 @@ const colorSets: Record<NonNullable<NonNullable<LibraryChartData["options"]>["pa
 };
 
 type DataSeries = { name: string; values: number[]; chartType?: "bar" | "line" | "area" | "scatter"; axis?: "primary" | "secondary"; color?: string };
-type CachedChart = { canvas: HTMLCanvasElement; chart: ReturnType<typeof echarts.init>; signature: string; width: number; height: number; dpr: number; pixels: number; lastUsed: number };
+type LibraryChartComponent = NonNullable<GroupElement["libraryComponent"]>;
+type CachedChart = { canvas: HTMLCanvasElement; chart: ReturnType<typeof echarts.init>; signature: string; width: number; height: number; dpr: number; pixels: number; lastUsed: number; kind?: string; chartData?: LibraryChartData; textStyle?: LibraryChartComponent["textStyle"]; styleOverrides?: LibraryChartComponent["styleOverrides"]; label?: string; trendDirection?: string; theme: Theme };
 const chartCache = new Map<string, CachedChart>();
 const MAX_CACHED_CHARTS = 16;
 const MAX_CACHED_PIXELS = 32_000_000;
@@ -312,15 +313,29 @@ function evictChart(key: string) {
 }
 
 function cachedChart(group: GroupElement, theme: Theme, width: number, height: number, dpr: number) {
-  const option = chartOption(group, theme, width, height);
-  if (!option) return undefined;
   const key = chartIdentity(group);
-  const signature = JSON.stringify(option);
   let entry = chartCache.get(key);
   if (entry && (entry.width !== width || entry.height !== height || entry.dpr !== dpr)) {
     evictChart(key);
     entry = undefined;
   }
+  const meta = group.libraryComponent;
+  if (entry && entry.theme === theme && entry.kind === meta?.kind && entry.chartData === meta?.chartData && entry.textStyle === meta?.textStyle && entry.styleOverrides === meta?.styleOverrides && entry.label === meta?.label && entry.trendDirection === meta?.trendDirection) {
+    entry.lastUsed = ++cacheClock;
+    return entry.canvas;
+  }
+  const option = chartOption(group, theme, width, height);
+  if (!option) return undefined;
+  const signature = JSON.stringify(option);
+  const updateInputs = (target: CachedChart) => {
+    target.kind = meta?.kind;
+    target.chartData = meta?.chartData;
+    target.textStyle = meta?.textStyle;
+    target.styleOverrides = meta?.styleOverrides;
+    target.label = meta?.label;
+    target.trendDirection = meta?.trendDirection;
+    target.theme = theme;
+  };
   if (!entry) {
     const canvas = document.createElement("canvas");
     canvas.style.width = `${width}px`;
@@ -328,15 +343,18 @@ function cachedChart(group: GroupElement, theme: Theme, width: number, height: n
     const chart = echarts.init(canvas, null, { renderer: "canvas", width, height, devicePixelRatio: dpr, useDirtyRect: true });
     chart.setOption(option, true);
     const pixels = Math.ceil(width * dpr) * Math.ceil(height * dpr);
-    entry = { canvas, chart, signature, width, height, dpr, pixels, lastUsed: ++cacheClock };
+    entry = { canvas, chart, signature, width, height, dpr, pixels, lastUsed: ++cacheClock, theme };
+    updateInputs(entry);
     chartCache.set(key, entry);
     cachedPixels += pixels;
   } else if (entry.signature !== signature) {
     entry.chart.setOption(option, true);
     entry.signature = signature;
     entry.lastUsed = ++cacheClock;
+    updateInputs(entry);
   } else {
     entry.lastUsed = ++cacheClock;
+    updateInputs(entry);
   }
   while ((chartCache.size > MAX_CACHED_CHARTS || cachedPixels > MAX_CACHED_PIXELS) && chartCache.size > 1) {
     const oldestKey = [...chartCache.entries()].reduce((oldest, current) => current[1].lastUsed < oldest[1].lastUsed ? current : oldest)[0];
@@ -345,7 +363,7 @@ function cachedChart(group: GroupElement, theme: Theme, width: number, height: n
   return entry.canvas;
 }
 
-export function drawLibraryChart(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme) {
+export function drawLibraryChart(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, resizePreview = false) {
   const bounds = group.componentBounds ?? unionBounds(group.elements.filter(item => !item.hidden).map(elementBounds));
   if (!bounds || bounds.w <= 0 || bounds.h <= 0) return;
   const width = Math.max(1, bounds.w);
@@ -354,7 +372,10 @@ export function drawLibraryChart(ctx: CanvasRenderingContext2D, group: GroupElem
   const zoomScale = Math.max(1, Math.hypot(transform.a, transform.b));
   const dprLimit = Math.min(4, Math.sqrt(MAX_CHART_PIXELS / (width * height)));
   const dpr = clamp(zoomScale, 1, Math.max(1, dprLimit));
-  const canvas = cachedChart(group, theme, width, height, dpr);
+  const key = chartIdentity(group);
+  const previous = resizePreview ? chartCache.get(key) : undefined;
+  if (previous) previous.lastUsed = ++cacheClock;
+  const canvas = previous?.canvas ?? cachedChart(group, theme, width, height, dpr);
   if (!canvas) return;
   ctx.save();
   ctx.translate(bounds.x, bounds.y);

@@ -67,7 +67,7 @@ function text(ctx: CanvasRenderingContext2D, value: string, x: number, y: number
   const fontSize = Math.max(9, size);
   const actualWeight = style?.bold === undefined ? weight : style.bold ? 700 : 400;
   ctx.fillStyle = color; ctx.font = componentFont(fontSize, weight, style); ctx.textAlign = align; ctx.textBaseline = "alphabetic";
-  ctx.fillText(value, x, y + componentBaselineOffset(value, fontSize, actualWeight, style?.fontFamily, style?.italic), Math.max(1, maxWidth));
+  ctx.fillText(value, x, y + componentBaselineOffset(fontSize, actualWeight, style?.fontFamily, style?.italic), Math.max(1, maxWidth));
   if (style?.underline) {
     const measured = Math.min(Math.max(1, maxWidth), ctx.measureText(value).width);
     const start = align === "center" ? x - measured / 2 : align === "right" ? x - measured : x;
@@ -1150,7 +1150,7 @@ function cachedComponentBitmap(group: GroupElement, theme: Theme, pixelWidth: nu
   return entry;
 }
 
-export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme) {
+export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, allowRasterCache = true) {
   const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return;
   const transform = ctx.getTransform();
@@ -1165,7 +1165,7 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
   const cacheable = Math.abs(transform.b) < 1e-8 && Math.abs(transform.c) < 1e-8
     && transform.a > 0 && transform.d > 0 && Math.abs(transform.a - transform.d) < 1e-7
     && [pixelX, pixelY, pixelWidth, pixelHeight].every(isIntegerPixel);
-  if (cacheable) {
+  if (cacheable && allowRasterCache) {
     const bitmap = cachedComponentBitmap(group, theme, Math.round(pixelWidth), Math.round(pixelHeight));
     if (bitmap) {
       ctx.save(); ctx.imageSmoothingEnabled = false;

@@ -1,5 +1,5 @@
-import type { Element, FlowchartShape, GroupElement, ShapeElement } from "../../../model";
-import { buildLibraryComponent, LIBRARY_COMPONENTS, type LibraryComponentKind } from "../../components/library-components";
+import type { FlowchartShape } from "../../model";
+import type { LibraryComponentKind } from "../components/library-components";
 
 export type DiagramGuideId = "order-flow" | "class-model" | "sequence" | "data-model" | "bpmn-process" | "c4-context" | "network-edge" | "cloud-service" | "state-machine" | "mind-map" | "user-journey" | "use-case" | "component-architecture" | "deployment" | "api-auth" | "data-flow" | "git-workflow" | "ci-cd" | "threat-model" | "c4-container" | "c4-dynamic" | "kubernetes-cluster" | "data-pipeline" | "incident-response" | "decision-tree" | "retro" | "swot" | "affinity-map" | "empathy-map" | "lean-canvas" | "kanban-board" | "weekly-planner" | "fishbone" | "icebreaker-grid" | "venn-diagram" | "pyramid" | "cycle-diagram" | "matrix-diagram" | "timeline-diagram" | "roadmap" | "gantt-chart" | "sitemap" | "wireframe-devices" | "floor-plan" | "server-rack" | "logic-circuit";
 export type DiagramGuideCategory = "Flowchart" | "UML" | "Database" | "Data flow" | "API" | "BPMN" | "Architecture" | "Network" | "Brainstorming" | "UX" | "DevOps" | "Security" | "Operations" | "Workshop" | "Diagram types";
@@ -17,7 +17,7 @@ export type GuideNode = {
   fillOpacity?: number;
   background?: boolean;
 };
-export type GuideEdge = { from: number; to: number; label?: string; dashed?: boolean; atY?: number; arrow?: boolean };
+export type GuideEdge = { from: number; to: number; label?: string; dashed?: boolean; atY?: number; arrow?: boolean; labelOffset?: number };
 export type DiagramGuideLesson = {
   level: "Starter" | "Intermediate" | "Advanced";
   minutes: number;
@@ -243,44 +243,3 @@ function defaultGuideLesson(guide: DiagramGuideBlueprint): DiagramGuideLesson {
 
 export const DIAGRAM_GUIDES: DiagramGuide[] = GUIDE_BLUEPRINTS.map(guide => ({ ...guide, lesson: GUIDE_LESSONS[guide.id] ?? defaultGuideLesson(guide) }));
 
-function boundaryPoint(node: GuideNode, target: GuideNode) {
-  const cx = node.x + node.w / 2; const cy = node.y + node.h / 2;
-  const dx = target.x + target.w / 2 - cx; const dy = target.y + target.h / 2 - cy;
-  const sx = Math.max(Math.abs(dx) / Math.max(1, node.w / 2), Math.abs(dy) / Math.max(1, node.h / 2), 1);
-  return { x: cx + dx / sx, y: cy + dy / sx };
-}
-
-export function guideEdgePoints(edge: GuideEdge, nodes: GuideNode[]) {
-  const from = nodes[edge.from]; const to = nodes[edge.to];
-  if (!from || !to) throw new Error("Guide diagram contains a relationship to a missing shape.");
-  if (edge.atY !== undefined) return { start: { x: from.x + from.w / 2, y: edge.atY }, end: { x: to.x + to.w / 2, y: edge.atY } };
-  return { start: boundaryPoint(from, to), end: boundaryPoint(to, from) };
-}
-
-function makeGuideElement(node: GuideNode): Element {
-  if (node.component) {
-    if (!LIBRARY_COMPONENTS.some(item => item.kind === node.component)) throw new Error(`Missing guide component: ${node.component}`);
-    const group = buildLibraryComponent(node.component, node.x, node.y) as GroupElement;
-    group.componentBounds = { x: node.x, y: node.y, w: node.w, h: node.h };
-    group.libraryComponent = { ...group.libraryComponent!, label: node.title, ...(node.fill ? { styleOverrides: { fillColor: node.fill } } : {}) };
-    return group;
-  }
-  const color = "#53677b";
-  const shape: ShapeElement = { type: node.shape ?? "rectangle", id: crypto.randomUUID(), x: node.x, y: node.y, w: node.w, h: node.h, color, thickness: 2, fillColor: node.fill ?? "#f5f8fc", ...(node.fillOpacity !== undefined ? { fillOpacity: node.fillOpacity } : {}), ...(node.flowchartShape ? { flowchartShape: node.flowchartShape } : {}), label: { text: node.title, color: "#263747", fontSize: 15, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "center", listType: "none", verticalAlign: "middle" } };
-  return shape;
-}
-
-function makeGuideEdge(edge: GuideEdge, nodes: GuideNode[]): ShapeElement {
-  const { start, end } = guideEdgePoints(edge, nodes);
-  return {
-    type: edge.arrow === false ? "line" : "arrow", id: crypto.randomUUID(), x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y,
-    color: "#72859a", thickness: 2, lineStyle: edge.dashed ? "dashed" : "solid", ...(edge.arrow === false ? { lineRoute: "straight" as const } : { arrowRoute: "straight" as const, startHead: "none" as const, endHead: "open" as const }),
-    ...(edge.label ? { label: { text: edge.label, color: "#53677b", fontSize: 12, fontFamily: "sans", bold: true, italic: false, underline: false, textAlign: "center" as const, listType: "none" as const, verticalAlign: "top" as const } } : {}),
-  };
-}
-
-export function buildGuideDiagram(id: DiagramGuideId): Element[] {
-  const guide = DIAGRAM_GUIDES.find(item => item.id === id);
-  if (!guide) throw new Error("The selected diagram guide is unavailable.");
-  return [...guide.edges.map(edge => makeGuideEdge(edge, guide.nodes)), ...guide.nodes.map(makeGuideElement)];
-}

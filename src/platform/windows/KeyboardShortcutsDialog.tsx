@@ -3,6 +3,7 @@ import { WINDOWS_SHORTCUTS, type WindowsShortcutId, type WindowsShortcutMap, typ
 
 type Props = {
   shortcuts: WindowsShortcutMap;
+  referenceShortcuts: [string, string][];
   onChange: (id: WindowsShortcutId, slot: WindowsShortcutSlot, value: string) => boolean;
   onReset: () => void;
   onClose: () => void;
@@ -78,6 +79,10 @@ export function KeyboardShortcutsDialog(props: Props) {
       items: matching.filter(item => item.category === category),
     }));
   });
+  const referenceShortcuts = createMemo(() => {
+    const query = filter().trim().toLowerCase();
+    return props.referenceShortcuts.filter(([key, action]) => !query || `${key} ${action}`.toLowerCase().includes(query));
+  });
 
   const captureValue = (id: WindowsShortcutId, slot: WindowsShortcutSlot, input: HTMLInputElement, event: KeyboardEvent) => {
     event.preventDefault();
@@ -119,19 +124,19 @@ export function KeyboardShortcutsDialog(props: Props) {
     <section class="confirm-dialog windows-shortcut-dialog" role="dialog" aria-modal="true" aria-labelledby="windows-shortcuts-title" onKeyDown={event => { event.stopPropagation(); if (event.key === "Escape" && !capturing()) { event.preventDefault(); props.onClose(); } }}>
       <header>
         <div>
-          <h2 id="windows-shortcuts-title">Customize shortcuts</h2>
-          <p>Each action can have a keyboard shortcut and an additional shortcut. Select a field, then press a key combination or mouse button. Backspace clears it; Escape cancels recording.</p>
+          <h2 id="windows-shortcuts-title">Keyboard shortcuts</h2>
+          <p>Browse shortcuts and change assignments. Each action can have a keyboard shortcut and an additional shortcut. Select a field, then press a key combination or mouse button. Backspace clears it; Escape cancels recording.</p>
         </div>
         <button type="button" class="windows-shortcut-close" autofocus aria-label="Close shortcuts" title="Close" onClick={props.onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg></button>
       </header>
       <label class="windows-shortcut-filter">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.4 4.4"/></svg>
         <input type="search" value={filter()} onInput={event => setFilter(event.currentTarget.value)} placeholder="Filter actions or shortcuts" aria-label="Filter shortcuts" />
-        <span>{groups().reduce((count, group) => count + group.items.length, 0)} actions</span>
+        <span>{groups().reduce((count, group) => count + group.items.length, 0) + referenceShortcuts().length} actions</span>
       </label>
       <div class="windows-shortcut-list">
-        <div class="windows-shortcut-columns" aria-hidden="true"><span>Action</span><span>Shortcut</span><span>Additional shortcut</span></div>
-        <Show when={groups().length > 0} fallback={<p class="windows-shortcut-empty">No actions match that filter.</p>}>
+        <Show when={groups().length > 0}><div class="windows-shortcut-columns" aria-hidden="true"><span>Action</span><span>Shortcut</span><span>Additional shortcut</span></div></Show>
+        <Show when={groups().length > 0 || referenceShortcuts().length > 0} fallback={<p class="windows-shortcut-empty">No actions match that filter.</p>}>
           <For each={groups()}>{group => <section class="windows-shortcut-group" aria-label={`${group.category} shortcuts`}>
             <h3>{group.category}</h3>
             <For each={group.items}>{item => <div class="windows-shortcut-row">
@@ -140,6 +145,13 @@ export function KeyboardShortcutsDialog(props: Props) {
               {renderBindingInput(item.id, 1, item.label)}
             </div>}</For>
           </section>}</For>
+          <Show when={referenceShortcuts().length > 0}>
+            <section class="windows-shortcut-reference" aria-label="Other built-in shortcuts">
+              <h3>Other built-in shortcuts</h3>
+              <p>These actions are fixed and cannot be reassigned.</p>
+              <For each={referenceShortcuts()}>{([key, action]) => <div class="windows-shortcut-reference-row"><kbd>{key}</kbd><span>{action}</span></div>}</For>
+            </section>
+          </Show>
         </Show>
       </div>
       <footer>

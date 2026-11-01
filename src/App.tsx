@@ -13,7 +13,7 @@ import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_CLIPBOARD_VERSION, SKETCH_FORMAT_VERSION } from "./model";
 import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, ProjectTask, ProjectNote, Tool, ToolbarItem, CanvasState, CanvasSnapGuides, CanvasSnapTarget, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipDirection, ConnectionPoint, CanvasLayer, CanvasLayerVisibilityPreset, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition, PrototypeAction, PrototypeVariable, PrototypeComponentState, DecisionCardMetadata } from "./model";
-import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox, alignedTextStartX, reattachDanglingConnectors } from "./operations";
+import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox, alignedTextStartX, textElementLines, textFont, textLayout, DEFAULT_TEXT_WRAP_WIDTH, reattachDanglingConnectors } from "./operations";
 import type { NoteKind } from "./model";
 import { buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, defaultNoteTitle, toggleChecklistContent } from "./notes";
 import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "./features/components/library-components";
@@ -22,9 +22,8 @@ import { schemaReferences } from "./features/diagrams/schema-visualizer";
 import { importDrawioWithReport, importExcalidraw, exportDrawio, exportExcalidraw } from "./features/diagrams/interchange";
 import { importVsdx, exportVsdx } from "./features/diagrams/visio-vsdx";
 import { cloudProviderComponent, loadCloudProviderGlyph } from "./features/diagrams/cloud-providers";
-import { DiagramGuideGallery } from "./features/diagrams/guides/DiagramGuideGallery";
 import type { DiagramLayoutAlgorithm } from "./features/diagrams/auto-layout";
-import { buildGuideDiagram, type DiagramGuideId } from "./features/diagrams/guides/guide-diagrams";
+import type { DiagramGuideId } from "./features/diagram-guides/guide-diagrams";
 import { csvToDiagram, parseCsv } from "./features/diagrams/csv-diagram";
 import { chartDataFromCsv, chartDataToCsv } from "./features/components/chart-import";
 import { azureArmToDiagram, bicepToDiagram, cloudFormationToDiagram, jsonToDiagram, openApiToDiagram, structuredYamlToDiagram, terraformToDiagram } from "./features/diagrams/structured-data";
@@ -67,7 +66,7 @@ import { ComponentLibraryPanel } from "./features/components/ComponentLibraryPan
 import { BASIC_SHAPES, FLOWCHART_MENU_SHAPES, FLOWCHART_SHAPES, GENERAL_SHAPES } from "./features/shapes/shape-catalog";
 import { pointInPolygon } from "./features/canvas/geometry";
 import { adjustShapeAtPoint, shapeAdjustmentHandles, shapeDetailPathObject, shapeFillRule, shapePathObject } from "./features/shapes/geometry";
-import { arrowHeadPoints, connectorControlPoints, defaultCurveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, connectorProgressAtPoint, doubleConnectorPolylines, arrowHeadEntries, traceConnector } from "./features/connectors/geometry";
+import { arrowHeadPoints, connectorControlPoints, connectorPoint, defaultCurveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, connectorProgressAtPoint, doubleConnectorPolylines, arrowHeadEntries, traceConnector } from "./features/connectors/geometry";
 import { unionBounds, elementBounds, elementGridBounds, visibleElementBounds, distanceToSegment, lockAspectResizeBounds } from "./features/canvas/bounds";
 import { ElementSpatialIndex } from "./features/canvas/spatial-index";
 import { getToolLayers, reorderToolLayers, toggleToolLayer, type ToolLayerKind } from "./features/canvas/tool-layers";
@@ -98,7 +97,7 @@ import { DesignWorkbenchPanel } from "./features/canvas/DesignWorkbenchPanel";
 import { ALT_TEXT_MAX_LENGTH, COLOR_BLIND_SAFE_PALETTE, COLOR_VISION_MODES, buildDocumentOutline, describeElement, isColorVisionMode, type ColorVisionMode, type OutlineEntry } from "./features/accessibility/accessibility";
 import { MAX_COLOR_TOKENS, MAX_STROKE_STYLES, MAX_STYLE_MODES, MAX_TEXT_STYLES, STYLE_SLOT_LABELS, resolveColorToken, wouldCreateAliasCycle, applyTokenDeep, bindingState, captureToken, countTokenUsage, isStructuralGroup, isStyleLibraryEmpty, mergeStyleLibraries, newColorToken, newStrokeStyleToken, newTextStyleToken, refreshElementList, removeBinding, supportedSlots } from "./features/styles/style-library";
 import "./features/accessibility/accessibility.css";
-import { hasAutoLayoutFrames, normalizeAutoLayout, reflowAutoLayoutFrames, type AutoLayoutPorts } from "./features/canvas/auto-layout-frame";
+import { normalizeAutoLayout, reflowAutoLayoutFrames, type AutoLayoutPorts } from "./features/canvas/auto-layout-frame";
 import { translateElement } from "./features/canvas/translate";
 import { resizeSwimlaneDivider, swimlaneCenterY, swimlaneDividerHandles, swimlaneIndexAtY, swimlaneLayout } from "./features/canvas/swimlanes";
 import { addMindMapChild, addMindMapSibling, createMindMapNode, isMindMapNode, layoutMindMap, mindMapParentId, mindMapRootId, removeMindMapBranch } from "./features/diagrams/mind-map";
@@ -123,7 +122,7 @@ import { isWindowsPlatform } from "./platform/runtime";
 import type { PaletteCommand } from "./platform/windows/CommandPalette";
 import { createWindowsSyncMetadata } from "./platform/windows/sync";
 import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, displayShortcut, formatShortcutBindings, loadWindowsShortcuts, matchesWindowsMouseShortcut, matchesWindowsShortcut, normalizeShortcut, shortcutFromMouseEvent, type WindowsShortcutId, type WindowsShortcutMap, type WindowsShortcutSlot } from "./platform/windows/shortcuts";
-import { autoRouteConnectorSet, autoRoutePoints, createAutoRouteContext, type AutoRouteContext } from "./features/diagrams/connector-routing";
+import { autoRouteConnectorSet, autoRouteMayIntersect, autoRoutePoints, createAutoRouteContext, type AutoRouteContext } from "./features/diagrams/connector-routing";
 import { createPlanningSession } from "./features/project/planning-session";
 import { isProjectTaskComplete } from "./features/project/project-utils";
 import { ProjectNotebookSplit } from "./features/project/ProjectNotebookSplit";
@@ -162,6 +161,7 @@ type TouchTapTracker = { startedAt: number; starts: Map<number, Point>; maxFinge
 const StyleLibraryPanel = lazy(() => import("./features/styles/StyleLibraryPanel").then(module => ({ default: module.StyleLibraryPanel })));
 const DataLinkPanel = lazy(() => import("./features/data/DataLinkPanel").then(module => ({ default: module.DataLinkPanel })));
 const SequencePlaybackPanel = lazy(() => import("./features/diagrams/SequencePlaybackPanel").then(module => ({ default: module.SequencePlaybackPanel })));
+const DiagramGuideGallery = lazy(() => import("./features/diagram-guides/gallery/DiagramGuideGallery").then(module => ({ default: module.DiagramGuideGallery })));
 const LiveDiagramPanel = lazy(() => import("./features/diagrams/LiveDiagramPanel").then(module => ({ default: module.LiveDiagramPanel })));
 const FrameNavigatorPanel = lazy(() => import("./features/navigation/FrameNavigatorPanel").then(module => ({ default: module.FrameNavigatorPanel })));
 const DocumentOutlineDialog = lazy(() => import("./features/accessibility/DocumentOutlineDialog").then(module => ({ default: module.DocumentOutlineDialog })));
@@ -251,12 +251,28 @@ function App() {
   const advanceDocumentRevision = () => { if (!prototypeRuntimeActive) setDocumentRevision(revision => revision + 1); };
   const [elements, setElementsSignal] = createSignal<Element[]>([]);
   const activeElementSpatialIndex = new ElementSpatialIndex();
+  const autoRoutePresenceCache = new WeakMap<Element, boolean>();
+  const hasAutoRoute = (item: Element): boolean => {
+    const cached = autoRoutePresenceCache.get(item);
+    if (cached !== undefined) return cached;
+    const result = isConnector(item) && item.autoRoute === true
+      || item.type === "group" && item.elements.some(hasAutoRoute);
+    autoRoutePresenceCache.set(item, result);
+    return result;
+  };
   function withWindowsRouteSnapshots(items: Element[]): Element[] {
+    if (!isWindowsPlatform()) return items;
+    if (!items.some(hasAutoRoute)) return items;
     const routeContext = createAutoRouteContext(items, isElementHidden);
     const refresh = (item: Element): Element => {
       if (item.type === "group") {
-        const elements = item.elements.map(refresh);
-        return elements.every((child, index) => child === item.elements[index]) ? item : { ...item, elements };
+        if (!hasAutoRoute(item)) return item;
+        let elements: Element[] | undefined;
+        for (let index = 0; index < item.elements.length; index++) {
+          const child = refresh(item.elements[index]);
+          if (child !== item.elements[index]) (elements ??= item.elements.slice())[index] = child;
+        }
+        return elements ? { ...item, elements } : item;
       }
       if (!isConnector(item) || !item.autoRoute) return item;
       const routePoints = autoRoutePoints(item, routeContext);
@@ -266,7 +282,7 @@ function App() {
   }
   // Auto-layout frames re-flow on every document change; library components resize through their own rules.
   const autoLayoutPorts: AutoLayoutPorts = { resize: (element, bounds) => element.type === "group" && element.libraryComponent ? resizeLibraryGroup(element, bounds) : undefined };
-  const reflowFrames = (items: Element[]) => hasAutoLayoutFrames(items) ? reflowAutoLayoutFrames(items, autoLayoutPorts) : items;
+  const reflowFrames = (items: Element[]) => reflowAutoLayoutFrames(items, autoLayoutPorts);
   function setElements(next: Element[] | ((previous: Element[]) => Element[])) {
     advanceDocumentRevision();
     return setElementsSignal(previous => {
@@ -275,13 +291,36 @@ function App() {
       return updated;
     });
   }
+  function replaceElementAtIndex(items: Element[], index: number, element: Element) {
+    if (items[index] === element) return items;
+    const updated = items.slice();
+    updated[index] = element;
+    return updated;
+  }
   // Pointer drags run once per display frame. Keep their immutable preview
-  // updates cheap, while the incremental index refreshes changed objects only.
+  // updates cheap: update layout only below changed roots, while the incremental
+  // index refreshes changed objects only.
   function setElementsTransient(next: Element[] | ((previous: Element[]) => Element[]), changedIndices?: readonly number[], skipLayout = false) {
     advanceDocumentRevision();
     return setElementsSignal(previous => {
       const edited = typeof next === "function" ? next(previous) : next;
-      const updated = skipLayout ? edited : reflowFrames(fitAutoResizeContainers(edited));
+      let updated = edited;
+      if (!skipLayout) {
+        if (!changedIndices?.length) updated = reflowFrames(fitAutoResizeContainers(edited));
+        else {
+          let laidOut = edited;
+          for (const index of changedIndices) {
+            const element = laidOut[index];
+            if (!element) continue;
+            const normalized = reflowFrames(fitAutoResizeContainers([element]))[0] ?? element;
+            if (normalized !== element) {
+              if (laidOut === edited) laidOut = edited.slice();
+              laidOut[index] = normalized;
+            }
+          }
+          updated = laidOut;
+        }
+      }
       if (changedIndices) activeElementSpatialIndex.updateChanged(updated, changedIndices);
       else activeElementSpatialIndex.update(updated);
       return updated;
@@ -630,7 +669,6 @@ function App() {
   const [historyVersion, setHistoryVersion] = createSignal(0);
   const imageCache = new Map<string, HTMLImageElement>();
   const [canvasAssetRevision, setCanvasAssetRevision] = createSignal(0);
-  const textLinesCache = new WeakMap<TextElement, string[]>();
   const [themeMode, setThemeMode] = createSignal<ThemeMode>((() => {
     try { const saved = localStorage.getItem("sketchdraw-theme"); return saved === "light" || saved === "dark" ? saved : "system"; }
     catch { return "system"; }
@@ -663,6 +701,7 @@ function App() {
   let canvasWrap!: HTMLElement;
   let appTopbar!: HTMLElement;
   let menu!: HTMLDetailsElement;
+  let importExportMenu!: HTMLDetailsElement;
   let viewMenu!: HTMLDetailsElement;
   let gestureMenu!: HTMLDetailsElement;
   let helpMenu!: HTMLDetailsElement;
@@ -695,17 +734,28 @@ function App() {
   let presentationOwnsFullscreen = false;
   let moveOrigin: { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; axisLock?: "x" | "y"; guides?: CanvasSnapGuides; snapTargets: { x: CanvasSnapTarget[]; y: CanvasSnapTarget[]; spacingBoxes?: Bounds[] }; targets: Map<string, Element> } | undefined;
   let libraryControlOrigin: { index: number } | undefined;
-  let labelMoveOrigin: { index: number; labelIndex: number; point: Point; before: Element[]; moved: boolean; routePreview?: ShapeElement } | undefined;
+  let labelMoveOrigin: { index: number; labelIndex: number; point: Point; grabOffset: Point; routeOnly: boolean; before: Element[]; moved: boolean; routePreview?: ShapeElement } | undefined;
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number; lasso?: Point[] } | undefined;
-  let resizeOrigin: { index: number; handle: string; start: Point; original: Element; before: Element[]; moved: boolean; routePreview?: ShapeElement; routeContext?: AutoRouteContext } | undefined;
+  let resizeOrigin: { index: number; handle: string; start: Point; original: Element; before: Element[]; moved: boolean; bypassSnap?: boolean; guides?: CanvasSnapGuides; endpointGuide?: { axis: "x" | "y"; coordinate: number; point: Point }; routePreview?: ShapeElement; routeContext?: AutoRouteContext } | undefined;
+  type GroupResizePreviewData = { original: GroupElement; source: Bounds; target: Bounds; kind: "container" | "library" };
+  const groupResizePreviewData = new WeakMap<GroupElement, GroupResizePreviewData>();
+  const adaptiveResizeDescendants = new WeakMap<GroupElement, boolean>();
+  function hasAdaptiveResizeDescendants(group: GroupElement): boolean {
+    const cached = adaptiveResizeDescendants.get(group);
+    if (cached !== undefined) return cached;
+    const result = group.elements.some(child => child.type === "group"
+      && (!!child.container?.autoResize || !!child.container?.autoLayout || hasAdaptiveResizeDescendants(child)));
+    adaptiveResizeDescendants.set(group, result);
+    return result;
+  }
   let resizeFrame: number | undefined;
   let pendingResize: { origin: NonNullable<typeof resizeOrigin>; point: Point; lockAspect: boolean } | undefined;
   function flushResizePreview() {
     if (resizeFrame !== undefined) { cancelAnimationFrame(resizeFrame); resizeFrame = undefined; }
     const pending = pendingResize; pendingResize = undefined;
     if (!pending || resizeOrigin !== pending.origin) return;
-    const resized = resizeElement(pending.origin.original, pending.origin.handle, pending.origin.start, pending.point, pending.lockAspect);
-    setElementsTransient(pending.origin.before.map((element, index) => index === pending.origin.index ? resized : element), [pending.origin.index], isConnector(pending.origin.original));
+    const resized = resizeElement(pending.origin.original, pending.origin.handle, pending.origin.start, pending.point, pending.lockAspect, true);
+    setElementsTransient(replaceElementAtIndex(pending.origin.before, pending.origin.index, resized), [pending.origin.index], isConnector(pending.origin.original) || resized.type === "group" && groupResizePreviewData.has(resized));
   }
   function queueResizePreview(origin: NonNullable<typeof resizeOrigin>, point: Point, lockAspect: boolean) {
     pendingResize = { origin, point, lockAspect };
@@ -1250,6 +1300,15 @@ function App() {
     if (planningPath()) setWorkspaceArea("planning");
     else void openPlanningFile();
   }
+  function resizeRouteContext(activeResize: NonNullable<typeof resizeOrigin>) {
+    return activeResize.routeContext ??= autoRouteContextFor(activeResize.before);
+  }
+  function connectorMayIntersect(item: ShapeElement, viewport: Bounds, sourceItems = elements()) {
+    if (!item.autoRoute || (item.type !== "line" && item.type !== "arrow")) return intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(item));
+    const activeResize = resizeOrigin;
+    const context = activeResize && !isConnector(activeResize.original) ? resizeRouteContext(activeResize) : autoRouteContextFor(sourceItems);
+    return autoRouteMayIntersect(item, context, viewport);
+  }
   function connectorForView(item: ShapeElement, sourceItems = elements()): ShapeElement {
     if (item.straightOnly || !item.autoRoute || (item.type !== "line" && item.type !== "arrow")) return item;
     if (labelMoveOrigin) {
@@ -1261,6 +1320,10 @@ function App() {
       if (item.id !== activeResize.original.id || !activeResize.routePreview) return item;
       if (activeResize.moved && activeResize.routeContext) return { ...item, lineRoute: item.type === "line" ? "straight" : undefined, arrowRoute: item.type === "arrow" ? "straight" : undefined, routePoints: autoRoutePoints(item, activeResize.routeContext) };
       return { ...item, lineRoute: item.type === "line" ? "straight" : undefined, arrowRoute: item.type === "arrow" ? "straight" : undefined, routePoints: activeResize.routePreview.routePoints };
+    }
+    if (activeResize && !isConnector(activeResize.original)) {
+      const context = resizeRouteContext(activeResize);
+      return { ...item, lineRoute: item.type === "line" ? "straight" : undefined, arrowRoute: item.type === "arrow" ? "straight" : undefined, routePoints: autoRoutePoints(item, context) };
     }
     // Keep automatic routes stable while a selection moves. The endpoints
     // still follow the drag preview, and routes are refreshed when it ends.
@@ -1322,16 +1385,16 @@ function App() {
     const directionLength = Math.hypot(oldDirection.x, oldDirection.y);
     const direction = length > 0.001 ? { x: dx / length, y: dy / length } : directionLength > 0.001 ? { x: oldDirection.x / directionLength, y: oldDirection.y / directionLength } : { x: endpoint === "start" ? -1 : 1, y: 0 };
     if (useGrid && snapToGrid()) {
-      const style = whiteboardStyle(); const candidates: Point[] = [];
+      const style = whiteboardStyle(); const step = gridStepForStyle(style, GRID_SIZE, canvasState().zoom); const candidates: Point[] = [];
       if (style === "isometric") {
-        const rowStep = isometricRowHeight(GRID_SIZE); const nearestRow = Math.round(fixed.y / rowStep);
+        const rowStep = isometricRowHeight(step); const nearestRow = Math.round(fixed.y / rowStep);
         for (let row = nearestRow - 3; row <= nearestRow + 3; row++) {
-          const phase = isometricRowOffset(row, GRID_SIZE); const column = Math.round((requested.x - phase) / GRID_SIZE);
-          for (let index = column - 3; index <= column + 3; index++) candidates.push({ x: index * GRID_SIZE + phase, y: row * rowStep });
+          const phase = isometricRowOffset(row, step); const column = Math.round((requested.x - phase) / step);
+          for (let index = column - 3; index <= column + 3; index++) candidates.push({ x: index * step + phase, y: row * rowStep });
         }
       } else {
-        const centerX = Math.round(fixed.x / GRID_SIZE); const centerY = Math.round(fixed.y / GRID_SIZE);
-        for (let x = centerX - 3; x <= centerX + 3; x++) for (let y = centerY - 3; y <= centerY + 3; y++) candidates.push({ x: x * GRID_SIZE, y: y * GRID_SIZE });
+        const centerX = Math.round(fixed.x / step); const centerY = Math.round(fixed.y / step);
+        for (let x = centerX - 3; x <= centerX + 3; x++) for (let y = centerY - 3; y <= centerY + 3; y++) candidates.push({ x: x * step, y: y * step });
       }
       const valid = candidates.filter(candidate => Math.hypot(candidate.x - fixed.x, candidate.y - fixed.y) >= 25);
       valid.sort((left, right) => Math.hypot(left.x - requested.x, left.y - requested.y) - Math.hypot(right.x - requested.x, right.y - requested.y));
@@ -1344,13 +1407,34 @@ function App() {
     const needsBinding = handle === "start" || handle === "end" || /^fork:(?:upper|lower):end$/.test(handle);
     const port = needsBinding ? nearestBinding(elements(), point, 18 / canvasState().zoom, target => !isElementHidden(target) && !isElementLocked(target), item.relationshipType) : undefined;
     setAttachmentHint(port?.point);
-    const requested = port?.point ?? snap(point);
+    const activeResize = resizeOrigin?.original === item ? resizeOrigin : undefined;
+    if (activeResize) activeResize.endpointGuide = undefined;
+    const bypassSnap = activeResize?.bypassSnap ?? false;
+    const endpointTarget = (fixed: Point, endpoint: "start" | "end", endpointItem = item) => {
+      const snapped = connectorPreviewEndpoint(fixed, point, port?.point, false, bypassSnap);
+      let target = connectorEndpointMinimum(snapped.point, fixed, endpointItem, endpoint, !bypassSnap);
+      let guide = snapped.alignmentGuide;
+      if (guide && !port) {
+        const freeAxis = guide.axis === "y" ? "x" : "y";
+        const fixedValue = fixed[freeAxis];
+        let freeValue = target[freeAxis];
+        if (Math.abs(freeValue - fixedValue) < 25) {
+          const requestedSign = Math.sign(snapped.point[freeAxis] - fixedValue);
+          const oldSign = Math.sign(endpoint === "start" ? (freeAxis === "x" ? -endpointItem.w : -endpointItem.h) : (freeAxis === "x" ? endpointItem.w : endpointItem.h));
+          freeValue = fixedValue + (requestedSign || oldSign || 1) * 25;
+        }
+        target = guide.axis === "y" ? { x: freeValue, y: fixed.y } : { x: fixed.x, y: freeValue };
+      }
+      const guideError = guide ? Math.abs((guide.axis === "y" ? target.y : target.x) - guide.coordinate) : 0;
+      if (activeResize && guide && guideError <= .25 / Math.max(.02, canvasState().zoom)) activeResize.endpointGuide = { ...guide, point: target };
+      return { requested: snapped.point, target };
+    };
     if (handle === "start") {
-      const fixed = { x: item.x + item.w, y: item.y + item.h }; const target = connectorEndpointMinimum(requested, fixed, item, "start");
+      const fixed = { x: item.x + item.w, y: item.y + item.h }; const { requested, target } = endpointTarget(fixed, "start");
       return { ...item, x: target.x, y: target.y, w: fixed.x - target.x, h: fixed.y - target.y, startBinding: target === requested ? port?.binding : undefined, rotation: 0 };
     }
     if (handle === "end") {
-      const fixed = { x: item.x, y: item.y }; const target = connectorEndpointMinimum(requested, fixed, item, "end");
+      const fixed = { x: item.x, y: item.y }; const { requested, target } = endpointTarget(fixed, "end");
       return { ...item, w: target.x - fixed.x, h: target.y - fixed.y, endBinding: target === requested ? port?.binding : undefined, rotation: 0 };
     }
     const autoRouteMatch = /^auto-route:(\d+)$/.exec(handle);
@@ -1374,7 +1458,7 @@ function App() {
       if (branchMatch[2] === "end") {
         const geometry = forkGeometry(item); const fixed = geometry.junction; const currentEnd = geometry[name];
         const branchItem = { ...item, w: currentEnd.x - fixed.x, h: currentEnd.y - fixed.y };
-        const target = connectorEndpointMinimum(requested, fixed, branchItem, "end");
+        const { requested, target } = endpointTarget(fixed, "end", branchItem);
         return { ...item, [branchKey]: { ...branch, end: target, endBinding: target === requested ? port?.binding : undefined } };
       }
       const points = [...(branch.routePoints ?? [])]; points[Number(branchMatch[3])] = snap(point);
@@ -1443,6 +1527,26 @@ function App() {
     });
     return Math.max(0, index);
   }
+  function connectorLocalPoint(element: ShapeElement, point: Point): Point {
+    if (!element.rotation) return point;
+    const bounds = elementBounds(element);
+    return rotateCanvasPoint(point, { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }, -element.rotation);
+  }
+  function connectorLabelHitAt(element: ShapeElement, point: Point): { index: number; bounds: Bounds; localPoint: Point } | undefined {
+    const context = canvas?.getContext("2d"); if (!context) return undefined;
+    const localPoint = connectorLocalPoint(element, point); const padding = 5 / Math.max(.02, canvasState().zoom);
+    const labels = [element.label, ...(element.connectorLabels ?? [])];
+    for (let index = 0; index < labels.length; index++) {
+      const label = labels[index]; if (!label?.text) continue;
+      context.save(); context.font = textFont(label);
+      const runs = textLayout(context, { ...element, label });
+      const runBounds = runs.map(run => ({ x: run.x, y: run.y, w: Math.max(1, context.measureText(run.text).width), h: Math.max(1, label.fontSize) }));
+      context.restore();
+      const bounds = unionBounds(runBounds); if (!bounds) continue;
+      if (localPoint.x >= bounds.x - padding && localPoint.x <= bounds.x + bounds.w + padding && localPoint.y >= bounds.y - padding && localPoint.y <= bounds.y + bounds.h + padding) return { index, bounds, localPoint };
+    }
+    return undefined;
+  }
   function editNestedText(index: number, group: GroupElement, child: Element, pointerId?: number) {
     if (!child.id || group.locked || child.locked || boardLocked()) return;
     const shapeLabel = (isLabelShape(child) || isConnector(child)) && !!child.label;
@@ -1465,7 +1569,7 @@ function App() {
       ? editorCenter.x + (anchorAlign === "center" ? 0 : anchorAlign === "right" ? box.w / 2 : -box.w / 2)
       : editorCenter.x - box.w / 2;
     setTextDraft({
-      x, y: editorCenter.y - box.h / 2, width: box.w, height: box.h,
+      x, y: editorCenter.y - box.h / 2, width: child.type === "text" ? child.wrapWidth ?? Math.max(DEFAULT_TEXT_WRAP_WIDTH, box.w) : box.w, height: shapeLabel ? box.h : undefined,
       rotation: (group.rotation ?? 0) + (child.rotation ?? 0), value: child.type === "text" ? child.text : textStyle.text,
       editingIndex: index, editingChildId: child.id, shapeLabel,
       color: textStyle.color ?? color(), opacity: textStyle.opacity ?? 1,
@@ -2921,7 +3025,45 @@ function App() {
     if (samples.some(sample => sample.phase === "end")) pendingAndroidStylusSamples = [];
     else if (samples.some(sample => sample.phase === "start")) pendingAndroidStylusSamples = samples.slice(-12);
   }
-  const snap = (point: Point): Point => snapCanvasPoint(point, snapToGrid(), whiteboardStyle(), GRID_SIZE);
+  const snap = (point: Point): Point => snapCanvasPoint(point, snapToGrid(), whiteboardStyle(), GRID_SIZE, canvasState().zoom);
+  function connectorPreviewEndpoint(start: Point, raw: Point, port: Point | undefined, constrainAngle: boolean, bypassSnap = false) {
+    const axisGuide = (point: Point): Preview["alignmentGuide"] => {
+      const tolerance = .25 / canvasState().zoom;
+      if (Math.abs(point.y - start.y) <= tolerance && Math.abs(point.x - start.x) > tolerance) return { axis: "y", coordinate: start.y };
+      if (Math.abs(point.x - start.x) <= tolerance && Math.abs(point.y - start.y) > tolerance) return { axis: "x", coordinate: start.x };
+      return undefined;
+    };
+    if (port) return { point: port, alignmentGuide: axisGuide(port) };
+    const zoom = Math.max(.02, canvasState().zoom);
+    const step = gridStepForStyle(whiteboardStyle(), GRID_SIZE, canvasState().zoom);
+    if (constrainAngle) {
+      const dx = raw.x - start.x; const dy = raw.y - start.y; const distance = Math.hypot(dx, dy);
+      if (distance < .01) return { point: raw };
+      const angleStep = Math.PI / 4;
+      const angle = Math.round(Math.atan2(dy, dx) / angleStep) * angleStep;
+      const unitX = Math.cos(angle); const unitY = Math.sin(angle);
+      const horizontal = Math.abs(unitY) < 1e-7; const vertical = Math.abs(unitX) < 1e-7;
+      const interval = snapToGrid() ? step : 0;
+      const amount = horizontal || vertical
+        ? interval ? Math.round(distance / interval) * interval : distance
+        : interval ? Math.round(distance / (Math.SQRT2 * interval)) * interval : distance / Math.SQRT2;
+      const point = { x: start.x + (horizontal ? Math.sign(unitX) * amount : vertical ? 0 : Math.sign(unitX) * amount), y: start.y + (vertical ? Math.sign(unitY) * amount : horizontal ? 0 : Math.sign(unitY) * amount) };
+      return { point, alignmentGuide: horizontal || vertical ? axisGuide(point) : undefined };
+    }
+    const point = bypassSnap ? raw : snap(raw);
+    if (bypassSnap) return { point };
+    const tolerance = 8 / zoom;
+    const horizontalError = Math.abs(raw.y - start.y); const verticalError = Math.abs(raw.x - start.x);
+    if (horizontalError <= tolerance && (verticalError > tolerance || horizontalError <= verticalError)) {
+      const aligned = { ...point, y: start.y };
+      return { point: aligned, alignmentGuide: axisGuide(aligned) };
+    }
+    if (verticalError <= tolerance) {
+      const aligned = { ...point, x: start.x };
+      return { point: aligned, alignmentGuide: axisGuide(aligned) };
+    }
+    return { point };
+  }
   const toggleMeasureMode = () => { const enabled = !measureMode(); setMeasureMode(enabled); if (!enabled) { measureOrigin = undefined; setMeasurement(undefined); } };
   function editPathNode(original: Element, nodeIndex: number, world: Point): Element {
     if (original.type === "freehand") return { ...original, points: original.points.map((point, index) => index === nodeIndex ? { ...point, x: world.x, y: world.y } : point) };
@@ -2948,7 +3090,7 @@ function App() {
     if (Math.hypot(point.x - pathNodeWorld(origin.original, origin.nodeIndex).x, point.y - pathNodeWorld(origin.original, origin.nodeIndex).y) > 0.25) origin.moved = true;
     if (!origin.moved) return;
     const edited = editPathNode(origin.original, origin.nodeIndex, point);
-    setElementsTransient(origin.before.map((element, index) => index === origin.index ? edited : element), [origin.index]); setDirty(true);
+    setElementsTransient(replaceElementAtIndex(origin.before, origin.index, edited), [origin.index]); setDirty(true);
   }
   function pathNodeWorld(element: Element, nodeIndex: number): Point {
     if (element.type === "freehand") return element.points[nodeIndex] ?? { x: 0, y: 0 };
@@ -3396,7 +3538,7 @@ function App() {
             const label: ShapeLabel = { ...child.label, text: draft.value, color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType, verticalAlign: draft.verticalAlign ?? "middle" };
             return { ...child, label: draft.value.trim() ? label : undefined } as Element;
           }
-          if (child.type === "text") return { ...child, text: draft.value, color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType };
+          if (child.type === "text") return { ...child, text: draft.value, color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType, wrapWidth: draft.width };
           return child;
         });
         if (updated) {
@@ -3415,7 +3557,7 @@ function App() {
         setSelectedIndices((indices) => indices.filter((index) => index !== removedIndex).map((index) => index > removedIndex ? index - 1 : index));
         setDirty(true);
       } else if (draft.value.trim()) {
-        const item: TextElement = { type: "text", x: draft.x, y: draft.y, text: draft.value, color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType };
+        const item: TextElement = { type: "text", x: draft.x, y: draft.y, text: draft.value, color: draft.color, opacity: draft.opacity, fontSize: draft.fontSize, fontFamily: draft.fontFamily, bold: draft.bold, italic: draft.italic, underline: draft.underline, textAlign: draft.textAlign, listType: draft.listType, wrapWidth: draft.width };
         const before = cloneElements(elements());
         if (draft.editingIndex !== undefined) setElements((items) => items.map((element, index) => index === draft.editingIndex && element.type === "text" ? { ...element, ...item } : element));
         else setElements((items) => [...items, item]);
@@ -3433,7 +3575,7 @@ function App() {
     setSelectedIndices(editingIndex === undefined ? [] : [editingIndex]);
     setTool("text");
     const text = existing?.type === "text" ? existing : undefined;
-    setTextDraft({ x: text?.x ?? point.x, y: text?.y ?? point.y, value: text?.text ?? "", editingIndex, color: text?.color ?? color(), opacity: text?.opacity ?? 1, fontSize: text?.fontSize ?? defaultFontSize(), fontFamily: text?.fontFamily ?? defaultFontFamily(), bold: text?.bold ?? defaultBold(), italic: text?.italic ?? defaultItalic(), underline: text?.underline ?? defaultUnderline(), textAlign: text?.textAlign ?? defaultTextAlign(), listType: text?.listType ?? defaultListType() });
+    setTextDraft({ x: text?.x ?? point.x, y: text?.y ?? point.y, width: text?.wrapWidth ?? DEFAULT_TEXT_WRAP_WIDTH, value: text?.text ?? "", editingIndex, color: text?.color ?? color(), opacity: text?.opacity ?? 1, fontSize: text?.fontSize ?? defaultFontSize(), fontFamily: text?.fontFamily ?? defaultFontFamily(), bold: text?.bold ?? defaultBold(), italic: text?.italic ?? defaultItalic(), underline: text?.underline ?? defaultUnderline(), textAlign: text?.textAlign ?? defaultTextAlign(), listType: text?.listType ?? defaultListType() });
   }
 
   function focusTextEditor() {
@@ -4396,29 +4538,34 @@ function App() {
     return undefined;
   }
 
+  type SimpleComponentAppearance = { ink: string; stroke: string; fillOverride?: string | null; fillOpacity?: number; lineStyle?: StrokeStyle };
   const componentViewCache = new WeakMap<Element, { key: string; element: Element }>();
+  function simpleComponentAppearance(group: GroupElement): SimpleComponentAppearance {
+    const overrides = group.libraryComponent?.styleOverrides;
+    return { ink: overrides?.color ?? (theme() === "dark" ? "#e5e7eb" : "#26313b"), stroke: overrides?.color ?? (theme() === "dark" ? "#aeb8c2" : "#52606d"), fillOverride: overrides?.fillColor, fillOpacity: overrides?.fillOpacity, lineStyle: overrides?.lineStyle };
+  }
+  function applySimpleComponentAppearance(item: Element, appearance: SimpleComponentAppearance): Element {
+    if (item.type === "text") return { ...item, color: appearance.ink };
+    if (item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" || item.type === "line" || item.type === "arrow") {
+      const originalFill = item.fillColor;
+      const fillColor = appearance.fillOverride === null ? undefined : appearance.fillOverride ?? (originalFill ? (originalFill.toLowerCase() === "#ffffff" ? (theme() === "dark" ? "#202428" : "#ffffff") : theme() === "dark" ? "#3a424a" : "#e9edf1") : undefined);
+      const label = item.label ? { ...item.label, color: appearance.ink } : undefined;
+      const lineStyle = appearance.lineStyle ?? item.lineStyle;
+      return { ...item, color: appearance.stroke, fillColor, fillOpacity: fillColor ? appearance.fillOpacity ?? item.fillOpacity ?? 1 : 0, edgeStyle: item.edgeStyle ? "sharp" : item.edgeStyle, cornerRadius: 0, ...(lineStyle ? { lineStyle } : {}), ...(label ? { label } : {}) };
+    }
+    return item;
+  }
   function simpleComponentElement(element: Element): Element {
     const isGraph = element.type === "group" && !!element.libraryComponent?.kind?.startsWith("viz-");
-    const appearance = isGraph ? "modern" : "simple";
     const librarySimple = element.type === "group" && !!element.libraryComponent && !isGraph;
     const classSimple = !!element.componentId?.startsWith("uml-class:");
     if (!librarySimple && !classSimple) return element;
-    const key = `${appearance}:${theme()}`; const cached = componentViewCache.get(element);
+    const key = `${isGraph ? "modern" : "simple"}:${theme()}`; const cached = componentViewCache.get(element);
     if (cached?.key === key) return cached.element;
-    const styleOverrides = element.type === "group" ? element.libraryComponent?.styleOverrides : undefined;
-    const ink = styleOverrides?.color ?? (theme() === "dark" ? "#e5e7eb" : "#26313b"); const stroke = styleOverrides?.color ?? (theme() === "dark" ? "#aeb8c2" : "#52606d");
-    const simplify = (item: Element): Element => {
-      if (item.type === "group") return { ...item, elements: item.elements.map(simplify) };
-      if (item.type === "text") return { ...item, color: ink };
-      if (item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" || item.type === "line" || item.type === "arrow") {
-        const originalFill = item.fillColor;
-        const fillColor = styleOverrides?.fillColor === null ? undefined : styleOverrides?.fillColor ?? (originalFill ? (originalFill.toLowerCase() === "#ffffff" ? (theme() === "dark" ? "#202428" : "#ffffff") : theme() === "dark" ? "#3a424a" : "#e9edf1") : undefined);
-        const label = item.label ? { ...item.label, color: ink } : undefined;
-        const lineStyle = styleOverrides?.lineStyle ?? item.lineStyle;
-        return { ...item, color: stroke, fillColor, fillOpacity: fillColor ? styleOverrides?.fillOpacity ?? item.fillOpacity ?? 1 : 0, edgeStyle: item.edgeStyle ? "sharp" : item.edgeStyle, cornerRadius: 0, ...(lineStyle ? { lineStyle } : {}), ...(label ? { label } : {}) };
-      }
-      return item;
-    };
+    const appearance = element.type === "group" ? simpleComponentAppearance(element) : { ink: theme() === "dark" ? "#e5e7eb" : "#26313b", stroke: theme() === "dark" ? "#aeb8c2" : "#52606d" };
+    const simplify = (item: Element): Element => item.type === "group"
+      ? { ...item, elements: item.elements.map(simplify) }
+      : applySimpleComponentAppearance(item, appearance);
     const styled = librarySimple && element.type === "group" ? { ...element, elements: element.elements.map(simplify) } : simplify(element);
     componentViewCache.set(element, { key, element: styled });
     return styled;
@@ -4450,9 +4597,9 @@ function App() {
     return { ...element, x, y, w: (end?.x ?? element.x + element.w) - x, h: (end?.y ?? element.y + element.h) - y, forkUpper, forkLower };
   }
 
-  function drawElement(ctx: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems = elements()) {
+  function drawElement(ctx: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems = elements(), componentAppearance?: SimpleComponentAppearance) {
     if (isElementHidden(element)) return;
-    drawElementBase(ctx, element, viewport, sourceItems);
+    drawElementBase(ctx, element, viewport, sourceItems, componentAppearance);
     const task = element.projectTaskId ? projectTasksById().get(element.projectTaskId) : undefined;
     const bounds = elementBounds(element);
     if (task && isProjectTaskComplete(task, projectWorkspaceData().workflowColumns ?? [])) {
@@ -4465,9 +4612,63 @@ function App() {
     }
   }
 
-  function drawElementBase(ctx: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems = elements()) {
+  function drawResizePreviewChildren(ctx: CanvasRenderingContext2D, group: GroupElement, preview: GroupResizePreviewData, viewport: Bounds | undefined, sourceItems: Element[], componentAppearance?: SimpleComponentAppearance) {
+    const { source, target } = preview;
+    const sx = target.w / source.w; const sy = target.h / source.h;
+    const rotated = !!group.rotation;
+    ctx.save();
+    if (rotated) { const centerX = target.x + target.w / 2; const centerY = target.y + target.h / 2; ctx.translate(centerX, centerY); ctx.rotate(group.rotation! * Math.PI / 180); ctx.translate(-centerX, -centerY); }
+    if (preview.kind === "container" && group.container?.background) { ctx.fillStyle = group.container.background; ctx.fillRect(target.x, target.y, target.w, target.h); }
+    if (preview.kind === "container" && group.container?.clipChildren) { ctx.beginPath(); ctx.rect(target.x, target.y, target.w, target.h); ctx.clip(); }
+    const mapPoint = (point: Point): Point => ({ x: target.x + (point.x - source.x) * sx, y: target.y + (point.y - source.y) * sy });
+    const previewConnector = (item: ShapeElement): ShapeElement => {
+      const start = mapPoint({ x: item.x, y: item.y }); const end = mapPoint({ x: item.x + item.w, y: item.y + item.h });
+      const fontScale = preview.kind === "container" ? Math.sqrt(Math.abs(sx * sy)) : 1;
+      const mapLabel = (label: NonNullable<ShapeElement["label"]>) => ({ ...label, fontSize: Math.max(8, label.fontSize * fontScale), ...(label.offsetX !== undefined ? { offsetX: label.offsetX * sx } : {}), ...(label.offsetY !== undefined ? { offsetY: label.offsetY * sy } : {}) });
+      return {
+        ...item, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, thickness: item.thickness,
+        ...(item.label ? { label: mapLabel(item.label) } : {}),
+        ...(item.connectorLabels ? { connectorLabels: item.connectorLabels.map(mapLabel) } : {}),
+        ...(item.routePoints ? { routePoints: item.routePoints.map(mapPoint) } : {}),
+        ...(item.routeWaypoints ? { routeWaypoints: item.routeWaypoints.map(mapPoint) } : {}),
+        ...(item.forkUpper ? { forkUpper: { ...item.forkUpper, ...(item.forkUpper.end ? { end: mapPoint(item.forkUpper.end) } : {}), ...(item.forkUpper.routePoints ? { routePoints: item.forkUpper.routePoints.map(mapPoint) } : {}) } } : {}),
+        ...(item.forkLower ? { forkLower: { ...item.forkLower, ...(item.forkLower.end ? { end: mapPoint(item.forkLower.end) } : {}), ...(item.forkLower.routePoints ? { routePoints: item.forkLower.routePoints.map(mapPoint) } : {}) } } : {}),
+      };
+    };
+    const applyChildScale = () => { ctx.save(); ctx.translate(target.x, target.y); ctx.scale(sx, sy); ctx.translate(-source.x, -source.y); };
+    applyChildScale();
+    const sourceViewport = viewport && !rotated ? { x: source.x + (viewport.x - target.x) / sx, y: source.y + (viewport.y - target.y) / sy, w: viewport.w / sx, h: viewport.h / sy } : undefined;
+    for (const child of group.elements) {
+      if (isConnector(child)) {
+        ctx.restore();
+        const viewConnector = connectorForView(child, sourceItems);
+        const scaledConnector = previewConnector(viewConnector);
+        if (!viewport || rotated || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(scaledConnector))) drawElement(ctx, scaledConnector, viewport, sourceItems, componentAppearance);
+        applyChildScale();
+        continue;
+      }
+      if (sourceViewport && !intersectsBounds(sourceViewport.x, sourceViewport.y, sourceViewport.x + sourceViewport.w, sourceViewport.y + sourceViewport.h, elementBounds(child))) continue;
+      drawElement(ctx, child, sourceViewport, sourceItems, componentAppearance);
+    }
+    ctx.restore();
+    if (preview.kind === "container" && group.container?.clipChildren) ctx.restore();
+    if (preview.kind === "container" && group.container) {
+      if (group.container.showBorder !== false) {
+        const frame = group.container.kind === "frame"; const borderStyle = group.container.borderStyle ?? (frame ? "dashed" : "solid"); const borderWidth = group.container.borderThickness ?? 1.5;
+        ctx.strokeStyle = themeInk(group.container.borderColor ?? "#667085", theme()); ctx.lineWidth = borderWidth; ctx.setLineDash(strokeDashPattern(borderStyle, borderWidth));
+        ctx.strokeRect(target.x, target.y, target.w, target.h);
+        if (borderStyle === "double") { ctx.setLineDash([]); const inset = Math.max(2, borderWidth * 1.5); ctx.strokeRect(target.x + inset, target.y + inset, Math.max(0, target.w - inset * 2), Math.max(0, target.h - inset * 2)); }
+        ctx.setLineDash([]);
+      }
+      if (group.container.showLabel !== false && group.container.name.trim()) { ctx.font = `600 14px ${fontCss("sans")}`; ctx.textBaseline = "bottom"; ctx.fillStyle = themeInk("#475467", theme()); ctx.fillText(group.container.name, target.x + 8, target.y - 5); }
+    }
+    ctx.restore();
+  }
+
+  function drawElementBase(ctx: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems = elements(), componentAppearance?: SimpleComponentAppearance) {
     if (isElementHidden(element)) return;
-    element = simpleComponentElement(element);
+    const resizePreview = element.type === "group" ? groupResizePreviewData.get(element) : undefined;
+    element = componentAppearance ? applySimpleComponentAppearance(element, componentAppearance) : resizePreview ? element : simpleComponentElement(element);
     if (element.type === "group") {
       if (element.container?.collapsed && element.componentBounds) {
         const bounds = element.componentBounds; const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2;
@@ -4482,24 +4683,30 @@ function App() {
       }
       if (element.note) { drawNoteCard(ctx, element, theme(), "simple"); return; }
       if (element.componentBounds && element.libraryComponent) {
+        if (resizePreview?.kind === "library") {
+          drawResizePreviewChildren(ctx, element, resizePreview, viewport, sourceItems, simpleComponentAppearance(resizePreview.original));
+          return;
+        }
+        const isResizePreview = resizeOrigin?.original.id !== undefined && resizeOrigin.original.id === element.id;
         if (element.rotation) { const bounds = element.componentBounds; const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
-        if (element.libraryComponent.kind?.startsWith("viz-")) drawLibraryChartLazy(ctx, element, theme(), onChartEngineReady);
-        else drawModelComponent(ctx, element, theme());
+        if (element.libraryComponent.kind?.startsWith("viz-")) drawLibraryChartLazy(ctx, element, theme(), onChartEngineReady, isResizePreview);
+        else drawModelComponent(ctx, element, theme(), !isResizePreview);
         if (element.container) {
           if (element.container.clipChildren) { ctx.save(); ctx.beginPath(); ctx.rect(element.componentBounds.x, element.componentBounds.y, element.componentBounds.w, element.componentBounds.h); ctx.clip(); }
-          for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems);
+          for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems, componentAppearance);
           if (element.container.clipChildren) ctx.restore();
         }
         if (element.rotation) ctx.restore(); return;
       }
       if (element.container && element.componentBounds) {
+        if (resizePreview?.kind === "container") { drawResizePreviewChildren(ctx, element, resizePreview, viewport, sourceItems); return; }
         const bounds = element.componentBounds;
         ctx.save();
         if (element.rotation) { const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
         ctx.globalAlpha = 1;
         if (element.container.background) { ctx.fillStyle = element.container.background; ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h); }
         if (element.container.clipChildren) { ctx.beginPath(); ctx.rect(bounds.x, bounds.y, bounds.w, bounds.h); ctx.clip(); }
-        for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems);
+        for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems, componentAppearance);
         ctx.restore();
         ctx.save();
         if (element.rotation) { const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
@@ -4517,7 +4724,7 @@ function App() {
       }
       if (element.rotation && element.libraryComponent) { const bounds = elementBounds(element); const centerX = bounds.x + bounds.w / 2; const centerY = bounds.y + bounds.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
       if (element.libraryComponent?.kind?.startsWith("viz-")) { drawLibraryChartLazy(ctx, element, theme(), onChartEngineReady); if (element.rotation) ctx.restore(); return; }
-      for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems);
+      for (const child of element.elements) if (element.rotation || !viewport || intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(child))) drawElement(ctx, connectorForView(child as ShapeElement, sourceItems), viewport, sourceItems, componentAppearance);
       if (element.rotation && element.libraryComponent) ctx.restore(); return;
     }
     if (element.rotation) { const elementBox = elementBounds(element); const centerX = elementBox.x + elementBox.w / 2; const centerY = elementBox.y + elementBox.h / 2; ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(element.rotation * Math.PI / 180); ctx.translate(-centerX, -centerY); }
@@ -4544,8 +4751,7 @@ function App() {
       if (textDraft()?.editingChildId === element.id || textDraft()?.editingIndex !== undefined && elements()[textDraft()!.editingIndex!]?.id === element.id) { if (element.rotation) ctx.restore(); return; }
       ctx.save(); ctx.globalAlpha = element.opacity ?? 1; ctx.fillStyle = themeInk(element.color, theme());
       ctx.font = (element.italic ? "italic " : "") + (element.bold ? "700 " : "400 ") + element.fontSize + "px " + fontCss(element.fontFamily); ctx.textBaseline = "top"; ctx.textAlign = element.textAlign === "justify" ? "left" : element.textAlign ?? "left";
-      let lines = textLinesCache.get(element);
-      if (!lines) { lines = element.text.split(/\n?\n/).map((line, index) => element.listType === "bullet" ? "• " + line : element.listType === "number" ? (index + 1) + ". " + line : line); textLinesCache.set(element, lines); }
+      const lines = textElementLines(element, ctx);
       lines.forEach((line, index) => { const y = element.y + index * element.fontSize * 1.25; ctx.fillText(line, element.x, y); if (element.underline) { const measured = ctx.measureText(line).width; const startX = alignedTextStartX(element.x, measured, element.textAlign); ctx.fillRect(startX, y + element.fontSize * 1.06, measured, Math.max(1, element.fontSize / 18)); } }); ctx.restore(); if (element.rotation) ctx.restore(); return;
     }
     // Draw cards from shared metrics so field-bound connectors and exports use matching row positions.
@@ -4666,7 +4872,15 @@ function App() {
     return undefined;
   }
 
-  function resizeElement(element: Element, handle: string, start: Point, point: Point, lockAspect = false): Element {
+  function makeGroupResizePreview(group: GroupElement, target: Bounds, kind: "container" | "library"): GroupElement {
+    const source = group.componentBounds ?? elementBounds(group);
+    if (source.w <= 0 || source.h <= 0) return group;
+    const preview = { ...group, componentBounds: target };
+    groupResizePreviewData.set(preview, { original: group, source, target, kind });
+    return preview;
+  }
+
+  function resizeElement(element: Element, handle: string, start: Point, point: Point, lockAspect = false, preview = false): Element {
     const maxInteractiveSize = 16_384;
     if (element.type === "freehand") return element;
     if (element.type === "flowchart" && handle.startsWith("shape:")) return adjustShapeAtPoint(element, handle.slice(6) as "shaft" | "head" | "inset", point);
@@ -4680,7 +4894,7 @@ function App() {
       const unrotated = { ...element, rotation: 0 } as Element;
       const base = elementBounds(unrotated); const center = { x: base.x + base.w / 2, y: base.y + base.h / 2 };
       const localStart = rotateCanvasPoint(start, center, -element.rotation); const localPoint = rotateCanvasPoint(point, center, -element.rotation);
-      const resized = resizeElement(unrotated, handle, localStart, localPoint, lockAspect); const next = elementBounds(resized);
+      const resized = resizeElement(unrotated, handle, localStart, localPoint, lockAspect, false); const next = elementBounds(resized);
       const anchor = (bounds: Bounds) => ({
         x: handle.includes("e") ? bounds.x : handle.includes("w") ? bounds.x + bounds.w : bounds.x + bounds.w / 2,
         y: handle.includes("s") ? bounds.y : handle.includes("n") ? bounds.y + bounds.h : bounds.y + bounds.h / 2,
@@ -4703,7 +4917,9 @@ function App() {
         const horizontal = handle.includes("w") || handle.includes("e") ? resizeAxis(before.x, before.w, dx, handle.includes("w"), 25) : { origin: before.x, size: before.w };
         const vertical = handle.includes("n") || handle.includes("s") ? resizeAxis(before.y, before.h, dy, handle.includes("n"), 25) : { origin: before.y, size: before.h };
         const target = { x: horizontal.origin, y: vertical.origin, w: horizontal.size, h: vertical.size };
-        return resizeContainerWithChildren(element, lockAspect ? lockAspectResizeBounds(before, target, handle, 25, 25, maxInteractiveSize, maxInteractiveSize) : target);
+        const resizedBounds = lockAspect ? lockAspectResizeBounds(before, target, handle, 25, 25, maxInteractiveSize, maxInteractiveSize) : target;
+        if (preview && !element.rotation && !element.container.autoResize && !element.container.autoLayout && !hasAdaptiveResizeDescendants(element)) return makeGroupResizePreview(element, resizedBounds, "container");
+        return resizeContainerWithChildren(element, resizedBounds);
       }
       if (element.libraryComponent) {
         if (element.libraryComponent.kind === "uml-lifeline" && handle === "s") {
@@ -4719,7 +4935,9 @@ function App() {
         if (handle.includes("w")) x = before.x + before.w - w;
         if (handle.includes("n")) y = before.y + before.h - h;
         const target = { x, y, w, h };
-        return resizeLibraryGroup(element, lockAspect ? lockAspectResizeBounds(before, target, handle, libraryComponentMinimum(element, "w"), libraryComponentMinimum(element, "h"), maxInteractiveSize, maxInteractiveSize) : target);
+        const resizedBounds = lockAspect ? lockAspectResizeBounds(before, target, handle, libraryComponentMinimum(element, "w"), libraryComponentMinimum(element, "h"), maxInteractiveSize, maxInteractiveSize) : target;
+        if (preview && !element.rotation && !element.componentBounds && !element.libraryComponent.kind?.startsWith("viz-") && element.libraryComponent.kind !== "uml-lifeline" && !hasAdaptiveResizeDescendants(element)) return makeGroupResizePreview(element, resizedBounds, "library");
+        return resizeLibraryGroup(element, resizedBounds);
       }
       if (!element.note) return element;
       const before = elementBounds(element); let { x, y, w, h } = before; const dx = point.x - start.x; const dy = point.y - start.y;
@@ -4756,7 +4974,7 @@ function App() {
     return { ...element, ...next };
   }
 
-  function snapResizePoint(element: Element, handle: string, start: Point, point: Point, bypass = false): { point: Point } {
+  function snapResizePoint(element: Element, handle: string, start: Point, point: Point, bypass = false): { point: Point; guides?: CanvasSnapGuides } {
     if (bypass || handle === "rotate" || element.type === "text") return { point };
     const rotation = element.rotation ?? 0;
     const resizeBounds = rotation ? elementBounds({ ...element, rotation: 0 } as Element) : element.type === "group" ? elementBounds(element) : elementGridBounds(element) ?? elementBounds(element);
@@ -4774,10 +4992,10 @@ function App() {
     const gridEnabled = snapToGrid();
     const gridStyle = whiteboardStyle();
     const gridCoordinate = (position: number, axis: "x" | "y") => axis === "x"
-      ? snapCanvasPoint({ x: position, y: 0 }, true, gridStyle, GRID_SIZE).x
-      : snapCanvasPoint({ x: 0, y: position }, true, gridStyle, GRID_SIZE).y;
+      ? snapCanvasPoint({ x: position, y: 0 }, true, gridStyle, GRID_SIZE, canvasState().zoom).x
+      : snapCanvasPoint({ x: 0, y: position }, true, gridStyle, GRID_SIZE, canvasState().zoom).y;
     const nearest = (position: number, axis: "x" | "y") => {
-      const alignments: { target: number; correction: number }[] = [];
+      const alignments: { target: number; correction: number; reference?: Bounds }[] = [];
       if (!rotation && snapToObjects()) {
         const margin = 32 / Math.max(.02, canvasState().zoom);
         const nearby = activeElementSpatialIndex.query({ x: resizeBounds.x - margin, y: resizeBounds.y - margin, w: resizeBounds.w + margin * 2, h: resizeBounds.h + margin * 2 });
@@ -4787,8 +5005,7 @@ function App() {
           const bounds = elementBounds(target);
           const values = axis === "x" ? [bounds.x, bounds.x + bounds.w / 2, bounds.x + bounds.w] : [bounds.y, bounds.y + bounds.h / 2, bounds.y + bounds.h];
           for (const value of values) {
-            const landsOnGrid = !gridEnabled || Math.abs(gridCoordinate(value, axis) - value) < 1e-7;
-            if (landsOnGrid && Math.abs(value - position) <= threshold) alignments.push({ target: value, correction: value - position });
+            if (Math.abs(value - position) <= threshold) alignments.push({ target: value, correction: value - position, reference: bounds });
           }
         }
       }
@@ -4800,7 +5017,19 @@ function App() {
     const correctionX = movesX ? nearest(edgeX, "x") : undefined;
     const correctionY = movesY ? nearest(edgeY, "y") : undefined;
     const corrected = { x: movesX ? localPoint.x + (correctionX?.correction ?? 0) : localPoint.x, y: movesY ? localPoint.y + (correctionY?.correction ?? 0) : localPoint.y };
-    return { point: rotation ? rotateCanvasPoint(corrected, center, rotation) : corrected };
+    const bounds = elementBounds(element);
+    const left = handle.includes("w") ? bounds.x + (correctionX?.correction ?? 0) : bounds.x;
+    const top = handle.includes("n") ? bounds.y + (correctionY?.correction ?? 0) : bounds.y;
+    const right = handle.includes("e") ? bounds.x + bounds.w + (correctionX?.correction ?? 0) : bounds.x + bounds.w;
+    const bottom = handle.includes("s") ? bounds.y + bounds.h + (correctionY?.correction ?? 0) : bounds.y + bounds.h;
+    const moving = { x: left, y: top, w: Math.max(0, right - left), h: Math.max(0, bottom - top) };
+    return {
+      point: rotation ? rotateCanvasPoint(corrected, center, rotation) : corrected,
+      guides: {
+        x: correctionX?.reference ? { coordinate: correctionX.target, moving, reference: correctionX.reference } : undefined,
+        y: correctionY?.reference ? { coordinate: correctionY.target, moving, reference: correctionY.reference } : undefined,
+      },
+    };
   }
 
   const sceneRenderer = createCanvasSceneRenderer({
@@ -4811,7 +5040,7 @@ function App() {
     laserTrail, laserThickness, preview, simulationTokenId: () => bpmnSimulationIndex() >= 0 ? bpmnSimulationSteps()[bpmnSimulationIndex()]?.elementId : undefined, currentPoints: () => currentPoints,
     lineStyle, edgeStyle, cornerRadius, fillEnabled, fillColor, fillOpacity,
     defaultLineStartHead, defaultLineEndHead, defaultStartHead, defaultEndHead, defaultForkUpperHead, defaultForkLowerHead,
-    drawElement, drawLaserStroke, connectorForView, connectorHandles, resolveDraggedConnector, intersectsBounds,
+    drawElement, drawLaserStroke, connectorForView, connectorMayIntersect, connectorHandles, resolveDraggedConnector, intersectsBounds,
     drawFreehandPreview: (ctx, element) => { ctx.save(); ctx.globalAlpha = element.opacity ?? 1; freehandRenderer.draw(ctx, element, themeInk(element.color, theme()), false, true); ctx.restore(); },
   });
   onCleanup(sceneRenderer.dispose);
@@ -4996,7 +5225,7 @@ function App() {
         event.preventDefault(); setTool(readOnlyView() ? "laser" : isWindowsPlatform() ? "select" : "pan"); if (isWindowsPlatform() && !readOnlyView()) setStyleMenuMode("quick"); setTouchStylePanel(false); setQuickStylePopover(undefined); setSelectedIndices([]); setHoveredIndex(undefined); setMarquee(undefined); marqueeOrigin = undefined; resizeOrigin = undefined; moveOrigin = undefined; labelMoveOrigin = undefined; libraryControlOrigin = undefined; setPreview(undefined); drawing = false; setSpaceDown(false); setIsPanning(false); panOrigin = undefined;
         if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; return;
       }
-      if (event.key === "F1") { event.preventDefault(); setHelpOpen(true); return; }
+      if (event.key === "F1") { event.preventDefault(); if (isWindowsPlatform()) { setHelpOpen(false); setShortcutDialogOpen(true); } else { setHelpSection("shortcuts"); setHelpOpen(true); } return; }
       if (recoveryPrompt() || syncConflict() || exportOptionsOpen() || showClearConfirm() || pageDialog() || renameFileOpen() || schemaDialog() || validationOpen() || objectSearchOpen() || outlineOpen() || mermaidDialog() || webEmbedDialog() || noteEditor() || contextMenu()) return;
       if (event.target instanceof HTMLElement && event.target.closest("details[open], .tool-options")) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
@@ -6079,9 +6308,10 @@ function App() {
     setSelectedIndices(resolved.map((_, index) => offset + index)); setTool("select"); setDirty(true);
   }
 
-  function insertGuideDiagram(id: DiagramGuideId) {
+  async function insertGuideDiagram(id: DiagramGuideId) {
     if (boardLocked() || readOnlyView()) return;
     try {
+      const { buildGuideDiagram } = await import("./features/diagram-guides/guide-engine");
       placeImportedElements(buildGuideDiagram(id));
       setDiagramGuidesOpen(false);
       setError("");
@@ -6653,17 +6883,13 @@ function App() {
     if (tool() === "select") {
       libraryControlOrigin = undefined; labelMoveOrigin = undefined;
       const labelHit = hitTest(point); const labelTarget = labelHit === undefined ? undefined : elements()[labelHit];
-      if (event.altKey && labelHit !== undefined && labelTarget && isConnector(labelTarget)) {
+      if (labelHit !== undefined && labelTarget && isConnector(labelTarget) && !isElementLocked(labelTarget)) {
         const labelTargetView = connectorForView(labelTarget);
-        const labels = [labelTargetView.label, ...(labelTargetView.connectorLabels ?? [])];
-        const labelIndex = labels.findIndex(label => {
-          if (!label?.text) return false;
-          const box = labelBox(labelTargetView, label);
-          return point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h;
-        });
-        if (labelIndex >= 0) {
+        const labelInfo = connectorLabelHitAt(relationshipDisplayElement(labelTargetView), point);
+        if (labelInfo) {
+          const center = { x: labelInfo.bounds.x + labelInfo.bounds.w / 2, y: labelInfo.bounds.y + labelInfo.bounds.h / 2 };
           setSelectedIndices([labelHit]);
-          labelMoveOrigin = { index: labelHit, labelIndex, point, before: elements(), moved: false, routePreview: labelTargetView };
+          labelMoveOrigin = { index: labelHit, labelIndex: labelInfo.index, point, grabOffset: { x: labelInfo.localPoint.x - center.x, y: labelInfo.localPoint.y - center.y }, routeOnly: event.altKey, before: elements(), moved: false, routePreview: labelTargetView };
           canvas.setPointerCapture(event.pointerId); return;
         }
       }
@@ -6916,15 +7142,27 @@ function App() {
       return;
     }
     if (labelMoveOrigin) {
-      const origin = labelMoveOrigin; const point = toWorld(event); const dx = point.x - origin.point.x; const dy = point.y - origin.point.y;
+      const origin = labelMoveOrigin; const worldPoint = toWorld(event); const dx = worldPoint.x - origin.point.x; const dy = worldPoint.y - origin.point.y;
       if (Math.hypot(dx, dy) > 0.5) origin.moved = true;
       if (origin.moved) {
-        setElementsTransient(origin.before.map((element, index) => {
-          if (index !== origin.index || !isConnector(element)) return element;
+        const element = origin.before[origin.index];
+        if (element && isConnector(element)) {
           const currentLabel = origin.labelIndex === 0 ? element.label : element.connectorLabels?.[origin.labelIndex - 1];
           const routed = origin.routePreview ?? element as ShapeElement; const route = routed.type === "arrow" ? routed.arrowRoute ?? "straight" : routed.lineRoute ?? "straight";
-          return setShapeLabelAt(element, origin.labelIndex, { text: "", color: color(), fontSize: defaultFontSize(), fontFamily: defaultFontFamily(), verticalAlign: "middle", textAlign: "center", listType: "none", ...currentLabel, routePosition: connectorProgressAtPoint(routed, route, point), offsetX: 0, offsetY: 0 });
-        }), [origin.index], true);
+          const labelLayout = currentLabel ?? (origin.labelIndex === 0 ? relationshipDisplayElement(routed).label : undefined);
+          if (labelLayout) {
+            const localPoint = connectorLocalPoint(routed, worldPoint);
+            const center = { x: localPoint.x - origin.grabOffset.x, y: localPoint.y - origin.grabOffset.y };
+            const routePosition = connectorProgressAtPoint(routed, route, center);
+            const anchor = connectorPoint(routed, route, routePosition);
+            const box = labelBox(routed, labelLayout);
+            const offsetX = origin.routeOnly ? labelLayout.offsetX ?? 0 : center.x - anchor.x;
+            const offsetY = origin.routeOnly ? labelLayout.offsetY ?? 0 : center.y - (anchor.y - labelLayout.fontSize * 1.75 + box.h / 2);
+            const storedLabel = currentLabel ?? { ...labelLayout, text: "" };
+            const edited = setShapeLabelAt(element, origin.labelIndex, { ...storedLabel, routePosition, offsetX, offsetY });
+            setElementsTransient(replaceElementAtIndex(origin.before, origin.index, edited), [origin.index], true);
+          }
+        }
         setDirty(true);
       }
       return;
@@ -6934,7 +7172,10 @@ function App() {
       const pointerPoint = toWorld(event); if (Math.hypot(pointerPoint.x - origin.start.x, pointerPoint.y - origin.start.y) > 0.5) origin.moved = true;
       if (!origin.moved) return;
       const freeResize = event.ctrlKey || event.metaKey || event.shiftKey;
+      origin.bypassSnap = freeResize;
+      origin.endpointGuide = undefined;
       const snapped = isConnector(origin.original) || origin.handle.startsWith("shape:") ? { point: pointerPoint } : snapResizePoint(origin.original, origin.handle, origin.start, pointerPoint, freeResize);
+      origin.guides = snapped.guides;
       queueResizePreview(origin, snapped.point, !freeResize && !!origin.original.aspectLocked); setDirty(true); return;
     }
     if (moveOrigin) {
@@ -6946,7 +7187,10 @@ function App() {
       if (Math.hypot(dx, dy) > 0.5) moveOrigin.moved = true;
       if (moveOrigin.moved) {
         const snapped = snapTranslation(moveOrigin.indices, moveOrigin.before, dx, dy, moveOrigin.snapTargets, event.ctrlKey || event.metaKey);
-        moveOrigin.dx = snapped.dx; moveOrigin.dy = snapped.dy; moveOrigin.guides = snapped.guides; scheduleCanvasRender(); setDirty(true);
+        moveOrigin.dx = snapped.dx; moveOrigin.dy = snapped.dy; moveOrigin.guides = snapped.guides;
+        if (moveOrigin.axisLock === "x") { moveOrigin.dy = 0; moveOrigin.guides = { x: snapped.guides?.x }; }
+        else if (moveOrigin.axisLock === "y") { moveOrigin.dx = 0; moveOrigin.guides = { y: snapped.guides?.y }; }
+        scheduleCanvasRender(); setDirty(true);
       }
       return;
     }
@@ -6966,8 +7210,11 @@ function App() {
       return;
     }
     const raw = toWorld(event); const port = activeDrawingTool === "line" || activeDrawingTool === "arrow" ? nearestBinding(elements(), raw, 18 / canvasState().zoom, item => !isElementHidden(item) && !isElementLocked(item)) : undefined;
-    setAttachmentHint(port?.point); const point = port?.point ?? snap(raw);
-    setPreview((previous) => previous ? { ...previous, end: point } : undefined);
+    const activePreview = preview();
+    const endpoint = activeDrawingTool === "line" || activeDrawingTool === "arrow"
+      ? connectorPreviewEndpoint(activePreview?.start ?? raw, raw, port?.point, event.shiftKey)
+      : { point: snap(raw) };
+    setAttachmentHint(port?.point); setPreview((previous) => previous ? { ...previous, end: endpoint.point, alignmentGuide: endpoint.alignmentGuide } : undefined);
   }
 
   function moveElement(element: Element, dx: number, dy: number): Element {
@@ -7071,17 +7318,16 @@ function App() {
       return best;
     };
     const spacingX = findEqualGap("x"); const spacingY = findEqualGap("y");
-    const gridEnabled = snapToGrid() && !snapMovesToTen();
+    const gridEnabled = snapToGrid();
     let gridX: number | undefined; let gridY: number | undefined;
     if (gridEnabled) {
       const style = whiteboardStyle();
-      const snapped = snapCanvasPoint({ x: moving.x + dx, y: moving.y + dy }, true, style, GRID_SIZE);
+      const snapped = snapCanvasPoint({ x: moving.x + dx, y: moving.y + dy }, true, style, GRID_SIZE, canvasState().zoom);
       gridX = snapped.x - (moving.x + dx); gridY = snapped.y - (moving.y + dy);
     }
-    // Keep object alignment on the active 25-unit move lattice; otherwise the lattice takes priority.
-    const landsOnGrid = (position: number) => Math.abs(position / GRID_SIZE - Math.round(position / GRID_SIZE)) < 1e-7;
-    const objectCorrectionX = objectX && (!gridEnabled || landsOnGrid(objectX.target.coordinate) && landsOnGrid(aligned.x + dx + objectX.correction)) ? objectX.correction : undefined;
-    const objectCorrectionY = objectY && (!gridEnabled || landsOnGrid(objectY.target.coordinate) && landsOnGrid(aligned.y + dy + objectY.correction)) ? objectY.correction : undefined;
+    // A nearby object alignment is the strongest snap; the active grid is used when no guide target is close.
+    const objectCorrectionX = objectX?.correction;
+    const objectCorrectionY = objectY?.correction;
     const objectOrSpaceX = spacingX && (!objectCorrectionX || Math.abs(spacingX.correction) < Math.abs(objectCorrectionX)) ? spacingX : objectCorrectionX !== undefined ? { correction: objectCorrectionX, target: objectX!.target.coordinate } : undefined;
     const objectOrSpaceY = spacingY && (!objectCorrectionY || Math.abs(spacingY.correction) < Math.abs(objectCorrectionY)) ? spacingY : objectCorrectionY !== undefined ? { correction: objectCorrectionY, target: objectY!.target.coordinate } : undefined;
     const correctionX = objectOrSpaceX?.correction ?? gridX ?? 0;
@@ -7220,7 +7466,30 @@ function App() {
       if (origin.moved) { setElements(elements()); pushUndo(origin.before); }
       labelMoveOrigin = undefined; scheduleCanvasRender(); return;
     }
-    if (resizeOrigin) { const origin = resizeOrigin; flushResizePreview(); if (origin.moved) { setElements(elements()); pushUndo(origin.before); } resizeOrigin = undefined; return; }
+    if (resizeOrigin) {
+      const origin = resizeOrigin;
+      if (origin.moved) {
+        const pointerPoint = toWorld(event); const freeResize = event.ctrlKey || event.metaKey || event.shiftKey;
+        origin.bypassSnap = freeResize; origin.endpointGuide = undefined;
+        const snapped = isConnector(origin.original) || origin.handle.startsWith("shape:") ? { point: pointerPoint } : snapResizePoint(origin.original, origin.handle, origin.start, pointerPoint, freeResize);
+        origin.guides = snapped.guides;
+        queueResizePreview(origin, snapped.point, !freeResize && !!origin.original.aspectLocked);
+      }
+      flushResizePreview();
+      if (origin.moved) {
+        const preview = elements()[origin.index];
+        const previewData = preview?.type === "group" ? groupResizePreviewData.get(preview) : undefined;
+        if (previewData?.original === origin.original) {
+          const resized = previewData.kind === "container"
+            ? resizeContainerWithChildren(previewData.original, previewData.target)
+            : resizeLibraryGroup(previewData.original, previewData.target);
+          setElements(replaceElementAtIndex(origin.before, origin.index, resized));
+        } else setElements(elements());
+        pushUndo(origin.before);
+      }
+      resizeOrigin = undefined;
+      return;
+    }
     if (moveOrigin) {
       const origin = moveOrigin;
       if (origin.moved) {
@@ -7242,6 +7511,11 @@ function App() {
       if (last && Math.hypot(end.x - last.x, end.y - last.y) * canvasState().zoom >= minDistance) {
         appendStrokePoint(tool() === "pen" ? { ...end, pressure: last.pressure, tiltX: last.tiltX, tiltY: last.tiltY, orientation: last.orientation } : end);
       }
+    }
+    if (activeDrawingTool === "line" || activeDrawingTool === "arrow") {
+      const raw = toWorld(event); const port = nearestBinding(elements(), raw, 18 / canvasState().zoom, item => !isElementHidden(item) && !isElementLocked(item));
+      const start = preview()?.start ?? raw; const endpoint = connectorPreviewEndpoint(start, raw, port?.point, event.shiftKey);
+      setAttachmentHint(port?.point); setPreview(previous => previous ? { ...previous, end: endpoint.point, alignmentGuide: endpoint.alignmentGuide } : undefined);
     }
     drawing = false; const activePreview = preview();
     if (tool() === "laser") {
@@ -7402,7 +7676,8 @@ function App() {
       </div>
     </div>
   </div>;
-  const helpShortcuts: [string, string][] = [["V", "Select tool"], ["Space", "Hold to pan"], ["P", "Fine pen"], ["Y", "Laser pointer"], ["R", "Rectangle"], ["C / O", "Circle"], ["D", "Diamond"], ["N", "Triangle"], ["L", "Line"], ["A", "Arrow"], ["F", "Flowchart symbol"], ["T", "Text"], ["B", "Fill bucket"], ["E", "Eraser"], ["X", "Image crop"], ["Esc", "Pan tool and clear selection"], ["G", "Toggle grid"], ["Shift+G", "Snap to grid"], ["Shift+O", "Snap to objects"], ["K", "Lock canvas"], ["0", "Center view at 100%"], ["1 / 2", "Fit drawing / selection"], ["Ctrl / Cmd + N", "New sketch"], ["Ctrl / Cmd + O", "Open sketch"], ["Ctrl / Cmd + S", "Save"], ["Ctrl / Cmd + Z", "Undo"], ["Ctrl / Cmd + Y", "Redo"], ["Ctrl / Cmd + C / X / V", "Copy / cut / paste"], ["Ctrl / Cmd + D", "Duplicate selection"], ["Ctrl / Cmd + A", "Select all"], ["Ctrl / Cmd + G", "Group selection"], ["Ctrl / Cmd + Shift + G", "Ungroup"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge by 1 px"], ["Shift+Arrow", "Nudge by 10 px"], ["F1", "Open Help"]];
+  const helpShortcuts: [string, string][] = [["V", "Select tool"], ["Space", "Hold to pan"], ["P", "Fine pen"], ["Y", "Laser pointer"], ["R", "Rectangle"], ["C / O", "Circle"], ["D", "Diamond"], ["N", "Triangle"], ["L", "Line"], ["A", "Arrow"], ["F", "Flowchart symbol"], ["T", "Text"], ["B", "Fill bucket"], ["E", "Eraser"], ["X", "Image crop"], ["Esc", "Pan tool and clear selection"], ["G", "Toggle grid"], ["Shift+G", "Snap to grid"], ["Shift+O", "Snap to objects"], ["K", "Lock canvas"], ["0", "Center view at 100%"], ["1 / 2", "Fit drawing / selection"], ["Ctrl / Cmd + N", "New sketch"], ["Ctrl / Cmd + O", "Open sketch"], ["Ctrl / Cmd + S", "Save"], ["Ctrl / Cmd + Z", "Undo"], ["Ctrl / Cmd + Y", "Redo"], ["Ctrl / Cmd + C / X / V", "Copy / cut / paste"], ["Ctrl / Cmd + D", "Duplicate selection"], ["Ctrl / Cmd + A", "Select all"], ["Ctrl / Cmd + G", "Group selection"], ["Ctrl / Cmd + Shift + G", "Ungroup"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge by 1 px"], ["Shift+Arrow", "Nudge by 10 px"], ["F1", "Open Keyboard shortcuts"]];
+  const windowsShortcutReference: [string, string][] = [["Space", "Hold to pan"], ["Esc", "Pan tool and clear selection"], ["Ctrl + C / X / V", "Copy / cut / paste"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge selection by 1 px"], ["Shift + Arrow", "Nudge selection by 10 px"], ["F1", "Open Keyboard shortcuts"]];
   const updateTextDraft = (value: string) => setTextDraft((draft) => draft ? { ...draft, value } : undefined);
   function setSelectedNoteFontSize(size: number) {
     if (!Number.isFinite(size)) return;
@@ -7471,7 +7746,7 @@ function App() {
   };
   const rotateSelection = (delta: number) => { if (boardLocked()) return; const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (!item || item.locked || item.type === "group" && !item.libraryComponent || isConnector(item)) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: (element.rotation ?? 0) + delta } as Element : element)); pushUndo(before); setDirty(true); };
   const resetSelectionRotation = () => { const index = primarySelection(); const item = index === undefined ? undefined : elements()[index]; if (boardLocked() || !item || item.locked || item.type === "group" && !item.libraryComponent || (item.rotation ?? 0) === 0) return; const before = cloneElements(elements()); setElements((items) => items.map((element, i) => i === index ? { ...element, rotation: 0 } as Element : element)); pushUndo(before); setDirty(true); };
-  const closeSystemMenu = (action: () => void) => { if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (helpMenu) helpMenu.open = false; action(); };
+  const closeSystemMenu = (action: () => void) => { if (menu) menu.open = false; if (importExportMenu) importExportMenu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false; if (helpMenu) helpMenu.open = false; action(); };
   const toggleSidebar = () => {
     setQuickStylePopover(undefined);
     if (styleMenuMode() === "quick") { setStyleMenuMode("full"); }
@@ -8029,7 +8304,7 @@ function App() {
       { id: "add-page", label: "Add page to sketch", category: "Pages", run: addPage },
       { id: "lock-canvas", label: "Toggle canvas lock", category: "Canvas", shortcut: formatShortcutBindings(shortcuts().lockCanvas), run: () => setBoardLocked(value => !value) },
       { id: "presentation", label: "Start presentation mode", category: "View", shortcut: formatShortcutBindings(shortcuts().presentation), run: () => void togglePresentationMode(true) },
-      { id: "shortcuts", label: "Customize keyboard shortcuts", category: "Settings", run: () => setShortcutDialogOpen(true) },
+      { id: "shortcuts", label: "Keyboard shortcuts", category: "Settings", run: () => setShortcutDialogOpen(true) },
       { id: "copy-style", label: "Copy object style", category: "Edit", shortcut: formatShortcutBindings(shortcuts().copyStyle), run: copyObjectStyle },
       { id: "paste-style", label: "Paste object style", category: "Edit", shortcut: formatShortcutBindings(shortcuts().pasteStyle), run: pasteObjectStyle },
       { id: "align-left", label: "Align selection left", category: "Arrange", run: () => runPaletteSelectionAction("aligning objects", 2, () => alignSelection("left")) },
@@ -8185,11 +8460,52 @@ function App() {
             detailsRef={element => { appSettingsMenu = element; }}
             onToggle={onAppSettingsMenuToggle}
           />}>
-          <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => { keepOnlyActiveMenuOpen(menu); alignTouchMenuPopover(menu); }}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><div class="menu-file-label">{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}</div>
-            <Show when={workspaceArea() === "planning"}><button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button><button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button><button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button><button disabled={!planningPath() || planningSaving()} onClick={() => closeSystemMenu(() => { if (planningPath()) void closePlanningTab(planningPath()!); })}>Close plan</button><div class="menu-separator" /></Show><Show when={workspaceArea() !== "planning"}>
-            <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button><button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open sketch as view only</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save sketch <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save sketch as...</button><button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importPdf())}>Import PDF for markup...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile())}>Import editable diagram/code...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || boardLocked()} onClick={() => closeSystemMenu(openWebEmbedDialog)}>Embed web page...</button><div class="menu-separator" /><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(false))}>Export interactive HTML...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(true))}>Export clickable prototype...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("drawio"))}>Export draw.io...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("vsdx"))}>Export Visio VSDX...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("excalidraw"))}>Export Excalidraw...</button><button disabled={!activePath() || !isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => setDiagramCodeExportOpen(true))}>Export diagram code...</button><button disabled={!activePath() || !isCanvasWorkspace() || !elements().length || boardLocked() || readOnlyView()} onClick={() => closeSystemMenu(() => setShowClearConfirm(true))}>Clear canvas</button><div class="menu-separator" /><button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close sketch</button>
-            <Show when={hasRetiredLibraryData(legacyLibraryData())}><button disabled={!activePath() || readOnlyView() || documentBusy() || nativeBusy()} onClick={() => closeSystemMenu(() => void exportRetiredLibraryArchive())}>Export retired Library data...</button></Show></Show>
-          </div></details>
+          <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => { keepOnlyActiveMenuOpen(menu); alignTouchMenuPopover(menu); }}>
+            <summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
+            <div class="system-menu-popover">
+              <div class="menu-file-label">{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}</div>
+              <Show when={workspaceArea() === "planning"}>
+                <button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button>
+                <button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button>
+                <button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button>
+                <button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button>
+                <button disabled={!planningPath() || planningSaving()} onClick={() => closeSystemMenu(() => { if (planningPath()) void closePlanningTab(planningPath()!); })}>Close plan</button>
+              </Show>
+              <Show when={workspaceArea() !== "planning"}>
+                <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button>
+                <button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button>
+                <button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open sketch as view only</button>
+                <button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save sketch <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button>
+                <button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save sketch as...</button>
+                <button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button>
+                <div class="menu-separator" />
+                <button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close sketch</button>
+              </Show>
+            </div>
+          </details>
+          <Show when={workspaceArea() !== "planning" && activePath()}>
+            <details class="menu-dropdown import-export-menu-dropdown" ref={importExportMenu} onToggle={() => { keepOnlyActiveMenuOpen(importExportMenu); alignTouchMenuPopover(importExportMenu); }}>
+              <summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8m0 0-3-3m3 3 3-3M5 14v5h14v-5M5 7H3v11h4m14-11h-2" /></svg><span>Import / Export</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
+              <div class="system-menu-popover">
+                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importPdf())}>Import PDF for markup...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile())}>Import editable diagram/code...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked()} onClick={() => closeSystemMenu(openWebEmbedDialog)}>Embed web page...</button>
+                <div class="menu-separator" />
+                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(false))}>Export interactive HTML...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(true))}>Export clickable prototype...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("drawio"))}>Export draw.io...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("vsdx"))}>Export Visio VSDX...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("excalidraw"))}>Export Excalidraw...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => setDiagramCodeExportOpen(true))}>Export diagram code...</button>
+                <Show when={hasRetiredLibraryData(legacyLibraryData())}><button disabled={readOnlyView() || documentBusy() || nativeBusy()} onClick={() => closeSystemMenu(() => void exportRetiredLibraryArchive())}>Export retired Library data...</button></Show>
+              </div>
+            </details>
+          </Show>
             <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={onViewMenuToggle}>
               <summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>View</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
               <ViewSettingsPopover
@@ -8226,7 +8542,7 @@ function App() {
               />
             </details>
           <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
-          <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => { keepOnlyActiveMenuOpen(helpMenu); alignTouchMenuPopover(helpMenu); }}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => setDiagramGuidesOpen(true))}>Diagram guides</button><button onClick={() => closeSystemMenu(() => { setHelpSection("shortcuts"); setHelpOpen(true); })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setShortcutDialogOpen(true))}>Customize shortcuts...</button><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>{formatShortcutBindings(shortcuts().commandPalette)}</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking" || updateCheck() === "installing"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><span class="update-menu-version">Installed version {appVersion()}</span><Show when={updateCheck() === "installing"}><span class="update-menu-status available">Installing update {updateVersion()}…</span></Show><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span><Show when={isWindowsPlatform()}><button onClick={() => void installUpdate()}>Download and install</button></Show></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Update check or installation failed.</span></Show></div></details>
+          <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => { keepOnlyActiveMenuOpen(helpMenu); alignTouchMenuPopover(helpMenu); }}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => setDiagramGuidesOpen(true))}>Diagram guides</button><button onClick={() => closeSystemMenu(() => { if (isWindowsPlatform()) setShortcutDialogOpen(true); else { setHelpSection("shortcuts"); setHelpOpen(true); } })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>{formatShortcutBindings(shortcuts().commandPalette)}</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking" || updateCheck() === "installing"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><span class="update-menu-version">Installed version {appVersion()}</span><Show when={updateCheck() === "installing"}><span class="update-menu-status available">Installing update {updateVersion()}…</span></Show><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span><Show when={isWindowsPlatform()}><button onClick={() => void installUpdate()}>Download and install</button></Show></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Update check or installation failed.</span></Show></div></details>
           </WindowsMenuRail>
           </Show>
         </nav>
@@ -9090,9 +9406,9 @@ function App() {
       <Show when={syncConflict()}>{(conflict) => <div class="confirm-backdrop"><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title"><h2 id="conflict-title">File changed elsewhere</h2><p><strong>{displayPathName(conflict().path)}</strong> changed after you opened it, so SketchDraw paused this save to protect the newer copy. Your current work is still open. Save it as a separate file or load the disk version, which replaces your current work.</p><div class="conflict-actions"><button class="quiet-button" onClick={() => void saveAs()}>Save my version as…</button><button class="quiet-button" onClick={reloadConflictingFile}>Load disk version</button></div></section></div>}</Show>
       <Show when={showClearConfirm()}><div class="confirm-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setShowClearConfirm(false); }}><section class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><h2 id="clear-title">Clear this canvas?</h2><p>This will remove all {elements().length} items from the open sketch. You can undo this action.</p><div><button class="quiet-button" onClick={() => setShowClearConfirm(false)}>Cancel</button><button class="danger-button" onClick={() => { if (elements().length && !boardLocked()) { pushUndo(cloneElements(elements())); setElements([]); setSelectedIndices([]); setDirty(true); } setShowClearConfirm(false); }}>Clear canvas</button></div></section></div></Show>
       </Show>
-      <Show when={diagramGuidesOpen()}><DiagramGuideGallery onClose={() => setDiagramGuidesOpen(false)} onInsert={insertGuideDiagram} /></Show>
+      <Show when={diagramGuidesOpen()}><Suspense fallback={null}><DiagramGuideGallery onClose={() => setDiagramGuidesOpen(false)} onInsert={insertGuideDiagram} /></Suspense></Show>
       <Show when={isWindowsPlatform()}><Suspense fallback={null}><WindowsCommandPalette open={commandPaletteOpen()} commands={windowsCommands()} onClose={() => setCommandPaletteOpen(false)} /></Suspense></Show>
-      <Show when={isWindowsPlatform() && shortcutDialogOpen()}><Suspense fallback={null}><WindowsKeyboardShortcutsDialog shortcuts={shortcuts()} onChange={setWindowsShortcut} onReset={resetWindowsShortcuts} onClose={() => setShortcutDialogOpen(false)} /></Suspense></Show>
+      <Show when={isWindowsPlatform() && shortcutDialogOpen()}><Suspense fallback={null}><WindowsKeyboardShortcutsDialog shortcuts={shortcuts()} referenceShortcuts={windowsShortcutReference} onChange={setWindowsShortcut} onReset={resetWindowsShortcuts} onClose={() => setShortcutDialogOpen(false)} /></Suspense></Show>
       <Show when={helpOpen()}><Suspense fallback={null}><HelpDialog open section={helpSection()} shortcuts={helpShortcuts} onClose={() => setHelpOpen(false)} /></Suspense></Show>
       <Show when={error()}><div class="error-toast" role="alert">{error()}<button onClick={() => setError("")}>Dismiss</button></div></Show>
     </main>

@@ -168,6 +168,17 @@
   background: var(--theme-surface-elevated);
 }
 
+.app-shell.design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded {
+  z-index: 80;
+  width: 320px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  background: var(--theme-surface-elevated);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--theme-shadow) 18%, transparent);
+}
+
 /* Keep the Design dock visible through the legacy mobile rule that hides the generic property pane. */
 .app-shell.design-workspace-active .style-pane.design-palette-active,
 .app-shell.design-workspace-active .style-pane.schema-editor-active {
@@ -186,9 +197,10 @@
 .design-shape-library {
   display: flex;
   width: 100%;
-  height: 100%;
+  min-width: 0;
+  height: auto;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   flex-direction: column;
   gap: 6px;
   overflow: hidden;
@@ -197,21 +209,28 @@
 .design-palette-heading {
   display: flex;
   min-width: 0;
+  flex: 0 0 auto;
   align-items: center;
   gap: 5px;
 }
 
 .design-palette-search {
+  box-sizing: border-box;
   display: flex;
   min-width: 0;
   height: 34px;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   align-items: center;
   gap: 6px;
   padding: 0 8px;
   border: 1px solid var(--theme-border);
   border-radius: 6px;
   background: var(--theme-surface);
+}
+
+.design-palette-search:focus-within {
+  border-color: var(--ui-accent-border);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent-border) 22%, transparent);
 }
 
 .design-palette-search>svg {
@@ -225,39 +244,45 @@
 }
 
 .design-palette-search>input {
-  width: 100%;
+  box-sizing: border-box;
+  width: 0;
   min-width: 0;
+  height: 100%;
+  flex: 1 1 0;
   padding: 0;
   border: 0;
   outline: 0;
+  appearance: none;
+  -webkit-appearance: none;
   color: var(--theme-text-primary);
   background: transparent;
   font: inherit;
   font-size: var(--type-control);
+  line-height: 1.25;
+}
+
+.design-palette-search>input::placeholder {
+  color: var(--theme-text-tertiary);
+  opacity: 1;
 }
 
 .design-palette-groups {
+  box-sizing: border-box;
+  min-width: 0;
   min-height: 0;
-  flex: 1 1 auto;
-  overflow: auto;
+  flex: 1 1 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .design-palette-groups::-webkit-scrollbar {
   display: none;
   width: 0;
   height: 0;
-}
-
-.style-pane.design-palette-active.mobile-properties-expanded,
-.style-pane.design-palette-active.mobile-properties-expanded * {
-  scrollbar-width: none;
-}
-
-.style-pane.design-palette-active.mobile-properties-expanded::-webkit-scrollbar,
-.style-pane.design-palette-active.mobile-properties-expanded *::-webkit-scrollbar {
-  display: none;
 }
 
 .design-palette-section {
@@ -541,7 +566,6 @@
     padding: 0 2px;
   }
 
-  .app-shell:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
     position: fixed;
     z-index: 70;
@@ -559,7 +583,6 @@
     border-radius: 12px;
   }
 
-  .app-shell:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded .design-shape-library,
   .app-shell:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded>.schema-editor-panel {
     width: 100%;
     height: 100%;
@@ -578,7 +601,6 @@
     flex: 1 1 180px;
   }
 
-  .app-shell.mobile-toolbar-top:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell.mobile-toolbar-top:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
     top: calc(var(--touch-header-height, 48px) + var(--touch-toolbar-top-offset, 4px) + var(--mobile-horizontal-toolbar-height, 50px) + 8px);
     right: 8px;
@@ -586,7 +608,6 @@
     left: max(8px, env(safe-area-inset-left));
   }
 
-  .app-shell.mobile-toolbar-bottom:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell.mobile-toolbar-bottom:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
     top: calc(var(--touch-header-height, 48px) + 8px);
     right: 8px;
@@ -594,12 +615,10 @@
     left: max(8px, env(safe-area-inset-left));
   }
 
-  .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
     left: calc(max(8px, env(safe-area-inset-left)) + 52px);
   }
 
-  .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
     right: calc(max(8px, env(safe-area-inset-right)) + 52px);
     left: max(8px, env(safe-area-inset-left));

@@ -52,7 +52,7 @@ Chart resize limits are 150×100, or 125×75 for KPI cards, to keep axes and lab
 
 ## Text and appearance
 
-`component-text.ts` is the shared canvas/SVG font mapping and baseline metric helper. Text uses measured alphabetic baselines, wraps to two lines where the renderer has a width, then adds an ellipsis. Component text has a 9 px minimum. SVG text normalization removes `dominant-baseline`, adjusts the baseline from canvas metrics, and rounds numeric SVG values to two decimals. GUI forms use the same font mapping and baseline helper.
+`component-text.ts` is the shared canvas/SVG font mapping and baseline metric helper. Text uses font-level alphabetic baseline metrics, so labels in the same font keep a steady line position regardless of their characters. Text wraps to two lines where the renderer has a width, then adds an ellipsis. Component text has a 9 px minimum. SVG text normalization removes `dominant-baseline`, adjusts the baseline from canvas font metrics, and rounds numeric SVG values to two decimals. GUI forms use the same font mapping and baseline helper.
 
 The repository has no bundled font asset. The shared default is `system-ui, 'Segoe UI', sans-serif`; explicit component font-family choices are resolved through the same `fontCss` mapping for both measurement and output. A bundled font can replace this mapping later without changing the geometry contract.
 

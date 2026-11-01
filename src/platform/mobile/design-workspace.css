@@ -27,8 +27,8 @@
     left: max(8px, env(safe-area-inset-left));
   }
 
-  .app-shell:not(.platform-windows).mobile-toolbar-vertical.design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell:not(.platform-windows).mobile-toolbar-vertical.design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded,
+  .app-shell:not(.platform-windows).mobile-toolbar-vertical.design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell:not(.platform-windows).mobile-toolbar-vertical.design-workspace-active .style-pane.design-panel-collapsed,
   .app-shell:not(.platform-windows).mobile-toolbar-vertical.design-workspace-active .component-editor-dock:not(.collapsed) {
     top: calc(var(--touch-header-height, 48px) + 60px);
@@ -61,28 +61,72 @@
 }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-  .app-shell:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
+    box-sizing: border-box;
     right: auto;
     left: max(8px, env(safe-area-inset-left));
-    width: min(320px, calc(100vw - max(8px, env(safe-area-inset-left)) - 8px));
+    width: min(320px, calc(100vw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right))));
+    max-width: calc(100vw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right)));
     border-radius: 0 12px 12px 0;
     box-shadow: none;
   }
 
-  .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
-  .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
-    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
-    width: min(320px, calc(100vw - max(8px, env(safe-area-inset-left)) - 60px));
+  .app-shell:not(.platform-windows).design-workspace-active .design-palette-search>input {
+    font-size: max(16px, var(--type-control));
   }
 
-  .app-shell.mobile-toolbar-top:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
+  .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
+    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
+    width: min(320px, calc(100vw - max(8px, env(safe-area-inset-left)) - 52px - max(8px, env(safe-area-inset-right))));
+    max-width: calc(100vw - max(8px, env(safe-area-inset-left)) - 52px - max(8px, env(safe-area-inset-right)));
+  }
+
   .app-shell.mobile-toolbar-top:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded,
-  .app-shell.mobile-toolbar-bottom:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell.mobile-toolbar-bottom:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded,
-  .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
   .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
     right: auto;
     left: max(8px, env(safe-area-inset-left));
+    width: min(320px, calc(100vw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right))));
+    max-width: calc(100vw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right)));
+  }
+
+  .app-shell:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded {
+    top: calc(var(--touch-header-height, 48px) + 60px);
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    width: min(340px, calc(100vw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right))));
+    max-width: calc(100vw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right)));
+  }
+
+  .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded {
+    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
+    width: min(340px, calc(100vw - max(8px, env(safe-area-inset-left)) - 52px - max(8px, env(safe-area-inset-right))));
+    max-width: calc(100vw - max(8px, env(safe-area-inset-left)) - 52px - max(8px, env(safe-area-inset-right)));
+  }
+
+  .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded {
+    right: calc(max(8px, env(safe-area-inset-right)) + 52px);
+    left: max(8px, env(safe-area-inset-left));
+    width: min(340px, calc(100vw - max(8px, env(safe-area-inset-left)) - 52px - max(8px, env(safe-area-inset-right))));
+    max-width: calc(100vw - max(8px, env(safe-area-inset-left)) - 52px - max(8px, env(safe-area-inset-right)));
+  }
+
+  .app-shell.mobile-toolbar-top:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded {
+    top: calc(var(--touch-header-height, 48px) + var(--touch-toolbar-top-offset, 4px) + var(--mobile-horizontal-toolbar-height, 50px) + 8px);
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    width: auto;
+    max-width: none;
+  }
+
+  .app-shell.mobile-toolbar-bottom:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded {
+    top: calc(var(--touch-header-height, 48px) + 8px);
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(var(--mobile-horizontal-toolbar-height, 50px) + max(8px, env(safe-area-inset-bottom)) + 8px);
+    left: max(8px, env(safe-area-inset-left));
+    width: auto;
+    max-width: none;
   }
 }

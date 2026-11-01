@@ -1,5 +1,5 @@
 import type { ArrowHead, Element, Point, ShapeElement, Theme } from "../../model";
-import { isConnector, isLabelShape } from "../../operations";
+import { isConnector, isLabelShape, textElementLines } from "../../operations";
 import { shapeDetailPathData, shapeFillRule, shapePathData } from "../shapes/geometry";
 import { arrowHeadEntries, arrowHeadPoints, arrowHeadSvgPath, connectorSvgPath } from "../connectors/geometry";
 import { elementBounds } from "../canvas/bounds";
@@ -182,7 +182,7 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
     }
     if (element.type === "text") {
       const family = fontCss(element.fontFamily);
-      const lines = element.text.split(/\r?\n/).map((line, index) => { const formatted = element.listType === "bullet" ? `• ${line}` : element.listType === "number" ? `${index + 1}. ${line}` : line; return `<tspan x="${element.x}" dy="${index === 0 ? 0 : element.fontSize * 1.25}">${escapeXml(formatted)}</tspan>`; }).join("");
+      const lines = textElementLines(element).map((line, index) => `<tspan x="${element.x}" dy="${index === 0 ? 0 : element.fontSize * 1.25}">${escapeXml(line)}</tspan>`).join("");
       return `<text x="${element.x}" y="${element.y + element.fontSize}" fill="${escapeXml(themeInk(element.color, theme()))}" opacity="${element.opacity ?? 1}" font-size="${element.fontSize}" font-family="${family}" font-weight="${element.bold ? "700" : "400"}" font-style="${element.italic ? "italic" : "normal"}" text-decoration="${element.underline ? "underline" : "none"}" text-anchor="${element.textAlign === "center" ? "middle" : element.textAlign === "right" ? "end" : "start"}">${lines}</text>`;
     }
     const fillColor = "fillColor" in element ? element.fillColor : undefined;

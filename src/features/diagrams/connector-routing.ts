@@ -3,16 +3,59 @@ import { elementBounds } from "../../features/canvas/bounds";
 import { ElementSpatialIndex } from "../canvas/spatial-index";
 
 type Rect = { left: number; top: number; right: number; bottom: number };
-type CachedRoute = { key: string; points: Point[] };
+type CachedRoute = { key: string; context: AutoRouteContext; points: Point[]; bounds: Bounds };
 const routeCache = new WeakMap<ShapeElement, CachedRoute>();
-export type AutoRouteContext = { flatItems: Element[]; candidates: Map<Element, Bounds>; index: ElementSpatialIndex };
+export type AutoRouteContext = { flatItems: Element[]; candidates: Map<Element, Bounds>; index: ElementSpatialIndex; routeEnvelopes: WeakMap<ShapeElement, Bounds> };
 
 const isRouteObstacle = (item: Element) => item.type === "rectangle" || item.type === "circle" || item.type === "diamond" || item.type === "triangle" || item.type === "flowchart" || item.type === "svgPath" || item.type === "text" || item.type === "image" || item.type === "schemaTable" || item.type === "group" && (!!item.componentBounds || !!item.libraryComponent || !!item.note || !!item.mermaid);
 
 export function createAutoRouteContext(items: Element[], isHidden: (item: Element) => boolean = item => !!item.hidden): AutoRouteContext {
   const flatItems = flat(items, isHidden);
   const candidates = new Map(flatItems.filter(isRouteObstacle).map(item => [item, elementBounds(item)] as const));
-  return { flatItems, candidates, index: new ElementSpatialIndex(flatItems) };
+  return { flatItems, candidates, index: new ElementSpatialIndex(flatItems), routeEnvelopes: new WeakMap() };
+}
+
+function intersects(a: Bounds, b: Bounds) {
+  return a.x <= b.x + b.w && a.x + a.w >= b.x && a.y <= b.y + b.h && a.y + a.h >= b.y;
+}
+
+function routeBounds(connector: ShapeElement, points: Point[]): Bounds {
+  const all = [{ x: connector.x, y: connector.y }, ...points, { x: connector.x + connector.w, y: connector.y + connector.h }];
+  let left = Infinity; let top = Infinity; let right = -Infinity; let bottom = -Infinity;
+  for (const point of all) { left = Math.min(left, point.x); top = Math.min(top, point.y); right = Math.max(right, point.x); bottom = Math.max(bottom, point.y); }
+  const padding = Math.max(2, connector.thickness / 2);
+  return { x: left - padding, y: top - padding, w: right - left + padding * 2, h: bottom - top + padding * 2 };
+}
+
+/** Cheap conservative viewport test; it avoids routing auto-connectors whose nearby scene cannot reach the view. */
+export function autoRouteMayIntersect(connector: ShapeElement, context: AutoRouteContext, viewport: Bounds): boolean {
+  const cachedRoute = routeCache.get(connector);
+  if (cachedRoute?.context === context) return intersects(cachedRoute.bounds, viewport);
+  let envelope = context.routeEnvelopes.get(connector);
+  if (!envelope) {
+    const start = { x: connector.x, y: connector.y };
+    const end = { x: connector.x + connector.w, y: connector.y + connector.h };
+    const pins = connector.routeWaypoints ?? [];
+    let left = Math.min(start.x, end.x); let top = Math.min(start.y, end.y);
+    let right = Math.max(start.x, end.x); let bottom = Math.max(start.y, end.y);
+    for (const point of pins) {
+      left = Math.min(left, point.x); top = Math.min(top, point.y);
+      right = Math.max(right, point.x); bottom = Math.max(bottom, point.y);
+    }
+    const query = { x: Math.min(start.x, end.x) - 240, y: Math.min(start.y, end.y) - 240, w: Math.abs(end.x - start.x) + 480, h: Math.abs(end.y - start.y) + 480 };
+    for (const index of context.index.query(query)) {
+      const item = context.flatItems[index];
+      if (!item || (connector.id !== undefined && item.id === connector.id)) continue;
+      const bounds = context.candidates.get(item) ?? (isConnector(item) ? elementBounds(item) : undefined);
+      if (!bounds) continue;
+      left = Math.min(left, bounds.x); top = Math.min(top, bounds.y);
+      right = Math.max(right, bounds.x + bounds.w); bottom = Math.max(bottom, bounds.y + bounds.h);
+    }
+    const padding = 120;
+    envelope = { x: left - padding, y: top - padding, w: right - left + padding * 2, h: bottom - top + padding * 2 };
+    context.routeEnvelopes.set(connector, envelope);
+  }
+  return intersects(envelope, viewport);
 }
 
 function flat(items: Element[], isHidden: (item: Element) => boolean, parentHidden = false): Element[] {
@@ -124,6 +167,8 @@ export function autoRoutePoints(connector: ShapeElement, items: Element[] | Auto
   const end = { x: connector.x + connector.w, y: connector.y + connector.h };
   const pins = connector.routeWaypoints ?? [];
   const context = Array.isArray(items) ? createAutoRouteContext(items, isHidden) : items;
+  const cached = routeCache.get(connector);
+  if (cached?.context === context) return cached.points;
   const flatItems = context.flatItems;
   const excluded = new Set([connector.id].filter(Boolean));
   const queryBounds = { x: Math.min(start.x, end.x) - 240, y: Math.min(start.y, end.y) - 240, w: Math.abs(end.x - start.x) + 480, h: Math.abs(end.y - start.y) + 480 };
@@ -156,8 +201,10 @@ export function autoRoutePoints(connector: ShapeElement, items: Element[] | Auto
     .slice(0, 32);
   const rects = [...nodeRects, ...nearbyRouteObstacles];
   const key = JSON.stringify([start, end, connector.startBinding, connector.endBinding, connector.thickness, pins, nearby.map(({ item, bounds }) => [item.id, bounds.x, bounds.y, bounds.w, bounds.h]), nearbyRouteObstacles]);
-  const cached = routeCache.get(connector);
-  if (cached?.key === key) return cached.points;
+  if (cached?.key === key) {
+    cached.context = context;
+    return cached.points;
+  }
   // Keep bound tables in the obstacle set and route from a short stub outside their edge.
   const endpointStub = (endpoint: Point, other: Point, binding: ShapeElement["startBinding"] | ShapeElement["endBinding"]): Point => {
     if (!binding) return endpoint;
@@ -187,7 +234,7 @@ export function autoRoutePoints(connector: ShapeElement, items: Element[] | Auto
   }
   const simplified = full.filter((point, index) => index === 0 || index === full.length - 1 || !((point.x === full[index - 1].x && point.x === full[index + 1].x) || (point.y === full[index - 1].y && point.y === full[index + 1].y)));
   const points = simplified.slice(1, -1);
-  routeCache.set(connector, { key, points });
+  routeCache.set(connector, { key, context, points, bounds: routeBounds(connector, points) });
   return points;
 }
 

@@ -118,6 +118,12 @@ function createPaletteSections(stencils: CustomStencil[], masters: ComponentMast
   return sections.filter(section => section.entries.length > 0);
 }
 
+function paletteEntryMatches(entry: PaletteEntry, section: string, words: readonly string[]): boolean {
+  if (!words.length) return true;
+  const haystack = `${entry.searchText} ${section}`.toLocaleLowerCase();
+  return words.every(word => haystack.includes(word));
+}
+
 function PaletteIcon(props: { item: DesignPaletteItem }) {
   const item = props.item;
   if (item.type === "component") return <LibraryComponentIcon kind={item.kind} />;
@@ -156,55 +162,68 @@ export function DesignShapePalette(props: {
 }) {
   const [search, setSearch] = createSignal("");
   const [openSections, setOpenSections] = createSignal(new Set(["Basic shapes"]));
-  // Build the shape catalog once per document palette update, then filter it as the query changes.
+  let searchInput: HTMLInputElement | undefined;
+  let searchComposing = false;
+  // Keep the catalog independent from the query so typing only updates the
+  // visible results and never rebuilds or replaces the search control.
   const paletteSections = createMemo(() => createPaletteSections(props.stencils, props.masters));
-  function updateSearch(value: string) {
-    setSearch(value);
-    const query = value.trim().toLowerCase();
-    if (!query) return;
-    const matches = paletteSections().filter(section => section.entries.some(entry => `${entry.searchText} ${section.name}`.toLowerCase().includes(query)));
-    setOpenSections(current => new Set([...current, ...matches.map(section => section.name)]));
+  function updateSearch(value: string, keepFocus = false) {
+    setSearch(current => current === value ? current : value);
+    if (keepFocus) queueMicrotask(() => {
+      const input = searchInput;
+      if (input?.isConnected && document.activeElement !== input) input.focus({ preventScroll: true });
+    });
   }
-  const sections = createMemo(() => {
-    const query = search().trim().toLowerCase();
-    return paletteSections()
-      .map(section => ({ ...section, entries: section.entries.filter(entry => !query || `${entry.searchText} ${section.name}`.toLowerCase().includes(query)) }))
-      .filter(section => section.entries.length > 0);
+  const searchWords = createMemo(() => search().trim().toLocaleLowerCase().split(/\s+/).filter(Boolean));
+  const filteredEntries = createMemo(() => {
+    const words = searchWords();
+    const visible = new Map<string, PaletteEntry[]>();
+    for (const section of paletteSections()) {
+      const entries = words.length ? section.entries.filter(entry => paletteEntryMatches(entry, section.name, words)) : section.entries;
+      if (entries.length) visible.set(section.name, entries);
+    }
+    return visible;
   });
+  const visibleSections = createMemo(() => [...filteredEntries().keys()]);
+  const entriesFor = (name: string) => filteredEntries().get(name) ?? [];
 
   return <div class="design-shape-library">
     <header class="design-palette-heading">
       <label class="design-palette-search">
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg>
-        <input type="search" aria-label="Search shapes" placeholder="Search Shapes" value={search()} onInput={event => updateSearch(event.currentTarget.value)} />
+        <input ref={element => { searchInput = element; element.value = search(); }} type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" spellcheck={false} aria-label="Search shapes" placeholder="Search shapes" onCompositionStart={() => { searchComposing = true; }} onCompositionEnd={event => { searchComposing = false; updateSearch(event.currentTarget.value, true); }} onInput={event => { if (!searchComposing) updateSearch(event.currentTarget.value, true); }} onKeyDown={event => { if (event.key === "Escape" && search()) { event.preventDefault(); event.stopPropagation(); updateSearch("", true); if (searchInput) searchInput.value = ""; } }} />
       </label>
       <button type="button" class="design-panel-toggle" aria-label={props.collapsed ? "Expand shape library" : "Collapse shape library"} title={props.collapsed ? "Expand panel" : "Collapse panel"} aria-expanded={!props.collapsed} onClick={props.onToggle}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d={props.collapsed ? "M4 10h12m-5-5 5 5-5 5" : "M16 10H4m5-5-5 5 5 5"} /></svg>
       </button>
     </header>
     <div class="design-palette-groups">
-      <For each={sections()}>{section => {
-        const sectionId = `design-palette-${section.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-        const isOpen = () => openSections().has(section.name);
+      <For each={visibleSections()}>{sectionName => {
+        const sectionId = `design-palette-${sectionName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+        const entries = () => entriesFor(sectionName);
+        const searching = () => !!searchWords().length;
+        const isOpen = () => searching() || openSections().has(sectionName);
         return <section class="design-palette-section">
-        <button type="button" class="design-palette-section-toggle" aria-expanded={isOpen()} aria-controls={sectionId} onClick={() => setOpenSections(current => {
+        <Show when={searching()} fallback={<button type="button" class="design-palette-section-toggle" aria-expanded={isOpen()} aria-controls={sectionId} onClick={() => setOpenSections(current => {
           const next = new Set(current);
-          if (next.has(section.name)) next.delete(section.name);
-          else next.add(section.name);
+          if (next.has(sectionName)) next.delete(sectionName);
+          else next.add(sectionName);
           return next;
         })}>
-          <span>{section.name}</span><small>{section.entries.length}</small><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
-        </button>
-          <div class="design-palette-grid" id={sectionId} role="group" aria-label={`${section.name} shapes`} hidden={!isOpen()}>
+          <span>{sectionName}</span><small>{entries().length}</small><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+        </button>}>
+          <div class="design-palette-section-toggle design-palette-search-result-heading"><span>{sectionName}</span><small>{entries().length}</small></div>
+        </Show>
+          <div class="design-palette-grid" id={sectionId} role="group" aria-label={`${sectionName} shapes`} hidden={!isOpen()}>
           <Show when={isOpen()}>
-            <For each={section.entries}>{entry => <button type="button" class="design-palette-item" classList={{ "design-palette-item-model-component": entry.item.type === "component" && (!!cloudProviderComponent(entry.item.kind) || !!cloudNeutralComponent(entry.item.kind)) }} title={entry.item.label} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
+            <For each={entries()}>{entry => <button type="button" class="design-palette-item" classList={{ "design-palette-item-model-component": entry.item.type === "component" && (!!cloudProviderComponent(entry.item.kind) || !!cloudNeutralComponent(entry.item.kind)) }} title={entry.item.label} aria-label={`Add ${entry.item.label}`} disabled={props.disabled} onClick={() => props.onInsert(entry.item)}>
               <PaletteIcon item={entry.item} />
               <span>{entry.item.label}</span>
             </button>}</For>
           </Show>
           </div>
       </section>}}</For>
-      <Show when={!sections().length}><p class="design-palette-empty">No matching shapes</p></Show>
+      <Show when={!visibleSections().length}><p class="design-palette-empty">No matching shapes</p></Show>
     </div>
   </div>;
 }

@@ -220,7 +220,7 @@ export function resizeContainerWithChildren(group: GroupElement, target: Bounds)
       ...mapPoint(item),
       w: item.w * sx,
       h: item.h * sy,
-      thickness: Math.max(0.5, item.thickness * fontScale),
+      thickness: item.type === "line" || item.type === "arrow" ? item.thickness : Math.max(0.5, item.thickness * fontScale),
       ...(item.cornerRadius !== undefined ? { cornerRadius: item.cornerRadius * fontScale } : {}),
       ...(label ? { label } : {}),
       ...(connectorLabels ? { connectorLabels } : {}),
@@ -233,16 +233,29 @@ export function resizeContainerWithChildren(group: GroupElement, target: Bounds)
   return { ...group, componentBounds: target, elements: group.elements.map(scale) };
 }
 
+const autoResizePresenceCache = new WeakMap<Element, boolean>();
+
+function subtreeHasAutoResizeContainer(item: Element): boolean {
+  if (item.type !== "group") return false;
+  const cached = autoResizePresenceCache.get(item);
+  if (cached !== undefined) return cached;
+  const hasAutoResize = (!!item.container?.autoResize && !item.container.lockedSize)
+    || item.elements.some(subtreeHasAutoResizeContainer);
+  autoResizePresenceCache.set(item, hasAutoResize);
+  return hasAutoResize;
+}
+
 export function fitAutoResizeContainers(items: Element[]): Element[] {
-  const nextItems = items.map(item => {
-    if (item.type !== "group") return item;
+  let nextItems: Element[] | undefined;
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    if (item.type !== "group" || !subtreeHasAutoResizeContainer(item)) continue;
     const children = fitAutoResizeContainers(item.elements);
-    const changed = children.some((child, index) => child !== item.elements[index]);
-    let next: GroupElement = changed ? { ...item, elements: children } : item;
+    let next: GroupElement = children === item.elements ? item : { ...item, elements: children };
     if (next.container?.autoResize && !next.container.lockedSize) next = fitContainerToContent(next);
-    return next;
-  });
-  return nextItems.every((item, index) => item === items[index]) ? items : nextItems;
+    if (next !== item) (nextItems ??= items.slice())[index] = next;
+  }
+  return nextItems ?? items;
 }
 
 export function selectConnectedIndices(items: Element[], selectedIndices: number[]): number[] {

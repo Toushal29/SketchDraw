@@ -105,11 +105,11 @@ export function strokePointFromPointer(event: PointerEvent, point: Point, pressu
   };
 }
 
-export function snapCanvasPoint(point: Point, enabled: boolean, style: CanvasGridStyle, gridSize: number): Point {
+export function snapCanvasPoint(point: Point, enabled: boolean, style: CanvasGridStyle, gridSize: number, zoom = 1): Point {
   if (!enabled) return point;
-  // Snapping always uses the canonical document grid, independent of zoom,
-  // display scale, or fine-paper subdivisions.
-  const step = gridSize;
+  // Snap to the same world-space spacing currently visible. At coarse zoom the
+  // renderer skips subdivisions from the same origin, so snapping follows them.
+  const step = gridStepForStyle(style, gridSize, zoom);
   if (style === "isometric") {
     const rowStep = isometricRowHeight(step);
     const nearestRow = Math.floor(point.y / rowStep);

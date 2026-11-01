@@ -41,6 +41,7 @@ export function relationshipDisplayElement(element: ShapeElement): ShapeElement 
     listType: element.label?.listType ?? "none",
     ...(element.label?.offsetX === undefined ? {} : { offsetX: element.label.offsetX }),
     ...(element.label?.offsetY === undefined ? {} : { offsetY: element.label.offsetY }),
+    ...(element.label?.routePosition === undefined ? {} : { routePosition: element.label.routePosition }),
     ...(element.label?.opacity === undefined ? {} : { opacity: element.label.opacity }),
   };
   return { ...element, label };

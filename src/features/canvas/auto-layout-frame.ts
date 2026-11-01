@@ -119,15 +119,29 @@ export function reflowAutoLayoutFrame(group: GroupElement, ports: AutoLayoutPort
   return { ...group, ...(frameChanged ? { componentBounds: nextFrame } : {}), elements: changed ? group.elements.map(child => placed.get(child) ?? child) : group.elements };
 }
 
+const autoLayoutPresenceCache = new WeakMap<Element, boolean>();
+
+function subtreeHasAutoLayout(item: Element): boolean {
+  if (item.type !== "group") return false;
+  const cached = autoLayoutPresenceCache.get(item);
+  if (cached !== undefined) return cached;
+  const hasAutoLayout = !!item.container?.autoLayout || item.elements.some(subtreeHasAutoLayout);
+  autoLayoutPresenceCache.set(item, hasAutoLayout);
+  return hasAutoLayout;
+}
+
 /** Re-flows every auto-layout frame, innermost first. Returns the same array when nothing moved. */
 export function reflowAutoLayoutFrames(items: Element[], ports: AutoLayoutPorts = {}): Element[] {
-  const next = items.map(item => {
-    if (item.type !== "group") return item;
+  let nextItems: Element[] | undefined;
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    if (item.type !== "group" || !subtreeHasAutoLayout(item)) continue;
     const children = reflowAutoLayoutFrames(item.elements, ports);
-    const group = children.some((child, index) => child !== item.elements[index]) ? { ...item, elements: children } : item;
-    return group.container?.autoLayout ? reflowAutoLayoutFrame(group, ports) : group;
-  });
-  return next.every((item, index) => item === items[index]) ? items : next;
+    const group = children === item.elements ? item : { ...item, elements: children };
+    const laidOut = group.container?.autoLayout ? reflowAutoLayoutFrame(group, ports) : group;
+    if (laidOut !== item) (nextItems ??= items.slice())[index] = laidOut;
+  }
+  return nextItems ?? items;
 }
 
 /** True when any frame in the tree uses auto layout, so callers can skip the pass for ordinary drawings. */

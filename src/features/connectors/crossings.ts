@@ -19,16 +19,39 @@ function contains(bounds: ReturnType<typeof elementBounds>, point: Point) {
   return point.x >= bounds.x && point.x <= bounds.x + bounds.w && point.y >= bounds.y && point.y <= bounds.y + bounds.h;
 }
 
+function pathsBounds(paths: Point[][]) {
+  let left = Infinity; let top = Infinity; let right = -Infinity; let bottom = -Infinity;
+  for (const path of paths) for (const point of path) {
+    left = Math.min(left, point.x); top = Math.min(top, point.y);
+    right = Math.max(right, point.x); bottom = Math.max(bottom, point.y);
+  }
+  return Number.isFinite(left) ? { x: left, y: top, w: right - left, h: bottom - top } : undefined;
+}
+
+function boundsOverlap(left: NonNullable<ReturnType<typeof pathsBounds>>, right: NonNullable<ReturnType<typeof pathsBounds>>) {
+  return left.x <= right.x + right.w && left.x + left.w >= right.x && left.y <= right.y + right.h && left.y + left.h >= right.y;
+}
+
 /** Finds interior crossings; the later connector in paint order is the bridge. */
 export function connectorCrossings(items: Element[], resolve: (item: ShapeElement) => ShapeElement = item => item): ConnectorCrossing[] {
-  const connectors = items.filter((item): item is ShapeElement => isConnector(item) && !item.hidden).map(resolve);
-  if (connectors.length < 2 || connectors.length > 160) return [];
+  const candidates: ShapeElement[] = [];
+  for (const item of items) {
+    if (!isConnector(item) || item.hidden) continue;
+    if (candidates.length === 160) return [];
+    candidates.push(item);
+  }
+  if (candidates.length < 2) return [];
+  const connectors = candidates.map(resolve);
+  const paths = connectors.map(connector => connectorPolylines(connector));
+  const pathBoundsList = paths.map(pathsBounds);
   const obstacles = items.filter(item => !isConnector(item) && !item.hidden && (item.type !== "group" || !!item.note || !!item.mermaid || !!item.libraryComponent || !!item.container?.collapsed)).map(elementBounds);
   const crossings: ConnectorCrossing[] = [];
   for (let overIndex = 1; overIndex < connectors.length; overIndex++) {
-    const over = connectors[overIndex]; const overPaths = connectorPolylines(over);
+    const over = connectors[overIndex]; const overPaths = paths[overIndex]; const overBounds = pathBoundsList[overIndex];
+    if (!overBounds) continue;
     for (let underIndex = 0; underIndex < overIndex; underIndex++) {
-      const under = connectors[underIndex]; const underPaths = connectorPolylines(under);
+      const underPaths = paths[underIndex]; const underBounds = pathBoundsList[underIndex];
+      if (!underBounds || !boundsOverlap(overBounds, underBounds)) continue;
       for (const overPath of overPaths) for (let overSegment = 1; overSegment < overPath.length; overSegment++) {
         const oa = overPath[overSegment - 1]; const ob = overPath[overSegment]; const odx = ob.x - oa.x; const ody = ob.y - oa.y; const olen = Math.hypot(odx, ody);
         if (olen < 1) continue;

@@ -9,6 +9,22 @@ import { shapeAdjustmentHandles } from "../shapes/geometry";
 import { gridStepForStyle, isometricRowHeight, isometricRowOffset, type CanvasGridStyle } from "./input";
 
 type DragState = { indices: number[]; point: Point; before: Element[]; moved: boolean; dx: number; dy: number; guides?: CanvasSnapGuides; snapTargets: { x: CanvasSnapTarget[]; y: CanvasSnapTarget[] }; targets: Map<string, Element> };
+
+function orderedSceneIndices(queried: number[], added?: Set<number>) {
+  if (!added?.size) return queried;
+  const extras = [...added].sort((a, b) => a - b);
+  const ordered: number[] = [];
+  let queryIndex = 0; let extraIndex = 0;
+  while (queryIndex < queried.length || extraIndex < extras.length) {
+    const query = queried[queryIndex] ?? Infinity;
+    const extra = extras[extraIndex] ?? Infinity;
+    if (query < extra) { ordered.push(query); queryIndex++; }
+    else if (extra < query) { ordered.push(extra); extraIndex++; }
+    else { ordered.push(query); queryIndex++; extraIndex++; }
+  }
+  return ordered;
+}
+
 export type CanvasSceneRendererPorts = {
   elements: () => Element[];
   isHidden: (element: Element) => boolean;
@@ -23,7 +39,7 @@ export type CanvasSceneRendererPorts = {
   gridSize: number;
   selectedSet: () => Set<number>;
   moveOrigin: () => DragState | undefined;
-  resizeOrigin: () => { original: Element } | undefined;
+  resizeOrigin: () => { original: Element; guides?: CanvasSnapGuides; endpointGuide?: { axis: "x" | "y"; coordinate: number; point: Point } } | undefined;
   connectorLabelMoveActive: () => boolean;
   hoveredIndex: () => number | undefined;
   boardLocked: () => boolean;
@@ -51,6 +67,7 @@ export type CanvasSceneRendererPorts = {
   drawElement: (ctx: CanvasRenderingContext2D, element: Element, viewport?: Bounds, sourceItems?: Element[]) => void;
   drawLaserStroke: (ctx: CanvasRenderingContext2D, points: Point[], opacity: number, thickness: number) => void;
   connectorForView: (item: ShapeElement, sourceItems?: Element[]) => ShapeElement;
+  connectorMayIntersect: (item: ShapeElement, viewport: Bounds, sourceItems?: Element[]) => boolean;
   connectorHandles: (item: ShapeElement) => { id: string; x: number; y: number }[];
   resolveDraggedConnector: (element: Element, index: number, drag: DragState) => Element;
   intersectsBounds: (left: number, top: number, right: number, bottom: number, bounds: Bounds) => boolean;
@@ -73,11 +90,16 @@ export function transformHandlePoints(bounds: Bounds, zoom: number, includeRotat
 export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
   const tileCache = new SceneTileCache();
   const autoRouteIndicesByElements = new WeakMap<Element[], { visibilityKey: string; indices: number[] }>();
+  let stationaryAutoRouteCache: { visibilityKey: string; indices: number[] } | undefined;
 
-  function getAutoRouteIndices(items: Element[]) {
+  function getAutoRouteIndices(items: Element[], reuseStationary = false) {
     const visibilityKey = ports.tileCacheKey();
+    if (reuseStationary && stationaryAutoRouteCache?.visibilityKey === visibilityKey) return stationaryAutoRouteCache.indices;
     const cached = autoRouteIndicesByElements.get(items);
-    if (cached?.visibilityKey === visibilityKey) return cached.indices;
+    if (cached?.visibilityKey === visibilityKey) {
+      stationaryAutoRouteCache = { visibilityKey, indices: cached.indices };
+      return cached.indices;
+    }
     const indices: number[] = [];
     {
       items.forEach((item, index) => {
@@ -85,6 +107,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       });
     }
     autoRouteIndicesByElements.set(items, { visibilityKey, indices });
+    stationaryAutoRouteCache = { visibilityKey, indices };
     return indices;
   }
 
@@ -141,6 +164,29 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     if (rotate) { ctx.beginPath(); ctx.arc(rotate.x, rotate.y, 5 / zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } ctx.restore();
   }
 
+  function drawSelectionOutline(ctx: CanvasRenderingContext2D, bounds: Bounds, zoom: number, rotation = 0) {
+    const padding = 3 / zoom;
+    const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
+    const corners = [
+      { x: bounds.x - padding, y: bounds.y - padding },
+      { x: bounds.x + bounds.w + padding, y: bounds.y - padding },
+      { x: bounds.x + bounds.w + padding, y: bounds.y + bounds.h + padding },
+      { x: bounds.x - padding, y: bounds.y + bounds.h + padding },
+    ].map(point => rotatePoint(point, center, rotation));
+
+    ctx.save();
+    ctx.beginPath();
+    corners.forEach((point, index) => { if (index === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y); });
+    ctx.closePath();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 3.5 / zoom;
+    ctx.stroke();
+    ctx.strokeStyle = "#3478e5";
+    ctx.lineWidth = 1.6 / zoom;
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, dpr: number, includeSelection: boolean, transparent = false, viewOverride?: CanvasState, sourceItems = ports.elements(), includeGrid = true, includeStrokePreview = true) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
     if (!transparent) { ctx.fillStyle = ports.renderedBoardColor(); ctx.fillRect(0, 0, width, height); }
@@ -151,29 +197,38 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     const selected = ports.selectedSet();
     const currentMove = ports.moveOrigin();
     const currentResize = ports.resizeOrigin();
-    const connectorResize = !!currentResize && isConnector(currentResize.original);
     const connectorLabelMoving = ports.connectorLabelMoveActive();
     const previewType = ports.preview()?.type;
     const connectorDrawing = previewType === "line" || previewType === "arrow";
     const drag = includeSelection && sourceItems === ports.elements() && currentMove?.moved ? currentMove : undefined;
     const spatialItems = drag?.before ?? sourceItems;
-    const paintIndices = new Set((spatialItems === ports.elements() ? ports.spatialIndex() : elementSpatialIndex(spatialItems)).query(viewport));
+    const queriedIndices = (spatialItems === ports.elements() ? ports.spatialIndex() : elementSpatialIndex(spatialItems)).query(viewport);
+    let addedPaintIndices: Set<number> | undefined;
+    const addPaintIndex = (index: number) => { (addedPaintIndices ??= new Set()).add(index); };
     // The spatial index tracks a connector's endpoints and stored route points.
     // Auto routes are calculated only for display, so their bends can leave the
     // indexed bounds. Include them directly and bypass tiles whose bounds and
     // invalidation data cannot account for those calculated bends.
-    const autoRouteIndices = getAutoRouteIndices(sourceItems);
-    const hasUnindexedAutoRoutes = autoRouteIndices.length > 0;
-    if (hasUnindexedAutoRoutes) autoRouteIndices.forEach(index => paintIndices.add(index));
+    // Resizing a non-connector preserves connector identities and order, so
+    // reuse the stationary list rather than scanning the whole scene per frame.
+    const autoRouteIndices = getAutoRouteIndices(sourceItems, !!currentResize && !isConnector(currentResize.original));
+    let hasUnindexedAutoRoutes = false;
+    for (const index of autoRouteIndices) {
+      const item = sourceItems[index];
+      if (!item || !isConnector(item) || !ports.connectorMayIntersect(item, viewport, sourceItems)) continue;
+      hasUnindexedAutoRoutes = true;
+      addPaintIndex(index);
+    }
     if (drag) {
       const movedIds = new Set(drag.targets.keys());
-      for (const index of drag.indices) paintIndices.add(index);
+      for (const index of drag.indices) addPaintIndex(index);
       sourceItems.forEach((element, index) => {
         if (!isConnector(element)) return;
         const bindings = [element.startBinding, element.endBinding, element.forkUpper?.endBinding, element.forkLower?.endBinding];
-        if (bindings.some(binding => binding && movedIds.has(binding.elementId)) || element.autoRoute) paintIndices.add(index);
+        if (bindings.some(binding => binding && movedIds.has(binding.elementId)) || element.autoRoute) addPaintIndex(index);
       });
     }
+    const paintIndices = orderedSceneIndices(queriedIndices, addedPaintIndices);
     // Paint vectors directly at 100% and above. Repeated bitmap tile copies
     // soften one-pixel strokes and text even when their nominal scale matches.
     const tileDrawing = state.zoom < 1 && !hasUnindexedAutoRoutes && includeSelection && !transparent && !viewOverride && !drag && sourceItems === ports.elements() && ports.tileCacheAllowed()
@@ -181,7 +236,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         const drawn = isConnector(element) ? ports.connectorForView(element as ShapeElement, items) : element;
         ports.drawElement(tileContext, drawn, tileViewport, items);
       });
-    for (const index of [...paintIndices].sort((a, b) => a - b)) {
+    for (const index of paintIndices) {
       const element = sourceItems[index];
       if (!element) continue;
       if (ports.isHidden(element)) continue;
@@ -195,11 +250,12 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       const drawViewport = moved ? { ...viewport, x: viewport.x - drag!.dx, y: viewport.y - drag!.dy } : viewport;
       if (!tileDrawing) ports.drawElement(ctx, drawnElement, drawViewport, sourceItems);
       const isSelected = selected.has(index);
+      const rotation = element.rotation ?? 0;
+      const frame = rotation ? elementBounds({ ...element, rotation: 0 } as Element) : elementBounds(element);
+      if (includeSelection && isSelected) drawSelectionOutline(ctx, frame, state.zoom, rotation);
       if (includeSelection && (isSelected || ports.hoveredIndex() === index) && isConnector(element)) {
         if (isSelected && selected.size === 1 && !ports.isLocked(element) && !ports.boardLocked()) for (const handle of ports.connectorHandles(element as ShapeElement)) { const routeHandle = handle.id.startsWith("route") || handle.id.startsWith("auto-route:") || handle.id.startsWith("waypoint:") || handle.id.includes(":route:"); ctx.beginPath(); ctx.fillStyle = routeHandle ? "#dbeafe" : "#ffffff"; ctx.arc(handle.x, handle.y, (routeHandle ? 4 : 6) / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
       } else if (includeSelection && (isSelected || ports.hoveredIndex() === index)) {
-        const bounds = elementBounds(element);
-        const rotation = element.rotation ?? 0; const frame = rotation ? elementBounds({ ...element, rotation: 0 } as Element) : bounds;
         if (isSelected && !ports.isLocked(element) && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent || !!element.container) && element.type !== "freehand") {
           drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent || !!element.container, rotation, element.type !== "schemaTable");
           if (element.type === "group" && element.libraryComponent?.kind === "diagram-swimlane") for (const handle of swimlaneDividerHandles(element)) {
@@ -214,23 +270,30 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       ctx.restore();
     }
     // Intersections are quadratic in the number of connectors. Defer bridges
-    // while dragging or drawing; the final stationary pass restores them.
-    if (!drag && !connectorResize && !connectorDrawing && !connectorLabelMoving) {
-      const visible: Element[] = [];
-      const collectVisible = (items: Element[]) => items.forEach(item => {
-        if (ports.isHidden(item)) return;
-        visible.push(item);
-        if (item.type === "group" && !item.container?.collapsed) collectVisible(item.elements);
-      });
+    // while moving, resizing, drawing, or moving a connector label; the final
+    // stationary pass restores them.
+    if (!drag && !currentResize && !connectorDrawing && !connectorLabelMoving) {
+      const crossingCandidates: Element[] = [];
+      let crossingConnectorCount = 0;
+      let crossingsDisabled = false;
+      const collectVisible = (items: Element[]) => {
+        for (const item of items) {
+          if (ports.isHidden(item)) continue;
+          if (isConnector(item) && item.autoRoute && !ports.connectorMayIntersect(item, viewport, sourceItems)) continue;
+          const drawn = isConnector(item) && item.autoRoute ? ports.connectorForView(item, sourceItems) : item;
+          if (ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, elementBounds(drawn))) {
+            if (isConnector(drawn) && ++crossingConnectorCount > 160) { crossingsDisabled = true; return; }
+            crossingCandidates.push(drawn);
+          }
+          if (item.type === "group" && !item.container?.collapsed) collectVisible(item.elements);
+          if (crossingsDisabled) return;
+        }
+      };
       collectVisible(sourceItems);
-      const crossingCandidates = visible.filter(item => {
-        const drawn = isConnector(item) ? ports.connectorForView(item, sourceItems) : item;
-        const bounds = elementBounds(drawn);
-        return ports.intersectsBounds(viewport.x, viewport.y, viewport.x + viewport.w, viewport.y + viewport.h, bounds);
-      });
-      drawConnectorBridges(ctx, crossingCandidates, ports.renderedBoardColor(), item => ports.connectorForView(item, sourceItems));
+      if (!crossingsDisabled) drawConnectorBridges(ctx, crossingCandidates, ports.renderedBoardColor());
     }
-    if (drag?.guides && (drag.guides.x || drag.guides.y)) {
+    const activeSnapGuides = drag?.guides ?? (includeSelection && sourceItems === ports.elements() ? currentResize?.guides : undefined);
+    if (activeSnapGuides && (activeSnapGuides.x || activeSnapGuides.y)) {
       const alignedSegment = (movingStart: number, movingLength: number, referenceStart: number, referenceLength: number) => {
         const movingEnd = movingStart + movingLength; const referenceEnd = referenceStart + referenceLength;
         const overlapStart = Math.max(movingStart, referenceStart); const overlapEnd = Math.min(movingEnd, referenceEnd);
@@ -249,17 +312,24 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
           : alignedSegment(guide.moving.x, guide.moving.w, guide.reference.x, guide.reference.w);
         const a = Math.min(start, end); const b = Math.max(start, end); const half = 6 / state.zoom;
         ctx.beginPath();
-        if (axis === "x") { ctx.moveTo(guide.coordinate, a); ctx.lineTo(guide.coordinate, b > a ? b : a + half * 2); }
-        else { ctx.moveTo(a, guide.coordinate); ctx.lineTo(b > a ? b : a + half * 2, guide.coordinate); }
+        if (axis === "x") { ctx.moveTo(guide.coordinate, viewport.y); ctx.lineTo(guide.coordinate, viewport.y + viewport.h); }
+        else { ctx.moveTo(viewport.x, guide.coordinate); ctx.lineTo(viewport.x + viewport.w, guide.coordinate); }
         ctx.stroke(); ctx.setLineDash([]);
         for (const point of [a, b > a ? b : a + half * 2]) {
           ctx.beginPath(); ctx.arc(axis === "x" ? guide.coordinate : point, axis === "x" ? point : guide.coordinate, 2.2 / state.zoom, 0, Math.PI * 2); ctx.fill();
         }
         ctx.setLineDash([5 / state.zoom, 3 / state.zoom]);
       };
-      if (drag.guides.x) drawGuide("x", drag.guides.x);
-      if (drag.guides.y) drawGuide("y", drag.guides.y);
+      if (activeSnapGuides.x) drawGuide("x", activeSnapGuides.x);
+      if (activeSnapGuides.y) drawGuide("y", activeSnapGuides.y);
       ctx.restore();
+    }
+    const endpointGuide = includeSelection && sourceItems === ports.elements() && currentResize && isConnector(currentResize.original) ? currentResize.endpointGuide : undefined;
+    if (endpointGuide) {
+      ctx.save(); ctx.strokeStyle = "#e24978"; ctx.fillStyle = "#e24978"; ctx.globalAlpha = .9; ctx.lineWidth = 1.25 / state.zoom; ctx.setLineDash([6 / state.zoom, 4 / state.zoom]); ctx.beginPath();
+      if (endpointGuide.axis === "y") { ctx.moveTo(viewport.x, endpointGuide.coordinate); ctx.lineTo(viewport.x + viewport.w, endpointGuide.coordinate); }
+      else { ctx.moveTo(endpointGuide.coordinate, viewport.y); ctx.lineTo(endpointGuide.coordinate, viewport.y + viewport.h); }
+      ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(endpointGuide.point.x, endpointGuide.point.y, 3.5 / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     }
     const tokenId = ports.simulationTokenId?.();
     const token = tokenId ? sourceItems.find(item => item.id === tokenId && !ports.isHidden(item)) : undefined;
@@ -305,6 +375,13 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     const activePreview = ports.preview();
     if (includeSelection && activePreview && (includeStrokePreview || activePreview.type !== "pen" || ports.tool() === "laser")) {
       const { start, end, type, color: stroke, thickness: widthPx, opacity } = activePreview;
+      if ((type === "line" || type === "arrow") && activePreview.alignmentGuide) {
+        const guide = activePreview.alignmentGuide;
+        ctx.save(); ctx.strokeStyle = "#e24978"; ctx.fillStyle = "#e24978"; ctx.globalAlpha = .9; ctx.lineWidth = 1.25 / state.zoom; ctx.setLineDash([6 / state.zoom, 4 / state.zoom]); ctx.beginPath();
+        if (guide.axis === "y") { ctx.moveTo(viewport.x, guide.coordinate); ctx.lineTo(viewport.x + viewport.w, guide.coordinate); }
+        else { ctx.moveTo(guide.coordinate, viewport.y); ctx.lineTo(guide.coordinate, viewport.y + viewport.h); }
+        ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(end.x, end.y, 3.5 / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      }
       if (type === "pen") { if (ports.tool() === "laser") drawLaserStroke(ctx, ports.currentPoints(), 1, ports.laserThickness() / state.zoom); else ports.drawFreehandPreview(ctx, { type: "freehand", points: ports.currentPoints(), color: stroke, thickness: widthPx, opacity }); }
       else ports.drawElement(ctx, { type, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color: stroke, thickness: widthPx, lineStyle: ports.lineStyle(), flowchartShape: activePreview.flowchartShape, lineRoute: activePreview.lineRoute, arrowRoute: activePreview.arrowRoute, edgeStyle: ports.edgeStyle(), cornerRadius: ports.cornerRadius(), ...(ports.fillEnabled() && (type === "rectangle" || type === "circle" || type === "diamond" || type === "triangle" || type === "flowchart") ? { fillColor: ports.fillColor(), fillOpacity: ports.fillOpacity() } : {}), ...(type === "line" ? { startHead: ports.defaultLineStartHead(), endHead: ports.defaultLineEndHead() } : {}), ...(type === "arrow" ? { startHead: ports.defaultStartHead(), endHead: ports.defaultEndHead(), ...(activePreview.arrowRoute === "forked" ? { forkUpper: { endHead: ports.defaultForkUpperHead() }, forkLower: { endHead: ports.defaultForkLowerHead() } } : {}) } : {}) });
     }

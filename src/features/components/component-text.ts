@@ -13,28 +13,31 @@ export function componentFont(size: number, weight: number, family?: FontFamily,
   return `${italic ? "italic " : ""}${weight} ${size}px ${componentFontFamily(family)}`;
 }
 
-/** Offset from a centered text position to an alphabetic SVG/canvas baseline. */
-export function componentBaselineOffset(text: string, size: number, weight: number, family?: FontFamily, italic = false): number {
+/** Offset from a centered line position to a stable alphabetic SVG/canvas baseline. */
+export function componentBaselineOffset(size: number, weight: number, family?: FontFamily, italic = false): number {
   const font = componentFont(size, weight, family, italic);
-  const key = `${font}\u0000${text || "Mg"}`;
-  const cached = baselineCache.get(key);
+  const cached = baselineCache.get(font);
   if (cached !== undefined) return cached;
   if (typeof document !== "undefined") {
     if (metricContext === undefined) metricContext = document.createElement("canvas").getContext("2d");
     const context = metricContext;
     if (context) {
       context.font = font;
-      const metrics = context.measureText(text || "Mg");
-      const ascent = metrics.actualBoundingBoxAscent; const descent = metrics.actualBoundingBoxDescent;
+      const metrics = context.measureText("Mg");
+      const ascent = Number.isFinite(metrics.fontBoundingBoxAscent) ? metrics.fontBoundingBoxAscent : metrics.actualBoundingBoxAscent;
+      const descent = Number.isFinite(metrics.fontBoundingBoxDescent) ? metrics.fontBoundingBoxDescent : metrics.actualBoundingBoxDescent;
       if (Number.isFinite(ascent) && Number.isFinite(descent) && ascent + descent > 0) {
         const offset = (ascent - descent) / 2;
         if (baselineCache.size > 1024) baselineCache.clear();
-        baselineCache.set(key, offset);
+        baselineCache.set(font, offset);
         return offset;
       }
     }
   }
-  return size * 0.34;
+  const fallback = size * 0.35;
+  if (baselineCache.size > 1024) baselineCache.clear();
+  baselineCache.set(font, fallback);
+  return fallback;
 }
 
 /** Makes SVG component text match canvas measurement, removes middle-baseline dependence, and normalizes floats. */
@@ -52,7 +55,7 @@ export function normalizeComponentSvgText(svg: string, family?: FontFamily): str
     };
     replace("font-size", String(size));
     replace("font-family", defaultFamily);
-    const baseline = (text: string) => componentBaselineOffset(text.replace(/<[^>]+>/g, ""), size, weight, family, italic);
+    const baseline = () => componentBaselineOffset(size, weight, family, italic);
     const middleBaseline = /\bdominant-baseline="middle"/.test(attributes);
     attributes = attributes.replace(/\s*dominant-baseline="[^"]*"/g, "");
     let adjustedContent = content;
@@ -61,12 +64,12 @@ export function normalizeComponentSvgText(svg: string, family?: FontFamily): str
       if (spansHaveY) adjustedContent = content.replace(/<tspan\b([^>]*)>([\s\S]*?)<\/tspan>/g, (_span, spanAttributes: string, text: string) => {
         const yMatch = /\by="(-?[\d.]+)"/.exec(spanAttributes);
         if (!yMatch) return `<tspan${spanAttributes}>${text}</tspan>`;
-        const nextY = Number(yMatch[1]) + baseline(text);
+        const nextY = Number(yMatch[1]) + baseline();
         return `<tspan${spanAttributes.replace(/\by="[^"]*"/, `y="${nextY}"`)}>${text}</tspan>`;
       });
       else {
         const yMatch = /\by="(-?[\d.]+)"/.exec(attributes);
-        if (yMatch) attributes = attributes.replace(/\by="[^"]*"/, `y="${Number(yMatch[1]) + baseline(content)}"`);
+        if (yMatch) attributes = attributes.replace(/\by="[^"]*"/, `y="${Number(yMatch[1]) + baseline()}"`);
       }
     }
     return `<text${attributes}>${adjustedContent}</text>`;

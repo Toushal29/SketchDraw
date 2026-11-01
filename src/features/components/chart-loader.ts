@@ -7,8 +7,8 @@ let loading: Promise<void> | undefined;
 const readyCallbacks = new Set<() => void>();
 
 // echarts is large, so it loads on first use. Until then charts draw nothing and `onReady` requests a repaint.
-export function drawLibraryChartLazy(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, onReady: () => void) {
-  if (engine) { engine.drawLibraryChart(ctx, group, theme); return; }
+export function drawLibraryChartLazy(ctx: CanvasRenderingContext2D, group: GroupElement, theme: Theme, onReady: () => void, resizePreview = false) {
+  if (engine) { engine.drawLibraryChart(ctx, group, theme, resizePreview); return; }
   readyCallbacks.add(onReady);
   loading ??= import("./chart-engine").then(module => {
     engine = module;

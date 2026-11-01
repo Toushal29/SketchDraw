@@ -444,7 +444,7 @@ export function drawGuiComponent(ctx: CanvasRenderingContext2D, group: GroupElem
     else {
       const size = Math.max(9, item.size); const family = item.family as FontFamily | undefined; const weight = item.weight ?? 500;
       ctx.fillStyle = item.fill; ctx.font = componentFont(size, weight, family, item.italic); ctx.textAlign = item.anchor === "middle" ? "center" : item.anchor === "end" ? "right" : "left"; ctx.textBaseline = "alphabetic";
-      ctx.fillText(item.value, item.x, item.y + componentBaselineOffset(item.value, size, weight, family, item.italic), item.width);
+      ctx.fillText(item.value, item.x, item.y + componentBaselineOffset(size, weight, family, item.italic), item.width);
       if (item.underline) { const measured = Math.min(item.width, ctx.measureText(item.value).width); const start = item.anchor === "middle" ? item.x - measured / 2 : item.anchor === "end" ? item.x - measured : item.x; ctx.fillRect(start, item.y + size * .36, measured, Math.max(1, size / 14)); }
     }
   }

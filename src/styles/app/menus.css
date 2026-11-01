@@ -519,27 +519,6 @@
     opacity: .55;
 }
 
-.palette-spawn-all small {
-    color: var(--theme-text-secondary);
-    font: var(--font-weight-regular) var(--type-micro)/var(--leading-compact) var(--font-ui);
-}
-
-.palette-spawn-footer {
-    position: sticky;
-    z-index: 2;
-    bottom: -10px;
-    grid-column: 1 / -1;
-    margin: 5px -10px -10px;
-    padding: 8px 10px 10px;
-    border-top: 1px solid var(--theme-border);
-    background: var(--theme-surface-elevated);
-}
-
-.palette-spawn-footer .palette-spawn-all {
-    width: 100%;
-}
-
-
 .tool-options {
     max-height: min(450px, calc(100vh - 180px));
     overflow-y: auto;

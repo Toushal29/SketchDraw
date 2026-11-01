@@ -13,7 +13,8 @@ import { drawShapeLabel } from "../src/features/canvas/rendering";
 import { elementBounds, lockAspectResizeBounds } from "../src/features/canvas/bounds";
 import { parseEditablePath, updateEditablePath } from "../src/features/canvas/path-editing";
 import { recognizeStroke } from "../src/features/canvas/stroke-recognition";
-import { autoRouteConnectorSet, autoRoutePoints } from "../src/features/diagrams/connector-routing";
+import { autoRouteConnectorSet, autoRouteMayIntersect, autoRoutePoints, createAutoRouteContext } from "../src/features/diagrams/connector-routing";
+import { connectorCrossings } from "../src/features/connectors/crossings";
 import { autoLayoutElements } from "../src/features/diagrams/auto-layout";
 import { relationshipDirectionHeads, relationshipDisplayElement } from "../src/features/diagrams/relationships";
 import { LIBRARY_COMPONENTS, buildLibraryComponent, buildNoteGroup, drawNoteCard, noteCollapseHit } from "../src/notes";
@@ -458,6 +459,26 @@ spec:
     check(Math.abs(snapped.x / 50 - Math.round(snapped.x / 50)) < 1e-8 && Math.abs(snapped.y / 50 - Math.round(snapped.y / 50)) < 1e-8, `Grid snapping uses the 50-unit document lattice at zoom ${zoom} and pixel ratio ${ratio}`);
     check(Math.abs(pattern.width - step * zoom) < 1e-8 && Math.abs(pattern.height - step * zoom) < 1e-8, `Paper pattern repeats at the snapped grid pitch at zoom ${zoom} and pixel ratio ${ratio}`);
   }
+  const spatialElements: Element[] = Array.from({ length: 180 }, (_, index): ShapeElement => ({ type: "rectangle", id: `spatial-${index}`, x: (index % 18) * 900 - 7000, y: Math.floor(index / 18) * 900 - 3000, w: 100, h: 80, color: "#333", thickness: 1 }));
+  spatialElements[0] = { type: "rectangle", id: "spatial-large", x: -3000, y: -3000, w: 11_000, h: 10_000, color: "#333", thickness: 1 };
+  spatialElements[1] = { type: "rectangle", id: "spatial-global", x: -600_000, y: -600_000, w: 1_200_000, h: 1_200_000, color: "#333", thickness: 1 };
+  const spatialIndex = new ElementSpatialIndex(spatialElements);
+  const queryMatchesNaive = (bounds: { x: number; y: number; w: number; h: number }) => {
+    const expected = spatialElements.flatMap((item, index) => {
+      const box = elementBounds(item);
+      return box.x <= bounds.x + bounds.w && box.x + box.w >= bounds.x && box.y <= bounds.y + bounds.h && box.y + box.h >= bounds.y ? [index] : [];
+    });
+    const actual = spatialIndex.query(bounds);
+    return actual.length === expected.length && actual.every((index, position) => index === expected[position]);
+  };
+  const smallQueryMatches = queryMatchesNaive({ x: 100, y: 100, w: 250, h: 250 });
+  const broadQueryMatches = queryMatchesNaive({ x: -5000, y: -5000, w: 50_000, h: 50_000 });
+  const movedLarge = { ...spatialElements[0], x: 150_000, y: 150_000 };
+  const changedSpatialElements = spatialElements.slice(); changedSpatialElements[0] = movedLarge;
+  spatialIndex.updateChanged(changedSpatialElements, [0]); spatialElements[0] = movedLarge;
+  const updatedBroadQueryMatches = queryMatchesNaive({ x: -5000, y: -5000, w: 50_000, h: 50_000 });
+  check(smallQueryMatches && broadQueryMatches && updatedBroadQueryMatches,
+    "Spatial-index fine, broad, oversized, and incremental queries match a full-scan reference");
   const renderShape: ShapeElement = { type: "rectangle", x: 32, y: 24, w: 180, h: 90, color: "#202124", thickness: 1.5 };
   const renderElements: Element[] = [renderShape]; const renderIndex = new ElementSpatialIndex(renderElements);
   const tileCanvas = canvas(500, 350); const vectorCanvas = canvas(500, 350);
@@ -615,8 +636,29 @@ spec:
       return !(point.x > box.left && point.x < box.right && Math.max(Math.min(previous.y, point.y), box.top) < Math.min(Math.max(previous.y, point.y), box.bottom));
     });
     const optimized = autoRouteConnectorSet([source, obstacle, target, connector]).find(item => item.id === connector.id);
-    return route.length > 0 && clear && optimized?.type === "arrow" && optimized.autoRoute === true && !!optimized.routePoints?.length;
+    const context = createAutoRouteContext([source, obstacle, target, connector]);
+    const routePoints = autoRoutePoints(connector, context);
+    const conservativeContext = createAutoRouteContext([source, obstacle, target, connector]);
+    const routedPoints = [{ x: connector.x, y: connector.y }, ...routePoints, { x: connector.x + connector.w, y: connector.y + connector.h }];
+    const visibleAlongRoute = routedPoints.slice(1).every((point, index) => {
+      const previous = routedPoints[index];
+      const viewport = { x: Math.min(previous.x, point.x) - 1, y: Math.min(previous.y, point.y) - 1, w: Math.abs(point.x - previous.x) + 2, h: Math.abs(point.y - previous.y) + 2 };
+      return autoRouteMayIntersect(connector, conservativeContext, viewport);
+    });
+    return route.length > 0 && clear && optimized?.type === "arrow" && optimized.autoRoute === true && !!optimized.routePoints?.length && visibleAlongRoute;
   });
+  const overloadedCrossings = Array.from({ length: 161 }, (_, index): ShapeElement => ({ type: "line", id: `crossing-${index}`, x: 0, y: index, w: 100, h: 100 - index, color: "#333", thickness: 1 }));
+  let crossingResolveCount = 0;
+  const crossingLimitAppliedBeforeResolve = connectorCrossings(overloadedCrossings, item => { crossingResolveCount++; return item; }).length === 0 && crossingResolveCount === 0;
+  check(crossingLimitAppliedBeforeResolve, "Connector crossing limits skip route resolution when the visible set exceeds 160 connectors");
+  const crossingPair: ShapeElement[] = [
+    { type: "line", id: "crossing-horizontal", x: 0, y: 50, w: 100, h: 0, color: "#333", thickness: 2, lineRoute: "straight" },
+    { type: "line", id: "crossing-vertical", x: 50, y: 0, w: 0, h: 100, color: "#c33", thickness: 2, lineRoute: "straight" },
+    ...Array.from({ length: 80 }, (_, index): ShapeElement => ({ type: "line", id: `distant-crossing-${index}`, x: 1000 + index * 300, y: 1000, w: 100, h: 0, color: "#333", thickness: 1, lineRoute: "straight" })),
+  ];
+  const nearbyCrossings = connectorCrossings(crossingPair);
+  check(nearbyCrossings.length === 1 && nearbyCrossings[0].point.x === 50 && nearbyCrossings[0].point.y === 50,
+    "Crossing detection preserves nearby bridges while skipping disjoint connector path pairs");
   await importCheck("Automatic layout preserves locked nodes and keeps geometry finite", async () => {
     const first: ShapeElement = { type: "rectangle", id: "layout-a", x: 0, y: 0, w: 92, h: 54, color: "#333", thickness: 1 };
     const second: ShapeElement = { type: "rectangle", id: "layout-b", x: 380, y: 20, w: 92, h: 54, color: "#333", thickness: 1 };

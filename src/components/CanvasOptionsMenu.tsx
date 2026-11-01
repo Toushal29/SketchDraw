@@ -133,7 +133,7 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
             {check("Snap moves to 10 units", props.snapMovesToTen, props.onToggleSnapMovesToTen)}
             {props.canvasTools?.onToggleOrthogonal && check("Orthogonal connectors", props.canvasTools.orthogonalOnly ?? false, props.canvasTools.onToggleOrthogonal, props.boardLocked)}
           </div>
-          <p class="workspace-view-note">10-unit move snapping is on by default. When it is off, Snap to grid can use 25-unit steps. Ctrl or Command bypasses snapping; Shift constrains movement or resizing.</p>
+          <p class="workspace-view-note">Grid snapping follows the visible grid spacing and takes priority over 10-unit move snapping. Nearby object alignments take priority over grid snapping. Without grid snapping, moves use 10-unit steps when enabled. Ctrl or Command bypasses snapping; Shift constrains moves to one axis, releases resize snapping, or constrains connector angles.</p>
         </section>
 
         <div class="workspace-view-fit-row" aria-label="Zoom to content">

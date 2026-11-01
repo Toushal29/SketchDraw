@@ -2,18 +2,21 @@ import type { Bounds, Element } from "../../model";
 import { elementBounds } from "./bounds";
 
 const CELL_SIZE = 512;
+const COARSE_CELL_SIZE = 4096;
 const MAX_CELLS_PER_ELEMENT = 128;
 const MAX_CELLS_PER_QUERY = 4096;
+const MAX_COARSE_CELLS_PER_ELEMENT = 128;
+const MAX_COARSE_CELLS_PER_QUERY = 4096;
 const LINEAR_SCAN_THRESHOLD = 64;
 const MAX_PENDING_CHANGE_BOUNDS = 4096;
 
-type IndexedBounds = { element: Element; index: number; bounds: Bounds; cellKeys: string[]; overflow: boolean };
+type IndexedBounds = { element: Element; index: number; bounds: Bounds; cellKeys: string[]; largeCellKeys: string[]; coarseCellKeys: string[]; overflow: boolean; globalOverflow: boolean };
 
-function cellRange(bounds: Bounds) {
-  const left = Math.floor(bounds.x / CELL_SIZE);
-  const top = Math.floor(bounds.y / CELL_SIZE);
-  const right = Math.floor((bounds.x + bounds.w) / CELL_SIZE);
-  const bottom = Math.floor((bounds.y + bounds.h) / CELL_SIZE);
+function cellRange(bounds: Bounds, cellSize = CELL_SIZE) {
+  const left = Math.floor(bounds.x / cellSize);
+  const top = Math.floor(bounds.y / cellSize);
+  const right = Math.floor((bounds.x + bounds.w) / cellSize);
+  const bottom = Math.floor((bounds.y + bounds.h) / cellSize);
   return { left, top, right, bottom, count: (right - left + 1) * (bottom - top + 1) };
 }
 
@@ -31,7 +34,10 @@ export class ElementSpatialIndex {
   private entries: IndexedBounds[] = [];
   private gridEnabled = false;
   private readonly cells = new Map<string, Set<IndexedBounds>>();
-  private readonly overflow = new Set<IndexedBounds>();
+  private readonly largeObjects = new Map<string, Set<IndexedBounds>>();
+  private readonly globalOverflow = new Set<IndexedBounds>();
+  private coarseCells?: Map<string, Set<IndexedBounds>>;
+  private coarseOverflow?: Set<IndexedBounds>;
   private pendingChangeBounds: Bounds[] = [];
   private pendingChangeOverflow = false;
 
@@ -49,7 +55,7 @@ export class ElementSpatialIndex {
         const previous = this.entries[index];
         if (previous) { this.recordChange(previous.bounds); this.removeFromGrid(previous); }
         const element = elements[index];
-        const entry: IndexedBounds = { element, index, bounds: elementBounds(element), cellKeys: [], overflow: false };
+        const entry: IndexedBounds = { element, index, bounds: elementBounds(element), cellKeys: [], largeCellKeys: [], coarseCellKeys: [], overflow: false, globalOverflow: false };
         this.recordChange(entry.bounds);
         if (this.gridEnabled) this.addToGrid(entry);
         this.entries[index] = entry;
@@ -62,7 +68,7 @@ export class ElementSpatialIndex {
       for (let index = 0; index < this.elements.length; index++) if (elements[index] !== this.elements[index]) { appendOnly = false; break; }
       if (appendOnly) {
         const element = elements[elements.length - 1];
-        const entry: IndexedBounds = { element, index: elements.length - 1, bounds: elementBounds(element), cellKeys: [], overflow: false };
+        const entry: IndexedBounds = { element, index: elements.length - 1, bounds: elementBounds(element), cellKeys: [], largeCellKeys: [], coarseCellKeys: [], overflow: false, globalOverflow: false };
         this.recordChange(entry.bounds);
         if (this.gridEnabled) this.addToGrid(entry);
         this.entries.push(entry);
@@ -86,7 +92,7 @@ export class ElementSpatialIndex {
         const previous = this.entries[index];
         if (previous) { this.recordChange(previous.bounds); this.removeFromGrid(previous); }
         const element = elements[index];
-        const entry: IndexedBounds = { element, index, bounds: elementBounds(element), cellKeys: [], overflow: false };
+        const entry: IndexedBounds = { element, index, bounds: elementBounds(element), cellKeys: [], largeCellKeys: [], coarseCellKeys: [], overflow: false, globalOverflow: false };
         this.recordChange(entry.bounds);
         if (this.gridEnabled) this.addToGrid(entry);
         this.entries[index] = entry;
@@ -116,7 +122,7 @@ export class ElementSpatialIndex {
         retained.add(reused);
         nextEntries[index] = reused;
       } else {
-        const entry: IndexedBounds = { element, index, bounds: elementBounds(element), cellKeys: [], overflow: false };
+        const entry: IndexedBounds = { element, index, bounds: elementBounds(element), cellKeys: [], largeCellKeys: [], coarseCellKeys: [], overflow: false, globalOverflow: false };
         this.recordChange(entry.bounds);
         if (nextGridEnabled && this.gridEnabled) this.addToGrid(entry);
         nextEntries[index] = entry;
@@ -142,12 +148,25 @@ export class ElementSpatialIndex {
     if (this.entries.length <= LINEAR_SCAN_THRESHOLD) return this.filterAll(bounds);
     if (!validBounds(bounds)) return this.entries.map(entry => entry.index);
     const range = cellRange(bounds);
-    if (!Number.isFinite(range.count) || range.count > MAX_CELLS_PER_QUERY) return this.filterAll(bounds);
-    const found = new Set<IndexedBounds>(this.overflow);
-    for (let x = range.left; x <= range.right; x++) {
-      for (let y = range.top; y <= range.bottom; y++) {
-        for (const entry of this.cells.get(`${x},${y}`) ?? []) found.add(entry);
+    if (!Number.isFinite(range.count) || range.count > MAX_CELLS_PER_QUERY) {
+      const coarseRange = cellRange(bounds, COARSE_CELL_SIZE);
+      if (!Number.isFinite(coarseRange.count) || coarseRange.count > MAX_COARSE_CELLS_PER_QUERY) return this.filterAll(bounds);
+      this.ensureCoarseIndex();
+      const found = new Set<IndexedBounds>(this.coarseOverflow);
+      for (let x = coarseRange.left; x <= coarseRange.right; x++) {
+        for (let y = coarseRange.top; y <= coarseRange.bottom; y++) {
+          for (const entry of this.coarseCells!.get(`${x},${y}`) ?? []) found.add(entry);
+        }
       }
+      return [...found].filter(entry => intersects(entry.bounds, bounds)).map(entry => entry.index).sort((a, b) => a - b);
+    }
+    const found = new Set<IndexedBounds>(this.globalOverflow);
+    for (let x = range.left; x <= range.right; x++) {
+      for (let y = range.top; y <= range.bottom; y++) for (const entry of this.cells.get(`${x},${y}`) ?? []) found.add(entry);
+    }
+    const largeRange = cellRange(bounds, COARSE_CELL_SIZE);
+    for (let x = largeRange.left; x <= largeRange.right; x++) {
+      for (let y = largeRange.top; y <= largeRange.bottom; y++) for (const entry of this.largeObjects.get(`${x},${y}`) ?? []) found.add(entry);
     }
     return [...found].filter(entry => intersects(entry.bounds, bounds)).map(entry => entry.index).sort((a, b) => a - b);
   }
@@ -169,9 +188,22 @@ export class ElementSpatialIndex {
   }
 
   private addToGrid(entry: IndexedBounds) {
-    if (!validBounds(entry.bounds)) { entry.overflow = true; this.overflow.add(entry); return; }
+    if (this.coarseCells) this.addToCoarseIndex(entry);
+    if (!validBounds(entry.bounds)) { entry.overflow = true; entry.globalOverflow = true; this.globalOverflow.add(entry); return; }
     const range = cellRange(entry.bounds);
-    if (!Number.isFinite(range.count) || range.count > MAX_CELLS_PER_ELEMENT) { entry.overflow = true; this.overflow.add(entry); return; }
+    if (!Number.isFinite(range.count) || range.count > MAX_CELLS_PER_ELEMENT) {
+      entry.overflow = true;
+      const largeRange = cellRange(entry.bounds, COARSE_CELL_SIZE);
+      if (!Number.isFinite(largeRange.count) || largeRange.count > MAX_COARSE_CELLS_PER_ELEMENT) { entry.globalOverflow = true; this.globalOverflow.add(entry); return; }
+      for (let x = largeRange.left; x <= largeRange.right; x++) {
+        for (let y = largeRange.top; y <= largeRange.bottom; y++) {
+          const key = `${x},${y}`; let bucket = this.largeObjects.get(key);
+          if (!bucket) { bucket = new Set(); this.largeObjects.set(key, bucket); }
+          bucket.add(entry); entry.largeCellKeys.push(key);
+        }
+      }
+      return;
+    }
     for (let x = range.left; x <= range.right; x++) {
       for (let y = range.top; y <= range.bottom; y++) {
         const key = `${x},${y}`;
@@ -194,14 +226,52 @@ export class ElementSpatialIndex {
   }
 
   private removeFromGrid(entry: IndexedBounds) {
-    if (entry.overflow) this.overflow.delete(entry);
+    if (entry.globalOverflow) this.globalOverflow.delete(entry);
     for (const key of entry.cellKeys) {
       const bucket = this.cells.get(key);
       bucket?.delete(entry);
       if (bucket?.size === 0) this.cells.delete(key);
     }
+    for (const key of entry.largeCellKeys) {
+      const bucket = this.largeObjects.get(key);
+      bucket?.delete(entry);
+      if (bucket?.size === 0) this.largeObjects.delete(key);
+    }
+    if (this.coarseCells) {
+      if (this.coarseOverflow?.delete(entry)) { /* removed from broad-query overflow */ }
+      for (const key of entry.coarseCellKeys) {
+        const bucket = this.coarseCells.get(key);
+        bucket?.delete(entry);
+        if (bucket?.size === 0) this.coarseCells.delete(key);
+      }
+    }
     entry.cellKeys = [];
+    entry.largeCellKeys = [];
+    entry.coarseCellKeys = [];
     entry.overflow = false;
+    entry.globalOverflow = false;
+  }
+
+  private ensureCoarseIndex() {
+    if (this.coarseCells) return;
+    this.coarseCells = new Map();
+    this.coarseOverflow = new Set();
+    for (const entry of this.entries) this.addToCoarseIndex(entry);
+  }
+
+  private addToCoarseIndex(entry: IndexedBounds) {
+    const coarseRange = cellRange(entry.bounds, COARSE_CELL_SIZE);
+    if (!validBounds(entry.bounds) || !Number.isFinite(coarseRange.count) || coarseRange.count > MAX_COARSE_CELLS_PER_ELEMENT) {
+      this.coarseOverflow?.add(entry);
+      return;
+    }
+    for (let x = coarseRange.left; x <= coarseRange.right; x++) {
+      for (let y = coarseRange.top; y <= coarseRange.bottom; y++) {
+        const key = `${x},${y}`; let bucket = this.coarseCells!.get(key);
+        if (!bucket) { bucket = new Set(); this.coarseCells!.set(key, bucket); }
+        bucket.add(entry); entry.coarseCellKeys.push(key);
+      }
+    }
   }
 }
 
