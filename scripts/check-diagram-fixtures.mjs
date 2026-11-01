@@ -80,6 +80,7 @@ for (const [expectedType, source] of extendedMermaidCases) {
   const countNodes = elements => elements.filter(item => item.type !== "group" && item.id?.startsWith("mermaid-node:")).length;
   assert.equal(countNodes(roundTrip.elements), countNodes(parsed.elements), `${expectedType} Mermaid nodes survive an editable round trip`);
 }
+assert.throws(() => mermaidExtended.layoutExtendedMermaid("quadrantChart\n  unsupported directive", { x: 0, y: 0 }), /line 2/, "Unsupported Mermaid directives identify their source line");
 const mindmapDiagram = mermaidExtended.layoutExtendedMermaid(extendedMermaidCases[0][1], { x: 0, y: 0 }).elements;
 assert.equal(mindmapDiagram.filter(item => item.type === "line" && item.id?.startsWith("mermaid-link:")).length, 4, "Mind map hierarchy becomes attached native relationships");
 const requirementDiagram = mermaidExtended.layoutExtendedMermaid(extendedMermaidCases[3][1], { x: 0, y: 0 }).elements;
@@ -92,6 +93,12 @@ assert.equal(kanbanDiagram.filter(item => item.type !== "group" && item.id?.star
 const sankeyDiagram = mermaidExtended.layoutExtendedMermaid(extendedMermaidCases[6][1], { x: 0, y: 0 }).elements;
 assert.equal(sankeyDiagram.filter(item => (item.type === "line" || item.type === "arrow") && item.startBinding && item.endBinding).length, 4, "Sankey weights become editable attached relationships");
 assert.ok(sankeyDiagram.some(item => (item.type === "line" || item.type === "arrow") && item.label?.text === "4"), "Sankey flow values remain visible");
+const blockSource = "block-beta\n  title Service layout\n  columns 3\n  client[Client] api:2\n  database queue worker";
+const blockDiagram = mermaidExtended.layoutExtendedMermaid(blockSource, { x: 0, y: 0 }).elements;
+assert.equal(blockDiagram.filter(item => item.type === "rectangle" && item.id?.startsWith("mermaid-node:")).length, 5, "Block diagrams produce editable grid cells");
+assert.ok(blockDiagram.some(item => item.type === "rectangle" && item.w > 230), "Block column spans affect shape geometry");
+const blockExport = mermaidExtended.exportExtendedMermaid("block", blockDiagram, blockSource);
+assert.equal(mermaidExtended.layoutExtendedMermaid(blockExport, { x: 0, y: 0 }).elements.filter(item => item.type === "rectangle" && item.id?.startsWith("mermaid-node:")).length, 5, "Block cells survive source export and reimport");
 
 const dotElements = dot.dotToDiagram(fixture("styles.dot"));
 assert.equal(dotElements.filter(item => item.type === "arrow").length, 1);
@@ -589,4 +596,4 @@ assert.match(metricsModule.metricsSummaryText(metricSummary), /Total: \$510\.5 Â
 assert.equal(metricsModule.summarizeMetrics([{ type: "rectangle", id: "n", x: 0, y: 0, w: 1, h: 1, color: "#000000", thickness: 1 }]).page.counted, 0);
 assert.deepEqual(metricsModule.normalizeMetrics({ cost: 5, capacity: "x", unit: " GB " }), { cost: 5, unit: "GB" }); assert.equal(metricsModule.normalizeMetrics({ cost: Infinity }), undefined); assert.equal(metricsModule.normalizeMetrics(null), undefined);
 
-process.stdout.write("Diagram fixtures passed: Mermaid flowchart, sequence, class, ER, state, journey, Gantt, C4, mind map, timeline, Git graph, requirement, quadrant, Kanban, and Sankey; DOT styles, D2 groups and edge directions, CSV graph and chart mapping, 517 categorized modeling components, BPMN XML import/export and XML safety, OpenAPI callbacks and references, GraphQL, DBML, Protocol Buffers, Avro, Prisma, AsyncAPI 2/3, Structurizr DSL C4 model round-trip, dbt manifest lineage, path bounds, PlantUML subset errors, lasso selection, accessibility checks, and style library bindings.\n");
+process.stdout.write("Diagram fixtures passed: Mermaid flowchart, sequence, class, ER, state, journey, Gantt, C4, mind map, timeline, Git graph, requirement, quadrant, Kanban, Sankey, and block; DOT styles, D2 groups and edge directions, CSV graph and chart mapping, 517 categorized modeling components, BPMN XML import/export and XML safety, OpenAPI callbacks and references, GraphQL, DBML, Protocol Buffers, Avro, Prisma, AsyncAPI 2/3, Structurizr DSL C4 model round-trip, dbt manifest lineage, path bounds, PlantUML subset errors, lasso selection, accessibility checks, and style library bindings.\n");
