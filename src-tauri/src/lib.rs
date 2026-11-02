@@ -1,9 +1,9 @@
 use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use tauri::Manager;
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
 use tauri::Emitter;
+use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
 mod android_documents;
@@ -17,10 +17,15 @@ const CURRENT_SKETCH_FORMAT_VERSION: u64 = 2;
 fn validate_document(contents: &str, extension: &str) -> Result<(), String> {
     let document: serde_json::Value = serde_json::from_str(contents).map_err(|e| e.to_string())?;
     let valid = match extension {
-        "sketch" => document.get("format").and_then(serde_json::Value::as_str) == Some("SketchDraw")
-            && document.get("version").and_then(serde_json::Value::as_u64) == Some(CURRENT_SKETCH_FORMAT_VERSION),
-        "sdplan" => document.get("format").and_then(serde_json::Value::as_str) == Some("SketchDrawPlanning")
-            && document.get("version").and_then(serde_json::Value::as_u64) == Some(1),
+        "sketch" => {
+            document.get("format").and_then(serde_json::Value::as_str) == Some("SketchDraw")
+                && document.get("version").and_then(serde_json::Value::as_u64)
+                    == Some(CURRENT_SKETCH_FORMAT_VERSION)
+        }
+        "sdplan" => {
+            document.get("format").and_then(serde_json::Value::as_str) == Some("SketchDrawPlanning")
+                && document.get("version").and_then(serde_json::Value::as_u64) == Some(1)
+        }
         _ => false,
     };
     if !valid {
@@ -37,9 +42,11 @@ async fn atomic_save_document(
     contents: String,
     expected: Option<String>,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || save_document_atomic(app, path, contents, expected))
-        .await
-        .map_err(|error| format!("Save worker failed: {error}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        save_document_atomic(app, path, contents, expected)
+    })
+    .await
+    .map_err(|error| format!("Save worker failed: {error}"))?
 }
 
 #[tauri::command]
@@ -69,12 +76,17 @@ fn save_document_atomic(
     expected: Option<String>,
 ) -> Result<(), String> {
     let target = std::path::PathBuf::from(&path);
-    let extension = target.extension().and_then(|ext| ext.to_str()).map(str::to_ascii_lowercase);
+    let extension = target
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(str::to_ascii_lowercase);
     if !target.is_absolute()
         || !matches!(extension.as_deref(), Some("sketch" | "sdplan"))
         || !app.fs_scope().is_allowed(&target)
     {
-        return Err("The selected document path is not authorized. Use Save As to select it.".into());
+        return Err(
+            "The selected document path is not authorized. Use Save As to select it.".into(),
+        );
     }
     validate_document(&contents, extension.as_deref().unwrap_or_default())?;
     let parent = target
@@ -171,19 +183,33 @@ fn authorize_sketch_file(app: tauri::AppHandle, path: String) -> Result<String, 
 #[tauri::command]
 fn authorize_planning_file(app: tauri::AppHandle, path: String) -> Result<String, String> {
     if path.to_lowercase().starts_with("content://") {
-        app.fs_scope().allow_file(std::path::PathBuf::from(&path))
-            .map_err(|error| format!("Could not grant access to the selected Planning file: {error}"))?;
+        app.fs_scope()
+            .allow_file(std::path::PathBuf::from(&path))
+            .map_err(|error| {
+                format!("Could not grant access to the selected Planning file: {error}")
+            })?;
         return Ok(path);
     }
     let candidate = std::path::PathBuf::from(path);
-    if !candidate.extension().and_then(|extension| extension.to_str()).is_some_and(|extension| extension.eq_ignore_ascii_case("sdplan")) {
+    if !candidate
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("sdplan"))
+    {
         return Err("Only .sdplan files can be opened as Planning documents.".into());
     }
-    let canonical = candidate.canonicalize().map_err(|error| format!("Could not access the selected Planning file: {error}"))?;
-    if !canonical.is_file() { return Err("The selected Planning document is not a file.".into()); }
-    app.fs_scope().allow_file(&canonical)
-        .map_err(|error| format!("Could not grant access to the selected Planning file: {error}"))?;
-    canonical.into_os_string().into_string()
+    let canonical = candidate
+        .canonicalize()
+        .map_err(|error| format!("Could not access the selected Planning file: {error}"))?;
+    if !canonical.is_file() {
+        return Err("The selected Planning document is not a file.".into());
+    }
+    app.fs_scope().allow_file(&canonical).map_err(|error| {
+        format!("Could not grant access to the selected Planning file: {error}")
+    })?;
+    canonical
+        .into_os_string()
+        .into_string()
         .map_err(|_| "The selected Planning path is not valid Unicode.".into())
 }
 
@@ -373,9 +399,11 @@ pub fn run() {
         .setup(|_app| {
             #[cfg(windows)]
             {
-                _app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                _app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
                 _app.handle().plugin(tauri_plugin_process::init())?;
-                _app.handle().plugin(tauri_plugin_window_state::Builder::default().build())?;
+                _app.handle()
+                    .plugin(tauri_plugin_window_state::Builder::default().build())?;
             }
             Ok(())
         })
@@ -445,7 +473,8 @@ mod tests {
         assert!(validate_document(
             r#"{"format":"SketchDraw","version":2,"canvas":{"activePageId":"page-1","pages":[]}}"#,
             "sketch"
-        ).is_ok());
+        )
+        .is_ok());
     }
 
     #[test]

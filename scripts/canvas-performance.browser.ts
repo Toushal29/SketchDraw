@@ -25,7 +25,7 @@ import { buildInteractiveViewer } from "../src/features/export/interactive-viewe
 import { createSvgElementSerializer } from "../src/features/export/svg-renderer";
 import { parseSketchFile } from "../src/features/files/parse-sketch";
 import { cloudDiagramFromText, resolveCloudIcon } from "../src/features/diagrams/cloud-diagram";
-import { findLineForElement, generateLiveDiagram, matchLineElements } from "../src/features/diagrams/live-diagram";
+import { findLineForElement, generateLiveDiagram, loadLiveDiagramParser, matchLineElements } from "../src/features/diagrams/live-diagram";
 import { LiveDiagramPanel } from "../src/features/diagrams/LiveDiagramPanel";
 import { SequencePlaybackPanel } from "../src/features/diagrams/SequencePlaybackPanel";
 import { DataLinkPanel } from "../src/features/data/DataLinkPanel";
@@ -909,7 +909,8 @@ async function run() {
     const doneShape = live.elements.find(item => item.liveKey === "Done")!;
     check(findLineForElement(source, doneShape) === 2 && findLineForElement(source, live.elements.find(item => item.liveKey === "Start")!) === 1 && matchLineElements(live.elements, "other", "Check").length === 0, "Selecting a shape finds the first source line that names it");
     let generated = 0;
-    for (const [format, code] of [["plantuml", "@startuml\nclass User {\n  id: UUID\n}\nclass Order\nUser --> Order : places\n@enduml"], ["d2", "a: Alpha\nb: Beta\na -> b: link"], ["cloud", "A [icon: aws-s3]\nA > B"]] as const) { try { if (generateLiveDiagram(format, code, { x: 0, y: 0 }, "s").elements.length) generated++; } catch { /* counted below */ } }
+    const d2Parser = await loadLiveDiagramParser("d2");
+    for (const [format, code] of [["plantuml", "@startuml\nclass User {\n  id: UUID\n}\nclass Order\nUser --> Order : places\n@enduml"], ["d2", "a: Alpha\nb: Beta\na -> b: link"], ["cloud", "A [icon: aws-s3]\nA > B"]] as const) { try { if (generateLiveDiagram(format, code, { x: 0, y: 0 }, "s", format === "d2" ? d2Parser : undefined).elements.length) generated++; } catch { /* counted below */ } }
     check(generated === 3, "The live editor builds PlantUML, D2, and cloud text");
     let emptyRejected = false; try { generateLiveDiagram("cloud", "   ", { x: 0, y: 0 }, "s"); } catch { emptyRejected = true; }
     check(emptyRejected, "Empty live code is rejected with a message instead of an empty diagram");

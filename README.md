@@ -6,7 +6,7 @@ SketchDraw is a desktop-first, offline-first drawing and planning app for Window
 
 PlantUML imports and exports have documented editable subsets for activity, state, use-case, component, deployment, timing, mind map, WBS, Gantt, nwdiag network, JSON/YAML, and common ArchiMate declarations and relationships, alongside the existing class/object and sequence subsets. The editor shows supported syntax and known limits; advanced-family syntax errors include line and column information. Mapped text-label edits update retained source, while free canvas positions and added or deleted objects are not serialized.
 
-**App versions: Windows 16.0.0 | Android 11.0.0 | Document format: v2 | Copyright (c) 2026 Toushal Sampat**
+**App versions: Windows 17.0.0 | Android 12.0.0 | Document format: v2 | Copyright (c) 2026 Toushal Sampat**
 
 > SketchDraw saves remastered version 2 `.sketch` documents for Canvas and version 1 `.sdplan` documents for Planning. It can open legacy `.sketch` versions 9 and 10 and asks before converting them; declining closes the source without saving. Earlier `.sketch` versions are unsupported. The welcome screen switches between Canvas and Planning viewports. With a sketch open, the document tabs switch between Canvas and Design; both views use the same `.sketch` document. Planning opens or creates a separate `.sdplan` file and leaves the sketch open.
 
