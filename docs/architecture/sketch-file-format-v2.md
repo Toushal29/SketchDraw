@@ -14,7 +14,7 @@
 }
 ```
 
-`componentMasters` and `windowsSync` are omitted when they have no data. Pages keep their canvas state, layers, and elements together. Master definitions are deduplicated by ID at the canvas level; component instances stay with their page so their geometry, child IDs, bindings, and per-instance overrides remain intact. Self-contained Library component metadata stays with its group element. The serializer reuses cached JSON for unchanged page elements and component master definitions, then inserts those chunks into the compact document. This avoids re-encoding unchanged content while keeping files standard JSON that users can inspect and move between platforms.
+`componentMasters` and `windowsSync` are omitted when they have no data. Pages keep their canvas state, layers, prototype variables, and elements together. Master definitions are deduplicated by ID at the canvas level; component instances stay with their page so their geometry, child IDs, bindings, and per-instance overrides remain intact. Self-contained Library component metadata stays with its group element. The serializer reuses cached JSON for unchanged page elements and component master definitions, then inserts those chunks into the compact document. This avoids re-encoding unchanged content while keeping files standard JSON that users can inspect and move between platforms.
 
 ## Supported input
 
@@ -27,4 +27,4 @@ Opening an editable v9 or v10 file presents the existing refactor confirmation. 
 
 ## Validation and size limits
 
-Both new and legacy documents pass through the same element, reference, layer, component-master, and resource-limit validation before entering the canvas. A document can contain up to 100 component masters. Saving rejects conflicting definitions that reuse one master ID instead of silently losing one. The limits are enforced during both loading and saving so a file the app writes can be reopened safely. Keep format dispatch and legacy extraction in `src/features/files/parse-sketch.ts`, and keep the v2 envelope and compact page and master encoding in `src/features/files/document-codec.ts`.
+Both new and legacy documents pass through the same element, reference, layer, component-master, and resource-limit validation before entering the canvas. A document can contain up to 100 component masters and 100 prototype variables per page. Saving rejects conflicting definitions that reuse one master ID and invalid object references instead of writing a file the opener would reject. Resource accounting includes connector label text nodes, matching the parser. Keep format dispatch and save validation in `src/features/files/parse-sketch.ts`, and keep the v2 envelope and compact page and master encoding in `src/features/files/document-codec.ts`.

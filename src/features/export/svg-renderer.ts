@@ -11,7 +11,7 @@ import { modelComponentSvg } from "../components/model-component-renderer";
 import { renderLibraryChartSvg } from "../components/chart-engine";
 import { relationshipDisplayElement } from "../diagrams/relationships";
 import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
-import { checklistRows, defaultNoteTitle, isMarkdownTableDivider, markdownCells, noteCardPalette } from "../../notes";
+import { checklistRows, defaultNoteTitle, isMarkdownTableDivider, markdownCells, noteCardPalette, noteInlineRuns, wrapNoteMarkup } from "../../notes";
 import { standaloneMarkdownTableRows } from "../../app/markdown-table";
 
 type SvgRendererPorts = {
@@ -60,14 +60,33 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
     }
     const title = escapeXml(meta.title || defaultNoteTitle(meta.kind)); const collapsed = meta.collapsed === true; const clipId = `note-${(group.id ?? crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, "")}`;
     let body = "";
+    const inlineSvg = (value: string, px: number, py: number, size: number, color: string, baseWeight = 400, forceBold = false, forceStrike = false) => {
+      let cursorX = px;
+      return noteInlineRuns(value).map(run => {
+        const runWidth = Math.max(1, Array.from(run.text).length * size * (run.code ? .6 : .5));
+        const highlight = run.highlight ? `<rect x="${cursorX - 1}" y="${py - 1}" width="${runWidth + 2}" height="${size + 3}" fill="${theme() === "dark" ? "#6b5a24" : "#fff0a8"}"/>` : "";
+        const codeBackground = run.code ? `<rect x="${cursorX - 2}" y="${py - 1}" width="${runWidth + 4}" height="${size + 3}" fill="${palette.soft}"/>` : "";
+        const weight = forceBold || run.bold ? 650 : baseWeight;
+        const family = run.code ? "monospace" : "sans-serif";
+        const decoration = [run.underline ? "underline" : "", run.strike || forceStrike ? "line-through" : ""].filter(Boolean).join(" ");
+        const text = `<text x="${cursorX}" y="${py}" dominant-baseline="hanging" font-family="${family}" font-size="${size}" font-weight="${weight}"${run.italic ? ' font-style="italic"' : ""}${decoration ? ` text-decoration="${decoration}"` : ""} fill="${run.code ? palette.ink : color}" xml:space="preserve">${escapeXml(run.text)}</text>`;
+        cursorX += runWidth + (run.code ? 4 : 0);
+        return `${highlight}${codeBackground}${text}`;
+      }).join("");
+    };
     if (!collapsed) {
       if (meta.kind === "checklist") {
         const rows = checklistRows(meta.content, width, meta.fontSize ?? 12);
-        body += rows.map(row => { const boxX = x + row.boxX, boxY = y + row.top + Math.max(0, (row.height - 14) / 2), textY = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2; return `<rect x="${boxX}" y="${boxY}" width="14" height="14" rx="1" fill="${row.done ? palette.check : palette.surface}" stroke="${row.done ? palette.check : palette.border}"/>${row.done ? `<path d="M ${boxX + 3} ${boxY + 7} l3 3 5 -6" fill="none" stroke="${simple ? palette.ink : "#fff"}" stroke-width="1.6"/>` : ""}${row.labelLines.map((line, index) => `<text x="${x + row.textX}" y="${textY + index * row.lineHeight}" dominant-baseline="hanging" font-family="sans-serif" font-size="${meta.fontSize ?? 12}" fill="${row.done ? palette.muted : palette.ink}">${escapeXml(line)}</text>`).join("")}`; }).join("");
+        body += rows.map(row => {
+          const boxX = x + row.boxX, boxY = y + row.top + Math.max(0, (row.height - 14) / 2), textY = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2;
+          const checkbox = row.kind === "task" ? `<rect x="${boxX}" y="${boxY}" width="14" height="14" rx="1" fill="${row.done ? palette.check : palette.surface}" stroke="${row.done ? palette.check : palette.border}"/>${row.done ? `<path d="M ${boxX + 3} ${boxY + 7} l3 3 5 -6" fill="none" stroke="${simple ? palette.ink : "#fff"}" stroke-width="1.6"/>` : ""}` : "";
+          const size = row.kind === "title" ? (meta.fontSize ?? 12) * 1.12 : meta.fontSize ?? 12;
+          const lines = row.labelLines.map((line, index) => inlineSvg(line, x + row.textX, textY + index * row.lineHeight, size, row.done ? palette.muted : palette.ink, row.kind === "title" ? 650 : 400, row.kind === "title", row.done)).join("");
+          return `${checkbox}${lines}`;
+        }).join("");
       } else {
         let cursor = y + 30, inCode = false, language = "text", codeLines: string[] = [];
-        const addCode = () => { const fontSize = meta.fontSize ?? 12; const max = Math.max(8, Math.floor((width - 42) / (fontSize * .62))); const lines = codeLines.flatMap(line => { const chunks: string[] = []; for (let index = 0; index < Math.max(1, line.length); index += max) chunks.push(line.slice(index, index + max)); return chunks; }); const blockHeight = Math.max(32, lines.length * fontSize * 1.5 + 20); body += `<rect x="${x + 10}" y="${cursor}" width="${width - 20}" height="${blockHeight}" rx="${simple ? 0 : 7}" fill="${simple ? palette.surface : "#202936"}" stroke="${simple ? palette.rule : "#344154"}"/><text x="${x + 20}" y="${cursor + 7}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" font-weight="600" fill="${simple ? palette.muted : "#91a1b5"}">${escapeXml(language.toUpperCase())}</text>${lines.map((line, index) => `<text x="${x + 20}" y="${cursor + 22 + index * fontSize * 1.5}" dominant-baseline="hanging" font-family="monospace" font-size="${fontSize}" fill="${palette.ink}">${escapeXml(line)}</text>`).join("")}`; cursor += blockHeight + 5; codeLines = []; inCode = false; };
-        const maxChars = Math.max(8, Math.floor((width - 36) / ((meta.fontSize ?? 12) * .56)));
+        const addCode = () => { const fontSize = meta.fontSize ?? 12; const max = Math.max(8, Math.floor((width - 32) / (fontSize * .62))); const lines = codeLines.flatMap(line => { const chunks: string[] = []; for (let index = 0; index < Math.max(1, line.length); index += max) chunks.push(line.slice(index, index + max)); return chunks; }); const blockHeight = Math.max(32, lines.length * fontSize * 1.5 + 20); body += `<rect x="${x + 10}" y="${cursor}" width="${width - 20}" height="${blockHeight}" rx="${simple ? 0 : 7}" fill="${simple ? palette.surface : "#202936"}" stroke="${simple ? palette.rule : "#344154"}"/><text x="${x + 20}" y="${cursor + 7}" dominant-baseline="hanging" font-family="sans-serif" font-size="9" font-weight="600" fill="${simple ? palette.muted : "#91a1b5"}">${escapeXml(language.toUpperCase())}</text>${lines.map((line, index) => `<text x="${x + 20}" y="${cursor + 22 + index * fontSize * 1.5}" dominant-baseline="hanging" font-family="monospace" font-size="${fontSize}" fill="${palette.ink}">${escapeXml(line)}</text>`).join("")}`; cursor += blockHeight + 5; codeLines = []; inCode = false; };
         const sourceLines = meta.content.split(/\r?\n/);
         for (let lineIndex = 0; lineIndex < sourceLines.length;) {
           const line = sourceLines[lineIndex];
@@ -87,7 +106,8 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
             cursor += tableHeight + 5; lineIndex = rowIndex; continue;
           }
           const heading = /^(#{1,3})\s+(.*)$/.exec(line); const value = heading?.[2] ?? line; const size = heading ? (meta.fontSize ?? 12) + (4 - heading[1].length) * 2 : (meta.fontSize ?? 12);
-          for (let index = 0; index < Math.max(1, value.length); index += maxChars) { body += `<text x="${x + 16}" y="${cursor}" dominant-baseline="hanging" font-family="sans-serif" font-size="${size}" font-weight="${heading ? 650 : 400}" fill="${palette.ink}">${escapeXml(value.slice(index, index + maxChars))}</text>`; cursor += size * 1.5; }
+          const lines = wrapNoteMarkup(value, width - 24, (text, run) => Array.from(text).length * size * (run.code ? .6 : .5));
+          for (const part of lines) { body += inlineSvg(part, x + 16, cursor, size, palette.ink, heading ? 650 : 400, !!heading); cursor += size * 1.5; }
           lineIndex++;
         }
         if (inCode) addCode();

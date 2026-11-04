@@ -1,5 +1,5 @@
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ComponentMaster, ConnectionPoint, ContainerMetadata, D2Metadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, PrototypeAction, PrototypeCondition, PrototypeVariable, RelationshipDirection, RelationshipType, ReviewCommentThread, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokeStyle, StrokePoint, StrideThreatCategory, TransportSecurity } from "../../model";
+import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ComponentMaster, ConnectionPoint, ContainerMetadata, D2Metadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, PrototypeAction, PrototypeCondition, PrototypeVariable, RelationshipDirection, RelationshipType, ReviewCommentThread, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokePoint, StrokeStyle, StrideThreatCategory, TransportSecurity } from "../../model";
 import { ensureCanvasLayerPath, normalizeCanvasLayers } from "../canvas/structure";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { cloudNeutralComponent } from "../diagrams/cloud-providers";
@@ -26,6 +26,13 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function isColor(value: unknown): value is string {
   return typeof value === "string" && /^#[\da-f]{6}$/i.test(value);
+}
+
+function normalizeCanvasBackgroundColor(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const shortHex = /^#([\da-f])([\da-f])([\da-f])$/i.exec(value);
+  if (shortHex) return `#${shortHex[1]}${shortHex[1]}${shortHex[2]}${shortHex[2]}${shortHex[3]}${shortHex[3]}`.toLowerCase();
+  return isColor(value) ? value : undefined;
 }
 
 export function isEmbeddedRasterImage(value: unknown): value is string {
@@ -558,7 +565,8 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
   const normalizePage = (id: unknown, name: unknown, stateValue: unknown, elementsValue: unknown, budget: ElementParseBudget, rawLayers?: unknown, rawMasters?: unknown, rawVisibilityPresets?: unknown, rawStyleLibrary?: unknown, rawBookmarks?: unknown, rawPrototypeVariables?: unknown, rawDataSources?: unknown, rawComments?: unknown): SketchPage | undefined => {
     if (typeof id !== "string" || typeof name !== "string" || !isRecord(stateValue) || !Array.isArray(elementsValue) || elementsValue.length > MAX_ELEMENTS_PER_PAGE) return undefined;
     const state = stateValue;
-    if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !isColor(state.backgroundColor)) return undefined;
+    const backgroundColor = normalizeCanvasBackgroundColor(state.backgroundColor);
+    if (!finite(state.zoom) || state.zoom <= 0 || !finite(state.panX) || !finite(state.panY) || !backgroundColor) return undefined;
     const elements = elementsValue.map(element => normalizeElementWithinBudget(element, 0, budget));
     if (elements.some((element) => !element)) return undefined;
     let normalizedElements = groupLegacyClassCards(elements as Element[]);
@@ -628,7 +636,7 @@ export function parseSketchFile(value: unknown): SketchFile | undefined {
       commentIds.add(raw.id);
       comments.push({ id: raw.id, ...(elementId ? { elementId } : {}), anchor: { x: raw.anchor.x, y: raw.anchor.y }, messages, ...(typeof raw.resolved === "boolean" ? { resolved: raw.resolved } : {}) });
     }
-    return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor: state.backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : state.backgroundColor === "#ffffff", ...(guides?.length ? { guides } : {}) }, elements: normalizedElements, ...(layers.length ? { layers } : {}), ...(visibilityPresets.length ? { visibilityPresets } : {}), ...(componentMasters.length ? { componentMasters } : {}), ...(normalizeStyleLibrary(rawStyleLibrary) ? { styleLibrary: normalizeStyleLibrary(rawStyleLibrary) } : {}), ...(normalizeBookmarks(rawBookmarks).length ? { bookmarks: normalizeBookmarks(rawBookmarks) } : {}), ...(prototypeVariables.length ? { prototypeVariables } : {}), ...(normalizeDataSources(rawDataSources).length ? { dataSources: normalizeDataSources(rawDataSources) } : {}), ...(comments.length ? { comments } : {}) };
+    return { id, name: name.slice(0, 80), canvasState: { zoom: state.zoom, panX: state.panX, panY: state.panY, backgroundColor, boardColorFollowsTheme: typeof state.boardColorFollowsTheme === "boolean" ? state.boardColorFollowsTheme : backgroundColor === "#ffffff", ...(guides?.length ? { guides } : {}) }, elements: normalizedElements, ...(layers.length ? { layers } : {}), ...(visibilityPresets.length ? { visibilityPresets } : {}), ...(componentMasters.length ? { componentMasters } : {}), ...(normalizeStyleLibrary(rawStyleLibrary) ? { styleLibrary: normalizeStyleLibrary(rawStyleLibrary) } : {}), ...(normalizeBookmarks(rawBookmarks).length ? { bookmarks: normalizeBookmarks(rawBookmarks) } : {}), ...(prototypeVariables.length ? { prototypeVariables } : {}), ...(normalizeDataSources(rawDataSources).length ? { dataSources: normalizeDataSources(rawDataSources) } : {}), ...(comments.length ? { comments } : {}) };
   };
   const sourcePages = Array.isArray(canvasSection.pages) ? canvasSection.pages : undefined;
   if (!sourcePages || sourcePages.length < 1 || sourcePages.length > 100) return undefined;
@@ -672,15 +680,29 @@ export function sketchFileResourceError(file: SketchFile): string | undefined {
         const error = visit(element.elements, depth + 1);
         if (error) return error;
         if (element.stencilParameters) {
+          if (!validReferences(element.stencilParameters.template)) return `A stencil template in “${element.id}” has invalid object IDs or connector bindings.`;
           const parameterError = visit(element.stencilParameters.template, depth + 1);
           if (parameterError) return parameterError;
         }
-      } else if ("label" in element && element.label) {
+      }
+      const countLabel = (label: { text: string }) => {
         if (depth + 1 > MAX_ELEMENT_DEPTH) return "This sketch contains labels nested too deeply to save safely.";
         nodeCount += 1;
         if (nodeCount > MAX_DOCUMENT_ELEMENT_NODES) return "This sketch contains too many canvas objects to save safely.";
-        if (element.label.text.length > MAX_CANVAS_TEXT_LENGTH) return `Canvas text exceeds the ${MAX_CANVAS_TEXT_LENGTH.toLocaleString()}-character save limit.`;
-      } else if (element.type === "freehand") {
+        if (label.text.length > MAX_CANVAS_TEXT_LENGTH) return `Canvas text exceeds the ${MAX_CANVAS_TEXT_LENGTH.toLocaleString()}-character save limit.`;
+        return undefined;
+      };
+      if ("label" in element && element.label) {
+        const labelError = countLabel(element.label);
+        if (labelError) return labelError;
+      }
+      if ("connectorLabels" in element && element.connectorLabels) {
+        for (const label of element.connectorLabels) {
+          const labelError = countLabel(label);
+          if (labelError) return labelError;
+        }
+      }
+      if (element.type === "freehand") {
         if (element.points.length > MAX_STROKE_POINTS) return `A stroke exceeds the ${MAX_STROKE_POINTS.toLocaleString()}-point save limit.`;
         strokePointCount += element.points.length;
         if (strokePointCount > MAX_DOCUMENT_STROKE_POINTS) return `This sketch exceeds the ${MAX_DOCUMENT_STROKE_POINTS.toLocaleString()}-point save limit.`;
@@ -694,6 +716,19 @@ export function sketchFileResourceError(file: SketchFile): string | undefined {
   if (!file.pages.length) return "A sketch must contain at least one page.";
   for (const page of file.pages) {
     if (page.elements.length > MAX_ELEMENTS_PER_PAGE) return "A page contains too many canvas objects to save safely.";
+    if (!validReferences(page.elements)) return `Page “${page.name}” has duplicate object IDs or invalid connector bindings.`;
+    const variables = page.prototypeVariables ?? [];
+    if (variables.length > 100) return `Page “${page.name}” has too many prototype variables to save safely.`;
+    const variableIds = new Set<string>();
+    for (const variable of variables) {
+      const validValue = variable.type === "string" ? typeof variable.value === "string" && variable.value.length <= 300
+        : variable.type === "number" ? finite(variable.value)
+        : variable.type === "boolean" ? typeof variable.value === "boolean"
+        : false;
+      if (!/^[\w.-]{1,100}$/.test(variable.id) || !variable.name.trim() || variable.name.length > 80 || !validValue) return `Page “${page.name}” has a prototype variable that cannot be saved safely.`;
+      if (variableIds.has(variable.id)) return `Page “${page.name}” has duplicate prototype variable IDs.`;
+      variableIds.add(variable.id);
+    }
     const error = visit(page.elements, 0);
     if (error) return error;
     for (const master of page.componentMasters ?? []) {
@@ -707,12 +742,14 @@ export function sketchFileResourceError(file: SketchFile): string | undefined {
     if (!master.id || master.id.length > 80 || !master.name.trim() || master.name.length > 80) return "A component master has invalid identifying details and cannot be saved safely.";
     if (!finite(master.bounds.x) || !finite(master.bounds.y) || !finite(master.bounds.w) || !finite(master.bounds.h) || master.bounds.w <= 0 || master.bounds.h <= 0) return `Component master “${master.name}” has invalid bounds and cannot be saved safely.`;
     if (!master.template.length || master.template.length > MAX_ELEMENTS_PER_PAGE) return `Component master “${master.name}” has an invalid template size.`;
+    if (!validReferences(master.template)) return `Component master “${master.name}” has invalid object IDs or connector bindings.`;
     const masterError = visit(master.template, 0);
     if (masterError) return masterError;
     const variants = Object.entries(master.variants ?? {});
     if (variants.length > 24) return `Component master “${master.name}” has too many variants to save safely.`;
     for (const [key, variant] of variants) {
       if (!/^[\p{L}\p{N}_.=-]{1,80}$/u.test(key) || !variant.length || variant.length > MAX_ELEMENTS_PER_PAGE) return `Component master “${master.name}” has an invalid variant.`;
+      if (!validReferences(variant)) return `Variant “${key}” in component master “${master.name}” has invalid object IDs or connector bindings.`;
       const variantError = visit(variant, 0);
       if (variantError) return variantError;
     }

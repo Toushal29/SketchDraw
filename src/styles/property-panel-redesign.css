@@ -598,6 +598,18 @@
     gap: 6px;
 }
 
+.note-editor-formatting {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.note-editor-format-help {
+    color: var(--theme-text-secondary);
+    font: var(--type-micro)/var(--leading-compact) var(--font-ui);
+}
+
 .note-editor-label {
     display: grid;
     min-width: 0;

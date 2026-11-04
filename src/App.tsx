@@ -741,7 +741,16 @@ function App() {
   const [noteEditor, setNoteEditor] = createSignal<{ x: number; y: number; width: number; height: number; fontSize: number; kind: NoteKind; content: string; title: string; resized?: boolean; editingIndex?: number }>();
   const [noteEditorSession, setNoteEditorSession] = createSignal(0);
   let noteEditorTextarea: HTMLTextAreaElement | undefined;
+  let selectedNoteTextarea: HTMLTextAreaElement | undefined;
   let noteEditorTitleInput: HTMLInputElement | undefined;
+  const noteFormatActions = [
+    { label: "B", name: "Bold", open: "**", close: "**" },
+    { label: "I", name: "Italic", open: "*", close: "*" },
+    { label: "U", name: "Underline", open: "<u>", close: "</u>" },
+    { label: "Highlight", name: "Highlight", open: "==", close: "==" },
+    { label: "S", name: "Strikethrough", open: "~~", close: "~~" },
+    { label: "Code", name: "Inline code", open: "`", close: "`" },
+  ];
   let textEditorElement: HTMLDivElement | undefined;
   let textEditorPendingPointerId: number | undefined;
   let textEditorFocusTimer: number | undefined;
@@ -3827,6 +3836,35 @@ function App() {
     requestAnimationFrame(() => { if (textarea.isConnected) { const caret = start + table.length; textarea.focus(); textarea.setSelectionRange(caret, caret); } });
   }
 
+  function applyNoteInlineFormat(textarea: HTMLTextAreaElement | undefined, open: string, close: string, update: (content: string) => void) {
+    if (!textarea?.isConnected) return;
+    const source = textarea.value; const start = textarea.selectionStart; const end = textarea.selectionEnd;
+    const selected = source.slice(start, end);
+    const isWrapped = selected.length >= open.length + close.length && selected.startsWith(open) && selected.endsWith(close);
+    const inner = isWrapped ? selected.slice(open.length, -close.length) : selected || "text";
+    const replacement = isWrapped ? inner : `${open}${inner}${close}`;
+    const content = source.slice(0, start) + replacement + source.slice(end);
+    update(content);
+    requestAnimationFrame(() => {
+      if (!textarea.isConnected) return;
+      textarea.focus();
+      const selectionStart = start + (isWrapped ? 0 : open.length);
+      textarea.setSelectionRange(selectionStart, selectionStart + inner.length);
+    });
+  }
+
+  function applyNoteFormatShortcut(event: KeyboardEvent, textarea: HTMLTextAreaElement | undefined, update: (content: string) => void) {
+    if (!(event.ctrlKey || event.metaKey)) return false;
+    const action = event.key.toLowerCase() === "b" ? noteFormatActions[0]
+      : event.key.toLowerCase() === "i" ? noteFormatActions[1]
+      : event.key.toLowerCase() === "u" ? noteFormatActions[2]
+      : undefined;
+    if (!action) return false;
+    event.preventDefault(); event.stopPropagation();
+    applyNoteInlineFormat(textarea, action.open, action.close, update);
+    return true;
+  }
+
   function toggleChecklist(index: number, row: number) {
     const previous = elements()[index];
     if (previous?.type !== "group" || previous.note?.kind !== "checklist" || boardLocked() || previous.locked) return;
@@ -5111,11 +5149,16 @@ function App() {
     const canRotate = element.type !== "group" || !!element.libraryComponent || !!element.container;
     const rotation = element.rotation ?? 0;
     const handleBounds = rotation ? elementBounds({ ...element, rotation: 0 } as Element) : elementBounds(element);
+    const threshold = 9 / canvasState().zoom;
+    let nearest: { handle: string; distance: number } | undefined;
     for (const handle of isConnector(element) ? connectorHandles(element) : transformHandlePoints(handleBounds, canvasState().zoom, canRotate, rotation)) {
       if (element.type === "schemaTable" && (handle.id === "n" || handle.id === "s")) continue;
-      if (Math.hypot(point.x - handle.x, point.y - handle.y) <= 9 / canvasState().zoom) return { index, handle: handle.id };
+      const distance = Math.hypot(point.x - handle.x, point.y - handle.y);
+      const isCorner = /^[nwse]{2}$/.test(handle.id);
+      const nearestIsCorner = nearest ? /^[nwse]{2}$/.test(nearest.handle) : false;
+      if (distance <= threshold && (!nearest || distance < nearest.distance - .001 || Math.abs(distance - nearest.distance) <= .001 && isCorner && !nearestIsCorner)) nearest = { handle: handle.id, distance };
     }
-    return undefined;
+    return nearest ? { index, handle: nearest.handle } : undefined;
   }
 
   function makeGroupResizePreview(group: GroupElement, target: Bounds, kind: "container" | "library"): GroupElement {
@@ -9572,7 +9615,9 @@ function App() {
                         <Show when={tableBlock()}>{table => <MarkdownTableEditor value={table().text} onChange={value => setNoteEditor(current => current ? { ...current, content: replaceMarkdownTableBlock(current.content, table(), value) } : current)} />}</Show>
                         <Show when={!tableBlock()}>
                           <label class="note-editor-label">Title<input ref={element => { noteEditorTitleInput = element; }} aria-label="Card title" maxlength="120" value={draft().title} onChange={event => setNoteEditor(current => current ? { ...current, title: event.currentTarget.value } : current)} /></label>
-                          <label class="note-editor-label"><span>Content<Show when={draft().kind === "note"}><button type="button" class="note-editor-inline-action" onMouseDown={event => event.preventDefault()} onClick={insertMarkdownTable}>Insert table</button></Show></span><textarea ref={element => { noteEditorTextarea = element; }} aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown text and code"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "- [ ] First task" : draft().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} onBlur={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : current)} onKeyDown={event => { event.stopPropagation(); if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); } }} /></label>
+                          <div class="note-editor-formatting" role="toolbar" aria-label="Text formatting"><For each={noteFormatActions}>{action => <button type="button" class="note-editor-inline-action" aria-label={action.name} title={`${action.name}${action.name === "Bold" ? " (Ctrl/⌘+B)" : action.name === "Italic" ? " (Ctrl/⌘+I)" : action.name === "Underline" ? " (Ctrl/⌘+U)" : ""}`} onMouseDown={event => event.preventDefault()} onClick={() => applyNoteInlineFormat(noteEditorTextarea, action.open, action.close, content => setNoteEditor(current => current ? { ...current, content } : current))}>{action.label}</button>}</For><Show when={draft().kind === "note"}><button type="button" class="note-editor-inline-action" onMouseDown={event => event.preventDefault()} onClick={insertMarkdownTable}>Insert table</button></Show></div>
+                          <Show when={draft().kind === "checklist"}><small class="note-editor-format-help">Use **Section title** on its own line for a bold heading without a checkbox.</small></Show>
+                          <label class="note-editor-label">Content<textarea ref={element => { noteEditorTextarea = element; }} aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown text and code"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "**Section title**\n- [ ] First task" : draft().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} onBlur={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : current)} onKeyDown={event => { event.stopPropagation(); if (applyNoteFormatShortcut(event, noteEditorTextarea, content => setNoteEditor(current => current ? { ...current, content } : current))) return; if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); } }} /></label>
                         </Show>
                         <Show when={!tableBlock()}><label class="note-editor-size">Text size<input aria-label="Note text size" type="number" min="8" max="32" step="1" value={draft().fontSize} onChange={event => { const size = Math.max(8, Math.min(32, Math.round(Number(event.currentTarget.value) || 12))); rememberFontSize(size); setNoteEditor(current => current ? { ...current, fontSize: size } : current); }} /></label></Show>
                       </section>;
@@ -9584,7 +9629,9 @@ function App() {
                         <Show when={tableBlock()}>{table => <MarkdownTableEditor value={table().text} disabled={boardLocked() || card().locked} onChange={value => updateSelectedNoteCard({ content: replaceMarkdownTableBlock(note().content, table(), value) })} />}</Show>
                         <Show when={!tableBlock()}>
                           <label class="note-editor-label">Title<input aria-label="Card title" maxlength="120" value={note().title ?? defaultNoteTitle(note().kind)} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label>
-                          <label class="note-editor-label">{note().kind === "checklist" ? "Tasks" : note().kind === "sticky" ? "Text" : "Content"}<textarea aria-label={note().kind === "checklist" ? "Checklist items" : note().kind === "sticky" ? "Sticky note text" : "Markdown text and code"} value={note().content} placeholder={note().kind === "checklist" ? "- [ ] First task" : note().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ content: event.currentTarget.value })} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => updateSelectedNoteCard({ content: value })); }} /></label>
+                          <div class="note-editor-formatting" role="toolbar" aria-label="Text formatting"><For each={noteFormatActions}>{action => <button type="button" class="note-editor-inline-action" aria-label={action.name} title={`${action.name}${action.name === "Bold" ? " (Ctrl/⌘+B)" : action.name === "Italic" ? " (Ctrl/⌘+I)" : action.name === "Underline" ? " (Ctrl/⌘+U)" : ""}`} disabled={boardLocked() || card().locked} onMouseDown={event => event.preventDefault()} onClick={() => applyNoteInlineFormat(selectedNoteTextarea, action.open, action.close, content => updateSelectedNoteCard({ content }))}>{action.label}</button>}</For></div>
+                          <Show when={note().kind === "checklist"}><small class="note-editor-format-help">Use **Section title** on its own line for a bold heading without a checkbox.</small></Show>
+                          <label class="note-editor-label">{note().kind === "checklist" ? "Tasks" : note().kind === "sticky" ? "Text" : "Content"}<textarea ref={element => { selectedNoteTextarea = element; }} aria-label={note().kind === "checklist" ? "Checklist items" : note().kind === "sticky" ? "Sticky note text" : "Markdown text and code"} value={note().content} placeholder={note().kind === "checklist" ? "**Section title**\n- [ ] First task" : note().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ content: event.currentTarget.value })} onKeyDown={event => { event.stopPropagation(); if (applyNoteFormatShortcut(event, selectedNoteTextarea, content => updateSelectedNoteCard({ content }))) return; if (event.key === "Tab") indentTextarea(event, value => updateSelectedNoteCard({ content: value })); }} /></label>
                         </Show>
                         <Show when={!tableBlock()}><label class="note-editor-size">Text size<input aria-label="Note text size" type="number" min="8" max="32" step="1" value={note().fontSize ?? 12} disabled={boardLocked() || card().locked} onChange={event => setSelectedNoteFontSize(Number(event.currentTarget.value))} /></label></Show>
                         <Show when={note().kind === "note" && !tableBlock()}><button type="button" class="note-editor-inline-action note-editor-convert" disabled={boardLocked() || card().locked} onClick={convertSelectedMarkdownToText}>Convert to plain text</button></Show>
