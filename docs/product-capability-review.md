@@ -9,11 +9,11 @@ This review compares the current SketchDraw workflows with the use cases shown i
 | Area | Current capability |
 | --- | --- |
 | Canvas and visual design | Multi-page `.sketch` documents, freehand drawing, shapes, text and Markdown cards, frames, reusable component masters, layers, page links, presentation mode, and PNG/SVG/PDF output. |
-| Software and architecture models | Native UML class, sequence, state, use-case, component, deployment, and activity elements; ERD; BPMN; C4; software and cloud elements; network topology; GUI design components; editable connectors, ports, routing, validation, and automatic layout. |
+| Software and architecture models | Native UML class, sequence, state, use-case, component, deployment, and activity elements; ERD; BPMN; C4; software and cloud elements; network topology; Forms & UI components; editable connectors, ports, routing, validation, and automatic layout. |
 | Code and data workflows | Editable imports for Mermaid, PlantUML subset, DOT, D2, OpenAPI, SQL, JSON Schema, draw.io, Excalidraw, Terraform, Kubernetes, Docker Compose, Ansible, CloudFormation/CDK, Azure ARM/Bicep, and other listed formats. Some source-specific detail is intentionally simplified. |
 | Planning | Separate local `.sdplan` files with notes, tasks, priorities, dates, estimates, checklists, dependencies, milestones, configurable Kanban stages, timeline, calendar, decisions, risks, attachments, reports, CSV and calendar exchange. |
 | Help to get started | Nine editable diagram guides currently cover order approval, UML class and sequence, ER, BPMN, C4 context, network edge, cloud service, and state machine patterns. |
-| Portability and offline use | Documents are local files. Existing `.sketch` v9/v10 files can be converted to current v2 after confirmation; planning is stored separately. SketchDraw does not host files or live collaboration. |
+| Portability and offline use | Documents are local files. Existing `.sketch` v9/v10 files can be converted to current v3 after confirmation; version 2 sketches migrate Forms & UI identifiers and properties into the new nested component record. Planning is stored separately. SketchDraw does not host files or live collaboration. |
 
 ## Reference review
 

@@ -7,7 +7,7 @@ import { LIBRARY_COMPONENTS, type LibraryComponentKind } from "./library-compone
 import type { CustomStencil } from "./custom-stencils";
 import "./component-library-panel.css";
 
-type Filter = "all" | "gui" | "icons" | "stencils" | "masters" | `section:${string}`;
+type Filter = "all" | "forms-ui" | "icons" | "stencils" | "masters" | `section:${string}`;
 type StencilView = "all" | "recent" | "favorites";
 
 type Props = {
@@ -40,11 +40,11 @@ type Props = {
 
 const sectionName = (section: string) => {
   const [group, ...categories] = section.split("|").map(part => part.trim());
-  return [group === "Forms & UI" ? "GUI" : group, ...categories].join(" · ");
+  return [group, ...categories].join(" · ");
 };
 const filters: { id: Filter; label: string; count?: number }[] = [
   { id: "all", label: "All", count: LIBRARY_COMPONENTS.length },
-  { id: "gui", label: "GUI design", count: LIBRARY_COMPONENTS.filter(component => component.section.startsWith("Forms & UI")).length },
+  { id: "forms-ui", label: "Forms & UI", count: LIBRARY_COMPONENTS.filter(component => component.section.startsWith("Forms & UI")).length },
   { id: "icons", label: "Icons & stickers", count: ICON_STICKERS.length },
   ...[...new Set(LIBRARY_COMPONENTS.map(component => component.section))].sort().map(section => ({ id: `section:${section}` as const, label: sectionName(section), count: LIBRARY_COMPONENTS.filter(component => component.section === section).length })),
   { id: "stencils", label: "My stencils" },
@@ -104,7 +104,7 @@ export function ComponentLibraryPanel(props: Props) {
     for (const component of LIBRARY_COMPONENTS) {
       const selectedFilter = filter();
       const matchesFilter = selectedFilter === "all"
-        || selectedFilter === "gui" && component.section.startsWith("Forms & UI")
+        || selectedFilter === "forms-ui" && component.section.startsWith("Forms & UI")
         || selectedFilter.startsWith("section:") && component.section === selectedFilter.slice("section:".length);
       if (!matchesFilter || normalizedQuery && !`${component.label} ${component.description} ${component.section}`.toLowerCase().includes(normalizedQuery)) continue;
       const entries = groups.get(component.section) ?? [];
@@ -147,7 +147,7 @@ export function ComponentLibraryPanel(props: Props) {
           <For each={filters}>{item => <button type="button" class={filter() === item.id ? "active" : ""} aria-pressed={filter() === item.id} onClick={() => selectFilter(item.id)}>{item.label}<Show when={item.count !== undefined}><small>{item.count}</small></Show></button>}</For>
         </nav>
         <div class="component-library-body">
-          <Show when={filter() === "all" || filter() === "gui" || filter().startsWith("section:")}>
+          <Show when={filter() === "all" || filter() === "forms-ui" || filter().startsWith("section:")}>
             <For each={componentGroups()}>{group => <section class="component-library-group" aria-label={group.section}>
               <h3>{group.section}<small>{group.entries.length}</small></h3>
               <div class="component-library-grid"><For each={group.entries}>{component => <button type="button" class="component-library-item" title={component.description} disabled={!props.canInsert} onClick={() => props.onInsertComponent(component.kind)}><LibraryComponentIcon kind={component.kind} loadProviderArtwork={props.open} /><span>{component.label}</span></button>}</For></div>

@@ -70,7 +70,7 @@ export function simulateBpmn(elements: Element[], context: BpmnContext = {}): Bp
     const start = flow.startBinding!.elementId; const end = flow.endBinding!.elementId;
     outgoing.set(start, [...outgoing.get(start) ?? [], flow]); incoming.set(end, [...incoming.get(end) ?? [], flow]);
   }
-  const label = (node: typeof nodes[number]) => node.libraryComponent?.label ?? node.libraryComponent?.formTitle ?? node.libraryComponent?.kind.replace(/^(?:bpmn-|proposal-decision-)/, "") ?? "BPMN item";
+  const label = (node: typeof nodes[number]) => node.libraryComponent?.label ?? node.libraryComponent?.uiComponent?.properties.title ?? node.libraryComponent?.kind.replace(/^(?:bpmn-|proposal-decision-)/, "") ?? "BPMN item";
   const trace: BpmnSimulationStep[] = []; const queue: Token[] = [];
   starts.forEach((node, index) => queue.push({ nodeId: node.id!, elapsed: 0, branch: index + 1, visits: new Map(), visitedFlows: new Set() }));
   let branchId = Math.max(1, starts.length); let processed = 0;

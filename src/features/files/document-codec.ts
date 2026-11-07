@@ -1,11 +1,11 @@
-import type { CanvasState, ComponentMaster, Element, PersonalLibraryData, SketchFile, SketchFileDocumentV2, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
+import type { CanvasState, ComponentMaster, Element, PersonalLibraryData, SketchFile, SketchFileDocumentV3, SketchPage, Theme, WindowsSyncMetadata } from "../../model";
 import { SKETCH_FORMAT_VERSION } from "../../model";
 import { normalizeElement } from "./parse-sketch";
 import { compactComponentMasterForStorage, compactElementForStorage } from "../components/component-storage";
 
-const pageListMarker = "__SKETCHDRAW_PAGE_CHUNKS_V2__";
-const elementListMarker = "__SKETCHDRAW_ELEMENT_CHUNK_V2__";
-const componentMasterListMarker = "__SKETCHDRAW_COMPONENT_MASTER_CHUNKS_V2__";
+const pageListMarker = "__SKETCHDRAW_PAGE_CHUNKS_V3__";
+const elementListMarker = "__SKETCHDRAW_ELEMENT_CHUNK_V3__";
+const componentMasterListMarker = "__SKETCHDRAW_COMPONENT_MASTER_CHUNKS_V3__";
 const NORMALIZED_PAGE_CACHE_BYTES = 4 * 1024 * 1024;
 const SERIALIZED_PAGE_CACHE_BYTES = 4 * 1024 * 1024;
 const normalizedElementCache = new WeakMap<Element, Element | null>();
@@ -83,7 +83,7 @@ function serializedPage(page: SketchPage): string {
     serializedPageCache.set(page.elements, cached);
     return cached.block;
   }
-  // Reuse element JSON when page metadata changes. The v2 file stays compact,
+  // Reuse element JSON when page metadata changes. The v3 file stays compact,
   // ordinary JSON, so saved documents remain portable and inspectable.
   const elementsJson = cached?.elementsJson ?? JSON.stringify(page.elements.map(compactElementForStorage));
   const pageShell = JSON.stringify({ id: page.id, name: page.name, canvasState: page.canvasState, ...(page.layers?.length ? { layers: page.layers } : {}), ...(page.visibilityPresets?.length ? { visibilityPresets: page.visibilityPresets } : {}), ...(page.styleLibrary ? { styleLibrary: page.styleLibrary } : {}), ...(page.bookmarks?.length ? { bookmarks: page.bookmarks } : {}), ...(page.prototypeVariables?.length ? { prototypeVariables: page.prototypeVariables } : {}), ...(page.dataSources?.length ? { dataSources: page.dataSources } : {}), ...(page.comments?.length ? { comments: page.comments } : {}), elements: elementListMarker });
@@ -168,12 +168,12 @@ export function createSketchSnapshot(options: CreateSnapshotOptions): SketchFile
 
 export function serializeSketchSnapshot(snapshot: SketchFile): string {
   const componentMasters = [...new Map(snapshot.pages.flatMap(page => page.componentMasters ?? []).map(master => [master.id, master] as const)).values()];
-  const document: SketchFileDocumentV2 = {
+  const document: SketchFileDocumentV3 = {
     format: "SketchDraw",
     version: SKETCH_FORMAT_VERSION,
     canvas: {
       activePageId: snapshot.activePageId,
-      pages: pageListMarker as unknown as SketchFileDocumentV2["canvas"]["pages"],
+      pages: pageListMarker as unknown as SketchFileDocumentV3["canvas"]["pages"],
       ...(componentMasters.length ? { componentMasters: componentMasterListMarker as unknown as ComponentMaster[] } : {}),
     },
     ...(snapshot.windowsSync ? { windowsSync: snapshot.windowsSync } : {}),

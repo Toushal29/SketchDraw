@@ -22,7 +22,7 @@
 
 ## Interface themes
 
-`src/styles/app/theme.css` is the single source for interface colors, semantic states, diagram-family accents, floating surfaces, and elevation colors. The AI theme defines its own opaque blue-slate and mint palette. Components and platform styles consume shared tokens, and the canvas renderers read those tokens for model previews. Object colors saved in a sketch remain document data and are not interface theme colors.
+`src/styles/app/theme.css` is the single source for interface colors, semantic states, diagram-family accents, floating surfaces, and elevation colors. The AI theme defines its own opaque blue-slate and mint palette. The Minimalist theme uses shared palette and radius tokens with flat surfaces, reduced control motion, and no decorative elevation; it keeps workspace geometry unchanged. Components and platform styles consume shared tokens, and the canvas renderers read those tokens for model previews. Object colors saved in a sketch remain document data and are not interface theme colors.
 
 ## Shared refinement sheets
 

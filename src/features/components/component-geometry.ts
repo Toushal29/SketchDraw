@@ -36,7 +36,7 @@ const ELLIPSE = "M 50 1 C 77.062 1 99 22.938 99 50 C 99 77.062 77.062 99 50 99 C
 const AVATAR = "M 50 7 C 73.748 7 93 26.252 93 50 C 93 73.748 73.748 93 50 93 C 26.252 93 7 73.748 7 50 C 7 26.252 26.252 7 50 7 Z";
 const pathPoint = (x: number, y: number, width: number, height: number) => `${Number((x / Math.max(1, width) * 100).toFixed(4))} ${Number((y / Math.max(1, height) * 100).toFixed(4))}`;
 
-const ROW_COMPONENTS = new Set(["uml-class", "uml-object", "uml-interface", "uml-enumeration", "er-table", "db-view", "db-index", "db-procedure", "form-checkbox", "form-radio", "gui-list", "gui-table"]);
+const ROW_COMPONENTS = new Set(["uml-class", "uml-object", "uml-interface", "uml-enumeration", "er-table", "db-view", "db-index", "db-procedure", "ui.checkbox-group", "ui.radio-group", "ui.list", "ui.table", "ui.menu", "ui.accordion"]);
 const LINE_COMPONENTS = new Set(["uml-inheritance", "uml-realization", "uml-aggregation", "uml-composition", "uml-association", "uml-dependency", "uml-include", "uml-extend", "uml-fork", "uml-join", "sequence-sync", "sequence-async", "er-one-one", "er-one-many", "er-many-one", "er-many-many", "data-flow"]);
 const ER_RELATIONSHIP_SHAPES = new Set(["er-relationship", "er-identifying-relationship"]);
 
@@ -49,7 +49,7 @@ export function componentPortStrategy(kind: string): ComponentPortStrategy {
   if (proposal?.archetype === "table") return { type: "per-row", edge: "right", inset: 0.04 };
   if (LINE_COMPONENTS.has(kind)) return { type: "along-the-line", axis: "horizontal", inset: 0.04 };
   if (kind === "uml-lifeline" || kind === "uml-activation") return { type: "along-the-line", axis: "vertical", inset: 0.04 };
-  if (kind === "gui-divider") return { type: "none" };
+  if (kind === "ui.divider") return { type: "none" };
   if (kind === "diagram-swimlane" || kind === "bpmn-pool") return { type: "per-lane", axis: "horizontal" };
   if (ROW_COMPONENTS.has(kind)) return { type: "per-row", edge: "right", inset: 0.04 };
   return { type: "outline-projected" };
@@ -93,7 +93,7 @@ export function componentOutlinePath(kind: string, width = 100, height = 100): s
     return `M ${l(cx, centerY - head)} C ${l(cx + head * .73, centerY - head)} ${l(cx + head, centerY - head * .27)} ${l(cx + head, centerY)} C ${l(cx + head, centerY + head * .73)} ${l(cx + head * .27, centerY + head)} ${l(cx, centerY + head)} C ${l(cx - head * .73, centerY + head)} ${l(cx - head, centerY + head * .27)} ${l(cx - head, centerY)} C ${l(cx - head, centerY - head * .73)} ${l(cx - head * .27, centerY - head)} ${l(cx, centerY - head)} M ${l(cx, head * 2 + 3)} V ${l(cx, height * .58)} M ${l(cx - figureWidth * .38, height * .4)} H ${l(cx + figureWidth * .38, height * .4)} M ${l(cx, height * .58)} L ${l(cx - figureWidth * .3, height * .69)} M ${l(cx, height * .58)} L ${l(cx + figureWidth * .3, height * .69)}`;
   }
   if (kind === "uml-activity-decision") return DIAMOND;
-  if (kind === "gui-avatar") return AVATAR;
+  if (kind === "ui.avatar") return AVATAR;
   if (["uml-initial-state", "uml-final-state", "uml-activity-initial", "uml-activity-final"].includes(kind)) return ELLIPSE;
   if (kind === "c4-person") {
     const cx = width / 2; const l = (x: number, y: number) => pathPoint(x, y, width, height);
@@ -191,22 +191,19 @@ export function componentMinimumSize(kind: string): { w: number; h: number } {
   if (["bpmn-gateway", "bpmn-parallel-gateway", "bpmn-inclusive-gateway", "bpmn-event-gateway"].includes(kind)) return { w: 75, h: 75 };
   if (kind === "uml-actor") return { w: 75, h: 75 };
   if (kind === "c4-person") return { w: 75, h: 75 };
-  if (kind.startsWith("form-")) return kind === "form-button" ? { w: 50, h: 25 }
-    : kind === "form-toggle" ? { w: 75, h: 25 }
-      : kind === "form-checkbox" || kind === "form-radio" ? { w: 75, h: 70 }
-        : kind === "form-slider" ? { w: 80, h: 35 }
-          : kind === "form-textarea" ? { w: 75, h: 45 }
-            : { w: 75, h: 25 };
   const minimums: Record<string, { w: number; h: number }> = {
     "uml-class": { w: 180, h: 110 }, "uml-object": { w: 150, h: 96 }, "uml-activity-action": { w: 140, h: 72 },
     "uml-activity-decision": { w: 76, h: 76 }, "uml-activity-initial": { w: 38, h: 38 }, "uml-activity-final": { w: 46, h: 46 },
     "db-view": { w: 150, h: 96 }, "db-index": { w: 160, h: 92 }, "db-procedure": { w: 164, h: 104 },
     "c4-container-instance": { w: 160, h: 96 }, "c4-component-instance": { w: 150, h: 92 }, "bpmn-group": { w: 150, h: 90 },
-    "gui-card": { w: 120, h: 25 }, "gui-app-bar": { w: 60, h: 25 }, "gui-navigation": { w: 50, h: 52 },
-    "gui-tabs": { w: 60, h: 25 }, "gui-image": { w: 40, h: 25 }, "gui-alert": { w: 90, h: 36 }, "gui-modal": { w: 150, h: 90 },
-    "gui-breadcrumbs": { w: 80, h: 25 }, "gui-badge": { w: 38, h: 20 }, "gui-progress": { w: 80, h: 30 },
-    "gui-list": { w: 80, h: 72 }, "gui-table": { w: 90, h: 40 }, "gui-accordion": { w: 80, h: 72 }, "gui-menu": { w: 72, h: 72 },
-    "gui-toast": { w: 150, h: 50 }, "gui-pagination": { w: 148, h: 30 }, "gui-divider": { w: 30, h: 8 }, "gui-footer": { w: 150, h: 30 },
+    "ui.button": { w: 64, h: 30 }, "ui.text-field": { w: 96, h: 42 }, "ui.select": { w: 96, h: 42 }, "ui.checkbox-group": { w: 100, h: 58 },
+    "ui.radio-group": { w: 100, h: 58 }, "ui.switch": { w: 86, h: 34 }, "ui.textarea": { w: 100, h: 64 }, "ui.search": { w: 96, h: 38 },
+    "ui.date-field": { w: 96, h: 42 }, "ui.slider": { w: 96, h: 44 }, "ui.password-field": { w: 96, h: 42 }, "ui.email-field": { w: 96, h: 42 }, "ui.file-upload": { w: 110, h: 48 },
+    "ui.card": { w: 132, h: 104 }, "ui.app-bar": { w: 180, h: 42 }, "ui.side-navigation": { w: 112, h: 96 }, "ui.tabs": { w: 120, h: 38 },
+    "ui.image": { w: 72, h: 58 }, "ui.alert": { w: 144, h: 48 }, "ui.dialog": { w: 180, h: 120 }, "ui.breadcrumbs": { w: 120, h: 32 },
+    "ui.avatar": { w: 36, h: 36 }, "ui.badge": { w: 52, h: 24 }, "ui.progress": { w: 120, h: 46 }, "ui.list": { w: 120, h: 96 },
+    "ui.table": { w: 144, h: 88 }, "ui.accordion": { w: 132, h: 96 }, "ui.menu": { w: 110, h: 92 }, "ui.toast": { w: 150, h: 54 },
+    "ui.pagination": { w: 148, h: 36 }, "ui.divider": { w: 48, h: 12 }, "ui.footer": { w: 180, h: 40 },
   };
   if (minimums[kind]) return minimums[kind];
   return { w: 25, h: 25 };
@@ -221,7 +218,7 @@ export function componentGeometry(kind: string, width: number, height: number): 
   const proposal = proposalComponentForKind(kind);
   const architecture = proposal?.section.startsWith("Architecture patterns") ?? false;
   const visualPlanning = proposal?.section.startsWith("Visual planning") ?? false;
-  const aspectLock = kind === "bpmn-start" || kind === "bpmn-gateway" || kind === "uml-initial-state" || kind === "uml-final-state" || kind === "uml-actor" || kind === "c4-person" || kind === "gui-avatar" || !architecture && !visualPlanning && (proposal?.archetype === "event" || proposal?.archetype === "decision");
+  const aspectLock = kind === "bpmn-start" || kind === "bpmn-gateway" || kind === "uml-initial-state" || kind === "uml-final-state" || kind === "uml-actor" || kind === "c4-person" || kind === "ui.avatar" || !architecture && !visualPlanning && (proposal?.archetype === "event" || proposal?.archetype === "decision");
   const minSize = componentMinimumSize(kind);
   const fixed = kind.startsWith("aws-") || kind.startsWith("azure-") || kind.startsWith("gcp-") ? ["icon"] : kind.startsWith("uml-") ? ["header"] : [];
   const gateway = kind === "bpmn-gateway" || kind === "bpmn-parallel-gateway" || kind === "bpmn-inclusive-gateway" || kind === "bpmn-event-gateway";
@@ -231,7 +228,7 @@ export function componentGeometry(kind: string, width: number, height: number): 
     : kind === "uml-actor" ? { x: 0.08, y: 0.76, w: 0.84, h: 0.22 }
     : kind === "c4-person" ? { x: 0.08, y: 0.7, w: 0.84, h: 0.28 }
       : kind.startsWith("aws-") || kind.startsWith("azure-") || kind.startsWith("gcp-") ? { x: 0.42, y: 0.25, w: 0.53, h: 0.7 }
-        : kind === "form-checkbox" || kind === "form-radio" ? { x: 0.03, y: 0.03, w: 0.94, h: 0.2 }
+      : kind === "ui.checkbox-group" || kind === "ui.radio-group" ? { x: 0.03, y: 0.03, w: 0.94, h: 0.2 }
           : { x: 0.08, y: gateway ? 0.68 : event ? 0.62 : 0.08, w: 0.84, h: gateway ? 0.3 : event ? 0.34 : 0.84 };
   return {
     kind,
@@ -327,32 +324,33 @@ export function componentDefaultPorts(group: GroupElement, project: (path: strin
   }
   const cardinal = CARDINAL_PORTS.map(port => ({ ...port, anchor: project(componentOutlinePath(kind, bounds.w, bounds.h), port.anchor, bounds.w, bounds.h) }));
   if (strategy.type === "per-row") {
-    const options = group.libraryComponent?.formOptions ?? [];
+    const properties = group.libraryComponent?.uiComponent?.properties;
+    const options = properties?.items?.map(item => item.label) ?? [];
     const fields = group.libraryComponent?.componentFields ?? [];
-    const items = group.libraryComponent?.guiProperties?.items ?? [];
+    const items = properties?.items ?? [];
     const proposal = proposalComponentForKind(kind);
     const proposalDataTable = proposal?.section.startsWith("Data & schemas") && proposal.archetype === "table";
-    const isTable = kind === "gui-table";
-    const isList = kind === "gui-list" || kind === "gui-menu" || kind === "gui-accordion";
-    const itemCount = items.length || (kind === "gui-table" ? 6 : kind === "gui-list" || kind === "gui-menu" || kind === "gui-accordion" ? 3 : 0);
-    const count = isTable ? Math.max(1, Math.ceil(itemCount / 3)) : Math.max(1, Math.min(isList ? 12 : 8, options.length || itemCount || fields.length || (kind.startsWith("form-") ? 3 : 4)));
-    const isChoice = kind === "form-checkbox" || kind === "form-radio";
-    const properties = group.libraryComponent?.guiProperties;
-    const titlePosition = properties?.titlePosition ?? "top";
+    const isTable = kind === "ui.table";
+    const isList = kind === "ui.list" || kind === "ui.menu" || kind === "ui.accordion";
+    const itemCount = items.length || (isTable ? 6 : isList ? 3 : 0);
+    const count = isTable ? Math.max(1, Math.ceil(itemCount / 3)) : Math.max(1, Math.min(isList ? 12 : 8, options.length || itemCount || fields.length || (kind.startsWith("ui.") ? 3 : 4)));
+    const isChoice = kind === "ui.checkbox-group" || kind === "ui.radio-group";
+    const titlePlacement = properties?.titlePlacement ?? "above";
+    const titlePosition = titlePlacement === "leading" ? "left" : titlePlacement === "trailing" ? "right" : titlePlacement === "below" ? "bottom" : "top";
     const horizontalTitle = isChoice && (titlePosition === "left" || titlePosition === "right");
     const titleHeight = !isChoice ? 0 : horizontalTitle ? 0 : titlePosition === "bottom" ? 15 : Math.min(18, bounds.h * .28);
     const fontSize = Math.max(9, Math.min(14, group.libraryComponent?.textStyle?.fontSize ?? 11, bounds.h * .32));
-    const titleWidth = horizontalTitle ? Math.min(bounds.w * .38, Math.max(30, (group.libraryComponent?.formTitle ?? "Choose an option").length * fontSize * .55)) : bounds.w;
+    const titleWidth = horizontalTitle ? Math.min(bounds.w * .38, Math.max(30, (properties?.title ?? "Choose an option").length * fontSize * .55)) : bounds.w;
     const contentWidth = horizontalTitle ? Math.max(20, bounds.w - titleWidth - 6) : bounds.w - 4;
-    const columnGap = Math.max(0, Math.min(40, properties?.optionColumnGap ?? properties?.optionGap ?? 4));
-    const layout = properties?.optionLayout ?? "vertical";
+    const columnGap = Math.max(0, Math.min(40, properties?.columnGap ?? properties?.gap ?? 4));
+    const layout = properties?.arrangement === "inline" ? "horizontal" : properties?.arrangement === "grid" ? "grid" : "vertical";
     const fittingColumns = Math.max(1, Math.floor((contentWidth + columnGap) / (36 + columnGap)));
-    const requestedColumns = layout === "horizontal" ? count : Math.max(1, Math.round(properties?.optionColumns ?? 2));
+    const requestedColumns = layout === "horizontal" ? count : Math.max(1, Math.round(properties?.columns ?? 2));
     const columns = isChoice ? Math.max(1, Math.min(count, fittingColumns, layout === "vertical" ? 1 : requestedColumns)) : 1;
     const rowCount = Math.ceil(count / columns);
-    const rowGap = Math.max(0, Math.min(40, properties?.optionRowGap ?? properties?.optionGap ?? 4));
+    const rowGap = Math.max(0, Math.min(40, properties?.gap ?? 4));
     const itemHeight = Math.max(11, fontSize * 1.2);
-    const listGap = Math.max(0, Math.min(40, properties?.optionRowGap ?? properties?.optionGap ?? 3));
+    const listGap = Math.max(0, Math.min(40, properties?.gap ?? 3));
     const listRowHeight = Math.min(24, Math.max(13, (bounds.h - 28 - listGap * (count - 1)) / count));
     const dataTableHeader = proposalDataTable ? Math.min(30, Math.max(24, bounds.h * .23)) : 0;
     const dataTableTop = proposalDataTable ? kind === "proposal-data-document-collection" ? 37 : Math.max(35, dataTableHeader + 2) : 0;

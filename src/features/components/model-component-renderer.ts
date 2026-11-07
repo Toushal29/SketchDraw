@@ -1,7 +1,7 @@
 import type { Element, GroupElement, Theme } from "../../model";
 import { cloudNeutralComponent, cloudProviderComponent } from "../diagrams/cloud-providers";
 import { cloudNeutralCanvasPath, cloudNeutralIconPath } from "./cloud-neutral-icons";
-import { drawGuiComponent, guiComponentSvg } from "./gui-components";
+import { drawUiComponent, uiComponentSvg } from "./ui-components";
 import { componentBaselineOffset, componentBoxTextAnchor, componentFont as sharedComponentFont, componentFontFamily } from "./component-text";
 import { normalizeComponentSvgText } from "./component-text";
 import { proposalComponentForKind, proposalComponentScore } from "./proposal-components";
@@ -1456,7 +1456,7 @@ function drawModelComponentDirect(ctx: CanvasRenderingContext2D, group: GroupEle
   const { x, y, w, h } = bounds;
   const meta = group.libraryComponent!;
   const textStyle = meta.textStyle;
-  if (drawGuiComponent(ctx, group, theme)) return;
+  if (drawUiComponent(ctx, group, theme)) return;
   if (meta.renderStyle === "clean" && !kind.startsWith("er-")) { drawCleanModelComponent(ctx, group, theme, allElements); return; }
   // Modeling components share one plain visual language.
   const simple = true;
@@ -1467,7 +1467,7 @@ function drawModelComponentDirect(ctx: CanvasRenderingContext2D, group: GroupEle
   const fillOpacity = meta.styleOverrides?.fillOpacity ?? 1;
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
-  const name = meta.formTitle ?? meta.label ?? kind.replace(/^(network|cloud|software|bpmn|uml|c4|er)-/, "").replace(/-/g, " ").toUpperCase();
+  const name = meta.uiComponent?.properties.title ?? meta.label ?? kind.replace(/^(network|cloud|software|bpmn|uml|c4|er)-/, "").replace(/-/g, " ").toUpperCase();
   const field = (key: string) => componentFieldValue(group, key);
   const strokeWidth = 1.5;
   const shell = (radius = 12, inset = 0) => {
@@ -1608,46 +1608,6 @@ function drawModelComponentDirect(ctx: CanvasRenderingContext2D, group: GroupEle
   if (kind === "software-queue" || kind === "cloud-queue") {
     shell(12); heading(); const count = 3; const itemW = (w - 34) / count;
     for (let index = 0; index < count; index++) { roundRect(ctx, x + 12 + index * (itemW + 5), y + h * .44, itemW, h * .32, 5); ctx.fillStyle = palette.soft; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); }
-    ctx.restore(); return;
-  }
-  if (kind.startsWith("form-")) {
-    shell(simple ? 0 : kind === "form-button" ? Math.min(13, h / 2) : 10);
-    if (kind === "form-button") {
-      const buttonFill = meta.styleOverrides?.fillColor ?? (simple ? fill : palette.accent);
-      ctx.fillStyle = buttonFill === "transparent" ? palette.fill : buttonFill; ctx.fillRect(x + strokeWidth, y + strokeWidth, Math.max(0, w - strokeWidth * 2), Math.max(0, h - strokeWidth * 2));
-      if (!simple && buttonFill !== "transparent") { ctx.fillStyle = "rgba(0,0,0,.12)"; ctx.fillRect(x + strokeWidth, y + h - Math.max(2, strokeWidth * 1.5), Math.max(0, w - strokeWidth * 2), Math.max(1, strokeWidth)); }
-      const caption = meta.formOptions?.[meta.selectedOption ?? 0] ?? meta.formTitle ?? "Continue";
-      componentText( caption, x + w / 2, y + h / 2, Math.max(4, w - 24), size, simple ? ink : "#ffffff", 650, "center");
-    }
-    else if (kind === "form-toggle") {
-      const sw = Math.min(48, Math.max(30, w * .25)); const sh = Math.min(26, Math.max(18, h * .44)); const sx = Math.max(x + 7, x + w - sw - 14); const sy = y + (h - sh) / 2;
-      componentText( name, x + 14, y + h / 2, Math.max(4, sx - x - 22), size, ink, 600);
-      roundRect(ctx, sx, sy, Math.min(sw, Math.max(1, x + w - sx - 7)), sh, simple ? 0 : sh / 2);
-      ctx.fillStyle = meta.formState === false ? palette.soft : palette.accent; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke();
-      const actualWidth = Math.min(sw, Math.max(1, x + w - sx - 7)); ctx.fillStyle = simple ? palette.fill : "#fff"; ctx.beginPath(); ctx.arc(sx + (meta.formState === false ? sh / 2 : actualWidth - sh / 2), sy + sh / 2, Math.min(sh * .36, actualWidth / 3), 0, Math.PI * 2); ctx.fill();
-    }
-    else if (kind === "form-checkbox" || kind === "form-radio") {
-      heading(name, y + 15);
-      const options = (meta.formOptions?.length ? meta.formOptions : ["Option 1"]).slice(0, 12);
-      const rowHeight = Math.min(23, (h - 30) / options.length);
-      options.forEach((option, index) => {
-        const cy = y + 30 + rowHeight * (index + .5); const active = kind === "form-checkbox" ? meta.formStates?.[index] ?? index === 0 : (meta.selectedOption ?? 0) === index;
-        if (kind === "form-checkbox") { roundRect(ctx, x + 13, cy - 6, 12, 12, 3); ctx.fillStyle = palette.fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); if (active) { ctx.beginPath(); ctx.moveTo(x + 16, cy); ctx.lineTo(x + 18, cy + 3); ctx.lineTo(x + 22, cy - 3); ctx.strokeStyle = palette.accent; ctx.lineWidth = 2; ctx.stroke(); } }
-        else { ctx.beginPath(); ctx.arc(x + 19, cy, 6, 0, Math.PI * 2); ctx.fillStyle = palette.fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); if (active) { ctx.beginPath(); ctx.arc(x + 19, cy, 3, 0, Math.PI * 2); ctx.fillStyle = palette.accent; ctx.fill(); } }
-        componentSingleLine( option || `Option ${index + 1}`, x + 34, cy, w - 47, Math.min(maxLabelSize, Math.max(6, size * .76)), palette.ink, 500);
-      });
-    }
-    else if (kind === "form-input" || kind === "form-select") {
-      const inset = Math.min(12, Math.max(2, w * .06)); const fieldY = y + Math.min(31, h * .42); const fieldHeight = Math.max(1, h - (fieldY - y) - Math.min(10, h * .12));
-      componentText( name, x + inset, y + Math.min(15, h * .2), Math.max(4, w - inset * 2), size, ink, 600);
-      roundRect(ctx, x + inset, fieldY, Math.max(1, w - inset * 2), fieldHeight, simple ? 0 : 6); ctx.fillStyle = palette.fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke();
-      if (kind === "form-input") { ctx.beginPath(); ctx.moveTo(x + inset + 9, fieldY + fieldHeight / 2); ctx.lineTo(x + w - inset - 9, fieldY + fieldHeight / 2); ctx.strokeStyle = palette.muted; ctx.lineWidth = 1; ctx.stroke(); }
-      else {
-        const arrowSpace = Math.min(27, Math.max(12, w * .15)); componentSingleLine( meta.formOptions?.[meta.selectedOption ?? 0] ?? "Select an option", x + inset + 9, fieldY + fieldHeight / 2, Math.max(4, w - inset * 2 - arrowSpace - 12), size, palette.ink, 500);
-        const ax = x + w - inset - Math.min(12, arrowSpace / 2); ctx.beginPath(); ctx.moveTo(ax - 4, fieldY + fieldHeight / 2 - 2); ctx.lineTo(ax, fieldY + fieldHeight / 2 + 2); ctx.lineTo(ax + 4, fieldY + fieldHeight / 2 - 2); ctx.strokeStyle = palette.edge; ctx.stroke();
-      }
-    }
-    else { heading(name, y + 15); roundRect(ctx, x + 12, y + 29, w - 24, h - 40, 6); ctx.fillStyle = palette.fill; ctx.fill(); ctx.strokeStyle = palette.edge; ctx.stroke(); }
     ctx.restore(); return;
   }
   if (kind.startsWith("er-") && !["er-table", "er-one-one", "er-one-many", "er-many-one", "er-many-many"].includes(kind)) {
@@ -1792,7 +1752,7 @@ function shortHash(value: string): string {
 function componentRasterKey(group: GroupElement, theme: Theme, pixelWidth: number, pixelHeight: number) {
   const meta = group.libraryComponent!;
   const iconUrl = componentIconDataUrl(group); const icon = iconUrl ? componentIconImages.get(iconUrl) : undefined;
-  const fields = JSON.stringify([meta.label, meta.formTitle, meta.componentFields?.map(field => [field.key, field.value]), meta.guiProperties, meta.formOptions, meta.formStates, meta.formState, meta.selectedOption, meta.iconSvg, meta.iconViewBox, icon?.complete && icon.naturalWidth > 0]);
+  const fields = JSON.stringify([meta.label, meta.uiComponent, meta.chartData, meta.componentFields?.map(field => [field.key, field.value]), meta.iconSvg, meta.iconViewBox, icon?.complete && icon.naturalWidth > 0]);
   const style = JSON.stringify([meta.styleOverrides, meta.textStyle, meta.renderStyle, meta.appearance, theme]);
   return `${meta.kind}:${group.componentBounds!.w}x${group.componentBounds!.h}:${shortHash(style)}:${pixelWidth}x${pixelHeight}:${shortHash(fields)}`;
 }
@@ -1850,8 +1810,8 @@ export function drawModelComponent(ctx: CanvasRenderingContext2D, group: GroupEl
 }
 
 function renderModelComponentSvg(group: GroupElement, theme: Theme, allElements?: readonly Element[]): string {
-  const guiSvg = guiComponentSvg(group, theme);
-  if (guiSvg) return guiSvg;
+  const uiSvg = uiComponentSvg(group, theme);
+  if (uiSvg) return uiSvg;
   const bounds = group.componentBounds; const kind = group.libraryComponent?.kind;
   if (!bounds || !kind) return "";
   const { x, y, w, h } = bounds; const meta = group.libraryComponent!;
@@ -1861,7 +1821,7 @@ function renderModelComponentSvg(group: GroupElement, theme: Theme, allElements?
   const palette: Palette = basePalette;
   const edge = meta.styleOverrides?.color ?? palette.edge;
   const fill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? group.container?.background ?? palette.fill;
-  const rawTitle = meta.formTitle ?? meta.label ?? kind.replace(/-/g, " ");
+  const rawTitle = meta.uiComponent?.properties.title ?? meta.label ?? kind.replace(/-/g, " ");
   const maxLabelSize = Math.max(5, Math.min(48, h - 4));
   const size = Math.min(maxLabelSize, Math.max(5, meta.textStyle?.fontSize ?? 12));
   const strokeWidth = 1.5;
@@ -2529,15 +2489,6 @@ function renderModelComponentSvg(group: GroupElement, theme: Theme, allElements?
   if (kind === "network-zone" || kind === "c4-system" || kind === "c4-container") return `<rect x="${x + 4}" y="${y + 4}" width="${w - 8}" height="${h - 8}" rx="12" fill="${fill}" fill-opacity="${meta.styleOverrides?.fillOpacity ?? 1}" stroke="${edge}" stroke-dasharray="6 4"/>${label}<rect x="${x + 16}" y="${y + 35}" width="${w * .34}" height="${h * .42}" rx="7" fill="${palette.soft}" stroke="${edge}"/><rect x="${x + w * .58}" y="${y + 35}" width="${w * .28}" height="${h * .2}" rx="6" fill="${palette.soft}" stroke="${edge}"/><rect x="${x + w * .58}" y="${y + h * .61}" width="${w * .28}" height="${h * .2}" rx="6" fill="${palette.soft}" stroke="${edge}"/>`;
   if (kind === "software-database" || kind === "cloud-database") { const left = x + w * .08; const right = x + w * .92; const ry = 10; const body = `<path d="M ${left} ${y + ry} V ${y + h - ry} A ${w * .42} ${ry} 0 0 1 ${right} ${y + h - ry} V ${y + ry} Z" fill="${fill}" stroke="${edge}"/>`; const top = `<ellipse cx="${x + w / 2}" cy="${y + 12}" rx="${w * .42}" ry="10" fill="${fill}" stroke="${edge}"/>`; const rim = `<path d="M ${left} ${y + h * .48} C ${left} ${y + h * .61}, ${right} ${y + h * .61}, ${right} ${y + h * .48}" fill="none" stroke="${edge}"/>`; return `${body}${top}${rim}${label}`; }
   if (kind === "software-queue" || kind === "cloud-queue") return `${box}${label}${[0, 1, 2].map(index => `<rect x="${x + 12 + index * ((w - 34) / 3 + 5)}" y="${y + h * .48}" width="${(w - 34) / 3}" height="${h * .27}" rx="5" fill="${palette.soft}" stroke="${edge}"/>`).join("")}`;
-  if (kind === "form-button") { const caption = fitXmlText(meta.formOptions?.[meta.selectedOption ?? 0] ?? meta.formTitle ?? "Continue", w - 24); const buttonFill = meta.styleOverrides?.fillColor ?? (simple ? fill : palette.accent); const buttonInk = meta.styleOverrides?.color ?? (simple ? palette.ink : "#ffffff"); return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${simple ? 0 : Math.min(13, h / 2)}" fill="${buttonFill}" fill-opacity="${meta.styleOverrides?.fillOpacity ?? 1}" stroke="${edge}" stroke-width="1.5"/>${simple ? "" : `<path d="M ${x + 2} ${y + h - 3} H ${x + w - 2}" stroke="rgba(0,0,0,.12)" stroke-width="2"/>`}<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="middle" fill="${buttonInk}" font-family="sans-serif" font-size="${size}" font-weight="650">${caption}</text>`; }
-  if (kind === "form-input" || kind === "form-select") { const inset = Math.min(12, Math.max(2, w * .06)); const fieldY = y + Math.min(31, h * .42); const fieldHeight = Math.max(1, h - (fieldY - y) - Math.min(10, h * .12)); const field = `<rect x="${x + inset}" y="${fieldY}" width="${Math.max(1, w - inset * 2)}" height="${fieldHeight}" rx="${simple ? 0 : 6}" fill="${palette.fill}" stroke="${edge}"/>`; const titleText = fitXmlText(rawTitle, w - inset * 2); return `${box}<text x="${x + inset}" y="${y + Math.min(15, h * .2) + size * .35}" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="600">${titleText}</text>${field}${kind === "form-select" ? `<text x="${x + inset + 9}" y="${fieldY + fieldHeight / 2}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}">${fitXmlText(meta.formOptions?.[meta.selectedOption ?? 0] ?? "Select an option", w - inset * 2 - Math.min(27, Math.max(12, w * .15)) - 12)}</text><path d="m${x + w - inset - 12} ${fieldY + fieldHeight / 2 - 2} 4 4 4-4" fill="none" stroke="${edge}"/>` : `<path d="M ${x + inset + 9} ${fieldY + fieldHeight / 2} H ${x + w - inset - 9}" stroke="${palette.muted}"/>`}`; }
-  if (kind === "form-toggle") { const sw = Math.min(48, Math.max(20, w * .25), Math.max(1, w - 16)); const sh = Math.min(26, Math.max(12, h * .44), Math.max(1, h - 8)); const sx = x + w - sw - Math.min(14, Math.max(4, w * .06)); const sy = y + (h - sh) / 2; const enabled = meta.formState !== false; return `${box}<text x="${x + 14}" y="${y + h / 2}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${size}" font-weight="700">${fitXmlText(rawTitle, sx - x - 22)}</text><rect x="${sx}" y="${sy}" width="${sw}" height="${sh}" rx="${simple ? 0 : sh / 2}" fill="${enabled ? palette.accent : palette.soft}" stroke="${edge}"/><circle cx="${sx + (enabled ? sw - sh / 2 : sh / 2)}" cy="${sy + sh / 2}" r="${Math.min(sh * .36, sw / 3)}" fill="${simple ? palette.fill : "#fff"}"/>`; }
-  if (kind === "form-checkbox" || kind === "form-radio") {
-    const options = (meta.formOptions?.length ? meta.formOptions : ["Option 1"]).slice(0, 12); const rowHeight = Math.min(23, (h - 30) / options.length);
-    const labelSize = Math.min(maxLabelSize, Math.max(6, size * .76)); const labelWidth = w - 47;
-    const rows = options.map((option, index) => { const cy = y + 30 + rowHeight * (index + .5); const active = kind === "form-checkbox" ? meta.formStates?.[index] ?? index === 0 : (meta.selectedOption ?? 0) === index; const marker = kind === "form-checkbox" ? `<rect x="${x + 13}" y="${cy - 6}" width="12" height="12" rx="3" fill="${palette.fill}" stroke="${edge}"/>${active ? `<path d="m${x + 16} ${cy} 2 3 4-6" fill="none" stroke="${palette.accent}" stroke-width="2"/>` : ""}` : `<circle cx="${x + 19}" cy="${cy}" r="6" fill="${palette.fill}" stroke="${edge}"/>${active ? `<circle cx="${x + 19}" cy="${cy}" r="3" fill="${palette.accent}"/>` : ""}`; return `${marker}<text x="${x + 34}" y="${cy}" dominant-baseline="middle" fill="${meta.styleOverrides?.color ?? palette.ink}" font-family="sans-serif" font-size="${labelSize}">${fitXmlText(option, labelWidth, labelSize)}</text>`; }).join("");
-    return `${box}${label}${rows}`;
-  }
   if (kind.startsWith("er-") && kind !== "er-table") {
     const erEdge = meta.styleOverrides?.color ?? "#000000"; const erFill = meta.styleOverrides?.fillColor === null ? "none" : meta.styleOverrides?.fillColor ?? "#ffffff";
     const text = (value: string, tx: number, ty: number, width = w - 14, font = size) => `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" fill="${erEdge}" font-family="sans-serif" font-size="${font}"${fitTextAttribute(value, width, font)}>${xmlText(value)}</text>`;

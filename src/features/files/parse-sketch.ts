@@ -1,5 +1,5 @@
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ChecklistItem, ComponentMaster, ConnectionPoint, ContainerMetadata, D2Metadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, PrototypeAction, PrototypeCondition, PrototypeVariable, RelationshipDirection, RelationshipType, ReviewCommentThread, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokePoint, StrokeStyle, StrideThreatCategory, TransportSecurity } from "../../model";
+import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ChecklistItem, ComponentMaster, ConnectionPoint, ContainerMetadata, D2Metadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, PrototypeAction, PrototypeCondition, PrototypeVariable, RelationshipDirection, RelationshipType, ReviewCommentThread, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokePoint, StrokeStyle, StrideThreatCategory, TransportSecurity } from "../../model";
 import { ensureCanvasLayerPath, normalizeCanvasLayers } from "../canvas/structure";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { cloudNeutralComponent } from "../diagrams/cloud-providers";
@@ -17,8 +17,8 @@ import { normalizeStyleBindings, normalizeStyleLibrary } from "../styles/style-l
 import { normalizeBookmarks } from "../navigation/frame-navigation";
 import { normalizeDataLink, normalizeDataSources } from "../data/data-binding";
 import { normalizeMetrics } from "../diagrams/metrics";
-import { defaultLibraryChartData, defaultLibraryComponentFields, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, usesCleanModelRenderer, type LibraryComponentKind } from "../components/library-components";
-import { defaultGuiComponentProperties } from "../components/gui-components";
+import { defaultLibraryChartData, defaultLibraryComponentFields, LIBRARY_COMPONENTS, usesCleanModelRenderer, type LibraryComponentKind } from "../components/library-components";
+import { isUiComponentKind, migrateUiComponent } from "../components/ui-components";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -231,7 +231,9 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && (value.mermaid.diagramType === undefined || ["flowchart", "sequence", "class", "er", "state", "journey", "gantt", "c4", "mindmap", "timeline", "git", "requirement", "quadrant", "kanban", "sankey", "block", "pie", "xychart", "packet", "architecture", "radar", "treemap", "venn", "usecase", "ishikawa", "treeview", "swimlane", "cynefin", "wardley", "eventmodeling", "zenuml", "activity", "component", "deployment", "timing", "wbs", "network", "json", "yaml", "archimate"].includes(String(value.mermaid.diagramType)))
       ? { source: value.mermaid.source, ...(value.mermaid.format ? { format: value.mermaid.format } : {}), ...(value.mermaid.diagramType ? { diagramType: value.mermaid.diagramType as MermaidMetadata["diagramType"] } : {}) } : undefined;
     const rawComponent = isRecord(value.libraryComponent) ? value.libraryComponent : undefined;
-    const componentKind = typeof rawComponent?.kind === "string" ? rawComponent.kind : undefined;
+    const sourceComponentKind = typeof rawComponent?.kind === "string" ? rawComponent.kind : undefined;
+    const uiMigration = sourceComponentKind ? migrateUiComponent(sourceComponentKind, rawComponent?.uiComponent, rawComponent) : undefined;
+    const componentKind = uiMigration?.kind ?? sourceComponentKind;
     const catalogComponent = componentKind ? LIBRARY_COMPONENTS.find(component => component.kind === componentKind) : undefined;
     const componentConnectionPoints = rawComponent?.connectionPoints === undefined ? undefined : normalizeConnectionPoints(rawComponent.connectionPoints);
     const iconSvg = rawComponent && typeof rawComponent.iconSvg === "string" ? sanitizeIconSvg(rawComponent.iconSvg) : undefined;
@@ -273,37 +275,11 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
         }), ...rawComponentFields.filter(field => isRecord(field) && !defaultFields.some(defaultField => defaultField.key === field.key)).map(field => ({ key: field.key as string, label: typeof field.label === "string" ? field.label : field.key as string, value: field.value as string, ...(typeof field.hint === "string" ? { hint: field.hint } : {}) }))] as LibraryComponentData["componentFields"]
         : undefined;
     const trendDirection = rawComponent && (rawComponent.trendDirection === "up" || rawComponent.trendDirection === "down" || rawComponent.trendDirection === "steady") ? rawComponent.trendDirection as "up" | "down" | "steady" : undefined;
-    const formOptions = rawComponent && ["form-radio", "form-select", "form-button", "form-checkbox"].includes(String(rawComponent.kind)) && Array.isArray(rawComponent.formOptions)
-      && rawComponent.formOptions.length > 0 && rawComponent.formOptions.length <= 12
-      && rawComponent.formOptions.every(option => typeof option === "string" && option.length <= 120)
-      ? rawComponent.formOptions as string[] : undefined;
-    const formTitle = rawComponent && typeof rawComponent.formTitle === "string" && rawComponent.formTitle.length <= 80 ? rawComponent.formTitle : undefined;
-    const resolvedFormOptions = formOptions ?? (rawComponent?.formOptions === undefined && componentKind ? defaultLibraryFormOptions(componentKind as LibraryComponentKind) : undefined);
-    const resolvedFormTitle = formTitle ?? (rawComponent?.formTitle === undefined && componentKind ? defaultLibraryFormTitle(componentKind as LibraryComponentKind) : undefined);
+    const uiComponent = uiMigration?.uiComponent;
     const resolvedChartData = chartData ?? (rawComponent?.chartData === undefined && componentKind ? defaultLibraryChartData(componentKind as LibraryComponentKind) : undefined);
     const resolvedRenderStyle = renderStyle ?? (rawComponent?.renderStyle === undefined && componentKind && usesCleanModelRenderer(componentKind as LibraryComponentKind) ? "clean" as const : undefined);
     const resolvedPortCount = finite(rawComponent?.portCount) ? Math.round(rawComponent.portCount as number) : componentKind === "network-hub" ? 8 : componentKind === "network-switch" ? 6 : undefined;
-    const resolvedLaneCount = finite(rawComponent?.laneCount) ? Math.round(rawComponent.laneCount as number) : componentKind === "diagram-swimlane" ? 3 : undefined;
-    const formStates = rawComponent && Array.isArray(rawComponent.formStates) && rawComponent.formStates.length <= 12 && rawComponent.formStates.every(state => typeof state === "boolean") ? rawComponent.formStates as boolean[] : undefined;
-    const rawGuiProperties = rawComponent && isRecord(rawComponent.guiProperties) ? rawComponent.guiProperties : undefined;
-    const guiItems = rawGuiProperties && Array.isArray(rawGuiProperties.items) && rawGuiProperties.items.length > 0 && rawGuiProperties.items.length <= 12 && rawGuiProperties.items.every(item => typeof item === "string" && item.length <= 120) ? rawGuiProperties.items as string[] : undefined;
-    const parsedGuiProperties: GuiComponentProperties | undefined = rawGuiProperties ? {
-      ...(typeof rawGuiProperties.title === "string" && rawGuiProperties.title.length <= 120 ? { title: rawGuiProperties.title } : {}),
-      ...(["top", "bottom", "left", "right"].includes(String(rawGuiProperties.titlePosition)) ? { titlePosition: rawGuiProperties.titlePosition as GuiComponentProperties["titlePosition"] } : {}),
-      ...(typeof rawGuiProperties.placeholder === "string" && rawGuiProperties.placeholder.length <= 160 ? { placeholder: rawGuiProperties.placeholder } : {}),
-      ...(["vertical", "horizontal", "grid"].includes(String(rawGuiProperties.optionLayout)) ? { optionLayout: rawGuiProperties.optionLayout as GuiComponentProperties["optionLayout"] } : {}),
-      ...(finite(rawGuiProperties.optionColumns) && Number.isInteger(rawGuiProperties.optionColumns) && rawGuiProperties.optionColumns >= 1 && rawGuiProperties.optionColumns <= 12 ? { optionColumns: rawGuiProperties.optionColumns } : {}),
-      ...(finite(rawGuiProperties.optionGap) && rawGuiProperties.optionGap >= 0 && rawGuiProperties.optionGap <= 40 ? { optionGap: rawGuiProperties.optionGap } : {}),
-      ...(finite(rawGuiProperties.optionRowGap) && rawGuiProperties.optionRowGap >= 0 && rawGuiProperties.optionRowGap <= 40 ? { optionRowGap: rawGuiProperties.optionRowGap } : {}),
-      ...(finite(rawGuiProperties.optionColumnGap) && rawGuiProperties.optionColumnGap >= 0 && rawGuiProperties.optionColumnGap <= 40 ? { optionColumnGap: rawGuiProperties.optionColumnGap } : {}),
-      ...(typeof rawGuiProperties.bodyText === "string" && rawGuiProperties.bodyText.length <= 500 ? { bodyText: rawGuiProperties.bodyText } : {}),
-      ...(typeof rawGuiProperties.actionLabel === "string" && rawGuiProperties.actionLabel.length <= 120 ? { actionLabel: rawGuiProperties.actionLabel } : {}),
-      ...(guiItems ? { items: guiItems } : {}),
-      ...(finite(rawGuiProperties.activeItem) && Number.isInteger(rawGuiProperties.activeItem) && rawGuiProperties.activeItem >= 0 && rawGuiProperties.activeItem < 12 ? { activeItem: rawGuiProperties.activeItem } : {}),
-    } : undefined;
-    const guiDefaults = componentKind ? defaultGuiComponentProperties(componentKind) : undefined;
-    const guiProperties = rawGuiProperties ? { ...guiDefaults, ...parsedGuiProperties } : guiDefaults;
-    const rawStyleOverrides = rawComponent && isRecord(rawComponent.styleOverrides) ? rawComponent.styleOverrides : undefined;
+    const resolvedLaneCount = finite(rawComponent?.laneCount) ? Math.round(rawComponent.laneCount as number) : componentKind === "diagram-swimlane" ? 3 : undefined;    const rawStyleOverrides = rawComponent && isRecord(rawComponent.styleOverrides) ? rawComponent.styleOverrides : undefined;
     const styleOverrides = rawStyleOverrides && (rawStyleOverrides.color === undefined || isColor(rawStyleOverrides.color)) && (rawStyleOverrides.fillColor === undefined || rawStyleOverrides.fillColor === null || isColor(rawStyleOverrides.fillColor)) && (rawStyleOverrides.fillOpacity === undefined || finite(rawStyleOverrides.fillOpacity) && rawStyleOverrides.fillOpacity >= 0 && rawStyleOverrides.fillOpacity <= 1) && (rawStyleOverrides.lineStyle === undefined || ["solid", "dashed", "dotted", "double"].includes(String(rawStyleOverrides.lineStyle)))
       ? { ...(typeof rawStyleOverrides.color === "string" ? { color: rawStyleOverrides.color } : {}), ...(rawStyleOverrides.fillColor === null || typeof rawStyleOverrides.fillColor === "string" ? { fillColor: rawStyleOverrides.fillColor as string | null } : {}), ...(finite(rawStyleOverrides.fillOpacity) ? { fillOpacity: rawStyleOverrides.fillOpacity } : {}), ...(typeof rawStyleOverrides.lineStyle === "string" ? { lineStyle: rawStyleOverrides.lineStyle as StrokeStyle } : {}) } : undefined;
     const rawTextStyle = rawComponent && isRecord(rawComponent.textStyle) ? rawComponent.textStyle : undefined;
@@ -322,10 +298,15 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const rawOverrides = isRecord(value.componentOverrides) ? value.componentOverrides : undefined;
     const overrideChart = rawOverrides && isRecord(rawOverrides.chartData) ? rawOverrides.chartData : undefined;
     const overrideChartData = overrideChart && isLibraryChartData(overrideChart) ? overrideChart : undefined;
-    const overrideFormOptions = rawOverrides && Array.isArray(rawOverrides.formOptions) && rawOverrides.formOptions.length <= 32 && rawOverrides.formOptions.every(option => typeof option === "string" && option.length <= 120) ? rawOverrides.formOptions as string[] : undefined;
+    const legacyOverrideOptions = rawOverrides && Array.isArray(rawOverrides.formOptions) && rawOverrides.formOptions.length <= 32 && rawOverrides.formOptions.every(option => typeof option === "string" && option.length <= 120) ? rawOverrides.formOptions : undefined;
+    const overrideUiProperties = rawOverrides && componentKind && isUiComponentKind(componentKind)
+      ? isRecord(rawOverrides.uiProperties)
+        ? migrateUiComponent(componentKind, { schema: 1, properties: rawOverrides.uiProperties })?.uiComponent.properties
+        : legacyOverrideOptions ? migrateUiComponent(componentKind, undefined, { formOptions: legacyOverrideOptions })?.uiComponent.properties : undefined
+      : undefined;
     const overridePortLabels = rawOverrides && isRecord(rawOverrides.portLabels) && Object.keys(rawOverrides.portLabels).length <= 32 && Object.entries(rawOverrides.portLabels).every(([key, label]) => /^[\w.-]{1,80}$/.test(key) && typeof label === "string" && label.length <= 80) ? rawOverrides.portLabels as Record<string, string> : undefined;
-    const componentOverrides = rawOverrides && (rawOverrides.label === undefined || typeof rawOverrides.label === "string" && rawOverrides.label.length <= 240) && (rawOverrides.color === undefined || isColor(rawOverrides.color)) && (rawOverrides.fillColor === undefined || rawOverrides.fillColor === null || isColor(rawOverrides.fillColor)) && (rawOverrides.fillOpacity === undefined || finite(rawOverrides.fillOpacity) && rawOverrides.fillOpacity >= 0 && rawOverrides.fillOpacity <= 1) && (rawOverrides.lineStyle === undefined || ["solid", "dashed", "dotted", "double"].includes(String(rawOverrides.lineStyle))) && (rawOverrides.chartData === undefined || overrideChartData !== undefined) && (rawOverrides.formOptions === undefined || overrideFormOptions !== undefined) && (rawOverrides.portLabels === undefined || overridePortLabels !== undefined)
-      ? { ...(typeof rawOverrides.label === "string" ? { label: rawOverrides.label } : {}), ...(typeof rawOverrides.color === "string" ? { color: rawOverrides.color } : {}), ...(rawOverrides.fillColor === null || typeof rawOverrides.fillColor === "string" ? { fillColor: rawOverrides.fillColor as string | null } : {}), ...(finite(rawOverrides.fillOpacity) ? { fillOpacity: rawOverrides.fillOpacity } : {}), ...(typeof rawOverrides.lineStyle === "string" ? { lineStyle: rawOverrides.lineStyle as StrokeStyle } : {}), ...(overrideChartData ? { chartData: overrideChartData } : {}), ...(overrideFormOptions ? { formOptions: overrideFormOptions } : {}), ...(overridePortLabels ? { portLabels: overridePortLabels } : {}) } : undefined;
+    const componentOverrides = rawOverrides && (rawOverrides.label === undefined || typeof rawOverrides.label === "string" && rawOverrides.label.length <= 240) && (rawOverrides.color === undefined || isColor(rawOverrides.color)) && (rawOverrides.fillColor === undefined || rawOverrides.fillColor === null || isColor(rawOverrides.fillColor)) && (rawOverrides.fillOpacity === undefined || finite(rawOverrides.fillOpacity) && rawOverrides.fillOpacity >= 0 && rawOverrides.fillOpacity <= 1) && (rawOverrides.lineStyle === undefined || ["solid", "dashed", "dotted", "double"].includes(String(rawOverrides.lineStyle))) && (rawOverrides.chartData === undefined || overrideChartData !== undefined) && (rawOverrides.uiProperties === undefined && rawOverrides.formOptions === undefined || overrideUiProperties !== undefined) && (rawOverrides.portLabels === undefined || overridePortLabels !== undefined)
+      ? { ...(typeof rawOverrides.label === "string" ? { label: rawOverrides.label } : {}), ...(typeof rawOverrides.color === "string" ? { color: rawOverrides.color } : {}), ...(rawOverrides.fillColor === null || typeof rawOverrides.fillColor === "string" ? { fillColor: rawOverrides.fillColor as string | null } : {}), ...(finite(rawOverrides.fillOpacity) ? { fillOpacity: rawOverrides.fillOpacity } : {}), ...(typeof rawOverrides.lineStyle === "string" ? { lineStyle: rawOverrides.lineStyle as StrokeStyle } : {}), ...(overrideChartData ? { chartData: overrideChartData } : {}), ...(overrideUiProperties ? { uiProperties: overrideUiProperties } : {}), ...(overridePortLabels ? { portLabels: overridePortLabels } : {}) } : undefined;
     const connectionPoints = value.connectionPoints === undefined ? undefined : normalizeConnectionPoints(value.connectionPoints);
     const rawStencilParameters = isRecord(value.stencilParameters) ? value.stencilParameters : undefined;
     const stencilParameterNames = rawStencilParameters && Array.isArray(rawStencilParameters.parameters) && rawStencilParameters.parameters.length <= 12 && rawStencilParameters.parameters.every(name => typeof name === "string" && /^[\p{L}\p{N}_ -]{1,40}$/u.test(name)) ? rawStencilParameters.parameters as string[] : undefined;
@@ -365,19 +346,14 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && (iconSvg === undefined || iconViewBox !== undefined)
       && (rawComponent.portCount === undefined || finite(rawComponent.portCount) && rawComponent.portCount >= 1 && rawComponent.portCount <= 32)
       && (rawComponent.laneCount === undefined || finite(rawComponent.laneCount) && rawComponent.laneCount >= 2 && rawComponent.laneCount <= 8)
-      && (rawComponent.formState === undefined || typeof rawComponent.formState === "boolean")
-      && (rawComponent.formStates === undefined || formStates !== undefined)
       && (rawComponent.styleOverrides === undefined || styleOverrides !== undefined)
       && (rawComponent.textStyle === undefined || textStyle !== undefined)
-      && (rawComponent.selectedOption === undefined || finite(rawComponent.selectedOption) && rawComponent.selectedOption >= 0 && rawComponent.selectedOption < 20)
       && (rawComponent.chartData === undefined || chartData)
       && (rawComponent.appearance === undefined || componentAppearance !== undefined)
-      && (rawComponent.formOptions === undefined || formOptions !== undefined)
-      && (rawComponent.formTitle === undefined || formTitle !== undefined)
       && (rawComponent.trendDirection === undefined || trendDirection !== undefined)
       && (rawComponent.renderStyle === undefined || renderStyle !== undefined)
       && (rawComponent.connectionPoints === undefined || componentConnectionPoints !== undefined)
-      ? { kind: rawComponent.kind, ...(typeof rawComponent.label === "string" ? { label: rawComponent.label } : catalogComponent ? { label: catalogComponent.label } : {}), ...(componentFields?.length ? { componentFields } : {}), ...(resolvedRenderStyle ? { renderStyle: resolvedRenderStyle } : {}), ...(iconSvg !== undefined ? { iconSvg, iconViewBox } : {}), ...(resolvedPortCount !== undefined ? { portCount: resolvedPortCount } : {}), ...(componentConnectionPoints ? { connectionPoints: componentConnectionPoints } : {}), ...(resolvedLaneCount !== undefined ? { laneCount: resolvedLaneCount } : {}), ...(Array.isArray(rawComponent.laneWeights) ? { laneWeights: rawComponent.laneWeights as number[] } : {}), ...(finite(rawComponent.durationMinutes) && rawComponent.durationMinutes >= 0 && rawComponent.durationMinutes <= 100000 ? { durationMinutes: rawComponent.durationMinutes } : {}), ...(resolvedFormTitle !== undefined ? { formTitle: resolvedFormTitle } : {}), ...(typeof rawComponent.formState === "boolean" ? { formState: rawComponent.formState } : {}), ...(formStates ? { formStates } : {}), ...(finite(rawComponent.selectedOption) ? { selectedOption: Math.floor(rawComponent.selectedOption) } : {}), ...(resolvedFormOptions ? { formOptions: resolvedFormOptions } : {}), ...(guiProperties ? { guiProperties } : {}), ...(resolvedChartData ? { chartData: resolvedChartData } : {}), ...(trendDirection ? { trendDirection } : {}), ...(componentAppearance ? { appearance: componentAppearance } : {}), ...(styleOverrides ? { styleOverrides } : {}), ...(textStyle ? { textStyle } : {}) } : undefined;
+      ? { kind: componentKind!, ...(typeof rawComponent.label === "string" ? { label: rawComponent.label } : catalogComponent ? { label: catalogComponent.label } : {}), ...(componentFields?.length ? { componentFields } : {}), ...(resolvedRenderStyle ? { renderStyle: resolvedRenderStyle } : {}), ...(iconSvg !== undefined ? { iconSvg, iconViewBox } : {}), ...(resolvedPortCount !== undefined ? { portCount: resolvedPortCount } : {}), ...(componentConnectionPoints ? { connectionPoints: componentConnectionPoints } : {}), ...(resolvedLaneCount !== undefined ? { laneCount: resolvedLaneCount } : {}), ...(Array.isArray(rawComponent.laneWeights) ? { laneWeights: rawComponent.laneWeights as number[] } : {}), ...(finite(rawComponent.durationMinutes) && rawComponent.durationMinutes >= 0 && rawComponent.durationMinutes <= 100000 ? { durationMinutes: rawComponent.durationMinutes } : {}), ...(uiComponent ? { uiComponent } : {}), ...(resolvedChartData ? { chartData: resolvedChartData } : {}), ...(trendDirection ? { trendDirection } : {}), ...(componentAppearance ? { appearance: componentAppearance } : {}), ...(styleOverrides ? { styleOverrides } : {}), ...(textStyle ? { textStyle } : {}) } : undefined;
     const roleContainer = libraryComponent?.kind === "diagram-frame" || libraryComponent?.kind === "diagram-swimlane"
       ? { kind: libraryComponent.kind === "diagram-frame" ? "frame" as const : "swimlane" as const, name: libraryComponent.label ?? "Frame", clipChildren: false, autoResize: false, padding: 20 }
       : undefined;
@@ -386,9 +362,15 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const inferredBounds = containerMetadata && !componentBoundsValue
       ? contentBounds ? { x: contentBounds.x - (containerMetadata.padding ?? 24), y: contentBounds.y - (containerMetadata.padding ?? 24), w: Math.max(25, contentBounds.w + (containerMetadata.padding ?? 24) * 2), h: Math.max(25, contentBounds.h + (containerMetadata.padding ?? 24) * 2) } : { x: 0, y: 0, w: 160, h: 100 }
       : undefined;
-    const resolvedComponentBounds = componentBoundsValue ?? inferredBounds;
+    const migratedUiChildrenBounds = uiMigration && sourceComponentKind !== componentKind && !componentBoundsValue && children.length
+      ? unionBounds((children as Element[]).map(elementBounds)) : undefined;
+    const migratedUiBounds = uiMigration && sourceComponentKind !== componentKind && !componentBoundsValue
+      ? migratedUiChildrenBounds ?? { x: 0, y: 0, w: catalogComponent?.width ?? 160, h: catalogComponent?.height ?? 100 }
+      : undefined;
+    const resolvedComponentBounds = componentBoundsValue ?? inferredBounds ?? migratedUiBounds;
     if ((value.note !== undefined && !note) || (value.mermaid !== undefined && !mermaid) || (value.libraryComponent !== undefined && !libraryComponent) || (value.componentBounds !== undefined && !componentBoundsValue) || (value.container !== undefined && !container) || (value.masterId !== undefined && !masterId) || (value.variantKey !== undefined && !variantKey) || (value.componentOverrides !== undefined && !componentOverrides) || (value.connectionPoints !== undefined && !connectionPoints) || (value.stencilParameters !== undefined && !stencilParameters) || (componentBoundsValue && !libraryComponent && !container && !masterId && !stencilParameters) || (containerMetadata?.kind === "frame" && !resolvedComponentBounds) || (note && mermaid) || (libraryComponent && (note || mermaid))) return undefined;
     let normalizedChildren = children as Element[];
+    if (uiMigration && sourceComponentKind !== componentKind) normalizedChildren = [];
     let normalizedNote = note;
     if (note && [84, 94, 154].includes(note.height ?? -1) && normalizedChildren.length === 1) {
       const surface = normalizedChildren[0];
@@ -538,14 +520,14 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
   return undefined;
 }
 
-type SupportedSketchEnvelope = { kind: "remastered-v2" | "legacy-v10"; canvas: Record<string, unknown>; legacyLibrary?: never }
+type SupportedSketchEnvelope = { kind: "remastered-v2" | "remastered-v3" | "legacy-v10"; canvas: Record<string, unknown>; legacyLibrary?: never }
   | { kind: "legacy-v9"; canvas: Record<string, unknown>; legacyLibrary: unknown };
 
 /** Keep accepted file versions and their envelope migrations explicit. */
 function supportedSketchEnvelope(value: Record<string, unknown>): SupportedSketchEnvelope | undefined {
   if (value.format !== "SketchDraw") return undefined;
-  if (value.version === SKETCH_FORMAT_VERSION && isRecord(value.canvas) && !("sections" in value) && !("project" in value) && !("library" in value)) {
-    return { kind: "remastered-v2", canvas: value.canvas };
+  if ((value.version === SKETCH_FORMAT_VERSION || value.version === 2) && isRecord(value.canvas) && !("sections" in value) && !("project" in value) && !("library" in value)) {
+    return { kind: value.version === 2 ? "remastered-v2" : "remastered-v3", canvas: value.canvas };
   }
   if ((value.version !== 9 && value.version !== 10) || !isRecord(value.sections)) return undefined;
   const sections = value.sections;

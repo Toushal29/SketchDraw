@@ -114,7 +114,7 @@
         background: var(--theme-surface-elevated);
     }
 }
-.app-shell .style-pane.quick-style-idle-hidden { display: none !important; visibility: hidden; pointer-events: none; }
+.app-shell:not(.platform-windows) .style-pane.quick-style-idle-hidden { display: none !important; visibility: hidden; pointer-events: none; }
 
 /* Keep the component editor dock out of the touch header and tool rail lanes. */
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {

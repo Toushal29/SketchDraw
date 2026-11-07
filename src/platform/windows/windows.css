@@ -682,22 +682,6 @@
     cursor: not-allowed;
 }
 
-/* The view sheet uses a bounded width and follows the same theme as Settings. */
-.app-shell.platform-windows .view-menu-dropdown .view-settings-popover {
-    box-sizing: border-box;
-    width: min(620px, calc(100vw - 32px));
-    max-width: calc(100vw - 32px);
-    max-height: min(620px, calc(100dvh - 24px));
-    padding: 12px;
-    border-radius: 9px;
-}
-
-@media (max-width: 900px) {
-    .app-shell.platform-windows .view-menu-dropdown .view-settings-popover {
-        width: min(700px, calc(100vw - 24px));
-    }
-}
-
 /* Keep Windows dialogs synchronized with the selected toolbar palette. */
 .app-shell.platform-windows .windows-shortcut-dialog {
     box-sizing: border-box;

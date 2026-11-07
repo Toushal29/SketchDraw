@@ -14,6 +14,7 @@
     --ui-radius-panel: 12px;
     --ui-radius-popover: 14px;
     --ui-radius-dialog: 18px;
+    --ui-radius-menu: 9px;
     --ui-control-height-compact: 32px;
     --ui-control-height: 36px;
     --ui-motion-fast: 120ms;
@@ -279,6 +280,80 @@
     --view-hover: var(--theme-surface-hover);
 
     color: var(--theme-text-primary);
+}
+
+/* Minimalist keeps every workspace layout intact while simplifying its palette and surfaces. */
+.app-shell.theme-minimalist {
+    color-scheme: light;
+
+    --theme-background: #F7F7F5;
+    --theme-board-background: #FFFFFF;
+    --theme-surface: #FFFFFF;
+    --theme-surface-elevated: #FFFFFF;
+    --theme-surface-input: #FFFFFF;
+    --theme-border: #D8D8D4;
+    --theme-text-primary: #222220;
+    --theme-text-secondary: #666662;
+    --theme-text-tertiary: #858580;
+    --theme-primary: #343431;
+    --theme-primary-hover: #171715;
+    --theme-primary-muted: #EEEEEB;
+    --theme-primary-contrast: #FFFFFF;
+    --theme-ink-on-light: #222220;
+    --theme-ink-on-dark: #F7F7F5;
+    --diagram-ink: #252522;
+    --diagram-edge: #777772;
+    --diagram-fill: #FFFFFF;
+    --diagram-soft: #F0F0ED;
+    --diagram-muted: #70706B;
+    --diagram-accent: #474742;
+    --diagram-accent-blue: #536578;
+    --diagram-accent-warm: #77694F;
+
+    --ui-radius-control: 2px;
+    --ui-radius-panel: 3px;
+    --ui-radius-popover: 3px;
+    --ui-radius-dialog: 4px;
+    --ui-radius-menu: 3px;
+    --theme-shadow: transparent;
+    --theme-shadow-soft: transparent;
+    --theme-shadow-strong: transparent;
+    --theme-shadow-control: transparent;
+    --theme-elevation-popover: none;
+    --theme-elevation-dialog: none;
+}
+
+/* Draw.io-inspired minimal treatment keeps the same controls and layout, with flatter surfaces. */
+.app-shell.theme-minimalist :where(button, input, select, textarea) {
+    border-radius: var(--ui-radius-control);
+    box-shadow: none;
+    transition: none;
+}
+
+.app-shell.theme-minimalist :where(
+    .system-menu-popover,
+    .tool-options,
+    .style-pane,
+    .floating-layer-panel,
+    .view-settings-popover,
+    .app-settings-popover,
+    .gesture-settings-popover,
+    .mobile-command-panel,
+    .touch-pages-popover,
+    .workspace-view-panel,
+    .component-library-panel,
+    .component-editor-dock,
+    .design-workbench-panel,
+    .schema-editor-panel,
+    .canvas-context-menu,
+    .confirm-dialog,
+    .help-dialog,
+    .windows-shortcut-dialog,
+    .windows-command-palette,
+    .toolbar-order-editor
+) {
+    border-radius: 3px;
+    box-shadow: none;
 }
 
 /* Keep interaction transitions consistent across tools, dialogs, and inspectors. */

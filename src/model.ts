@@ -82,23 +82,32 @@ export type LibraryChartData = {
   annotations?: LibraryChartAnnotation[];
   options?: LibraryChartOptions;
 };
-export type GuiComponentProperties = {
+export type UiComponentKind =
+  | "ui.button" | "ui.text-field" | "ui.select" | "ui.checkbox-group" | "ui.radio-group" | "ui.switch" | "ui.textarea" | "ui.search" | "ui.date-field" | "ui.slider" | "ui.password-field" | "ui.email-field" | "ui.file-upload"
+  | "ui.card" | "ui.app-bar" | "ui.side-navigation" | "ui.tabs" | "ui.image" | "ui.alert" | "ui.dialog" | "ui.breadcrumbs" | "ui.avatar" | "ui.badge" | "ui.progress" | "ui.list" | "ui.table" | "ui.accordion" | "ui.menu" | "ui.toast" | "ui.pagination" | "ui.divider" | "ui.footer";
+export type UiComponentItem = { id: string; label: string; detail?: string };
+export type UiComponentProperties = {
   title?: string;
-  titlePosition?: "top" | "bottom" | "left" | "right";
+  body?: string;
   placeholder?: string;
-  optionLayout?: "vertical" | "horizontal" | "grid";
-  optionColumns?: number;
-  optionGap?: number;
-  optionRowGap?: number;
-  optionColumnGap?: number;
-  bodyText?: string;
-  actionLabel?: string;
-  items?: string[];
-  activeItem?: number;
+  action?: string;
+  secondaryAction?: string;
+  items?: UiComponentItem[];
+  selectedItemId?: string;
+  selectedItemIds?: string[];
+  checked?: boolean;
+  progress?: number;
+  tone?: "brand" | "neutral" | "positive" | "warning" | "critical";
+  titlePlacement?: "above" | "below" | "leading" | "trailing";
+  arrangement?: "stack" | "inline" | "grid";
+  columns?: number;
+  gap?: number;
+  columnGap?: number;
 };
+export type UiComponentRecord = { schema: 1; properties: UiComponentProperties };
 export type LibraryComponentFieldValue = { key: string; label: string; value: string; hint?: string };
-export type LibraryComponentData = { kind: string; label?: string; componentFields?: LibraryComponentFieldValue[]; portCount?: number; connectionPoints?: ConnectionPoint[]; laneCount?: number; laneWeights?: number[]; durationMinutes?: number; renderStyle?: "clean"; iconSvg?: string; iconViewBox?: string; formTitle?: string; formState?: boolean; formStates?: boolean[]; selectedOption?: number; formOptions?: string[]; guiProperties?: GuiComponentProperties; chartData?: LibraryChartData; trendDirection?: "up" | "down" | "steady"; appearance?: "modern" | "simple"; styleOverrides?: { color?: string; fillColor?: string | null; fillOpacity?: number; lineStyle?: StrokeStyle }; textStyle?: { color?: string; fontSize?: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify" } };
-export type ComponentOverrides = { label?: string; color?: string; fillColor?: string | null; fillOpacity?: number; lineStyle?: StrokeStyle; chartData?: LibraryChartData; formOptions?: string[]; portLabels?: Record<string, string> };
+export type LibraryComponentData = { kind: string; label?: string; componentFields?: LibraryComponentFieldValue[]; portCount?: number; connectionPoints?: ConnectionPoint[]; laneCount?: number; laneWeights?: number[]; durationMinutes?: number; renderStyle?: "clean"; iconSvg?: string; iconViewBox?: string; uiComponent?: UiComponentRecord; chartData?: LibraryChartData; trendDirection?: "up" | "down" | "steady"; appearance?: "modern" | "simple"; styleOverrides?: { color?: string; fillColor?: string | null; fillOpacity?: number; lineStyle?: StrokeStyle }; textStyle?: { color?: string; fontSize?: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify" } };
+export type ComponentOverrides = { label?: string; color?: string; fillColor?: string | null; fillOpacity?: number; lineStyle?: StrokeStyle; chartData?: LibraryChartData; uiProperties?: Partial<UiComponentProperties>; portLabels?: Record<string, string> };
 export type ComponentMaster = { id: string; name: string; template: Element[]; bounds: Bounds; variants?: Record<string, Element[]>; variantKey?: string; states?: Partial<Record<PrototypeComponentState, string>>; connectionPoints?: ConnectionPoint[]; createdAt?: number };
 export type StencilParameterData = { template: Element[]; parameters: string[]; values: Record<string, string> };
 export type GroupElement = LayerFlags & { type: "group"; elements: Element[]; componentBounds?: Bounds; container?: ContainerMetadata; note?: NoteMetadata; mermaid?: MermaidMetadata; libraryComponent?: LibraryComponentData; masterId?: string; componentOverrides?: ComponentOverrides; variantKey?: string; connectionPoints?: ConnectionPoint[]; stencilParameters?: StencilParameterData };
@@ -165,10 +174,10 @@ export type ProjectWorkspaceData = {
 };
 export type SketchDrawPlanningFile = { format: "SketchDrawPlanning"; version: 1; project: ProjectWorkspaceData };
 export type WindowsSyncMetadata = { version: 1; updatedAt: number; deviceId: string; clocks: Record<string, number>; tombstones: Record<string, number> };
-export const SKETCH_FORMAT_VERSION = 2 as const;
-/** Clipboard payloads retain their separate v10 protocol while files move to v2. */
+export const SKETCH_FORMAT_VERSION = 3 as const;
+/** Clipboard payloads retain their separate v10 protocol while files move to v3. */
 export const SKETCH_CLIPBOARD_VERSION = 10 as const;
-export type SketchFileDocumentV2 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; canvas: { activePageId: string; pages: SketchPage[]; componentMasters?: ComponentMaster[] }; windowsSync?: WindowsSyncMetadata };
+export type SketchFileDocumentV3 = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; canvas: { activePageId: string; pages: SketchPage[]; componentMasters?: ComponentMaster[] }; windowsSync?: WindowsSyncMetadata };
 /** In-memory snapshot. `library` is retained only while importing legacy v9 data. */
 export type SketchFile = { format: "SketchDraw"; version: typeof SKETCH_FORMAT_VERSION; activePageId: string; pages: SketchPage[]; library?: PersonalLibraryData; windowsSync?: WindowsSyncMetadata };
 export type Preview = { type: Exclude<Tool, "select" | "pan" | "laser" | "text" | "bucket" | "eraser" | "crop">; start: Point; end: Point; color: string; thickness: number; opacity?: number; flowchartShape?: FlowchartShape; lineRoute?: LineRoute; arrowRoute?: ArrowRoute; alignmentGuide?: { axis: "x" | "y"; coordinate: number } };
@@ -178,7 +187,7 @@ export type SnapGuideLine = { coordinate: number; moving: Bounds; reference: Bou
 export type CanvasSnapGuides = { x?: SnapGuideLine; y?: SnapGuideLine };
 export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; editingChildId?: string; shapeLabel?: boolean; shapeLabelIndex?: number; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };
 export type Theme = "light" | "dark";
-export type ThemeMode = Theme | "system" | "ai";
+export type ThemeMode = Theme | "system" | "ai" | "minimalist";
 
 export type Binding = { elementId: string; anchor: Point; rowId?: string; portId?: string };
 export type ShapeLabel = Omit<TextElement, keyof LayerFlags | "type" | "x" | "y"> & { verticalAlign: "top" | "middle" | "bottom"; offsetX?: number; offsetY?: number; routePosition?: number };

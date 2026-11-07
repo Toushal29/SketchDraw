@@ -247,5 +247,5 @@ export function noteCollapseHit(group: GroupElement, point: { x: number; y: numb
   return point.x >= x && point.x <= x + 24 && point.y >= y && point.y <= y + 24;
 }
 
-export { LIBRARY_COMPONENTS, buildLibraryRelationship, defaultLibraryFormOptions, defaultLibraryFormTitle, defaultLibraryChartData, defaultLibraryComponentFields, buildLibraryComponent } from "./features/components/library-components";
+export { LIBRARY_COMPONENTS, buildLibraryRelationship, defaultLibraryUiComponent, defaultLibraryChartData, defaultLibraryComponentFields, buildLibraryComponent } from "./features/components/library-components";
 export type { LibraryComponentKind } from "./features/components/library-components";

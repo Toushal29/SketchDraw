@@ -2,9 +2,8 @@ import type { Element, Point, ShapeElement, TextElement } from "../../model";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { flatten } from "../../operations";
 import { createStoredZip } from "../files/zip";
+import { unzipVsdxArchiveInWorker } from "./visio-vsdx-archive-client";
 
-const MAX_ARCHIVE_BYTES = 25_000_000;
-const MAX_ENTRY_BYTES = 50_000_000;
 const MAX_SHAPES = 20_000;
 const UNITS_PER_INCH = 96;
 const xml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character]!);
@@ -25,47 +24,6 @@ const xmlDocument = (source: string) => {
   if (document.querySelector("parsererror")) throw new Error("A Visio XML document is malformed.");
   return document;
 };
-
-function crc32(bytes: Uint8Array) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) { crc ^= byte; for (let bit = 0; bit < 8; bit++) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1; }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-async function unzipEntries(archive: Uint8Array): Promise<Map<string, Uint8Array>> {
-  if (archive.length > MAX_ARCHIVE_BYTES) throw new Error("Visio packages are limited to 25 MB.");
-  const view = new DataView(archive.buffer, archive.byteOffset, archive.byteLength);
-  let endOffset = -1;
-  for (let offset = archive.length - 22; offset >= Math.max(0, archive.length - 65_557); offset--) if (view.getUint32(offset, true) === 0x06054b50) { endOffset = offset; break; }
-  if (endOffset < 0) throw new Error("The selected file is not a supported ZIP-based Visio package.");
-  const entriesCount = view.getUint16(endOffset + 10, true); const centralOffset = view.getUint32(endOffset + 16, true);
-  if (entriesCount > 4096 || centralOffset >= archive.length) throw new Error("The Visio package directory is invalid or too large.");
-  const decoder = new TextDecoder(); const entries = new Map<string, Uint8Array>(); let cursor = centralOffset; let totalBytes = 0;
-  for (let index = 0; index < entriesCount; index++) {
-    if (cursor + 46 > archive.length || view.getUint32(cursor, true) !== 0x02014b50) throw new Error("The Visio package directory is corrupt.");
-    const method = view.getUint16(cursor + 10, true); const checksum = view.getUint32(cursor + 16, true);
-    const compressedLength = view.getUint32(cursor + 20, true); const plainLength = view.getUint32(cursor + 24, true);
-    const nameLength = view.getUint16(cursor + 28, true); const extraLength = view.getUint16(cursor + 30, true); const commentLength = view.getUint16(cursor + 32, true);
-    const localOffset = view.getUint32(cursor + 42, true); const name = decoder.decode(archive.subarray(cursor + 46, cursor + 46 + nameLength));
-    if (plainLength > MAX_ENTRY_BYTES || (totalBytes += plainLength) > MAX_ENTRY_BYTES) throw new Error("The expanded Visio package exceeds the 50 MB import limit.");
-    cursor += 46 + nameLength + extraLength + commentLength;
-    if (!name || name.startsWith("/") || name.split(/[\\/]/).includes("..")) continue;
-    if (localOffset + 30 > archive.length || view.getUint32(localOffset, true) !== 0x04034b50) continue;
-    const localNameLength = view.getUint16(localOffset + 26, true); const localExtraLength = view.getUint16(localOffset + 28, true);
-    const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
-    if (dataOffset + compressedLength > archive.length) throw new Error("A Visio package entry extends beyond the archive.");
-    const compressed = archive.subarray(dataOffset, dataOffset + compressedLength);
-    let plain: Uint8Array;
-    if (method === 0) plain = compressed.slice();
-    else if (method === 8 && typeof DecompressionStream !== "undefined") {
-      try { const stream = new Blob([Uint8Array.from(compressed).buffer]).stream().pipeThrough(new DecompressionStream("deflate-raw" as CompressionFormat)); plain = new Uint8Array(await new Response(stream).arrayBuffer()); }
-      catch { throw new Error(`Could not decompress the Visio package entry “${name}”.`); }
-    } else throw new Error("This Visio package uses an unsupported compression method.");
-    if (plain.length !== plainLength || crc32(plain) !== checksum) throw new Error(`The Visio package entry “${name}” failed its integrity check.`);
-    entries.set(name.replace(/\\/g, "/"), plain);
-  }
-  return entries;
-}
 
 function readEntry(entries: Map<string, Uint8Array>, path: string) {
   const bytes = entries.get(path);
@@ -181,7 +139,7 @@ function elementAnchor(item: ShapeElement, target: Point): Point {
 
 /** Import the first VSDX page as editable SketchDraw primitives. */
 export async function importVsdx(archive: Uint8Array): Promise<Element[]> {
-  const entries = await unzipEntries(archive);
+  const entries = await unzipVsdxArchiveInWorker(archive);
   const pagesXml = readEntry(entries, "visio/pages/pages.xml");
   if (!pagesXml) throw new Error("This package does not contain Visio pages.");
   const pagesDocument = xmlDocument(pagesXml); const page = pagesDocument.getElementsByTagName("Page")[0];

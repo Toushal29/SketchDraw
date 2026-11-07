@@ -35,12 +35,12 @@ function stableGeometry(value) {
 }
 
 try {
-  const [catalog, geometry, library, modelRenderer, gui] = await Promise.all([
+  const [catalog, geometry, library, modelRenderer, uiComponents] = await Promise.all([
     server.ssrLoadModule("/src/features/shapes/shape-catalog.ts"),
     server.ssrLoadModule("/src/features/shapes/geometry.ts"),
     server.ssrLoadModule("/src/features/components/library-components.ts"),
     server.ssrLoadModule("/src/features/components/model-component-renderer.ts"),
-    server.ssrLoadModule("/src/features/components/gui-components.ts"),
+    server.ssrLoadModule("/src/features/components/ui-components.ts"),
   ]);
 
   const shapeElement = (type, extra = {}) => ({
@@ -97,8 +97,8 @@ try {
   const componentDefinitions = library.LIBRARY_COMPONENTS.map(definition => {
     const component = library.buildLibraryComponent(definition.kind, 0, 0);
     const legacy = library.buildLibraryComponent(definition.kind, 0, 0, { forceLegacyGeometry: true });
-    const renderedSvg = gui.isGuiComponentKind(definition.kind)
-      ? gui.guiComponentSvg(component)
+    const renderedSvg = uiComponents.isUiComponentKind(definition.kind)
+      ? uiComponents.uiComponentSvg(component)
       : modelRenderer.modelComponentSvg(component);
     const relationship = library.buildLibraryRelationship(definition.kind, 0, 0);
     return {
@@ -127,7 +127,7 @@ try {
       "src/features/shapes/geometry.ts",
       "src/features/components/library-components.ts",
       "src/features/components/model-component-renderer.ts",
-      "src/features/components/gui-components.ts",
+      "src/features/components/ui-components.ts",
     ],
     coordinateConventions: {
       shapePaths: "SVG path data in the shape's local bounding box; this file uses a 100 by 100 reference box unless a component specifies its own dimensions.",
@@ -139,7 +139,7 @@ try {
     modelingComponents: componentDefinitions,
     notes: [
       "The default instance metadata and rendered SVG show the modern component renderer; legacyGeometry lists editable child primitives when that component has a legacy primitive construction path.",
-      "Blank editable labels and field values are intentional defaults. The associated componentFields, guiProperties, formOptions, and chartData metadata define the component's editable content.",
+      "Blank editable labels and field values are intentional defaults. The associated componentFields, uiComponent, chartData, and instance overrides define the component's editable content.",
       "Connection points on irregular primitive outlines are projected onto their actual path at runtime; the path and normalized coordinate base are the source for reproducing that projection.",
     ],
   };

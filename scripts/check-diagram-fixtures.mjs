@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { deflateRawSync } from "node:zlib";
 import ts from "typescript";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -53,6 +54,49 @@ const dataPipeline = loadTs(path.join(root, "src", "features", "diagrams", "data
 const pipelineSql = loadTs(path.join(root, "src", "features", "diagrams", "pipeline-sql.ts"));
 const pipelineWorkflows = loadTs(path.join(root, "src", "features", "diagrams", "pipeline-workflows.ts"));
 const schemaVisualizer = loadTs(path.join(root, "src", "features", "diagrams", "schema-visualizer.ts"));
+const checklist = loadTs(path.join(root, "src", "features", "notes", "checklist.ts"));
+const vsdxArchive = loadTs(path.join(root, "src", "features", "diagrams", "visio-vsdx-archive.ts"));
+const zip = loadTs(path.join(root, "src", "features", "files", "zip.ts"));
+
+// VSDX import limits and bounded expansion regression fixtures.
+function singleEntryZip(name, compressed, { method, plainLength, checksum }) {
+  const nameBytes = Buffer.from(name, "utf8");
+  const local = Buffer.alloc(30 + nameBytes.length + compressed.length);
+  local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(method, 8);
+  local.writeUInt32LE(checksum >>> 0, 14); local.writeUInt32LE(compressed.length, 18); local.writeUInt32LE(plainLength, 22);
+  local.writeUInt16LE(nameBytes.length, 26); nameBytes.copy(local, 30); Buffer.from(compressed).copy(local, 30 + nameBytes.length);
+  const central = Buffer.alloc(46 + nameBytes.length);
+  central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6); central.writeUInt16LE(method, 10);
+  central.writeUInt32LE(checksum >>> 0, 16); central.writeUInt32LE(compressed.length, 20); central.writeUInt32LE(plainLength, 24);
+  central.writeUInt16LE(nameBytes.length, 28); nameBytes.copy(central, 46);
+  const end = Buffer.alloc(22); const directoryOffset = local.length;
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(1, 8); end.writeUInt16LE(1, 10); end.writeUInt32LE(central.length, 12); end.writeUInt32LE(directoryOffset, 16);
+  return new Uint8Array(Buffer.concat([local, central, end]));
+}
+assert.equal(vsdxArchive.crc32(new TextEncoder().encode("123456789")), 0xcbf43926, "table-driven CRC32 matches the standard check value");
+const validArchive = await vsdxArchive.validateVsdxArchive(zip.createStoredZip([{ path: "visio/pages/pages.xml", contents: "<Pages/>" }]));
+assert.equal(new TextDecoder().decode(validArchive.get("visio/pages/pages.xml")), "<Pages/>");
+await assert.rejects(() => vsdxArchive.validateVsdxArchive(new Uint8Array(vsdxArchive.MAX_VSDX_ARCHIVE_BYTES + 1)), /limited to 25 MB/, "oversized ZIP input is rejected before parsing");
+const overLimitDeflate = new Uint8Array(deflateRawSync(Buffer.from("x")));
+await assert.rejects(() => vsdxArchive.validateVsdxArchive(singleEntryZip("visio/pages/pages.xml", overLimitDeflate, { method: 8, plainLength: vsdxArchive.MAX_VSDX_EXPANDED_BYTES + 1, checksum: 0 })), /expanded Visio package exceeds the 50 MB/, "declared decompression size is bounded before inflation");
+const bombPlain = Buffer.alloc(1024 * 1024, 0x41); const bombCompressed = new Uint8Array(deflateRawSync(bombPlain));
+await assert.rejects(() => vsdxArchive.validateVsdxArchive(singleEntryZip("visio/pages/pages.xml", bombCompressed, { method: 8, plainLength: 1, checksum: vsdxArchive.crc32(bombPlain) })), /expands beyond its declared size/, "underreported decompression bomb is stopped while streaming");
+
+// Checklist structural markers survive inline formatting and retain item types.
+const checklistText = checklist.checklistToText([
+  { id: "heading", type: "heading", text: "Section" },
+  { id: "task", type: "task", text: "**Bold task**", checked: false, level: 0 },
+  { id: "done", type: "task", text: "Complete", checked: true, level: 1 },
+]);
+assert.equal(checklistText, "# Section\n- [ ] **Bold task**\n\t- [x] Complete");
+assert.deepEqual(checklist.parseChecklistText(checklistText).map(item => [item.type, item.text]), [["heading", "Section"], ["task", "**Bold task**"], ["task", "Complete"]]);
+assert.equal(checklist.parseChecklistText("**Bold** and **bold**")[0].type, "task", "multiple bold spans do not become a heading by their outer delimiters");
+const boldTask = checklist.formatChecklistTextSelection("plain task", 0, 10, "**", "**");
+assert.equal(boldTask.text, "- [ ] **plain task**");
+assert.equal(checklist.parseChecklistText(boldTask.text)[0].type, "task");
+const unboldHeading = checklist.formatChecklistTextSelection("**Section**", 0, 11, "**", "**");
+assert.equal(unboldHeading.text, "# Section");
+assert.equal(checklist.parseChecklistText(unboldHeading.text)[0].type, "heading");
 
 const flow = mermaid.parseMermaidFlowchart(fixture("flowchart.mmd"));
 assert.equal(flow.nodes.length, 4);
@@ -1750,13 +1794,13 @@ assert.deepEqual(api.components.schemas.Item.required.sort(), ["id", "qty"]); as
 assert.match(api.components.schemas.NewItem.description, /TODO/);
 assert.throws(() => scaffolds.openApiFiles([lambdaNode]), /API endpoint components/);
 
-const gui = (id, kind, label, y, props = {}, extra = {}) => ({ type: "group", id, elements: [], componentBounds: { x: 20, y, w: 160, h: 50 }, libraryComponent: { kind, label, guiProperties: props, ...extra } });
+const uiComponent = (id, kind, label, y, properties = {}) => ({ type: "group", id, elements: [], componentBounds: { x: 20, y, w: 160, h: 50 }, libraryComponent: { kind, label, uiComponent: { schema: 1, properties } } });
 const screenFrame2 = (name, children, container = {}) => ({ type: "group", id: `frame-${name}`, elements: children, componentBounds: { x: 0, y: 0, w: 240, h: 300 }, container: { kind: "frame", name, ...container } });
 const signIn = screenFrame2("Sign in", [
   { type: "text", id: "heading", x: 20, y: 10, text: "Welcome <back>", color: "#111111", fontSize: 24, bold: true },
-  gui("email", "form-email", "Email", 60, { title: "Email address", placeholder: "you@example.com" }),
-  gui("role", "form-select", "Role", 120, { title: "Role" }, { formOptions: ["Admin", "Guest"], selectedOption: 1 }),
-  gui("save", "form-button", "Save", 190, { actionLabel: "Sign in" }),
+  uiComponent("email", "ui.email-field", "Email", 60, { title: "Email address", placeholder: "you@example.com" }),
+  uiComponent("role", "ui.select", "Role", 120, { title: "Role", items: [{ id: "admin", label: "Admin" }, { id: "guest", label: "Guest" }], selectedItemId: "guest" }),
+  uiComponent("save", "ui.button", "Save", 190, { title: "Save", action: "Sign in" }),
   { type: "image", id: "logo", x: 20, y: 250, w: 40, h: 40, dataUrl: "data:image/png;base64,AAAA", altText: "Company logo" },
 ]);
 const html = Object.fromEntries(scaffolds.htmlFiles([signIn]).map(file => [file.path, file.contents]));
@@ -1764,7 +1808,7 @@ assert.match(html["index.html"], /<h2 style="position: absolute; left: 20px; top
 assert.match(html["index.html"], /<label for="email_address"[^>]*>\s*Email address/); assert.match(html["index.html"], /<input id="email_address" name="email_address" type="email" placeholder="you@example.com">/);
 assert.match(html["index.html"], /<option value="Guest" selected>Guest<\/option>/); assert.match(html["index.html"], /<button type="button"[^>]*>Sign in<\/button>/);
 assert.match(html["index.html"], /role="img" aria-label="Company logo"/); assert.match(html["styles.css"], /\.frame/);
-const settingsScreen = screenFrame2("Settings page", [gui("a", "form-button", "A", 10, { actionLabel: "One" }), { ...gui("b", "form-button", "B", 80, { actionLabel: "Two" }), layoutFill: true }], { autoLayout: { direction: "horizontal", gap: 8, padding: 12, align: "center" } });
+const settingsScreen = screenFrame2("Settings page", [uiComponent("a", "ui.button", "A", 10, { title: "A", action: "One" }), { ...uiComponent("b", "ui.button", "B", 80, { title: "B", action: "Two" }), layoutFill: true }], { autoLayout: { direction: "horizontal", gap: 8, padding: 12, align: "center" } });
 const flexHtml = scaffolds.htmlFiles([settingsScreen])[0].contents;
 assert.match(flexHtml, /display: flex; flex-direction: row; gap: 8px; padding: 12px; align-items: center/); assert.match(flexHtml, /flex: 1 1 0/); assert.ok(!/position: absolute/.test(flexHtml));
 const react = Object.fromEntries(scaffolds.reactFiles([signIn, settingsScreen]).map(file => [file.path, file.contents]));
@@ -1866,4 +1910,4 @@ assert.match(metricsModule.metricsSummaryText(metricSummary), /Total: \$510\.5 Â
 assert.equal(metricsModule.summarizeMetrics([{ type: "rectangle", id: "n", x: 0, y: 0, w: 1, h: 1, color: "#000000", thickness: 1 }]).page.counted, 0);
 assert.deepEqual(metricsModule.normalizeMetrics({ cost: 5, capacity: "x", unit: " GB " }), { cost: 5, unit: "GB" }); assert.equal(metricsModule.normalizeMetrics({ cost: Infinity }), undefined); assert.equal(metricsModule.normalizeMetrics(null), undefined);
 
-process.stdout.write("Diagram fixtures passed: Mermaid flowchart, swimlane, Cynefin, Wardley, Event Modeling, ZenUML, sequence, class, ER, state, journey, Gantt, C4, mind map, timeline, Git graph, requirement, quadrant, Kanban, Sankey, block, pie, XY chart, packet, architecture, radar, treemap, Venn, Ishikawa, use case, and TreeView; PlantUML class/object and sequence plus 13 family subsets; DOT clusters, ranks, ports, defaults, styles, and export/reimport; D2 SQL/class/sequence imports and ID/style/layout round trips; PostgreSQL, MySQL, SQLite, and SQL Server DDL parsing/export; CSV graph and chart mapping, 520 categorized modeling components, BPMN XML import/export and XML safety, Structurizr workspace JSON, dbt manifest, SQL transformation and Airflow/GitHub Actions lineage, path bounds, subset errors, lasso selection, accessibility checks, and style library bindings.\n");
+process.stdout.write("Diagram fixtures passed: Mermaid flowchart, swimlane, Cynefin, Wardley, Event Modeling, ZenUML, sequence, class, ER, state, journey, Gantt, C4, mind map, timeline, Git graph, requirement, quadrant, Kanban, Sankey, block, pie, XY chart, packet, architecture, radar, treemap, Venn, Ishikawa, use case, and TreeView; PlantUML class/object and sequence plus 13 family subsets; DOT clusters, ranks, ports, defaults, styles, and export/reimport; D2 SQL/class/sequence imports and ID/style/layout round trips; PostgreSQL, MySQL, SQLite, and SQL Server DDL parsing/export; CSV graph and chart mapping, 520 categorized modeling components, BPMN XML import/export and XML safety, VSDX CRC/size/decompression limits, checklist formatting/type stability, Structurizr workspace JSON, dbt manifest, SQL transformation and Airflow/GitHub Actions lineage, path bounds, subset errors, lasso selection, accessibility checks, and style library bindings.\n");

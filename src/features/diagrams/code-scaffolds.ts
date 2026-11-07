@@ -214,42 +214,51 @@ function renderJsx(node: UiNode | string, depth: number): string {
 }
 
 const px = (value: number) => `${Math.round(value)}px`;
-function guiNode(group: GroupElement, used: Set<string>): UiNode {
-  const component = group.libraryComponent!; const props = component.guiProperties; const label = clean(component.label);
-  const title = clean(props?.title) || clean(component.formTitle) || label;
-  const options = (component.formOptions?.length ? component.formOptions : props?.items) ?? [];
+function uiNode(group: GroupElement, used: Set<string>): UiNode {
+  const component = group.libraryComponent!; const props = component.uiComponent?.properties; const title = clean(props?.title) || clean(component.label);
+  const items = props?.items ?? []; const labels = items.map(item => clean(item.label));
   const id = uniqueName(snake(title || component.kind, "field"), used);
-  const field = (control: UiNode): UiNode => ({ tag: "label", attrs: { for: id }, children: [title, control] });
+  const field = (control: UiNode): UiNode => ({ tag: "label", attrs: { for: id }, children: [...(title ? [title] : []), control] });
+  const selected = items.find(item => item.id === props?.selectedItemId)?.label ?? "";
+  const body = clean(props?.body); const action = clean(props?.action); const secondaryAction = clean(props?.secondaryAction);
   const kind = component.kind;
-  if (kind === "form-button") return { tag: "button", attrs: { type: "button" }, children: [clean(props?.actionLabel) || title || "Button"] };
-  if (["form-input", "form-email", "form-password", "form-search", "form-date"].includes(kind)) return field({ tag: "input", attrs: { id, name: id, type: kind === "form-email" ? "email" : kind === "form-password" ? "password" : kind === "form-search" ? "search" : kind === "form-date" ? "date" : "text", placeholder: clean(props?.placeholder) } });
-  if (kind === "form-textarea") return field({ tag: "textarea", attrs: { id, name: id, rows: "4", placeholder: clean(props?.placeholder) } });
-  if (kind === "form-select") return field({ tag: "select", attrs: { id, name: id, value: options[component.selectedOption ?? 0] ?? "" }, children: options.map(option => ({ tag: "option", attrs: { value: option, ...(options[component.selectedOption ?? 0] === option ? { selected: true } : {}) }, children: [option] })) });
-  if (kind === "form-checkbox" || kind === "form-radio") return { tag: "fieldset", children: [{ tag: "legend", children: [title] }, ...options.map((option, index): UiNode => ({ tag: "label", children: [{ tag: "input", attrs: { type: kind === "form-radio" ? "radio" : "checkbox", name: id, value: option, ...((kind === "form-radio" ? (component.selectedOption ?? 0) === index : component.formStates?.[index]) ? { checked: true } : {}) } }, option] }))] };
-  if (kind === "form-toggle") return { tag: "label", children: [{ tag: "input", attrs: { id, type: "checkbox", role: "switch", ...(component.formState ? { checked: true } : {}) } }, title] };
-  if (kind === "form-slider") return field({ tag: "input", attrs: { id, name: id, type: "range" } });
-  if (kind === "form-file") return field({ tag: "input", attrs: { id, name: id, type: "file" } });
-  if (kind === "gui-card") return { tag: "article", children: [{ tag: "h3", children: [title || "Card"] }, ...(clean(props?.bodyText) ? [{ tag: "p", children: [clean(props?.bodyText)] } as UiNode] : []), ...(clean(props?.actionLabel) ? [{ tag: "button", attrs: { type: "button" }, children: [clean(props?.actionLabel)] } as UiNode] : [])] };
-  if (kind === "gui-app-bar") return { tag: "header", children: [{ tag: "strong", children: [title || "App"] }] };
-  if (kind === "gui-navigation" || kind === "gui-menu" || kind === "gui-tabs") return { tag: "nav", attrs: { "aria-label": title || "Navigation" }, children: [{ tag: "ul", children: options.map((item, index): UiNode => ({ tag: "li", children: [{ tag: "a", attrs: { href: "#", ...(props?.activeItem === index ? { "aria-current": "page" } : {}) }, children: [item] }] })) }] };
-  if (kind === "gui-breadcrumbs") return { tag: "nav", attrs: { "aria-label": "Breadcrumb" }, children: [{ tag: "ol", children: options.map((item): UiNode => ({ tag: "li", children: [item] })) }] };
-  if (kind === "gui-list") return { tag: "ul", children: options.map((item): UiNode => ({ tag: "li", children: [item] })) };
-  if (kind === "gui-alert") return { tag: "div", attrs: { role: "alert" }, children: [clean(props?.bodyText) || title || "Alert"] };
-  if (kind === "gui-modal") return { tag: "dialog", attrs: { open: true, "aria-label": title || "Dialog" }, children: [{ tag: "h2", children: [title || "Dialog"] }, ...(clean(props?.bodyText) ? [{ tag: "p", children: [clean(props?.bodyText)] } as UiNode] : []), ...(clean(props?.actionLabel) ? [{ tag: "button", attrs: { type: "button" }, children: [clean(props?.actionLabel)] } as UiNode] : [])] };
-  if (kind === "gui-badge") return { tag: "span", attrs: { class: "badge" }, children: [title || "Badge"] };
-  if (kind === "gui-progress") return { tag: "progress", attrs: { max: "100", value: "50", "aria-label": title || "Progress" } };
-  if (kind === "gui-image") return { tag: "div", attrs: { role: "img", "aria-label": clean(group.altText) || title || "Image", class: "image-placeholder" } };
-  if (kind === "gui-accordion") return { tag: "div", children: options.map((item): UiNode => ({ tag: "details", children: [{ tag: "summary", children: [item] }] })) };
-  return { tag: "div", attrs: { "data-component": kind }, children: [title || label || kind] };
+  if (kind === "ui.button") return { tag: "button", attrs: { type: "button", "data-tone": props?.tone ?? "brand" }, children: [action || title || "Button"] };
+  if (["ui.text-field", "ui.email-field", "ui.password-field", "ui.search", "ui.date-field"].includes(kind)) {
+    const type = kind === "ui.email-field" ? "email" : kind === "ui.password-field" ? "password" : kind === "ui.search" ? "search" : kind === "ui.date-field" ? "date" : "text";
+    return field({ tag: "input", attrs: { id, name: id, type, placeholder: clean(props?.placeholder) } });
+  }
+  if (kind === "ui.textarea") return field({ tag: "textarea", attrs: { id, name: id, rows: "4", placeholder: clean(props?.placeholder) } });
+  if (kind === "ui.select") return field({ tag: "select", attrs: { id, name: id, value: selected }, children: items.map(item => ({ tag: "option", attrs: { value: item.label, ...(item.id === props?.selectedItemId ? { selected: true } : {}) }, children: [clean(item.label)] })) });
+  if (kind === "ui.checkbox-group" || kind === "ui.radio-group") return { tag: "fieldset", children: [...(title ? [{ tag: "legend", children: [title] } as UiNode] : []), ...items.map((item): UiNode => ({ tag: "label", children: [{ tag: "input", attrs: { type: kind === "ui.radio-group" ? "radio" : "checkbox", name: id, value: item.id, ...((kind === "ui.radio-group" ? props?.selectedItemId === item.id : (props?.selectedItemIds ?? []).includes(item.id)) ? { checked: true } : {}) } }, clean(item.label)] }))] };
+  if (kind === "ui.switch") return { tag: "label", children: [{ tag: "input", attrs: { id, type: "checkbox", role: "switch", ...(props?.checked ? { checked: true } : {}) } }, title] };
+  if (kind === "ui.slider") return field({ tag: "input", attrs: { id, name: id, type: "range", min: "0", max: "100", value: String(props?.progress ?? 0) } });
+  if (kind === "ui.file-upload") return field({ tag: "input", attrs: { id, name: id, type: "file", multiple: true } });
+  if (kind === "ui.card") return { tag: "article", children: [{ tag: "h3", children: [title || "Card"] }, ...(body ? [{ tag: "p", children: [body] } as UiNode] : []), ...(action ? [{ tag: "button", attrs: { type: "button" }, children: [action] } as UiNode] : [])] };
+  if (kind === "ui.app-bar") return { tag: "header", children: [{ tag: "strong", children: [title || "App"] }] };
+  if (["ui.side-navigation", "ui.menu", "ui.tabs"].includes(kind)) return { tag: "nav", attrs: { "aria-label": title || "Navigation" }, children: [{ tag: "ul", children: items.map(item => ({ tag: "li", children: [{ tag: "a", attrs: { href: "#", ...(props?.selectedItemId === item.id ? { "aria-current": "page" } : {}) }, children: [clean(item.label)] }] })) }] };
+  if (kind === "ui.breadcrumbs") return { tag: "nav", attrs: { "aria-label": title || "Breadcrumb" }, children: [{ tag: "ol", children: items.map(item => ({ tag: "li", children: [clean(item.label)] })) }] };
+  if (kind === "ui.list") return { tag: "section", children: [...(title ? [{ tag: "h3", children: [title] } as UiNode] : []), { tag: "ul", children: items.map(item => ({ tag: "li", children: [clean(item.label), ...(clean(item.detail) ? [{ tag: "small", children: [clean(item.detail)] } as UiNode] : [])] })) }] };
+  if (kind === "ui.table") return { tag: "table", children: [{ tag: "thead", children: [{ tag: "tr", children: items.slice(0, 3).map(item => ({ tag: "th", children: [clean(item.label)] })) }] }, { tag: "tbody", children: Array.from({ length: Math.ceil(items.length / 3) - 1 }, (_, row) => ({ tag: "tr", children: items.slice((row + 1) * 3, (row + 2) * 3).map(item => ({ tag: "td", children: [clean(item.label)] })) })) }] };
+  if (kind === "ui.alert") return { tag: "div", attrs: { role: "alert", "data-tone": props?.tone ?? "positive" }, children: [...(title ? [{ tag: "strong", children: [title] } as UiNode] : []), body || title || "Alert"] };
+  if (kind === "ui.dialog") return { tag: "dialog", attrs: { open: true, "aria-label": title || "Dialog" }, children: [{ tag: "h2", children: [title || "Dialog"] }, ...(body ? [{ tag: "p", children: [body] } as UiNode] : []), ...(secondaryAction ? [{ tag: "button", attrs: { type: "button" }, children: [secondaryAction] } as UiNode] : []), ...(action ? [{ tag: "button", attrs: { type: "button" }, children: [action] } as UiNode] : [])] };
+  if (kind === "ui.badge") return { tag: "span", attrs: { class: "badge", "data-tone": props?.tone ?? "neutral" }, children: [title || "Badge"] };
+  if (kind === "ui.progress") return { tag: "progress", attrs: { max: "100", value: String(props?.progress ?? 0), "aria-label": title || "Progress" } };
+  if (kind === "ui.image") return { tag: "div", attrs: { role: "img", "aria-label": clean(props?.placeholder) || title || "Image", class: "image-placeholder" } };
+  if (kind === "ui.accordion") return { tag: "div", children: items.map(item => ({ tag: "details", children: [{ tag: "summary", children: [clean(item.label)] }, ...(clean(item.detail) ? [{ tag: "p", children: [clean(item.detail)] } as UiNode] : [])] })) };
+  if (kind === "ui.avatar") return { tag: "span", attrs: { role: "img", "aria-label": title || "Avatar", class: "avatar" }, children: [title.slice(0, 4)] };
+  if (kind === "ui.toast") return { tag: "div", attrs: { role: "status", "data-tone": props?.tone ?? "positive" }, children: [title, body] };
+  if (kind === "ui.pagination") return { tag: "nav", attrs: { "aria-label": title || "Pagination" }, children: [{ tag: "ul", children: labels.map((label, index) => ({ tag: "li", children: [{ tag: "button", attrs: { type: "button", ...(props?.selectedItemId === items[index]?.id ? { "aria-current": "page" } : {}) }, children: [label] }] })) }] };
+  if (kind === "ui.divider") return { tag: "hr" };
+  if (kind === "ui.footer") return { tag: "footer", children: [title, { tag: "nav", children: [{ tag: "ul", children: labels.map(label => ({ tag: "li", children: [label] })) }] }] };
+  return { tag: "div", attrs: { "data-component": kind }, children: [title || kind] };
 }
-
 type ScreenContext = { used: Set<string> };
 function childNode(child: Element, frame: { x: number; y: number }, absolute: boolean, context: ScreenContext, fill: boolean): UiNode | undefined {
   if (child.hidden || child.type === "line" || child.type === "arrow" || child.type === "freehand") return undefined;
   const box = elementBounds(child);
   const style: Record<string, string> = absolute ? { position: "absolute", left: px(box.x - frame.x), top: px(box.y - frame.y), width: px(box.w), minHeight: px(box.h) } : fill ? { flex: "1 1 0" } : {};
   let node: UiNode | undefined;
-  if (child.type === "group" && child.libraryComponent) node = guiNode(child, context.used);
+  if (child.type === "group" && child.libraryComponent) node = uiNode(child, context.used);
   else if (child.type === "group" && child.container) node = containerNode(child, context);
   else if (child.type === "group" && child.note?.kind === "checklist") node = { tag: "aside", children: [...(clean(child.note.title) ? [{ tag: "strong", children: [clean(child.note.title)] } as UiNode] : []), { tag: "ul", children: (child.note.checklist?.items ?? []).map(item => item.type === "heading" ? { tag: "li", children: [{ tag: "strong", children: [clean(item.text)] }] } : { tag: "li", children: [`${item.checked ? "[x]" : "[ ]"} ${clean(item.text)}`] }) }] };
   else if (child.type === "group" && child.note) node = { tag: "aside", children: [...(clean(child.note.title) ? [{ tag: "strong", children: [clean(child.note.title)] } as UiNode] : []), { tag: "p", children: [clean(child.note.content)] }] };

@@ -1,7 +1,9 @@
-import type { Element, GroupElement, LibraryComponentData, Point, ShapeElement } from "../../model";
+import type { Element, GroupElement, LibraryComponentData, Point, ShapeElement, UiComponentProperties } from "../../model";
 import { elementBounds } from "../canvas/bounds";
-import { defaultGuiComponentProperties, guiChoiceMinimumHeight, guiNavigationMinimumHeight } from "./gui-components";
-import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryComponentFields, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "./library-components";
+import { svgPrimitivesToElements } from "../diagrams/svg-vectors";
+import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryComponentFields, defaultLibraryUiComponent, LIBRARY_COMPONENTS, type LibraryComponentKind } from "./library-components";
+import { modelComponentSvg } from "./model-component-renderer";
+import { isUiComponentKind, migrateUiComponent, uiChoiceMinimumHeight, uiNavigationMinimumHeight } from "./ui-components";
 import { componentGeometry, componentMinimumSize } from "./component-geometry";
 
 export type LibraryComponentField = { key: string; label: string; value: string; hint?: string };
@@ -10,7 +12,7 @@ export function libraryComponentFields(group: GroupElement): LibraryComponentFie
   if (group.libraryComponent?.kind?.startsWith("viz-")) return [];
   if (group.componentBounds) {
     const kind = group.libraryComponent?.kind ?? "";
-    if (kind.startsWith("form-") || kind.startsWith("gui-")) return [];
+    if (isUiComponentKind(kind)) return [];
     return [
       { key: "label", label: "Name", value: group.libraryComponent?.label ?? LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? kind },
       ...(group.libraryComponent?.componentFields ?? []).map(field => ({ key: `component:${field.key}`, label: field.label, value: field.value, ...(field.hint ? { hint: field.hint } : {}) })),
@@ -18,11 +20,9 @@ export function libraryComponentFields(group: GroupElement): LibraryComponentFie
   }
   const fields: LibraryComponentField[] = []; let textIndex = 0; let labelIndex = 0;
   const roleLabels: Record<string, string> = { "class-name": "Class name", "class-attributes": "Attributes", "class-methods": "Methods" };
-  const structuredFormKind = ["form-checkbox", "form-radio", "form-select", "form-button", "form-toggle"].includes(group.libraryComponent?.kind ?? "");
-  const isStructuredFormField = (element: Element) => structuredFormKind && typeof element.componentRole === "string" && /^(?:form-checkbox-title|form-checkbox-label-\d+|form-radio-title|form-radio-label-\d+|form-select-(?:title|value)|form-button-caption|form-toggle-(?:title|state))$/.test(element.componentRole);
   const visit = (items: Element[]) => items.forEach(element => {
     if (element.type === "group") { visit(element.elements); return; }
-    if (element.type === "text") { textIndex += 1; if (!isStructuredFormField(element)) fields.push({ key: element.id ?? `text-${textIndex}`, label: element.componentRole ? roleLabels[element.componentRole] ?? element.componentRole.replace(/-/g, " ") : `Text ${textIndex}`, value: element.text }); }
+    if (element.type === "text") { textIndex += 1; fields.push({ key: element.id ?? `text-${textIndex}`, label: element.componentRole ? roleLabels[element.componentRole] ?? element.componentRole.replace(/-/g, " ") : `Text ${textIndex}`, value: element.text }); }
     if ("label" in element && element.label) { labelIndex += 1; fields.push({ key: `${element.id ?? `shape-${labelIndex}`}:label`, label: element.componentRole ? roleLabels[element.componentRole] ?? element.componentRole.replace(/-/g, " ") : `Shape label ${labelIndex}`, value: element.label.text }); }
   });
   visit(group.elements);
@@ -159,17 +159,16 @@ export function libraryComponentFontSize(group: GroupElement): number {
 export function libraryComponentMinimum(group: GroupElement, axis: "w" | "h"): number {
   const kind = group.libraryComponent?.kind;
   if (!kind) return 10;
-  if (kind === "form-checkbox" || kind === "form-radio") return axis === "h" ? guiChoiceMinimumHeight(group) : componentMinimumSize(kind)[axis];
-  if (kind === "gui-navigation" && axis === "h") return guiNavigationMinimumHeight(group);
+  if ((kind === "ui.checkbox-group" || kind === "ui.radio-group") && axis === "h") return uiChoiceMinimumHeight(group);
+  if (kind === "ui.side-navigation" && axis === "h") return uiNavigationMinimumHeight(group);
   return componentMinimumSize(kind)[axis];
 }
 
 export function assignLibraryComponentIds(group: GroupElement, kind: LibraryComponentKind, previous?: GroupElement): GroupElement {
   if (group.componentBounds) {
-    const guiProperties = defaultGuiComponentProperties(kind);
-    const metadata: LibraryComponentData = { kind, label: LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? String(kind), ...(defaultLibraryFormTitle(kind) ? { formTitle: defaultLibraryFormTitle(kind) } : {}), ...(defaultLibraryFormOptions(kind) ? { formOptions: defaultLibraryFormOptions(kind) } : {}), ...(defaultLibraryChartData(kind) ? { chartData: defaultLibraryChartData(kind) } : {}), ...(guiProperties ? { guiProperties } : {}), ...(kind === "network-hub" ? { portCount: 8 } : kind === "network-switch" ? { portCount: 6 } : {}) };
-    const savedGuiProperties = { ...(guiProperties ?? {}), ...(group.libraryComponent?.guiProperties ?? {}), ...(previous?.libraryComponent?.guiProperties ?? {}) };
-    return { ...group, id: previous?.id ?? group.id ?? crypto.randomUUID(), elements: [], libraryComponent: { ...metadata, ...(group.libraryComponent ?? {}), ...(previous?.libraryComponent ?? {}), ...(Object.keys(savedGuiProperties).length ? { guiProperties: savedGuiProperties } : {}), kind } };
+    const uiComponent = previous?.libraryComponent?.uiComponent ?? group.libraryComponent?.uiComponent ?? defaultLibraryUiComponent(kind);
+    const metadata: LibraryComponentData = { kind, label: LIBRARY_COMPONENTS.find(item => item.kind === kind)?.label ?? String(kind), ...(defaultLibraryChartData(kind) ? { chartData: defaultLibraryChartData(kind) } : {}), ...(uiComponent ? { uiComponent } : {}), ...(kind === "network-hub" ? { portCount: 8 } : kind === "network-switch" ? { portCount: 6 } : {}) };
+    return { ...group, id: previous?.id ?? group.id ?? crypto.randomUUID(), elements: [], libraryComponent: { ...metadata, ...(group.libraryComponent ?? {}), ...(previous?.libraryComponent ?? {}), ...(uiComponent ? { uiComponent } : {}), kind } };
   }
   const hasEditableText = (items: Element[]): boolean => items.some(element => element.type === "text" || "label" in element && !!element.label || element.type === "group" && hasEditableText(element.elements));
   if (!hasEditableText(group.elements) && kind !== "uml-activation") {
@@ -186,16 +185,10 @@ export function assignLibraryComponentIds(group: GroupElement, kind: LibraryComp
     return element.type === "group" ? { ...element, id, elements: element.elements.map(addIds) } : { ...element, id } as Element;
   };
   const chartData = defaultLibraryChartData(kind);
-  const formOptions = defaultLibraryFormOptions(kind);
-  const formTitle = defaultLibraryFormTitle(kind);
-  const formState = kind === "form-checkbox" || kind === "form-toggle" ? true : undefined;
-  const formStates = kind === "form-checkbox" ? (formOptions ?? []).map((_, index) => index === 0) : undefined;
-  const selectedOption = kind === "form-radio" || kind === "form-select" || kind === "form-button" ? 0 : undefined;
-  const guiProperties = defaultGuiComponentProperties(kind);
-  const metadata: LibraryComponentData = { kind, ...(LIBRARY_COMPONENTS.find(item => item.kind === kind) ? { label: LIBRARY_COMPONENTS.find(item => item.kind === kind)!.label } : {}), ...(formTitle ? { formTitle } : {}), ...(formState === undefined ? {} : { formState }), ...(formStates ? { formStates } : {}), ...(selectedOption === undefined ? {} : { selectedOption }), ...(formOptions ? { formOptions } : {}), ...(guiProperties ? { guiProperties } : {}), ...(chartData ? { chartData } : {}) };
+  const uiComponent = previous?.libraryComponent?.uiComponent ?? group.libraryComponent?.uiComponent ?? defaultLibraryUiComponent(kind);
+  const metadata: LibraryComponentData = { kind, ...(LIBRARY_COMPONENTS.find(item => item.kind === kind) ? { label: LIBRARY_COMPONENTS.find(item => item.kind === kind)!.label } : {}), ...(uiComponent ? { uiComponent } : {}), ...(chartData ? { chartData } : {}) };
   const sourceElements = kind === "uml-activation" ? group.elements.filter(item => item.type !== "text") : group.elements;
-  const savedGuiProperties = { ...(guiProperties ?? {}), ...(previous?.libraryComponent?.guiProperties ?? {}) };
-  return { ...group, id: previous?.id ?? group.id ?? crypto.randomUUID(), elements: sourceElements.map(addIds), libraryComponent: { ...metadata, ...(previous?.libraryComponent ?? {}), ...(Object.keys(savedGuiProperties).length ? { guiProperties: savedGuiProperties } : {}), kind } };
+  return { ...group, id: previous?.id ?? group.id ?? crypto.randomUUID(), elements: sourceElements.map(addIds), libraryComponent: { ...metadata, ...(previous?.libraryComponent ?? {}), ...(uiComponent ? { uiComponent } : {}), kind } };
 }
 
 /** Rebuilds a renderer-only library group as editable primitives for old-file compatibility. */
@@ -208,6 +201,20 @@ export function restoreDirectLibraryComponent(group: GroupElement): Element[] | 
     return [legacy];
   }
   const kind = metadata.kind as LibraryComponentKind;
+  if (isUiComponentKind(kind)) {
+    if (typeof DOMParser === "undefined") return undefined;
+    const localGroup = { ...group, rotation: 0, componentBounds: { x: 0, y: 0, w: bounds.w, h: bounds.h } };
+    const rotation = Number.isFinite(group.rotation) ? group.rotation : 0;
+    const rotationTransform = rotation ? `<g transform="rotate(${rotation} ${bounds.w / 2} ${bounds.h / 2})">${modelComponentSvg(localGroup, "light")}</g>` : modelComponentSvg(localGroup, "light");
+    const markup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${bounds.w} ${bounds.h}">${rotationTransform}</svg>`;
+    const document = new DOMParser().parseFromString(markup, "image/svg+xml");
+    if (document.querySelector("parsererror")) return undefined;
+    const elements = svgPrimitivesToElements(document.documentElement as unknown as SVGSVGElement, { x: bounds.x, y: bounds.y }, 1);
+    if (!elements?.length) return undefined;
+    const detached: GroupElement = { ...group, elements };
+    delete detached.componentBounds;
+    return [detached];
+  }
   const relationship = buildLibraryRelationship(kind, bounds.x, bounds.y);
   if (relationship) {
     relationship.id = group.id ?? crypto.randomUUID();
@@ -221,11 +228,7 @@ export function restoreDirectLibraryComponent(group: GroupElement): Element[] | 
   }
   const restored = buildLibraryComponent(kind, bounds.x, bounds.y, {
     chartData: metadata.chartData ?? defaultLibraryChartData(kind),
-    formOptions: metadata.formOptions ?? defaultLibraryFormOptions(kind),
-    selectedOption: metadata.selectedOption,
-    formStates: metadata.formStates,
-    formTitle: metadata.formTitle ?? defaultLibraryFormTitle(kind),
-    formState: metadata.formState,
+    uiComponent: metadata.uiComponent ?? defaultLibraryUiComponent(kind),
     portCount: metadata.portCount,
     forceLegacyGeometry: true,
   });
@@ -314,13 +317,12 @@ export function resizeLibraryGroup(group: GroupElement, bounds: { x: number; y: 
     return { ...group, componentBounds: { x: bounds.x, y: bounds.y, w, h } };
   }
   const source = elementBounds(group.libraryComponent ? { ...group, rotation: 0 } : group); const sx = Math.max(.1, bounds.w) / Math.max(1, source.w); const sy = Math.max(.1, bounds.h) / Math.max(1, source.h);
-  const formFontScale = group.libraryComponent?.kind?.startsWith("form-") ? Math.min(sx, sy) : 1;
   const tx = (x: number) => bounds.x + (x - source.x) * sx; const ty = (y: number) => bounds.y + (y - source.y) * sy;
   const scalePoint = (point: Point) => ({ x: tx(point.x), y: ty(point.y) });
   const scale = (element: Element): Element => {
     if (element.type === "group") return { ...element, elements: element.elements.map(scale) };
     if (element.type === "freehand") return { ...element, points: element.points.map(scalePoint), thickness: Math.max(.5, element.thickness * (sx + sy) / 2) };
-    if (element.type === "text") return { ...element, x: tx(element.x), y: ty(element.y), ...(formFontScale === 1 ? {} : { fontSize: Math.max(6, element.fontSize * formFontScale) }) };
+    if (element.type === "text") return { ...element, x: tx(element.x), y: ty(element.y) };
     if (element.type === "image" || element.type === "schemaTable") return { ...element, x: tx(element.x), y: ty(element.y), w: element.w * sx, h: element.h * sy };
     const x2 = tx(element.x + element.w); const y2 = ty(element.y + element.h);
     const label = element.label;
@@ -330,85 +332,40 @@ export function resizeLibraryGroup(group: GroupElement, bounds: { x: number; y: 
   return { ...group, elements: group.elements.map(scale) };
 }
 
-export function rebuildLibraryFormOptions(group: GroupElement, options: string[], requestedOption?: number): GroupElement {
-  const kind = group.libraryComponent!.kind as LibraryComponentKind;
-  if (kind !== "form-radio" && kind !== "form-select" && kind !== "form-button" && kind !== "form-checkbox") return group;
-  const formOptions = options.slice(0, 12).map(value => value.trim().slice(0, 120));
-  if (!formOptions.length) formOptions.push("Option 1");
-  const selectedOption = Math.max(0, Math.min(requestedOption ?? group.libraryComponent?.selectedOption ?? 0, formOptions.length - 1));
-  const fontSize = libraryComponentFontSize(group);
-  const bounds = elementBounds(group);
-  const formStates = kind === "form-checkbox" ? formOptions.map((_, index) => group.libraryComponent?.formStates?.[index] ?? index === 0) : undefined;
-  const formTitle = group.libraryComponent?.formTitle ?? defaultLibraryFormTitle(kind);
-  if (group.componentBounds) {
-    const updated = { ...group, libraryComponent: { ...group.libraryComponent!, formOptions, selectedOption, ...(formStates ? { formStates } : {}) } };
-    const minimumHeight = libraryComponentMinimum(updated, "h");
-    const height = Math.max(group.componentBounds.h, minimumHeight);
-    return { ...updated, componentBounds: { ...group.componentBounds, h: height } };
-  }
-  const rebuilt = resizeLibraryFont(assignLibraryComponentIds(buildLibraryComponent(kind, bounds.x, bounds.y, { formOptions, selectedOption, formStates, formTitle }), kind, group), fontSize);
-  const natural = elementBounds(rebuilt);
-  const resized = resizeLibraryGroup(rebuilt, { x: bounds.x, y: bounds.y, w: bounds.w, h: natural.h });
-  return { ...resized, id: group.id, libraryComponent: { ...group.libraryComponent!, formOptions, selectedOption, ...(formStates ? { formStates } : {}) } };
-}
-
-export function setLibraryFormTitle(group: GroupElement, title: string): GroupElement {
-  const kind = group.libraryComponent?.kind;
-  if (!kind?.startsWith("form-")) return group;
-  const formTitle = title.slice(0, 80);
-  if (group.componentBounds) return { ...group, libraryComponent: { ...group.libraryComponent!, formTitle } };
-  const titleRole = kind === "form-checkbox" ? "form-checkbox-title" : kind === "form-radio" ? "form-radio-title" : kind === "form-select" ? "form-select-title" : kind === "form-input" ? "form-input-title" : kind === "form-toggle" ? "form-toggle-title" : `form-${kind.slice("form-".length)}-title`;
-  const elements = mapDescendants(group.elements, element => element.type === "text" && element.componentRole === titleRole ? { ...element, text: formTitle } : element);
-  return { ...group, elements, libraryComponent: { ...group.libraryComponent!, formTitle } };
-}
-
 export function setLibraryChartTrend(group: GroupElement, trendDirection: "up" | "down" | "steady"): GroupElement {
   if (group.libraryComponent?.kind !== "viz-kpi") return group;
   return { ...group, libraryComponent: { ...group.libraryComponent, trendDirection } };
 }
 
-export function setLibraryCheckboxOption(group: GroupElement, index: number, state: boolean): GroupElement {
-  const options = group.libraryComponent?.formOptions ?? defaultLibraryFormOptions("form-checkbox") ?? [];
-  if (index < 0 || index >= options.length) return group;
-  const states = options.map((_, current) => group.libraryComponent?.formStates?.[current] ?? current === 0);
-  states[index] = state;
-  if (group.componentBounds) return { ...group, libraryComponent: { ...group.libraryComponent!, formStates: states } };
-  const elements = mapDescendants(group.elements, element => {
-    if (element.componentRole === `form-checkbox-box-${index}` && element.type === "rectangle") return { ...element, fillColor: state ? "#edf4ff" : "#ffffff" };
-    if (element.componentRole === `form-checkbox-check-a-${index}` || element.componentRole === `form-checkbox-check-b-${index}`) return { ...element, opacity: state ? 1 : 0 };
-    return element;
-  });
-  return { ...group, elements, libraryComponent: { ...group.libraryComponent!, formStates: states } };
+export function updateUiComponentProperties(group: GroupElement, patch: Partial<UiComponentProperties>): GroupElement {
+  const metadata = group.libraryComponent;
+  const kind = metadata?.kind;
+  if (!metadata || !kind || !isUiComponentKind(kind)) return group;
+  const current = metadata.uiComponent ?? defaultLibraryUiComponent(kind);
+  const migrated = migrateUiComponent(kind, { schema: 1, properties: { ...(current?.properties ?? {}), ...patch } });
+  if (!migrated) return group;
+  const updated: GroupElement = { ...group, libraryComponent: { ...metadata, uiComponent: migrated.uiComponent } };
+  if (!updated.componentBounds) return updated;
+  const minimumHeight = libraryComponentMinimum(updated, "h");
+  return updated.componentBounds.h < minimumHeight ? resizeLibraryGroup(updated, { ...updated.componentBounds, h: minimumHeight }) : updated;
 }
 
-export function setLibraryFormState(group: GroupElement, state: boolean): GroupElement {
-  const kind = group.libraryComponent!.kind;
-  const track = group.elements.find((item): item is ShapeElement => item.type === "rectangle" && item.w >= 35 && item.w <= 50 && item.h >= 20 && item.h <= 32);
-  if (group.componentBounds) return { ...group, libraryComponent: { ...group.libraryComponent!, formState: state } };
-  const elements = mapDescendants(group.elements, element => {
-    if (kind === "form-toggle") {
-      if (element.type === "rectangle" && element.w >= 35 && element.w <= 50 && element.h >= 20 && element.h <= 32) return { ...element, fillColor: state ? "#dcece5" : "#e6e9ed", color: state ? "#c7dfd4" : "#cbd1d8" };
-      if (element.type === "circle" && element.w >= 16 && element.w <= 20 && element.h >= 16 && element.h <= 20 && track) return { ...element, x: track.x + (state ? 21 : 3), fillColor: state ? "#44a17f" : "#8b949e", color: state ? "#44a17f" : "#8b949e" };
-      if (element.type === "text" && (element.componentRole === "form-toggle-state" || element.text === "Enabled" || element.text === "Disabled")) return { ...element, text: state ? "Enabled" : "Disabled" };
-    }
-    if (kind === "form-checkbox" && element.type === "line") return { ...element, opacity: state ? 1 : 0 };
-    return element;
-  });
-  return { ...group, elements, libraryComponent: { ...group.libraryComponent!, formState: state } };
+export function setUiChoiceValue(group: GroupElement, index: number): GroupElement {
+  const properties = group.libraryComponent?.uiComponent?.properties;
+  const item = properties?.items?.[index];
+  if (!item) return group;
+  if (group.libraryComponent?.kind === "ui.checkbox-group") {
+    const selected = new Set(properties.selectedItemIds ?? []);
+    selected.has(item.id) ? selected.delete(item.id) : selected.add(item.id);
+    return updateUiComponentProperties(group, { selectedItemIds: [...selected] });
+  }
+  if (group.libraryComponent?.kind === "ui.radio-group" || group.libraryComponent?.kind === "ui.select") {
+    return updateUiComponentProperties(group, { selectedItemId: item.id });
+  }
+  return group;
 }
 
-export function setLibraryRadioOption(group: GroupElement, selected: number): GroupElement {
-  const rings = group.elements.filter((item): item is ShapeElement => item.type === "circle" && typeof item.componentRole === "string" && /^form-radio-option-\d+$/.test(item.componentRole));
-  if (group.componentBounds) return { ...group, libraryComponent: { ...group.libraryComponent!, selectedOption: Math.max(0, Math.min((group.libraryComponent?.formOptions?.length ?? 1) - 1, selected)) } };
-  if (!rings.length) return group;
-  const selectedOption = Math.max(0, Math.min(rings.length - 1, selected));
-  const target = rings.find(item => item.componentRole === `form-radio-option-${selectedOption}`)!;
-  const elements = mapDescendants(group.elements, element => {
-    if (element.type !== "circle") return element;
-    const role = element.componentRole ?? "";
-    if (/^form-radio-option-\d+$/.test(role)) return { ...element, color: role === `form-radio-option-${selectedOption}` ? "#4d78b8" : "#ced8e2" };
-    if (/^form-radio-dot-\d+$/.test(role) && element.w <= 10 && element.h <= 10) return { ...element, x: target.x + (target.w - element.w) / 2, y: target.y + (target.h - element.h) / 2, componentRole: `form-radio-dot-${selectedOption}` };
-    return element;
-  });
-  return { ...group, elements, libraryComponent: { ...group.libraryComponent!, selectedOption } };
+export function setUiSelectedItem(group: GroupElement, index: number): GroupElement {
+  const item = group.libraryComponent?.uiComponent?.properties.items?.[index];
+  return item ? updateUiComponentProperties(group, { selectedItemId: item.id }) : group;
 }

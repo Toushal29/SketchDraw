@@ -1,10 +1,6 @@
-export type TextZipEntry = { path: string; contents: string };
+import { crc32 } from "./crc32";
 
-function crc32(bytes: Uint8Array) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) { crc ^= byte; for (let bit = 0; bit < 8; bit++) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1; }
-  return (crc ^ 0xffffffff) >>> 0;
-}
+export type TextZipEntry = { path: string; contents: string };
 
 /** Builds a small UTF-8 ZIP archive with stored (uncompressed) entries. */
 export function createStoredZip(files: TextZipEntry[], maximumBytes = 32 * 1024 * 1024, description = "generated ZIP") {

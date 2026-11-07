@@ -1,6 +1,6 @@
 import type { Element, GroupElement, LibraryChartData, LibraryChartKind, LibraryComponentFieldValue, RelationshipType, ShapeElement, TextElement } from "../../model";
 import { CLOUD_NEUTRAL_COMPONENTS, CLOUD_PROVIDER_COMPONENTS, cloudProviderComponent, type CloudNeutralComponentKind, type CloudProviderComponentKind } from "../diagrams/cloud-providers";
-import { defaultGuiComponentProperties, GUI_COMPONENT_DEFINITIONS, isGuiComponentKind, type GuiComponentKind } from "./gui-components";
+import { defaultUiComponentRecord, UI_COMPONENT_DEFINITIONS, isUiComponentKind, type UiComponentKind } from "./ui-components";
 import { componentGeometry, snapComponentSize, type ComponentGeometryDefinition } from "./component-geometry";
 import { PROPOSAL_COMPONENTS, proposalComponentFields, proposalComponentForKind, type ProposalComponentKind } from "./proposal-components";
 
@@ -12,7 +12,7 @@ const rect = (x: number, y: number, w: number, h: number, fill: string, color: s
   type: "rectangle", x, y, w, h, color, thickness: 1.4, fillColor: fill, fillOpacity: 1, edgeStyle: "rounded", cornerRadius: radius,
 });
 
-type BaseLibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "uml-state" | "uml-initial-state" | "uml-final-state" | "uml-fork" | "uml-join" | "uml-component" | "uml-node" | "uml-artifact" | "uml-enumeration" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-associative-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-composite-attribute" | "er-key-attribute" | "er-partial-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-message-event" | "bpmn-timer-event" | "bpmn-error-event" | "bpmn-signal-event" | "bpmn-terminate-event" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-user-task" | "bpmn-service-task" | "bpmn-script-task" | "bpmn-call-activity" | "bpmn-subprocess" | "bpmn-data" | "bpmn-data-store" | "bpmn-text-annotation" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-proxy" | "network-bridge" | "network-bastion" | "network-gateway" | "network-printer" | "network-workstation" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | GuiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | "uml-association" | "uml-dependency" | "uml-include" | "uml-extend" | "c4-code-element" | "c4-infrastructure-node" | "bpmn-manual-task" | "bpmn-business-rule-task" | "bpmn-send-task" | "bpmn-receive-task" | "network-subnet" | CloudProviderComponentKind | CloudNeutralComponentKind;
+type BaseLibraryComponentKind = "diagram-frame" | "diagram-swimlane" | "uml-class" | "uml-lifeline" | "uml-activation" | "uml-inheritance" | "uml-realization" | "uml-aggregation" | "uml-composition" | "uml-actor" | "uml-use-case" | "uml-package" | "uml-interface" | "uml-state" | "uml-initial-state" | "uml-final-state" | "uml-fork" | "uml-join" | "uml-component" | "uml-node" | "uml-artifact" | "uml-enumeration" | "sequence-sync" | "sequence-async" | "er-table" | "er-entity" | "er-weak-entity" | "er-associative-entity" | "er-relationship" | "er-identifying-relationship" | "er-attribute" | "er-composite-attribute" | "er-key-attribute" | "er-partial-key-attribute" | "er-multivalued-attribute" | "er-derived-attribute" | "er-one-one" | "er-one-many" | "er-many-one" | "er-many-many" | "c4-system" | "c4-software-system" | "c4-container" | "c4-component" | "c4-person" | "c4-external-system" | "c4-deployment-node" | "tech-service" | "data-flow" | "diagram-legend" | "network-zone" | "bpmn-start" | "bpmn-message-event" | "bpmn-timer-event" | "bpmn-error-event" | "bpmn-signal-event" | "bpmn-terminate-event" | "bpmn-event" | "bpmn-end" | "bpmn-boundary-event" | "bpmn-gateway" | "bpmn-parallel-gateway" | "bpmn-inclusive-gateway" | "bpmn-event-gateway" | "bpmn-task" | "bpmn-user-task" | "bpmn-service-task" | "bpmn-script-task" | "bpmn-call-activity" | "bpmn-subprocess" | "bpmn-data" | "bpmn-data-store" | "bpmn-text-annotation" | "bpmn-pool" | "network-router" | "network-server" | "network-firewall" | "network-client" | "network-switch" | "network-hub" | "network-load-balancer" | "network-proxy" | "network-bridge" | "network-bastion" | "network-gateway" | "network-printer" | "network-workstation" | "network-access-point" | "network-internet" | "network-vpn" | "network-dns" | "network-nat-gateway" | "network-modem" | LibraryChartKind | UiComponentKind | "software-client" | "software-api" | "software-service" | "software-database" | "software-queue" | "software-event-bus" | "software-cache" | "cloud-boundary" | "cloud-function" | "cloud-storage" | "cloud-database" | "cloud-queue" | "uml-association" | "uml-dependency" | "uml-include" | "uml-extend" | "c4-code-element" | "c4-infrastructure-node" | "bpmn-manual-task" | "bpmn-business-rule-task" | "bpmn-send-task" | "bpmn-receive-task" | "network-subnet" | CloudProviderComponentKind | CloudNeutralComponentKind;
 export type LibraryComponentKind = BaseLibraryComponentKind | "db-view" | "db-index" | "db-procedure" | "uml-object" | "uml-activity-action" | "uml-activity-decision" | "uml-activity-initial" | "uml-activity-final" | "c4-container-instance" | "c4-component-instance" | "bpmn-group" | ProposalComponentKind;
 type LibraryComponentDefinition = { kind: LibraryComponentKind; section: string; label: string; description: string; width: number; height: number; geometry: ComponentGeometryDefinition };
 const COMPONENT_CATALOG: Omit<LibraryComponentDefinition, "geometry">[] = [
@@ -120,7 +120,7 @@ const COMPONENT_CATALOG: Omit<LibraryComponentDefinition, "geometry">[] = [
   { kind: "viz-heatmap", section: "Data visualization | Charts", label: "Heatmap", description: "Compare values across rows and categories", width: 300, height: 210 },
   { kind: "viz-treemap", section: "Data visualization | Charts", label: "Treemap", description: "Compare hierarchical category sizes", width: 280, height: 190 },
   { kind: "viz-kpi", section: "Data visualization | Metrics", label: "Metric card", description: "Headline value, trend, and supporting caption", width: 220, height: 126 },
-  ...GUI_COMPONENT_DEFINITIONS,
+  ...UI_COMPONENT_DEFINITIONS,
   { kind: "bpmn-start", section: "BPMN | Events & flow", label: "Start event", description: "BPMN start event with a visible trigger", width: 96, height: 92 },
   { kind: "bpmn-message-event", section: "BPMN | Events & flow", label: "Message event", description: "BPMN message trigger or result event", width: 96, height: 92 },
   { kind: "bpmn-timer-event", section: "BPMN | Events & flow", label: "Timer event", description: "BPMN timer trigger event with an expression", width: 96, height: 92 },
@@ -244,27 +244,8 @@ export function buildLibraryRelationship(kind: LibraryComponentKind, x: number, 
   return line;
 }
 
-export function defaultLibraryFormOptions(kind: LibraryComponentKind): string[] | undefined {
-  if (kind === "form-radio") return ["Monthly", "Annual"];
-  if (kind === "form-select") return ["Canada", "France", "Japan"];
-  if (kind === "form-checkbox") return ["Email updates", "Product news", "Monthly report"];
-  if (kind === "form-button") return ["Continue", "Save draft", "Cancel"];
-  return undefined;
-}
-export function defaultLibraryFormTitle(kind: LibraryComponentKind): string | undefined {
-  if (kind === "form-checkbox") return "Preferences";
-  if (kind === "form-radio") return "Choose a plan";
-  if (kind === "form-input") return "Label";
-  if (kind === "form-select") return "Country";
-  if (kind === "form-textarea") return "Message";
-  if (kind === "form-search") return "Search";
-  if (kind === "form-date") return "Date";
-  if (kind === "form-password") return "Password";
-  if (kind === "form-email") return "Email";
-  if (kind === "form-file") return "Attachment";
-  if (kind === "form-slider") return "Volume";
-  if (kind === "form-toggle") return "Notifications";
-  return undefined;
+export function defaultLibraryUiComponent(kind: LibraryComponentKind) {
+  return defaultUiComponentRecord(kind);
 }
 
 export function defaultLibraryChartData(kind: LibraryComponentKind): LibraryChartData | undefined {
@@ -470,15 +451,13 @@ export function defaultLibraryComponentFields(kind: LibraryComponentKind): Libra
   return MODEL_COMPONENT_FIELDS[kind]?.map(field => ({ ...field })) ?? [];
 }
 
-export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number, options?: { chartData?: LibraryChartData; formOptions?: string[]; selectedOption?: number; formStates?: boolean[]; formTitle?: string; formState?: boolean; portCount?: number; forceLegacyGeometry?: boolean }): GroupElement {
+export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: number, options?: { chartData?: LibraryChartData; uiComponent?: import("../../model").UiComponentRecord; portCount?: number; forceLegacyGeometry?: boolean }): GroupElement {
   const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind);
   if (!definition) throw new Error(`Unknown library component: ${kind}`);
   if (!options?.forceLegacyGeometry) {
-    const guiProperties = defaultGuiComponentProperties(kind);
     const componentFields = defaultLibraryComponentFields(kind);
     const chartData = options?.chartData ?? defaultLibraryChartData(kind);
-    const formOptions = options?.formOptions ?? defaultLibraryFormOptions(kind);
-    const formTitle = options?.formTitle ?? defaultLibraryFormTitle(kind);
+    const uiComponent = options?.uiComponent ?? defaultLibraryUiComponent(kind);
     return {
       type: "group", id: crypto.randomUUID(), elements: [],
       componentBounds: { x, y, w: definition.width, h: definition.height },
@@ -487,32 +466,22 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
         kind, label: definition.label,
         ...(usesCleanModelRenderer(kind) ? { renderStyle: "clean" as const } : {}),
         ...(componentFields.length ? { componentFields } : {}),
-        ...(guiProperties ? { guiProperties } : {}),
         ...(chartData ? { chartData } : {}),
-        ...(formOptions ? { formOptions } : {}),
-        ...(formTitle ? { formTitle } : {}),
-        ...(options?.selectedOption === undefined ? {} : { selectedOption: options.selectedOption }),
-        ...(options?.formStates ? { formStates: options.formStates } : {}),
-        ...(options?.formState === undefined ? {} : { formState: options.formState }),
+        ...(uiComponent ? { uiComponent } : {}),
         ...(kind === "diagram-swimlane" ? { laneCount: 3 } : {}),
         ...(kind === "network-hub" ? { portCount: options?.portCount ?? 8 } : kind === "network-switch" ? { portCount: options?.portCount ?? 6 } : {}),
       },
     };
   }
-  if (isGuiComponentKind(kind)) {
+  if (isUiComponentKind(kind)) {
     const definition = LIBRARY_COMPONENTS.find(item => item.kind === kind)!;
-    const guiProperties = defaultGuiComponentProperties(kind);
+    const uiComponent = options?.uiComponent ?? defaultLibraryUiComponent(kind);
     return {
       type: "group", id: crypto.randomUUID(), elements: [],
       componentBounds: { x, y, w: definition.width, h: definition.height },
       libraryComponent: {
         kind, label: definition.label,
-        ...(guiProperties ? { guiProperties } : {}),
-        ...(defaultLibraryFormOptions(kind) ? { formOptions: options?.formOptions ?? defaultLibraryFormOptions(kind) } : {}),
-        ...(defaultLibraryFormTitle(kind) ? { formTitle: options?.formTitle ?? defaultLibraryFormTitle(kind) } : {}),
-        ...(options?.selectedOption === undefined ? {} : { selectedOption: options.selectedOption }),
-        ...(options?.formStates ? { formStates: options.formStates } : {}),
-        ...(options?.formState === undefined ? {} : { formState: options.formState }),
+        ...(uiComponent ? { uiComponent } : {}),
       },
     };
   }
@@ -609,7 +578,7 @@ export function buildLibraryComponent(kind: LibraryComponentKind, x: number, y: 
     : kind.startsWith("er-")
       ? { fill: "#ffffff", header: "#ffffff", edge: "#000000", ink: "#000000" }
       : { fill: "#eef5fa", header: "#dfeaf2", edge: "#527d9b", ink: "#3d6384" };
-  if (!kind.startsWith("form-")) elements.forEach((element, index) => {
+  if (!isUiComponentKind(kind)) elements.forEach((element, index) => {
     if (element.type === "text") element.color = palette.ink;
     else if (element.type === "freehand") element.color = palette.edge;
     else if (element.type !== "image" && element.type !== "schemaTable" && element.type !== "group") {

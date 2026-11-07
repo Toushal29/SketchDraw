@@ -29,9 +29,9 @@ Before values are the old shared box-midpoint ports, normalized to the component
 | `uml-actor` | 76×116 → 75×125 | shared box midpoints | (.5,.024), (.774,.40), (~.284,.69), (.226,.40) | label could collide with figure → label sits below figure and wraps to two lines |
 | `c4-person` | 126×122 → 125×125 | shared box midpoints | (.5,.112), (.66,.336), (~.38,.656), (.34,.336) | single-line title and role → title, role, and goal share the lower label area |
 | `aws-dynamodb` | 176×108 → 175×100 | shared box midpoints | (.5,0), (1,.5), (.5,1), (0,.5) | “Amazon…” at 7–7.9 px → title wraps at 9 px minimum beside the icon |
-| `form-checkbox` | 150×75 → 150×75 | shared box midpoints | header north; row-aware east, south, and west; plus `row-1` to `row-3` | option rows remain one line where they fit; minimum height now accounts for the actual row pitch |
+| `ui.checkbox-group` | 200×118 → 200×118 | shared box midpoints | header north; row-aware east, south, and west; plus `row-1` to `row-3` | option rows use the nested UI properties record and fit their three default rows |
 
-The port coordinates are normalized to bounds, so instance placement does not affect them. BPMN event bounds include their label area; the circle ports therefore sit on the circle rather than at the outer card midpoint. The `form-checkbox` row positions follow the default vertical layout: about `.328`, `.557`, and `.787` of its height.
+The port coordinates are normalized to bounds, so instance placement does not affect them. BPMN event bounds include their label area; the circle ports therefore sit on the circle rather than at the outer card midpoint. The `ui.checkbox-group` row positions follow the default vertical layout; Forms & UI components store values in a versioned nested record.
 
 ## Default size grid
 
@@ -69,7 +69,7 @@ Component palette tokens are defined in `src/styles/app/theme.css` and read for 
 
 ## Storage compatibility
 
-The `.sketch` version remains v2. Serialization omits catalog-owned labels, hints, default fields, default chart data, and default GUI properties. It retains component kind, bounds, field values, custom fields, appearance, and overrides. On load, the catalog restores those defaults and validates saved values using the existing parser; legacy v2 documents remain readable and retain their identifiers and bindings.
+The `.sketch` format is version 3. Forms & UI now use new `ui.*` component kinds and a versioned `uiComponent` record with editable properties. Serialization omits unchanged catalog defaults from that nested record; parsing restores defaults and validates saved values. Version 2 sketches migrate old Forms & UI kinds and properties into the new record when opened. Canvas object IDs, bounds, and connector bindings remain stable during that migration.
 
 Legacy child-drawn model groups are still readable. The renderer retirement sequence is:
 

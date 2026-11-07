@@ -113,11 +113,6 @@
     accent-color: var(--workspace-accent, var(--theme-info));
 }
 
-.component-form-title {
-    display: grid;
-    gap: 4px;
-}
-
 .component-option-actions button {
     min-height: 30px;
     padding: 4px 9px;
@@ -159,8 +154,7 @@
     flex-wrap: wrap;
 }
 
-.component-editor-choice-group button,
-.component-option-gap-control button {
+.component-editor-choice-group button {
     min-width: 0;
     min-height: 28px;
     padding: 4px 8px;
@@ -182,55 +176,14 @@
     background: color-mix(in srgb, var(--workspace-accent, var(--theme-primary-muted)) 9%, var(--workspace-surface, var(--theme-surface-input)));
 }
 
-.component-editor-choice-group button:disabled,
-.component-option-gap-control button:disabled {
+.component-editor-choice-group button:disabled {
     opacity: .45;
     cursor: not-allowed;
 }
 
-.component-editor-choice-group button:focus-visible,
-.component-option-gap-control button:focus-visible {
+.component-editor-choice-group button:focus-visible {
     outline: 2px solid var(--workspace-accent, var(--theme-primary));
     outline-offset: 1px;
-}
-
-.component-option-spacing {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-}
-
-.component-option-spacing.single {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-.component-option-gap-control {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
-    min-width: 0;
-    color: var(--workspace-muted, var(--theme-text-secondary));
-    font-size: var(--type-micro);
-    font-weight: var(--font-weight-semibold);
-}
-
-.component-option-gap-control > span {
-    margin-right: auto;
-}
-
-.component-option-gap-control button {
-    width: 26px;
-    min-width: 26px;
-    padding: 3px;
-    font-size: var(--type-body-compact);
-}
-
-.component-option-gap-control output {
-    min-width: 18px;
-    color: var(--workspace-ink, var(--theme-text-primary));
-    font-variant-numeric: tabular-nums;
-    text-align: center;
 }
 
 .class-card-editor {

@@ -12,7 +12,7 @@ mod android_updater;
 mod orientation;
 
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
-const CURRENT_SKETCH_FORMAT_VERSION: u64 = 2;
+const CURRENT_SKETCH_FORMAT_VERSION: u64 = 3;
 
 fn validate_document(contents: &str, extension: &str) -> Result<(), String> {
     let document: serde_json::Value = serde_json::from_str(contents).map_err(|e| e.to_string())?;
@@ -469,9 +469,9 @@ mod tests {
     use super::validate_document;
 
     #[test]
-    fn accepts_remastered_v2_sketch_format() {
+    fn accepts_current_v3_sketch_format() {
         assert!(validate_document(
-            r#"{"format":"SketchDraw","version":2,"canvas":{"activePageId":"page-1","pages":[]}}"#,
+            r#"{"format":"SketchDraw","version":3,"canvas":{"activePageId":"page-1","pages":[]}}"#,
             "sketch"
         )
         .is_ok());
@@ -479,7 +479,7 @@ mod tests {
 
     #[test]
     fn rejects_legacy_sketch_formats_for_new_saves() {
-        for version in [9, 10] {
+        for version in [2, 9, 10] {
             let contents = format!(r#"{{"format":"SketchDraw","version":{version}}}"#);
             let error = validate_document(&contents, "sketch").unwrap_err();
             assert_eq!(error, "The document content does not match its file type.");
