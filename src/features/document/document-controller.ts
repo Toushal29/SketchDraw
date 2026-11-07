@@ -1,5 +1,4 @@
 import type { SketchFile } from "../../model";
-import type { WorkspaceArea } from "../workspace/workspace-types";
 import { normalizeFileUri, isSketchPath } from "../files/paths";
 import { decodeSketchDocument, mergeSketchDocument, openSketchDocument, saveSketchDocument } from "../files/sketch-document-service";
 import { sketchFileStore } from "../files/sketch-file-store";
@@ -23,11 +22,10 @@ type DocumentControllerPorts = {
   setRecoveryPrompt: (prompt: DocumentRecoveryPrompt | undefined) => void;
   syncConflict: () => DocumentConflict | undefined;
   setSyncConflict: (conflict: DocumentConflict | undefined) => void;
-  workspaceArea: () => WorkspaceArea;
   snapshot: () => SketchFile;
   snapshotRaw: (snapshot: SketchFile) => string;
   documentRevision?: () => number;
-  applySnapshot: (snapshot: SketchFile, path: string, raw: string, area?: WorkspaceArea) => void;
+  applySnapshot: (snapshot: SketchFile, path: string, raw: string) => void;
   resetDocument: () => void;
   beforeReplace: () => Promise<boolean>;
   commitTextDraft: () => void;
@@ -130,7 +128,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
       if (!await ports.beforeReplace()) { report("idle"); return false; }
       const opened = await openSketchDocument(path);
       const { path: authorizedPath, rawText, snapshot, needsMigration } = opened;
-      ports.applySnapshot(snapshot, authorizedPath, rawText, "canvas");
+      ports.applySnapshot(snapshot, authorizedPath, rawText);
       ports.setReadOnly(viewOnly);
       ports.onOpened(authorizedPath, viewOnly);
       ports.rememberFile(authorizedPath);
@@ -201,7 +199,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
       const mergedDocument = mergeSketchDocument(ports.snapshot(), remoteRaw);
       if (!mergedDocument) return;
       const { remote, merged } = mergedDocument;
-      ports.applySnapshot(merged, path, remoteRaw, ports.workspaceArea());
+      ports.applySnapshot(merged, path, remoteRaw);
       ports.setReadOnly(wasReadOnly);
       ports.setSyncConflict(undefined);
       baselineRaw = remoteRaw;
@@ -224,7 +222,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
   function restoreRecovery() {
     const recovery = ports.recoveryPrompt();
     if (!recovery) return;
-    if (restoreDocumentRecovery(recovery, baselineRaw, ports.workspaceArea(), {
+    if (restoreDocumentRecovery(recovery, baselineRaw, {
       applySnapshot: ports.applySnapshot,
       setDirty: ports.setDirty,
       setRecoveryPrompt: ports.setRecoveryPrompt,
@@ -246,7 +244,7 @@ export function createDocumentController(ports: DocumentControllerPorts) {
       const raw: unknown = JSON.parse(conflict.remote);
       const parsed = decodeSketchDocument(raw);
       if (!parsed) throw new Error("The updated file is not a valid SketchDraw document.");
-      ports.applySnapshot(parsed, conflict.path, conflict.remote, ports.workspaceArea());
+      ports.applySnapshot(parsed, conflict.path, conflict.remote);
       baselineRaw = conflict.remote;
       ports.setSyncConflict(undefined);
       sketchRecoveryStore.remove(conflict.path);

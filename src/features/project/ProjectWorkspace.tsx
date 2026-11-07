@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
-import type { ProjectChecklistItem, ProjectFileEntry, ProjectLogEntry, ProjectMilestone, ProjectNote, ProjectTask, ProjectTaskStatus, ProjectWorkspaceData, ProjectWorkflowColumn } from "../../model";
+import type { ProjectChecklistItem, ProjectFileEntry, ProjectLogEntry, ProjectMilestone, ProjectNote, ProjectTask, ProjectTaskStatus, ProjectWorkspaceData, ProjectWorkflowColumn } from "./project-model";
 import { ProjectCalendar } from "./ProjectCalendar";
 import { ProjectFiles } from "./ProjectFiles";
 import { ProjectLog } from "./ProjectLog";

@@ -69,6 +69,15 @@
         "description": "SketchDraw project planning document",
         "role": "Editor",
         "mimeType": "application/vnd.sketchdraw.planning+json"
+      },
+      {
+        "ext": [
+          "sdui"
+        ],
+        "name": "SketchDraw UI Design file",
+        "description": "SketchDraw user interface design document",
+        "role": "Editor",
+        "mimeType": "application/vnd.sketchdraw.ui+json"
       }
     ],
     "icon": [

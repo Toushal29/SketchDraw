@@ -118,6 +118,26 @@ pub(crate) async fn create_planning_document(
 }
 
 #[tauri::command]
+pub(crate) async fn pick_ui_design_document(
+    state: State<'_, AndroidDocumentsHandle>,
+) -> Result<Option<String>, String> {
+    run_picker(state, "pickUIDesignDocument", ()).await
+}
+
+#[tauri::command]
+pub(crate) async fn create_ui_design_document(
+    file_name: String,
+    state: State<'_, AndroidDocumentsHandle>,
+) -> Result<Option<String>, String> {
+    run_picker(
+        state,
+        "createUIDesignDocument",
+        CreateDocumentArgs { file_name },
+    )
+    .await
+}
+
+#[tauri::command]
 pub(crate) async fn create_planning_export(
     file_name: String,
     state: State<'_, AndroidDocumentsHandle>,

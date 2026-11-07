@@ -1,5 +1,5 @@
 import { createMemo } from "solid-js";
-import type { ProjectTask } from "../../model";
+import type { ProjectTask } from "./project-model";
 
 type Props = { tasks: ProjectTask[] };
 type Sample = { time: number; remaining: number };

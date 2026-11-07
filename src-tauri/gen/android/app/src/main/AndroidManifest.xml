@@ -46,6 +46,15 @@
                 <data android:mimeType="application/vnd.sketchdraw.planning+json" />
                 <data android:pathPattern=".*\\.sdplan" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/vnd.sketchdraw.ui+json" />
+                <data android:pathPattern=".*\\.sdui" />
+            </intent-filter>
             
             <!-- tauri-file-associations. AUTO-GENERATED. DO NOT REMOVE. -->
         </activity>

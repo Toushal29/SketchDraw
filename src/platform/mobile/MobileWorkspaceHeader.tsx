@@ -5,6 +5,7 @@ type Props = {
   hasFile: boolean;
   readOnly: boolean;
   planning: boolean;
+  documentTabs: boolean;
   headerRef: (element: HTMLElement) => void;
   commands: JSX.Element;
   workspaceTabs: JSX.Element;
@@ -16,7 +17,7 @@ type Props = {
 export function MobileWorkspaceHeader(props: Props) {
   return <header
     class="mobile-workspace-header"
-    classList={{ "mobile-header-home": !props.hasFile, "mobile-header-planning": props.hasFile && props.planning, "mobile-header-canvas": props.hasFile && !props.planning }}
+    classList={{ "mobile-header-home": !props.hasFile, "mobile-header-planning": props.hasFile && props.planning, "mobile-header-canvas": props.hasFile && !props.planning, "mobile-header-document-tabs": props.documentTabs }}
     ref={props.headerRef}
   >
     <div class="mobile-header-leading">

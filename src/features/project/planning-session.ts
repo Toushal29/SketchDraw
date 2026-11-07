@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
-import type { ProjectWorkspaceData, WindowsSyncMetadata } from "../../model";
+import type { WindowsSyncMetadata } from "../../model";
+import type { ProjectWorkspaceData } from "./project-model";
 import { displayPathName, filePathIdentity, isMissingFileError, isPlanningPath, normalizeFileUri, withPlanningExtension } from "../files/paths";
 import { createProjectWorkspace } from "./project-data";
 import { hasPlanningContent, parsePlanningFile, serializePlanningFile } from "./planning-file";

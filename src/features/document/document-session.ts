@@ -1,9 +1,8 @@
 import { createSignal } from "solid-js";
 import type { SketchFile, SketchPage, WindowsSyncMetadata, PersonalLibraryData } from "../../model";
 import { createLegacyLibraryData } from "../files/legacy-library-data";
-import type { WorkspaceArea } from "../workspace/workspace-types";
 
-/** Owns the active document's cross-workspace state and lifecycle. */
+/** Owns Canvas document state and lifecycle; application workspace routing stays in the app shell. */
 export function createDocumentSession() {
   const [pages, setPages] = createSignal<SketchPage[]>([]);
   const [activePageId, setActivePageId] = createSignal("");
@@ -11,14 +10,13 @@ export function createDocumentSession() {
   // Retired Library collections remain in the archive for round-trip safety.
   // Legacy quick notes are moved into Planning when a document is opened.
   const [legacyLibraryData, setLegacyLibraryData] = createSignal<PersonalLibraryData>(createLegacyLibraryData());
-  const [workspaceArea, setWorkspaceArea] = createSignal<WorkspaceArea>("canvas");
   const [readOnlyView, setReadOnlyView] = createSignal(false);
   const [dirty, setDirty] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
   const [savedAt, setSavedAt] = createSignal("");
   const [windowsSyncMetadata, setWindowsSyncMetadata] = createSignal<WindowsSyncMetadata>();
 
-  function activate(snapshot: SketchFile, path: string, area: WorkspaceArea = "canvas") {
+  function activate(snapshot: SketchFile, path: string) {
     // Parsed snapshot pages are already detached from the input JSON. Keep their
     // immutable element arrays instead of deep-cloning every page on open.
     const copiedPages = snapshot.pages.map(page => ({ ...page, canvasState: { ...page.canvasState } }));
@@ -28,7 +26,6 @@ export function createDocumentSession() {
     setActivePath(path);
     setLegacyLibraryData(snapshot.library ?? createLegacyLibraryData());
     setWindowsSyncMetadata(snapshot.windowsSync);
-    setWorkspaceArea(area);
     setReadOnlyView(false);
     setDirty(!snapshot.windowsSync);
     setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
@@ -40,7 +37,6 @@ export function createDocumentSession() {
     setActivePageId("");
     setActivePath(undefined);
     setLegacyLibraryData(createLegacyLibraryData());
-    setWorkspaceArea("canvas");
     setReadOnlyView(false);
     setDirty(false);
     setSaving(false);
@@ -53,7 +49,6 @@ export function createDocumentSession() {
     activePageId, setActivePageId,
     activePath, setActivePath,
     legacyLibraryData, setLegacyLibraryData,
-    workspaceArea, setWorkspaceArea,
     readOnlyView, setReadOnlyView,
     dirty, setDirty,
     saving, setSaving,

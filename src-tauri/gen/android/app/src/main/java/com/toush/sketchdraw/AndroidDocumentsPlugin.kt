@@ -142,6 +142,26 @@ class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) 
   }
 
   @Command
+  fun pickUIDesignDocument(invoke: Invoke) {
+    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+      addCategory(Intent.CATEGORY_OPENABLE)
+      type = "*/*"
+      putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/vnd.sketchdraw.ui+json", "application/json", "text/plain", "application/octet-stream"))
+      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+    }
+    startActivityForResult(invoke, intent, "pickUIDesignDocumentResult")
+  }
+
+  @ActivityCallback
+  fun pickUIDesignDocumentResult(invoke: Invoke, result: ActivityResult) {
+    if (result.resultCode != Activity.RESULT_OK) {
+      resolveUri(invoke, null)
+      return
+    }
+    persistDocumentPermission(invoke, result.data)
+  }
+
+  @Command
   fun createSketchDocument(invoke: Invoke) {
     val args = invoke.parseArgs(CreateSketchDocumentArgs::class.java)
     val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -167,6 +187,18 @@ class AndroidDocumentsPlugin(private val activity: Activity) : Plugin(activity) 
       addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
     }
     startActivityForResult(invoke, intent, "createPlanningDocumentResult")
+  }
+
+  @Command
+  fun createUIDesignDocument(invoke: Invoke) {
+    val args = invoke.parseArgs(CreateSketchDocumentArgs::class.java)
+    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+      addCategory(Intent.CATEGORY_OPENABLE)
+      type = "application/vnd.sketchdraw.ui+json"
+      putExtra(Intent.EXTRA_TITLE, args.fileName ?: "Untitled.sdui")
+      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+    }
+    startActivityForResult(invoke, intent, "createUIDesignDocumentResult")
   }
 
   @Command

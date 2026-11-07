@@ -7,6 +7,7 @@ export type LineRoute = "straight" | "elbow" | "curve";
 export type StrokeStyle = "solid" | "dashed" | "dotted" | "double";
 export type StrideThreatCategory = "spoofing" | "tampering" | "repudiation" | "information-disclosure" | "denial-of-service" | "elevation-of-privilege";
 export type ArchitectureMetadata = { serviceKey?: string; owner?: string; criticality?: "low" | "medium" | "high" | "critical"; slo?: string; runbook?: string; environment?: string; region?: string; availabilityZone?: string; subnet?: string; cidr?: string; ipAddress?: string };
+/** Legacy task reference kept only to round-trip old .sketch objects; current runtime does not link Canvas objects to Planning tasks. */
 export type LayerFlags = { id?: string; hidden?: boolean; locked?: boolean; rotation?: number; aspectLocked?: boolean; layerId?: string; layerName?: string; componentId?: string; componentRole?: string; catalogId?: string; pageLinkId?: string; prototypeTargetId?: string; pageLinkTransition?: PageLinkTransition; prototypeAction?: PrototypeAction; prototypeOverlay?: boolean; prototypeFixed?: boolean; projectTaskId?: string; masterElementId?: string; altText?: string; href?: string; tooltip?: string; dataLink?: DataLink; metrics?: ElementMetrics; styleBindings?: StyleBindings; layoutFill?: boolean; liveSourceId?: string; liveKey?: string; liveSource?: { format: LiveDiagramFormat; source: string }; d2?: D2Metadata; strideThreats?: StrideThreatCategory[]; architecture?: ArchitectureMetadata; decisionCard?: DecisionCardMetadata };
 /** `value` is the first mode's color; `modeValues` holds the others. `aliasOf` makes the token follow another color token. */
 export type ColorToken = { id: string; name: string; value: string; modeValues?: Record<string, string>; aliasOf?: string };
@@ -125,20 +126,7 @@ export type DataLink = { source: string; key: string; value: string; label?: str
 /** Optional cost and capacity numbers on an object. Totals roll up through frames and containers. */
 export type ElementMetrics = { cost?: number; capacity?: number; unit?: string };
 export type SketchPage = { id: string; dataSources?: DataSource[]; bookmarks?: CanvasBookmark[]; name: string; canvasState: CanvasState; elements: Element[]; layers?: CanvasLayer[]; visibilityPresets?: CanvasLayerVisibilityPreset[]; componentMasters?: ComponentMaster[] ; styleLibrary?: StyleLibrary; prototypeVariables?: PrototypeVariable[]; comments?: ReviewCommentThread[] };
-export type ProjectNote = { id: string; title: string; content: string; createdAt: number; updatedAt: number };
-export type ProjectTaskStatus = string;
-export type ProjectWorkflowColumn = { id: string; label: string; completed?: boolean };
-export type ProjectTaskPriority = "low" | "medium" | "high";
-export type ProjectChecklistItem = { id: string; text: string; done: boolean };
-/** Legacy alias retained so older planning payloads can be migrated on read. */
-export type ProjectTaskChecklistItem = ProjectChecklistItem;
-export type ProjectTask = { id: string; title: string; description: string; status: ProjectTaskStatus; priority: ProjectTaskPriority; startDate?: string; dueDate?: string; baselineStartDate?: string; baselineDueDate?: string; estimateMinutes?: number; recurrence?: "daily" | "weekly" | "monthly"; dependsOn?: string[]; checklist?: ProjectTaskChecklistItem[]; completedAt?: number; createdAt: number; updatedAt: number };
-export type ProjectMilestone = { id: string; title: string; description: string; date: string; completed: boolean; createdAt: number; updatedAt: number };
-export type ProjectLogKind = "decision" | "question" | "risk";
-export type ProjectLogEntry = { id: string; kind: ProjectLogKind; title: string; details: string; owner: string; nextStep: string; riskLevel?: ProjectTaskPriority; resolved: boolean; createdAt: number; updatedAt: number };
-export type ProjectFileEntry =
-  | { id: string; kind: "attachment"; name: string; mimeType: string; dataUrl: string; size: number; createdAt: number }
-  | { id: string; kind: "link"; name: string; url: string; createdAt: number };
+export type LegacyLibraryNote = { id: string; title: string; content: string; createdAt: number; updatedAt: number };
 export type LibraryStudyCard = { id: string; front: string; back: string; dueAt: number; intervalDays: number; easeFactor: number; repetitions: number; lastReviewedAt?: number; createdAt: number; updatedAt: number };
 export type LibraryWikiArticle = { id: string; title: string; content: string; tags: string[]; createdAt: number; updatedAt: number };
 export type LibraryJournalMood = "great" | "good" | "neutral" | "low" | "difficult";
@@ -149,10 +137,10 @@ export type LibraryResearchSource = { id: string; title: string; url: string; au
 export type LibraryMediaKind = "book" | "film" | "game" | "podcast" | "article" | "other";
 export type LibraryMediaStatus = "want" | "inProgress" | "complete";
 export type LibraryMediaEntry = { id: string; title: string; kind: LibraryMediaKind; status: LibraryMediaStatus; rating?: number; notes: string; startedAt?: string; completedAt?: string; createdAt: number; updatedAt: number };
-/** Version 8 storage payload retained for backward compatibility. Retired quick notes are imported into Planning. */
+/** Version 8 storage payload retained for backward compatibility. Legacy notes stay opaque to the Canvas editor. */
 export type PersonalLibraryData = {
-  quickNotes: ProjectNote[];
-  studyNotes: ProjectNote[];
+  quickNotes: LegacyLibraryNote[];
+  studyNotes: LegacyLibraryNote[];
   studyCards: LibraryStudyCard[];
   wikiArticles: LibraryWikiArticle[];
   journalEntries: LibraryJournalEntry[];
@@ -160,19 +148,6 @@ export type PersonalLibraryData = {
   researchSources: LibraryResearchSource[];
   mediaEntries: LibraryMediaEntry[];
 };
-export type ProjectWorkspaceData = {
-  name: string;
-  description: string;
-  notes: ProjectNote[];
-  tasks: ProjectTask[];
-  workflowColumns?: ProjectWorkflowColumn[];
-  workingDays?: number[];
-  checklist: ProjectChecklistItem[];
-  milestones: ProjectMilestone[];
-  logEntries: ProjectLogEntry[];
-  files: ProjectFileEntry[];
-};
-export type SketchDrawPlanningFile = { format: "SketchDrawPlanning"; version: 1; project: ProjectWorkspaceData };
 export type WindowsSyncMetadata = { version: 1; updatedAt: number; deviceId: string; clocks: Record<string, number>; tombstones: Record<string, number> };
 export const SKETCH_FORMAT_VERSION = 3 as const;
 /** Clipboard payloads retain their separate v10 protocol while files move to v3. */

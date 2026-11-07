@@ -1,4 +1,4 @@
-import type { ProjectLogEntry, ProjectMilestone, ProjectTask, ProjectWorkspaceData } from "../../model";
+import type { ProjectLogEntry, ProjectMilestone, ProjectTask, ProjectWorkspaceData } from "./project-model";
 import { formatProjectDate, parseProjectDate } from "./project-utils";
 
 const csvCell = (value: unknown) => {

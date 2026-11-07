@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
-import type { ProjectMilestone, ProjectTask, ProjectWorkspaceData } from "../../model";
+import type { ProjectMilestone, ProjectTask, ProjectWorkspaceData } from "./project-model";
 import { addWorkingDays, criticalPathTaskIds, formatProjectDate, parseProjectDate, projectTaskWarnings, todayProjectDate } from "./project-utils";
 
 type Props = {

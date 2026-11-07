@@ -1,4 +1,4 @@
-import type { PersonalLibraryData, LibraryJournalEntry, LibraryMediaEntry, ProjectNote, LibraryResearchSource, LibraryStudyCard, LibraryWikiArticle, LibraryWritingDraft, LibraryWritingRevision } from "../../model";
+import type { PersonalLibraryData, LibraryJournalEntry, LibraryMediaEntry, LegacyLibraryNote, LibraryResearchSource, LibraryStudyCard, LibraryWikiArticle, LibraryWritingDraft, LibraryWritingRevision } from "../../model";
 
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
@@ -52,8 +52,8 @@ export function normalizeLegacyLibraryData(value: unknown): PersonalLibraryData 
   const mediaValues = records("mediaEntries");
   if (!Array.isArray(quickNoteValues) || quickNoteValues.length > 10000 || !Array.isArray(noteValues) || noteValues.length > 2000 || !Array.isArray(cardValues) || cardValues.length > 5000 || !Array.isArray(wikiValues) || wikiValues.length > 2000 || !Array.isArray(journalValues) || journalValues.length > 10000 || !Array.isArray(writingValues) || writingValues.length > 200 || !Array.isArray(researchValues) || researchValues.length > 5000 || !Array.isArray(mediaValues) || mediaValues.length > 10000) return undefined;
 
-  const parseNotes = (values: unknown[]): ProjectNote[] | undefined => {
-    const result: ProjectNote[] = [];
+  const parseNotes = (values: unknown[]): LegacyLibraryNote[] | undefined => {
+    const result: LegacyLibraryNote[] = [];
     for (const item of values) {
       if (!isRecord(item) || typeof item.id !== "string" || !item.id || item.id.length > 100 || typeof item.title !== "string" || item.title.length > 200 || typeof item.content !== "string" || item.content.length > 100_000 || !finite(item.createdAt) || item.createdAt < 0 || !finite(item.updatedAt) || item.updatedAt < 0) return undefined;
       result.push({ id: item.id, title: item.title, content: item.content, createdAt: item.createdAt, updatedAt: item.updatedAt });

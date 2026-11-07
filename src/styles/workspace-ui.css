@@ -288,15 +288,26 @@
     background: var(--workspace-raised, var(--theme-background));
 }
 
-.app-shell.platform-windows>.topbar>:is(.document-workspace-tabs, .workspace-viewport-tabs) {
+.app-shell.platform-windows>.topbar>.workspace-switchers {
+    box-sizing: border-box;
+    min-width: 0;
     margin-left: auto;
+    flex: 0 1 auto;
+    max-width: min(620px, 48vw);
+    gap: 2px;
+}
+
+.app-shell.platform-windows>.topbar>.workspace-switchers > nav {
+    min-width: 0;
+    max-width: 100%;
     flex: 0 1 auto;
     gap: 2px;
     padding: 2px;
     border-radius: 9px;
+    overflow-x: auto;
 }
 
-.app-shell.platform-windows>.topbar>:is(.document-workspace-tabs, .workspace-viewport-tabs) button {
+.app-shell.platform-windows>.topbar>.workspace-switchers button {
     min-height: 32px;
     padding-inline: 11px;
     font-size: var(--type-micro);
@@ -411,9 +422,9 @@
 .app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) .app-menu-items { gap: 1px; }
 .app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) .app-menu-items > .menu-dropdown > summary { min-width: 30px; min-height: 32px; justify-content: center; gap: 4px; padding: 0 6px; }
 .app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) .topbar .settings-menu-dropdown > summary { min-width: 30px; min-height: 32px; padding: 0 6px; border-color: transparent; background: transparent; }
-.app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) > .topbar > :is(.document-workspace-tabs, .workspace-viewport-tabs, .windows-document-tabs) { min-width: 0; margin-left: 0; flex: 0 1 auto; }
-.app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) > .topbar > :is(.document-workspace-tabs, .workspace-viewport-tabs) { gap: 1px; padding: 1px; }
-.app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) > .topbar > :is(.document-workspace-tabs, .workspace-viewport-tabs) button { min-height: 30px; padding-inline: 6px; }
+.app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) > .topbar > :is(.workspace-switchers, .windows-document-tabs) { min-width: 0; margin-left: 0; flex: 0 1 auto; }
+.app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) > .topbar > .workspace-switchers > nav { gap: 1px; padding: 1px; }
+.app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) > .topbar > .workspace-switchers button { min-height: 30px; padding-inline: 6px; }
 .app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) .topbar .top-actions { min-width: 18px; flex: 0 0 auto; gap: 2px; margin-left: 0; padding-left: 3px; border: 0; }
 .app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) .save-status { min-width: 18px; margin: 0; padding: 4px; }
 
@@ -425,4 +436,10 @@
     .app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) .app-menu-items > .menu-dropdown > summary { width: 30px; padding: 0; }
     .app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) .app-menu-items > .menu-dropdown > summary > svg:first-child { width: 16px; height: 16px; }
     .app-shell.platform-windows:not(.home-screen-active):not(.noncanvas-workspace-active) .topbar .save-status time { display: none; }
+}
+
+@media (max-width: 900px) {
+    .app-shell.platform-windows .workspace-tab-label-wide { display: none; }
+    .app-shell.platform-windows .workspace-tab-label-compact { display: inline; }
+    .app-shell.platform-windows>.topbar>.workspace-switchers button { padding-inline: 6px; }
 }

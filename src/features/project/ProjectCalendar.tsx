@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
-import type { ProjectWorkspaceData } from "../../model";
+import type { ProjectWorkspaceData } from "./project-model";
 import { dateValue, formatProjectDate, isProjectTaskComplete, parseProjectDate, todayProjectDate } from "./project-utils";
 
 type Mode = "month" | "week" | "day";

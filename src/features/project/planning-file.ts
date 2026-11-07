@@ -1,4 +1,4 @@
-import type { ProjectWorkspaceData, SketchDrawPlanningFile } from "../../model";
+import type { ProjectWorkspaceData, SketchDrawPlanningFile } from "./project-model";
 import { normalizeProjectWorkspace } from "./project-data";
 
 export function createPlanningFile(project: ProjectWorkspaceData): SketchDrawPlanningFile {

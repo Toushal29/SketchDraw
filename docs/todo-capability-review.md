@@ -1,6 +1,6 @@
 # ToDo capability review
 
-`ToDo.txt` is product input, not repository or coding-agent policy. The requested live collaboration features are excluded. The review below records what the app already had, what this implementation added, and the remaining boundaries.
+`ToDo.txt` is product input, not repository or coding-agent policy. The requested live collaboration features are excluded. The review below records existing coverage, additions, and boundaries after splitting Canvas, Planning, and UI Design into independent workspaces.
 
 ## Coverage
 
@@ -13,8 +13,8 @@
 | Data linking and refresh | Bind a selected canvas object to a row and value in a local CSV snapshot or a public HTTPS JSON API snapshot; refresh on request. SQL/schema import remains text based. | Local CSV and read-only public API snapshots added. API links require CORS, contain no credentials, and do not poll. Direct SQL connections remain unsupported. |
 | Named current/future visibility states | Save, apply, and delete up to 24 per-page presets of hidden layers | Added and serialized with the sketch page. |
 | Diagram as code | Mermaid, PlantUML, DOT, D2, CSV, SQL, and JSON Schema import/export | Existing coverage retained. |
-| Canvas-to-planning task bridge | Create a Planning task from selected canvas objects, persist the task ID in the sketch, and show a completion check when that task is complete | Added. The sketch reference is one-way; completion is reflected from the linked Planning task. |
-| Canvas plus project notebook | Edit an active `.sdplan` note beside the canvas; select a `[[Component name]]` line to select its matching canvas object | Added. Requires an open Planning file. |
+| Canvas-to-planning task bridge | Create Planning tasks from selected canvas objects or reflect Planning task status on sketch objects | Removed during workspace separation. Planning and Canvas keep independent sessions and do not link live task state. Legacy task IDs remain opaque round-trip metadata when old sketches are opened. |
+| Canvas plus project notebook | Edit Planning notes beside the canvas and use note references to select canvas objects | Removed during workspace separation. Planning notes remain within `.sdplan`; legacy notebook content is handled only by the explicit legacy extraction flow. |
 | Interactive prototype/run mode | Run mode routes clicks to linked pages and built-in form controls. Form changes are temporary and reset when run mode ends. | Added for the built-in controls and page links. It does not provide a general variable/expression engine or arbitrary user-defined triggers. |
 | UML/database code blueprints | Generate Java or Python class starter files from UML cards, or a Prisma schema from database cards, in a local ZIP | Added. Output is a scaffold and needs review for application-specific types and relationships. |
 | Planning burndown/velocity | Planning Home graphs remaining tasks from creation/completion timestamps and reports tasks completed in the last week | Added. Historical data begins when a task's dates are available; older tasks without completion timestamps use their last update as an approximation. |
@@ -23,4 +23,4 @@
 
 ## Design boundary
 
-SketchDraw remains local-first. CSV data and public API responses are embedded as bounded snapshots in `.sketch`; API refresh is user initiated, uses read-only HTTPS without credentials, and requires the endpoint to allow CORS. Direct database connections and live API polling are not included. Live collaboration and shared workspaces remain out of scope.
+SketchDraw remains local-first. Canvas (`.sketch`), Planning (`.sdplan`), and UI Design (`.sdui`) own separate document sessions and models. CSV data and public API responses are embedded as bounded snapshots in `.sketch`; API refresh is user initiated, uses read-only HTTPS without credentials, and requires the endpoint to allow CORS. Direct database connections, live API polling, live collaboration, and shared workspaces are out of scope.

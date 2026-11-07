@@ -12,6 +12,8 @@ This file is the project-specific working guide for AI coding agents. Read it be
 
 ## Project scope
 
+Canvas, Planning, and UI Design are three independent top-level workspaces in the shared app shell. Keep UI Design distinct from Canvas's diagram-oriented Design view. The UI Design workspace owns its components, model, DOM renderer, geometry, editor interactions, history, preview behavior, and `.sdui` persistence. Its format remains separate from `.sketch` and `.sdplan`. Share only generic application-shell and platform file-access infrastructure; do not build the UI editor on Canvas or Planning feature code. See [the UI Design implementation and development plan](docs/ui-design-development-plan.md).
+
 SketchDraw is a local-first, desktop-first drawing and design application for Windows, macOS, and Linux. Its primary work happens on a canvas: sketching, general diagrams, software and cloud architecture, network diagrams, BPMN, and related modeling. The Android APK is a lightweight side app that should still support similar core workflows and compatible documents, while focusing on responsive, approachable canvas drawing, note-taking, and simple diagrams. Keep sketch files portable and backward-compatible where practical.
 
 Keep the desktop products as the primary platforms across Windows, macOS, and Linux. Keep the Android APK lightweight and optimized for simple canvas drawing, note-taking, and approachable diagramming. Android should continue to open and save compatible documents and support similar core work, with advanced controls available but collapsed so they do not crowd the everyday touch interface. There is no live collaboration feature or planned live-collaboration scope.
@@ -64,6 +66,8 @@ This guide is the short map for coding agents working in SketchDraw. Read it wit
 
 ## Product scope
 
+The UI Design workspace is a separate third top-level workspace with its own interface-design editor and `.sdui` files. Keep it independent of Canvas and Planning feature code and distinct from Canvas's existing diagram-oriented Design view. Keep its UI, model, session, persistence, and styles under `src/features/ui-design/`; only the app shell and native file access may be shared. See `docs/ui-design-development-plan.md` for current capabilities and follow-up scope.
+
 SketchDraw is a local-first, desktop-first drawing and design app for Windows, macOS, and Linux, with a lightweight Android APK companion. Its canvas supports freehand sketching, general diagrams, software and cloud architecture, network diagrams, BPMN, and related modeling. Canvas documents use the portable `.sketch` format; separate Planning files use `.sdplan`. Android should keep compatible files and similar core workflows while prioritizing responsive drawing, note-taking, and simple diagrams; keep advanced mobile tools available but collapsed. Live collaboration is out of scope.
 
 ## Issue labels
@@ -86,6 +90,7 @@ Use these labels in audits and release reports so defects stay distinct from fea
 - `src/features/diagram-guides/`: authored guide definitions and editable guide builder. The lazy-loaded gallery UI and its scoped stylesheet live in `gallery/`; keep previews and inserted examples driven by the same guide definitions.
 - `src/features/files/` and `src/features/document/`: Sketch file parsing, serialization, and document lifecycle.
 - `src/features/project/`: separate `.sdplan` planning workflows.
+- `src/features/ui-design/`: independent UI Design workspace, document model/session, `.sdui` codec/file store, and scoped editor styles; see `docs/ui-design-development-plan.md`.
 - `src/platform/mobile/` and `src/platform/windows/`: platform-specific UI and behavior. Follow `src/platform/AGENTS.md` for platform changes.
 - `src-tauri/`: native Windows and Android configuration and code.
 - `scripts/canvas-performance.browser.ts`: optional browser-based canvas interaction checks.

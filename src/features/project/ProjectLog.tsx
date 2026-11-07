@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
-import type { ProjectLogEntry, ProjectLogKind, ProjectTaskPriority } from "../../model";
+import type { ProjectLogEntry, ProjectLogKind, ProjectTaskPriority } from "./project-model";
 
 type Props = { entries: ProjectLogEntry[]; editable: boolean; onAdd: (entry: ProjectLogEntry) => void; onUpdate: (id: string, patch: Partial<ProjectLogEntry>) => void; onDelete: (id: string) => void };
 

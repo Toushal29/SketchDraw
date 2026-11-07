@@ -24,6 +24,7 @@ export function WelcomeScreen(props: Props) {
   return <Show when={props.planningViewport} fallback={
     <section class="home-screen home-screen-desktop" aria-label="Canvas home">
       <div class="home-desktop-layout">
+        <WorkspaceAreaTabs active={props.planningViewport ? "planning" : "canvas"} documentTabs={false} onSelect={props.onSelectWorkspace} />
         <section class="home-hero" aria-labelledby="home-title">
           <header class="home-brand"><Mark /><span class="home-brand-name">SketchDraw</span><span class="home-brand-type">WHITEBOARD</span></header>
           <div class="home-hero-main">
@@ -58,12 +59,12 @@ export function WelcomeScreen(props: Props) {
             <div class="home-recent-list" aria-label="Recent sketches">{props.recentFiles().map(path => <button type="button" class="home-file" onClick={() => void props.onOpenRecentFile(path)}><FileMark /><span class="home-file-copy"><strong>{props.displayNameForPath(path)}</strong><small>{displayPathLocation(path)}</small></span><span class="home-file-open">Open <span aria-hidden="true">&rarr;</span></span></button>)}</div>
           </Show>
         </section>
-        <WorkspaceAreaTabs active="canvas" documentTabs={false} onSelect={props.onSelectWorkspace} />
       </div>
     </section>
   }>
     <section class="home-screen home-screen-desktop home-planning-home" aria-label="Planning home">
       <div class="home-desktop-layout">
+        <WorkspaceAreaTabs active="planning" documentTabs={false} onSelect={props.onSelectWorkspace} />
         <section class="home-hero" aria-labelledby="planning-home-title">
           <header class="home-brand"><Mark /><span class="home-brand-name">SketchDraw</span><span class="home-brand-type">PLANNING</span></header>
           <div class="home-hero-main">
@@ -89,7 +90,6 @@ export function WelcomeScreen(props: Props) {
             <div class="home-recent-list" aria-label="Recent Planning files">{props.recentPlans().map(path => <button type="button" class="home-file" onClick={() => void props.onOpenRecentPlan(path)}><FileMark /><span class="home-file-copy"><strong>{props.displayNameForPath(path)}</strong><small>{displayPathLocation(path)}</small></span><span class="home-file-open">Open <span aria-hidden="true">&rarr;</span></span></button>)}</div>
           </Show>
         </section>
-        <WorkspaceAreaTabs active="planning" documentTabs={false} onSelect={props.onSelectWorkspace} />
       </div>
     </section>
   </Show>;

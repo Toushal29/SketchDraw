@@ -1,19 +1,27 @@
+import { Show } from "solid-js";
 import type { DocumentWorkspaceArea } from "./workspace-types";
 
 type Props = { active: DocumentWorkspaceArea; documentTabs: boolean; onSelect: (area: DocumentWorkspaceArea) => void };
-const VIEWPORTS = [
-  { id: "canvas", label: "Canvas", hint: "Drawing, sketching, and modeling tools" },
-  { id: "planning", label: "Planning", hint: "Projects, notes, and tasks" },
+const APP_WORKSPACES = [
+  { id: "canvas", label: "Canvas", compact: "Draw", hint: "Drawing, sketching, and modeling tools" },
+  { id: "planning", label: "Planning", compact: "Plan", hint: "Projects, notes, and tasks" },
+  { id: "ui-design", label: "UI Design", compact: "UI", hint: "Interface design and prototyping" },
 ] as const;
-const DOCUMENT_VIEWS = [
-  { id: "canvas", label: "Canvas", hint: "Drawing and sketching tools" },
-  { id: "design", label: "Design", hint: "Database and architecture diagram tools" },
+const CANVAS_VIEWS = [
+  { id: "canvas", label: "Canvas", compact: "Canvas", hint: "Freehand drawing and sketching" },
+  { id: "design", label: "Diagram tools", compact: "Diagram", hint: "Database and architecture diagram tools" },
 ] as const;
 
 export function WorkspaceAreaTabs(props: Props) {
-  const areas = () => props.documentTabs ? DOCUMENT_VIEWS : VIEWPORTS;
-  const activeArea = () => !props.documentTabs && props.active === "design" ? "canvas" : props.active;
-  return <nav class={props.documentTabs ? "document-workspace-tabs" : "workspace-viewport-tabs"} role="tablist" aria-label={props.documentTabs ? "Canvas and Design views" : "Canvas and Planning viewports"}>
-    {areas().map(area => <button type="button" role="tab" aria-selected={activeArea() === area.id} class={activeArea() === area.id ? "active" : ""} onClick={() => props.onSelect(area.id)} title={area.hint}>{area.label}</button>)}
-  </nav>;
+  const activeWorkspace = () => props.active === "design" ? "canvas" : props.active;
+  return <div class="workspace-switchers">
+    <nav class="workspace-viewport-tabs" role="tablist" aria-label="SketchDraw workspaces">
+      {APP_WORKSPACES.map(area => <button type="button" role="tab" aria-selected={activeWorkspace() === area.id} class={activeWorkspace() === area.id ? "active" : ""} onClick={() => props.onSelect(area.id)} title={area.hint}><span class="workspace-tab-label-wide">{area.label}</span><span class="workspace-tab-label-compact">{area.compact}</span></button>)}
+    </nav>
+    <Show when={props.documentTabs && (props.active === "canvas" || props.active === "design")}>
+      <nav class="document-workspace-tabs" role="tablist" aria-label="Canvas views">
+        {CANVAS_VIEWS.map(view => <button type="button" role="tab" aria-selected={props.active === view.id} class={props.active === view.id ? "active" : ""} onClick={() => props.onSelect(view.id)} title={view.hint}><span class="workspace-tab-label-wide">{view.label}</span><span class="workspace-tab-label-compact">{view.compact}</span></button>)}
+      </nav>
+    </Show>
+  </div>;
 }

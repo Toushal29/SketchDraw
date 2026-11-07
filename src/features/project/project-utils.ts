@@ -1,4 +1,4 @@
-import type { ProjectTask, ProjectTaskPriority, ProjectWorkflowColumn } from "../../model";
+import type { ProjectTask, ProjectTaskPriority, ProjectWorkflowColumn } from "./project-model";
 
 export const TASK_PRIORITY_LABELS: Record<ProjectTaskPriority, string> = { low: "Low", medium: "Medium", high: "High" };
 

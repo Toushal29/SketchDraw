@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
-import type { ProjectWorkspaceData } from "../../model";
+import type { ProjectWorkspaceData } from "./project-model";
 import { displayPathName } from "../files/paths";
 import { parsePlanningFile } from "./planning-file";
 import { planningFileStore } from "./planning-file-store";

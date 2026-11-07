@@ -1,4 +1,4 @@
-import type { ProjectChecklistItem, ProjectFileEntry, ProjectLogEntry, ProjectMilestone, ProjectNote, ProjectTask, ProjectTaskChecklistItem, ProjectWorkspaceData, ProjectWorkflowColumn } from "../../model";
+import type { ProjectChecklistItem, ProjectFileEntry, ProjectLogEntry, ProjectMilestone, ProjectNote, ProjectTask, ProjectTaskChecklistItem, ProjectWorkspaceData, ProjectWorkflowColumn } from "./project-model";
 
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);

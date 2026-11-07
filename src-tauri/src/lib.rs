@@ -26,6 +26,10 @@ fn validate_document(contents: &str, extension: &str) -> Result<(), String> {
             document.get("format").and_then(serde_json::Value::as_str) == Some("SketchDrawPlanning")
                 && document.get("version").and_then(serde_json::Value::as_u64) == Some(1)
         }
+        "sdui" => {
+            document.get("format").and_then(serde_json::Value::as_str) == Some("SketchDrawUIDesign")
+                && document.get("version").and_then(serde_json::Value::as_u64) == Some(1)
+        }
         _ => false,
     };
     if !valid {
@@ -69,6 +73,16 @@ async fn atomic_save_planning(
     atomic_save_document(app, path, contents, expected).await
 }
 
+#[tauri::command]
+async fn atomic_save_ui_design(
+    app: tauri::AppHandle,
+    path: String,
+    contents: String,
+    expected: Option<String>,
+) -> Result<(), String> {
+    atomic_save_document(app, path, contents, expected).await
+}
+
 fn save_document_atomic(
     app: tauri::AppHandle,
     path: String,
@@ -81,7 +95,7 @@ fn save_document_atomic(
         .and_then(|ext| ext.to_str())
         .map(str::to_ascii_lowercase);
     if !target.is_absolute()
-        || !matches!(extension.as_deref(), Some("sketch" | "sdplan"))
+        || !matches!(extension.as_deref(), Some("sketch" | "sdplan" | "sdui"))
         || !app.fs_scope().is_allowed(&target)
     {
         return Err(
@@ -211,6 +225,37 @@ fn authorize_planning_file(app: tauri::AppHandle, path: String) -> Result<String
         .into_os_string()
         .into_string()
         .map_err(|_| "The selected Planning path is not valid Unicode.".into())
+}
+
+#[tauri::command]
+fn authorize_ui_design_file(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    if path.to_lowercase().starts_with("content://") {
+        app.fs_scope()
+            .allow_file(std::path::PathBuf::from(&path))
+            .map_err(|error| format!("Could not grant access to the selected UI Design file: {error}"))?;
+        return Ok(path);
+    }
+    let candidate = std::path::PathBuf::from(path);
+    if !candidate
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("sdui"))
+    {
+        return Err("Only .sdui files can be opened as UI Design documents.".into());
+    }
+    let canonical = candidate
+        .canonicalize()
+        .map_err(|error| format!("Could not access the selected UI Design file: {error}"))?;
+    if !canonical.is_file() {
+        return Err("The selected UI Design document is not a file.".into());
+    }
+    app.fs_scope().allow_file(&canonical).map_err(|error| {
+        format!("Could not grant access to the selected UI Design file: {error}")
+    })?;
+    canonical
+        .into_os_string()
+        .into_string()
+        .map_err(|_| "The selected UI Design path is not valid Unicode.".into())
 }
 
 #[tauri::command]
@@ -386,7 +431,7 @@ pub fn run() {
                 .skip(1)
                 .filter(|argument| {
                     let argument = argument.to_lowercase();
-                    argument.ends_with(".sketch") || argument.ends_with(".sdplan")
+                    argument.ends_with(".sketch") || argument.ends_with(".sdplan") || argument.ends_with(".sdui")
                 })
                 .collect(),
         )))
@@ -411,9 +456,11 @@ pub fn run() {
             take_startup_files,
             authorize_sketch_file,
             authorize_planning_file,
+            authorize_ui_design_file,
             rename_sketch_file,
             atomic_save_sketch,
             atomic_save_planning,
+            atomic_save_ui_design,
             load_recent_sketches,
             save_recent_sketches,
             orientation::set_mobile_orientation,
@@ -421,6 +468,8 @@ pub fn run() {
             android_documents::create_sketch_document,
             android_documents::pick_planning_document,
             android_documents::create_planning_document,
+            android_documents::pick_ui_design_document,
+            android_documents::create_ui_design_document,
             android_documents::create_planning_export,
             android_documents::create_text_export,
             android_documents::create_legacy_library_archive,
@@ -448,6 +497,7 @@ pub fn run() {
                         let lower = path.to_lowercase();
                         lower.ends_with(".sketch")
                             || lower.ends_with(".sdplan")
+                            || lower.ends_with(".sdui")
                             || lower.starts_with("content://")
                     })
                     .collect();
@@ -475,6 +525,29 @@ mod tests {
             "sketch"
         )
         .is_ok());
+    }
+
+    #[test]
+    fn accepts_current_ui_design_format_for_sdui_files() {
+        assert!(validate_document(
+            r#"{"format":"SketchDrawUIDesign","version":1,"pages":[]}"#,
+            "sdui"
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn rejects_other_workspace_content_for_sdui_files() {
+        for contents in [
+            r#"{"format":"SketchDraw","version":3}"#,
+            r#"{"format":"SketchDrawPlanning","version":1}"#,
+            r#"{"format":"SketchDrawUIDesign","version":2}"#,
+        ] {
+            assert_eq!(
+                validate_document(contents, "sdui").unwrap_err(),
+                "The document content does not match its file type."
+            );
+        }
     }
 
     #[test]

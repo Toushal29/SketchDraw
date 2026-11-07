@@ -1,7 +1,7 @@
 import { For, Show, createSignal } from "solid-js";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
-import type { ProjectFileEntry } from "../../model";
+import type { ProjectFileEntry } from "./project-model";
 
 type Props = { files: ProjectFileEntry[]; editable: boolean; onAdd: (file: ProjectFileEntry) => void; onUpdate: (id: string, patch: Partial<ProjectFileEntry>) => void; onDelete: (id: string) => void };
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
