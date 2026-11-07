@@ -281,14 +281,9 @@
     color: var(--theme-text-primary);
 }
 
-/* Keep interaction states predictable across tools, dialogs, and inspectors. */
+/* Keep interaction transitions consistent across tools, dialogs, and inspectors. */
 .app-shell :where(button, input, select, textarea) {
     transition: color var(--ui-motion-fast) ease, background-color var(--ui-motion-fast) ease, border-color var(--ui-motion-fast) ease, box-shadow var(--ui-motion-fast) ease;
-}
-
-.app-shell :where(button, input, select, textarea):focus-visible {
-    outline: 2px solid var(--theme-focus-ring);
-    outline-offset: 2px;
 }
 
 .app-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]), select, textarea) {

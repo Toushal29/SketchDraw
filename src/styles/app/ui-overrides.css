@@ -427,10 +427,6 @@
     font-size: var(--type-control);
 }
 
-.layer-empty-state small {
-    font-size: var(--type-micro);
-}
-
 .app-shell:is(.theme-dark, .theme-ai) .floating-layer-panel .layer-row {
     border-color: var(--layer-border);
     color: var(--layer-ink);

@@ -251,6 +251,7 @@ function childNode(child: Element, frame: { x: number; y: number }, absolute: bo
   let node: UiNode | undefined;
   if (child.type === "group" && child.libraryComponent) node = guiNode(child, context.used);
   else if (child.type === "group" && child.container) node = containerNode(child, context);
+  else if (child.type === "group" && child.note?.kind === "checklist") node = { tag: "aside", children: [...(clean(child.note.title) ? [{ tag: "strong", children: [clean(child.note.title)] } as UiNode] : []), { tag: "ul", children: (child.note.checklist?.items ?? []).map(item => item.type === "heading" ? { tag: "li", children: [{ tag: "strong", children: [clean(item.text)] }] } : { tag: "li", children: [`${item.checked ? "[x]" : "[ ]"} ${clean(item.text)}`] }) }] };
   else if (child.type === "group" && child.note) node = { tag: "aside", children: [...(clean(child.note.title) ? [{ tag: "strong", children: [clean(child.note.title)] } as UiNode] : []), { tag: "p", children: [clean(child.note.content)] }] };
   else if (child.type === "group") node = { tag: "div", children: child.elements.flatMap(grandchild => childNode(grandchild, { x: box.x, y: box.y }, true, context, false) ?? []) };
   else if (child.type === "text") { node = { tag: child.fontSize >= 24 ? "h2" : child.fontSize >= 18 ? "h3" : "p", children: [clean(child.text)] }; style.color = child.color; if (child.bold) style.fontWeight = "700"; }

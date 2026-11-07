@@ -10,9 +10,10 @@ import { strokeDashPattern } from "../canvas/stroke-style";
 import { modelComponentSvg } from "../components/model-component-renderer";
 import { renderLibraryChartSvg } from "../components/chart-engine";
 import { relationshipDisplayElement } from "../diagrams/relationships";
-import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
-import { checklistRows, defaultNoteTitle, isMarkdownTableDivider, markdownCells, noteCardPalette, noteInlineRuns, wrapNoteMarkup } from "../../notes";
+import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableRowHeight, schemaTableRowLayout } from "../diagrams/schema-table-layout";
+import { defaultNoteTitle, isMarkdownTableDivider, markdownCells, noteCardPalette, noteCardMaxScroll, noteInlineRuns, wrapNoteMarkup } from "../../notes";
 import { standaloneMarkdownTableRows } from "../../app/markdown-table";
+import { layoutChecklist } from "../notes/checklist";
 
 type SvgRendererPorts = {
   theme: () => Theme;
@@ -76,12 +77,16 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
     };
     if (!collapsed) {
       if (meta.kind === "checklist") {
-        const rows = checklistRows(meta.content, width, meta.fontSize ?? 12);
+        const rows = layoutChecklist(meta.checklist?.items ?? [], width, meta.fontSize ?? 12).rows;
         body += rows.map(row => {
-          const boxX = x + row.boxX, boxY = y + row.top + Math.max(0, (row.height - 14) / 2), textY = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2;
-          const checkbox = row.kind === "task" ? `<rect x="${boxX}" y="${boxY}" width="14" height="14" rx="1" fill="${row.done ? palette.check : palette.surface}" stroke="${row.done ? palette.check : palette.border}"/>${row.done ? `<path d="M ${boxX + 3} ${boxY + 7} l3 3 5 -6" fill="none" stroke="${simple ? palette.ink : "#fff"}" stroke-width="1.6"/>` : ""}` : "";
-          const size = row.kind === "title" ? (meta.fontSize ?? 12) * 1.12 : meta.fontSize ?? 12;
-          const lines = row.labelLines.map((line, index) => inlineSvg(line, x + row.textX, textY + index * row.lineHeight, size, row.done ? palette.muted : palette.ink, row.kind === "title" ? 650 : 400, row.kind === "title", row.done)).join("");
+          const boxX = x + (row.checkboxX ?? 0), boxY = y + (row.checkboxY ?? 0);
+          const checkbox = row.type === "task" ? `<rect x="${boxX}" y="${boxY}" width="14" height="14" rx="1" fill="${row.checked ? palette.check : palette.surface}" stroke="${row.checked ? palette.check : palette.border}"/>${row.checked ? `<path d="M ${boxX + 3} ${boxY + 7} l3 3 5 -6" fill="none" stroke="${simple ? palette.ink : "#fff"}" stroke-width="1.6"/>` : ""}` : "";
+          const lines = row.labelLines.map((line, index) => {
+            const baseline = y + row.textTop + index * row.lineHeight;
+            const textWidth = Math.max(1, width - row.textX - 8);
+            const textLength = line ? ` textLength="${Math.min(Array.from(line).length * row.textSize * .52, textWidth)}" lengthAdjust="spacingAndGlyphs"` : "";
+            return `<text x="${x + row.textX}" y="${baseline}" dominant-baseline="hanging" font-family="sans-serif" font-size="${row.textSize}" font-weight="${row.type === "heading" ? 650 : 400}"${row.checked ? ' text-decoration="line-through"' : ""} fill="${row.checked ? palette.muted : palette.ink}"${textLength}>${escapeXml(line)}</text>`;
+          }).join("");
           return `${checkbox}${lines}`;
         }).join("");
       } else {
@@ -113,9 +118,11 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
         if (inCode) addCode();
       }
     }
+    const maxScroll = noteCardMaxScroll(group);
+    const scrollY = Math.max(0, Math.min(maxScroll, meta.scrollY ?? 0));
     const toggleX = x + width - 24, toggleY = y + 5;
     const chevron = collapsed ? `M ${toggleX + 5} ${toggleY + 7} l4 4 4 -4` : `M ${toggleX + 5} ${toggleY + 11} l4 -4 4 4`;
-    return `<g><defs><clipPath id="${clipId}"><rect x="${x + 8}" y="${y + 29}" width="${Math.max(0, width - 16)}" height="${Math.max(0, height - 32)}"/></clipPath></defs><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="3" fill="${palette.surface}" stroke="${palette.border}"/><text x="${x + 10}" y="${y + 8}" dominant-baseline="hanging" font-family="sans-serif" font-size="11" font-weight="600" fill="${palette.ink}">${title}</text><path d="${chevron}" fill="none" stroke="${palette.muted}" stroke-width="1.3"/>${collapsed ? "" : `<g clip-path="url(#${clipId})">${body}</g>`}</g>`;
+    return `<g><defs><clipPath id="${clipId}"><rect x="${x + 8}" y="${y + 29}" width="${Math.max(0, width - 16)}" height="${Math.max(0, height - 30)}"/></clipPath></defs><rect x="${x}" y="${y}" width="${width}" height="${height}" rx="3" fill="${palette.surface}" stroke="${palette.border}"/><text x="${x + 10}" y="${y + 8}" dominant-baseline="hanging" font-family="sans-serif" font-size="11" font-weight="600" fill="${palette.ink}">${title}</text><path d="${chevron}" fill="none" stroke="${palette.muted}" stroke-width="1.3"/>${collapsed ? "" : `<g clip-path="url(#${clipId})"><g transform="translate(0 ${-scrollY})">${body}</g></g>`}</g>`;
   }
 
   function elementToSvg(element: Element): string {
@@ -175,7 +182,7 @@ function noteCardSvg(group: Extract<Element, { type: "group" }>): string {
     if (element.type === "image") { const sx = element.cropX ?? 0; const sy = element.cropY ?? 0; const sw = element.cropW ?? element.sourceWidth ?? element.w; const sh = element.cropH ?? element.sourceHeight ?? element.h; return `<svg x="${element.x}" y="${element.y}" width="${element.w}" height="${element.h}" viewBox="${sx} ${sy} ${sw} ${sh}" preserveAspectRatio="none" opacity="${element.opacity ?? 1}"><image width="${element.sourceWidth ?? sw}" height="${element.sourceHeight ?? sh}" href="${element.dataUrl}"/></svg>`; }
     // Keep the vector card layout in step with canvas sizing and field-bound connector anchors.
     if (element.type === "schemaTable") {
-      const { fontSize, titleHeight, rowHeight } = schemaTableMetrics(element.fontSize ?? 12);
+      const { fontSize, titleHeight } = schemaTableMetrics(element.fontSize ?? 12); const rowHeight = schemaTableRowHeight(element.columns.length, element.h, fontSize);
       const contentInset = schemaTableContentInset(fontSize);
       const colors = schemaTableColors(theme()); const left = element.x; const top = element.y; const right = left + element.w;
       const rowsTop = top + titleHeight;

@@ -518,7 +518,7 @@
     background: var(--theme-surface-elevated);
     box-shadow: 0 24px 70px color-mix(in srgb, var(--theme-shadow) 70%, transparent);
 }
-.code-data-dialog > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--theme-border); }
+.code-data-dialog > header { padding-bottom: 12px; border-bottom: 1px solid var(--theme-border); }
 .code-data-dialog > header h2 { margin: 3px 0 0; font-size: var(--type-heading); line-height: var(--leading-compact); }
 .code-data-actions { display: grid; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 8px; overflow: auto; padding: 2px; }
 .code-data-actions > h3 { grid-column: 1 / -1; margin: 8px 0 0; padding: 8px 2px 1px; border-top: 1px solid var(--theme-border); color: var(--theme-text-secondary); font-size: var(--type-micro); font-weight: var(--font-weight-semibold); letter-spacing: .09em; text-transform: uppercase; }

@@ -22,12 +22,33 @@ export function unionBounds(boxes: Bounds[]): Bounds | undefined {
   return { x: left, y: top, w: right - left, h: bottom - top };
 }
 
+export type ResizeHandleAxes = { x: boolean; y: boolean; west: boolean; north: boolean };
+
+/** Resolve resize direction from the handle ID; non-edge labels must not imply an axis by substring. */
+export function resizeHandleAxes(handle: string): ResizeHandleAxes {
+  switch (handle) {
+    case "n": return { x: false, y: true, west: false, north: true };
+    case "s": return { x: false, y: true, west: false, north: false };
+    case "e": return { x: true, y: false, west: false, north: false };
+    case "w": return { x: true, y: false, west: true, north: false };
+    case "nw": return { x: true, y: true, west: true, north: true };
+    case "ne": return { x: true, y: true, west: false, north: true };
+    case "sw": return { x: true, y: true, west: true, north: false };
+    case "se": return { x: true, y: true, west: false, north: false };
+    case "rotate": return { x: false, y: false, west: false, north: false };
+    default:
+      if (handle.startsWith("lane-divider:")) return { x: false, y: true, west: false, north: false };
+      return { x: true, y: true, west: false, north: false };
+  }
+}
+
 /** Resize a rectangle from the selected edge or corner, preserving ratio at corners. */
 export function lockAspectResizeBounds(before: Bounds, requested: Bounds, handle: string, minimumWidth = 1, minimumHeight = 1, maximumWidth = Infinity, maximumHeight = Infinity): Bounds {
   if (before.w <= 0 || before.h <= 0) return requested;
   const ratio = before.w / before.h;
-  const horizontal = handle.includes("e") || handle.includes("w");
-  const vertical = handle.includes("n") || handle.includes("s");
+  const axes = resizeHandleAxes(handle);
+  const horizontal = axes.x;
+  const vertical = axes.y;
   let width = requested.w;
   let height = requested.h;
   let x = requested.x;
@@ -41,17 +62,17 @@ export function lockAspectResizeBounds(before: Bounds, requested: Bounds, handle
     const maximumScale = Math.min(maximumWidth / before.w, maximumHeight / before.h);
     const scale = Math.min(maximumScale, Math.max(minimumScale, width / before.w, height / before.h));
     width = before.w * scale; height = before.h * scale;
-    if (handle.includes("w")) x = before.x + before.w - width;
-    if (handle.includes("n")) y = before.y + before.h - height;
+    if (axes.west) x = before.x + before.w - width;
+    if (axes.north) y = before.y + before.h - height;
   } else if (horizontal) {
     width = Math.max(minimumWidth, width);
     height = before.h;
-    x = handle.includes("w") ? before.x + before.w - width : before.x;
+    x = axes.west ? before.x + before.w - width : before.x;
     y = before.y;
   } else if (vertical) {
     width = before.w;
     height = Math.max(minimumHeight, height);
-    y = handle.includes("n") ? before.y + before.h - height : before.y;
+    y = axes.north ? before.y + before.h - height : before.y;
     x = before.x;
   }
   return { x, y, w: width, h: height };

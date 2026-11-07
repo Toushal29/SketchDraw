@@ -1,5 +1,5 @@
 import type { Binding, ConnectionPoint, Element, GroupElement, ShapeElement, SchemaTableElement, TextElement, Point, Bounds, RelationshipType, ShapeLabel } from "./model";
-import { schemaTableMetrics } from "./features/diagrams/schema-table-layout";
+import { schemaTableMetrics, schemaTableRowHeight } from "./features/diagrams/schema-table-layout";
 import { shapePathData } from "./features/shapes/geometry";
 import { connectorPoint } from "./features/connectors/geometry";
 import { componentDefaultPorts, componentOutlinePath, componentPortStrategy } from "./features/components/component-geometry";
@@ -311,7 +311,8 @@ export function anchorPoint(shape: ShapeElement | SchemaTableElement | TextEleme
   let x = Math.min(box.x, box.x + box.w) + Math.abs(box.w) * normalized.x;
   const rowIndex = shape.type === "schemaTable" && rowId ? shape.columns.findIndex(column => column.id === rowId) : -1;
   // Use the card's shared metrics so row-bound connectors meet the rendered field center.
-  const { titleHeight, rowHeight } = shape.type === "schemaTable" ? schemaTableMetrics(shape.fontSize ?? 12) : { titleHeight: 0, rowHeight: 0 };
+  const { titleHeight } = shape.type === "schemaTable" ? schemaTableMetrics(shape.fontSize ?? 12) : { titleHeight: 0 };
+  const rowHeight = shape.type === "schemaTable" ? schemaTableRowHeight(shape.columns.length, shape.h, shape.fontSize ?? 12) : 0;
   let y = shape.type === "schemaTable" && rowIndex >= 0
     ? shape.y + titleHeight + rowIndex * rowHeight + rowHeight / 2
     : Math.min(box.y, box.y + box.h) + Math.abs(box.h) * normalized.y;

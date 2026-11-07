@@ -65,6 +65,7 @@ import {
   type IconProps,
 } from "@tabler/icons-solidjs";
 import { type LibraryComponentKind } from "../features/components/library-components";
+import { proposalComponentForKind, type ProposalComponentArchetype } from "../features/components/proposal-components";
 import type { GroupElement } from "../model";
 import { modelComponentSvg } from "../features/components/model-component-renderer";
 import { cloudNeutralComponent, cloudProviderComponent, loadCloudProviderGlyph } from "../features/diagrams/cloud-providers";
@@ -235,6 +236,19 @@ const icons: Partial<Record<LibraryComponentKind, Component<IconProps>>> = {
   "bpmn-group": IconBox,
 };
 
+const proposalIcons: Record<ProposalComponentArchetype, Component<IconProps>> = {
+  card: IconListDetails,
+  boundary: IconBox,
+  decision: IconDiamond,
+  event: IconCircleDashed,
+  table: IconTable,
+  database: IconDatabase,
+  document: IconFileText,
+  screen: IconDeviceDesktop,
+  sticky: IconFileText,
+  connector: IconArrowRight,
+};
+
 function CloudProviderModelIcon(props: { kind: LibraryComponentKind; loadArtwork?: boolean }) {
   const provider = cloudProviderComponent(props.kind)!;
   const [glyph] = createResource(() => props.loadArtwork === false ? undefined : props.kind, kind => kind ? loadCloudProviderGlyph(kind) : Promise.resolve(undefined));
@@ -267,7 +281,10 @@ function CloudNeutralModelIcon(props: { kind: LibraryComponentKind }) {
 }
 
 export function LibraryComponentIcon(props: { kind: LibraryComponentKind; loadProviderArtwork?: boolean }) {
-  const icon = () => icons[props.kind] ?? IconCloud;
+  const icon = () => {
+    const proposal = proposalComponentForKind(props.kind);
+    return icons[props.kind] ?? (proposal ? proposalIcons[proposal.archetype] : IconComponents);
+  };
   return <Show when={cloudNeutralComponent(props.kind)} fallback={<Show when={cloudProviderComponent(props.kind)} fallback={<Dynamic component={icon()} class="stencil-component-icon" size={24} strokeWidth={1.8} aria-hidden="true" />} keyed>
     {provider => <CloudProviderModelIcon kind={provider.kind} loadArtwork={props.loadProviderArtwork} />}
   </Show>} keyed>

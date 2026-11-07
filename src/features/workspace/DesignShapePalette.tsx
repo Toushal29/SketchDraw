@@ -71,21 +71,17 @@ function connectorIconPath(item: Extract<DesignPaletteItem, { type: "connector" 
 
 function createPaletteSections(stencils: CustomStencil[], masters: ComponentMaster[]): PaletteSection[] {
   const components = new Map<string, PaletteEntry[]>(COMPONENT_GROUPS.map(group => [group.name, []]));
-  const proposalSectionCategories = new Map<string, string>();
   for (const component of LIBRARY_COMPONENTS) {
     const sourceGroup = component.section.split("|")[0].trim();
     const category = COMPONENT_GROUP_BY_SOURCE.get(sourceGroup);
     // New component families must be assigned to a real palette group before they are shown.
     if (!category) continue;
-    const proposalSection = proposalComponentSubcategory(component.kind);
-    const sectionName = proposalSection ?? category;
-    if (proposalSection) proposalSectionCategories.set(sectionName, category);
-    if (!components.has(sectionName)) components.set(sectionName, []);
-    const entries = components.get(sectionName)!;
-    entries.push({ item: { type: "component", kind: component.kind, label: component.label }, searchText: `${component.label} ${component.description} ${component.section}` });
+    const entries = components.get(category)!;
+    const subcategory = proposalComponentSubcategory(component.kind);
+    entries.push({ item: { type: "component", kind: component.kind, label: component.label }, searchText: `${component.label} ${component.description} ${component.section} ${subcategory ?? ""}` });
   }
 
-  const architectureEntries = components.get("Architecture")!;
+  const architectureEntries = [...components.get("Architecture")!, ...components.get("Software")!];
   const bpmnEntries = components.get("BPMN")!;
 
   const databaseEntries: PaletteEntry[] = [
@@ -105,22 +101,20 @@ function createPaletteSections(stencils: CustomStencil[], masters: ComponentMast
     { name: "Connectors", category: "Drawing basics", entries: connectorEntries },
     { name: "Flowchart", category: "Drawing basics", entries: FLOWCHART_SHAPES.map(shape => ({ item: { type: "flowchart", shape: shape.value, label: shape.label }, searchText: `${shape.label} flowchart ${shape.value}` })) },
     { name: "Database", category: "Database, data & schemas", entries: databaseEntries },
-    { name: "Architecture", category: "Software architecture & integration", entries: architectureEntries },
+    { name: "Architecture & software", category: "Software architecture & integration", entries: architectureEntries },
     { name: "GUI design", category: "Wireframing & UI", entries: components.get("GUI design")! },
-    { name: "Software", category: "Software architecture & integration", entries: components.get("Software")! },
     { name: "Cloud", category: "Cloud", entries: components.get("Cloud")! },
     { name: "Network", category: "Network", entries: components.get("Network")! },
     { name: "UML", category: "Systems engineering & UML", entries: components.get("UML")! },
     { name: "BPMN", category: "BPMN & decision modelling", entries: bpmnEntries },
     { name: "Visual planning", category: "Visual planning & decisions", entries: components.get("Visual planning & decision")! },
     { name: "Data visualization", category: "Data visualization", entries: components.get("Data visualization")! },
-    { name: "Diagram structure", category: "Diagram structure", entries: components.get("Diagram structure")! },
-    { name: "Text & annotations", category: "Drawing basics", entries: [
+    { name: "Structure & annotations", category: "Drawing basics", entries: [
+      ...components.get("Diagram structure")!,
       { item: { type: "text", label: "Text" }, searchText: "text label annotation" },
       ...components.get("Text & annotations")!,
     ] },
   ];
-  for (const [name, category] of proposalSectionCategories) sections.push({ name, category, entries: components.get(name) ?? [] });
   if (stencils.length) sections.push({ name: "My stencils", category: "My stencils", entries: stencils.map(stencil => ({ item: { type: "custom-stencil", stencil, label: stencil.name }, searchText: `${stencil.name} ${stencil.tags.join(" ")} ${stencil.folder ?? ""} ${stencil.preview}` })) });
   if (masters.length) sections.push({ name: "Reusable components", category: "Reusable components", entries: masters.map(master => ({ item: { type: "component-master", master, label: master.name }, searchText: `${master.name} reusable component` })) });
   return sections.filter(section => section.entries.length > 0);
@@ -240,7 +234,7 @@ export function DesignShapePalette(props: {
             else next.add(sectionName);
             return next;
           })}>
-            <span><small>{section()?.category}</small>{sectionName}</span><small>{entries().length}</small>
+            <span>{section()?.category && section()?.category.toLowerCase() !== sectionName.toLowerCase() && <small>{section()?.category}</small>}{sectionName}</span><small>{entries().length}</small>
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
           </button>
           <div class="design-palette-grid" id={sectionId} role="group" aria-label={`${sectionName} shapes`} hidden={!isExpanded()}>

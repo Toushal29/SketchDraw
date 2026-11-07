@@ -1,9 +1,9 @@
 import { SKETCH_FORMAT_VERSION } from "../../model";
-import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ComponentMaster, ConnectionPoint, ContainerMetadata, D2Metadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, PrototypeAction, PrototypeCondition, PrototypeVariable, RelationshipDirection, RelationshipType, ReviewCommentThread, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokePoint, StrokeStyle, StrideThreatCategory, TransportSecurity } from "../../model";
+import type { ArchitectureMetadata, ArrowHead, ArrowRoute, Binding, CanvasLayer, CanvasLayerVisibilityPreset, ChecklistItem, ComponentMaster, ConnectionPoint, ContainerMetadata, D2Metadata, EdgeStyle, Element, FlowchartShape, FontFamily, GroupElement, GuiComponentProperties, LayerFlags, LibraryChartData, LibraryComponentData, LineRoute, MermaidMetadata, NoteKind, Point, PrototypeAction, PrototypeCondition, PrototypeVariable, RelationshipDirection, RelationshipType, ReviewCommentThread, SchemaConstraint, SchemaField, SchemaIndex, ShapeElement, ShapeLabel, SketchFile, SketchPage, StrokePoint, StrokeStyle, StrideThreatCategory, TransportSecurity } from "../../model";
 import { ensureCanvasLayerPath, normalizeCanvasLayers } from "../canvas/structure";
 import { elementBounds, unionBounds } from "../canvas/bounds";
 import { cloudNeutralComponent } from "../diagrams/cloud-providers";
-import { buildNoteGroup } from "../../notes";
+import { buildNoteGroup, estimateNoteCardContentHeight } from "../../notes";
 import { validReferences } from "../../operations";
 import { defaultCurveControlPoints } from "../connectors/geometry";
 import { ALL_FLOWCHART_SHAPES } from "../shapes/shape-catalog";
@@ -150,6 +150,24 @@ export function normalizeElement(value: unknown): Element | undefined {
   return normalizeElementWithinBudget(value, 0, { remaining: MAX_DOCUMENT_ELEMENT_NODES, remainingStrokePoints: MAX_DOCUMENT_STROKE_POINTS });
 }
 
+function normalizeChecklistItems(value: unknown): ChecklistItem[] | undefined {
+  if (!isRecord(value) || !Array.isArray(value.items) || value.items.length > 1000) return undefined;
+  const items: ChecklistItem[] = [];
+  const ids = new Set<string>();
+  let textLength = 0;
+  for (const item of value.items) {
+    if (!isRecord(item) || typeof item.id !== "string" || !item.id || item.id.length > 100 || ids.has(item.id) || typeof item.text !== "string" || item.text.length > 1000) return undefined;
+    ids.add(item.id);
+    textLength += item.text.length;
+    if (textLength > 50000) return undefined;
+    if (item.type === "heading") items.push({ id: item.id, type: "heading", text: item.text });
+    else if (item.type === "task" && typeof item.checked === "boolean" && finite(item.level) && Number.isInteger(item.level) && item.level >= 0 && item.level <= 6) {
+      items.push({ id: item.id, type: "task", text: item.text, checked: item.checked, level: item.level });
+    } else return undefined;
+  }
+  return items;
+}
+
 function normalizeElementWithinBudget(value: unknown, depth: number, budget: ElementParseBudget): Element | undefined {
   if (depth > MAX_ELEMENT_DEPTH || budget.remaining <= 0) return undefined;
   budget.remaining -= 1;
@@ -198,8 +216,16 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
       && (value.note.height === undefined || finite(value.note.height) && value.note.height >= 32 && value.note.height <= 1_000_000)
       && (value.note.fontSize === undefined || finite(value.note.fontSize) && value.note.fontSize >= 8 && value.note.fontSize <= 32)
       && (value.note.collapsed === undefined || typeof value.note.collapsed === "boolean")
+      && (value.note.scrollY === undefined || finite(value.note.scrollY) && value.note.scrollY >= 0 && value.note.scrollY <= 1_000_000)
       && (value.note.tags === undefined || Array.isArray(value.note.tags) && value.note.tags.length <= 16 && value.note.tags.every(tag => typeof tag === "string" && tag.trim().length <= 40))
-      ? { kind: value.note.kind as NoteKind, content: value.note.content, ...(typeof value.note.title === "string" ? { title: value.note.title } : {}), ...(finite(value.note.width) ? { width: value.note.width } : {}), ...(finite(value.note.height) ? { height: value.note.height } : {}), ...(finite(value.note.fontSize) ? { fontSize: Math.round(value.note.fontSize) } : {}), ...(typeof value.note.collapsed === "boolean" ? { collapsed: value.note.collapsed } : {}), ...(Array.isArray(value.note.tags) && value.note.tags.length ? { tags: [...new Set(value.note.tags.map(tag => (tag as string).trim()).filter(Boolean))].slice(0, 16) } : {}) } : undefined;
+      && (value.note.checklist === undefined || normalizeChecklistItems(value.note.checklist) !== undefined)
+      ? (() => {
+        const kind = value.note.kind as NoteKind; const width = finite(value.note.width) ? value.note.width : kind === "sticky" ? 296 : 340; const fontSize = finite(value.note.fontSize) ? Math.round(value.note.fontSize) : 12;
+        const checklistItems = kind === "checklist" ? value.note.checklist === undefined ? [] : normalizeChecklistItems(value.note.checklist)! : undefined;
+        const content = kind === "checklist" ? "" : value.note.content as string;
+        const contentHeight = estimateNoteCardContentHeight(content, kind, width, fontSize, checklistItems);
+        return { kind, content, ...(checklistItems ? { checklist: { items: checklistItems } } : {}), contentHeight, ...(typeof value.note.title === "string" ? { title: value.note.title } : {}), ...(finite(value.note.width) ? { width: value.note.width } : {}), ...(finite(value.note.height) ? { height: value.note.height } : {}), ...(finite(value.note.fontSize) ? { fontSize } : {}), ...(typeof value.note.collapsed === "boolean" ? { collapsed: value.note.collapsed } : {}), ...(finite(value.note.scrollY) && value.note.scrollY > 0 ? { scrollY: value.note.scrollY } : {}), ...(Array.isArray(value.note.tags) && value.note.tags.length ? { tags: [...new Set(value.note.tags.map(tag => (tag as string).trim()).filter(Boolean))].slice(0, 16) } : {}) };
+      })() : undefined;
     const mermaid: MermaidMetadata | undefined = isRecord(value.mermaid) && typeof value.mermaid.source === "string" && value.mermaid.source.length <= 100_000
       && (value.mermaid.format === undefined || value.mermaid.format === "mermaid" || value.mermaid.format === "plantuml")
       && (value.mermaid.diagramType === undefined || ["flowchart", "sequence", "class", "er", "state", "journey", "gantt", "c4", "mindmap", "timeline", "git", "requirement", "quadrant", "kanban", "sankey", "block", "pie", "xychart", "packet", "architecture", "radar", "treemap", "venn", "usecase", "ishikawa", "treeview", "swimlane", "cynefin", "wardley", "eventmodeling", "zenuml", "activity", "component", "deployment", "timing", "wbs", "network", "json", "yaml", "archimate"].includes(String(value.mermaid.diagramType)))
@@ -367,7 +393,7 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     if (note && [84, 94, 154].includes(note.height ?? -1) && normalizedChildren.length === 1) {
       const surface = normalizedChildren[0];
       if (surface.type === "rectangle" && Math.abs(surface.h) === note.height && Math.abs(surface.w) === note.width) {
-        const fitted = buildNoteGroup(surface.x, surface.y, note.kind, note.content, { width: note.width, fontSize: note.fontSize, title: note.title, collapsed: note.collapsed });
+        const fitted = buildNoteGroup(surface.x, surface.y, note.kind, note.content, { width: note.width, fontSize: note.fontSize, title: note.title, collapsed: note.collapsed, checklistItems: note.checklist?.items });
         if (fitted.note && fitted.note.height !== undefined && fitted.note.height < note.height) {
           normalizedNote = { ...note, height: fitted.note.height };
           normalizedChildren = [{ ...surface, h: note.collapsed ? 32 : fitted.note.height }];
@@ -433,7 +459,8 @@ function normalizeElementWithinBudget(value: unknown, depth: number, budget: Ele
     const objectKind = ["table", "view", "enum"].includes(String(value.objectKind)) ? value.objectKind as "table" | "view" | "enum" : "table";
     const enumValues = Array.isArray(value.enumValues) && value.enumValues.length <= 100 && value.enumValues.every(entry => typeof entry === "string" && entry.length <= 500) ? value.enumValues as string[] : undefined;
     const viewQuery = typeof value.viewQuery === "string" && value.viewQuery.length <= 100_000 ? value.viewQuery : undefined;
-    return { type: "schemaTable", ...flags, x: value.x, y: value.y, w: Math.max(value.w, neededWidth), h: neededHeight, name: value.name, objectKind, ...(viewQuery ? { viewQuery } : {}), ...(enumValues?.length ? { enumValues } : {}), columns, ...(indexes.length ? { indexes } : {}), ...(constraints.length ? { constraints } : {}), schemaDiagramId: value.schemaDiagramId, schemaSource: value.schemaSource, fontSize, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
+    const savedHeight = finite(value.h) ? Math.max(neededHeight, Math.min(16_384, value.h)) : neededHeight;
+    return { type: "schemaTable", ...flags, x: value.x, y: value.y, w: Math.max(value.w, neededWidth), h: savedHeight, name: value.name, objectKind, ...(viewQuery ? { viewQuery } : {}), ...(enumValues?.length ? { enumValues } : {}), columns, ...(indexes.length ? { indexes } : {}), ...(constraints.length ? { constraints } : {}), schemaDiagramId: value.schemaDiagramId, schemaSource: value.schemaSource, fontSize, opacity: finite(value.opacity) ? Math.max(0, Math.min(1, value.opacity)) : 1 };
   }
   if (value.type === "svgPath") {
     if (!finite(value.x) || !finite(value.y) || !finite(value.w) || value.w <= 0 || !finite(value.h) || value.h <= 0 || !isColor(value.color) || !finite(value.thickness) || value.thickness <= 0 || typeof value.pathData !== "string" || !value.pathData.trim() || value.pathData.length > 500_000 || !finite(value.pathWidth) || value.pathWidth <= 0 || value.pathWidth > 100_000 || !finite(value.pathHeight) || value.pathHeight <= 0 || value.pathHeight > 100_000 || (value.fillRule !== undefined && value.fillRule !== "nonzero" && value.fillRule !== "evenodd")) return undefined;

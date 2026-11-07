@@ -7,7 +7,7 @@ import { themeInk } from "../canvas/rendering";
 import { stylusStrokeWidth } from "../canvas/freehand-rendering";
 import { strokeDashPattern } from "../canvas/stroke-style";
 import { drawNoteCard } from "../../notes";
-import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableRowLayout } from "../diagrams/schema-table-layout";
+import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableRowHeight, schemaTableRowLayout } from "../diagrams/schema-table-layout";
 
 export type PdfRasterPage = { jpeg: Uint8Array; imageWidth: number; imageHeight: number; pageWidth: number; pageHeight: number; x: number; y: number; drawWidth: number; drawHeight: number; bleedPt: number; grayscale: boolean };
 
@@ -159,7 +159,7 @@ export async function makeVectorPdf(scenes: { items: Element[]; view: CanvasStat
         } return; }
         // Reuse canvas card metrics so PDF row positions match field-bound relationships.
         if (element.type === "schemaTable") {
-          const { fontSize, titleHeight, rowHeight } = schemaTableMetrics(element.fontSize ?? 12); const contentInset = schemaTableContentInset(fontSize); const colors = schemaTableColors(theme()); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
+          const { fontSize, titleHeight } = schemaTableMetrics(element.fontSize ?? 12); const rowHeight = schemaTableRowHeight(element.columns.length, element.h, fontSize); const contentInset = schemaTableContentInset(fontSize); const colors = schemaTableColors(theme()); const left = x0 + element.x * scale; const top = paperH - (bleed + margin + (element.y - bounds.y) * scale); const width = element.w * scale; const height = element.h * scale; const opacity = element.opacity ?? 1;
           const centerX = left + width / 2; const centerY = top - height / 2; const rotated = !!element.rotation;
           if (rotated) page.pushOperators(pushGraphicsState(), translate(centerX, centerY), rotateDegrees(-(element.rotation ?? 0)), translate(-centerX, -centerY));
           page.drawRectangle({ x: left, y: top - height, width, height, color: pdfColor(colors.surface, pdfColorMode()), opacity });

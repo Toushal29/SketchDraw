@@ -255,13 +255,6 @@
 .component-editor-scroll > :is(.relationship-properties, .component-navigation-details) { order: 60; }
 .component-editor-scroll > .diagram-source-editor { order: 80; }
 
-.component-editor-scroll .connection-point-editor>p {
-    margin: 0 0 7px;
-    color: var(--theme-text-secondary);
-    font-size: var(--type-micro);
-    line-height: var(--leading-compact);
-}
-
 .component-editor-scroll .connection-point-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 46px 46px 24px;
@@ -292,13 +285,6 @@
     min-width: 24px;
     min-height: 26px;
     padding: 2px;
-}
-
-.component-editor-scroll .connection-rules-help {
-    margin: 4px 0 8px;
-    color: var(--theme-text-secondary);
-    font-size: var(--type-micro);
-    line-height: var(--leading-normal);
 }
 
 .component-editor-scroll .connection-rule-editor {
@@ -399,21 +385,9 @@
     border-block: 1px solid var(--theme-border);
 }
 
-.component-port-editor>div {
-    display: grid;
-    min-width: 0;
-    gap: 3px;
-}
-
 .component-port-editor strong {
     color: var(--theme-text-primary);
     font-size: var(--type-caption);
-}
-
-.component-port-editor small {
-    color: var(--theme-text-secondary);
-    font-size: var(--type-micro);
-    line-height: var(--leading-compact);
 }
 
 .component-port-editor label {
@@ -605,11 +579,6 @@
     gap: 4px;
 }
 
-.note-editor-format-help {
-    color: var(--theme-text-secondary);
-    font: var(--type-micro)/var(--leading-compact) var(--font-ui);
-}
-
 .note-editor-label {
     display: grid;
     min-width: 0;
@@ -644,8 +613,8 @@
 }
 
 .note-editor-label textarea {
-    min-height: 132px;
-    max-height: 42vh;
+    min-height: 40vh;
+    max-height: 55vh;
     padding: 6px;
     resize: vertical;
     font: var(--type-caption)/var(--leading-normal) var(--font-mono);
@@ -919,8 +888,23 @@
 .container-background-control {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 6px;
-    margin-top: 4px;
+    flex: 0 0 auto;
+    margin: 0 0 0 auto;
+}
+
+.component-editor-dock .container-background-label {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.container-background-control .quiet-button {
+    min-height: 28px;
 }
 
 .container-background-control input[type="color"] {

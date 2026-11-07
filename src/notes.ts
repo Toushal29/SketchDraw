@@ -1,84 +1,62 @@
-import type { GroupElement, NoteKind, ShapeElement, Theme } from "./model";
+import type { ChecklistItem, GroupElement, NoteKind, ShapeElement, Theme } from "./model";
 import { standaloneMarkdownTableRows } from "./app/markdown-table";
+import { checklistIndexAt, layoutChecklist, toggleChecklistItem, type ChecklistMeasureText } from "./features/notes/checklist";
+import { noteInlineRuns, type NoteInlineRun, wrapNoteMarkup } from "./features/notes/inline-markup";
 export type { LibraryChartData } from "./model";
+export { noteInlineRuns, wrapNoteMarkup };
+export type { NoteInlineRun };
+export { checklistIndexAt, toggleChecklistItem };
+export type NoteTextMeasurer = ChecklistMeasureText;
 
-export type NoteInlineRun = { text: string; bold: boolean; italic: boolean; underline: boolean; highlight: boolean; strike: boolean; code: boolean };
-
-export function noteInlineRuns(value: string): NoteInlineRun[] {
-  const pattern = /(<u>[^<]+<\/u>|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|==[^=]+==|`[^`]+`|\*[^*]+\*|_[^_]+_)/g;
-  const runs: NoteInlineRun[] = [];
-  let cursor = 0;
-  const plain = (text: string) => { if (text) runs.push({ text, bold: false, italic: false, underline: false, highlight: false, strike: false, code: false }); };
-  for (const match of value.matchAll(pattern)) {
-    const token = match[0]; const start = match.index ?? 0;
-    plain(value.slice(cursor, start));
-    const underline = token.startsWith("<u>");
-    const bold = token.startsWith("**") || token.startsWith("__");
-    const strike = token.startsWith("~~");
-    const highlight = token.startsWith("==");
-    const code = token.startsWith("`");
-    const trim = underline ? 3 : bold || strike || highlight ? 2 : 1;
-    runs.push({ text: token.slice(trim, -trim), bold, italic: !underline && !bold && !strike && !highlight && !code, underline, highlight, strike, code });
-    cursor = start + token.length;
-  }
-  plain(value.slice(cursor));
-  return runs;
+export function measureNoteInlineText(ctx: CanvasRenderingContext2D, text: string, size: number, forceBold = false): number {
+  const previousFont = ctx.font;
+  ctx.font = `${forceBold ? 650 : 400} ${size}px system-ui, sans-serif`;
+  const width = ctx.measureText(text).width;
+  ctx.font = previousFont;
+  return width;
 }
 
-export function wrapNoteMarkup(value: string, maxWidth: number, measure: (text: string, run: NoteInlineRun) => number): string[] {
-  const lines = [""];
-  let lineWidth = 0;
-  const encode = (run: NoteInlineRun, text: string) => run.code ? `\`${text}\``
-    : run.underline ? `<u>${text}</u>`
-    : run.highlight ? `==${text}==`
-    : run.strike ? `~~${text}~~`
-    : run.bold ? `**${text}**`
-    : run.italic ? `*${text}*` : text;
-  const append = (run: NoteInlineRun, text: string) => { lines[lines.length - 1] += encode(run, text); lineWidth += measure(text, run); };
-  for (const run of noteInlineRuns(value)) {
-    const chunks = run.text.match(/[^\s]+\s*|\s+/gu) ?? [];
-    for (const chunk of chunks) {
-      const width = measure(chunk, run);
-      if (!/^\s+$/u.test(chunk) && lineWidth > 0 && lineWidth + width > maxWidth) { lines.push(""); lineWidth = 0; }
-      if (width <= maxWidth || /^\s+$/u.test(chunk)) { append(run, chunk); continue; }
-      for (const character of Array.from(chunk)) {
-        const characterWidth = measure(character, run);
-        if (lineWidth > 0 && lineWidth + characterWidth > maxWidth) { lines.push(""); lineWidth = 0; }
-        append(run, character);
+export function estimateNoteCardContentHeight(content: string, kind: NoteKind, width: number, fontSize: number, checklistItems: ChecklistItem[] = []): number {
+  const lines = content.split(/\r?\n/);
+  const tableRows = kind === "note" ? standaloneMarkdownTableRows(content) : undefined;
+  let estimated = 30;
+  if (tableRows) estimated = tableRows.length * Math.max(22, fontSize * 1.8);
+  else if (kind === "checklist") {
+    estimated = layoutChecklist(checklistItems, width, fontSize).contentHeight;
+  } else {
+    const codeMaxChars = Math.max(8, Math.floor((width - 32) / (fontSize * .62)));
+    let inCode = false; let codeCount = 0; let trailingCodeGap = 0;
+    for (let lineIndex = 0; lineIndex < lines.length;) {
+      const line = lines[lineIndex];
+      if (/^\s*```/.test(line)) { if (inCode) { estimated += Math.max(32, codeCount * fontSize * 1.55 + 20) + 5; trailingCodeGap = 5; codeCount = 0; } else trailingCodeGap = 0; inCode = !inCode; lineIndex++; continue; }
+      if (inCode) { codeCount += Math.max(1, Math.ceil(line.length / codeMaxChars)); lineIndex++; continue; }
+      if (lineIndex + 1 < lines.length && isMarkdownTableDivider(lines[lineIndex + 1])) {
+        let rowIndex = lineIndex + 2; let rowCount = 1;
+        while (rowIndex < lines.length && lines[rowIndex].includes("|")) { rowCount++; rowIndex++; }
+        estimated += rowCount * Math.max(20, fontSize * 1.5) + 5; trailingCodeGap = 0; lineIndex = rowIndex; continue;
       }
+      const heading = /^(#{1,3})\s+/.exec(line);
+      const textSize = heading ? fontSize + (4 - heading[1].length) * 2 : fontSize;
+      const maxChars = Math.max(8, Math.floor((width - 38) / (textSize * .56)));
+      if (line.trim()) { estimated += Math.ceil(line.length / maxChars) * textSize * 1.5; trailingCodeGap = 0; }
+      lineIndex++;
     }
+    if (inCode) estimated += Math.max(32, codeCount * fontSize * 1.55 + 20);
+    else estimated -= trailingCodeGap;
   }
-  return lines;
+  return Math.max(32, estimated + 1);
 }
 
-function checklistTitle(line: string): string | undefined {
-  return /^\s*\*\*(.+)\*\*\s*$/.exec(line)?.[1]?.trim();
+export function noteCardMaxScroll(group: GroupElement, measureText?: ChecklistMeasureText): number {
+  const meta = group.note;
+  const background = group.elements.find((item): item is ShapeElement => item.type === "rectangle");
+  if (!meta || !background || meta.collapsed || meta.kind === "note" && standaloneMarkdownTableRows(meta.content)) return 0;
+  const width = Math.abs(background.w); const height = Math.abs(background.h);
+  const fontSize = Math.round(Math.max(8, Math.min(48, meta.fontSize ?? 12)));
+  const checklistLayout = meta.kind === "checklist" ? layoutChecklist(meta.checklist?.items ?? [], width, fontSize, measureText) : undefined;
+  const contentHeight = checklistLayout ? checklistLayout.contentHeight + 1 : meta.contentHeight ?? estimateNoteCardContentHeight(meta.content, meta.kind, width, fontSize);
+  return Math.max(0, contentHeight - height);
 }
-
-export type ChecklistRow = {
-  kind: "title" | "task";
-  index?: number;
-  top: number;
-  height: number;
-  lineHeight: number;
-  boxX: number;
-  textX: number;
-  done: boolean;
-  labelLines: string[];
-};
-
-export const normalizeNoteContent = (content: string, kind: NoteKind) => {
-  const hasContent = content.trim();
-  if (kind !== "checklist") return content;
-  return (hasContent ? content.split(/\r?\n/) : [""]).map(line => {
-    if (!line.trim()) return "";
-    const indent = /^\s*/.exec(line)?.[0].replace(/\t/g, "  ") ?? "";
-    if (checklistTitle(line) !== undefined) return line;
-    const task = line.trimStart();
-    const existing = /^(?:(?:[-*]|\d+\.)\s+)?\[([ xX])\]\s*(.*)$/.exec(task);
-    return existing ? `${indent}- [${existing[1]}] ${existing[2]}` : `${indent}- [ ] ${task.replace(/^(?:[-*]|\d+\.)\s+/, "")}`;
-  }).filter(Boolean).join("\n") || "- [ ] New task";
-};
 
 const NOTE_CARD_PALETTES: Record<Theme, Record<NoteKind, { surface: string; border: string; accent: string; ink: string; muted: string; rule: string; soft: string; check: string }>> = {
   light: {
@@ -108,62 +86,23 @@ export function isMarkdownTableDivider(line: string): boolean {
   return cells.length > 1 && cells.every(cell => /^:?-{3,}:?$/.test(cell.replace(/\s/g, "")));
 }
 
-export function checklistRows(content: string, width: number, fontSize: number, measureText?: (text: string, run: NoteInlineRun, size: number, forceBold: boolean) => number) {
-  let top = 32;
-  let taskIndex = 0;
-  return content.split(/\r?\n/).filter(line => line.trim()).map(line => {
-    const title = checklistTitle(line);
-    const match = /^\s*(?:[-*]|\d+\.)\s+\[([ xX])\]\s*(.*)$/.exec(line);
-    const indent = Math.min(6, Math.floor((line.match(/^\s*/)?.[0].replace(/\t/g, "  ").length ?? 0) / 2)) * 14;
-    const titleSize = fontSize * 1.12;
-    const lineHeight = Math.max(14, (title ? titleSize : fontSize) * 1.25);
-    const boxX = title ? 11 : 11 + indent; const textX = title ? 11 : boxX + 21;
-    const textSize = title ? titleSize : fontSize;
-    const maxWidth = Math.max(12, width - textX - 8);
-    const rest = title ?? match?.[2] ?? line.trim();
-    const labelLines = wrapNoteMarkup(rest, maxWidth, (text, run) => measureText?.(text, run, textSize, title !== undefined) ?? Array.from(text).length * textSize * (run.code ? .6 : run.bold || title ? .52 : .5));
-    const height = Math.max(22, labelLines.length * lineHeight + 3);
-    const row: ChecklistRow = { kind: title === undefined ? "task" : "title", ...(title === undefined ? { index: taskIndex++ } : {}), top, height, lineHeight, boxX, textX, done: match?.[1].toLowerCase() === "x", labelLines };
-    top += height + 2; return row;
-  });
-}
-
 /** Store card content in metadata and one backing shape inside the Canvas section. */
-export function buildNoteGroup(x: number, y: number, kind: NoteKind, source: string, dimensions: { width?: number; height?: number; fontSize?: number; collapsed?: boolean; title?: string } = {}): GroupElement {
-  const content = normalizeNoteContent(source, kind);
+export function buildNoteGroup(x: number, y: number, kind: NoteKind, source: string, dimensions: { width?: number; height?: number; fontSize?: number; collapsed?: boolean; title?: string; scrollY?: number; checklistItems?: ChecklistItem[] } = {}): GroupElement {
+  const content = kind === "checklist" ? "" : source;
   const width = Math.max(180, Math.min(4000, dimensions.width ?? (kind === "sticky" ? 296 : 340)));
   const fontSize = Math.round(Math.max(8, Math.min(32, dimensions.fontSize ?? 12)));
   const collapsed = dimensions.collapsed === true;
   const title = (dimensions.title ?? defaultNoteTitle(kind)).trim().slice(0, 120) || defaultNoteTitle(kind);
   const palette = noteCardPalette(kind, "light");
-  const lines = content.split(/\r?\n/);
   const tableRows = kind === "note" ? standaloneMarkdownTableRows(content) : undefined;
-  let estimated = 32;
-  if (tableRows) estimated = tableRows.length * Math.max(22, fontSize * 1.8);
-  else if (kind === "checklist") {
-    const rows = checklistRows(content, width, fontSize); const last = rows[rows.length - 1]; estimated = last ? last.top + last.height + 6 : 34;
-  } else {
-    const maxChars = Math.max(8, Math.floor((width - 38) / (fontSize * .56)));
-    let inCode = false; let codeCount = 0;
-    for (let lineIndex = 0; lineIndex < lines.length;) {
-      const line = lines[lineIndex];
-      if (/^\s*```/.test(line)) { if (inCode) { estimated += Math.max(32, codeCount * fontSize * 1.55 + 20) + 5; codeCount = 0; } inCode = !inCode; lineIndex++; continue; }
-      if (inCode) { codeCount++; lineIndex++; continue; }
-      if (lineIndex + 1 < lines.length && isMarkdownTableDivider(lines[lineIndex + 1])) {
-        let rowIndex = lineIndex + 2; let rowCount = 1;
-        while (rowIndex < lines.length && lines[rowIndex].includes("|")) { rowCount++; rowIndex++; }
-        estimated += rowCount * Math.max(20, fontSize * 1.5) + 5; lineIndex = rowIndex; continue;
-      }
-      estimated += line.trim() ? Math.ceil(line.length / maxChars) * fontSize * 1.5 : 0;
-      lineIndex++;
-    }
-    if (inCode) estimated += Math.max(32, codeCount * fontSize * 1.55 + 20);
-    estimated += 6;
-  }
+  const checklistItems = kind === "checklist" ? dimensions.checklistItems ?? [] : undefined;
+  const estimated = estimateNoteCardContentHeight(content, kind, width, fontSize, checklistItems);
   const fullHeight = dimensions.height === undefined ? Math.max(34, estimated) : Math.max(34, Math.min(1_000_000, dimensions.height));
   const visibleHeight = collapsed && !tableRows ? 32 : fullHeight;
   const background: ShapeElement = { type: "rectangle", x, y, w: width, h: visibleHeight, color: palette.border, thickness: 1, fillColor: palette.surface, fillOpacity: 1, edgeStyle: "rounded", cornerRadius: 3 };
-  return { type: "group", note: { kind, content, title, width, height: fullHeight, fontSize, collapsed: tableRows ? false : collapsed }, elements: [background] };
+  const maxScroll = collapsed || tableRows ? 0 : Math.max(0, estimated - visibleHeight);
+  const scrollY = Math.max(0, Math.min(maxScroll, dimensions.scrollY ?? 0));
+  return { type: "group", note: { kind, content, ...(checklistItems ? { checklist: { items: checklistItems } } : {}), title, width, height: fullHeight, fontSize, collapsed: tableRows ? false : collapsed, contentHeight: estimated, ...(scrollY ? { scrollY } : {}) }, elements: [background] };
 }
 
 /** Render a whole note card in one pass instead of adding a canvas element for every line or token. */
@@ -185,6 +124,17 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
     standaloneTable.forEach((row, rowIndex) => row.forEach((cell, column) => { ctx.font = `${rowIndex === 0 ? 600 : 400} ${Math.min(fontSize, Math.max(8, rowHeight - 6))}px system-ui, sans-serif`; ctx.fillStyle = palette.ink; ctx.fillText(cell, x + column * cellWidth + 6, y + (rowIndex + .5) * rowHeight, Math.max(1, cellWidth - 12)); }));
     ctx.restore(); return;
   }
+  const measureChecklist = (text: string, size: number, bold: boolean) => measureNoteInlineText(ctx, text, size, bold);
+  const measureInline = (text: string, run: NoteInlineRun, size: number, forceBold = false) => {
+    const previousFont = ctx.font;
+    const family = run.code ? "ui-monospace, SFMono-Regular, Consolas, monospace" : "system-ui, sans-serif";
+    ctx.font = `${run.italic ? "italic " : ""}${forceBold || run.bold ? 650 : 400} ${size}px ${family}`;
+    const measured = ctx.measureText(text).width + (run.code ? 4 : 0);
+    ctx.font = previousFont;
+    return measured;
+  };
+  const maxScroll = noteCardMaxScroll(group, measureChecklist);
+  const scrollY = Math.max(0, Math.min(maxScroll, meta.scrollY ?? 0));
   ctx.save(); ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(x, y, width, height, 3); ctx.fillStyle = palette.surface; ctx.fill(); ctx.strokeStyle = palette.border; ctx.stroke();
   const collapsed = meta.collapsed === true; const title = (meta.title || defaultNoteTitle(meta.kind)).slice(0, 120);
   ctx.textBaseline = "top"; ctx.textAlign = "left"; ctx.font = "600 11px system-ui, sans-serif"; ctx.fillStyle = palette.ink; ctx.fillText(title, x + 10, y + 8, Math.max(40, width - 42));
@@ -194,7 +144,8 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
   else { ctx.moveTo(toggleX + 5, toggleY + 11); ctx.lineTo(toggleX + 9, toggleY + 7); ctx.lineTo(toggleX + 13, toggleY + 11); }
   ctx.stroke();
   if (collapsed || height <= 32) { ctx.restore(); return; }
-  ctx.save(); ctx.beginPath(); ctx.rect(x + 8, y + 29, width - 16, Math.max(0, height - 32)); ctx.clip();
+  ctx.save(); ctx.beginPath(); ctx.rect(x + 8, y + 29, width - 16, Math.max(0, height - 30)); ctx.clip();
+  ctx.translate(0, -scrollY);
   const wrap = (value: string, max: number) => { const chunks: string[] = []; let remaining = value; while (remaining.length > max) { let cut = remaining.lastIndexOf(" ", max); if (cut < 1) cut = max; chunks.push(remaining.slice(0, cut)); remaining = remaining.slice(cut).trimStart(); } chunks.push(remaining); return chunks; };
   const drawInline = (value: string, px: number, py: number, size: number, baseWeight: number, baseColor = palette.ink, forceBold = false, forceStrike = false) => {
     let cursorX = px;
@@ -215,23 +166,19 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
       cursorX += runWidth + (run.code ? 4 : 0);
     }
   };
-  const measureInline = (text: string, run: NoteInlineRun, size: number, forceBold = false) => {
-    const family = run.code ? "ui-monospace, SFMono-Regular, Consolas, monospace" : "system-ui, sans-serif";
-    ctx.font = `${run.italic ? "italic " : ""}${forceBold || run.bold ? 650 : 400} ${size}px ${family}`;
-    return ctx.measureText(text).width + (run.code ? 4 : 0);
-  };
   if (meta.kind === "checklist") {
-    const rows = checklistRows(meta.content, width, fontSize, (text, run, size, forceBold) => measureInline(text, run, size, forceBold));
+    const rows = layoutChecklist(meta.checklist?.items ?? [], width, fontSize, measureChecklist).rows;
     for (const row of rows) {
-      const boxX = x + row.boxX; const textX = x + row.textX; const textTop = y + row.top + (row.height - row.labelLines.length * row.lineHeight) / 2;
-      const checkboxY = y + row.top + Math.max(0, (row.height - 14) / 2);
-      if (row.kind === "task") {
-        ctx.beginPath(); ctx.roundRect(boxX, checkboxY, 14, 14, 1); ctx.fillStyle = row.done ? palette.check : palette.surface; ctx.fill(); ctx.strokeStyle = row.done ? palette.check : palette.border; ctx.stroke();
-        if (row.done) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(boxX + 3, checkboxY + 7); ctx.lineTo(boxX + 6, checkboxY + 10); ctx.lineTo(boxX + 11, checkboxY + 4); ctx.stroke(); }
+      const textX = x + row.textX;
+      const textTop = y + row.textTop;
+      if (row.type === "task" && row.checkboxX !== undefined && row.checkboxY !== undefined) {
+        const boxX = x + row.checkboxX; const checkboxY = y + row.checkboxY;
+        ctx.beginPath(); ctx.roundRect(boxX, checkboxY, 14, 14, 1); ctx.fillStyle = row.checked ? palette.check : palette.surface; ctx.fill(); ctx.strokeStyle = row.checked ? palette.check : palette.border; ctx.stroke();
+        if (row.checked) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(boxX + 3, checkboxY + 7); ctx.lineTo(boxX + 6, checkboxY + 10); ctx.lineTo(boxX + 11, checkboxY + 4); ctx.stroke(); }
       }
       row.labelLines.forEach((line, lineIndex) => {
         const baseline = textTop + lineIndex * row.lineHeight;
-        drawInline(line, textX, baseline, row.kind === "title" ? fontSize * 1.12 : fontSize, row.kind === "title" ? 650 : 400, row.done ? palette.muted : palette.ink, row.kind === "title", row.done);
+        drawInline(line, textX, baseline, row.textSize, row.type === "heading" ? 650 : 400, row.checked ? palette.muted : palette.ink, row.type === "heading", row.checked);
       });
     }
   } else {
@@ -282,7 +229,14 @@ export function drawNoteCard(ctx: CanvasRenderingContext2D, group: GroupElement,
     }
     if (inCode) flushCode();
   }
-  ctx.restore(); ctx.restore();
+  ctx.restore();
+  if (maxScroll > 0) {
+    const trackY = y + 29; const trackHeight = Math.max(1, height - 30);
+    const thumbHeight = Math.max(12, trackHeight * trackHeight / (trackHeight + maxScroll));
+    const thumbY = trackY + (trackHeight - thumbHeight) * scrollY / maxScroll;
+    ctx.save(); ctx.globalAlpha = .5; ctx.fillStyle = palette.muted; ctx.beginPath(); ctx.roundRect(x + width - 5, thumbY, 2, thumbHeight, 1); ctx.fill(); ctx.restore();
+  }
+  ctx.restore();
 }
 export function noteCollapseHit(group: GroupElement, point: { x: number; y: number }): boolean {
   if (!group.note) return false;
@@ -293,26 +247,5 @@ export function noteCollapseHit(group: GroupElement, point: { x: number; y: numb
   return point.x >= x && point.x <= x + 24 && point.y >= y && point.y <= y + 24;
 }
 
-export function checklistIndexAt(group: GroupElement, point: { x: number; y: number }): number | undefined {
-  if (group.note?.kind !== "checklist" || group.note.collapsed) return undefined;
-  const background = group.elements.find((item): item is ShapeElement => item.type === "rectangle");
-  if (!background) return undefined;
-  for (const row of checklistRows(group.note.content, Math.abs(background.w), group.note.fontSize ?? 12)) {
-    if (row.kind === "title") continue;
-    const x = background.x + row.boxX; const y = background.y + row.top + Math.max(0, (row.height - 14) / 2);
-    if (point.x >= x - 4 && point.x <= x + 22 && point.y >= y - 4 && point.y <= y + 18) return row.index;
-  }
-  return undefined;
-}
-
-export function toggleChecklistContent(content: string, target: number): string {
-  let taskIndex = -1;
-  return content.split(/\r?\n/).map(line => {
-    if (!line.trim()) return line;
-    if (checklistTitle(line) !== undefined) return line;
-    if (taskIndex++ !== target) return line;
-    return line.replace(/\[([ xX])\]/, (_match, value: string) => `[${value.trim() ? " " : "x"}]`);
-  }).join("\n");
-}
 export { LIBRARY_COMPONENTS, buildLibraryRelationship, defaultLibraryFormOptions, defaultLibraryFormTitle, defaultLibraryChartData, defaultLibraryComponentFields, buildLibraryComponent } from "./features/components/library-components";
 export type { LibraryComponentKind } from "./features/components/library-components";

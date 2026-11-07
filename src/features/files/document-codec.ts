@@ -29,7 +29,7 @@ function estimateElementBytes(element: Element, limit: number): number {
       bytes += estimateElementBytes(child, limit - bytes);
       if (bytes > limit) return bytes;
     }
-    if (element.note) bytes += element.note.content.length * 2 + (element.note.title?.length ?? 0) * 2;
+    if (element.note) bytes += element.note.content.length * 2 + (element.note.checklist?.items.reduce((total, item) => total + item.text.length * 2 + item.id.length * 2 + 24, 0) ?? 0) + (element.note.title?.length ?? 0) * 2;
     if (element.mermaid) bytes += element.mermaid.source.length * 2;
   } else if ("label" in element && element.label) bytes += element.label.text.length * 2;
   return bytes;

@@ -392,7 +392,9 @@ function drawioStyle(style: string): Record<string, string> {
 }
 
 function numberAttr(element: Element | null | undefined, name: string, fallback: number): number {
-  const value = Number(element?.getAttribute(name));
+  const attribute = element?.getAttribute(name);
+  if (attribute === null || attribute === undefined || attribute.trim() === "") return fallback;
+  const value = Number(attribute);
   return Number.isFinite(value) ? value : fallback;
 }
 

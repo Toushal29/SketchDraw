@@ -97,6 +97,12 @@ export function schemaTableMinimumHeight(columnCount: number, fontSize = 12) {
   return titleHeight + Math.max(0, columnCount) * rowHeight;
 }
 
+/** Distributes extra card height between fields while preserving the minimum row size. */
+export function schemaTableRowHeight(columnCount: number, height: number, fontSize = 12) {
+  const { titleHeight, rowHeight } = schemaTableMetrics(fontSize);
+  return columnCount > 0 ? Math.max(rowHeight, (Math.abs(height) - titleHeight) / columnCount) : rowHeight;
+}
+
 /** Keeps table colors consistent across canvas and exported cards. */
 export function schemaTableColors(theme: Theme) {
   return theme === "dark"

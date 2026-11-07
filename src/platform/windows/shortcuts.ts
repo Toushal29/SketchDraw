@@ -72,7 +72,7 @@ export function normalizeShortcut(value: string) {
 export function shortcutFromEvent(event: KeyboardEvent) {
   const key = event.key;
   if (["Control", "Shift", "Alt", "Meta"].includes(key)) return "";
-  const modifiers = [event.ctrlKey || event.metaKey ? "Ctrl" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : ""].filter(Boolean);
+  const modifiers = [event.ctrlKey ? "Ctrl" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : ""].filter(Boolean);
   const normalizedKey = key === " " || key === "Spacebar" ? "Space" : key.length === 1 ? key.toUpperCase() : key;
   return [...modifiers, normalizedKey].join("+");
 }
@@ -82,7 +82,7 @@ export function shortcutFromMouseEvent(event: MouseEvent) {
   // secondary, and 3/4 for the common back/forward thumb buttons.
   const button = ({ 1: "Mouse2", 2: "Mouse3", 3: "Mouse4", 4: "Mouse5" } as Record<number, string>)[event.button];
   if (!button) return "";
-  const modifiers = [event.ctrlKey || event.metaKey ? "Ctrl" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : ""].filter(Boolean);
+  const modifiers = [event.ctrlKey ? "Ctrl" : "", event.altKey ? "Alt" : "", event.shiftKey ? "Shift" : ""].filter(Boolean);
   return [...modifiers, button].join("+");
 }
 

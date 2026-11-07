@@ -163,23 +163,21 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
     ctx.restore();
   }
 
-  // Schema cards size to their field rows, so expose horizontal handles without empty vertical space.
-  function drawTransformHandles(ctx: CanvasRenderingContext2D, bounds: Bounds, zoom: number, includeRotate = true, rotation = 0, allowVerticalResize = true) {
+  function drawTransformHandles(ctx: CanvasRenderingContext2D, bounds: Bounds, zoom: number, includeRotate = true, rotation = 0) {
     const handles = transformHandlePoints(bounds, zoom, includeRotate, rotation); const rotate = includeRotate ? handles.pop() : undefined; const top = rotatePoint({ x: bounds.x + bounds.w / 2, y: bounds.y }, { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }, rotation);
     ctx.save(); ctx.setLineDash([]); ctx.strokeStyle = "#547bb1"; ctx.fillStyle = "#ffffff"; ctx.lineWidth = 1 / zoom;
     if (rotate) { ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(rotate.x, rotate.y); ctx.stroke(); }
-    for (const handle of handles) { if (!allowVerticalResize && (handle.id === "n" || handle.id === "s")) continue; ctx.beginPath(); ctx.rect(handle.x - 4 / zoom, handle.y - 4 / zoom, 8 / zoom, 8 / zoom); ctx.fill(); ctx.stroke(); }
+    for (const handle of handles) { ctx.beginPath(); ctx.rect(handle.x - 4 / zoom, handle.y - 4 / zoom, 8 / zoom, 8 / zoom); ctx.fill(); ctx.stroke(); }
     if (rotate) { ctx.beginPath(); ctx.arc(rotate.x, rotate.y, 5 / zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } ctx.restore();
   }
 
   function drawSelectionOutline(ctx: CanvasRenderingContext2D, bounds: Bounds, zoom: number, rotation = 0) {
-    const padding = 3 / zoom;
     const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
     const corners = [
-      { x: bounds.x - padding, y: bounds.y - padding },
-      { x: bounds.x + bounds.w + padding, y: bounds.y - padding },
-      { x: bounds.x + bounds.w + padding, y: bounds.y + bounds.h + padding },
-      { x: bounds.x - padding, y: bounds.y + bounds.h + padding },
+      { x: bounds.x, y: bounds.y },
+      { x: bounds.x + bounds.w, y: bounds.y },
+      { x: bounds.x + bounds.w, y: bounds.y + bounds.h },
+      { x: bounds.x, y: bounds.y + bounds.h },
     ].map(point => rotatePoint(point, center, rotation));
 
     ctx.save();
@@ -289,7 +287,7 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         if (isSelected && selected.size === 1 && !ports.isLocked(element) && !ports.boardLocked()) for (const handle of ports.connectorHandles(element as ShapeElement)) { const routeHandle = handle.id.startsWith("route") || handle.id.startsWith("auto-route:") || handle.id.startsWith("waypoint:") || handle.id.includes(":route:"); ctx.beginPath(); ctx.fillStyle = routeHandle ? "#dbeafe" : "#ffffff"; ctx.arc(handle.x, handle.y, (routeHandle ? 4 : 6) / state.zoom, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
       } else if (includeSelection && (isSelected || ports.hoveredIndex() === index)) {
         if (isSelected && !ports.isLocked(element) && selected.size === 1 && ports.tool() === "select" && (element.type !== "group" || !!element.note && !element.note.collapsed || !!element.libraryComponent || !!element.container) && element.type !== "freehand") {
-          drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent || !!element.container, rotation, element.type !== "schemaTable");
+          drawTransformHandles(ctx, frame, state.zoom, element.type !== "group" || !!element.libraryComponent || !!element.container, rotation);
           if (element.type === "group" && element.libraryComponent?.kind === "diagram-swimlane") for (const handle of swimlaneDividerHandles(element)) {
             const size = 1 / state.zoom; ctx.beginPath(); ctx.roundRect(handle.point.x - 7 * size, handle.point.y - 3 * size, 14 * size, 6 * size, 3 * size); ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 1.5 * size; ctx.fill(); ctx.stroke();
           }

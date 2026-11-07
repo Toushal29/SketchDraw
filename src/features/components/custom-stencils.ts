@@ -22,7 +22,7 @@ export function substituteStencilParameters(elements: Element[], parameters: str
   const normalizedValues = Object.fromEntries(Object.entries(values).map(([key, value]) => [key.toLowerCase(), value]));
   const substitute = (source: string) => parameters.reduce((text, parameter) => text.replace(new RegExp(`\\{\\{\\s*${escapePattern(parameter)}\\s*\\}\\}`, "gi"), normalizedValues[parameter.toLowerCase()] ?? ""), source);
   const apply = (item: Element): Element => {
-    if (item.type === "group") return { ...item, elements: item.elements.map(apply), ...(item.note ? { note: { ...item.note, content: substitute(item.note.content), ...(item.note.title ? { title: substitute(item.note.title) } : {}) } } : {}), ...(item.libraryComponent ? { libraryComponent: { ...item.libraryComponent, ...(item.libraryComponent.label ? { label: substitute(item.libraryComponent.label) } : {}) } } : {}) };
+    if (item.type === "group") return { ...item, elements: item.elements.map(apply), ...(item.note ? { note: { ...item.note, content: substitute(item.note.content), ...(item.note.checklist ? { checklist: { items: item.note.checklist.items.map(entry => ({ ...entry, text: substitute(entry.text) })) } } : {}), ...(item.note.title ? { title: substitute(item.note.title) } : {}) } } : {}), ...(item.libraryComponent ? { libraryComponent: { ...item.libraryComponent, ...(item.libraryComponent.label ? { label: substitute(item.libraryComponent.label) } : {}) } } : {}) };
     if (item.type === "text") return { ...item, text: substitute(item.text) };
     if (item.type === "schemaTable") return { ...item, name: substitute(item.name) };
     if ("label" in item && item.label) return { ...item, label: { ...item.label, text: substitute(item.label.text) } };
@@ -48,7 +48,7 @@ export function updateStencilParameter(instance: GroupElement, parameter: string
       const next = { ...item, elements: item.elements.map(syncText) };
       if (replacement?.type === "group") return {
         ...next,
-        ...(item.note && replacement.note ? { note: { ...item.note, content: replacement.note.content, title: replacement.note.title } } : {}),
+        ...(item.note && replacement.note ? { note: { ...item.note, content: replacement.note.content, checklist: replacement.note.checklist, title: replacement.note.title } } : {}),
         ...(item.libraryComponent && replacement.libraryComponent ? { libraryComponent: { ...item.libraryComponent, label: replacement.libraryComponent.label } } : {}),
       };
       return next;

@@ -14,8 +14,9 @@ import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 import { SKETCH_CLIPBOARD_VERSION, SKETCH_FORMAT_VERSION } from "./model";
 import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, ProjectTask, ProjectNote, Tool, ToolbarItem, CanvasState, CanvasSnapGuides, CanvasSnapTarget, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipDirection, ConnectionPoint, CanvasLayer, CanvasLayerVisibilityPreset, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition, PrototypeAction, PrototypeVariable, PrototypeComponentState, DecisionCardMetadata } from "./model";
 import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox, alignedTextStartX, textElementLines, textFont, textLayout, DEFAULT_TEXT_WRAP_WIDTH, reattachDanglingConnectors } from "./operations";
-import type { NoteKind } from "./model";
-import { buildNoteGroup, checklistIndexAt, normalizeNoteContent, noteCollapseHit, drawNoteCard, defaultNoteTitle, toggleChecklistContent } from "./notes";
+import type { ChecklistItem, NoteKind } from "./model";
+import { buildNoteGroup, checklistIndexAt, noteCollapseHit, drawNoteCard, defaultNoteTitle, measureNoteInlineText, noteCardMaxScroll, toggleChecklistItem } from "./notes";
+import { checklistTextLength, checklistToText, parseChecklistText } from "./features/notes/checklist";
 import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryFormOptions, defaultLibraryFormTitle, LIBRARY_COMPONENTS, type LibraryComponentKind } from "./features/components/library-components";
 import { MAX_SCHEMA_SOURCE_CHARACTERS, parseSchema } from "./schema";
 import { schemaRelationshipConnectors } from "./features/diagrams/schema-visualizer";
@@ -66,7 +67,7 @@ import { BASIC_SHAPES, FLOWCHART_MENU_SHAPES, FLOWCHART_SHAPES, GENERAL_SHAPES }
 import { pointInPolygon } from "./features/canvas/geometry";
 import { adjustShapeAtPoint, shapeAdjustmentHandles, shapeDetailPathObject, shapeFillRule, shapePathObject } from "./features/shapes/geometry";
 import { arrowHeadPoints, connectorControlPoints, connectorPoint, defaultCurveControlPoints, forkGeometry, jaggedVertices, connectorPolylines, connectorProgressAtPoint, doubleConnectorPolylines, arrowHeadEntries, traceConnector } from "./features/connectors/geometry";
-import { unionBounds, elementBounds, elementGridBounds, visibleElementBounds, distanceToSegment, lockAspectResizeBounds } from "./features/canvas/bounds";
+import { unionBounds, elementBounds, elementGridBounds, visibleElementBounds, distanceToSegment, lockAspectResizeBounds, resizeHandleAxes, type ResizeHandleAxes } from "./features/canvas/bounds";
 import { ElementSpatialIndex } from "./features/canvas/spatial-index";
 import { getToolLayers, reorderToolLayers, toggleToolLayer, type ToolLayerKind } from "./features/canvas/tool-layers";
 import { changeCanvasLayerNesting, deleteCanvasLayers, ensureCanvasLayerPath, fitAutoResizeContainers, fitContainerToContent, layerHidden, layerLocked, moveCanvasLayer, moveElementsIntoContainer, orderCanvasLayers, removeContainer, resizeContainerWithChildren, selectConnectedIndices, selectSimilarIndices } from "./features/canvas/structure";
@@ -125,7 +126,7 @@ import { autoRouteConnectorSet, autoRouteMayIntersect, autoRoutePoints, createAu
 import { createPlanningSession } from "./features/project/planning-session";
 import { isProjectTaskComplete } from "./features/project/project-utils";
 import { ProjectNotebookSplit } from "./features/project/ProjectNotebookSplit";
-import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableMinimumHeight, schemaTableMinimumWidth, schemaTableResizeMinimumWidth, schemaTableRowLayout } from "./features/diagrams/schema-table-layout";
+import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableMinimumHeight, schemaTableMinimumWidth, schemaTableResizeMinimumWidth, schemaTableRowHeight, schemaTableRowLayout } from "./features/diagrams/schema-table-layout";
 import { clearRetiredLibraryData, createLegacyLibraryData, createRetiredLibraryArchive, hasRetiredLibraryData } from "./features/files/legacy-library-data";
 import { WorkspaceAreaTabs } from "./features/workspace/WorkspaceAreaTabs";
 import type { WorkspaceArea } from "./features/workspace/workspace-types";
@@ -534,6 +535,7 @@ function App() {
   const [liveStatus, setLiveStatus] = createSignal<{ kind: "idle" | "ok" | "error"; message: string }>({ kind: "idle", message: "" });
   const [liveLinkedLine, setLiveLinkedLine] = createSignal<number>();
   let liveTextarea: HTMLTextAreaElement | undefined; let liveApplyTimer: number | undefined; let liveApplyGeneration = 0; let liveSyncSuppressed = false; let liveUndoAt = 0;
+  let selectedNoteCardEdit: { index: number; before: Element[]; changed: boolean } | undefined; let selectedNoteCardEditTimer: number | undefined;
   const [screenReaderMessage, setScreenReaderMessage] = createSignal("");
   const setSafeColorPalette = (enabled: boolean) => { setSafeColorPaletteValue(enabled); try { localStorage.setItem("sketchdraw-safe-palette", String(enabled)); } catch { /* The setting still applies for this session. */ } };
   const [laserColor, setLaserColor] = createSignal((() => { const value = readPreference("sketchdraw-laser-color", "#ff3265"); return /^#[\da-f]{6}$/i.test(value) ? value : "#ff3265"; })());
@@ -738,10 +740,12 @@ function App() {
   const [exportTransparent, setExportTransparent] = createSignal(false);
   const [textDraft, setTextDraft] = createSignal<TextDraft>();
   const [textMode, setTextMode] = createSignal<"text" | "markdown" | "table" | NoteKind>("text");
-  const [noteEditor, setNoteEditor] = createSignal<{ x: number; y: number; width: number; height: number; fontSize: number; kind: NoteKind; content: string; title: string; resized?: boolean; editingIndex?: number }>();
+  const [noteEditor, setNoteEditor] = createSignal<{ x: number; y: number; width: number; height: number; fontSize: number; kind: NoteKind; content: string; checklistItems?: ChecklistItem[]; checklistText?: string; title: string; resized?: boolean; editingIndex?: number }>();
   const [noteEditorSession, setNoteEditorSession] = createSignal(0);
   let noteEditorTextarea: HTMLTextAreaElement | undefined;
+  let noteEditorChecklistTextarea: HTMLTextAreaElement | undefined;
   let selectedNoteTextarea: HTMLTextAreaElement | undefined;
+  let selectedNoteChecklistTextarea: HTMLTextAreaElement | undefined;
   let noteEditorTitleInput: HTMLInputElement | undefined;
   const noteFormatActions = [
     { label: "B", name: "Bold", open: "**", close: "**" },
@@ -896,7 +900,7 @@ function App() {
   let libraryControlOrigin: { index: number } | undefined;
   let labelMoveOrigin: { index: number; labelIndex: number; point: Point; grabOffset: Point; routeOnly: boolean; before: Element[]; moved: boolean; routePreview?: ShapeElement } | undefined;
   let marqueeOrigin: { point: Point; additive: boolean; moved: boolean; cropIndex?: number; lasso?: Point[] } | undefined;
-  let resizeOrigin: { index: number; handle: string; start: Point; original: Element; before: Element[]; moved: boolean; bypassSnap?: boolean; guides?: CanvasSnapGuides; endpointGuide?: { axis: "x" | "y"; coordinate: number; point: Point }; routePreview?: ShapeElement; routeContext?: AutoRouteContext } | undefined;
+  let resizeOrigin: { index: number; handle: string; axes: ResizeHandleAxes; start: Point; original: Element; before: Element[]; moved: boolean; bypassSnap?: boolean; guides?: CanvasSnapGuides; endpointGuide?: { axis: "x" | "y"; coordinate: number; point: Point }; routePreview?: ShapeElement; routeContext?: AutoRouteContext } | undefined;
   type GroupResizePreviewData = { original: GroupElement; source: Bounds; target: Bounds; kind: "container" | "library" };
   const groupResizePreviewData = new WeakMap<GroupElement, GroupResizePreviewData>();
   const adaptiveResizeDescendants = new WeakMap<GroupElement, boolean>();
@@ -1123,7 +1127,7 @@ function App() {
       if (item.type === "freehand" || isConnector(item) || !("w" in item)) return item;
       const minWidth = item.type === "schemaTable" ? schemaTableResizeMinimumWidth() : 25;
       const minHeight = item.type === "schemaTable" ? schemaTableMinimumHeight(item.columns.length, item.fontSize ?? 12) : 25;
-      if (item.type === "schemaTable" && property === "h") return { ...item, h: minHeight };
+      if (item.type === "schemaTable" && property === "h") return { ...item, h: Math.max(minHeight, Math.min(16_384, value)) };
       const size = Math.max(property === "w" ? minWidth : 25, property === "h" ? minHeight : 25, Math.min(16_384, value));
       return { ...item, [property]: Math.sign(item[property]) * size };
     });
@@ -3348,8 +3352,8 @@ function App() {
     const converted = convertedData as unknown as ShapeElement;
     const before = cloneElements(elements()); setElements(items => items.map((element, current) => current === index ? converted : element)); pushUndo(before); setDirty(true);
   }
-  const undo = () => { finishLibraryTextEdit(); canvasHistory.undo(); };
-  const redo = () => { finishLibraryTextEdit(); canvasHistory.redo(); };
+  const undo = () => { if (textDraft()) commitTextDraft(); finishSelectedNoteCardEdit(); finishLibraryTextEdit(); canvasHistory.undo(); };
+  const redo = () => { if (textDraft()) commitTextDraft(); finishSelectedNoteCardEdit(); finishLibraryTextEdit(); canvasHistory.redo(); };
   function deleteSelected() {
     if (boardLocked()) return;
     const indices = selectedIndices().filter((index) => { const element = elements()[index]; return !!element && canMoveElement(element); });
@@ -3380,8 +3384,8 @@ function App() {
     const before = cloneElements(elements()); const selected = new Set(indices); const first = indices[0];
     const children = indices.map((index) => elements()[index]); const grouped: Element[] = [];
     const content = unionBounds(children.map(elementBounds));
-    // Keep the invisible group bounds close to its contents so grouping does not add a large blank frame.
-    const groupInset = 3;
+    // Keep group bounds flush with their visible contents so grid and object snapping use the same edge.
+    const groupInset = 0;
     elements().forEach((element, index) => { if (index === first) grouped.push({ type: "group", id: crypto.randomUUID(), elements: children, ...(content ? { componentBounds: { x: content.x - groupInset, y: content.y - groupInset, w: content.w + groupInset * 2, h: content.h + groupInset * 2 } } : {}), container: { kind: "container", name: "Group", showBorder: false, showLabel: false, clipChildren: false, autoResize: false, padding: groupInset } }); if (!selected.has(index)) grouped.push(element); });
     setElements(grouped); pushUndo(before); setSelectedIndices([first]); setDirty(true);
   }
@@ -3796,7 +3800,8 @@ function App() {
     if (existing?.locked) return;
     const group = existing?.type === "group" ? existing : undefined;
     const bounds = group ? elementBounds(group) : undefined;
-    setNoteEditor({ x: bounds?.x ?? point.x, y: bounds?.y ?? point.y, width: group?.note?.width ?? bounds?.w ?? (kind === "sticky" ? 296 : 340), height: group?.note?.height ?? bounds?.h ?? 190, fontSize: group?.note?.fontSize ?? Math.min(32, defaultFontSize()), kind, content: group?.note?.content ?? initial?.content ?? (kind === "checklist" ? "- [ ] New task" : ""), title: group?.note?.title ?? initial?.title ?? defaultNoteTitle(kind), editingIndex });
+    const checklistItems = kind === "checklist" ? group?.note?.checklist?.items ?? [] : undefined;
+    setNoteEditor({ x: bounds?.x ?? point.x, y: bounds?.y ?? point.y, width: group?.note?.width ?? bounds?.w ?? (kind === "sticky" ? 296 : 340), height: group?.note?.height ?? bounds?.h ?? 190, fontSize: group?.note?.fontSize ?? Math.min(32, defaultFontSize()), kind, content: kind === "checklist" ? "" : group?.note?.content ?? initial?.content ?? "", ...(checklistItems ? { checklistItems, checklistText: checklistToText(checklistItems) } : {}), title: group?.note?.title ?? initial?.title ?? defaultNoteTitle(kind), editingIndex });
     if (editingIndex !== undefined) setSelectedIndices([editingIndex]);
     setComponentEditorCollapsed(false); setSidebarTab("properties");
     setNoteEditorSession(session => session + 1);
@@ -3806,17 +3811,18 @@ function App() {
     const draft = noteEditor();
     if (!draft || boardLocked()) return;
     const tableBlock = draft.kind === "note" ? findMarkdownTableBlock(draft.content) : undefined;
-    const editedContent = noteEditorTextarea?.isConnected ? tableBlock ? replaceMarkdownTableBlock(draft.content, tableBlock, noteEditorTextarea.value) : noteEditorTextarea.value : draft.content;
+    const editedContent = draft.kind === "checklist" ? "" : noteEditorTextarea?.isConnected ? tableBlock ? replaceMarkdownTableBlock(draft.content, tableBlock, noteEditorTextarea.value) : noteEditorTextarea.value : draft.content;
     const title = noteEditorTitleInput?.isConnected ? noteEditorTitleInput.value : draft.title;
-    if (editedContent.length > 50000) { setError("Notes and checklists are limited to 50,000 characters."); return; }
-    const content = draft.kind === "checklist" && !editedContent.trim() ? "- [ ] New task" : editedContent;
-    if (!content.trim() && !title.trim()) { setNoteEditor(undefined); return; }
-    if (normalizeNoteContent(content, draft.kind).length > 50000) {
-      setError("Checklist task markers count toward the 50,000-character save limit. Shorten the checklist before saving it.");
+    const checklistItems = draft.kind === "checklist" ? parseChecklistText(draft.checklistText ?? noteEditorChecklistTextarea?.value ?? checklistToText(draft.checklistItems ?? []), draft.checklistItems ?? []) : undefined;
+    if (draft.kind === "checklist" ? checklistTextLength(checklistItems!) > 50000 : editedContent.length > 50000) { setError("Notes and checklists are limited to 50,000 characters."); return; }
+    const content = editedContent;
+    if (!content.trim() && !title.trim() && !checklistItems?.length) { setNoteEditor(undefined); return; }
+    if (checklistItems && checklistItems.length > 1000) {
+      setError("A checklist can contain up to 1,000 tasks and headings.");
       return;
     }
     const previous = draft.editingIndex === undefined ? undefined : elements()[draft.editingIndex];
-    let group = buildNoteGroup(draft.x, draft.y, draft.kind, content, { width: draft.width, ...(draft.editingIndex !== undefined || draft.resized ? { height: draft.height } : {}), fontSize: draft.fontSize, title });
+    let group = buildNoteGroup(draft.x, draft.y, draft.kind, content, { width: draft.width, ...(draft.editingIndex !== undefined || draft.resized ? { height: draft.height } : {}), fontSize: draft.fontSize, title, scrollY: previous?.type === "group" ? previous.note?.scrollY : undefined, checklistItems });
     if (previous?.type === "group") {
       group = { ...group, ...previous, note: { ...group.note, kind: draft.kind, content: group.note?.content ?? content }, elements: group.elements.map((child, index) => previous.elements[index]?.id ? { ...child, id: previous.elements[index].id } as Element : child) };
     }
@@ -3865,13 +3871,13 @@ function App() {
     return true;
   }
 
-  function toggleChecklist(index: number, row: number) {
+  function toggleChecklist(index: number, itemId: string) {
     const previous = elements()[index];
     if (previous?.type !== "group" || previous.note?.kind !== "checklist" || boardLocked() || previous.locked) return;
     const before = cloneElements(elements());
-    const content = toggleChecklistContent(previous.note.content, row);
-    const rebuilt = buildNoteGroup(elementBounds(previous).x, elementBounds(previous).y, "checklist", content, { width: previous.note.width, height: previous.note.height, fontSize: previous.note.fontSize, title: previous.note.title, collapsed: previous.note.collapsed });
-    const replacement: Element = { ...rebuilt, ...previous, note: { ...rebuilt.note, kind: "checklist", content }, elements: rebuilt.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
+    const checklistItems = toggleChecklistItem(previous.note.checklist?.items ?? [], itemId);
+    const rebuilt = buildNoteGroup(elementBounds(previous).x, elementBounds(previous).y, "checklist", "", { width: previous.note.width, height: previous.note.height, fontSize: previous.note.fontSize, title: previous.note.title, collapsed: previous.note.collapsed, scrollY: previous.note.scrollY, checklistItems });
+    const replacement: Element = { ...rebuilt, ...previous, note: { ...rebuilt.note, kind: "checklist", content: "", checklist: { items: checklistItems } }, elements: rebuilt.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
     setElements(items => items.map((item, current) => current === index ? replacement : item)); pushUndo(before); setDirty(true);
   }
 
@@ -3886,6 +3892,8 @@ function App() {
       fontSize: previous.note.fontSize,
       title: previous.note.title,
       collapsed: !previous.note.collapsed,
+      scrollY: previous.note.scrollY,
+      checklistItems: previous.note.checklist?.items,
     });
     const replacement: Element = { ...next, ...previous, note: next.note, elements: next.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
     setElements(items => items.map((item, current) => current === index ? replacement : item));
@@ -5039,7 +5047,7 @@ function App() {
     // Draw cards from shared metrics so field-bound connectors and exports use matching row positions.
     if (element.type === "schemaTable") {
       const left = element.x; const top = element.y; const width = Math.abs(element.w); const height = Math.abs(element.h);
-      const { fontSize, titleHeight, rowHeight } = schemaTableMetrics(element.fontSize ?? 12);
+      const { fontSize, titleHeight } = schemaTableMetrics(element.fontSize ?? 12); const rowHeight = schemaTableRowHeight(element.columns.length, height, fontSize);
       const contentInset = schemaTableContentInset(fontSize);
       const colors = schemaTableColors(theme()); const right = left + width; const rowsTop = top + titleHeight;
       ctx.save(); ctx.globalAlpha = element.opacity ?? 1;
@@ -5152,13 +5160,26 @@ function App() {
     const threshold = 9 / canvasState().zoom;
     let nearest: { handle: string; distance: number } | undefined;
     for (const handle of isConnector(element) ? connectorHandles(element) : transformHandlePoints(handleBounds, canvasState().zoom, canRotate, rotation)) {
-      if (element.type === "schemaTable" && (handle.id === "n" || handle.id === "s")) continue;
       const distance = Math.hypot(point.x - handle.x, point.y - handle.y);
       const isCorner = /^[nwse]{2}$/.test(handle.id);
       const nearestIsCorner = nearest ? /^[nwse]{2}$/.test(nearest.handle) : false;
       if (distance <= threshold && (!nearest || distance < nearest.distance - .001 || Math.abs(distance - nearest.distance) <= .001 && isCorner && !nearestIsCorner)) nearest = { handle: handle.id, distance };
     }
     return nearest ? { index, handle: nearest.handle } : undefined;
+  }
+
+  function resizePointerPoint(origin: NonNullable<typeof resizeOrigin>, point: Point): Point {
+    const { axes } = origin;
+    if (axes.x && axes.y || !axes.x && !axes.y) return point;
+    const rotation = origin.original.rotation ?? 0;
+    const unrotated = rotation ? { ...origin.original, rotation: 0 } as Element : origin.original;
+    const bounds = elementBounds(unrotated);
+    const center = { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 };
+    const start = rotation ? rotateCanvasPoint(origin.start, center, -rotation) : origin.start;
+    const local = rotation ? rotateCanvasPoint(point, center, -rotation) : point;
+    if (!axes.x) local.x = start.x;
+    if (!axes.y) local.y = start.y;
+    return rotation ? rotateCanvasPoint(local, center, rotation) : local;
   }
 
   function makeGroupResizePreview(group: GroupElement, target: Bounds, kind: "container" | "library"): GroupElement {
@@ -5171,6 +5192,7 @@ function App() {
 
   function resizeElement(element: Element, handle: string, start: Point, point: Point, lockAspect = false, preview = false): Element {
     const maxInteractiveSize = 16_384;
+    const axes = resizeHandleAxes(handle);
     if (element.type === "freehand") return element;
     if (element.type === "flowchart" && handle.startsWith("shape:")) return adjustShapeAtPoint(element, handle.slice(6) as "shaft" | "head" | "inset", point);
     if (element.type === "line" || element.type === "arrow") return resizeConnector(element, handle, point);
@@ -5185,8 +5207,8 @@ function App() {
       const localStart = rotateCanvasPoint(start, center, -element.rotation); const localPoint = rotateCanvasPoint(point, center, -element.rotation);
       const resized = resizeElement(unrotated, handle, localStart, localPoint, lockAspect, false); const next = elementBounds(resized);
       const anchor = (bounds: Bounds) => ({
-        x: handle.includes("e") ? bounds.x : handle.includes("w") ? bounds.x + bounds.w : bounds.x + bounds.w / 2,
-        y: handle.includes("s") ? bounds.y : handle.includes("n") ? bounds.y + bounds.h : bounds.y + bounds.h / 2,
+        x: axes.x ? axes.west ? bounds.x + bounds.w : bounds.x : bounds.x + bounds.w / 2,
+        y: axes.y ? axes.north ? bounds.y + bounds.h : bounds.y : bounds.y + bounds.h / 2,
       });
       const fixedBefore = rotateCanvasPoint(anchor(base), center, element.rotation);
       const nextCenter = { x: next.x + next.w / 2, y: next.y + next.h / 2 };
@@ -5203,8 +5225,8 @@ function App() {
           const nextSize = Math.max(minimum, Math.min(maxInteractiveSize, leading ? size - delta : size + delta));
           return { origin: leading ? origin + size - nextSize : origin, size: nextSize };
         };
-        const horizontal = handle.includes("w") || handle.includes("e") ? resizeAxis(before.x, before.w, dx, handle.includes("w"), 25) : { origin: before.x, size: before.w };
-        const vertical = handle.includes("n") || handle.includes("s") ? resizeAxis(before.y, before.h, dy, handle.includes("n"), 25) : { origin: before.y, size: before.h };
+        const horizontal = axes.x ? resizeAxis(before.x, before.w, dx, axes.west, 25) : { origin: before.x, size: before.w };
+        const vertical = axes.y ? resizeAxis(before.y, before.h, dy, axes.north, 25) : { origin: before.y, size: before.h };
         const target = { x: horizontal.origin, y: vertical.origin, w: horizontal.size, h: vertical.size };
         const resizedBounds = lockAspect ? lockAspectResizeBounds(before, target, handle, 25, 25, maxInteractiveSize, maxInteractiveSize) : target;
         if (preview && !element.rotation && !element.container.autoResize && !element.container.autoLayout && !hasAdaptiveResizeDescendants(element)) return makeGroupResizePreview(element, resizedBounds, "container");
@@ -5217,12 +5239,12 @@ function App() {
           return setLibraryLifelineLength(element, libraryLifelineLength(element) + localLengthDelta);
         }
         const before = elementBounds(element); let { x, y, w, h } = before; const dx = point.x - start.x; const dy = point.y - start.y;
-        if (handle.includes("w")) { x += dx; w -= dx; } if (handle.includes("e")) w += dx;
-        if (handle.includes("n")) { y += dy; h -= dy; } if (handle.includes("s")) h += dy;
+        if (axes.west) { x += dx; w -= dx; } else if (axes.x) w += dx;
+        if (axes.north) { y += dy; h -= dy; } else if (axes.y) h += dy;
         w = Math.max(libraryComponentMinimum(element, "w"), Math.min(maxInteractiveSize, w));
         h = Math.max(libraryComponentMinimum(element, "h"), Math.min(maxInteractiveSize, h));
-        if (handle.includes("w")) x = before.x + before.w - w;
-        if (handle.includes("n")) y = before.y + before.h - h;
+        if (axes.west) x = before.x + before.w - w;
+        if (axes.north) y = before.y + before.h - h;
         const target = { x, y, w, h };
         const resizedBounds = lockAspect ? lockAspectResizeBounds(before, target, handle, libraryComponentMinimum(element, "w"), libraryComponentMinimum(element, "h"), maxInteractiveSize, maxInteractiveSize) : target;
         if (preview && !element.rotation && !element.componentBounds && !element.libraryComponent.kind?.startsWith("viz-") && element.libraryComponent.kind !== "uml-lifeline" && !hasAdaptiveResizeDescendants(element)) return makeGroupResizePreview(element, resizedBounds, "library");
@@ -5230,13 +5252,13 @@ function App() {
       }
       if (!element.note) return element;
       const before = elementBounds(element); let { x, y, w, h } = before; const dx = point.x - start.x; const dy = point.y - start.y;
-      if (handle.includes("w")) { x += dx; w -= dx; } if (handle.includes("e")) w += dx;
-      if (handle.includes("n")) { y += dy; h -= dy; } if (handle.includes("s")) h += dy;
+      if (axes.west) { x += dx; w -= dx; } else if (axes.x) w += dx;
+      if (axes.north) { y += dy; h -= dy; } else if (axes.y) h += dy;
       w = Math.max(180, Math.min(4000, w)); h = Math.max(34, Math.min(maxInteractiveSize, h));
-      if (handle.includes("w")) x = before.x + before.w - w;
-      if (handle.includes("n")) y = before.y + before.h - h;
+      if (axes.west) x = before.x + before.w - w;
+      if (axes.north) y = before.y + before.h - h;
       const next = { x, y, w, h };
-      const rebuilt = buildNoteGroup(next.x, next.y, element.note.kind, element.note.content, { width: next.w, height: next.h, fontSize: element.note.fontSize, title: element.note.title, collapsed: element.note.collapsed });
+      const rebuilt = buildNoteGroup(next.x, next.y, element.note.kind, element.note.content, { width: next.w, height: next.h, fontSize: element.note.fontSize, title: element.note.title, collapsed: element.note.collapsed, scrollY: element.note.scrollY, checklistItems: element.note.checklist?.items });
       return { ...rebuilt, ...element, note: rebuilt.note, elements: rebuilt.elements.map((child, index) => element.elements[index]?.id ? { ...child, id: element.elements[index].id } as Element : child) };
     }
     if (handle === "rotate") {
@@ -5244,7 +5266,7 @@ function App() {
       const a = Math.atan2(start.y - center.y, start.x - center.x); const b = Math.atan2(point.y - center.y, point.x - center.x);
       return { ...element, rotation: (element.rotation ?? 0) + (b - a) * 180 / Math.PI };
     }
-    if (element.type === "text") { const delta = handle.includes("e") || handle.includes("w") ? point.x - start.x : point.y - start.y; return { ...element, fontSize: Math.round(Math.max(8, Math.min(160, element.fontSize + delta * 0.3))) }; }
+    if (element.type === "text") { const delta = axes.x ? point.x - start.x : point.y - start.y; return { ...element, fontSize: Math.round(Math.max(8, Math.min(160, element.fontSize + delta * 0.3))) }; }
     const bounds = { x: Math.min(element.x, element.x + element.w), y: Math.min(element.y, element.y + element.h), w: Math.abs(element.w), h: Math.abs(element.h) };
     const dx = point.x - start.x; const dy = point.y - start.y;
     const minW = element.type === "schemaTable" ? schemaTableResizeMinimumWidth() : 25;
@@ -5253,11 +5275,8 @@ function App() {
       const nextSize = Math.max(minimum, Math.min(maxInteractiveSize, fromLeadingEdge ? size - delta : size + delta));
       return { origin: fromLeadingEdge ? origin + size - nextSize : origin, size: nextSize };
     };
-    const movesX = handle.includes("e") || handle.includes("w"); const movesY = handle.includes("n") || handle.includes("s");
-    const horizontal = movesX ? resizeAxis(bounds.x, bounds.w, dx, handle.includes("w"), minW) : { origin: bounds.x, size: bounds.w };
-    const vertical = !movesY ? { origin: bounds.y, size: bounds.h } : element.type === "schemaTable"
-      ? { origin: handle.includes("n") ? bounds.y + bounds.h - minH : bounds.y, size: minH }
-      : resizeAxis(bounds.y, bounds.h, dy, handle.includes("n"), minH);
+    const horizontal = axes.x ? resizeAxis(bounds.x, bounds.w, dx, axes.west, minW) : { origin: bounds.x, size: bounds.w };
+    const vertical = axes.y ? resizeAxis(bounds.y, bounds.h, dy, axes.north, minH) : { origin: bounds.y, size: bounds.h };
     const requested = { x: horizontal.origin, y: vertical.origin, w: horizontal.size, h: vertical.size };
     const next = lockAspect && element.type !== "schemaTable" ? lockAspectResizeBounds(bounds, requested, handle, minW, minH, maxInteractiveSize, maxInteractiveSize) : requested;
     return { ...element, ...next };
@@ -5265,18 +5284,19 @@ function App() {
 
   function snapResizePoint(element: Element, handle: string, start: Point, point: Point, bypass = false): { point: Point; guides?: CanvasSnapGuides } {
     if (bypass || handle === "rotate" || element.type === "text") return { point };
+    const axes = resizeHandleAxes(handle);
     const rotation = element.rotation ?? 0;
     const resizeBounds = rotation ? elementBounds({ ...element, rotation: 0 } as Element) : element.type === "group" ? elementBounds(element) : elementGridBounds(element) ?? elementBounds(element);
-    const movesX = handle.includes("e") || handle.includes("w");
-    const movesY = handle.includes("n") || handle.includes("s");
+    const movesX = axes.x;
+    const movesY = axes.y;
     if (!movesX && !movesY) return { point };
 
     const center = { x: resizeBounds.x + resizeBounds.w / 2, y: resizeBounds.y + resizeBounds.h / 2 };
     const localStart = rotation ? rotateCanvasPoint(start, center, -rotation) : start;
     const localPoint = rotation ? rotateCanvasPoint(point, center, -rotation) : point;
     const dx = localPoint.x - localStart.x; const dy = localPoint.y - localStart.y;
-    const edgeX = handle.includes("w") ? resizeBounds.x + dx : resizeBounds.x + resizeBounds.w + dx;
-    const edgeY = handle.includes("n") ? resizeBounds.y + dy : resizeBounds.y + resizeBounds.h + dy;
+    const edgeX = axes.west ? resizeBounds.x + dx : resizeBounds.x + resizeBounds.w + dx;
+    const edgeY = axes.north ? resizeBounds.y + dy : resizeBounds.y + resizeBounds.h + dy;
     const threshold = 8 / canvasState().zoom;
     const gridEnabled = snapToGrid();
     const gridStyle = whiteboardStyle();
@@ -5307,10 +5327,10 @@ function App() {
     const correctionY = movesY ? nearest(edgeY, "y") : undefined;
     const corrected = { x: movesX ? localPoint.x + (correctionX?.correction ?? 0) : localPoint.x, y: movesY ? localPoint.y + (correctionY?.correction ?? 0) : localPoint.y };
     const bounds = elementBounds(element);
-    const left = handle.includes("w") ? bounds.x + (correctionX?.correction ?? 0) : bounds.x;
-    const top = handle.includes("n") ? bounds.y + (correctionY?.correction ?? 0) : bounds.y;
-    const right = handle.includes("e") ? bounds.x + bounds.w + (correctionX?.correction ?? 0) : bounds.x + bounds.w;
-    const bottom = handle.includes("s") ? bounds.y + bounds.h + (correctionY?.correction ?? 0) : bounds.y + bounds.h;
+    const left = axes.west ? bounds.x + (correctionX?.correction ?? 0) : bounds.x;
+    const top = axes.north ? bounds.y + (correctionY?.correction ?? 0) : bounds.y;
+    const right = axes.x && !axes.west ? bounds.x + bounds.w + (correctionX?.correction ?? 0) : bounds.x + bounds.w;
+    const bottom = axes.y && !axes.north ? bounds.y + bounds.h + (correctionY?.correction ?? 0) : bounds.y + bounds.h;
     const moving = { x: left, y: top, w: Math.max(0, right - left), h: Math.max(0, bottom - top) };
     return {
       point: rotation ? rotateCanvasPoint(corrected, center, rotation) : corrected,
@@ -5410,6 +5430,19 @@ function App() {
     const world = { x: (px - canvasState().panX) / canvasState().zoom, y: (py - canvasState().panY) / canvasState().zoom };
     if (scrollPrototypeFrame(event, world)) return;
     const delta = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? event.deltaY * 16 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? event.deltaY * target.clientHeight : event.deltaY;
+    if (!event.ctrlKey && delta) {
+      const index = hitTest(groupEditPointToScope(world)); const item = index === undefined ? undefined : elements()[index];
+      if (item?.type === "group" && item.note) {
+        const context = target.getContext("2d");
+        const measure = context ? (text: string, size: number, bold: boolean) => measureNoteInlineText(context, text, size, bold) : undefined;
+        const maxScroll = noteCardMaxScroll(item, measure);
+        if (maxScroll > 0) {
+          const scrollY = Math.max(0, Math.min(maxScroll, (item.note.scrollY ?? 0) + delta / canvasState().zoom));
+          if (scrollY !== (item.note.scrollY ?? 0)) setElements(items => items.map((element, current) => current === index && element.type === "group" && element.note ? { ...element, note: { ...element.note, scrollY: scrollY || undefined } } : element));
+          return;
+        }
+      }
+    }
     const old = canvasState(); const nextZoom = Math.max(0.02, Math.min(8, old.zoom * Math.exp(-delta * 0.001)));
     const next = zoomCanvasStateAt(old, { x: px, y: py }, nextZoom);
     setCanvasState(next);
@@ -5489,6 +5522,9 @@ function App() {
       } catch (cause) { setError(`Could not check for a SketchDraw file to open: ${String(cause)}`); }
     })();
     const keyDown = (event: KeyboardEvent) => {
+      // WebView2 reports the Windows key as Meta. Leave its combinations to
+      // Explorer and other Windows shell features such as Snipping Tool.
+      if (isWindowsPlatform() && (event.metaKey || event.key === "Meta")) return;
       if (isWindowsPlatform() && activePath() && event.key === "F11") { event.preventDefault(); void toggleWindowsFullscreen(); return; }
       if (event.key === "Escape") {
         if (commandPaletteOpen()) { event.preventDefault(); setCommandPaletteOpen(false); return; }
@@ -6619,11 +6655,14 @@ function App() {
     } catch (cause) { setError(`Could not insert starter diagram: ${cause instanceof Error ? cause.message : String(cause)}`); }
   }
 
-  async function importDiagramFile() {
+  async function importDiagramFile(drawioOnly = false) {
     if (!activePath() || readOnlyView() || nativeBusy() || documentBusy() || boardLocked()) return;
     setNativeBusy(true);
     try {
-      const selected = await open({ title: "Import editable diagram or diagram code", multiple: false, filters: [{ name: "Diagrams and schemas", extensions: ["drawio", "xml", "bpmn", "bpmn2", "vsdx", "excalidraw", "csv", "json", "yaml", "yml", "dot", "d2", "mmd", "mermaid", "puml", "plantuml", "sql", "py"] }] });
+      const filters = drawioOnly
+        ? [{ name: "draw.io diagrams", extensions: ["drawio", "xml"] }]
+        : [{ name: "Diagrams and schemas", extensions: ["drawio", "xml", "bpmn", "bpmn2", "vsdx", "excalidraw", "csv", "json", "yaml", "yml", "dot", "d2", "mmd", "mermaid", "puml", "plantuml", "sql", "py"] }];
+      const selected = await open({ title: drawioOnly ? "Import draw.io diagram" : "Import editable diagram or diagram code", multiple: false, filters });
       if (!selected || Array.isArray(selected)) return;
       const path = normalizeFileUri(selected); const fileName = path.split(/[\\/]/).pop() ?? ""; const extension = fileName.split(".").pop()?.toLowerCase();
       const source = extension === "vsdx" ? undefined : await readTextFile(selected);
@@ -7299,7 +7338,7 @@ function App() {
         const before = elements(); const original = before[handle.index];
         const routeContext = isConnector(original) && original.autoRoute ? autoRouteContextFor(before) : undefined;
         const routePreview = routeContext ? connectorForView(original as ShapeElement, before) : undefined;
-        resizeOrigin = { ...handle, start: point, original, before, moved: false, routePreview, routeContext };
+        resizeOrigin = { ...handle, axes: resizeHandleAxes(handle.handle), start: point, original, before, moved: false, routePreview, routeContext };
         canvas.setPointerCapture(event.pointerId); return;
       }
       const hit = hitTest(point);
@@ -7308,7 +7347,9 @@ function App() {
         if (target?.type === "group" && target.libraryComponent) libraryControlOrigin = { index: hit };
         if (target?.type === "group" && target.note && noteCollapseHit(target, point)) { toggleNoteCollapsed(hit); canvas.setPointerCapture(event.pointerId); return; }
         if (target?.type === "group" && target.note?.kind === "checklist") {
-          const row = checklistIndexAt(target, point);
+          const context = canvas.getContext("2d");
+          const measure = context ? (text: string, size: number, bold: boolean) => measureNoteInlineText(context, text, size, bold) : undefined;
+          const row = checklistIndexAt(target, point, measure);
           if (row !== undefined) { toggleChecklist(hit, row); canvas.setPointerCapture(event.pointerId); return; }
         }
         const current = selectedIndices(); const additive = event.shiftKey || event.ctrlKey || event.metaKey;
@@ -7339,7 +7380,7 @@ function App() {
         const before = elements(); const original = before[handle.index] as ShapeElement;
         const routeContext = original.autoRoute ? autoRouteContextFor(before) : undefined;
         const routePreview = routeContext ? connectorForView(original, before) : undefined;
-        resizeOrigin = { ...handle, start: point, original, before, moved: false, routePreview, routeContext };
+        resizeOrigin = { ...handle, axes: resizeHandleAxes(handle.handle), start: point, original, before, moved: false, routePreview, routeContext };
         canvas.setPointerCapture(event.pointerId); return;
       }
     }
@@ -7572,7 +7613,7 @@ function App() {
     }
     if (resizeOrigin) {
       const origin = resizeOrigin;
-      const pointerPoint = toWorld(event); if (Math.hypot(pointerPoint.x - origin.start.x, pointerPoint.y - origin.start.y) > 0.5) origin.moved = true;
+      const pointerPoint = resizePointerPoint(origin, toWorld(event)); if (Math.hypot(pointerPoint.x - origin.start.x, pointerPoint.y - origin.start.y) > 0.5) origin.moved = true;
       if (!origin.moved) return;
       const freeResize = event.ctrlKey || event.metaKey || event.shiftKey;
       origin.bypassSnap = freeResize;
@@ -7872,7 +7913,7 @@ function App() {
     if (resizeOrigin) {
       const origin = resizeOrigin;
       if (origin.moved) {
-        const pointerPoint = toWorld(event); const freeResize = event.ctrlKey || event.metaKey || event.shiftKey;
+        const pointerPoint = resizePointerPoint(origin, toWorld(event)); const freeResize = event.ctrlKey || event.metaKey || event.shiftKey;
         origin.bypassSnap = freeResize; origin.endpointGuide = undefined;
         const snapped = isConnector(origin.original) || origin.handle.startsWith("shape:") ? { point: pointerPoint } : snapResizePoint(origin.original, origin.handle, origin.start, pointerPoint, freeResize);
         origin.guides = snapped.guides;
@@ -8082,6 +8123,12 @@ function App() {
   const helpShortcuts: [string, string][] = [["V", "Select tool"], ["Space", "Hold to pan"], ["P", "Fine pen"], ["Y", "Laser pointer"], ["R", "Rectangle"], ["C / O", "Circle"], ["D", "Diamond"], ["N", "Triangle"], ["L", "Line"], ["A", "Arrow"], ["F", "Flowchart symbol"], ["T", "Text"], ["B", "Fill bucket"], ["E", "Eraser"], ["X", "Image crop"], ["Esc", "Pan tool and clear selection"], ["G", "Toggle grid"], ["Shift+G", "Snap to grid"], ["Shift+O", "Snap to objects"], ["K", "Lock canvas"], ["0", "Center view at 100%"], ["1 / 2", "Fit drawing / selection"], ["Ctrl / Cmd + N", "New sketch"], ["Ctrl / Cmd + O", "Open sketch"], ["Ctrl / Cmd + S", "Save"], ["Ctrl / Cmd + Z", "Undo"], ["Ctrl / Cmd + Y", "Redo"], ["Ctrl / Cmd + C / X / V", "Copy / cut / paste"], ["Ctrl / Cmd + D", "Duplicate selection"], ["Ctrl / Cmd + A", "Select all"], ["Ctrl / Cmd + G", "Group selection"], ["Ctrl / Cmd + Shift + G", "Ungroup"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge by 1 px"], ["Shift+Arrow", "Nudge by 10 px"], ["F1", "Open Keyboard shortcuts"]];
   const windowsShortcutReference: [string, string][] = [["Space", "Hold to pan"], ["Esc", "Pan tool and clear selection"], ["Ctrl + C / X / V", "Copy / cut / paste"], ["Delete / Backspace", "Delete selection"], ["Arrow keys", "Nudge selection by 1 px"], ["Shift + Arrow", "Nudge selection by 10 px"], ["F1", "Open Keyboard shortcuts"]];
   const updateTextDraft = (value: string) => setTextDraft((draft) => draft ? { ...draft, value } : undefined);
+  function finishSelectedNoteCardEdit() {
+    if (selectedNoteCardEditTimer !== undefined) window.clearTimeout(selectedNoteCardEditTimer);
+    selectedNoteCardEditTimer = undefined;
+    const edit = selectedNoteCardEdit; selectedNoteCardEdit = undefined;
+    if (edit?.changed) pushUndo(edit.before);
+  }
   function setSelectedNoteFontSize(size: number) {
     if (!Number.isFinite(size)) return;
     const bounded = Math.max(8, Math.min(32, Math.round(size)));
@@ -8090,19 +8137,28 @@ function App() {
     if (previous?.type !== "group" || !previous.note || previous.locked || boardLocked()) return;
     rememberFontSize(bounded);
     const bounds = elementBounds(previous); const before = cloneElements(elements());
-    const rebuilt = buildNoteGroup(bounds.x, bounds.y, previous.note.kind, previous.note.content, { width: previous.note.width ?? bounds.w, height: previous.note.height ?? bounds.h, fontSize: bounded, title: previous.note.title, collapsed: previous.note.collapsed });
+    const rebuilt = buildNoteGroup(bounds.x, bounds.y, previous.note.kind, previous.note.content, { width: previous.note.width ?? bounds.w, height: previous.note.height ?? bounds.h, fontSize: bounded, title: previous.note.title, collapsed: previous.note.collapsed, scrollY: previous.note.scrollY, checklistItems: previous.note.checklist?.items });
     const replacement: Element = { ...rebuilt, ...previous, note: rebuilt.note, elements: rebuilt.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
     setElements(items => items.map((item, current) => current === index ? replacement : item)); pushUndo(before); setDirty(true);
   }
-  function updateSelectedNoteCard(patch: Partial<Pick<NonNullable<Extract<Element, { type: "group" }>['note']>, "title" | "content">>) {
+  function updateSelectedNoteCard(patch: { title?: string; content?: string; checklistItems?: ChecklistItem[] }) {
     const index = primarySelection(); const previous = index === undefined ? undefined : elements()[index];
-    if (previous?.type !== "group" || !previous.note || previous.locked || boardLocked()) return;
-    const content = patch.content ?? previous.note.content;
-    if (content.length > 50000 || normalizeNoteContent(content, previous.note.kind).length > 50000) { setError("Notes and checklists are limited to 50,000 characters."); return; }
+    if (index === undefined || previous?.type !== "group" || !previous.note || previous.locked || boardLocked()) return;
+    const content = previous.note.kind === "checklist" ? "" : patch.content ?? previous.note.content;
+    const checklistItems = patch.checklistItems ?? previous.note.checklist?.items;
+    if (previous.note.kind === "checklist" ? checklistTextLength(checklistItems ?? []) > 50000 || (checklistItems?.length ?? 0) > 1000 : content.length > 50000) { setError("Notes and checklists are limited to 50,000 characters and 1,000 checklist rows."); return; }
     const bounds = elementBounds(previous); const before = cloneElements(elements());
-    const rebuilt = buildNoteGroup(bounds.x, bounds.y, previous.note.kind, content, { width: previous.note.width ?? bounds.w, ...(patch.content === undefined ? { height: previous.note.height ?? bounds.h } : {}), fontSize: previous.note.fontSize, title: patch.title ?? previous.note.title, collapsed: previous.note.collapsed });
+    let edit = selectedNoteCardEdit;
+    if (!edit || edit.index !== index) {
+      finishSelectedNoteCardEdit();
+      edit = { index, before, changed: false }; selectedNoteCardEdit = edit;
+    }
+    const rebuilt = buildNoteGroup(bounds.x, bounds.y, previous.note.kind, content, { width: previous.note.width ?? bounds.w, height: previous.note.height ?? bounds.h, fontSize: previous.note.fontSize, title: patch.title ?? previous.note.title, collapsed: previous.note.collapsed, scrollY: previous.note.scrollY, checklistItems });
     const replacement: Element = { ...rebuilt, ...previous, note: rebuilt.note, elements: rebuilt.elements.map((child, childIndex) => previous.elements[childIndex]?.id ? { ...child, id: previous.elements[childIndex].id } as Element : child) };
-    setElements(items => items.map((item, current) => current === index ? replacement : item)); pushUndo(before); setDirty(true);
+    setElements(items => items.map((item, current) => current === index ? replacement : item));
+    edit.changed = true; setDirty(true);
+    if (selectedNoteCardEditTimer !== undefined) window.clearTimeout(selectedNoteCardEditTimer);
+    selectedNoteCardEditTimer = window.setTimeout(finishSelectedNoteCardEdit, 900);
   }
   function convertSelectedTextToMarkdown() {
     const index = primarySelection(); const previous = index === undefined ? undefined : elements()[index];
@@ -8697,6 +8753,7 @@ function App() {
       { id: "select-by-layer", label: "Select objects in selected layer", category: "Layers", keywords: "select all contents", run: () => { const key = selectedLayerKeys().find(value => value.startsWith("layer:")); const layer = key ? toolLayers().find(value => value.key === key) : undefined; if (!layer) { setLayerPanelOpen(true); setError("Select a layer in the Layers panel first."); } else setSelectedIndices(layer.indices.filter(index => !isElementHidden(elements()[index]) && !isElementLocked(elements()[index]))); } },
       { id: "import-image", label: "Import image", category: "Import", keywords: "png jpeg webp gif", run: () => void importImage() },
       { id: "import-svg", label: "Import SVG", category: "Import", keywords: "vector", run: () => void importSvg() },
+      { id: "import-drawio", label: "Import draw.io diagram", category: "Import", keywords: "draw.io drawio mxgraph xml", run: () => void importDiagramFile(true) },
       { id: "import-editable-diagram", label: "Import diagram or diagram code", category: "Import", keywords: "diagram graphviz csv dot d2 mermaid plantuml drawio vsdx visio excalidraw", run: () => void importDiagramFile() },
       { id: "embed-web-page", label: "Embed web page on canvas", category: "Import", keywords: "website document link preview iframe", run: openWebEmbedDialog },
       { id: "import-schema", label: "Import SQL or JSON schema", category: "Import", keywords: "database tables", run: () => openSchemaDialog() },
@@ -8931,6 +8988,7 @@ function App() {
                 <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button>
                 <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button>
                 <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importPdf())}>Import PDF for markup...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile(true))}>Import draw.io diagram...</button>
                 <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile())}>Import editable diagram/code...</button>
                 <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked()} onClick={() => closeSystemMenu(openWebEmbedDialog)}>Embed web page...</button>
                 <div class="menu-separator" />
@@ -9301,7 +9359,7 @@ function App() {
             <Show when={layerPanelOpen()}>
               <aside class="floating-layer-panel" aria-label="Canvas layers">
                 <header class="layer-panel-heading">
-                  <div><strong>Layers</strong><p>Group, order, hide, and lock objects.</p></div>
+                  <div><strong>Layers</strong></div>
                   <span class="layer-count-badge" aria-label={`${toolLayers().length} tool layers`}>{toolLayers().length}</span>
                   <button class="pane-close-icon" aria-label="Close layers" title="Close layers" onClick={() => setLayerPanelOpen(false)}>&times;</button>
                 </header>
@@ -9329,7 +9387,7 @@ function App() {
                       </div>
                     </article>;
                   }}</For>
-                  <Show when={!elements().length}><div class="layer-empty-state"><span class="layer-type-icon"><svg viewBox="0 0 20 20"><path d="m10 2 7 3.5-7 3.5-7-3.5L10 2Zm-7 7 7 3.5L17 9M3 12.5 10 16l7-3.5" /></svg></span><strong>No layers yet</strong><small>Draw with a tool to create its layer.</small></div></Show>
+                  <Show when={!elements().length}><div class="layer-empty-state"><span class="layer-type-icon"><svg viewBox="0 0 20 20"><path d="m10 2 7 3.5-7 3.5-7-3.5L10 2Zm-7 7 7 3.5L17 9M3 12.5 10 16l7-3.5" /></svg></span><strong>No layers yet</strong></div></Show>
                 </div>
                 <Show when={selectedLayerKeys().some(key => key.startsWith("layer:"))}><div class="layer-create-button layer-structure-actions">
                   <button class="quiet-button" type="button" disabled={boardLocked() || selectedLayerKeys().filter(key => key.startsWith("layer:")).length !== 1} onClick={renameSelectedLayer}>Rename</button>
@@ -9517,7 +9575,7 @@ function App() {
                       </>}</Show>
                     </section>
                   </Show>
-                  <Show when={tool() === "rectangle" || focusedElement()?.type === "rectangle"}><section class="pane-section"><div class="inspector-section-heading">Corners</div><div class="choice-deck compact"><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "sharp" ? "active" : ""} title="Square corners" aria-label="Square corners" onClick={() => focusedElement()?.type === "rectangle" ? updateProperty("edgeStyle", "sharp") : setEdgeStyle("sharp")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" ? "active" : ""} title="Rounded corners" aria-label="Rounded corners" onClick={() => focusedElement()?.type === "rectangle" ? updateProperty("edgeStyle", "rounded") : setEdgeStyle("rounded")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="4"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "pill" ? "active" : ""} title="Pill corners" aria-label="Pill corners" onClick={() => focusedElement()?.type === "rectangle" ? updateProperty("edgeStyle", "pill") : setEdgeStyle("pill")}><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="8" rx="4"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut" ? "active" : ""} title="Cut corners" aria-label="Cut corners" onClick={() => focusedElement()?.type === "rectangle" ? updateProperty("edgeStyle", "cut") : setEdgeStyle("cut")}><svg viewBox="0 0 24 24"><path d="m8 4h8l4 4v8l-4 4H8l-4-4V8z"/></svg></button></div><Show when={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" || ((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut"}><label class="property-label">{((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut" ? "Corner cut" : "Corner radius"}<input type="range" min="0" max="64" value={focusedElement()?.type === "rectangle" ? (focusedElement() as ShapeElement).cornerRadius ?? 12 : cornerRadius()} onInput={event => { const radius = Number(event.currentTarget.value); setCornerRadius(radius); if (focusedElement()?.type === "rectangle") updateProperty("cornerRadius", radius); }} /><span>{focusedElement()?.type === "rectangle" ? (focusedElement() as ShapeElement).cornerRadius ?? 12 : cornerRadius()} px</span></label></Show></section></Show><Show when={focusedElement() && isConnector(focusedElement()!) && !(focusedElement() as ShapeElement | undefined)?.straightOnly}><section class="pane-section"><div class="inspector-section-heading">Connector routing</div><label class="auto-route-toggle"><input type="checkbox" checked={!!(focusedElement() as ShapeElement).autoRoute} disabled={boardLocked() || !!focusedElement()?.locked || orthogonalConnectors()} onChange={event => setSelectedAutoRoute(event.currentTarget.checked)} /><span><strong>Route around shapes</strong><small>Drag a bend to add or move a waypoint.</small></span></label><button class="quiet-button" disabled={boardLocked()} onClick={() => void optimizeAllConnectorRoutes()}>Optimize all connector routes</button></section></Show>
+                  <Show when={tool() === "rectangle" || focusedElement()?.type === "rectangle"}><section class="pane-section"><div class="inspector-section-heading">Corners</div><div class="choice-deck compact"><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "sharp" ? "active" : ""} title="Square corners" aria-label="Square corners" onClick={() => focusedElement()?.type === "rectangle" ? updateProperty("edgeStyle", "sharp") : setEdgeStyle("sharp")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" ? "active" : ""} title="Rounded corners" aria-label="Rounded corners" onClick={() => focusedElement()?.type === "rectangle" ? updateProperty("edgeStyle", "rounded") : setEdgeStyle("rounded")}><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="4"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "pill" ? "active" : ""} title="Pill corners" aria-label="Pill corners" onClick={() => focusedElement()?.type === "rectangle" ? updateProperty("edgeStyle", "pill") : setEdgeStyle("pill")}><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="8" rx="4"/></svg></button><button class={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut" ? "active" : ""} title="Cut corners" aria-label="Cut corners" onClick={() => focusedElement()?.type === "rectangle" ? updateProperty("edgeStyle", "cut") : setEdgeStyle("cut")}><svg viewBox="0 0 24 24"><path d="m8 4h8l4 4v8l-4 4H8l-4-4V8z"/></svg></button></div><Show when={((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "rounded" || ((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut"}><label class="property-label">{((focusedElement() as ShapeElement | undefined)?.edgeStyle ?? edgeStyle()) === "cut" ? "Corner cut" : "Corner radius"}<input type="range" min="0" max="64" value={focusedElement()?.type === "rectangle" ? (focusedElement() as ShapeElement).cornerRadius ?? 12 : cornerRadius()} onInput={event => { const radius = Number(event.currentTarget.value); setCornerRadius(radius); if (focusedElement()?.type === "rectangle") updateProperty("cornerRadius", radius); }} /><span>{focusedElement()?.type === "rectangle" ? (focusedElement() as ShapeElement).cornerRadius ?? 12 : cornerRadius()} px</span></label></Show></section></Show><Show when={focusedElement() && isConnector(focusedElement()!) && !(focusedElement() as ShapeElement | undefined)?.straightOnly}><section class="pane-section"><div class="inspector-section-heading">Connector routing</div><label class="auto-route-toggle"><input type="checkbox" checked={!!(focusedElement() as ShapeElement).autoRoute} disabled={boardLocked() || !!focusedElement()?.locked || orthogonalConnectors()} onChange={event => setSelectedAutoRoute(event.currentTarget.checked)} /><span><strong>Route around shapes</strong></span></label><button class="quiet-button" disabled={boardLocked()} onClick={() => void optimizeAllConnectorRoutes()}>Optimize all connector routes</button></section></Show>
                 <Show when={(tool() === "arrow" || focusedElement()?.type === "arrow") && (focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).arrowRoute : arrowRoute()) === "forked"}><section class="pane-section"><div class="inspector-section-heading">Fork branch heads</div><div class="fork-head-config"><span>Upper branch</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={((focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).forkUpper?.endHead : undefined) ?? defaultForkUpperHead()) === value ? "active" : ""} title={`${label} upper branch head`} aria-label={`${label} upper branch head`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("forkUpperHead", value) : setDefaultForkUpperHead(value)}><ArrowHeadIcon kind={value} /></button>)}</div><span>Lower branch</span><div class="choice-deck arrow-head-choices">{ARROW_HEADS.map(({ value, label }) => <button class={((focusedElement()?.type === "arrow" ? (focusedElement() as ShapeElement).forkLower?.endHead : undefined) ?? defaultForkLowerHead()) === value ? "active" : ""} title={`${label} lower branch head`} aria-label={`${label} lower branch head`} onClick={() => focusedElement()?.type === "arrow" ? updateProperty("forkLowerHead", value) : setDefaultForkLowerHead(value)}><ArrowHeadIcon kind={value} /></button>)}</div></div></section></Show>
             <Show when={focusedElement()?.type === "text"}><section class="pane-section"><div class="inspector-section-heading">Text</div><button class="quiet-button" disabled={boardLocked() || focusedElement()?.locked} onClick={convertSelectedTextToMarkdown}>Convert to Markdown card</button></section></Show>
       <Show when={focusedElement()?.type === "schemaTable"}><section class="pane-section"><div class="inspector-section-heading">Table schema</div><label class="property-label">Font size<input type="number" min="8" max="48" step="1" value={(focusedElement() as SchemaTableElement | undefined)?.fontSize ?? 12} onChange={event => updateProperty("fontSize", Math.round(Number(event.currentTarget.value)))} /></label></section></Show>
@@ -9532,7 +9590,7 @@ function App() {
                 <Show when={focusedElement()?.type === "svgPath"}><section class="pane-section svg-path-editor"><div class="inspector-section-heading">SVG path</div><label class="property-label">Path data<textarea rows="5" maxlength="500000" spellcheck="false" value={(focusedElement() as ShapeElement).pathData ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateProperty("pathData", event.currentTarget.value)} /></label><label class="auto-route-toggle"><input type="checkbox" checked={(focusedElement() as ShapeElement).svgNonScalingStroke === true} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateProperty("svgNonScalingStroke", event.currentTarget.checked)} /><span><strong>Keep stroke width while zooming</strong><small>Useful for imported icon paths.</small></span></label><label class="property-label">Fill rule<select value={(focusedElement() as ShapeElement).fillRule ?? "nonzero"} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateProperty("fillRule", event.currentTarget.value)}><option value="nonzero">Nonzero</option><option value="evenodd">Even odd</option></select></label></section></Show><Show when={selectedIndices().length > 1}><section class="pane-section"><div class="inspector-section-heading">Align & distribute</div><div class="alignment-grid">{(["left", "center", "right", "top", "middle", "bottom", "horizontal", "vertical", "flow"] as const).map(command => <button disabled={boardLocked() || ((command === "horizontal" || command === "vertical") && selectedIndices().length < 3)} title={command === "horizontal" || command === "vertical" ? `Distribute ${command} gaps` : command === "flow" ? "Align by connector flow" : `Align ${command}`} onClick={() => alignSelection(command)}>{command === "flow" ? "Flow" : command}</button>)}</div></section></Show>
 
                 <Show when={selectedIndices().length > 1 && !groupSelected()}><div class="multi-selection-actions"><button class="pane-group-button" onClick={groupSelection}>Group {selectedIndices().length} elements <kbd>Ctrl+G</kbd></button><button class="pane-group-button" disabled={boardLocked() || readOnlyView()} onClick={createFrameFromSelection}>Create frame</button></div></Show>
-                <Show when={focusedElement()?.type === "freehand" && recognizeStroke(focusedElement() as FreehandElement)}>{recognized => <section class="pane-section stroke-cleanup-tools"><div class="inspector-section-heading">Stroke cleanup</div><p>This stroke is close to {recognized().type === "circle" ? "an ellipse" : `a ${recognized().type}`}.</p><button class="quiet-button" type="button" disabled={boardLocked() || !!(focusedElement() as FreehandElement | undefined)?.locked} onClick={convertSelectedStrokeToRectangle}>Convert to {recognized().type === "circle" ? "ellipse" : recognized().type}</button></section>}</Show>
+                <Show when={focusedElement()?.type === "freehand" && recognizeStroke(focusedElement() as FreehandElement)}>{recognized => <section class="pane-section stroke-cleanup-tools"><div class="inspector-section-heading">Stroke cleanup</div><button class="quiet-button" type="button" disabled={boardLocked() || !!(focusedElement() as FreehandElement | undefined)?.locked} onClick={convertSelectedStrokeToRectangle}>Convert to {recognized().type === "circle" ? "ellipse" : recognized().type}</button></section>}</Show>
                 <Show when={focusedElement()?.type === "freehand" || focusedElement()?.type === "svgPath"}><section class="pane-section path-node-tools"><div class="inspector-section-heading">Path editing</div><button class={`quiet-button ${pathNodeEditMode() ? "active" : ""}`} type="button" aria-pressed={pathNodeEditMode()} disabled={boardLocked() || !!focusedElement()?.locked || focusedElement()?.type === "svgPath" && !parseEditablePath((focusedElement() as ShapeElement | undefined)?.pathData)} onClick={() => { setPathNodeEditMode(value => !value); setSelectedPathNodeIndex(undefined); }}>{pathNodeEditMode() ? "Done editing nodes" : focusedElement()?.type === "freehand" ? "Edit stroke points" : "Edit path nodes"}</button><Show when={pathNodeEditMode() && selectedPathNodeIndex() !== undefined}><button class="quiet-button" type="button" disabled={boardLocked()} onClick={deleteSelectedPathNode}>Delete selected node</button></Show><Show when={focusedElement()?.type === "svgPath" && !parseEditablePath((focusedElement() as ShapeElement | undefined)?.pathData)}><small>Node editing supports simple paths made from move, line, and close commands.</small></Show></section></Show>
                 <Show when={connectorTouchesBpmn(focusedElement())}><section class="pane-section bpmn-flow-properties"><div class="inspector-section-heading">BPMN sequence flow</div><label class="property-label">Condition<input maxlength="500" placeholder="e.g. approved = true" value={(focusedElement() as ShapeElement).sequenceCondition ?? ""} disabled={boardLocked() || !!focusedElement()?.locked || (focusedElement() as ShapeElement).sequenceDefault} onChange={event => updateBpmnSequenceField("sequenceCondition", event.currentTarget.value)} /></label><label class="component-state-control"><input type="checkbox" checked={!!(focusedElement() as ShapeElement).sequenceDefault} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateBpmnSequenceField("sequenceDefault", event.currentTarget.checked)} /><span class="component-switch" aria-hidden="true" /><strong>Default path</strong></label><small>Use one default path when an exclusive gateway has multiple outgoing flows.</small></section></Show>
                   </div>
@@ -9593,7 +9651,7 @@ function App() {
                     </>}</Show>
                   </div></details><Show when={(focusedElement() as ShapeElement).relationshipFields?.length}><div class="relationship-model-fields"><div class="pane-heading">Model details</div><Index each={(focusedElement() as ShapeElement).relationshipFields ?? []}>{field => <label class="property-label">{field().label}<textarea rows={2} maxLength={2000} placeholder={field().hint} value={field().value} disabled={boardLocked() || !!focusedElement()?.locked} onInput={event => updateConnectorRelationshipField(field().key, event.currentTarget.value)} /></label>}</Index></div></Show></Show>
                   <Show when={selectedIndices().length > 0 && !selectedContainer()}><section class="component-editor-content structure-container-editor component-structure-actions"><div class="pane-heading">Structure</div><button class="quiet-button" type="button" disabled={boardLocked() || readOnlyView()} onClick={createFrameFromSelection}>Create frame from selection</button></section></Show>
-                <Show when={selectedContainer()}><section class="component-editor-content structure-container-editor container-properties"><div class="pane-heading">{selectedRootElement()?.type === "group" ? selectedContainer()?.container?.kind === "frame" ? "Frame" : "Container" : "Structure"}</div><label class="property-label">Name<input maxlength="120" value={selectedRootElement()?.type === "group" ? selectedContainer()?.container?.name ?? "" : ""} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(container => ({ ...container, name: event.currentTarget.value.trim().slice(0, 120) || container.name }))} /></label><label class="property-label">Background<div class="container-background-control"><input aria-label="Container background" type="color" value={selectedContainer()?.container?.background ?? "#ffffff"} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onInput={event => updateSelectedContainer(container => ({ ...container, background: event.currentTarget.value }))} /><button class="quiet-button" type="button" disabled={boardLocked() || !selectedContainer()?.container?.background} onClick={() => updateSelectedContainer(container => ({ ...container, background: undefined }))}>Clear</button></div></label><Show when={selectedContainer()?.libraryComponent?.kind === "diagram-swimlane"}><div class="auto-layout-controls swimlane-controls" role="group" aria-label="Swimlane controls"><label class="property-label">Lane count<input type="number" min="2" max="8" step="1" value={selectedContainer()?.libraryComponent?.laneCount ?? 3} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => setSelectedSwimlaneCount(Number(event.currentTarget.value))} /></label><small>Drag the blue divider handles on the canvas to resize lanes.</small><div class="swimlane-order-list">{Array.from({ length: selectedContainer()?.libraryComponent?.laneCount ?? 3 }, (_, lane) => <div class="container-structure-actions"><span>Lane {lane + 1}</span><div><button class="quiet-button" type="button" aria-label={`Move lane ${lane + 1} up`} title="Move lane up" disabled={boardLocked() || isElementLocked(selectedRootElement()!) || lane === 0} onClick={() => reorderSelectedSwimlaneLane(lane, -1)}>↑</button><button class="quiet-button" type="button" aria-label={`Move lane ${lane + 1} down`} title="Move lane down" disabled={boardLocked() || isElementLocked(selectedRootElement()!) || lane === (selectedContainer()?.libraryComponent?.laneCount ?? 3) - 1} onClick={() => reorderSelectedSwimlaneLane(lane, 1)}>↓</button></div></div>)}</div></div></Show><Show when={selectedRootElement()?.type === "group" && selectedContainer()?.container?.kind === "frame"}><div class="auto-layout-controls" role="group" aria-label="Auto layout">
+                <Show when={selectedContainer()}><section class="component-editor-content structure-container-editor container-properties"><div class="pane-heading">{selectedRootElement()?.type === "group" ? selectedContainer()?.container?.kind === "frame" ? "Frame" : "Container" : "Structure"}</div><label class="property-label">Name<input maxlength="120" value={selectedRootElement()?.type === "group" ? selectedContainer()?.container?.name ?? "" : ""} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedContainer(container => ({ ...container, name: event.currentTarget.value.trim().slice(0, 120) || container.name }))} /></label><label class="property-label container-background-label">Background<div class="container-background-control"><input aria-label="Container background" type="color" value={selectedContainer()?.container?.background ?? "#ffffff"} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onInput={event => updateSelectedContainer(container => ({ ...container, background: event.currentTarget.value }))} /><button class="quiet-button" type="button" disabled={boardLocked() || !selectedContainer()?.container?.background} onClick={() => updateSelectedContainer(container => ({ ...container, background: undefined }))}>Clear</button></div></label><Show when={selectedContainer()?.libraryComponent?.kind === "diagram-swimlane"}><div class="auto-layout-controls swimlane-controls" role="group" aria-label="Swimlane controls"><label class="property-label">Lane count<input type="number" min="2" max="8" step="1" value={selectedContainer()?.libraryComponent?.laneCount ?? 3} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => setSelectedSwimlaneCount(Number(event.currentTarget.value))} /></label><div class="swimlane-order-list">{Array.from({ length: selectedContainer()?.libraryComponent?.laneCount ?? 3 }, (_, lane) => <div class="container-structure-actions"><span>Lane {lane + 1}</span><div><button class="quiet-button" type="button" aria-label={`Move lane ${lane + 1} up`} title="Move lane up" disabled={boardLocked() || isElementLocked(selectedRootElement()!) || lane === 0} onClick={() => reorderSelectedSwimlaneLane(lane, -1)}>↑</button><button class="quiet-button" type="button" aria-label={`Move lane ${lane + 1} down`} title="Move lane down" disabled={boardLocked() || isElementLocked(selectedRootElement()!) || lane === (selectedContainer()?.libraryComponent?.laneCount ?? 3) - 1} onClick={() => reorderSelectedSwimlaneLane(lane, 1)}>↓</button></div></div>)}</div></div></Show><Show when={selectedRootElement()?.type === "group" && selectedContainer()?.container?.kind === "frame"}><div class="auto-layout-controls" role="group" aria-label="Auto layout">
                     <label class="property-label">Auto layout<select aria-label="Auto layout direction" value={selectedContainer()?.container?.autoLayout?.direction ?? "off"} disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onChange={event => updateSelectedFrameLayout(event.currentTarget.value === "off" ? "off" : { direction: event.currentTarget.value as AutoLayoutConfig["direction"] })}><option value="off">Off</option><option value="vertical">Vertical stack</option><option value="horizontal">Horizontal stack</option><option value="grid">Grid</option></select></label>
                     <Show when={selectedContainer()?.container?.autoLayout}>{layout => <>
                       <div class="precision-grid"><label>Gap<input aria-label="Auto layout gap" type="number" min="0" max="500" value={layout().gap} disabled={boardLocked()} onChange={event => updateSelectedFrameLayout({ gap: Number(event.currentTarget.value) })} /></label><label>Padding<input aria-label="Auto layout padding" type="number" min="0" max="500" value={layout().padding} disabled={boardLocked()} onChange={event => updateSelectedFrameLayout({ padding: Number(event.currentTarget.value) })} /></label></div>
@@ -9605,7 +9663,7 @@ function App() {
                       </fieldset></Show>
                     </>}</Show>
                   </div><div class="container-structure-actions"><button class="quiet-button" type="button" disabled={boardLocked() || isElementLocked(selectedRootElement()!)} onClick={fitSelectedContainer}>Fit to content</button><button class="quiet-button" type="button" disabled={boardLocked()} onClick={() => reorderSelectedFrame(-1)}>Move frame backward</button><button class="quiet-button" type="button" disabled={boardLocked()} onClick={() => reorderSelectedFrame(1)}>Move frame forward</button></div></Show><div class="container-structure-actions"><Show when={selectedIndices().length > 1}><button class="quiet-button" type="button" disabled={boardLocked()} onClick={moveSelectionIntoSelectedContainer}>Move selection into container</button></Show><button class="quiet-button" type="button" disabled={boardLocked()} onClick={removeSelectedContainer}>Remove container</button></div></section></Show>
-                  <Show when={selectedParameterizedStencil()}>{stencil => <section class="component-editor-content stencil-parameter-editor"><div class="pane-heading">Stencil fields</div><p>Edit named fields while keeping this grouped component intact.</p>{stencil().stencilParameters?.parameters.map(parameter => <label class="property-label">{parameter}<input maxlength="500" value={stencil().stencilParameters?.values[parameter.toLowerCase()] ?? ""} disabled={boardLocked() || !!stencil().locked} onChange={event => editSelectedStencilParameter(parameter, event.currentTarget.value)} /></label>)}</section>}</Show>
+                  <Show when={selectedParameterizedStencil()}>{stencil => <section class="component-editor-content stencil-parameter-editor"><div class="pane-heading">Stencil fields</div>{stencil().stencilParameters?.parameters.map(parameter => <label class="property-label">{parameter}<input maxlength="500" value={stencil().stencilParameters?.values[parameter.toLowerCase()] ?? ""} disabled={boardLocked() || !!stencil().locked} onChange={event => editSelectedStencilParameter(parameter, event.currentTarget.value)} /></label>)}</section>}</Show>
                   <Show when={selectedComponentMaster()}>{master => { const instance = () => selectedMasterInstance(); const overrides = () => instance()?.componentOverrides ?? {}; const variants = () => Object.keys(master().variants ?? {}); const instanceCount = () => componentMasterInstanceCount(master().id); const chartDefaults = () => flatten(master().template).find((item): item is GroupElement => item.type === "group" && !!item.libraryComponent?.chartData)?.libraryComponent?.chartData; const formDefaults = () => flatten(master().template).find((item): item is GroupElement => item.type === "group" && !!item.libraryComponent?.formOptions)?.libraryComponent?.formOptions; return <details class="pane-section component-navigation-details inspector-advanced-section" open={componentDisclosureOpen("component-master")} onToggle={componentDisclosureToggle("component-master")}><summary><span>Component master and instance</span><small>{instanceCount()} instance{instanceCount() === 1 ? "" : "s"}</small></summary><section class="component-editor-content component-master-editor"><label class="property-label">Master name<input maxlength="80" value={master().name} disabled={boardLocked()} onChange={event => updateComponentMaster(master().id, current => ({ ...current, name: event.currentTarget.value.trim().slice(0, 80) || current.name }))} /></label><label class="property-label">Default label<input maxlength="240" value={componentPrimaryLabel(master().template)} disabled={boardLocked()} onChange={event => updateMasterDefaultLabel(master().id, event.currentTarget.value)} /></label><div class="component-port-preview" role="img" aria-label={`${master().connectionPoints?.length ?? 0} component connection points`}>{master().connectionPoints?.map(port => <span title={port.name} style={{ left: `${port.anchor.x * 100}%`, top: `${port.anchor.y * 100}%` }} />)}</div><label class="component-state-control"><input type="checkbox" checked={overrides().label !== undefined} disabled={boardLocked()} onChange={event => updateInstanceOverride("label", event.currentTarget.checked ? componentPrimaryLabel(master().template) : undefined)} /><span class="component-switch" aria-hidden="true"/><strong>Override this instance label</strong></label><Show when={overrides().label !== undefined}><label class="property-label">Instance label<input maxlength="240" value={overrides().label ?? ""} disabled={boardLocked()} onChange={event => updateInstanceOverride("label", event.currentTarget.value)} /></label></Show><label class="property-label">Instance color override<input type="color" value={overrides().color ?? "#566579"} disabled={boardLocked()} onInput={event => updateInstanceOverride("color", event.currentTarget.value)} /></label><button class="quiet-button" type="button" disabled={boardLocked() || !overrides().color} onClick={() => updateInstanceOverride("color", undefined)}>Clear color override</button><label class="property-label">Instance fill override<input type="color" value={overrides().fillColor ?? "#ffffff"} disabled={boardLocked()} onInput={event => updateInstanceOverride("fillColor", event.currentTarget.value)} /></label><button class="quiet-button" type="button" disabled={boardLocked() || overrides().fillColor === undefined} onClick={() => updateInstanceOverride("fillColor", undefined)}>Clear fill override</button><Show when={chartDefaults()}><label class="property-label">Chart data override<textarea rows="5" spellcheck="false" value={JSON.stringify(overrides().chartData ?? chartDefaults(), null, 2)} disabled={boardLocked()} onChange={event => { try { const parsed = JSON.parse(event.currentTarget.value) as ComponentOverrides["chartData"]; if (parsed && Array.isArray(parsed.labels) && Array.isArray(parsed.values)) updateInstanceOverride("chartData", parsed); } catch { setError("Chart data override must be valid JSON with labels and values arrays."); } }} /></label><button class="quiet-button" type="button" disabled={boardLocked() || !overrides().chartData} onClick={() => updateInstanceOverride("chartData", undefined)}>Clear chart data override</button></Show><Show when={formDefaults()}><label class="property-label">Form options override<input value={(overrides().formOptions ?? formDefaults() ?? []).join(", ")} disabled={boardLocked()} onChange={event => updateInstanceOverride("formOptions", event.currentTarget.value.split(",").map(value => value.trim()).filter(Boolean).slice(0, 32))} /></label></Show><Show when={master().connectionPoints?.length}><div class="pane-heading">Port label overrides</div>{master().connectionPoints?.map(port => <label class="property-label">{port.name}<input value={overrides().portLabels?.[port.id] ?? port.name} disabled={boardLocked()} onChange={event => updateInstanceOverride("portLabels", { ...overrides().portLabels, [port.id]: event.currentTarget.value.slice(0, 80) })} /></label>)}</Show><Show when={variants().length > 0}><label class="property-label">Variant<select value={instance()?.variantKey ?? "default"} disabled={boardLocked()} onChange={event => switchSelectedMasterVariant(event.currentTarget.value === "default" ? "" : event.currentTarget.value)}><option value="default">Default</option>{variants().map(key => <option value={key}>{key}</option>)}</select></label></Show><div class="container-structure-actions"><button class="quiet-button" type="button" disabled={boardLocked()} onClick={saveSelectedMasterVariant}>Save current as variant…</button><button class="quiet-button" type="button" disabled={boardLocked()} onClick={updateSelectedMasterFromInstance}>Use this instance as the master default</button><button class="quiet-button" type="button" disabled={boardLocked()} onClick={detachSelectedMasterInstance}>Detach instance</button></div></section></details>; }}</Show>
                   <Show when={focusedElement() && isConnector(focusedElement()!)}><details class="pane-section relationship-properties" open={componentDisclosureOpen("relationship-properties")} onToggle={componentDisclosureToggle("relationship-properties")}><summary class="inspector-disclosure-summary">Connection</summary><div class="property-label">Relationship type<div class="choice-deck relationship-type-choices">{RELATIONSHIP_TYPES.map(type => <button type="button" class={(focusedElement() as ShapeElement).relationshipType === type.value ? "active" : ""} aria-pressed={(focusedElement() as ShapeElement).relationshipType === type.value} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateConnectorMetadata("relationshipType", type.value)}>{type.label}</button>)}</div></div><label class="property-label">Cardinality<input maxlength="24" placeholder="1, 0..*, etc." value={(focusedElement() as ShapeElement).cardinality ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateConnectorMetadata("cardinality", event.currentTarget.value)} /></label><div class="property-label">Direction<div class="choice-deck compact">{([{ value: "forward", label: "Forward" }, { value: "both", label: "Both" }, { value: "none", label: "None" }] as const).map(direction => <button type="button" class={(focusedElement() as ShapeElement).relationshipDirection === direction.value || !(focusedElement() as ShapeElement).relationshipDirection && direction.value === "forward" ? "active" : ""} aria-pressed={(focusedElement() as ShapeElement).relationshipDirection === direction.value} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateConnectorMetadata("relationshipDirection", direction.value)}>{direction.label}</button>)}</div></div><label class="property-label">Protocol<input maxlength="48" placeholder="HTTPS, gRPC, SQL" value={(focusedElement() as ShapeElement).protocol ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateConnectorMetadata("protocol", event.currentTarget.value)} /></label><label class="property-label">Port number<input type="number" min="1" max="65535" placeholder="443" value={(focusedElement() as ShapeElement).portNumber ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateConnectorContract("portNumber", event.currentTarget.value)} /></label><div class="property-label">Transport security<div class="choice-deck compact">{([{ value: "unknown", label: "Unknown" }, { value: "encrypted", label: "Encrypted" }, { value: "unencrypted", label: "Unencrypted" }] as const).map(option => <button type="button" class={(focusedElement() as ShapeElement).transportSecurity === option.value || !(focusedElement() as ShapeElement).transportSecurity && option.value === "unknown" ? "active" : ""} aria-pressed={(focusedElement() as ShapeElement).transportSecurity === option.value} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateConnectorMetadata("transportSecurity", option.value)}>{option.label}</button>)}</div></div><label class="property-label">API contract<input maxlength="2000" placeholder="Endpoint or operation" value={(focusedElement() as ShapeElement).apiContract ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateConnectorContract("apiContract", event.currentTarget.value)} /></label><label class="property-label">Data contract<input maxlength="2000" placeholder="Schema, topic, or payload" value={(focusedElement() as ShapeElement).dataContract ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateConnectorContract("dataContract", event.currentTarget.value)} /></label></details></Show>
                 </Show>
@@ -9615,9 +9673,9 @@ function App() {
                         <Show when={tableBlock()}>{table => <MarkdownTableEditor value={table().text} onChange={value => setNoteEditor(current => current ? { ...current, content: replaceMarkdownTableBlock(current.content, table(), value) } : current)} />}</Show>
                         <Show when={!tableBlock()}>
                           <label class="note-editor-label">Title<input ref={element => { noteEditorTitleInput = element; }} aria-label="Card title" maxlength="120" value={draft().title} onChange={event => setNoteEditor(current => current ? { ...current, title: event.currentTarget.value } : current)} /></label>
-                          <div class="note-editor-formatting" role="toolbar" aria-label="Text formatting"><For each={noteFormatActions}>{action => <button type="button" class="note-editor-inline-action" aria-label={action.name} title={`${action.name}${action.name === "Bold" ? " (Ctrl/⌘+B)" : action.name === "Italic" ? " (Ctrl/⌘+I)" : action.name === "Underline" ? " (Ctrl/⌘+U)" : ""}`} onMouseDown={event => event.preventDefault()} onClick={() => applyNoteInlineFormat(noteEditorTextarea, action.open, action.close, content => setNoteEditor(current => current ? { ...current, content } : current))}>{action.label}</button>}</For><Show when={draft().kind === "note"}><button type="button" class="note-editor-inline-action" onMouseDown={event => event.preventDefault()} onClick={insertMarkdownTable}>Insert table</button></Show></div>
-                          <Show when={draft().kind === "checklist"}><small class="note-editor-format-help">Use **Section title** on its own line for a bold heading without a checkbox.</small></Show>
-                          <label class="note-editor-label">Content<textarea ref={element => { noteEditorTextarea = element; }} aria-label={draft().kind === "checklist" ? "Checklist items" : draft().kind === "sticky" ? "Sticky note text" : "Markdown text and code"} maxlength="50000" value={draft().content} placeholder={draft().kind === "checklist" ? "**Section title**\n- [ ] First task" : draft().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} onBlur={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : current)} onKeyDown={event => { event.stopPropagation(); if (applyNoteFormatShortcut(event, noteEditorTextarea, content => setNoteEditor(current => current ? { ...current, content } : current))) return; if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); } }} /></label>
+                          <div class="note-editor-formatting" role="toolbar" aria-label="Text formatting"><For each={noteFormatActions}>{action => <button type="button" class="note-editor-inline-action" aria-label={action.name} title={`${action.name}${action.name === "Bold" ? " (Ctrl/⌘+B)" : action.name === "Italic" ? " (Ctrl/⌘+I)" : action.name === "Underline" ? " (Ctrl/⌘+U)" : ""}`} onMouseDown={event => event.preventDefault()} onClick={() => draft().kind === "checklist" ? applyNoteInlineFormat(noteEditorChecklistTextarea, action.open, action.close, content => { if (noteEditorChecklistTextarea) noteEditorChecklistTextarea.value = content; setNoteEditor(current => current ? { ...current, checklistText: content } : current); }) : applyNoteInlineFormat(noteEditorTextarea, action.open, action.close, content => setNoteEditor(current => current ? { ...current, content } : current))}>{action.label}</button>}</For><Show when={draft().kind === "note"}><button type="button" class="note-editor-inline-action" onMouseDown={event => event.preventDefault()} onClick={insertMarkdownTable}>Insert table</button></Show></div>
+                          <Show when={draft().kind !== "checklist"}><label class="note-editor-label">Content<textarea ref={element => { noteEditorTextarea = element; }} aria-label={draft().kind === "sticky" ? "Sticky note text" : "Markdown text and code"} maxlength="50000" value={draft().content} placeholder={draft().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} onBlur={event => setNoteEditor(current => current ? { ...current, content: event.currentTarget.value } : current)} onKeyDown={event => { event.stopPropagation(); if (applyNoteFormatShortcut(event, noteEditorTextarea, content => setNoteEditor(current => current ? { ...current, content } : current))) return; if (event.key === "Tab") { indentTextarea(event, value => setNoteEditor(current => current ? { ...current, content: value } : current)); return; } if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); } }} /></label></Show>
+                          <Show when={draft().kind === "checklist"}><label class="note-editor-label">Items<textarea ref={element => { noteEditorChecklistTextarea = element; element.value = draft().checklistText ?? checklistToText(draft().checklistItems ?? []); }} aria-label="Checklist items" maxlength="50000" placeholder={"**Section**\nFirst task\n✓ Completed task"} onInput={event => setNoteEditor(current => current ? { ...current, checklistText: event.currentTarget.value } : current)} onKeyDown={event => { event.stopPropagation(); if (applyNoteFormatShortcut(event, noteEditorChecklistTextarea, content => { if (noteEditorChecklistTextarea) noteEditorChecklistTextarea.value = content; setNoteEditor(current => current ? { ...current, checklistText: content } : current); })) return; if ((event.key === "Enter" && (event.ctrlKey || event.metaKey)) || event.key === "Escape") { event.preventDefault(); saveNoteEditor(); } }} /></label></Show>
                         </Show>
                         <Show when={!tableBlock()}><label class="note-editor-size">Text size<input aria-label="Note text size" type="number" min="8" max="32" step="1" value={draft().fontSize} onChange={event => { const size = Math.max(8, Math.min(32, Math.round(Number(event.currentTarget.value) || 12))); rememberFontSize(size); setNoteEditor(current => current ? { ...current, fontSize: size } : current); }} /></label></Show>
                       </section>;
@@ -9628,10 +9686,10 @@ function App() {
                       return <section class="note-editor-fields" aria-label={notePanelTitle()} onPointerDown={event => event.stopPropagation()}>
                         <Show when={tableBlock()}>{table => <MarkdownTableEditor value={table().text} disabled={boardLocked() || card().locked} onChange={value => updateSelectedNoteCard({ content: replaceMarkdownTableBlock(note().content, table(), value) })} />}</Show>
                         <Show when={!tableBlock()}>
-                          <label class="note-editor-label">Title<input aria-label="Card title" maxlength="120" value={note().title ?? defaultNoteTitle(note().kind)} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label>
-                          <div class="note-editor-formatting" role="toolbar" aria-label="Text formatting"><For each={noteFormatActions}>{action => <button type="button" class="note-editor-inline-action" aria-label={action.name} title={`${action.name}${action.name === "Bold" ? " (Ctrl/⌘+B)" : action.name === "Italic" ? " (Ctrl/⌘+I)" : action.name === "Underline" ? " (Ctrl/⌘+U)" : ""}`} disabled={boardLocked() || card().locked} onMouseDown={event => event.preventDefault()} onClick={() => applyNoteInlineFormat(selectedNoteTextarea, action.open, action.close, content => updateSelectedNoteCard({ content }))}>{action.label}</button>}</For></div>
-                          <Show when={note().kind === "checklist"}><small class="note-editor-format-help">Use **Section title** on its own line for a bold heading without a checkbox.</small></Show>
-                          <label class="note-editor-label">{note().kind === "checklist" ? "Tasks" : note().kind === "sticky" ? "Text" : "Content"}<textarea ref={element => { selectedNoteTextarea = element; }} aria-label={note().kind === "checklist" ? "Checklist items" : note().kind === "sticky" ? "Sticky note text" : "Markdown text and code"} value={note().content} placeholder={note().kind === "checklist" ? "**Section title**\n- [ ] First task" : note().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} disabled={boardLocked() || card().locked} onChange={event => updateSelectedNoteCard({ content: event.currentTarget.value })} onKeyDown={event => { event.stopPropagation(); if (applyNoteFormatShortcut(event, selectedNoteTextarea, content => updateSelectedNoteCard({ content }))) return; if (event.key === "Tab") indentTextarea(event, value => updateSelectedNoteCard({ content: value })); }} /></label>
+                          <label class="note-editor-label">Title<input aria-label="Card title" maxlength="120" value={note().title ?? defaultNoteTitle(note().kind)} disabled={boardLocked() || card().locked} onBlur={finishSelectedNoteCardEdit} onChange={event => updateSelectedNoteCard({ title: event.currentTarget.value })} /></label>
+                          <div class="note-editor-formatting" role="toolbar" aria-label="Text formatting"><For each={noteFormatActions}>{action => <button type="button" class="note-editor-inline-action" aria-label={action.name} title={`${action.name}${action.name === "Bold" ? " (Ctrl/⌘+B)" : action.name === "Italic" ? " (Ctrl/⌘+I)" : action.name === "Underline" ? " (Ctrl/⌘+U)" : ""}`} disabled={boardLocked() || card().locked} onMouseDown={event => event.preventDefault()} onClick={() => note().kind === "checklist" ? applyNoteInlineFormat(selectedNoteChecklistTextarea, action.open, action.close, content => { if (selectedNoteChecklistTextarea) selectedNoteChecklistTextarea.value = content; }) : applyNoteInlineFormat(selectedNoteTextarea, action.open, action.close, content => updateSelectedNoteCard({ content }))}>{action.label}</button>}</For></div>
+                          <Show when={note().kind !== "checklist"}><label class="note-editor-label">{note().kind === "sticky" ? "Text" : "Content"}<textarea ref={element => { selectedNoteTextarea = element; }} aria-label={note().kind === "sticky" ? "Sticky note text" : "Markdown text and code"} value={note().content} placeholder={note().kind === "sticky" ? "Write a short note" : "Write Markdown or fenced code"} disabled={boardLocked() || card().locked} onBlur={finishSelectedNoteCardEdit} onChange={event => updateSelectedNoteCard({ content: event.currentTarget.value })} onKeyDown={event => { event.stopPropagation(); if (applyNoteFormatShortcut(event, selectedNoteTextarea, content => updateSelectedNoteCard({ content }))) return; if (event.key === "Tab") indentTextarea(event, value => updateSelectedNoteCard({ content: value })); }} /></label></Show>
+                          <Show when={note().kind === "checklist"}><label class="note-editor-label">Items<textarea ref={element => { selectedNoteChecklistTextarea = element; }} aria-label="Checklist items" maxlength="50000" value={checklistToText(note().checklist?.items ?? [])} placeholder={"**Section**\nFirst task\n✓ Completed task"} disabled={boardLocked() || card().locked} onBlur={event => { const currentItems = note().checklist?.items ?? []; const nextItems = parseChecklistText(event.currentTarget.value, currentItems); if (JSON.stringify(nextItems) !== JSON.stringify(currentItems)) updateSelectedNoteCard({ checklistItems: nextItems }); finishSelectedNoteCardEdit(); }} onKeyDown={event => { event.stopPropagation(); if (applyNoteFormatShortcut(event, selectedNoteChecklistTextarea, content => { if (selectedNoteChecklistTextarea) selectedNoteChecklistTextarea.value = content; })) return; }} /></label></Show>
                         </Show>
                         <Show when={!tableBlock()}><label class="note-editor-size">Text size<input aria-label="Note text size" type="number" min="8" max="32" step="1" value={note().fontSize ?? 12} disabled={boardLocked() || card().locked} onChange={event => setSelectedNoteFontSize(Number(event.currentTarget.value))} /></label></Show>
                         <Show when={note().kind === "note" && !tableBlock()}><button type="button" class="note-editor-inline-action note-editor-convert" disabled={boardLocked() || card().locked} onClick={convertSelectedMarkdownToText}>Convert to plain text</button></Show>
@@ -9641,8 +9699,8 @@ function App() {
                     <Show when={!libraryComponentDraft() && selectedLibraryComponent()}>{component => <Suspense fallback={null}><LibraryComponentEditor group={() => selectedLibraryComponent() ?? component()} isDraft={false} boardLocked={boardLocked} onChangeGroup={updateSelectedLibraryComponent} onCommitTextEdit={finishLibraryTextEdit} onRememberFontSize={rememberFontSize} onCancelDraft={() => setLibraryComponentDraft(undefined)} onCommitDraft={commitLibraryComponentDraft} disclosureOpen={componentDisclosureOpen} onDisclosureToggle={componentDisclosureToggle} /></Suspense>}</Show>
                     <Show when={selectedClassComponentId() && !selectedLibraryComponent() && !classCardDraft() ? selectedClassComponentId() : undefined}>{componentId => <section class="component-editor-content class-component-properties"><label class="property-label">Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={quickCardFontSize()} disabled={boardLocked()} onChange={event => resizeClassCardFont(componentId(), Number(event.currentTarget.value))} /></label></section>}</Show>
                     <Show when={classCardDraft()}>{draft => <div class="component-editor-content class-card-editor"><label class="property-label">Class name<input value={draft().name} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, name: event.currentTarget.value } : value)} /></label><label class="property-label">Attributes<textarea rows="5" value={draft().attributes} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, attributes: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, attributes: value } : current)); }} /></label><label class="property-label">Methods<textarea rows="5" value={draft().methods} disabled={boardLocked()} onInput={event => setClassCardDraft(value => value ? { ...value, methods: event.currentTarget.value } : value)} onKeyDown={event => { if (event.key === "Tab") indentTextarea(event, value => setClassCardDraft(current => current ? { ...current, methods: value } : current)); }} /></label><div class="precision-grid component-size-grid"><label>Width<input type="number" min="180" max="900" value={Math.round(classCardSize(draft()).width)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, width: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Height<input type="number" min="110" max="1800" value={Math.round(classCardSize(draft()).height)} disabled={boardLocked()} onChange={event => setClassCardDraft(current => current ? { ...current, height: Math.round(Number(event.currentTarget.value)) } : current)} /></label><label>Font<input aria-label="Component font size" type="number" min="8" max="48" step="1" value={draft().fontSize} disabled={boardLocked()} onChange={event => updateClassCardDraftFont(Number(event.currentTarget.value))} /></label></div><div class="component-draft-actions"><button type="button" class="quiet-button" onClick={() => setClassCardDraft(undefined)}>Cancel</button><button type="button" class="save-button" disabled={boardLocked()} onClick={insertClassCard}>{draft().componentId ? "Update card" : "Add to canvas"}</button></div></div>}</Show>
-                  <Show when={connectionTargetSupported()}><details class="pane-section component-navigation-details inspector-advanced-section" open={componentDisclosureOpen("connection-points")} onToggle={componentDisclosureToggle("connection-points")}><summary><span>Connection points</span><small>{connectionPointsFor(focusedElement()).length}/32</small></summary><section class="pane-section connection-point-editor"><p>Connectors can snap to these named positions on the shape.</p><For each={connectionPointsFor(focusedElement()).map((_, index) => index)}>{index => { const point = () => connectionPointsFor(focusedElement())[index]; return <div class="connection-point-row"><input aria-label={`Connection point ${index + 1} name`} maxlength="80" value={point()?.name ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onInput={event => updateFocusedConnectionPoints(points => points.map((item, current) => current === index ? { ...item, name: event.currentTarget.value } : item))} /><label>X<input aria-label={`Connection point ${index + 1} horizontal position`} type="number" min="0" max="1" step="0.05" value={point()?.anchor.x ?? 0.5} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateFocusedConnectionPoints(points => points.map((item, current) => current === index ? { ...item, anchor: { ...item.anchor, x: Number(event.currentTarget.value) } } : item))} /></label><label>Y<input aria-label={`Connection point ${index + 1} vertical position`} type="number" min="0" max="1" step="0.05" value={point()?.anchor.y ?? 0.5} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateFocusedConnectionPoints(points => points.map((item, current) => current === index ? { ...item, anchor: { ...item.anchor, y: Number(event.currentTarget.value) } } : item))} /></label><button type="button" aria-label={`Remove connection point ${index + 1}`} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateFocusedConnectionPoints(points => points.filter((_, current) => current !== index))}>×</button></div>; }}</For><button class="quiet-button" type="button" disabled={boardLocked() || !!focusedElement()?.locked || connectionPointsFor(focusedElement()).length >= 32} onClick={() => updateFocusedConnectionPoints(points => [...points, { id: crypto.randomUUID(), name: `Port ${points.length + 1}`, anchor: { x: 0.5, y: 0.5 } }])}>Add connection point</button></section></details></Show>
-                  <Show when={connectionTargetSupported() && connectionPointsFor(focusedElement()).length > 0}><details class="pane-section component-navigation-details inspector-advanced-section" open={componentDisclosureOpen("port-connection-rules")} onToggle={componentDisclosureToggle("port-connection-rules")}><summary><span>Port connection rules</span></summary><p class="connection-rules-help">Each custom port accepts any relationship by default. Choose accepted types to restrict it.</p><For each={connectionPointsFor(focusedElement())}>{point => <div class="connection-rule-editor"><strong>{point.name || "Connection point"}</strong><div class="connection-point-rules"><button type="button" class={!point.accepts?.length ? "active" : ""} aria-pressed={!point.accepts?.length} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateFocusedConnectionPoints(points => points.map(item => item.id === point.id ? { ...item, accepts: undefined } : item))}>Any</button><For each={RELATIONSHIP_TYPES}>{type => <button type="button" class={point.accepts?.includes(type.value) ? "active" : ""} aria-pressed={point.accepts?.includes(type.value) ?? false} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateFocusedConnectionPoints(points => points.map(item => { if (item.id !== point.id) return item; const accepts = item.accepts ?? []; const next = accepts.includes(type.value) ? accepts.filter(value => value !== type.value) : [...accepts, type.value]; return { ...item, accepts: next.length ? next : undefined }; }))}>{type.label}</button>}</For></div></div>}</For></details></Show>
+                  <Show when={connectionTargetSupported()}><details class="pane-section component-navigation-details inspector-advanced-section" open={componentDisclosureOpen("connection-points")} onToggle={componentDisclosureToggle("connection-points")}><summary><span>Connection points</span><small>{connectionPointsFor(focusedElement()).length}/32</small></summary><section class="pane-section connection-point-editor"><For each={connectionPointsFor(focusedElement()).map((_, index) => index)}>{index => { const point = () => connectionPointsFor(focusedElement())[index]; return <div class="connection-point-row"><input aria-label={`Connection point ${index + 1} name`} maxlength="80" value={point()?.name ?? ""} disabled={boardLocked() || !!focusedElement()?.locked} onInput={event => updateFocusedConnectionPoints(points => points.map((item, current) => current === index ? { ...item, name: event.currentTarget.value } : item))} /><label>X<input aria-label={`Connection point ${index + 1} horizontal position`} type="number" min="0" max="1" step="0.05" value={point()?.anchor.x ?? 0.5} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateFocusedConnectionPoints(points => points.map((item, current) => current === index ? { ...item, anchor: { ...item.anchor, x: Number(event.currentTarget.value) } } : item))} /></label><label>Y<input aria-label={`Connection point ${index + 1} vertical position`} type="number" min="0" max="1" step="0.05" value={point()?.anchor.y ?? 0.5} disabled={boardLocked() || !!focusedElement()?.locked} onChange={event => updateFocusedConnectionPoints(points => points.map((item, current) => current === index ? { ...item, anchor: { ...item.anchor, y: Number(event.currentTarget.value) } } : item))} /></label><button type="button" aria-label={`Remove connection point ${index + 1}`} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateFocusedConnectionPoints(points => points.filter((_, current) => current !== index))}>×</button></div>; }}</For><button class="quiet-button" type="button" disabled={boardLocked() || !!focusedElement()?.locked || connectionPointsFor(focusedElement()).length >= 32} onClick={() => updateFocusedConnectionPoints(points => [...points, { id: crypto.randomUUID(), name: `Port ${points.length + 1}`, anchor: { x: 0.5, y: 0.5 } }])}>Add connection point</button></section></details></Show>
+                  <Show when={connectionTargetSupported() && connectionPointsFor(focusedElement()).length > 0}><details class="pane-section component-navigation-details inspector-advanced-section" open={componentDisclosureOpen("port-connection-rules")} onToggle={componentDisclosureToggle("port-connection-rules")}><summary><span>Port connection rules</span></summary><For each={connectionPointsFor(focusedElement())}>{point => <div class="connection-rule-editor"><strong>{point.name || "Connection point"}</strong><div class="connection-point-rules"><button type="button" class={!point.accepts?.length ? "active" : ""} aria-pressed={!point.accepts?.length} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateFocusedConnectionPoints(points => points.map(item => item.id === point.id ? { ...item, accepts: undefined } : item))}>Any</button><For each={RELATIONSHIP_TYPES}>{type => <button type="button" class={point.accepts?.includes(type.value) ? "active" : ""} aria-pressed={point.accepts?.includes(type.value) ?? false} disabled={boardLocked() || !!focusedElement()?.locked} onClick={() => updateFocusedConnectionPoints(points => points.map(item => { if (item.id !== point.id) return item; const accepts = item.accepts ?? []; const next = accepts.includes(type.value) ? accepts.filter(value => value !== type.value) : [...accepts, type.value]; return { ...item, accepts: next.length ? next : undefined }; }))}>{type.label}</button>}</For></div></div>}</For></details></Show>
                   <Show when={primarySelection() !== undefined && !readOnlyView()}>
                     <details class="pane-section component-navigation-details" open={componentDisclosureOpen("accessibility-styles")} onToggle={componentDisclosureToggle("accessibility-styles")}>
                       <summary><span>Accessibility and styles</span></summary>

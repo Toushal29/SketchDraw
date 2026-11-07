@@ -109,7 +109,7 @@ export function snapCanvasPoint(point: Point, enabled: boolean, style: CanvasGri
   if (!enabled) return point;
   // Snapping follows the document grid origin and spacing. Zoom may hide fine
   // visual subdivisions, but it must not move a saved point onto another grid.
-  const step = gridSize;
+  const step = gridSpacingForStyle(style, gridSize);
   if (style === "isometric") {
     const rowStep = isometricRowHeight(step);
     const nearestRow = Math.floor(point.y / rowStep);

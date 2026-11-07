@@ -17,7 +17,7 @@ export function replaceElementText(element: Element, search: string, replacement
     if (item.type === "group") return {
       ...item,
       elements: item.elements.map(visit),
-      ...(item.note ? { note: { ...item.note, content: replace(item.note.content) ?? item.note.content, ...(item.note.title !== undefined ? { title: replace(item.note.title) } : {}) } } : {}),
+      ...(item.note ? { note: { ...item.note, content: replace(item.note.content) ?? item.note.content, ...(item.note.checklist ? { checklist: { items: item.note.checklist.items.map(entry => ({ ...entry, text: replace(entry.text) ?? entry.text })) } } : {}), ...(item.note.title !== undefined ? { title: replace(item.note.title) } : {}) } } : {}),
       ...(item.libraryComponent ? { libraryComponent: { ...item.libraryComponent, ...(item.libraryComponent.label !== undefined ? { label: replace(item.libraryComponent.label) } : {}) } } : {}),
     };
     if (item.type === "text") return { ...item, text: replace(item.text) ?? item.text };
