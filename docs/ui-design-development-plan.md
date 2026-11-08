@@ -11,20 +11,20 @@ A document contains pages. Each page stores elements in one bounded flat array; 
 ## Implemented workflows
 
 - Welcome screen with create/open, recent designs, recovery restore/discard, and continue editing.
-- Single-row editor topbar with selection, drawing tools, fit/selection/100%/zoom controls, frame presets, a layout-guide dropdown, undo/redo, save, and presentation actions.
+- Single-row editor topbar with selection, drawing tools, fit/selection/100%/zoom controls, frame presets, undo/redo, save, and presentation actions.
 - The Pages panel restores distinct Pages, Prototype flows, and Frames sections. Pages can be created, renamed, duplicated, deleted, and used as prototype destinations. Screen frames and custom container frames can be created, nested, resized, renamed, clipped, and configured with child constraints.
-- Shared hierarchy across frames, groups, shapes, text, images, and component instances. Layer tree supports nested collapse, search, drag reorder/reparent, visibility, locking, multi-selection, grouping, ungrouping, duplication, deletion, and double-click rename.
-- Selection and marquee, move/resize, editable path points, whole-pixel geometry, always-visible grid and always-on grid/peer snapping, configurable grid/column/row/modular/baseline guides, and live neighboring/equal-spacing overlays. Peer snap guides are bounded to the aligned objects and identify the reference layer and matched anchors; grid snapping does not create unrelated full-canvas guide lines.
+- Shared hierarchy across frames, groups, shapes, text, images, and component instances. Layer tree supports nested collapse, search, drag reorder/reparent, visibility, locking, multi-selection, grouping, ungrouping, duplication, deletion, and double-click rename. Groups are transparent containers whose bounds refit around their children after edits while preserving child placement.
+- Selection and marquee, move/resize, editable path points, and whole-pixel geometry. UI Design does not render a canvas grid, alignment guides, snap targets, or spacing-measurement overlays.
 - Nested horizontal, vertical, and grid auto layout with gap, padding, wrapping, alignment, justification, fixed/hug/fill sizing, clipping, and frame resize constraints.
 - Reusable local components with nested child content, default/compact variants, instance override reset, and detach. Components can be inserted from the asset panel.
-- UI pattern assets in a compact, searchable tile grid with collapsible Basics, Controls, Forms, Patterns, Navigation, Data, and Components groups. Basics includes editable rectangles, ellipses, text labels, dividers, image placeholders, and avatars; local components appear in their own group. Color and typography/spacing/radius/effect token collections live in the Design inspector with color aliases/modes and JSON token import/export.
+- UI pattern assets in a compact, searchable tile grid with collapsible Basics, Controls, Forms, Patterns, Navigation, Data, and Components groups. Basics includes editable rectangles, ellipses, text labels, dividers, image placeholders, and avatars; local components appear in their own group. Color and typography/spacing/radius/effect token collections live in the Design inspector with color aliases/modes and JSON token import/export. Each token section offers curated presets and a custom-token action; inserted values remain editable, including typography family, size, weight, line height, and letter spacing.
 - Raster and basic SVG import, basic SVG export, image fit/crop, fills/strokes, typography, shadows, and inspectable CSS output.
 - Prototype links with click/hover/press triggers, page or frame navigation, back, overlays, and instant/dissolve/slide transitions. A presentation preview scales the selected screen to the viewport.
 - Find/replace, accessibility/style lint checks, undo/redo, local draft recovery, recent files, and `.sdui` save/open.
 
 ## File validation
 
-Version 1 `.sdui` files store page metadata, hierarchical elements, component definitions, asset-library metadata, page guide settings, design tokens, and prototype links. Parsing enforces the file-size, page-count, element-count, unique-identity, parent-kind, hierarchy, enum, and bounds limits. A malformed page rejects the entire document instead of being silently dropped. Unknown schema versions are rejected; no earlier `.sdui` versions are supported.
+Version 1 `.sdui` files store page metadata, hierarchical elements, component definitions, asset-library metadata, design tokens, and prototype links. Parsing enforces the file-size, page-count, element-count, unique-identity, parent-kind, hierarchy, enum, and bounds limits. A malformed page rejects the entire document instead of being silently dropped. Unknown schema versions are rejected; no earlier `.sdui` versions are supported.
 
 The format is separate from `.sketch` and `.sdplan`. Keep UI Design persistence and feature logic independent of those workspaces.
 

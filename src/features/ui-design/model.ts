@@ -21,7 +21,6 @@ export const UI_FRAME_PRESETS: UIFramePreset[] = [
 
 export type UIElementKind = "group" | "frame" | "text" | "rectangle" | "ellipse" | "line" | "path" | "button" | "input" | "checkbox" | "image" | "componentInstance";
 export type UIPathPoint = { x: number; y: number; inX?: number; inY?: number; outX?: number; outY?: number; type?: "corner" | "smooth" };
-export type UIGridKind = "square" | "columns" | "rows" | "modular" | "baseline";
 export type UIInteraction = {
   id: string; name: string; trigger: "click" | "hover" | "press";
   action: "navigate" | "back" | "open-overlay" | "close-overlay";
@@ -34,9 +33,9 @@ export type UITypographyToken = { id: string; name: string; fontFamily: "system"
 export type UIValueToken = { id: string; name: string; value: number; unit: "px" | "rem" };
 export type UIComponentVariant = { id: string; name: string; properties: Record<string, string | number | boolean> };
 export type UIComponentDefinition = { id: string; name: string; root: UIElement; children: UIElement[]; variants: UIComponentVariant[] };
-export type UIGrid = { visible: boolean; snap: boolean; kind: UIGridKind; size: number; columns: number; rows: number; gutter: number; margin: number; baseline: number; color: string; opacity: number };
 export type UIAutoLayout = {
-  enabled: boolean; direction: "horizontal" | "vertical" | "grid"; gap: number; paddingTop: number; paddingRight: number; paddingBottom: number; paddingLeft: number;
+  enabled: boolean; direction: "horizontal" | "vertical" | "grid"; gap: number; gapTokenId: string; paddingTop: number; paddingRight: number; paddingBottom: number; paddingLeft: number;
+  paddingTopTokenId: string; paddingRightTokenId: string; paddingBottomTokenId: string; paddingLeftTokenId: string;
   alignment: "start" | "center" | "end" | "stretch"; justification: "start" | "center" | "end" | "space-between";
   wrap: boolean; columns: number; widthMode: "fixed" | "hug" | "fill"; heightMode: "fixed" | "hug" | "fill"; clip: boolean;
 };
@@ -46,7 +45,7 @@ export type UIElement = {
   id: string; name: string; kind: UIElementKind; parentId: string; order: number;
   x: number; y: number; width: number; height: number; rotation: number;
   hidden: boolean; locked: boolean; text: string; imageData: string;
-  fillTokenId: string; typographyTokenId: string; componentId: string; componentVariantId: string; overrides: Record<string, string | number | boolean>;
+  fillTokenId: string; strokeTokenId: string; typographyTokenId: string; radiusTokenId: string; effectTokenId: string; effectValue: string; componentId: string; componentVariantId: string; overrides: Record<string, string | number | boolean>;
   pathPoints: UIPathPoint[]; fill: string; stroke: string; strokeWidth: number; strokeStyle: "solid" | "dashed" | "dotted";
   radius: number; opacity: number; shadow: "none" | "soft" | "strong"; fontFamily: "system" | "sans" | "serif" | "mono";
   fontSize: number; fontWeight: number; lineHeight: number; letterSpacing: number; textAlign: "left" | "center" | "right";
@@ -55,7 +54,7 @@ export type UIElement = {
   autoLayout: UIAutoLayout; mask: boolean; imageFit: "cover" | "contain" | "fill"; imageCrop: { x: number; y: number; width: number; height: number };
   interactions: UIInteraction[];
 };
-export type UIPage = { id: string; name: string; background: string; elements: UIElement[]; grid: UIGrid; prototypeFlows: UIPrototypeFlow[]; activePrototypeFlowId: string };
+export type UIPage = { id: string; name: string; background: string; elements: UIElement[]; prototypeFlows: UIPrototypeFlow[]; activePrototypeFlowId: string };
 export type UIDesignDocument = {
   format: typeof UI_DESIGN_FORMAT; version: typeof UI_DESIGN_VERSION; id: string; name: string; activePageId: string; pages: UIPage[];
   colorTokens: UIColorToken[]; typographyTokens: UITypographyToken[]; spacingTokens: UIValueToken[]; radiusTokens: UIValueToken[];
@@ -68,8 +67,7 @@ export function createUIDesignId(prefix = "ui"): string {
   try { return `${prefix}-${crypto.randomUUID()}`; }
   catch { return `${prefix}-${Date.now().toString(36)}-${(++idCounter).toString(36)}`; }
 }
-const defaultGrid = (): UIGrid => ({ visible: true, snap: true, kind: "square", size: 8, columns: 12, rows: 8, gutter: 16, margin: 24, baseline: 8, color: "#4774d9", opacity: 0.16 });
-const defaultAutoLayout = (): UIAutoLayout => ({ enabled: false, direction: "vertical", gap: 8, paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0, alignment: "start", justification: "start", wrap: false, columns: 2, widthMode: "fixed", heightMode: "fixed", clip: false });
+const defaultAutoLayout = (): UIAutoLayout => ({ enabled: false, direction: "vertical", gap: 8, gapTokenId: "", paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0, paddingTopTokenId: "", paddingRightTokenId: "", paddingBottomTokenId: "", paddingLeftTokenId: "", alignment: "start", justification: "start", wrap: false, columns: 2, widthMode: "fixed", heightMode: "fixed", clip: false });
 const defaultConstraints = (): UIConstraints => ({ horizontal: "left", vertical: "top" });
 
 export function createUIElement(kind: UIElementKind, order: number, point: { x: number; y: number }, parentId: string, size?: { width: number; height: number }): UIElement {
@@ -80,7 +78,7 @@ export function createUIElement(kind: UIElementKind, order: number, point: { x: 
     id, name: kind === "frame" ? "Frame" : kind === "group" ? "Group" : `${kind[0].toUpperCase()}${kind.slice(1)}`, kind, parentId, order,
     x: Math.round(point.x), y: Math.round(point.y), width: dimensions.width, height: dimensions.height, rotation: 0,
     hidden: false, locked: false, text: kind === "button" ? "Button" : kind === "input" ? "Placeholder" : kind === "checkbox" ? "Checkbox" : kind === "text" ? "Text" : "", imageData: "",
-    fillTokenId: "", typographyTokenId: "", componentId: "", componentVariantId: "", overrides: {}, pathPoints: [],
+    fillTokenId: "", strokeTokenId: "", typographyTokenId: "", radiusTokenId: "", effectTokenId: "", effectValue: "", componentId: "", componentVariantId: "", overrides: {}, pathPoints: [],
     fill: kind === "text" || kind === "line" || kind === "path" || kind === "group" ? "#26354d" : kind === "button" ? "#365fe5" : kind === "frame" ? "#ffffff" : "#e4ebf8",
     stroke: kind === "text" || kind === "line" || kind === "path" || kind === "group" ? "none" : "#b9c7dc", strokeWidth: 1, strokeStyle: "solid", radius: kind === "button" ? 8 : kind === "input" ? 6 : kind === "frame" ? 0 : 4,
     opacity: 1, shadow: "none", fontFamily: "system", fontSize: 16, fontWeight: kind === "button" ? 600 : 400, lineHeight: 1.4, letterSpacing: 0, textAlign: "left",
@@ -101,7 +99,7 @@ export function createUIDesignDocument(name = "Untitled UI design"): UIDesignDoc
   const flowId = createUIDesignId("flow");
   return {
     format: UI_DESIGN_FORMAT, version: UI_DESIGN_VERSION, id: createUIDesignId("design"), name, activePageId: pageId,
-    pages: [{ id: pageId, name: "Page 1", background: "#edf1f7", elements: [], grid: defaultGrid(), prototypeFlows: [{ id: flowId, name: "Flow 1", startPageId: pageId }], activePrototypeFlowId: flowId }],
+    pages: [{ id: pageId, name: "Page 1", background: "#edf1f7", elements: [], prototypeFlows: [{ id: flowId, name: "Flow 1", startPageId: pageId }], activePrototypeFlowId: flowId }],
     colorTokens: [
       { id: "color-primary", name: "Primary", value: "#365fe5" }, { id: "color-text", name: "Text", value: "#26354d" },
       { id: "color-surface", name: "Surface", value: "#ffffff" }, { id: "color-muted", name: "Muted", value: "#e4ebf8" },
@@ -123,6 +121,20 @@ function color(value: unknown, fallback: string, allowNone = false) {
   if (typeof value !== "string") return fallback;
   return /^#[\da-f]{3,8}$/i.test(value) || (allowNone && value === "none") ? value : fallback;
 }
+function safeImageData(value: unknown): string {
+  if (typeof value !== "string" || value.length > 8_000_000) return "";
+  const data = value.trim();
+  if (/^data:image\/(?:png|jpeg|gif|webp);base64,[\da-z+/]+=*$/i.test(data)) return data;
+  const svg = data.match(/^data:image\/svg\+xml;base64,([\da-z+/]+=*)$/i);
+  if (!svg) return "";
+  try {
+    const binary = atob(svg[1]);
+    const markup = new TextDecoder().decode(Uint8Array.from(binary, character => character.charCodeAt(0)));
+    if (!/<svg(?:\s|>)/i.test(markup) || /<!DOCTYPE|<!ENTITY|<\s*(?:script|foreignObject|iframe|object|embed)\b|\son[a-z]+\s*=|javascript\s*:|@import|url\(\s*['"]?(?!#)/i.test(markup)) return "";
+    if (/\b(?:href|xlink:href)\s*=\s*['"](?!#|data:image\/(?:png|jpeg|gif|webp);base64,)/i.test(markup)) return "";
+    return data;
+  } catch { return ""; }
+}
 const validKinds = new Set<UIElementKind>(["group", "frame", "text", "rectangle", "ellipse", "line", "path", "button", "input", "checkbox", "image", "componentInstance"]);
 function cleanElement(value: unknown, pageId: string, index: number): UIElement | undefined {
   if (!isRecord(value) || typeof value.id !== "string" || !validKinds.has(value.kind as UIElementKind)) return undefined;
@@ -131,8 +143,8 @@ function cleanElement(value: unknown, pageId: string, index: number): UIElement 
   const clean: UIElement = { ...base,
     id: string(source.id, base.id, 120), name: string(source.name, base.name, 120), parentId: string(source.parentId, pageId, 120), order: number(source.order, index, 0, 1e7),
     x: number(source.x, 0, -1e7, 1e7), y: number(source.y, 0, -1e7, 1e7), width: number(source.width, base.width, 1, 1e6), height: number(source.height, base.height, 1, 1e6), rotation: number(source.rotation, 0, -36000, 36000),
-    hidden: bool(source.hidden), locked: bool(source.locked), text: string(source.text, "", 10000), imageData: string(source.imageData, "", 8_000_000),
-    fillTokenId: string(source.fillTokenId), typographyTokenId: string(source.typographyTokenId), componentId: string(source.componentId), componentVariantId: string(source.componentVariantId), overrides: isRecord(source.overrides) ? source.overrides as UIElement["overrides"] : {},
+    hidden: bool(source.hidden), locked: bool(source.locked), text: string(source.text, "", 10000), imageData: safeImageData(source.imageData),
+    fillTokenId: string(source.fillTokenId), strokeTokenId: string(source.strokeTokenId), typographyTokenId: string(source.typographyTokenId), radiusTokenId: string(source.radiusTokenId), effectTokenId: string(source.effectTokenId), effectValue: string(source.effectValue, "", 1000), componentId: string(source.componentId), componentVariantId: string(source.componentVariantId), overrides: isRecord(source.overrides) ? source.overrides as UIElement["overrides"] : {},
     fill: color(source.fill, base.fill), stroke: color(source.stroke, base.stroke, true), strokeWidth: number(source.strokeWidth, 1, 0, 100), strokeStyle: ["solid", "dashed", "dotted"].includes(source.strokeStyle) ? source.strokeStyle : "solid",
     radius: number(source.radius, base.radius, 0, 10000), opacity: number(source.opacity, 1, 0, 1), shadow: ["none", "soft", "strong"].includes(source.shadow) ? source.shadow : "none",
     fontFamily: ["system", "sans", "serif", "mono"].includes(source.fontFamily) ? source.fontFamily : "system", fontSize: number(source.fontSize, 16, 1, 512), fontWeight: number(source.fontWeight, 400, 100, 900), lineHeight: number(source.lineHeight, 1.4, 0.5, 5), letterSpacing: number(source.letterSpacing, 0, -100, 100), textAlign: ["left", "center", "right"].includes(source.textAlign) ? source.textAlign : "left",
@@ -150,8 +162,11 @@ function cleanElement(value: unknown, pageId: string, index: number): UIElement 
       ...base.autoLayout,
       enabled: bool(source.autoLayout.enabled), direction: ["horizontal", "vertical", "grid"].includes(source.autoLayout.direction as string) ? source.autoLayout.direction as UIAutoLayout["direction"] : base.autoLayout.direction,
       gap: number(source.autoLayout.gap, base.autoLayout.gap, 0, 10000),
+      gapTokenId: string(source.autoLayout.gapTokenId),
       paddingTop: number(source.autoLayout.paddingTop, 0, 0, 10000), paddingRight: number(source.autoLayout.paddingRight, 0, 0, 10000),
       paddingBottom: number(source.autoLayout.paddingBottom, 0, 0, 10000), paddingLeft: number(source.autoLayout.paddingLeft, 0, 0, 10000),
+      paddingTopTokenId: string(source.autoLayout.paddingTopTokenId), paddingRightTokenId: string(source.autoLayout.paddingRightTokenId),
+      paddingBottomTokenId: string(source.autoLayout.paddingBottomTokenId), paddingLeftTokenId: string(source.autoLayout.paddingLeftTokenId),
       alignment: ["start", "center", "end", "stretch"].includes(source.autoLayout.alignment as string) ? source.autoLayout.alignment as UIAutoLayout["alignment"] : base.autoLayout.alignment,
       justification: ["start", "center", "end", "space-between"].includes(source.autoLayout.justification as string) ? source.autoLayout.justification as UIAutoLayout["justification"] : base.autoLayout.justification,
       wrap: bool(source.autoLayout.wrap), columns: number(source.autoLayout.columns, base.autoLayout.columns, 1, 48),
@@ -161,14 +176,17 @@ function cleanElement(value: unknown, pageId: string, index: number): UIElement 
     } : base.autoLayout,
     mask: bool(source.mask), imageFit: ["cover", "contain", "fill"].includes(source.imageFit) ? source.imageFit : "cover",
     imageCrop: isRecord(source.imageCrop) ? { x: number(source.imageCrop.x, 0, 0, 1), y: number(source.imageCrop.y, 0, 0, 1), width: number(source.imageCrop.width, 1, 0.01, 1), height: number(source.imageCrop.height, 1, 0.01, 1) } : base.imageCrop,
-    pathPoints: Array.isArray(source.pathPoints) ? source.pathPoints.slice(0, 10000).filter(isRecord).map(point => ({ x: number(point.x, 0, 0, 1), y: number(point.y, 0, 0, 1), type: point.type === "smooth" ? "smooth" : "corner" })) : [],
+    pathPoints: Array.isArray(source.pathPoints) ? source.pathPoints.slice(0, 10000).filter(isRecord).map(point => ({
+      x: number(point.x, 0, 0, 1), y: number(point.y, 0, 0, 1),
+      ...(typeof point.inX === "number" && Number.isFinite(point.inX) ? { inX: number(point.inX, 0, -10, 10) } : {}),
+      ...(typeof point.inY === "number" && Number.isFinite(point.inY) ? { inY: number(point.inY, 0, -10, 10) } : {}),
+      ...(typeof point.outX === "number" && Number.isFinite(point.outX) ? { outX: number(point.outX, 0, -10, 10) } : {}),
+      ...(typeof point.outY === "number" && Number.isFinite(point.outY) ? { outY: number(point.outY, 0, -10, 10) } : {}),
+      type: point.type === "smooth" ? "smooth" : "corner",
+    })) : [],
     interactions: Array.isArray(source.interactions) ? source.interactions.slice(0, 100).filter(isRecord).map((item, i) => ({ id: string(item.id, `interaction-${i}`, 120), name: string(item.name, "Interaction", 120), trigger: typeof item.trigger === "string" && ["click", "hover", "press"].includes(item.trigger) ? item.trigger as UIInteraction["trigger"] : "click", action: typeof item.action === "string" && ["navigate", "back", "open-overlay", "close-overlay"].includes(item.action) ? item.action as UIInteraction["action"] : "navigate", targetPageId: string(item.targetPageId), targetNodeId: string(item.targetNodeId), transition: typeof item.transition === "string" && ["instant", "dissolve", "slide-left", "slide-right"].includes(item.transition) ? item.transition as UIInteraction["transition"] : "instant" })) : [],
   };
   return clean;
-}
-function cleanGrid(value: unknown): UIGrid {
-  const base = defaultGrid(); if (!isRecord(value)) return base;
-  return { visible: true, snap: true, kind: ["square", "columns", "rows", "modular", "baseline"].includes(value.kind as string) ? value.kind as UIGridKind : base.kind, size: number(value.size, base.size, 1, 512), columns: number(value.columns, base.columns, 1, 48), rows: number(value.rows, base.rows, 1, 48), gutter: number(value.gutter, base.gutter, 0, 512), margin: number(value.margin, base.margin, 0, 2000), baseline: number(value.baseline, base.baseline, 1, 128), color: color(value.color, base.color), opacity: number(value.opacity, base.opacity, 0.01, 0.8) };
 }
 function cleanPage(value: unknown, index: number): UIPage | undefined {
   if (!isRecord(value) || typeof value.id !== "string" || !Array.isArray(value.elements) || value.elements.length > UI_DESIGN_MAX_ELEMENTS) return undefined;
@@ -185,7 +203,7 @@ function cleanPage(value: unknown, index: number): UIPage | undefined {
   for (const node of elements) if (node.parentId !== id && !isHierarchyContainer(indexTree.get(node.parentId)?.kind ?? "")) node.parentId = id;
   // Remove cyclic or unreachable branches at the untrusted file boundary.
   if (!hierarchyIsValid(id, elements)) for (const node of elements) node.parentId = id;
-  return { id, name: string(value.name, `Page ${index + 1}`, 120), background: /^#[\da-f]{6}$/i.test(String(value.background ?? "")) ? String(value.background) : "#edf1f7", elements, grid: cleanGrid(value.grid), prototypeFlows, activePrototypeFlowId: prototypeFlows.some(flow => flow.id === value.activePrototypeFlowId) ? string(value.activePrototypeFlowId) : prototypeFlows[0]?.id ?? "" };
+  return { id, name: string(value.name, `Page ${index + 1}`, 120), background: /^#[\da-f]{6}$/i.test(String(value.background ?? "")) ? String(value.background) : "#edf1f7", elements, prototypeFlows, activePrototypeFlowId: prototypeFlows.some(flow => flow.id === value.activePrototypeFlowId) ? string(value.activePrototypeFlowId) : prototypeFlows[0]?.id ?? "" };
 }
 export function normalizeUIDesignDocument(value: unknown): UIDesignDocument | undefined {
   if (!isRecord(value) || value.format !== UI_DESIGN_FORMAT || value.version !== UI_DESIGN_VERSION || !Array.isArray(value.pages) || !value.pages.length || value.pages.length > UI_DESIGN_MAX_PAGES) return undefined;

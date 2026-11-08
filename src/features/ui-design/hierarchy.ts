@@ -31,8 +31,10 @@ export class UIHierarchyIndex<T extends UIHierarchyNode> {
   private readonly transforms = new Map<string, UIHierarchyTransform>();
 
   constructor(readonly pageId: string, nodes: readonly T[]) {
-    for (const node of nodes) this.byId.set(node.id, node);
-    for (const node of nodes) {
+    // Malformed/transient callers can contain duplicate ids. Keep one canonical
+    // node so the layer tree and transform cache never emit duplicate rows.
+    for (const node of nodes) if (!this.byId.has(node.id)) this.byId.set(node.id, node);
+    for (const node of this.byId.values()) {
       const siblings = this.childIds.get(node.parentId) ?? [];
       siblings.push(node.id);
       this.childIds.set(node.parentId, siblings);
