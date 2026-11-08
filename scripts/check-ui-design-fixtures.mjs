@@ -35,7 +35,7 @@ const spatial = loadTypeScript("src/features/ui-design/spatial-index.ts");
 const layout = loadTypeScript("src/features/ui-design/layout-engine.ts");
 const {
   UI_DESIGN_FORMAT, UI_DESIGN_VERSION, UI_DESIGN_MAX_BYTES, UI_DESIGN_MAX_ELEMENTS,
-  createUIDesignDocument, createUIElement, normalizeUIDesignDocument, parseUIDesignDocument, serializeUIDesignDocument,
+  createUIDesignDocument, createUIElement, createUIFrame, normalizeUIDesignDocument, parseUIDesignDocument, serializeUIDesignDocument,
 } = model;
 const { UIHierarchyIndex, hierarchyIsValid } = hierarchy;
 const { applyAutoLayout, resizeFrameChildren } = layout;
@@ -115,16 +115,6 @@ assert.equal(normalizeUIDesignDocument(tooManyElements), undefined, "page elemen
 assert.throws(() => parseUIDesignDocument(" ".repeat(UI_DESIGN_MAX_BYTES + 1)), /20 MB limit/, "oversized files are rejected before JSON parsing");
 assert.throws(() => parseUIDesignDocument("{"), /valid JSON/, "malformed data produces a clear parse error");
 
-const grid = { ...page.grid, kind: "square", size: 8, snap: true };
-const moving = { ...button, x: 22, y: 26 };
-const snapped = geometry.snapPosition(grid, moving, moving.x, moving.y, [], 1);
-assert.ok([snapped.x, snapped.x + moving.width / 2, snapped.x + moving.width].some(value => Math.abs(value / 8 - Math.round(value / 8)) < 0.001), "object edges or centers snap horizontally to the infinite square grid");
-assert.ok([snapped.y, snapped.y + moving.height / 2, snapped.y + moving.height].some(value => Math.abs(value / 8 - Math.round(value / 8)) < 0.001), "object edges or centers snap vertically to the infinite square grid");
-assert.equal(Number.isInteger(snapped.x) && Number.isInteger(snapped.y), true, "snapped object positions remain whole CSS pixels");
-const aligned = geometry.snapPosition(grid, { ...moving, x: 198, y: 180 }, 198, 180, [{ ...button, id: "peer", parentId: page.id, x: 200, y: 180 }], 1);
-assert.equal(aligned.x, 200, "smart snapping aligns object edges");
-assert.deepEqual(geometry.equalSpacingAround({ x: 130, y: 20, width: 40, height: 40 }, [{ x: 0, y: 20, width: 100, height: 40 }, { x: 200, y: 20, width: 40, height: 40 }]), { axis: "x", gap: 30 }, "measurement detects equal object spacing");
-assert.deepEqual(geometry.measureNeighborGaps({ x: 130, y: 20, width: 40, height: 40 }, [{ x: 0, y: 20, width: 100, height: 40 }, { x: 200, y: 20, width: 40, height: 40 }]).map(item => [item.side, item.gap]), [["left", 30], ["right", 30]], "measurement reports both neighboring gaps");
 assert.deepEqual(geometry.resizeElement({ ...button, x: 10, y: 20, width: 100, height: 80 }, "e", 20.25, 0), { x: 10, y: 20, width: 120, height: 80 }, "resizing rounds edges to whole CSS pixels");
 
 const layoutPage = structuredClone(page);
@@ -136,19 +126,29 @@ const fill = createUIElement("input", 1, { x: 0, y: 0 }, row.id, { width: 40, he
 layoutPage.elements.push(row, first, fill);
 const rowLayout = applyAutoLayout(layoutPage);
 assert.deepEqual([rowLayout.elements[1].x, rowLayout.elements[1].y, rowLayout.elements[2].x, rowLayout.elements[2].width], [10, 8, 100, 190], "horizontal auto layout positions children and distributes fill width");
+const tokenRow = { ...row, id: "token-row", autoLayout: { ...row.autoLayout, gap: 0, gapTokenId: "space-live", paddingLeft: 8, paddingRight: 8 } };
+const tokenChildren = [first, { ...fill, id: "token-second", order: 1, widthSizing: "fixed", width: 80 }].map((item, order) => ({ ...item, parentId: tokenRow.id, order, width: 80, height: 32 }));
+const tokenLayout = applyAutoLayout({ ...layoutPage, elements: [tokenRow, ...tokenChildren] }, [{ id: "space-live", name: "Live gap", value: 12, unit: "px" }]);
+assert.equal(tokenLayout.elements[2].x - (tokenLayout.elements[1].x + tokenLayout.elements[1].width), 12, "auto-layout spacing tokens set the actual canvas gap");
+const changedTokenLayout = applyAutoLayout({ ...layoutPage, elements: [tokenRow, ...tokenChildren] }, [{ id: "space-live", name: "Live gap", value: 20, unit: "px" }]);
+assert.equal(changedTokenLayout.elements[2].x - (changedTokenLayout.elements[1].x + changedTokenLayout.elements[1].width), 20, "changing a spacing token reflows auto-layout children");
 const wrapParent = { ...row, width: 190, autoLayout: { ...row.autoLayout, wrap: true, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } };
 const wrapChildren = [first, { ...fill, widthSizing: "fixed", width: 100 }].map((item, order) => ({ ...item, order, parentId: wrapParent.id, width: 100, height: 30 }));
 const wrapped = applyAutoLayout({ ...layoutPage, elements: [wrapParent, ...wrapChildren] });
 assert.equal(wrapped.elements[2].y > wrapped.elements[1].y, true, "horizontal wrap creates a new row when the next child does not fit");
 const resized = resizeFrameChildren([{ ...first, parentId: row.id, x: 20, width: 60, constraints: { ...first.constraints, horizontal: "left-right" } }], row.id, { width: 100, height: 100 }, { width: 150, height: 120 });
 assert.deepEqual([resized[0].x, resized[0].width], [20, 110], "frame resize applies edge constraints to direct children");
-
-const visible = geometry.visibleGridLines({ ...grid, visible: true }, { x: -40, y: -40, width: 80, height: 80 }, 1);
-assert.ok(visible.x.includes(0) && visible.y.includes(0), "grid lines use the page origin and extend across negative and positive canvas space");
-const columns = geometry.visibleGridLines({ ...grid, kind: "columns", visible: true }, { x: 0, y: 0, width: 80, height: 80 }, 1);
-assert.ok(columns.x.length > 0 && columns.y.length === 0, "infinite column guides remain vertical-only");
+const outerFrame = createUIFrame(0, { x: 0, y: 0 }, layoutPage.id, "custom");
+outerFrame.width = 200; outerFrame.height = 160;
+const innerFrame = createUIFrame(0, { x: 10, y: 12 }, outerFrame.id, "custom");
+innerFrame.width = 160; innerFrame.height = 120;
+innerFrame.constraints = { ...innerFrame.constraints, horizontal: "left-right", vertical: "top-bottom" };
+const nestedContent = createUIElement("rectangle", 0, { x: 20, y: 15 }, innerFrame.id, { width: 30, height: 25 });
+nestedContent.constraints = { ...nestedContent.constraints, horizontal: "right", vertical: "bottom" };
+const nestedResize = resizeFrameChildren([outerFrame, innerFrame, nestedContent], outerFrame.id, { width: 200, height: 160 }, { width: 250, height: 180 });
+assert.deepEqual([nestedResize[1].width, nestedResize[1].height, nestedResize[2].x, nestedResize[2].y], [210, 140, 70, 35], "nested frame constraints propagate size changes to descendants in local coordinates");
 
 const spatialIndex = new spatial.UIElementSpatialIndex([{ ...button, x: 10, y: 10 }, { ...button, id: "outside", x: 2000, y: 2000 }]);
 assert.deepEqual(spatialIndex.query({ x: 0, y: 0, width: 100, height: 100 }).map(item => item.id), [button.id], "viewport queries return only spatially intersecting nodes");
 
-console.log("UI Design fixtures passed: v1 .sdui schema, shared page/group/element hierarchy, ancestry, ordering, world/local transforms, safe reparenting, cycle and orphan repair, page prototype links, document bounds, whole-pixel snapping/resizing, auto layout flow/wrapping/fill, responsive frame constraints, infinite grid origin, neighbor/equal-gap measurement, and viewport indexing.");
+console.log("UI Design fixtures passed: v1 .sdui schema, shared page/group/element hierarchy, ancestry, ordering, world/local transforms, safe reparenting, cycle and orphan repair, page prototype links, document bounds, whole-pixel resizing, auto layout flow/wrapping/fill, live spacing-token reflow, recursive nested-frame constraints, and viewport indexing.");

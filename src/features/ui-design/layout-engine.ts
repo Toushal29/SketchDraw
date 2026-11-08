@@ -158,21 +158,37 @@ function depth(node: UIElement, byId: Map<string, UIElement>): number {
 
 /** Applies edge, center, scale, and min/max constraints to direct children during a frame resize. */
 export function resizeFrameChildren(nodes: UIElement[], frameId: string, oldSize: { width: number; height: number }, nextSize: { width: number; height: number }): UIElement[] {
-  const dx = nextSize.width - oldSize.width, dy = nextSize.height - oldSize.height;
-  return nodes.map(node => {
-    if (node.parentId !== frameId) return node;
-    const horizontal = node.constraints.horizontal, vertical = node.constraints.vertical;
-    let x = node.x, y = node.y, width = node.width, height = node.height;
-    if (horizontal === "right") x += dx;
-    else if (horizontal === "left-right") width += dx;
-    else if (horizontal === "center") x += dx / 2;
-    else if (horizontal === "scale" && oldSize.width) { x *= nextSize.width / oldSize.width; width *= nextSize.width / oldSize.width; }
-    if (vertical === "bottom") y += dy;
-    else if (vertical === "top-bottom") height += dy;
-    else if (vertical === "center") y += dy / 2;
-    else if (vertical === "scale" && oldSize.height) { y *= nextSize.height / oldSize.height; height *= nextSize.height / oldSize.height; }
-    width = Math.max(node.constraints.minWidth ?? 1, Math.min(node.constraints.maxWidth ?? 1e6, width));
-    height = Math.max(node.constraints.minHeight ?? 1, Math.min(node.constraints.maxHeight ?? 1e6, height));
-    return { ...node, x: coord(x), y: coord(y), width: px(width), height: px(height) };
-  });
+  const result = nodes.map(node => ({ ...node }));
+  const pending = [{ frameId, oldSize, nextSize }];
+  const visited = new Set<string>();
+  while (pending.length) {
+    const current = pending.shift()!;
+    if (visited.has(current.frameId)) continue;
+    visited.add(current.frameId);
+    const dx = current.nextSize.width - current.oldSize.width;
+    const dy = current.nextSize.height - current.oldSize.height;
+    if (!dx && !dy) continue;
+    for (let index = 0; index < result.length; index++) {
+      const node = result[index];
+      if (node.parentId !== current.frameId) continue;
+      const horizontal = node.constraints.horizontal, vertical = node.constraints.vertical;
+      let x = node.x, y = node.y, width = node.width, height = node.height;
+      if (horizontal === "right") x += dx;
+      else if (horizontal === "left-right") width += dx;
+      else if (horizontal === "center") x += dx / 2;
+      else if (horizontal === "scale" && current.oldSize.width) { x *= current.nextSize.width / current.oldSize.width; width *= current.nextSize.width / current.oldSize.width; }
+      if (vertical === "bottom") y += dy;
+      else if (vertical === "top-bottom") height += dy;
+      else if (vertical === "center") y += dy / 2;
+      else if (vertical === "scale" && current.oldSize.height) { y *= current.nextSize.height / current.oldSize.height; height *= current.nextSize.height / current.oldSize.height; }
+      width = Math.max(node.constraints.minWidth ?? 1, Math.min(node.constraints.maxWidth ?? 1e6, width));
+      height = Math.max(node.constraints.minHeight ?? 1, Math.min(node.constraints.maxHeight ?? 1e6, height));
+      const updated = { ...node, x: coord(x), y: coord(y), width: px(width), height: px(height) };
+      result[index] = updated;
+      if (updated.kind === "frame" && (updated.width !== node.width || updated.height !== node.height)) {
+        pending.push({ frameId: updated.id, oldSize: { width: node.width, height: node.height }, nextSize: { width: updated.width, height: updated.height } });
+      }
+    }
+  }
+  return result;
 }
