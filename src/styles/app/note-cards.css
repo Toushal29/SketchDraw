@@ -210,10 +210,6 @@
     font-size: var(--type-control);
 }
 
-:is(.theme-dark, .theme-ai) .schema-input {
-    border-color: var(--theme-diagram-data);
-}
-
 @media (max-width: 760px) {
     .schema-dialog-footer {
         align-items: flex-start;

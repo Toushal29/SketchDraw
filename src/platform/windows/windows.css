@@ -265,11 +265,6 @@
     top: 65px;
 }
 
-:is(.theme-dark, .theme-ai).platform-windows .tool-deck .tool-collapse,
-:is(.theme-dark, .theme-ai).platform-windows .tool-deck-reopen {
-    border-color: color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
-}
-
 @media (min-width: 901px) and (pointer: fine) {
     .app-shell.platform-windows {
         min-width: 1200px;

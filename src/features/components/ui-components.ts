@@ -231,7 +231,7 @@ type Primitive =
 type Palette = { ink: string; muted: string; edge: string; surface: string; soft: string; accent: string; accentSoft: string; positive: string; warning: string; critical: string; shadow: string };
 
 function paletteFor(group: GroupElement, theme: Theme): Palette {
-  const dark = theme === "dark"; const host = typeof document === "undefined" ? undefined : document.querySelector<HTMLElement>(dark ? ".app-shell:is(.theme-dark, .theme-ai)" : ".app-shell.theme-light") ?? document.documentElement;
+  const dark = theme === "dark"; const host = typeof document === "undefined" ? undefined : document.querySelector<HTMLElement>(".app-shell") ?? document.documentElement;
   const token = (name: string, fallback: string) => host && typeof getComputedStyle === "function" ? getComputedStyle(host).getPropertyValue(name).trim() || fallback : fallback;
   const safe = (value: string | null | undefined, fallback: string) => value && /^(#[\da-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]+)$/i.test(value) ? value : fallback;
   const overrides = group.libraryComponent?.styleOverrides;

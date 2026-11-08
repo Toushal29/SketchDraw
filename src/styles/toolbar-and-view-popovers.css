@@ -306,7 +306,7 @@
 }
 
 .view-appearance-color-options > button:disabled { opacity: .45; cursor: default; }
-.view-auto-color { background: linear-gradient(135deg, var(--theme-auto-preview-light) 0 48%, var(--theme-auto-preview-dark) 50% 100%); }
+.view-auto-color { background: #f5f6f8; }
 .view-custom-color-choice {
     position: relative;
     display: flex;

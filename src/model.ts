@@ -15,7 +15,7 @@ export type StyleMode = { id: string; name: string };
 export type TextStyleToken = { id: string; name: string; fontSize: number; fontFamily: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify" };
 export type StrokeStyleToken = { id: string; name: string; thickness: number; lineStyle: StrokeStyle };
 /** Named design tokens shared by every page of a sketch. Components and masters keep their own overrides. */
-export type StyleLibrary = { colors: ColorToken[]; textStyles: TextStyleToken[]; strokeStyles: StrokeStyleToken[]; modes?: StyleMode[]; activeModeId?: string; followTheme?: boolean };
+export type StyleLibrary = { colors: ColorToken[]; textStyles: TextStyleToken[]; strokeStyles: StrokeStyleToken[]; modes?: StyleMode[]; activeModeId?: string };
 export type StyleSlot = "stroke" | "fill" | "text" | "textStyle" | "strokeStyle";
 /** `applied` records the literal values last written by the token, so a later manual edit detaches the binding. */
 export type StyleBindings = Partial<Record<StyleSlot, { id: string; applied: string }>>;
@@ -162,7 +162,6 @@ export type SnapGuideLine = { coordinate: number; moving: Bounds; reference: Bou
 export type CanvasSnapGuides = { x?: SnapGuideLine; y?: SnapGuideLine };
 export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; editingChildId?: string; shapeLabel?: boolean; shapeLabelIndex?: number; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };
 export type Theme = "light" | "dark";
-export type ThemeMode = Theme | "system" | "ai" | "minimalist";
 
 export type Binding = { elementId: string; anchor: Point; rowId?: string; portId?: string };
 export type ShapeLabel = Omit<TextElement, keyof LayerFlags | "type" | "x" | "y"> & { verticalAlign: "top" | "middle" | "bottom"; offsetX?: number; offsetY?: number; routePosition?: number };

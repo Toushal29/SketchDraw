@@ -1,13 +1,12 @@
 import { Show } from "solid-js";
 import type { DiagramLayoutAlgorithm } from "../features/diagrams/auto-layout";
-import type { ThemeMode } from "../model";
 
 export type CanvasOptionsMenuProps = {
   open: boolean;
   showGrid: boolean;
   snapToGrid: boolean;
   snapToObjects: boolean;
-  snapMovesToTen: boolean;
+  snapMovesToPixel: boolean;
   hasElements: boolean;
   hasSelection: boolean;
   canGroup: boolean;
@@ -20,7 +19,7 @@ export type CanvasOptionsMenuProps = {
   onToggleGrid: () => void;
   onToggleSnapToGrid: () => void;
   onToggleSnapToObjects: () => void;
-  onToggleSnapMovesToTen: () => void;
+  onToggleSnapMovesToPixel: () => void;
   onGroupSelection: () => void;
   guiDesign?: {
     canCreateFrame: boolean;
@@ -40,24 +39,14 @@ export type CanvasOptionsMenuProps = {
   onOrthogonalizeSelected?: () => void;
   structureSelectionDisabled?: boolean;
   orthogonalizeDisabled?: boolean;
-  appAppearance?: {
-    themeMode: ThemeMode;
-    accentColor: string;
-    toolbarColorChoice: string;
-    accentOptions: { label: string; value: string }[];
-    toolbarColorOptions: { label: string; value: string }[];
-    onThemeChange: (mode: ThemeMode) => void;
-    onAccentChange: (value: string) => void;
-    onToolbarColorChange: (value: string) => void;
-  };
   canvasAppearance?: {
     backgroundColor: string;
     renderedBackgroundColor: string;
-    followsTheme: boolean;
+    usesDefaultColor: boolean;
     boardLocked: boolean;
     boardColors: { value: string; label: string }[];
     paperPattern: "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric";
-    onFollowTheme: () => void;
+    onUseDefaultColor: () => void;
     onBackgroundColorChange: (color: string) => void;
     onPaperPatternChange: (pattern: "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric") => void;
   };
@@ -130,10 +119,10 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
             {check("Show grid", props.showGrid, props.onToggleGrid, false, "G")}
             {check("Snap to grid", props.snapToGrid, props.onToggleSnapToGrid, false, "Shift+G")}
             {check("Snap to objects", props.snapToObjects, props.onToggleSnapToObjects, false, "Shift+O")}
-            {check("Snap moves to 10 units", props.snapMovesToTen, props.onToggleSnapMovesToTen)}
+            {check("Snap moves to 1 px", props.snapMovesToPixel, props.onToggleSnapMovesToPixel)}
             {props.canvasTools?.onToggleOrthogonal && check("Orthogonal connectors", props.canvasTools.orthogonalOnly ?? false, props.canvasTools.onToggleOrthogonal, props.boardLocked)}
           </div>
-          <p class="workspace-view-note">Grid snapping follows the visible grid spacing and takes priority over 10-unit move snapping. Nearby object alignments take priority over grid snapping. Without grid snapping, moves use 10-unit steps when enabled. Ctrl or Command bypasses snapping; Shift constrains moves to one axis, releases resize snapping, or constrains connector angles.</p>
+          <p class="workspace-view-note">Grid snapping follows the visible grid spacing. Nearby object alignments take priority over the 1 px move snap. Without a nearby alignment or grid line, moves snap to 1 px when enabled. Ctrl or Command bypasses snapping; Shift constrains moves to one axis, releases resize snapping, or constrains connector angles.</p>
         </section>
 
         <div class="workspace-view-fit-row" aria-label="Zoom to content">
@@ -191,18 +180,13 @@ export function CanvasOptionsMenu(props: CanvasOptionsMenuProps) {
           </section>}
         </Show>
 
-        <Show when={props.appAppearance || props.canvasAppearance}>
+        <Show when={props.canvasAppearance}>
           <section class="workspace-view-section">
             <h2>Appearance</h2>
-            <Show when={props.appAppearance}>{appearance => <div class="workspace-view-fields">
-              <label>Theme<select aria-label="Application theme" value={appearance().themeMode} onChange={event => appearance().onThemeChange(event.currentTarget.value as ThemeMode)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option><option value="ai">AI</option><option value="minimalist">Minimalist</option></select></label>
-              <label>Accent<select aria-label="Accent color" value={appearance().accentColor} onChange={event => appearance().onAccentChange(event.currentTarget.value)}>{appearance().accentOptions.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
-              <label>Toolbar<select aria-label="Toolbar surface" value={appearance().toolbarColorChoice} onChange={event => appearance().onToolbarColorChange(event.currentTarget.value)}><option value="auto">Automatic</option>{appearance().toolbarColorOptions.map(option => <option value={option.value}>{option.label}</option>)}</select></label>
-            </div>}</Show>
             <Show when={props.canvasAppearance}>{appearance => <>
               <div class="workspace-view-color-row" aria-label="Board color">
-                <button type="button" class={appearance().followsTheme ? "selected" : ""} disabled={appearance().boardLocked} onClick={appearance().onFollowTheme}>Theme</button>
-                {appearance().boardColors.map(color => <button type="button" class={!appearance().followsTheme && appearance().backgroundColor === color.value ? "selected" : ""} aria-label={color.label} title={color.label} disabled={appearance().boardLocked} style={{ "--swatch-color": color.value }} onClick={() => appearance().onBackgroundColorChange(color.value)} />)}
+                <button type="button" class={appearance().usesDefaultColor ? "selected" : ""} disabled={appearance().boardLocked} onClick={appearance().onUseDefaultColor}>Default</button>
+                {appearance().boardColors.map(color => <button type="button" class={!appearance().usesDefaultColor && appearance().backgroundColor === color.value ? "selected" : ""} aria-label={color.label} title={color.label} disabled={appearance().boardLocked} style={{ "--swatch-color": color.value }} onClick={() => appearance().onBackgroundColorChange(color.value)} />)}
                 <label class="workspace-view-custom-color" title="Custom board color"><input type="color" aria-label="Custom board color" value={appearance().renderedBackgroundColor} disabled={appearance().boardLocked} onInput={event => appearance().onBackgroundColorChange(event.currentTarget.value)} /><i style={{ "--swatch-color": appearance().renderedBackgroundColor }} /></label>
               </div>
               <label class="workspace-view-fields">Paper pattern<select aria-label="Paper pattern" value={appearance().paperPattern} onChange={event => appearance().onPaperPatternChange(event.currentTarget.value as "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric")}><option value="plain">Plain</option><option value="dots">Dots</option><option value="small-dots">Fine dots</option><option value="lines">Grid</option><option value="small-grid">Fine grid</option><option value="ruled">Ruled</option><option value="isometric">Isometric</option></select></label>

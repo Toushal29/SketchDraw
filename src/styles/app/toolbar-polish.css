@@ -151,10 +151,6 @@
     color: var(--theme-text-secondary);
 }
 
-:is(.theme-dark, .theme-ai) .tool-icon-button .tool-family-caret {
-    border-color: var(--theme-border);
-}
-
 @media (max-width: 760px) {
     .tool-deck {
         max-width: calc(100vw - 16px);

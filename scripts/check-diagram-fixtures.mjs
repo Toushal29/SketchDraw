@@ -1656,8 +1656,8 @@ assert.equal(modeBox.fillColor, "#ffffff");
 const darkBox = styles.refreshStyleBindings(modeBox, { ...modeLibrary, activeModeId: "dark" });
 assert.equal(darkBox.fillColor, "#101820");
 assert.equal(styles.refreshStyleBindings(darkBox, { ...modeLibrary, activeModeId: "light" }).fillColor, "#ffffff");
-const roundTrip = styles.normalizeStyleLibrary(JSON.parse(JSON.stringify({ ...modeLibrary, activeModeId: "dark", followTheme: true })));
-assert.equal(roundTrip.activeModeId, "dark"); assert.equal(roundTrip.followTheme, true); assert.equal(roundTrip.colors[1].aliasOf, "bg"); assert.equal(roundTrip.colors[0].modeValues.dark, "#101820");
+const roundTrip = styles.normalizeStyleLibrary(JSON.parse(JSON.stringify({ ...modeLibrary, activeModeId: "dark" })));
+assert.equal(roundTrip.activeModeId, "dark"); assert.equal(roundTrip.followTheme, undefined); assert.equal(roundTrip.colors[1].aliasOf, "bg"); assert.equal(roundTrip.colors[0].modeValues.dark, "#101820");
 assert.equal(styles.normalizeStyleLibrary({ ...modeLibrary, activeModeId: "missing", colors: [{ ...modeLibrary.colors[0], modeValues: { ghost: "#000000" } }] }).activeModeId, undefined);
 assert.deepEqual(styles.mergeStyleLibraries([library, { colors: [{ id: "brand", name: "Other", value: "#ffffff" }, { id: "extra", name: "Extra", value: "#123456" }], textStyles: [], strokeStyles: [] }]).colors.map(token => token.id), ["brand", "extra"]);
 

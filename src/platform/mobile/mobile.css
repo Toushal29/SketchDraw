@@ -66,11 +66,4 @@
     .app-shell:not(.platform-windows) .touch-page-more-menu { position: absolute; z-index: 2; right: 0; bottom: calc(100% + 4px); display: grid; width: 150px; gap: 2px; padding: 5px; border: 1px solid color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 15%, transparent); border-radius: 10px; background: var(--toolbar-surface, var(--theme-surface-elevated)); }
     .app-shell:not(.platform-windows) .touch-page-more-menu button { padding: 5px 7px; color: var(--toolbar-ink, var(--theme-text-secondary)); background: transparent; text-align: left; }
     .app-shell:not(.platform-windows) .touch-page-more-menu button:hover:not(:disabled) { background: color-mix(in srgb, var(--ui-accent) 9%, transparent); }
-
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-page-control > summary { border-color: var(--theme-border); }
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-pages-popover { border-color: var(--theme-border); }
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-pages-popover > header { border-color: var(--theme-border-subtle); }
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-page-rename,
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-page-more > summary { border-color: var(--theme-border); }
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-page-more-menu { border-color: var(--theme-border); }
 }

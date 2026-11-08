@@ -56,7 +56,7 @@ Chart resize limits are 150×100, or 125×75 for KPI cards, to keep axes and lab
 
 The repository has no bundled font asset. The shared default is `system-ui, 'Segoe UI', sans-serif`; explicit component font-family choices are resolved through the same `fontCss` mapping for both measurement and output. A bundled font can replace this mapping later without changing the geometry contract.
 
-Component palette tokens are defined in `src/styles/app/theme.css` and read for the requested light or dark theme. Provider brand marks and user-selected colors remain explicit. Component strokes use 1, 1.5, or 2 px; aligned rectangles snap to device-pixel edges. GUI form surfaces honor an explicit transparent fill.
+Component palette tokens are defined in `src/styles/app/theme.css` and read from the shared interface palette. Provider brand marks and user-selected colors remain explicit. Component strokes use 1, 1.5, or 2 px; aligned rectangles snap to device-pixel edges. GUI form surfaces honor an explicit transparent fill.
 
 ## Caching and deterministic output
 

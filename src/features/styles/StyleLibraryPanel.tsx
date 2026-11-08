@@ -21,7 +21,6 @@ export type StyleLibraryPanelProps = {
   onRenameMode: (id: string, name: string) => void;
   onRemoveMode: (id: string) => void;
   onSetMode: (id: string) => void;
-  onFollowTheme: (enabled: boolean) => void;
   onRemoveColor: (id: string) => void;
   onAddTextStyle: () => void;
   onUpdateTextStyle: (id: string, patch: Record<string, unknown>) => void;
@@ -64,14 +63,13 @@ export function StyleLibraryPanel(props: StyleLibraryPanelProps) {
 
     <section aria-label="Variable modes">
       <h3>Modes <small>{props.library.modes?.length ?? 0}/{MAX_STYLE_MODES}</small></h3>
-      <Show when={props.library.modes?.length} fallback={<><p class="style-library-hint">Modes let one color style hold different values, such as Light and Dark, and switch the whole sketch at once.</p><div class="style-add-row"><button type="button" disabled={!props.canEdit} onClick={props.onEnableModes}>+ Light and Dark modes</button></div></>}>
+      <Show when={props.library.modes?.length} fallback={<><p class="style-library-hint">Modes let a design system store alternate values for the same color tokens.</p><div class="style-add-row"><button type="button" disabled={!props.canEdit} onClick={props.onEnableModes}>+ Add color modes</button></div></>}>
         <div class="style-mode-row">
           <label>Active mode<select aria-label="Active style mode" value={props.library.activeModeId ?? props.library.modes![0].id} disabled={!props.canEdit} onChange={event => props.onSetMode(event.currentTarget.value)}><For each={props.library.modes}>{mode => <option value={mode.id}>{mode.name}</option>}</For></select></label>
           <input class="style-token-name" aria-label="Active mode name" maxlength="60" disabled={!props.canEdit} value={props.library.modes!.find(mode => mode.id === (props.library.activeModeId ?? props.library.modes![0].id))?.name ?? ""} onChange={event => props.onRenameMode(props.library.activeModeId ?? props.library.modes![0].id, event.currentTarget.value)} />
           <button type="button" disabled={!props.canEdit || (props.library.modes?.length ?? 0) >= MAX_STYLE_MODES} onClick={props.onAddMode}>+ Mode</button>
           <button type="button" class="style-token-remove" aria-label="Delete active mode" disabled={!props.canEdit || (props.library.modes?.length ?? 0) < 2} onClick={() => props.onRemoveMode(props.library.activeModeId ?? props.library.modes![0].id)}>&times;</button>
         </div>
-        <label class="style-follow-theme"><input type="checkbox" checked={!!props.library.followTheme} disabled={!props.canEdit} onChange={event => props.onFollowTheme(event.currentTarget.checked)} /> Switch to the Light or Dark mode with the app theme</label>
       </Show>
     </section>
 

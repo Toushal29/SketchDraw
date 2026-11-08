@@ -188,15 +188,6 @@
         font: inherit;
     }
 
-    :is(.theme-dark, .theme-ai) .gesture-menu-heading {
-        border-color: var(--theme-border);
-    }
-
-    :is(.theme-dark, .theme-ai) .gesture-settings-popover select {
-        border-color: var(--theme-border);
-        background-color: var(--theme-surface-input);
-    }
-
     .tool-deck {
         top: 50%;
         right: auto;

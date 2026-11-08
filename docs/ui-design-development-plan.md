@@ -1,98 +1,49 @@
-# UI Design workspace: research and development plan
+# UI Design workspace
 
-**Status:** Initial independent workspace implemented. This document records the delivered v1 boundary and the next development stages.
+**Status:** Independent UI editor with an infinite page canvas and nested screen/container frames. The `.sdui` schema is version 1.
 
-This document summarizes the research behind SketchDraw's independent UI Design workspace and its follow-up plan. UI Design is a third top-level viewport alongside Canvas and Planning, with its own editor logic and `.sdui` document format.
+UI Design is a separate top-level workspace beside Canvas and Planning. The application shell provides workspace navigation and native file access. UI Design owns its model, hierarchy, geometry, rendering, interactions, history, recovery, assets, prototype preview, and `.sdui` codec. It does not depend on Canvas or Planning feature code.
 
-## Research findings
+## Document and scene model
 
-- **Build around artboards, reusable components, and variants.** Figma and Penpot both use reusable component definitions with instances that can inherit from a main component while allowing local overrides. Their variable and token systems support shared styles and theme modes. These are useful patterns to study for a UI editor. ([Figma variables](https://help.figma.com/hc/en-us/articles/15339657135383-Guide-to-variables-in-Figma), [Penpot components](https://help.penpot.app/user-guide/design-systems/components/), [Penpot design tokens](https://help.penpot.app/user-guide/design-systems/design-tokens/))
-- **Treat responsive layout as a core design feature.** CSS Grid and Flexbox provide two-dimensional and flexible layout, while container queries allow components to respond to the size of their own frame. Fluent 2 and Apple’s guidance emphasize clear hierarchy, consistent spacing, and layouts that adapt to different windows and devices. ([MDN responsive design](https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/CSS_layout/Responsive_Design), [MDN container queries](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Containment/Container_queries), [Fluent 2 layout](https://fluent2.microsoft.design/layout), [Apple layout guidance](https://developer.apple.com/design/human-interface-guidelines/layout))
-- **Use semantic design tokens and accessibility rules.** Material Design 3 uses semantic color roles. The Design Tokens Community Group has a stable 2025.10 format, though it is a Community Group report rather than a W3C Standard. WCAG 2.2 and the WAI tab pattern provide a basis for accessibility and keyboard behavior. ([Material color roles](https://m3.material.io/m3/pages/color-roles?s=m3), [DTCG format](https://www.w3.org/community/reports/design-tokens/CG-FINAL-format-20251028/), [WCAG 2.2](https://www.w3.org/TR/wcag/), [WAI tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/))
-- **Make prototyping and handoff separate modes.** Penpot prototypes connect boards with interactions and flows. Figma Dev Mode and Penpot Inspect focus on exposing measurements, properties, assets, and implementation details. ([Penpot prototyping](https://help.penpot.app/user-guide/prototyping-testing/prototyping/), [Figma Dev Mode](https://help.figma.com/hc/en-us/articles/15023124644247-Guide-to-Dev-Mode-in-Figma))
-- **Test components and rendered screens independently.** Storybook supports isolated component states and documentation; Playwright supports screenshot comparisons, with baselines kept on consistent operating systems because browser rendering can vary. ([Storybook](https://storybook.js.org/docs), [Playwright visual comparisons](https://playwright.dev/docs/test-snapshots))
+A document contains pages. Each page stores elements in one bounded flat array; `parentId` and `order` define the shared tree. Screen frames use named device/desktop presets. Container frames use custom dimensions. Both are the same hierarchy node type: either can contain shapes, text, images, components, groups, and nested frames. A nested frame is transparent in the parent and groups its children. Frame children use local coordinates; the hierarchy index resolves world transforms, bounds, ancestry, visibility, locking, order, and safe reparenting.
 
-## How this fits SketchDraw
+## Implemented workflows
 
-The app shell routes **Canvas**, **Planning**, and **UI Design** independently. When a `.sketch` is open, a second navigation group switches between Canvas and Diagram tools, where “Diagram” refers to the existing canvas diagram workspace. The three workspaces use separate document sessions and formats.
+- Welcome screen with create/open, recent designs, recovery restore/discard, and continue editing.
+- Single-row editor topbar with selection, drawing tools, fit/selection/100%/zoom controls, frame presets, a layout-guide dropdown, undo/redo, save, and presentation actions.
+- The Pages panel restores distinct Pages, Prototype flows, and Frames sections. Pages can be created, renamed, duplicated, deleted, and used as prototype destinations. Screen frames and custom container frames can be created, nested, resized, renamed, clipped, and configured with child constraints.
+- Shared hierarchy across frames, groups, shapes, text, images, and component instances. Layer tree supports nested collapse, search, drag reorder/reparent, visibility, locking, multi-selection, grouping, ungrouping, duplication, deletion, and double-click rename.
+- Selection and marquee, move/resize, editable path points, whole-pixel geometry, always-visible grid and always-on grid/peer snapping, configurable grid/column/row/modular/baseline guides, and live neighboring/equal-spacing overlays. Peer snap guides are bounded to the aligned objects and identify the reference layer and matched anchors; grid snapping does not create unrelated full-canvas guide lines.
+- Nested horizontal, vertical, and grid auto layout with gap, padding, wrapping, alignment, justification, fixed/hug/fill sizing, clipping, and frame resize constraints.
+- Reusable local components with nested child content, default/compact variants, instance override reset, and detach. Components can be inserted from the asset panel.
+- UI pattern assets in a compact, searchable tile grid with collapsible Basics, Controls, Forms, Patterns, Navigation, Data, and Components groups. Basics includes editable rectangles, ellipses, text labels, dividers, image placeholders, and avatars; local components appear in their own group. Color and typography/spacing/radius/effect token collections live in the Design inspector with color aliases/modes and JSON token import/export.
+- Raster and basic SVG import, basic SVG export, image fit/crop, fills/strokes, typography, shadows, and inspectable CSS output.
+- Prototype links with click/hover/press triggers, page or frame navigation, back, overlays, and instant/dissolve/slide transitions. A presentation preview scales the selected screen to the viewport.
+- Find/replace, accessibility/style lint checks, undo/redo, local draft recovery, recent files, and `.sdui` save/open.
 
-UI Design is a **third top-level workspace**, not another Canvas document view. The existing Canvas diagram view stays distinct so users do not confuse diagram tools with interface design.
+## File validation
 
-## Recommended architecture
+Version 1 `.sdui` files store page metadata, hierarchical elements, component definitions, asset-library metadata, page guide settings, design tokens, and prototype links. Parsing enforces the file-size, page-count, element-count, unique-identity, parent-kind, hierarchy, enum, and bounds limits. A malformed page rejects the entire document instead of being silently dropped. Unknown schema versions are rejected; no earlier `.sdui` versions are supported.
 
-The dedicated `src/features/ui-design/` feature owns its document model, DOM renderer, editor state, selection, history, inspector, preview mode, validation, and file codec. It does not reuse Canvas or Planning feature components, data models, geometry, hit-testing, editor interactions, history, or persistence, including the existing Forms & UI canvas components. Only generic application-shell and platform file-access infrastructure is shared.
+The format is separate from `.sketch` and `.sdplan`. Keep UI Design persistence and feature logic independent of those workspaces.
 
-The app can provide the host-level navigation and native file-picker/filesystem bridge. The UI Design workspace should own its feature behavior and data.
+## Known follow-up work
 
-**Recommended rendering approach:** use SolidJS to render design nodes as DOM elements styled with CSS Grid, Flexbox, and container queries; use a separately implemented SVG or DOM overlay for selection handles and guides. This recommendation combines SketchDraw’s existing Solid/Vite stack with the need to design real interface layouts rather than generic diagram objects. Solid’s JSX renders DOM nodes directly, which fits this model. ([SolidJS JSX](https://docs.solidjs.com/concepts/understanding-jsx))
+- Component definitions are currently local snapshots. Add robust master editing/live instance updates, nested variant properties, component swapping, and finer-grained overrides.
+- Expand asset libraries from document metadata and built-in patterns into editable user libraries with importable component kits and searchable SVG/icon catalogs.
+- Expand vector editing with Bézier handles, open paths, stroke caps/joins, boolean operations, and complete SVG import/export for transforms, text, gradients, and embedded assets.
+- Add prototype conditions, variables, scroll containers, richer overlay settings, flow diagnostics, and exportable presentation links.
+- Add richer multi-edit, bulk rename, component dependency inspection, design lint rules, contrast analysis, and touch-target accessibility checks.
+- Add token alias/mode editing workflows for all token families and validate imported token JSON before applying it.
+- Review interaction and layout behavior at minimum/maximum supported window sizes, high-DPI scaling, and the Android companion shell.
 
-**File extension:** `.sdui`, with the versioned `SketchDrawUIDesign` format. The initial format stores pages, artboards, and bounded UI elements as JSON and validates document size, counts, IDs, numeric bounds, and colors. Parsing and save lifecycle stay separate from the `.sketch` and `.sdplan` codecs. Tauri's native file dialogs and platform document providers handle file access. ([Tauri dialog plugin](https://v2.tauri.app/plugin/dialog/))
+## Verification
 
-### Delivered v1 scope
+- `npm run typecheck`
+- `npm run test:ui-design`
+- Run the Canvas browser audit only when shared Canvas code changes. Do not use an app build as a substitute for editor interaction review.
 
-- Three top-level workspace routes and a nested Canvas / Diagram switch when a sketch is open.
-- Independent UI Design model, session, recent-file list, undo/redo, validation, and `.sdui` file handling.
-- Pages, named artboards, desktop/tablet/mobile presets, and editable text, button, input, checkbox, card, and image elements.
-- Pointer move/resize, duplicate, keyboard nudging, layout grids, grid snapping, smart alignment guides, pointer-centered wheel zoom, fit-to-view, property editing, preview mode, file open/save/save-as, OS file association, and Android document picker support.
-- No Canvas feature component, Canvas model, Planning feature component, or `.sketch`/`.sdplan` persistence code is used by the UI Design editor.
+## References
 
-This is a screen composition MVP. Reusable components, responsive constraints/layouts, design tokens, clickable prototype flows, and developer handoff are not part of v1 and remain in the next stages below.
-
-```mermaid
-flowchart LR
-  App["SketchDraw app shell"] --> C["Canvas workspace<br/>.sketch"]
-  App --> P["Planning workspace<br/>.sdplan"]
-  App --> U["UI Design workspace<br/>.sdui"]
-
-  U --> M["Independent design model"]
-  U --> R["DOM/CSS renderer + SVG selection overlay"]
-  U --> H["Independent history and editor state"]
-  U --> F["Independent file codec and assets"]
-  U --> PR["Prototype and preview mode"]
-```
-
-## Delivered foundation
-
-The independent UI Design workspace is implemented with its own route, session, model, and `.sdui` codec. It includes pages and artboards, desktop/tablet/mobile presets, editable interface elements, an inspector, undo/redo, and preview mode. The artboard also has configurable column guides, optional 8 px snapping, smart edge/center alignment guides, pointer-centered scroll-wheel zoom, zoom controls, a slider, and fit-to-view.
-
-## Recommended follow-up roadmap
-
-### 1. Better editing and arrangement
-
-- Add multi-selection, align/distribute actions, lock/hide, layer ordering, grouping, and copy/paste.
-- Keep pointer hit targets and selection outlines aligned with visible elements at every zoom level.
-- Add discoverable keyboard controls for selection, duplication, ordering, and alignment.
-
-### 2. Responsive layout
-
-- Add row, column, and grid containers with gap and padding controls.
-- Add fixed, fill, and hug sizing, parent-relative constraints, and viewport previews.
-- Define a versioned migration before changing `.sdui` node/layout records.
-
-CSS Grid, Flexbox, and container queries offer useful layout models. ([MDN responsive design](https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/CSS_layout/Responsive_Design), [MDN container queries](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Containment/Container_queries))
-
-### 3. Reusable design systems
-
-- Add semantic color, type, and spacing tokens with theme modes.
-- Add reusable components, instances, variants, and explicit local overrides.
-- Consider DTCG token import/export after the internal model is stable.
-
-Figma and Penpot provide patterns for variables, components, and design tokens. ([Figma variables](https://help.figma.com/hc/en-us/articles/15339657135383-Guide-to-variables-in-Figma), [Penpot components](https://help.penpot.app/user-guide/design-systems/components/), [DTCG format](https://www.w3.org/community/reports/ig/2025/format-20251028/))
-
-### 4. Prototyping and handoff
-
-- Add links between artboards, start points, overlays, and a presentation mode.
-- Add PNG, SVG, and PDF exports, followed by an inspect panel for measurements, tokens, and layout properties.
-- Consider generated HTML/CSS only after layout behavior is predictable.
-
-Penpot’s flows and overlays and Figma Dev Mode offer relevant interaction and handoff patterns. ([Penpot prototyping](https://help.penpot.org/user-guide/prototyping-testing/prototyping/), [Figma Dev Mode](https://help.figma.com/hc/en-us/articles/15023124644247-Guide-to-Dev-Mode-in-Figma))
-
-### 5. Accessibility and validation
-
-- Add element semantics, contrast checks, focus order, and keyboard-only editing.
-- Validate malformed/oversized files, save/reopen, undo/redo, and isolation from Canvas and Planning.
-- Keep Android focused on opening, previewing, and simple edits, with advanced controls collapsed.
-
-Use WCAG 2.2 and the WAI tabs pattern as references for accessible controls and navigation. ([WCAG 2.2](https://www.w3.org/TR/WCAG/), [WAI tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/))
-
-Keep direct Figma-file compatibility, collaboration, and broad code generation out of scope unless the product boundary changes.
+Feature behavior is informed by [Figma design files](https://help.figma.com/hc/en-us/articles/15297425105303-Explore-design-files), [Figma layer measurements](https://help.figma.com/hc/en-us/articles/360039956974-Measure-distances-between-layers), [Figma Auto Layout](https://help.figma.com/hc/en-us/articles/360040451373-Guide-to-auto-layout-in-Figma), [Figma components](https://help.figma.com/hc/en-us/articles/39747637290263-Components-collection-Tips-for-component-management), [Figma prototyping](https://help.figma.com/hc/en-us/articles/360040315773-Connect-your-prototype), [Penpot flexible layouts](https://help.penpot.app/user-guide/designing/flexible-layouts/), and [Penpot design tokens](https://help.penpot.app/user-guide/design-systems/design-tokens/). These sources describe expected interaction patterns; they do not define a copied interface.

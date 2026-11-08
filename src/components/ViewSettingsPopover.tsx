@@ -1,18 +1,16 @@
 import { For, Show } from "solid-js";
-import type { ThemeMode } from "../model";
 
 type WhiteboardStyle = "plain" | "dots" | "small-dots" | "lines" | "small-grid" | "ruled" | "isometric";
 type ColorChoice = { label: string; value: string };
 
 type Props = {
-  themeMode: ThemeMode;
   accentColor: string;
   toolbarColorChoice: string;
   accentOptions: ColorChoice[];
   toolbarColorOptions: ColorChoice[];
   boardColor: string;
   renderedBoardColor: string;
-  boardColorFollowsTheme: boolean;
+  boardColorUsesDefault: boolean;
   boardLocked: boolean;
   boardColors: ColorChoice[];
   paperPattern: WhiteboardStyle;
@@ -28,10 +26,9 @@ type Props = {
     onOpenOutline: () => void;
     onOpenNavigator: () => void;
   };
-  onThemeChange: (mode: ThemeMode) => void;
   onAccentChange: (value: string) => void;
   onToolbarColorChange: (value: string) => void;
-  onBoardFollowTheme: () => void;
+  onBoardUseDefault: () => void;
   onBoardColorChange: (value: string) => void;
   onPaperPatternChange: (value: WhiteboardStyle) => void;
   onNamedVersions: () => void;
@@ -45,14 +42,7 @@ export function ViewSettingsPopover(props: Props) {
     </button>
 
     <section class="view-settings-section">
-      <h3>App appearance</h3>
-      <div class="view-settings-row">
-        <span>Theme</span>
-        <div class="view-theme-options" role="group" aria-label="Application theme">
-          {([{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }, { value: "ai", label: "AI" }, { value: "minimalist", label: "Minimalist" }] as const).map(option =>
-            <button type="button" class={props.themeMode === option.value ? "active" : ""} aria-pressed={props.themeMode === option.value} onClick={() => props.onThemeChange(option.value)}>{option.label}</button>)}
-        </div>
-      </div>
+      <h3>Interface colors</h3>
       <div class="view-settings-row view-settings-color-row">
         <span>Accent</span>
         <div class="view-appearance-color-options" role="group" aria-label="Accent color">
@@ -75,8 +65,8 @@ export function ViewSettingsPopover(props: Props) {
       <div class="view-settings-row view-settings-color-row">
         <span>Whiteboard</span>
         <div class="view-appearance-color-options" role="group" aria-label="Whiteboard color">
-          <button type="button" class={props.boardColorFollowsTheme ? "active" : ""} aria-label="Automatic whiteboard color" aria-pressed={props.boardColorFollowsTheme} disabled={props.boardLocked} title="Auto" onClick={props.onBoardFollowTheme}><i class="view-auto-color" /></button>
-          {props.boardColors.map(option => <button type="button" class={!props.boardColorFollowsTheme && props.boardColor === option.value ? "active" : ""} aria-label={option.label} aria-pressed={!props.boardColorFollowsTheme && props.boardColor === option.value} disabled={props.boardLocked} title={option.label} onClick={() => props.onBoardColorChange(option.value)}><i style={{ background: option.value }} /></button>)}
+          <button type="button" class={props.boardColorUsesDefault ? "active" : ""} aria-label="Default whiteboard color" aria-pressed={props.boardColorUsesDefault} disabled={props.boardLocked} title="Default" onClick={props.onBoardUseDefault}><i class="view-auto-color" /></button>
+          {props.boardColors.map(option => <button type="button" class={!props.boardColorUsesDefault && props.boardColor === option.value ? "active" : ""} aria-label={option.label} aria-pressed={!props.boardColorUsesDefault && props.boardColor === option.value} disabled={props.boardLocked} title={option.label} onClick={() => props.onBoardColorChange(option.value)}><i style={{ background: option.value }} /></button>)}
           <label class="view-custom-color-choice" title="Choose a custom whiteboard color"><i style={{ background: props.renderedBoardColor }} /><span>Custom</span><input type="color" aria-label="Custom whiteboard color" value={props.renderedBoardColor} disabled={props.boardLocked} onInput={event => props.onBoardColorChange(event.currentTarget.value)} /></label>
         </div>
       </div>

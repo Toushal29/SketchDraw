@@ -1,7 +1,7 @@
 import { For, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { CanvasState, Point } from "../../model";
 
-type Measurement = { start: Point; end: Point };
+type Measurement = { start: Point; end: Point; detail?: { gapX: number; gapY: number; distance: number; alignment: string; equalSpacing?: { axis: "x" | "y"; gap: number } } };
 type NodeHandle = { index: number; x: number; y: number; selected?: boolean };
 
 type Props = {
@@ -55,9 +55,20 @@ export function CanvasInteractionOverlay(props: Props) {
         const y2 = () => props.state.panY + measurement().end.y * props.state.zoom;
         const dx = () => measurement().end.x - measurement().start.x;
         const dy = () => measurement().end.y - measurement().start.y;
-        const distance = () => Math.hypot(dx(), dy());
-        const label = () => `Δx ${formatMeasurement(dx())} · Δy ${formatMeasurement(dy())} · ${formatMeasurement(distance())} units`;
-        return <g class="canvas-measurement" aria-label={label()}><line x1={x1()} y1={y1()} x2={x2()} y2={y2()} /><circle cx={x1()} cy={y1()} r="4" /><circle cx={x2()} cy={y2()} r="4" /><text x={(x1() + x2()) / 2 + 8} y={(y1() + y2()) / 2 - 8}>{label()}</text></g>;
+        const detail = () => measurement().detail;
+        const distance = () => detail()?.distance ?? Math.hypot(dx(), dy());
+        const label = () => `Δx ${formatMeasurement(detail()?.gapX ?? Math.abs(dx()))} · Δy ${formatMeasurement(detail()?.gapY ?? Math.abs(dy()))} · distance ${formatMeasurement(distance())} units`;
+        return <g class="canvas-measurement" aria-label={label()}>
+          <line class="measurement-projection" x1={x1()} y1={y1()} x2={x2()} y2={y1()} />
+          <line class="measurement-projection" x1={x2()} y1={y1()} x2={x2()} y2={y2()} />
+          <line class="measurement-distance" x1={x1()} y1={y1()} x2={x2()} y2={y2()} />
+          <circle cx={x1()} cy={y1()} r="4" /><circle cx={x2()} cy={y2()} r="4" />
+          <text class="measurement-x" x={(x1() + x2()) / 2} y={y1() - 8} text-anchor="middle">Δx {formatMeasurement(detail()?.gapX ?? Math.abs(dx()))}</text>
+          <text class="measurement-y" x={x2() + 8} y={(y1() + y2()) / 2} dominant-baseline="middle">Δy {formatMeasurement(detail()?.gapY ?? Math.abs(dy()))}</text>
+          <text class="measurement-total" x={(x1() + x2()) / 2 + 8} y={(y1() + y2()) / 2 - 8}>distance {formatMeasurement(distance())}</text>
+          <Show when={detail()?.alignment}><text class="measurement-note" x={(x1() + x2()) / 2 + 8} y={(y1() + y2()) / 2 + 10}>Aligned: {detail()!.alignment}</text></Show>
+          <Show when={detail()?.equalSpacing}><text class="measurement-note" x={(x1() + x2()) / 2 + 8} y={(y1() + y2()) / 2 + 24}>Equal {detail()!.equalSpacing!.axis === "x" ? "horizontal" : "vertical"} gaps · {formatMeasurement(detail()!.equalSpacing!.gap)}</text></Show>
+        </g>;
       }}</Show>
     </svg>
   </div>;

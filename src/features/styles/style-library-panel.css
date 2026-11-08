@@ -31,7 +31,6 @@
 .style-mode-row label { display: grid; gap: 2px; font-size: 11px; }
 .style-mode-row select, .style-alias-row select { height: 26px; padding: 0 4px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface-input); color: var(--theme-text-primary); font: inherit; }
 .style-mode-row button { min-height: 26px; padding: 2px 8px; border: 1px solid var(--theme-border); border-radius: 5px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-.style-follow-theme { display: flex; align-items: center; gap: 6px; font-size: 11px; }
 .style-alias-row { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; font-size: 11px; }
 .style-selection-slots li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 6px; padding: 3px 0; }
 .style-selection-slots small { color: var(--theme-text-tertiary); }

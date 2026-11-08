@@ -325,6 +325,18 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
         for (const point of [a, b > a ? b : a + half * 2]) {
           ctx.beginPath(); ctx.arc(axis === "x" ? guide.coordinate : point, axis === "x" ? point : guide.coordinate, 2.2 / state.zoom, 0, Math.PI * 2); ctx.fill();
         }
+        const movingStart = axis === "x" ? guide.moving.y : guide.moving.x;
+        const movingEnd = movingStart + (axis === "x" ? guide.moving.h : guide.moving.w);
+        const referenceStart = axis === "x" ? guide.reference.y : guide.reference.x;
+        const referenceEnd = referenceStart + (axis === "x" ? guide.reference.h : guide.reference.w);
+        const gap = movingEnd <= referenceStart ? referenceStart - movingEnd : referenceEnd <= movingStart ? movingStart - referenceEnd : 0;
+        if (gap > 0.01) {
+          const label = `${axis === "x" ? "Δy" : "Δx"} ${Number(gap.toFixed(1))}`;
+          const crossCenter = (start + end) / 2;
+          ctx.setLineDash([]); ctx.font = `600 ${10 / state.zoom}px system-ui, sans-serif`; ctx.textBaseline = "middle";
+          ctx.textAlign = axis === "x" ? "left" : "center"; ctx.lineWidth = 3 / state.zoom; ctx.strokeStyle = "#fff"; ctx.strokeText(label, axis === "x" ? guide.coordinate + 8 / state.zoom : crossCenter, axis === "x" ? crossCenter : guide.coordinate - 8 / state.zoom);
+          ctx.fillStyle = "#a92f58"; ctx.fillText(label, axis === "x" ? guide.coordinate + 8 / state.zoom : crossCenter, axis === "x" ? crossCenter : guide.coordinate - 8 / state.zoom);
+        }
         ctx.setLineDash([5 / state.zoom, 3 / state.zoom]);
       };
       if (activeSnapGuides.x) drawGuide("x", activeSnapGuides.x);

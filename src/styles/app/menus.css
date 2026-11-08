@@ -136,10 +136,6 @@
     background: color-mix(in srgb, var(--theme-surface) 94.00%, transparent);
 }
 
-:is(.theme-dark, .theme-ai) .tool-deck-reopen {
-    border-color: var(--theme-border);
-}
-
 .fork-head-config {
     display: grid;
     gap: 7px;
@@ -226,10 +222,6 @@
     background: var(--theme-error-muted);
 }
 
-:is(.theme-dark, .theme-ai) .confirm-dialog {
-    border-color: var(--theme-border);
-}
-
 .page-tabs {
     position: absolute;
     z-index: 5;
@@ -277,10 +269,6 @@
 
 .page-tab:hover {
     background: var(--theme-surface-hover);
-}
-
-:is(.theme-dark, .theme-ai) .page-tabs {
-    border-color: var(--theme-border);
 }
 
 .export-dimensions {
@@ -332,10 +320,6 @@
 
 .conflict-actions {
     flex-wrap: wrap;
-}
-
-:is(.theme-dark, .theme-ai) .export-dimensions input {
-    border-color: var(--theme-border);
 }
 
 /* Workspace commands and popups share predictable stacking and keyboard states. */
@@ -566,19 +550,6 @@
     background: color-mix(in srgb, var(--theme-surface) 85.10%, transparent);
 }
 
-:is(.theme-dark, .theme-ai) .canvas-context-menu,
-:is(.theme-dark, .theme-ai) .page-actions {
-    color: var(--theme-text-primary);
-    border-color: var(--theme-border);
-}
-
-:is(.theme-dark, .theme-ai) .precision-grid input,
-:is(.theme-dark, .theme-ai) .alignment-grid button,
-:is(.theme-dark, .theme-ai) .export-scope button,
-:is(.theme-dark, .theme-ai) .confirm-dialog>label>input {
-    border-color: var(--theme-border);
-}
-
 button:focus-visible,
 summary:focus-visible {
     outline: 2px solid var(--theme-primary-border);
@@ -608,10 +579,6 @@ summary:focus-visible {
         right: 14px;
         max-width: calc(100% - 345px);
     }
-}
-
-:is(.theme-dark, .theme-ai) .custom-color-swatch {
-    border-color: var(--theme-border);
 }
 
 .choice-deck {

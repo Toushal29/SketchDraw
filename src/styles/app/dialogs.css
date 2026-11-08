@@ -30,10 +30,6 @@
     background: var(--theme-success-muted);
 }
 
-:is(.theme-dark, .theme-ai) .save-status {
-    border-color: var(--theme-border);
-}
-
 /* In-app reference guide. */
 .help-backdrop {
     z-index: 2800;
@@ -137,17 +133,6 @@
 
 .help-dialog>footer .save-button {
     flex: 0 0 auto;
-}
-
-:is(.theme-dark, .theme-ai) .help-dialog {
-    border-color: var(--theme-border);
-    color: var(--theme-text-primary);
-    background: var(--theme-surface-elevated);
-}
-
-:is(.theme-dark, .theme-ai) .help-dialog>header,
-:is(.theme-dark, .theme-ai) .help-dialog>footer {
-    border-color: var(--theme-border);
 }
 
 @media (max-width: 1150px) {
@@ -427,29 +412,6 @@
     white-space: normal;
 }
 
-:is(.theme-dark, .theme-ai) .export-preview-frame {
-    border-color: var(--theme-border);
-    background-color: var(--theme-surface);
-}
-
-:is(.theme-dark, .theme-ai) .help-guide>section {
-    border-color: var(--theme-border);
-}
-
-:is(.theme-dark, .theme-ai) .help-feature-grid article,
-:is(.theme-dark, .theme-ai) .help-use-case-grid li {
-    border-color: var(--theme-border);
-}
-
-:is(.theme-dark, .theme-ai) .shortcut-table tbody th,
-:is(.theme-dark, .theme-ai) .shortcut-table tbody td {
-    border-color: var(--theme-border);
-}
-
-:is(.theme-dark, .theme-ai) .shortcut-table kbd {
-    border-color: var(--theme-border);
-}
-
 @media (max-width: 760px) {
     .export-layout {
         grid-template-columns: 1fr;
@@ -477,10 +439,6 @@
     border-radius: 10px;
     background: var(--theme-surface);
     color: var(--theme-text-secondary);
-}
-
-:is(.theme-dark, .theme-ai) .mermaid-preview-loading {
-    border-color: var(--theme-border);
 }
 
 .rename-file-dialog {
@@ -525,10 +483,6 @@
     background: var(--theme-error-muted);
     font-size: var(--type-caption);
     line-height: var(--leading-normal);
-}
-
-:is(.theme-dark, .theme-ai) .rename-file-dialog input {
-    border-color: var(--theme-border);
 }
 .named-snapshot-create { display: flex; align-items: end; gap: 8px; margin: 14px 0; }
 .named-snapshot-create label { display: grid; flex: 1; gap: 5px; }

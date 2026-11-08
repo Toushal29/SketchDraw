@@ -9,15 +9,15 @@ import { drawProposalPlanningComponent, proposalPlanningComponentSvg } from "./p
 import { drawProposalWireframeComponent, proposalWireframeComponentSvg } from "./proposal-wireframe-renderer";
 
 type Palette = { ink: string; edge: string; fill: string; soft: string; muted: string; accent: string };
-function componentThemeToken(name: string, fallback: string, dark = false) {
-  const host = typeof document === "undefined" ? undefined : document.querySelector<HTMLElement>(dark ? ".app-shell:is(.theme-dark, .theme-ai)" : ".app-shell.theme-light") ?? document.documentElement;
+function componentThemeToken(name: string, fallback: string) {
+  const host = typeof document === "undefined" ? undefined : document.querySelector<HTMLElement>(".app-shell") ?? document.documentElement;
   const value = host && typeof getComputedStyle === "function" ? getComputedStyle(host).getPropertyValue(name).trim() : "";
   return value || fallback;
 }
 function paletteFor(dark: boolean): Palette {
   return {
-    ink: componentThemeToken("--diagram-ink", dark ? "#f0f1f2" : "#252a2e", dark), edge: componentThemeToken("--diagram-edge", dark ? "#aab1b8" : "#6f777e", dark), fill: componentThemeToken("--diagram-fill", dark ? "#25282b" : "#ffffff", dark),
-    soft: componentThemeToken("--diagram-soft", dark ? "#3a3f44" : "#edf0f2", dark), muted: componentThemeToken("--diagram-muted", dark ? "#c0c5c9" : "#737b82", dark), accent: componentThemeToken("--diagram-accent", dark ? "#d6dadd" : "#46525b", dark),
+    ink: componentThemeToken("--diagram-ink", dark ? "#f0f1f2" : "#252a2e"), edge: componentThemeToken("--diagram-edge", dark ? "#aab1b8" : "#6f777e"), fill: componentThemeToken("--diagram-fill", dark ? "#25282b" : "#ffffff"),
+    soft: componentThemeToken("--diagram-soft", dark ? "#3a3f44" : "#edf0f2"), muted: componentThemeToken("--diagram-muted", dark ? "#c0c5c9" : "#737b82"), accent: componentThemeToken("--diagram-accent", dark ? "#d6dadd" : "#46525b"),
   };
 }
 
@@ -2594,7 +2594,7 @@ export function modelComponentSvg(group: GroupElement, theme: Theme = "light", a
     ["#000000", palette.ink], ["#252a2e", palette.ink], ["#27313a", palette.ink], ["#292929", palette.ink],
     ["#46525b", palette.accent], ["#6f777e", palette.edge], ["#737b82", palette.muted], ["#6d7883", palette.muted], ["#bdc8d0", palette.edge],
     ["#ffffff", palette.fill], ["#fff", palette.fill], ["#edf0f2", palette.soft], ["#eeeeee", palette.soft], ["#f2f5f8", palette.soft], ["#d3dbe3", palette.soft], ["#d9e2eb", palette.soft], ["#eaf1fb", palette.soft],
-    ["#0078d4", componentThemeToken("--diagram-accent-blue", palette.accent, theme === "dark")], ["#376fca", componentThemeToken("--diagram-accent-blue", palette.accent, theme === "dark")], ["#326ce5", componentThemeToken("--diagram-accent-blue", palette.accent, theme === "dark")], ["#4285f4", componentThemeToken("--diagram-accent-blue", palette.accent, theme === "dark")], ["#ed8b00", componentThemeToken("--diagram-accent-warm", palette.accent, theme === "dark")],
+    ["#0078d4", componentThemeToken("--diagram-accent-blue", palette.accent)], ["#376fca", componentThemeToken("--diagram-accent-blue", palette.accent)], ["#326ce5", componentThemeToken("--diagram-accent-blue", palette.accent)], ["#4285f4", componentThemeToken("--diagram-accent-blue", palette.accent)], ["#ed8b00", componentThemeToken("--diagram-accent-warm", palette.accent)],
   ]);
   const explicitColors = new Set([style?.color?.toLowerCase(), group.libraryComponent?.styleOverrides?.color?.toLowerCase(), group.libraryComponent?.styleOverrides?.fillColor?.toLowerCase()]);
   svg = svg.replace(/\b(fill|stroke|color)="(#[\da-fA-F]{3,8})"/g, (attribute, colorAttribute: string, color: string) => {

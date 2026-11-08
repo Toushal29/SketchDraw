@@ -8,11 +8,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Update } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import "/src/styles/app/web-preview.css";
+import { AppStatusScreen } from "./components/AppStatusScreen";
 import type { PdfRasterPage } from "./features/export/pdf-renderer";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_CLIPBOARD_VERSION, SKETCH_FORMAT_VERSION } from "./model";
-import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, ToolbarItem, CanvasState, CanvasSnapGuides, CanvasSnapTarget, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, ThemeMode, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipDirection, ConnectionPoint, CanvasLayer, CanvasLayerVisibilityPreset, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition, PrototypeAction, PrototypeVariable, PrototypeComponentState, DecisionCardMetadata } from "./model";
+import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, ToolbarItem, CanvasState, CanvasSnapGuides, CanvasSnapTarget, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipDirection, ConnectionPoint, CanvasLayer, CanvasLayerVisibilityPreset, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition, PrototypeAction, PrototypeVariable, PrototypeComponentState, DecisionCardMetadata } from "./model";
 import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox, alignedTextStartX, textElementLines, textFont, textLayout, DEFAULT_TEXT_WRAP_WIDTH, reattachDanglingConnectors } from "./operations";
 import type { ChecklistItem, NoteKind } from "./model";
 import { buildNoteGroup, checklistIndexAt, noteCollapseHit, drawNoteCard, defaultNoteTitle, measureNoteInlineText, noteCardMaxScroll, toggleChecklistItem } from "./notes";
@@ -521,7 +522,7 @@ function App() {
   const [renameFileError, setRenameFileError] = createSignal("");
   const [topbarHeight, setTopbarHeight] = createSignal(66);
   const isCanvasWorkspace = () => workspaceArea() === "canvas" || workspaceArea() === "design";
-  const showWelcomeScreen = () => workspaceArea() === "ui-design" ? false : isCanvasWorkspace() ? !activePath() : !planningPath();
+  const showWelcomeScreen = () => workspaceArea() === "ui-design" ? !uiDesignSession.editorOpen() : isCanvasWorkspace() ? !activePath() : !planningPath();
   const [tool, setTool] = createSignal<Tool>("pen");
   const [color, setColor] = createSignal("#252525");
   const [thickness, setThickness] = createSignal(2);
@@ -588,9 +589,10 @@ function App() {
   const [whiteboardStyle, setWhiteboardStyle] = createSignal<WhiteboardStyle>(readWhiteboardStyle());
   const [snapToGrid, setSnapToGrid] = createSignal(false);
   const [snapToObjects, setSnapToObjects] = createSignal(true);
-  const [snapMovesToTen, setSnapMovesToTenValue] = createSignal(readPreference("sketchdraw-snap-moves-to-ten", "true") !== "false");
+  const [snapMovesToPixel, setSnapMovesToPixelValue] = createSignal(readPreference("sketchdraw-snap-moves-to-pixel", readPreference("sketchdraw-snap-moves-to-ten", "true")) !== "false");
   const [measureMode, setMeasureMode] = createSignal(false);
-  const [measurement, setMeasurement] = createSignal<{ start: Point; end: Point }>();
+  const [measureSourceIndex, setMeasureSourceIndex] = createSignal<number>();
+  const [measurement, setMeasurement] = createSignal<{ start: Point; end: Point; detail?: { gapX: number; gapY: number; distance: number; alignment: string; equalSpacing?: { axis: "x" | "y"; gap: number } } }>();
   const [pathNodeEditMode, setPathNodeEditMode] = createSignal(false);
   const [selectedPathNodeIndex, setSelectedPathNodeIndex] = createSignal<number>();
   const [fillEnabled, setFillEnabled] = createSignal(false);
@@ -842,15 +844,11 @@ function App() {
   const [historyVersion, setHistoryVersion] = createSignal(0);
   const imageCache = new Map<string, HTMLImageElement>();
   const [canvasAssetRevision, setCanvasAssetRevision] = createSignal(0);
-  const [themeMode, setThemeMode] = createSignal<ThemeMode>((() => {
-    try { const saved = localStorage.getItem("sketchdraw-theme"); return saved === "light" || saved === "dark" || saved === "ai" || saved === "minimalist" ? saved : "system"; }
-    catch { return "system"; }
-  })());
+  try { localStorage.removeItem("sketchdraw-theme"); } catch { /* Legacy theme settings are no longer used. */ }
   const [accentColor, setAccentColor] = createSignal((() => {
     try { const saved = localStorage.getItem("sketchdraw-accent"); return saved && /^#[\da-f]{6}$/i.test(saved) ? saved : DEFAULT_UI_ACCENT; }
     catch { return DEFAULT_UI_ACCENT; }
   })());
-  const [systemDark, setSystemDark] = createSignal(window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
   const [recentFiles, setRecentFiles] = createSignal<string[]>((() => {
     try { const value: unknown = JSON.parse(localStorage.getItem("sketchdraw-v8-recent-files") ?? localStorage.getItem("sketchdraw-v6-recent-files") ?? "[]"); if (!Array.isArray(value)) return []; const seen = new Set<string>(); return value.flatMap((path): string[] => { if (typeof path !== "string" || !isSketchPath(path)) return []; const key = filePathIdentity(path); if (seen.has(key)) return []; seen.add(key); return [path]; }).slice(0, 8); }
     catch { return []; }
@@ -1863,7 +1861,7 @@ function App() {
     setSelectedLayerPresetId("");
     setDirty(true);
   }
-  const theme = (): Theme => themeMode() === "light" || themeMode() === "minimalist" ? "light" : themeMode() === "system" ? systemDark() ? "dark" : "light" : "dark";
+  const theme = (): Theme => "light";
   const accentForTheme = () => accentColor() === DEFAULT_UI_ACCENT ? "var(--theme-primary)" : accentColor();
   const toolbarColor = () => toolbarColorChoice() === "auto" ? "var(--theme-surface)" : toolbarColorChoice();
   const selectedSet = createMemo(() => new Set(selectedIndices()));
@@ -2321,17 +2319,6 @@ function App() {
       return { ...token, value, modeValues: Object.keys(modeValues).length ? modeValues : undefined };
     }) });
   }
-  function setStyleFollowTheme(enabled: boolean) { const library = activeStyleLibrary(); commitStyleLibrary({ ...library, followTheme: enabled || undefined }); }
-  let previousStyleTheme = theme();
-  createEffect(() => {
-    const current = theme();
-    if (current === previousStyleTheme) return;
-    previousStyleTheme = current;
-    const library = activeStyleLibrary();
-    if (!library.followTheme || !library.modes?.length || boardLocked() || readOnlyView()) return;
-    const wanted = library.modes.find(mode => new RegExp(current === "dark" ? "dark" : "light", "i").test(mode.name));
-    if (wanted && wanted.id !== (library.activeModeId ?? library.modes[0].id)) commitStyleLibrary({ ...library, activeModeId: wanted.id });
-  });
   function addTextStyle() {
     const library = activeStyleLibrary(); const target = styleTarget();
     if (library.textStyles.length >= MAX_TEXT_STYLES) { setError(`A sketch can contain up to ${MAX_TEXT_STYLES} text styles.`); return; }
@@ -3235,7 +3222,54 @@ function App() {
     }
     return { point };
   }
-  const toggleMeasureMode = () => { const enabled = !measureMode(); setMeasureMode(enabled); if (!enabled) { measureOrigin = undefined; setMeasurement(undefined); } };
+  function measureObjectBounds(first: Bounds, second: Bounds) {
+    const firstRight = first.x + first.w; const secondRight = second.x + second.w;
+    const firstBottom = first.y + first.h; const secondBottom = second.y + second.h;
+    const overlapX = Math.max(0, Math.min(firstRight, secondRight) - Math.max(first.x, second.x));
+    const overlapY = Math.max(0, Math.min(firstBottom, secondBottom) - Math.max(first.y, second.y));
+    const gapX = Math.max(0, second.x - firstRight, first.x - secondRight);
+    const gapY = Math.max(0, second.y - firstBottom, first.y - secondBottom);
+    const x1 = firstRight <= second.x ? firstRight : secondRight <= first.x ? first.x : Math.max(first.x, second.x) + overlapX / 2;
+    const x2 = second.x >= firstRight ? second.x : first.x >= secondRight ? secondRight : x1;
+    const y1 = firstBottom <= second.y ? firstBottom : secondBottom <= first.y ? first.y : Math.max(first.y, second.y) + overlapY / 2;
+    const y2 = second.y >= firstBottom ? second.y : first.y >= secondBottom ? secondBottom : y1;
+    const alignment = [
+      Math.abs(first.x - second.x) < 1 && "left edges",
+      Math.abs(firstRight - secondRight) < 1 && "right edges",
+      Math.abs(first.y - second.y) < 1 && "top edges",
+      Math.abs(firstBottom - secondBottom) < 1 && "bottom edges",
+      Math.abs(first.x + first.w / 2 - second.x - second.w / 2) < 1 && "horizontal centers",
+      Math.abs(first.y + first.h / 2 - second.y - second.h / 2) < 1 && "vertical centers",
+    ].filter(Boolean).join(", ");
+    return { start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, gapX, gapY, distance: Math.hypot(gapX, gapY), alignment };
+  }
+  function equalSpacingAroundCanvasObject(index: number) {
+    const target = elements()[index];
+    if (!target) return undefined;
+    const bounds = elementBounds(target);
+    const peers = elements().flatMap((item, itemIndex) => itemIndex !== index && !isElementHidden(item) && !isElementLocked(item) ? [{ bounds: elementBounds(item) }] : []);
+    const horizontal = peers.filter(item => Math.min(bounds.y + bounds.h, item.bounds.y + item.bounds.h) > Math.max(bounds.y, item.bounds.y));
+    const left = horizontal.filter(item => item.bounds.x + item.bounds.w <= bounds.x).sort((a, b) => b.bounds.x + b.bounds.w - (a.bounds.x + a.bounds.w))[0];
+    const right = horizontal.filter(item => item.bounds.x >= bounds.x + bounds.w).sort((a, b) => a.bounds.x - b.bounds.x)[0];
+    if (left && right) {
+      const first = bounds.x - (left.bounds.x + left.bounds.w); const second = right.bounds.x - (bounds.x + bounds.w);
+      if (first > 0 && second > 0 && Math.abs(first - second) <= 1) return { axis: "x" as const, gap: (first + second) / 2 };
+    }
+    const vertical = peers.filter(item => Math.min(bounds.x + bounds.w, item.bounds.x + item.bounds.w) > Math.max(bounds.x, item.bounds.x));
+    const above = vertical.filter(item => item.bounds.y + item.bounds.h <= bounds.y).sort((a, b) => b.bounds.y + b.bounds.h - (a.bounds.y + a.bounds.h))[0];
+    const below = vertical.filter(item => item.bounds.y >= bounds.y + bounds.h).sort((a, b) => a.bounds.y - b.bounds.y)[0];
+    if (above && below) {
+      const first = bounds.y - (above.bounds.y + above.bounds.h); const second = below.bounds.y - (bounds.y + bounds.h);
+      if (first > 0 && second > 0 && Math.abs(first - second) <= 1) return { axis: "y" as const, gap: (first + second) / 2 };
+    }
+    return undefined;
+  }
+  const toggleMeasureMode = () => {
+    const enabled = !measureMode(); setMeasureMode(enabled);
+    const selected = selectedIndices();
+    setMeasureSourceIndex(enabled && selected.length === 1 ? selected[0] : undefined);
+    if (!enabled) { measureOrigin = undefined; setMeasurement(undefined); }
+  };
   function editPathNode(original: Element, nodeIndex: number, world: Point): Element {
     if (original.type === "freehand") return { ...original, points: original.points.map((point, index) => index === nodeIndex ? { ...point, x: world.x, y: world.y } : point) };
     if (original.type !== "svgPath") return original;
@@ -5267,7 +5301,7 @@ function App() {
       }
       const aligned = alignments.sort((a, b) => Math.abs(a.correction) - Math.abs(b.correction))[0];
       if (aligned) return aligned;
-      const target = gridEnabled ? gridCoordinate(position, axis) : Math.round(position / 10) * 10;
+      const target = gridEnabled ? gridCoordinate(position, axis) : Math.round(position);
       return { target, correction: target - position };
     };
     const correctionX = movesX ? nearest(edgeX, "x") : undefined;
@@ -5626,9 +5660,6 @@ function App() {
       if (gestureMenu?.open && !gestureMenu.contains(event.target as Node)) gestureMenu.open = false;
     };
     const closeMenuOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { setQuickStylePopover(undefined); setToolbarOrganizerOpen(false); setMoreToolsOpen(false); if (menu?.open) menu.open = false; if (viewMenu?.open) viewMenu.open = false; if (gestureMenu?.open) gestureMenu.open = false; if (helpMenu?.open) helpMenu.open = false; if (appSettingsMenu?.open) appSettingsMenu.open = false; } };
-    const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
-    const updateSystemTheme = (event: MediaQueryListEvent) => setSystemDark(event.matches);
-    setSystemDark(colorScheme.matches); colorScheme.addEventListener("change", updateSystemTheme);
     let closeInProgress = false;
     let unlistenClose: (() => void) | undefined;
     if (isTauri()) {
@@ -5683,13 +5714,8 @@ function App() {
     restartAutosave = () => { if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); scheduleAutosave(); };
     scheduleAutosave();
     syncPollTimer = window.setInterval(() => void pollSharedSketch(), 30_000);
-    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); if (syncPollTimer !== undefined) window.clearInterval(syncPollTimer); if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("pointerdown", mouseShortcutPointerDown, true); window.removeEventListener("auxclick", mouseShortcutAuxClick, true); window.removeEventListener("contextmenu", mouseShortcutContextMenu, true); window.removeEventListener("blur", blur); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); colorScheme.removeEventListener("change", updateSystemTheme); });
+    onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); if (syncPollTimer !== undefined) window.clearInterval(syncPollTimer); if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("pointerdown", mouseShortcutPointerDown, true); window.removeEventListener("auxclick", mouseShortcutAuxClick, true); window.removeEventListener("contextmenu", mouseShortcutContextMenu, true); window.removeEventListener("blur", blur); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); });
   });
-
-  function setThemePreference(mode: ThemeMode) {
-    setThemeMode(mode);
-    try { if (mode === "system") localStorage.removeItem("sketchdraw-theme"); else localStorage.setItem("sketchdraw-theme", mode); } catch { /* Theme still applies for this session. */ }
-  }
 
   function setAccentPreference(value: string) {
     if (!/^#[\da-f]{6}$/i.test(value)) return;
@@ -5771,7 +5797,6 @@ function App() {
     try { localStorage.removeItem("sketchdraw-toolbar-layout"); localStorage.removeItem("sketchdraw-toolbar-order"); localStorage.removeItem("sketchdraw-history-actions-visible"); } catch { /* The default toolbar remains active for this session. */ }
   }
   function restoreAppSettings() {
-    setThemePreference("system");
     setAccentPreference(UI_ACCENTS[0].value);
     setToolbarColorPreference("auto");
     setInterfaceScalePreference(1);
@@ -5809,9 +5834,9 @@ function App() {
     setWhiteboardStyle(style);
     try { localStorage.setItem("sketchdraw-whiteboard-style", style); } catch { /* The style remains active for this session. */ }
   }
-  function setSnapMovesToTen(enabled: boolean) {
-    setSnapMovesToTenValue(enabled);
-    try { localStorage.setItem("sketchdraw-snap-moves-to-ten", String(enabled)); } catch { /* The setting still applies for this session. */ }
+  function setSnapMovesToPixel(enabled: boolean) {
+    setSnapMovesToPixelValue(enabled);
+    try { localStorage.setItem("sketchdraw-snap-moves-to-pixel", String(enabled)); localStorage.removeItem("sketchdraw-snap-moves-to-ten"); } catch { /* The setting still applies for this session. */ }
   }
   function runTouchTapAction(action: TouchTapAction) {
     if (action === "none") return;
@@ -7432,7 +7457,18 @@ function App() {
       return;
     }
     if (event.target === canvas && measureMode() && event.button === 0) {
-      event.preventDefault(); measureOrigin = toWorld(event); setMeasurement({ start: measureOrigin, end: measureOrigin });
+      event.preventDefault();
+      const point = toWorld(event);
+      const hit = hitTest(point);
+      if (hit !== undefined) {
+        setMeasureSourceIndex(hit);
+        setSelectedIndices([hit]);
+        setMeasurement(undefined);
+        return;
+      }
+      setMeasureSourceIndex(undefined);
+      measureOrigin = point;
+      setMeasurement({ start: point, end: point });
       try { canvas.setPointerCapture(event.pointerId); } catch { /* The pointer can be canceled before capture. */ }
       return;
     }
@@ -7521,6 +7557,20 @@ function App() {
       updatePrototypeHover(root ? findInteractive(root)?.id : undefined); return;
     }
     if (measureOrigin) { event.preventDefault(); setMeasurement({ start: measureOrigin, end: toWorld(event) }); return; }
+    if (measureMode()) {
+      const sourceIndex = measureSourceIndex();
+      const point = toWorld(event);
+      const targetIndex = hitTest(point);
+      const firstElement = sourceIndex === undefined ? undefined : elements()[sourceIndex];
+      const secondElement = targetIndex === undefined || targetIndex === sourceIndex ? undefined : elements()[targetIndex];
+      if (firstElement && secondElement && !isElementHidden(firstElement) && !isElementHidden(secondElement)) {
+        const measured = measureObjectBounds(elementBounds(firstElement), elementBounds(secondElement));
+        const equalSpacing = equalSpacingAroundCanvasObject(targetIndex!);
+        const round = (value: number) => Math.round(value * 10) / 10;
+        setMeasurement({ start: measured.start, end: measured.end, detail: { gapX: round(measured.gapX), gapY: round(measured.gapY), distance: round(measured.distance), alignment: measured.alignment, equalSpacing: equalSpacing ? { axis: equalSpacing.axis, gap: round(equalSpacing.gap) } : undefined } });
+      } else setMeasurement(undefined);
+      return;
+    }
     if (pathNodeOrigin) { event.preventDefault(); moveEditedPathNode(event); return; }
     if (activePenPointerId !== undefined && event.pointerType !== "touch" && event.pointerId !== activePenPointerId) return;
     if (ignoredTouchPointers.has(event.pointerId) || event.pointerType === "touch" && !touchPointers.has(event.pointerId)) return;
@@ -7743,8 +7793,8 @@ function App() {
     const objectOrSpaceY = spacingY && (!objectCorrectionY || Math.abs(spacingY.correction) < Math.abs(objectCorrectionY)) ? spacingY : objectCorrectionY !== undefined ? { correction: objectCorrectionY, target: objectY!.target.coordinate } : undefined;
     const correctionX = objectOrSpaceX?.correction ?? gridX ?? 0;
     const correctionY = objectOrSpaceY?.correction ?? gridY ?? 0;
-    const moveStepX = snapMovesToTen() && !objectOrSpaceX ? Math.round((moving.x + dx) / 10) * 10 - (moving.x + dx) : 0;
-    const moveStepY = snapMovesToTen() && !objectOrSpaceY ? Math.round((moving.y + dy) / 10) * 10 - (moving.y + dy) : 0;
+    const moveStepX = snapMovesToPixel() && !objectOrSpaceX ? Math.round(moving.x + dx) - (moving.x + dx) : 0;
+    const moveStepY = snapMovesToPixel() && !objectOrSpaceY ? Math.round(moving.y + dy) - (moving.y + dy) : 0;
     const finalDx = dx + correctionX + (!objectOrSpaceX && gridX === undefined ? moveStepX : 0);
     const finalDy = dy + correctionY + (!objectOrSpaceY && gridY === undefined ? moveStepY : 0);
     const movingAfter = { ...aligned, x: aligned.x + finalDx, y: aligned.y + finalDy };
@@ -8579,8 +8629,6 @@ function App() {
       canEditLibrary={!!activePath() && !readOnlyView() && !boardLocked()}
       canSaveSelection={selectedIndices().length > 0 && !readOnlyView()}
       busy={componentCatalogBusy() || nativeBusy()}
-      theme={theme()}
-      aiTheme={themeMode() === "ai"}
       stencils={customStencils()}
       favorites={stencilFavorites()}
       recent={recentStencils()}
@@ -8757,11 +8805,6 @@ function App() {
       { id: "fullscreen", label: "Toggle full screen focus mode", category: "View", run: () => void toggleWindowsFullscreen() },
       { id: "snap-grid", label: "Toggle grid snapping", category: "View", shortcut: formatShortcutBindings(shortcuts().snapGrid), run: () => setSnapToGrid(value => !value) },
       { id: "snap-objects", label: "Toggle object snapping", category: "View", shortcut: formatShortcutBindings(shortcuts().snapObjects), run: () => setSnapToObjects(value => !value) },
-      { id: "theme-system", label: "Use system theme", category: "View", keywords: "appearance light dark", run: () => setThemePreference("system") },
-      { id: "theme-light", label: "Use light theme", category: "View", keywords: "appearance system dark", run: () => setThemePreference("light") },
-      { id: "theme-dark", label: "Use dark theme", category: "View", keywords: "appearance system light", run: () => setThemePreference("dark") },
-      { id: "theme-ai", label: "Use AI theme", category: "View", keywords: "appearance custom neural aurora", run: () => setThemePreference("ai") },
-      { id: "theme-minimalist", label: "Use minimalist theme", category: "View", keywords: "appearance simple minimal clean", run: () => setThemePreference("minimalist") },
       { id: "measure-distance", label: "Measure distance on canvas", category: "Tools", shortcut: formatShortcutBindings(shortcuts().measureTool), run: toggleMeasureMode },
       { id: "select-previous-object", label: "Select previous object", category: "Selection", shortcut: formatShortcutBindings(shortcuts().cycleSelectionPrevious), run: () => cycleSelection(-1) },
       { id: "select-next-object", label: "Select next object", category: "Selection", shortcut: formatShortcutBindings(shortcuts().cycleSelectionNext), run: () => cycleSelection(1) },
@@ -8846,7 +8889,7 @@ function App() {
     onToolbarPositionChange={setToolbarPositionPreference}
     onAutosaveChange={setAutosavePreference}
     onThicknessPickerModeChange={setThicknessPickerPreference}
-    appAppearance={{ themeMode: themeMode(), accentColor: accentColor(), toolbarColorChoice: toolbarColorChoice(), accentOptions: UI_ACCENTS, toolbarColorOptions: TOOLBAR_COLORS, onThemeChange: setThemePreference, onAccentChange: setAccentPreference, onToolbarColorChange: setToolbarColorPreference }}
+    appAppearance={{ accentColor: accentColor(), toolbarColorChoice: toolbarColorChoice(), accentOptions: UI_ACCENTS, toolbarColorOptions: TOOLBAR_COLORS, onAccentChange: setAccentPreference, onToolbarColorChange: setToolbarColorPreference }}
     onRestoreDefaults={restoreAppSettings}
     gestureSection={gestureMenuSection()}
     onGestureSectionChange={setGestureMenuSection}
@@ -8871,7 +8914,7 @@ function App() {
   /></Suspense>;
 
   return (
-    <main class="app-shell" classList={{ "theme-light": themeMode() !== "ai" && theme() === "light", "theme-dark": themeMode() !== "ai" && theme() === "dark", "theme-ai": themeMode() === "ai", "theme-minimalist": themeMode() === "minimalist", "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": showWelcomeScreen(), "design-workspace-active": workspaceArea() === "design", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() === "planning" || workspaceArea() === "ui-design", "ui-design-workspace-active": workspaceArea() === "ui-design", "touch-focus-mode": isCanvasWorkspace() && touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && isCanvasWorkspace() && presentationMode(), "presentation-mode": isCanvasWorkspace() && presentationMode(), "prototype-run-mode": isCanvasWorkspace() && canvasRunMode(), "windows-fullscreen-mode": isWindowsPlatform() && isCanvasWorkspace() && windowsFullscreenMode(), "read-only-view": isCanvasWorkspace() && readOnlyView() }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 88%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-shell-width: ${displayMetrics().viewportWidth / interfaceScale()}px; --app-shell-height-vh: ${100 / interfaceScale()}vh; --app-shell-height-dvh: ${100 / interfaceScale()}dvh; --app-topbar-height: ${topbarHeight()}px;`}>
+    <main class="app-shell" classList={{ "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": showWelcomeScreen(), "design-workspace-active": workspaceArea() === "design", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() === "planning" || workspaceArea() === "ui-design", "ui-design-workspace-active": workspaceArea() === "ui-design", "touch-focus-mode": isCanvasWorkspace() && touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && isCanvasWorkspace() && presentationMode(), "presentation-mode": isCanvasWorkspace() && presentationMode(), "prototype-run-mode": isCanvasWorkspace() && canvasRunMode(), "windows-fullscreen-mode": isWindowsPlatform() && isCanvasWorkspace() && windowsFullscreenMode(), "read-only-view": isCanvasWorkspace() && readOnlyView() }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 88%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-shell-width: ${displayMetrics().viewportWidth / interfaceScale()}px; --app-shell-height-vh: ${100 / interfaceScale()}vh; --app-shell-height-dvh: ${100 / interfaceScale()}dvh; --app-topbar-height: ${topbarHeight()}px;`}>
       <Show when={toolbarOrganizerOpen()}><ToolbarOrderEditor toolbarItems={organizerItems(toolbarOrder())} moreItems={organizerItems(moreToolsOrder())} historyActionsVisible={historyActionsVisible()} onHistoryActionsVisibleChange={setHistoryActionsVisiblePreference} onMove={moveToolbarTool} onReorder={reorderToolbarTool} onReset={resetToolbarOrder} onClose={() => setToolbarOrganizerOpen(false)} /></Show>
       <Show when={designWorkbenchOpen() && activePath() && isCanvasWorkspace()}><DesignWorkbenchPanel
         elements={elements()} selectedIndices={selectedIndices()} selected={selectedIndices().length === 1 ? elements()[selectedIndices()[0]] : undefined}
@@ -8983,14 +9026,13 @@ function App() {
             <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={onViewMenuToggle}>
               <summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>View</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
               <ViewSettingsPopover
-                themeMode={themeMode()}
                 accentColor={accentColor()}
                 toolbarColorChoice={toolbarColorChoice()}
                 accentOptions={UI_ACCENTS}
                 toolbarColorOptions={TOOLBAR_COLORS}
                 boardColor={boardColor()}
                 renderedBoardColor={renderedBoardColor()}
-                boardColorFollowsTheme={boardColorFollowsTheme()}
+                boardColorUsesDefault={boardColorFollowsTheme()}
                 boardLocked={boardLocked()}
                 boardColors={BOARD_COLORS.map(value => ({ value, label: BOARD_COLOR_NAMES[value] ?? value }))}
                 paperPattern={whiteboardStyle()}
@@ -9006,10 +9048,9 @@ function App() {
                   onOpenOutline: () => { viewMenu.open = false; openDocumentOutline(); },
                   onOpenNavigator: () => { viewMenu.open = false; setNavigatorOpen(true); },
                 }}
-                onThemeChange={setThemePreference}
                 onAccentChange={setAccentPreference}
                 onToolbarColorChange={setToolbarColorPreference}
-                onBoardFollowTheme={() => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } }}
+                onBoardUseDefault={() => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } }}
                 onBoardColorChange={value => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } }}
                 onPaperPatternChange={setWhiteboardStylePreference}
                 onNamedVersions={openNamedSnapshots}
@@ -9045,10 +9086,10 @@ function App() {
           onOpenPlan={openRecentPlan}
           onExport={exportPlanningText}
         /></Suspense></Show>
-      <Show when={workspaceArea() === "ui-design"}><Suspense fallback={<div class="ui-design-loading" role="status">Loading UI Design…</div>}><UiDesignWorkspace session={uiDesignSession} /></Suspense></Show>
+      <Show when={workspaceArea() === "ui-design" && !showWelcomeScreen()}><Suspense fallback={<AppStatusScreen state="loading" title="Loading UI Design…" message="Preparing your design workspace…" />}><UiDesignWorkspace session={uiDesignSession} /></Suspense></Show>
       <Show when={showWelcomeScreen()}>
-        <MobileHomeScreen planningViewport={workspaceArea() === "planning"} recentFiles={recentFiles()} recentPlans={recentPlans()} displayPathName={displayNameForPath} onCreate={createFile} onNewPlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentPlan={openRecentPlan} />
-        <WelcomeScreen planningViewport={workspaceArea() === "planning"} recentFiles={recentFiles} recentPlans={recentPlans} displayNameForPath={displayNameForPath} onCreateFile={createFile} onOpenFile={openFile} onCreatePlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpenRecentPlan={openRecentPlan} onOpenRecentFile={loadFile} onSelectWorkspace={area => setWorkspaceArea(area)} />
+        <MobileHomeScreen planningViewport={workspaceArea() === "planning"} uiDesignViewport={workspaceArea() === "ui-design"} uiDesignSession={uiDesignSession} recentFiles={recentFiles()} recentPlans={recentPlans()} displayPathName={displayNameForPath} onCreate={createFile} onNewPlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentPlan={openRecentPlan} onCreateUIDesign={() => uiDesignSession.create()} onOpenUIDesign={() => uiDesignSession.open()} onOpenRecentUIDesign={path => uiDesignSession.openRecent(path)} />
+        <WelcomeScreen planningViewport={workspaceArea() === "planning"} uiDesignViewport={workspaceArea() === "ui-design"} uiDesignSession={uiDesignSession} recentFiles={recentFiles} recentPlans={recentPlans} displayNameForPath={displayNameForPath} onCreateFile={createFile} onOpenFile={openFile} onCreatePlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpenRecentPlan={openRecentPlan} onOpenRecentFile={loadFile} onCreateUIDesign={() => uiDesignSession.create()} onOpenUIDesign={() => uiDesignSession.open()} onOpenRecentUIDesign={path => uiDesignSession.openRecent(path)} onSelectWorkspace={area => setWorkspaceArea(area)} />
       </Show>
       <Show when={isCanvasWorkspace()}>
       <Show when={activePath()}>
@@ -9136,7 +9177,7 @@ function App() {
               onLaserChange={(key, value) => setLaserPreference(key, value)}
               onBucketColorChange={setFillColor}
             /></Show>
-            <canvas ref={canvas} class="drawing-canvas" classList={{ "color-vision-preview": colorVisionMode() !== "none" }} role="application" aria-roledescription="drawing canvas" aria-label={canvasAccessibleLabel()} title={hoverTooltip()} style={{ filter: colorVisionMode() === "none" ? undefined : `url(#sketchdraw-cvd-${colorVisionMode()})`, cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onWheel={handleCanvasWheel} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); setNoteToggleHovered(false); updatePrototypeHover(undefined); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} />
+            <canvas ref={canvas} class="drawing-canvas" classList={{ "color-vision-preview": colorVisionMode() !== "none" }} role="application" aria-roledescription="drawing canvas" aria-label={canvasAccessibleLabel()} title={hoverTooltip()} style={{ filter: colorVisionMode() === "none" ? undefined : `url(#sketchdraw-cvd-${colorVisionMode()})`, cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onWheel={handleCanvasWheel} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); if (measureMode() && !measureOrigin) setMeasurement(undefined); setNoteToggleHovered(false); updatePrototypeHover(undefined); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} />
             <Show when={presentationMode() && presentationTransition()}><div class="canvas-presentation-transition" classList={{ "canvas-presentation-transition-fade": presentationTransition() === "fade", "canvas-presentation-transition-slide": presentationTransition() === "slide" }} aria-hidden="true" /></Show>
             <CanvasInteractionOverlay state={canvasState()} measurement={measurement()} nodeHandles={pathNodeHandles()} disabled={boardLocked() || readOnlyView()} onPathNodePointerDown={beginPathNodeEdit} onPathNodePointerMove={moveEditedPathNode} onPathNodePointerUp={finishPathNodeEdit} onPathNodePointerCancel={cancelPathNodeEdit} />
             <Show when={activeWebPreview()}>{preview => <Show when={elements().find((item): item is ImageElement => item.type === "image" && item.id === preview().id)}>{item => {
@@ -9182,7 +9223,7 @@ function App() {
                 showGrid={showGrid()}
                 snapToGrid={snapToGrid()}
                 snapToObjects={snapToObjects()}
-                snapMovesToTen={snapMovesToTen()}
+                snapMovesToPixel={snapMovesToPixel()}
                 hasElements={elements().length > 0}
                 hasSelection={selectedIndices().length >= 2}
                 canGroup={groupActionEnabled()}
@@ -9195,7 +9236,7 @@ function App() {
                 onToggleGrid={() => setShowGrid(value => !value)}
                 onToggleSnapToGrid={() => setSnapToGrid(value => !value)}
                 onToggleSnapToObjects={() => setSnapToObjects(value => !value)}
-                onToggleSnapMovesToTen={() => setSnapMovesToTen(!snapMovesToTen())}
+                onToggleSnapMovesToPixel={() => setSnapMovesToPixel(!snapMovesToPixel())}
                 onGroupSelection={() => { groupSelection(); setCanvasOptionsOpen(false); }}
                 onCreateFrame={() => { createFrameFromSelection(); setCanvasOptionsOpen(false); }}
                 guiDesign={{
@@ -9215,15 +9256,14 @@ function App() {
                 onOrthogonalizeSelected={() => { orthogonalizeSelectedConnectors(); setCanvasOptionsOpen(false); }}
                 structureSelectionDisabled={!selectedIndices().length || readOnlyView()}
                 orthogonalizeDisabled={!selectedConnectorCount() || readOnlyView()}
-                appAppearance={undefined}
                 canvasAppearance={isWindowsPlatform() ? undefined : {
                   backgroundColor: boardColor(),
                   renderedBackgroundColor: renderedBoardColor(),
-                  followsTheme: boardColorFollowsTheme(),
+                  usesDefaultColor: boardColorFollowsTheme(),
                   boardLocked: boardLocked(),
                   boardColors: BOARD_COLORS.map(value => ({ value, label: BOARD_COLOR_NAMES[value] ?? value })),
                   paperPattern: whiteboardStyle(),
-                  onFollowTheme: () => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } },
+                  onUseDefaultColor: () => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } },
                   onBackgroundColorChange: value => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } },
                   onPaperPatternChange: setWhiteboardStylePreference,
                 }}
@@ -9292,7 +9332,7 @@ function App() {
                       showGrid={showGrid()}
                       snapToGrid={snapToGrid()}
                       snapToObjects={snapToObjects()}
-                      snapMovesToTen={snapMovesToTen()}
+                      snapMovesToPixel={snapMovesToPixel()}
                       hasElements={elements().length > 0}
                       hasSelection={selectedIndices().length > 0}
                       canGroup={groupActionEnabled()}
@@ -9305,7 +9345,7 @@ function App() {
                       onToggleGrid={() => setShowGrid(value => !value)}
                       onToggleSnapToGrid={() => setSnapToGrid(value => !value)}
                       onToggleSnapToObjects={() => setSnapToObjects(value => !value)}
-                      onToggleSnapMovesToTen={() => setSnapMovesToTen(!snapMovesToTen())}
+                      onToggleSnapMovesToPixel={() => setSnapMovesToPixel(!snapMovesToPixel())}
                       onGroupSelection={() => { groupSelection(); setCanvasOptionsOpen(false); }}
                     />
                   </div>
@@ -9779,7 +9819,7 @@ function App() {
       <Show when={styleLibraryOpen() && activePath() && isCanvasWorkspace()}><Suspense fallback={null}><StyleLibraryPanel
         library={activeStyleLibrary()} canEdit={!boardLocked() && !readOnlyView()} selection={styleSelectionInfo()} usage={styleTokenUsage} fontChoices={FONT_FAMILY_CHOICES}
         resolveColor={id => { const library = activeStyleLibrary(); const token = library.colors.find(item => item.id === id); return token ? resolveColorToken(library, token) : "#000000"; }}
-        onEnableModes={enableStyleModes} onAddMode={addStyleMode} onRenameMode={renameStyleMode} onRemoveMode={removeStyleMode} onSetMode={setStyleMode} onFollowTheme={setStyleFollowTheme}
+        onEnableModes={enableStyleModes} onAddMode={addStyleMode} onRenameMode={renameStyleMode} onRemoveMode={removeStyleMode} onSetMode={setStyleMode}
         onAddColor={addColorStyle} onUpdateColor={updateColorStyle} onRemoveColor={id => removeStyleToken("colors", id)}
         onAddTextStyle={addTextStyle} onUpdateTextStyle={updateTextStyle} onRemoveTextStyle={id => removeStyleToken("textStyles", id)}
         onAddStrokeStyle={addStrokeStyle} onUpdateStrokeStyle={updateStrokeStyle} onRemoveStrokeStyle={id => removeStyleToken("strokeStyles", id)}

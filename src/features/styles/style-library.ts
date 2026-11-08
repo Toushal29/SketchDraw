@@ -53,7 +53,7 @@ export function normalizeStyleLibrary(value: unknown): StyleLibrary | undefined 
       ? [{ id: token.id, name: tokenName(token.name, "Stroke style"), thickness: Math.round(token.thickness), lineStyle: token.lineStyle as StrokeStyle }] : [];
   });
   const activeModeId = typeof raw.activeModeId === "string" && modes.some(mode => mode.id === raw.activeModeId) ? raw.activeModeId : undefined;
-  const library: StyleLibrary = { colors, textStyles, strokeStyles, ...(modes.length ? { modes } : {}), ...(activeModeId ? { activeModeId } : {}), ...(raw.followTheme === true && modes.length ? { followTheme: true } : {}) };
+  const library: StyleLibrary = { colors, textStyles, strokeStyles, ...(modes.length ? { modes } : {}), ...(activeModeId ? { activeModeId } : {}) };
   return isStyleLibraryEmpty(library) ? undefined : library;
 }
 
@@ -75,7 +75,7 @@ export function mergeStyleLibraries(libraries: (StyleLibrary | undefined)[]): St
   const take = <T extends { id: string }>(target: T[], source: T[] | undefined, limit: number) => { for (const token of source ?? []) if (target.length < limit && !target.some(item => item.id === token.id)) target.push(token); };
   for (const library of libraries) {
     if (!library) continue;
-    if (library.modes?.length && !merged.modes) { merged.modes = library.modes; if (library.activeModeId) merged.activeModeId = library.activeModeId; if (library.followTheme) merged.followTheme = true; }
+    if (library.modes?.length && !merged.modes) { merged.modes = library.modes; if (library.activeModeId) merged.activeModeId = library.activeModeId; }
     take(merged.colors, library.colors, MAX_COLOR_TOKENS); take(merged.textStyles, library.textStyles, MAX_TEXT_STYLES); take(merged.strokeStyles, library.strokeStyles, MAX_STROKE_STYLES);
   }
   return merged;

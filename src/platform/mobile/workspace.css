@@ -16,9 +16,6 @@
 .app-shell:not(.platform-windows) .gesture-card-copy small { font-size: var(--type-micro); }
 .app-shell:not(.platform-windows) .gesture-action-card select { box-sizing: border-box; width: 100%; min-width: 0; height: 38px; padding: 5px 26px 5px 8px; border: 1px solid var(--theme-border); border-radius: 9px; color: var(--theme-text-primary); background: var(--theme-surface-input); font: var(--type-caption) var(--font-ui); }
 .app-shell:not(.platform-windows) .gesture-menu-note { margin: 3px; font-size: var(--type-micro); line-height: var(--leading-normal); }
-.app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .gesture-menu-heading { border-color: var(--theme-border); }
-.app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .gesture-action-card { border-color: var(--theme-border); }
-.app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .gesture-action-card select { border-color: var(--theme-border); }
 
 @media (max-width: 420px) {
     .app-shell:not(.platform-windows) .gesture-action-card { grid-template-columns: 34px minmax(0, 1fr); }

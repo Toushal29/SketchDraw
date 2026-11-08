@@ -178,12 +178,6 @@
     height: 8px;
 }
 
-:is(.theme-dark, .theme-ai) .property-label input,
-:is(.theme-dark, .theme-ai) .property-label select,
-:is(.theme-dark, .theme-ai) .format-row button {
-    border-color: var(--theme-border);
-}
-
 .save-status.is-dirty {
     color: var(--theme-warning);
 }

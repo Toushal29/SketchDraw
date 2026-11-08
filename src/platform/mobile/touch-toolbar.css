@@ -552,21 +552,6 @@
 @media (max-width: 900px),
 (max-width: 1600px) and (pointer: coarse) {
 
-  .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-tool-bar {
-    border-color: var(--theme-border);
-  }
-
-  .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-tool-content .tool-icon-button,
-  .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-tool-content .canvas-options-trigger,
-  .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-style-open,
-  .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-layers-toggle {
-    color: var(--theme-text-primary);
-  }
-
-  .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-tool-content .tool-family>.tool-options {
-    border-color: var(--theme-border);
-  }
-
   .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-collapsed,
   .app-shell:not(.platform-windows) .style-pane.full-style-mode.mobile-properties-expanded {
     position: fixed;

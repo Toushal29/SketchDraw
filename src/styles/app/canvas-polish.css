@@ -131,5 +131,7 @@
 .canvas-path-node-handle.selected { fill: var(--theme-primary); stroke: var(--theme-surface); }
 .canvas-measurement { pointer-events: none; }
 .canvas-measurement line { stroke: var(--theme-measurement); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.canvas-measurement .measurement-projection { opacity: .78; stroke-width: 1; stroke-dasharray: 3 3; }
+.canvas-measurement .measurement-distance { stroke-width: 2; stroke-dasharray: none; }
 .canvas-measurement circle { fill: var(--theme-surface); stroke: var(--theme-measurement); stroke-width: 1.5; }
 .canvas-measurement text { paint-order: stroke; stroke: var(--theme-surface-elevated); stroke-width: 4px; stroke-linejoin: round; fill: var(--theme-text-primary); font: var(--font-weight-semibold) var(--type-control) var(--font-ui, system-ui); }

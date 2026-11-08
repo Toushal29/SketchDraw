@@ -278,21 +278,6 @@
     font-size: var(--type-control);
 }
 
-.app-shell:is(.theme-dark, .theme-ai) .floating-layer-panel .layer-row {
-    border-color: var(--layer-border);
-    color: var(--layer-ink);
-    background: var(--theme-surface-elevated);
-}
-
-.app-shell:is(.theme-dark, .theme-ai) .floating-layer-panel .layer-row.selected {
-    border-color: var(--ui-accent-border);
-    background: var(--ui-accent-soft);
-}
-
-.app-shell:is(.theme-dark, .theme-ai) .floating-layer-panel .layer-row .layer-action[aria-pressed="true"] {
-    color: var(--ui-accent-ink);
-}
-
 .color-swatch:not(.custom-color-swatch) {
     border-radius: 50%;
 }
@@ -621,10 +606,6 @@
     gap: 8px;
 }
 
-:is(.theme-dark, .theme-ai) .mermaid-input {
-    border-color: var(--theme-border);
-}
-
 @media (max-width: 760px) {
     .mermaid-dialog-footer {
         align-items: flex-start;
@@ -654,16 +635,6 @@
     .plantuml-editor-layout {
         grid-template-rows: minmax(200px, 1fr) auto;
     }
-}
-
-:is(.theme-dark, .theme-ai) .mermaid-preview-panel,
-:is(.theme-dark, .theme-ai) .mermaid-preview-svg {
-    border-color: var(--theme-border);
-    background-color: var(--theme-surface-elevated);
-}
-
-:is(.theme-dark, .theme-ai) .mermaid-preview-heading {
-    border-color: var(--theme-border);
 }
 
 .thickness-tuner {
@@ -742,14 +713,6 @@
     font: var(--type-micro) var(--font-mono);
 }
 
-:is(.theme-dark, .theme-ai) .thickness-tuner>button {
-    border-color: var(--theme-border);
-}
-
-:is(.theme-dark, .theme-ai) .thickness-preview {
-    border-color: var(--theme-border);
-}
-
 .view-only-badge {
     flex: 0 0 auto;
     padding: 4px 7px;
@@ -760,10 +723,6 @@
     font-size: var(--type-micro);
     font-weight: var(--font-weight-bold);
     letter-spacing: .08em;
-}
-
-:is(.theme-dark, .theme-ai) .view-only-badge {
-    border-color: var(--theme-border);
 }
 
 .read-only-view .tool-deck .tool-cluster:not(.tool-cluster-laser),
@@ -901,10 +860,6 @@
 
 .component-state-control input:focus-visible+span {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent, var(--theme-shadow)) 25%, transparent);
-}
-
-:is(.theme-dark, .theme-ai) .component-field-list textarea {
-    border-color: var(--theme-border);
 }
 
 .database-schema-dialog {

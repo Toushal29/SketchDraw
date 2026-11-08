@@ -735,8 +735,8 @@ async function run() {
   let styleLibraryOpened = false;
   const menuHost = document.createElement("div"); menuHost.className = "app-shell"; document.body.append(menuHost);
   const disposeMenu = render(() => createComponent(CanvasOptionsMenu, {
-    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, snapMovesToTen: true, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false,
-    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onToggleSnapMovesToTen() {}, onGroupSelection() {},
+    open: true, showGrid: true, snapToGrid: true, snapToObjects: true, snapMovesToPixel: true, hasElements: true, hasSelection: true, canGroup: true, grouped: false, boardLocked: false,
+    onToggle() {}, onCloseOtherTools() {}, onFitDrawing() {}, onFitSelection() {}, onToggleGrid() {}, onToggleSnapToGrid() {}, onToggleSnapToObjects() {}, onToggleSnapMovesToPixel() {}, onGroupSelection() {},
     penInput: { pressureWidth: false, tiltShaping: false, stylusEraserEnd: false, disabled: false, onPressureWidthChange() {}, onTiltShapingChange() {}, onStylusEraserEndChange() {} },
     styleLibrary: { onOpen() { styleLibraryOpened = true; } },
     canvasTools: { showMinimap: true, onToggleMinimap() {}, onAutoLayout() {} },
@@ -759,8 +759,8 @@ async function run() {
   const viewHost = document.createElement("div"); document.body.append(viewHost);
   let chosenVision = ""; let openedOutline = false; let openedNavigator = false;
   const disposeView = render(() => createComponent(ViewSettingsPopover, {
-    themeMode: "light", accentColor: "#3b82f6", toolbarColorChoice: "auto", accentOptions: [], toolbarColorOptions: [], boardColor: "#ffffff", renderedBoardColor: "#ffffff", boardColorFollowsTheme: true, boardLocked: false, boardColors: [], paperPattern: "plain", patterns: [], namedVersionsDisabled: false,
-    onThemeChange() {}, onAccentChange() {}, onToolbarColorChange() {}, onBoardFollowTheme() {}, onBoardColorChange() {}, onPaperPatternChange() {}, onNamedVersions() {},
+    accentColor: "#3b82f6", toolbarColorChoice: "auto", accentOptions: [], toolbarColorOptions: [], boardColor: "#ffffff", renderedBoardColor: "#ffffff", boardColorUsesDefault: true, boardLocked: false, boardColors: [], paperPattern: "plain", patterns: [], namedVersionsDisabled: false,
+    onAccentChange() {}, onToolbarColorChange() {}, onBoardUseDefault() {}, onBoardColorChange() {}, onPaperPatternChange() {}, onNamedVersions() {},
     accessibility: { colorVisionMode: "none", colorVisionModes: [{ id: "none", label: "Normal vision" }, { id: "deuteranopia", label: "Deuteranopia (no green)" }], safePalette: false, documentDisabled: false, onColorVisionModeChange(mode: string) { chosenVision = mode; }, onSafePaletteChange() {}, onOpenOutline() { openedOutline = true; }, onOpenNavigator() { openedNavigator = true; } },
   }), viewHost);
   const visionSelect = viewHost.querySelector<HTMLSelectElement>('select[aria-label="Color vision preview"]');
@@ -792,14 +792,14 @@ async function run() {
 
   // Files keep alt text, style bindings, the style library, auto-layout frames, and bookmarks across save and reopen.
   {
-    const library = { colors: [{ id: "brand", name: "Brand", value: "#2468a0", modeValues: { dark: "#9ec5ee" } }, { id: "accent", name: "Accent", value: "#ffffff", aliasOf: "brand" }], textStyles: [{ id: "title", name: "Title", fontSize: 28, fontFamily: "serif" as const, bold: true }], strokeStyles: [{ id: "heavy", name: "Heavy", thickness: 6, lineStyle: "dashed" as const }], modes: [{ id: "light", name: "Light" }, { id: "dark", name: "Dark" }], activeModeId: "dark", followTheme: true };
+    const library = { colors: [{ id: "brand", name: "Brand", value: "#2468a0", modeValues: { dark: "#9ec5ee" } }, { id: "accent", name: "Accent", value: "#ffffff", aliasOf: "brand" }], textStyles: [{ id: "title", name: "Title", fontSize: 28, fontFamily: "serif" as const, bold: true }], strokeStyles: [{ id: "heavy", name: "Heavy", thickness: 6, lineStyle: "dashed" as const }], modes: [{ id: "light", name: "Light" }, { id: "dark", name: "Dark" }], activeModeId: "dark" };
     const card = { type: "rectangle" as const, id: "card", x: 0, y: 0, w: 80, h: 40, color: "#2468a0", thickness: 6, lineStyle: "dashed" as const, altText: "Primary card", layoutFill: true, styleBindings: { stroke: { id: "brand", applied: "{\"color\":\"#2468a0\"}" } } };
     const frame = { type: "group" as const, id: "frame", elements: [card], componentBounds: { x: 0, y: 0, w: 200, h: 100 }, container: { kind: "frame" as const, name: "Screen", autoResize: true, padding: 12, autoLayout: { direction: "horizontal" as const, gap: 8, padding: 12, align: "center" as const } } };
     const page = { id: "page-1", name: "Page 1", canvasState: { zoom: 1, panX: 0, panY: 0, backgroundColor: "#ffffff", boardColorFollowsTheme: true }, elements: [frame], styleLibrary: library, bookmarks: [{ id: "view-1", name: "Overview", zoom: .5, panX: 40, panY: -20 }] };
     const saved = serializeSketchSnapshot(createSketchSnapshot({ pages: [page], activePageId: "page-1", activeElements: [frame], activeCanvasState: page.canvasState, activeRenderedBoardColor: "#ffffff", theme: "light", library: { quickNotes: [], studyNotes: [], studyCards: [], wikiArticles: [], journalEntries: [], writingDrafts: [], researchSources: [], mediaEntries: [] } }));
     const reopened = parseSketchFile(JSON.parse(saved));
     const reopenedPage = reopened?.pages[0]; const reopenedFrame = reopenedPage?.elements[0]; const reopenedCard = reopenedFrame?.type === "group" ? reopenedFrame.elements[0] : undefined;
-    check(reopenedPage?.styleLibrary?.activeModeId === "dark" && reopenedPage.styleLibrary.followTheme === true && reopenedPage.styleLibrary.colors[1].aliasOf === "brand" && reopenedPage.styleLibrary.colors[0].modeValues?.dark === "#9ec5ee" && reopenedPage.styleLibrary.textStyles[0].name === "Title" && reopenedPage.styleLibrary.strokeStyles[0].thickness === 6, "Saved sketches keep the style library with modes, aliases, text styles, and stroke styles");
+    check(reopenedPage?.styleLibrary?.activeModeId === "dark" && reopenedPage.styleLibrary.colors[1].aliasOf === "brand" && reopenedPage.styleLibrary.colors[0].modeValues?.dark === "#9ec5ee" && reopenedPage.styleLibrary.textStyles[0].name === "Title" && reopenedPage.styleLibrary.strokeStyles[0].thickness === 6, "Saved sketches keep the style library with token modes, aliases, text styles, and stroke styles");
     check(reopenedCard?.altText === "Primary card" && reopenedCard.layoutFill === true && reopenedCard.styleBindings?.stroke?.id === "brand", "Saved sketches keep alt text, style bindings, and fill-space flags on objects");
     check(reopenedFrame?.type === "group" && reopenedFrame.container?.autoLayout?.direction === "horizontal" && reopenedFrame.container.autoLayout.gap === 8 && reopenedFrame.container.autoLayout.align === "center", "Saved sketches keep auto-layout frame settings");
     check(reopenedPage?.bookmarks?.length === 1 && reopenedPage.bookmarks[0].name === "Overview" && reopenedPage.bookmarks[0].zoom === .5, "Saved sketches keep saved views");
@@ -934,7 +934,7 @@ async function run() {
   const disposePanel = render(() => createComponent(StyleLibraryPanel, {
     library: panelLibrary, canEdit: true, selection: { label: "Rectangle: API", slots: [{ slot: "stroke", state: "unbound" }, { slot: "fill", state: "bound", tokenId: "brand" }, { slot: "textStyle", state: "detached", tokenId: "title" }] },
     usage: (slot, id) => slot === "stroke" && id === "brand" ? 3 : 0, fontChoices: FONT_FAMILY_CHOICES,
-    resolveColor: () => "#2468a0", onEnableModes() { modesEnabled = true; }, onAddMode() {}, onRenameMode() {}, onRemoveMode() {}, onSetMode() {}, onFollowTheme() {},
+    resolveColor: () => "#2468a0", onEnableModes() { modesEnabled = true; }, onAddMode() {}, onRenameMode() {}, onRemoveMode() {}, onSetMode() {},
     onAddColor() {}, onUpdateColor() {}, onRemoveColor: id => removedStyles.push(id), onAddTextStyle() {}, onUpdateTextStyle() {}, onRemoveTextStyle() {}, onAddStrokeStyle() {}, onUpdateStrokeStyle() {}, onRemoveStrokeStyle() {},
     onApply: (slot, id) => appliedStyles.push(`${slot}:${id}`), onDetach() {}, onClose() {},
   }), panelHost);
@@ -942,8 +942,8 @@ async function run() {
   check(panelControls.length > 8 && panelControls.every(control => control.getAttribute("aria-label") || control.getAttribute("title") || control.textContent?.trim() || control.closest("label")?.textContent?.trim()), "Style library controls expose accessible names");
   panelHost.querySelector<HTMLButtonElement>('button[aria-label="Use Brand as stroke color"]')?.click();
   panelHost.querySelector<HTMLButtonElement>('button[aria-label="Delete Heavy"]')?.click();
-  Array.from(panelHost.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes("Light and Dark"))?.click();
-  check(modesEnabled, "Style library offers Light and Dark variable modes");
+  Array.from(panelHost.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes("Add color modes"))?.click();
+  check(modesEnabled, "Style library offers design-token modes independent of application appearance");
   check(appliedStyles.includes("stroke:brand") && removedStyles.length === 0 && panelHost.textContent?.includes("3 in use") && panelHost.querySelector('[role="dialog"][aria-label="Style library"]') !== null, "Style library applies named colors and reports how many objects use them");
   disposePanel(); panelHost.remove();
 

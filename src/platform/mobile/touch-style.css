@@ -191,10 +191,6 @@
     .app-shell:not(.platform-windows) .help-dialog > footer { min-height: 38px; justify-content: flex-end; gap: 8px; padding-top: 9px; border-top: 1px solid var(--touch-line); }
     .app-shell:not(.platform-windows) .help-dialog > footer > span { display: none; }
     .app-shell:not(.platform-windows) .help-dialog > footer .save-button { min-height: 36px; padding: 7px 16px; }
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .help-dialog { border-color: var(--theme-border); }
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .help-guide > section { border-color: var(--theme-border); }
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .shortcut-table th,
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .shortcut-table td { border-color: var(--theme-border); }
 }
 
 @media (max-width: 540px) {

@@ -387,26 +387,4 @@
 
 @media (max-width: 900px),
 (max-width: 1600px) and (pointer: coarse) {
-
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .canvas-zoom-reset {
-        border-color: var(--theme-border);
-        color: var(--theme-text-primary);
-    }
-
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .style-pane .quick-style-popover,
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .floating-layer-panel {
-        border-color: var(--theme-border);
-        color: var(--theme-text-primary);
-    }
-
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .gesture-action-card {
-        border-color: var(--theme-border);
-        background: var(--theme-background);
-    }
-
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .gesture-action-card select {
-        border-color: var(--theme-border);
-        color: var(--theme-text-primary);
-        background: var(--theme-background);
-    }
 }

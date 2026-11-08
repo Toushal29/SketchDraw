@@ -1,0 +1,35 @@
+.app-status-screen {
+  display: grid;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  place-items: center;
+  padding: clamp(20px, 5vw, 64px);
+  color: var(--theme-text-primary, #1d1d1f);
+  background: var(--theme-background, #f5f5f7);
+  font: var(--font-weight-regular, 400) var(--type-body-compact, 13px) / var(--leading-normal, 1.5) var(--font-ui, system-ui, sans-serif);
+}
+
+.app-status-panel {
+  width: min(100%, 680px);
+  padding: clamp(22px, 4vw, 36px);
+  border: 1px solid var(--theme-border, #d1d1d6);
+  border-radius: var(--ui-radius-panel, 12px);
+  background: var(--theme-surface-elevated, #fff);
+}
+
+.app-status-brand { display: flex; align-items: center; gap: 9px; margin-bottom: clamp(28px, 6vh, 50px); }
+.app-status-mark { display: grid; width: 32px; height: 32px; place-items: center; border-radius: var(--ui-radius-control, 8px); color: var(--theme-primary-contrast, #fff); background: var(--theme-primary, #007aff); font-weight: var(--font-weight-bold, 700); }
+.app-status-brand > div { display: grid; line-height: 1.2; }
+.app-status-brand strong { font-size: var(--type-control, 12px); }
+.app-status-brand small,
+.app-status-eyebrow { color: var(--theme-text-tertiary, #8e8e93); }
+.app-status-brand small { font-size: var(--type-micro, 10px); letter-spacing: .08em; }
+.app-status-eyebrow { margin: 0 0 8px; font-size: var(--type-caption, 11px); font-weight: var(--font-weight-bold, 700); letter-spacing: .1em; text-transform: uppercase; }
+.app-status-panel h1 { margin: 0 0 8px; font-size: clamp(1.7rem, 4vw, 2.4rem); line-height: var(--leading-tight, 1.2); font-weight: var(--font-weight-bold, 700); letter-spacing: -.025em; }
+.app-status-message { margin: 0 0 20px; color: var(--theme-text-secondary, #636366); line-height: var(--leading-relaxed, 1.6); }
+.app-status-action { min-height: 36px; padding: 0 15px; border: 1px solid var(--theme-primary, #007aff); border-radius: var(--ui-radius-control, 8px); color: var(--theme-primary-contrast, #fff); background: var(--theme-primary, #007aff); font: inherit; font-weight: var(--font-weight-semibold, 600); cursor: pointer; }
+.app-status-action:hover { background: var(--theme-primary-hover, #0066d6); }
+.app-status-details { margin-top: 24px; padding-top: 13px; border-top: 1px solid var(--theme-border, #d1d1d6); color: var(--theme-text-secondary, #636366); }
+.app-status-details summary { cursor: pointer; }
+.app-status-details pre { max-width: 100%; max-height: 32vh; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--theme-text-tertiary, #8e8e93); font: var(--type-caption, 11px)/var(--leading-normal, 1.5) var(--font-mono, ui-monospace, monospace); }

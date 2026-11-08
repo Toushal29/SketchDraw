@@ -163,16 +163,6 @@
 }
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) > .mobile-workspace-header { border-color: var(--theme-border); }
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .mobile-brand,
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .mobile-view-only-badge,
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .mobile-command-trigger,
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-page-control > summary { color: var(--theme-text-secondary); }
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .mobile-command-trigger:hover,
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .mobile-command-trigger.active,
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-page-control[open] > summary { color: var(--ui-accent-ink); }
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .mobile-command-panel,
-    .app-shell:is(.theme-dark, .theme-ai):not(.platform-windows) .touch-pages-popover { border-color: var(--theme-border); color: var(--theme-text-primary); background: var(--toolbar-surface, var(--theme-background)); }
 }
 
 @media (max-width: 360px) {
