@@ -9,6 +9,9 @@ export type UIHierarchyNode = {
   width: number;
   height: number;
   rotation: number;
+  hidden?: boolean;
+  locked?: boolean;
+  clipContent?: boolean;
 };
 
 export type UIHierarchyPoint = { x: number; y: number };
@@ -23,6 +26,57 @@ const rotate = (point: UIHierarchyPoint, degrees: number): UIHierarchyPoint => {
   const sine = Math.sin(angle);
   return { x: point.x * cosine - point.y * sine, y: point.x * sine + point.y * cosine };
 };
+
+function quad(index: UIHierarchyIndex<UIHierarchyNode>, id: string): UIHierarchyPoint[] | undefined {
+  const node = index.get(id);
+  const transform = index.worldTransform(id);
+  if (!node || !transform) return undefined;
+  const rotatePoint = (x: number, y: number) => {
+    const point = rotate({ x, y }, transform.rotation);
+    return { x: transform.x + point.x, y: transform.y + point.y };
+  };
+  return [rotatePoint(0, 0), rotatePoint(node.width, 0), rotatePoint(node.width, node.height), rotatePoint(0, node.height)];
+}
+
+function intersectConvex(subject: UIHierarchyPoint[], clip: UIHierarchyPoint[]): UIHierarchyPoint[] {
+  if (!subject.length || clip.length < 3) return [];
+  const area = clip.reduce((sum, point, i) => {
+    const next = clip[(i + 1) % clip.length];
+    return sum + point.x * next.y - next.x * point.y;
+  }, 0);
+  const orientation = area >= 0 ? 1 : -1;
+  let output = subject;
+  for (let i = 0; i < clip.length && output.length; i++) {
+    const a = clip[i], b = clip[(i + 1) % clip.length];
+    const input = output;
+    output = [];
+    const inside = (point: UIHierarchyPoint) => orientation * ((b.x - a.x) * (point.y - a.y) - (b.y - a.y) * (point.x - a.x)) >= -1e-8;
+    const crossing = (start: UIHierarchyPoint, end: UIHierarchyPoint): UIHierarchyPoint => {
+      const dx = end.x - start.x, dy = end.y - start.y;
+      const ex = b.x - a.x, ey = b.y - a.y;
+      const denominator = dx * ey - dy * ex;
+      if (Math.abs(denominator) < 1e-10) return end;
+      const t = ((a.x - start.x) * ey - (a.y - start.y) * ex) / denominator;
+      return { x: start.x + t * dx, y: start.y + t * dy };
+    };
+    for (let j = 0; j < input.length; j++) {
+      const current = input[j], previous = input[(j + input.length - 1) % input.length];
+      const currentInside = inside(current), previousInside = inside(previous);
+      if (currentInside) {
+        if (!previousInside) output.push(crossing(previous, current));
+        output.push(current);
+      } else if (previousInside) output.push(crossing(previous, current));
+    }
+  }
+  return output;
+}
+
+function polygonBounds(points: UIHierarchyPoint[]): { x: number; y: number; width: number; height: number } | undefined {
+  if (points.length < 3) return undefined;
+  const xs = points.map(point => point.x), ys = points.map(point => point.y);
+  const left = Math.min(...xs), top = Math.min(...ys), right = Math.max(...xs), bottom = Math.max(...ys);
+  return right - left > 1e-8 && bottom - top > 1e-8 ? { x: left, y: top, width: right - left, height: bottom - top } : undefined;
+}
 
 /** A page's flat node storage exposed as a shared, ordered hierarchy. */
 export class UIHierarchyIndex<T extends UIHierarchyNode> {
@@ -139,6 +193,31 @@ export class UIHierarchyIndex<T extends UIHierarchyNode> {
 
   hasSelectedAncestor(id: string, selectedIds: ReadonlySet<string>): boolean {
     return this.ancestors(id).some(node => selectedIds.has(node.id));
+  }
+
+  isEffectivelyHidden(id: string): boolean {
+    const node = this.byId.get(id);
+    return !node || node.hidden === true || this.ancestors(id).some(parent => parent.hidden === true);
+  }
+
+  isEffectivelyLocked(id: string): boolean {
+    const node = this.byId.get(id);
+    return !node || node.locked === true || this.ancestors(id).some(parent => parent.locked === true);
+  }
+
+  /** Returns the intersection of the node's bounds and every clipping ancestor. */
+  visibleWorldBounds(id: string): { x: number; y: number; width: number; height: number } | undefined {
+    if (this.isEffectivelyHidden(id)) return undefined;
+    let visible = quad(this, id);
+    if (!visible) return undefined;
+    for (const ancestor of this.ancestors(id)) {
+      if (!ancestor.clipContent) continue;
+      const clip = quad(this, ancestor.id);
+      if (!clip) return undefined;
+      visible = intersectConvex(visible, clip);
+      if (!visible.length) return undefined;
+    }
+    return polygonBounds(visible);
   }
 
   worldBounds(id: string): { x: number; y: number; width: number; height: number } | undefined {

@@ -14,6 +14,7 @@
     "test:canvas": "node scripts/check-canvas-performance.mjs",
     "test:diagrams": "node scripts/check-diagram-fixtures.mjs",
     "test:ui-design": "node scripts/check-ui-design-fixtures.mjs",
+    "test:ui-design:browser": "node scripts/check-ui-design-interactions.mjs",
     "reference:shapes": "node scripts/export-shape-component-reference.mjs",
     "convert:sketch": "node scripts/convert-sketch.mjs",
     "serve": "vite preview",

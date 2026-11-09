@@ -870,7 +870,7 @@ function App() {
   let exportPreviewCanvas!: HTMLCanvasElement;
   let exportPreviewVersion = 0;
   let canvasWrap!: HTMLElement;
-  let appTopbar!: HTMLElement;
+  const [appTopbar, setAppTopbar] = createSignal<HTMLElement>();
   let menu!: HTMLDetailsElement;
   let importExportMenu!: HTMLDetailsElement;
   let viewMenu!: HTMLDetailsElement;
@@ -5475,9 +5475,10 @@ function App() {
   });
 
   onMount(() => {
-    const updateTopbarHeight = () => { if (appTopbar) setTopbarHeight(appTopbar.offsetHeight); };
+    const updateTopbarHeight = () => { const topbar = appTopbar(); if (topbar) setTopbarHeight(topbar.offsetHeight); };
     const topbarResize = new ResizeObserver(updateTopbarHeight);
-    if (appTopbar) topbarResize.observe(appTopbar);
+    const topbar = appTopbar();
+    if (topbar) topbarResize.observe(topbar);
     updateTopbarHeight();
     onCleanup(() => topbarResize.disconnect());
     if (isTauri() && /android/i.test(navigator.userAgent)) {
@@ -8941,7 +8942,7 @@ function App() {
           readOnly={isCanvasWorkspace() && readOnlyView()}
           planning={workspaceArea() !== "canvas" && workspaceArea() !== "design"}
           documentTabs={!!activePath() && isCanvasWorkspace()}
-          headerRef={element => { appTopbar = element; }}
+          headerRef={element => { setAppTopbar(element); }}
           commands={<Show when={workspaceArea() !== "ui-design"}><nav class="mobile-command-host" aria-label="File and application settings">{mobileCommandBar()}</nav></Show>}
           workspaceTabs={<Show when={!showWelcomeScreen() || isCompactTouchLayout()}><WorkspaceAreaTabs active={workspaceArea()} documentTabs={!!activePath() && isCanvasWorkspace()} onSelect={area => setWorkspaceArea(area)} /></Show>}
           pageMenu={<Show when={activePath() && isCanvasWorkspace()}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} onToggle={alignTouchMenuPopover} /></Show>}
@@ -8949,7 +8950,7 @@ function App() {
         />
       </Show>
       <Show when={isWindowsPlatform()}>
-      <header class="topbar" ref={element => { appTopbar = element; }}>
+      <header class="topbar" ref={element => { setAppTopbar(element); }}>
         <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={workspaceArea() === "ui-design" ? uiDesignSession.fileName() : workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}>{workspaceArea() === "ui-design" ? uiDesignSession.fileName() : workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView() && isCanvasWorkspace()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
         <nav class="app-menus" aria-label="Application menus">
           <Show when={isWindowsPlatform()}>

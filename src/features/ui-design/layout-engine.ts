@@ -1,17 +1,19 @@
-import type { UIAutoLayout, UIElement, UIPage, UIValueToken } from "./model";
+import type { UIAutoLayout, UIElement, UIGridMinmaxTrack, UIPage, UIValueToken } from "./model";
+import { resolveValueToken } from "./tokens";
 
 const px = (value: number) => Math.max(1, Math.round(Number.isFinite(value) ? value : 1));
 const coord = (value: number) => Math.round(Number.isFinite(value) ? value : 0);
 const childrenOf = (nodes: UIElement[], parentId: string) => nodes.filter(node => node.parentId === parentId).sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
 
 /** Reflows nested containers in local coordinates, starting with the deepest child layouts. */
-export function applyAutoLayout(page: UIPage, spacingTokens: readonly UIValueToken[] = []): UIPage {
+export function applyAutoLayout(page: UIPage, spacingTokens: readonly UIValueToken[] = [], modeId = ""): UIPage {
   const nodes = page.elements.map(node => ({ ...node }));
   const byId = new Map(nodes.map(node => [node.id, node]));
-  const tokenValues = new Map(spacingTokens.map(token => [token.id, token.value * (token.unit === "rem" ? 16 : 1)]));
+  const tokenValues = new Map(spacingTokens.map(token => [token.id, resolveValueToken(token, modeId, spacingTokens)]).filter((entry): entry is [string, number] => entry[1] !== undefined));
   const containers = nodes.filter(node => node.autoLayout.enabled).sort((a, b) => depth(b, byId) - depth(a, byId));
   for (const container of containers) {
-    const children = childrenOf(nodes, container.id);
+    const allChildren = childrenOf(nodes, container.id);
+    const children = allChildren.filter(child => child.layoutPosition !== "absolute");
     if (!children.length) continue;
     const source = container.autoLayout;
     const resolve = (value: number, tokenId: string) => Math.max(0, tokenValues.get(tokenId) ?? value);
@@ -128,26 +130,140 @@ function layoutColumns(children: UIElement[], layout: UIAutoLayout, left: number
 }
 
 function layoutGrid(children: UIElement[], layout: UIAutoLayout, left: number, top: number, innerW: number, innerH: number): Placement[] {
-  const columns = Math.max(1, Math.min(48, Math.round(layout.columns)));
-  const rowCount = Math.ceil(children.length / columns);
-  const cellW = Math.max(1, (innerW - layout.gap * (columns - 1)) / columns);
-  const naturalRowHeights = Array.from({ length: rowCount }, (_, row) => Math.max(1, ...children.slice(row * columns, (row + 1) * columns).map(child => child.height)));
-  const totalNatural = naturalRowHeights.reduce((sum, height) => sum + height, 0) + layout.gap * Math.max(0, rowCount - 1);
-  const cellH = layout.heightMode === "fixed" && totalNatural < innerH ? Math.max(...naturalRowHeights, (innerH - layout.gap * Math.max(0, rowCount - 1)) / rowCount) : 0;
-  let y = top; const result: Placement[] = [];
-  for (let row = 0; row < rowCount; row++) {
-    const rowChildren = children.slice(row * columns, (row + 1) * columns);
-    const rowHeight = cellH || naturalRowHeights[row];
-    rowChildren.forEach((child, col) => {
-      const width = sizing(child, "width") === "fill" || layout.alignment === "stretch" ? cellW : child.width;
-      const height = sizing(child, "height") === "fill" || layout.alignment === "stretch" ? rowHeight : child.height;
-      const xOffset = layout.alignment === "center" ? (cellW - width) / 2 : layout.alignment === "end" ? cellW - width : 0;
-      const yOffset = layout.alignment === "center" ? (rowHeight - height) / 2 : layout.alignment === "end" ? rowHeight - height : 0;
-      result.push({ id: child.id, x: left + col * (cellW + layout.gap) + xOffset, y: y + yOffset, width, height });
-    });
-    y += rowHeight + layout.gap;
+  const explicitColumns = children.reduce((max, child) => Math.max(max, child.gridColumn > 0 ? Math.min(48, child.gridColumn - 1 + child.gridColumnSpan) : 0), 1);
+  const columns = Math.max(1, Math.min(48, Math.max(Math.round(layout.columns), explicitColumns)));
+  const occupied = new Set<string>();
+  const slots = new Map<string, { row: number; column: number }>();
+  const occupy = (row: number, column: number, rowSpan: number, columnSpan: number) => {
+    for (let y = row; y < row + rowSpan; y++) for (let x = column; x < column + columnSpan; x++) occupied.add(`${y}:${x}`);
+  };
+  for (const child of children) if (child.gridRow > 0 && child.gridColumn > 0) {
+    const row = Math.min(9999, child.gridRow - 1), column = Math.min(columns - 1, child.gridColumn - 1);
+    slots.set(child.id, { row, column });
+    occupy(row, column, Math.min(child.gridRowSpan, 10000 - row), Math.min(child.gridColumnSpan, columns - column));
+  }
+  let cursor = 0;
+  for (const child of children) if (!slots.has(child.id)) {
+    let row = Math.floor(cursor / columns), column = cursor % columns;
+    while (occupied.has(`${row}:${column}`)) { cursor++; row = Math.floor(cursor / columns); column = cursor % columns; }
+    slots.set(child.id, { row, column });
+    occupy(row, column, Math.min(child.gridRowSpan, 10000 - row), Math.min(child.gridColumnSpan, columns - column));
+    cursor++;
+  }
+  const rowCount = Math.min(10000, Math.max(1, ...children.map(child => { const row = slots.get(child.id)!.row; return row + Math.min(child.gridRowSpan, 10000 - row); })));
+  const columnMinimums = Array.from({ length: columns }, () => 0);
+  for (const child of children) {
+    const slot = slots.get(child.id)!;
+    if (child.gridColumnSpan === 1) columnMinimums[slot.column] = Math.max(columnMinimums[slot.column], child.width);
+  }
+  for (const child of children) {
+    if (child.gridColumnSpan <= 1) continue;
+    const slot = slots.get(child.id)!; const span = Math.min(child.gridColumnSpan, columns - slot.column);
+    const current = columnMinimums.slice(slot.column, slot.column + span).reduce((sum, value) => sum + value, 0) + layout.gap * (span - 1);
+    if (current < child.width) columnMinimums[slot.column + span - 1] += child.width - current;
+  }
+  const columnWidths = resolveGridTracks(columns, innerW, layout.gap, columnMinimums, layout.gridColumnSizes, layout.gridColumnFr, layout.gridColumnMinmax, Array.from({ length: columns }, () => true));
+  const columnOffsets: number[] = [];
+  let x = left;
+  for (const width of columnWidths) { columnOffsets.push(x); x += width + layout.gap; }
+  const rowHeights = Array.from({ length: rowCount }, (_, index) => Math.max(0, layout.gridRowSizes[index] ?? 0));
+  for (const child of children) {
+    const slot = slots.get(child.id)!;
+    if (child.gridRowSpan <= 1) rowHeights[slot.row] = Math.max(rowHeights[slot.row], child.height);
+  }
+  for (const child of children) {
+    if (child.gridRowSpan <= 1) continue;
+    const slot = slots.get(child.id)!;
+    const rowSpan = Math.max(1, Math.min(child.gridRowSpan, rowCount - slot.row));
+    const current = rowHeights.slice(slot.row, slot.row + rowSpan).reduce((sum, value) => sum + value, 0) + layout.gap * (rowSpan - 1);
+    if (current < child.height) rowHeights[slot.row + rowSpan - 1] += child.height - current;
+  }
+  const expandableRows = rowHeights.map((_, index) => layout.alignment === "stretch" || children.some(child => slots.get(child.id)?.row === index && child.gridRowSpan === 1 && sizing(child, "height") === "fill"));
+  const resolvedRows = resolveGridTracks(rowCount, innerH, layout.gap, rowHeights, layout.gridRowSizes, layout.gridRowFr, layout.gridRowMinmax, expandableRows);
+  let y = top;
+  const rowOffsets = resolvedRows.map(height => { const value = y; y += height + layout.gap; return value; });
+  const result: Placement[] = [];
+  for (const child of children) {
+    const slot = slots.get(child.id)!;
+    const span = Math.max(1, Math.min(child.gridColumnSpan, columns - slot.column));
+    const cellW = columnWidths.slice(slot.column, slot.column + span).reduce((sum, width) => sum + width, 0) + layout.gap * (span - 1);
+    const rowSpan = Math.max(1, Math.min(child.gridRowSpan, rowCount - slot.row));
+    const cellH = resolvedRows.slice(slot.row, slot.row + rowSpan).reduce((sum, height) => sum + height, 0) + layout.gap * (rowSpan - 1);
+    const width = sizing(child, "width") === "fill" || layout.alignment === "stretch" ? cellW : child.width;
+    const height = sizing(child, "height") === "fill" || layout.alignment === "stretch" ? cellH : child.height;
+    const xOffset = layout.alignment === "center" ? (cellW - width) / 2 : layout.alignment === "end" ? cellW - width : 0;
+    const yOffset = layout.alignment === "center" ? (cellH - height) / 2 : layout.alignment === "end" ? cellH - height : 0;
+    let rowOffset = rowOffsets[slot.row];
+    if (layout.justification === "center" || layout.justification === "end") {
+      const contentHeight = resolvedRows.reduce((sum, value) => sum + value, 0) + layout.gap * Math.max(0, rowCount - 1);
+      const free = Math.max(0, innerH - contentHeight);
+      rowOffset += layout.justification === "center" ? free / 2 : free;
+    } else if (layout.justification === "space-between" && rowCount > 1) {
+      const contentHeight = resolvedRows.reduce((sum, value) => sum + value, 0) + layout.gap * (rowCount - 1);
+      const extraGap = Math.max(0, innerH - contentHeight) / (rowCount - 1);
+      rowOffset += slot.row * extraGap;
+    }
+    result.push({ id: child.id, x: columnOffsets[slot.column] + xOffset, y: rowOffset + yOffset, width, height });
   }
   return result;
+}
+
+/** Resolve fixed, intrinsic, fractional, and minmax tracks with min/max clamping. */
+function resolveGridTracks(count: number, available: number, gap: number, contentMinimums: number[], legacySizes: number[], legacyFractions: number[], minmax: Array<UIGridMinmaxTrack | undefined>, expandAuto: boolean[]): number[] {
+  const tracks = Array.from({ length: count }, (_, index) => {
+    const configured = minmax[index]; const content = Math.max(0, contentMinimums[index] ?? 0);
+    if (configured) {
+      const min = Math.max(configured.min, content);
+      if (configured.maxUnit === "px") return { size: Math.max(configured.min, configured.max), weight: 0, max: Math.max(configured.min, configured.max), expandable: false };
+      // In minmax(min, 1fr), the upper bound is a flex weight, not a pixel cap.
+      if (configured.maxUnit === "fr") return { size: min, weight: Math.max(0.001, configured.max), max: 1e6, expandable: false };
+      return { size: min, weight: 0, max: Math.max(min, 1e6), expandable: expandAuto[index] };
+    }
+    const fixed = Math.max(0, legacySizes[index] ?? 0);
+    if (fixed > 0) return { size: fixed, weight: 0, max: fixed, expandable: false };
+    const weight = Math.max(0, legacyFractions[index] ?? 0);
+    return { size: content, weight, max: 1e6, expandable: weight === 0 && expandAuto[index] };
+  });
+  const free = () => Math.max(0, available - gap * Math.max(0, count - 1) - tracks.reduce((sum, track) => sum + track.size, 0));
+  const distribute = (indices: number[], weightAt: (index: number) => number) => {
+    let remaining = free(); let active = indices.filter(index => tracks[index].size < tracks[index].max && weightAt(index) > 0);
+    while (remaining > 0.01 && active.length) {
+      const weightTotal = active.reduce((sum, index) => sum + weightAt(index), 0);
+      let consumed = 0;
+      for (const index of active) {
+        const track = tracks[index]; const share = remaining * weightAt(index) / weightTotal;
+        const addition = Math.min(share, track.max - track.size); track.size += addition; consumed += addition;
+      }
+      if (consumed < 0.01) break;
+      remaining -= consumed; active = active.filter(index => tracks[index].size < tracks[index].max);
+    }
+  };
+  const weighted = tracks.map((track, index) => track.weight > 0 ? index : -1).filter(index => index >= 0);
+  if (weighted.length) {
+    // Fractional tracks divide the space remaining after fixed tracks and gaps.
+    // Intrinsic content is a minimum constraint, not extra space to add after the
+    // fraction has been calculated. Freeze tracks whose minimum exceeds their
+    // fractional share, then recalculate the remaining shares like CSS Grid.
+    let remaining = Math.max(0, available - gap * Math.max(0, count - 1) - tracks.reduce((sum, track) => sum + (track.weight > 0 ? 0 : track.size), 0));
+    let active = weighted.filter(index => tracks[index].size < tracks[index].max);
+    while (active.length) {
+      const weightTotal = active.reduce((sum, index) => sum + tracks[index].weight, 0);
+      if (weightTotal <= 0) break;
+      const fraction = remaining / weightTotal;
+      const frozen = active.filter(index => tracks[index].size > fraction * tracks[index].weight);
+      if (!frozen.length) {
+        for (const index of active) tracks[index].size = Math.min(tracks[index].max, Math.max(tracks[index].size, fraction * tracks[index].weight));
+        break;
+      }
+      for (const index of frozen) {
+        remaining = Math.max(0, remaining - tracks[index].size);
+        active = active.filter(candidate => candidate !== index);
+      }
+    }
+  } else {
+    distribute(tracks.map((track, index) => track.expandable ? index : -1).filter(index => index >= 0), () => 1);
+  }
+  return tracks.map(track => track.size);
 }
 
 function depth(node: UIElement, byId: Map<string, UIElement>): number {
