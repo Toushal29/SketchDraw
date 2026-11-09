@@ -5,7 +5,6 @@ type Props = { active: DocumentWorkspaceArea; documentTabs: boolean; onSelect: (
 const APP_WORKSPACES = [
   { id: "canvas", label: "Canvas", compact: "Draw", hint: "Drawing, sketching, and modeling tools" },
   { id: "planning", label: "Planning", compact: "Plan", hint: "Projects, notes, and tasks" },
-  { id: "ui-design", label: "UI Design", compact: "UI", hint: "Interface design and prototyping" },
 ] as const;
 const CANVAS_VIEWS = [
   { id: "canvas", label: "Canvas", compact: "Canvas", hint: "Freehand drawing and sketching" },

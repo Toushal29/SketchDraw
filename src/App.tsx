@@ -8,7 +8,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Update } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import "/src/styles/app/web-preview.css";
-import { AppStatusScreen } from "./components/AppStatusScreen";
 import type { PdfRasterPage } from "./features/export/pdf-renderer";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
@@ -125,8 +124,6 @@ import { createWindowsSyncMetadata } from "./platform/windows/sync";
 import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, displayShortcut, formatShortcutBindings, loadWindowsShortcuts, matchesWindowsMouseShortcut, matchesWindowsShortcut, normalizeShortcut, shortcutFromMouseEvent, type WindowsShortcutId, type WindowsShortcutMap, type WindowsShortcutSlot } from "./platform/windows/shortcuts";
 import { autoRouteConnectorSet, autoRouteMayIntersect, autoRoutePoints, createAutoRouteContext, type AutoRouteContext } from "./features/diagrams/connector-routing";
 import { createPlanningSession } from "./features/project/planning-session";
-import { createUIDesignSession } from "./features/ui-design/session";
-import { isUIDesignPath, uiDesignFileStore } from "./features/ui-design/file-store";
 import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableMinimumHeight, schemaTableMinimumWidth, schemaTableResizeMinimumWidth, schemaTableRowHeight, schemaTableRowLayout } from "./features/diagrams/schema-table-layout";
 import { clearRetiredLibraryData, createLegacyLibraryData, createRetiredLibraryArchive, hasRetiredLibraryData } from "./features/files/legacy-library-data";
 import { WorkspaceAreaTabs } from "./features/workspace/WorkspaceAreaTabs";
@@ -180,7 +177,6 @@ const WindowsKeyboardShortcutsDialog = lazy(async () => { const module = await i
 const CanvasMinimap = lazy(async () => { const module = await import("./components/CanvasMinimap"); return { default: module.CanvasMinimap }; });
 const WindowsFocusTools = lazy(async () => { const module = await import("./platform/windows/WindowsFocusTools"); return { default: module.WindowsFocusTools }; });
 const ProjectWorkspace = lazy(async () => { const module = await import("./features/project/ProjectWorkspace"); return { default: module.ProjectWorkspace }; });
-const UiDesignWorkspace = lazy(async () => { const module = await import("./features/ui-design/UiDesignWorkspace"); return { default: module.UiDesignWorkspace }; });
 
 function App() {
   const isAndroidPlatform = () => isTauri() && typeof navigator !== "undefined" && /android/i.test(navigator.userAgent);
@@ -209,15 +205,6 @@ function App() {
   async function createPlanningDocument(fileName: string) {
     if (isAndroidPlatform()) return invoke<string | null>("create_planning_document", { fileName });
     return save({ title: "Create Planning file", defaultPath: fileName, filters: [{ name: "SketchDraw Planning", extensions: ["sdplan"] }] });
-  }
-  async function chooseUIDesignDocument() {
-    if (isAndroidPlatform()) return invoke<string | null>("pick_ui_design_document");
-    const selected = await open({ title: "Open UI Design file", multiple: false, pickerMode: "document", filters: [{ name: "SketchDraw UI Design", extensions: ["sdui"] }] });
-    return typeof selected === "string" ? selected : null;
-  }
-  async function createUIDesignDocumentFile(fileName: string) {
-    if (isAndroidPlatform()) return invoke<string | null>("create_ui_design_document", { fileName });
-    return save({ title: "Save UI Design file", defaultPath: fileName, filters: [{ name: "SketchDraw UI Design", extensions: ["sdui"] }] });
   }
   async function exportPlanningText(fileName: string, extension: "html" | "csv" | "ics", contents: string): Promise<boolean> {
     try {
@@ -522,7 +509,7 @@ function App() {
   const [renameFileError, setRenameFileError] = createSignal("");
   const [topbarHeight, setTopbarHeight] = createSignal(66);
   const isCanvasWorkspace = () => workspaceArea() === "canvas" || workspaceArea() === "design";
-  const showWelcomeScreen = () => workspaceArea() === "ui-design" ? !uiDesignSession.editorOpen() : isCanvasWorkspace() ? !activePath() : !planningPath();
+  const showWelcomeScreen = () => isCanvasWorkspace() ? !activePath() : !planningPath();
   const [tool, setTool] = createSignal<Tool>("pen");
   const [color, setColor] = createSignal("#252525");
   const [thickness, setThickness] = createSignal(2);
@@ -937,7 +924,6 @@ function App() {
   const [nativeBusy, setNativeBusy] = createSignal(false);
   const planningSession = createPlanningSession({ busy: nativeBusy, setBusy: setNativeBusy, chooseDocument: choosePlanningDocument, createDocument: createPlanningDocument, activeSketchPath: activePath, displayNameForPath, setError });
   const { recentPlans, data: projectWorkspaceData, path: planningPath, dirty: planningDirty, saving: planningSaving, savedAt: planningSavedAt, legacyPending: legacyPlanningPending, needsExtraction: planningNeedsExtraction } = planningSession;
-  const uiDesignSession = createUIDesignSession({ chooseOpen: chooseUIDesignDocument, chooseSave: createUIDesignDocumentFile, authorize: uiDesignFileStore.authorize, read: uiDesignFileStore.read, write: uiDesignFileStore.write, displayName: displayNameForPath });
   const [localArchiveRevision, setLocalArchiveRevision] = createSignal(0);
   let localArchiveInProgress = false;
   let lastLocalArchiveFailureKey = "";
@@ -1771,8 +1757,6 @@ function App() {
       const name = displayNameForPath(path).toLowerCase();
       if (name.endsWith(".sdplan")) {
         if (await planningSession.load(path)) { trackOpenPlanningPath(); setWorkspaceArea("planning"); recentAssociatedFileOpens.set(key, Date.now()); }
-      } else if (isUIDesignPath(name)) {
-        if (await uiDesignSession.openPath(path)) { setWorkspaceArea("ui-design"); recentAssociatedFileOpens.set(key, Date.now()); }
       } else if (name.endsWith(".sketch")) {
         await loadFile(path);
         recentAssociatedFileOpens.set(key, Date.now());
@@ -5508,15 +5492,6 @@ function App() {
       // Explorer and other Windows shell features such as Snipping Tool.
       if (isWindowsPlatform() && (event.metaKey || event.key === "Meta")) return;
       if (isWindowsPlatform() && activePath() && event.key === "F11") { event.preventDefault(); void toggleWindowsFullscreen(); return; }
-      if (workspaceArea() === "ui-design") {
-        if ((event.ctrlKey || event.metaKey) && !event.altKey) {
-          const key = event.key.toLowerCase();
-          if (key === "s") { event.preventDefault(); void uiDesignSession.save(); return; }
-          if (key === "n") { event.preventDefault(); uiDesignSession.create(); return; }
-          if (key === "o") { event.preventDefault(); void uiDesignSession.open(); return; }
-        }
-        return;
-      }
       if (event.key === "Escape") {
         if (commandPaletteOpen()) { event.preventDefault(); setCommandPaletteOpen(false); return; }
         if (shortcutDialogOpen()) { event.preventDefault(); setShortcutDialogOpen(false); return; }
@@ -5668,23 +5643,21 @@ function App() {
         const nativeWindow = getCurrentWindow();
         void nativeWindow.onCloseRequested(async (event) => {
           if (canvasRunMode()) toggleCanvasRunMode();
-          const uiDesignNeedsSave = uiDesignSession.dirty() || uiDesignSession.saving();
           const planningNeedsSave = planningDirty() || planningSaving();
-          if (!dirty() && !textDraft() && !saving() && !uiDesignNeedsSave && !planningNeedsSave) return;
+          if (!dirty() && !textDraft() && !saving() && !planningNeedsSave) return;
           event.preventDefault();
           if (closeInProgress) return;
           closeInProgress = true;
           try {
             if (textDraft()) commitTextDraft();
             persistRecovery();
-            while (docController.isSaveInFlight() || planningSaving() || uiDesignSession.saving()) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
+            while (docController.isSaveInFlight() || planningSaving()) await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
             const path = activePath();
             if (path && dirty() && !syncConflict()) await saveToPath(path);
             if (textDraft()) commitTextDraft();
             if (dirty() || syncConflict()) persistRecovery();
             if (planningDirty() && !await savePlanningDocument()) { closeInProgress = false; return; }
-            if (uiDesignSession.dirty() && !await uiDesignSession.save()) { closeInProgress = false; return; }
-            if (planningDirty() || uiDesignSession.dirty()) { closeInProgress = false; return; }
+            if (planningDirty()) { closeInProgress = false; return; }
             // The original close request was prevented while the async save ran.
             // Remove this listener before requesting close again so it cannot
             // intercept its own retry. Recovery data has already been persisted
@@ -5995,7 +5968,6 @@ function App() {
   }
   async function savePlanningDocument() { return planningSession.save(); }
   async function saveCurrentWorkspace() {
-    if (workspaceArea() === "ui-design") return uiDesignSession.save();
     if (canvasRunMode()) return;
     if (workspaceArea() === "planning") return savePlanningDocument();
     if (activePath()) return saveToPath(activePath()!);
@@ -6044,7 +6016,6 @@ function App() {
   }
 
   async function saveAs() {
-    if (workspaceArea() === "ui-design") { await uiDesignSession.saveAs(); return; }
     if (legacyMigrationPath()) return;
     if (workspaceArea() === "planning") { await savePlanningAs(); return; }
     if (!activePath()) { await createFile(); return; }
@@ -6430,7 +6401,6 @@ function App() {
   }
 
   async function openFile() {
-    if (workspaceArea() === "ui-design") { await uiDesignSession.open(); return; }
     if (legacyMigrationPath() || nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
@@ -6441,7 +6411,6 @@ function App() {
   }
 
   async function openFileAsView() {
-    if (workspaceArea() === "ui-design") { await uiDesignSession.open(); return; }
     if (legacyMigrationPath() || nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
@@ -6935,7 +6904,6 @@ function App() {
   }
 
   async function createFile() {
-    if (workspaceArea() === "ui-design") { uiDesignSession.create(); return; }
     if (legacyMigrationPath() || nativeBusy() || documentBusy()) return;
     setNativeBusy(true);
     try {
@@ -8915,7 +8883,7 @@ function App() {
   /></Suspense>;
 
   return (
-    <main class="app-shell" classList={{ "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": showWelcomeScreen(), "design-workspace-active": workspaceArea() === "design", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() === "planning" || workspaceArea() === "ui-design", "ui-design-workspace-active": workspaceArea() === "ui-design", "touch-focus-mode": isCanvasWorkspace() && touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && isCanvasWorkspace() && presentationMode(), "presentation-mode": isCanvasWorkspace() && presentationMode(), "prototype-run-mode": isCanvasWorkspace() && canvasRunMode(), "windows-fullscreen-mode": isWindowsPlatform() && isCanvasWorkspace() && windowsFullscreenMode(), "read-only-view": isCanvasWorkspace() && readOnlyView() }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 88%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-shell-width: ${displayMetrics().viewportWidth / interfaceScale()}px; --app-shell-height-vh: ${100 / interfaceScale()}vh; --app-shell-height-dvh: ${100 / interfaceScale()}dvh; --app-topbar-height: ${topbarHeight()}px;`}>
+    <main class="app-shell" classList={{ "mobile-orientation-portrait": mobileOrientation() === "portrait", "mobile-toolbar-top": !isWindowsPlatform() && toolbarPosition() === "top", "mobile-toolbar-bottom": !isWindowsPlatform() && toolbarPosition() === "bottom", "mobile-toolbar-left": !isWindowsPlatform() && toolbarPosition() === "left", "mobile-toolbar-right": !isWindowsPlatform() && toolbarPosition() === "right", "mobile-toolbar-horizontal": !isWindowsPlatform() && (toolbarPosition() === "top" || toolbarPosition() === "bottom"), "mobile-toolbar-vertical": !isWindowsPlatform() && (toolbarPosition() === "left" || toolbarPosition() === "right"), "home-screen-active": showWelcomeScreen(), "design-workspace-active": workspaceArea() === "design", "canvas-options-active": canvasOptionsOpen(), "noncanvas-workspace-active": workspaceArea() === "planning", "touch-focus-mode": isCanvasWorkspace() && touchFocusMode(), "platform-windows": isWindowsPlatform(), "windows-presentation-mode": isWindowsPlatform() && isCanvasWorkspace() && presentationMode(), "presentation-mode": isCanvasWorkspace() && presentationMode(), "prototype-run-mode": isCanvasWorkspace() && canvasRunMode(), "windows-fullscreen-mode": isWindowsPlatform() && isCanvasWorkspace() && windowsFullscreenMode(), "read-only-view": isCanvasWorkspace() && readOnlyView() }} style={`--ui-accent: ${accentForTheme()}; --toolbar-surface: ${toolbarColor()}; --toolbar-ink: ${toolbarInk()}; --workspace-accent: ${accentForTheme()}; --workspace-surface: ${toolbarColor()}; --workspace-raised: ${toolbarColor()}; --workspace-ink: ${toolbarInk()}; --workspace-muted: color-mix(in srgb, ${toolbarInk()} 88%, transparent); --workspace-line: color-mix(in srgb, ${toolbarInk()} 15%, transparent); --app-ui-scale: ${interfaceScale()}; --app-shell-width: ${displayMetrics().viewportWidth / interfaceScale()}px; --app-shell-height-vh: ${100 / interfaceScale()}vh; --app-shell-height-dvh: ${100 / interfaceScale()}dvh; --app-topbar-height: ${topbarHeight()}px;`}>
       <Show when={toolbarOrganizerOpen()}><ToolbarOrderEditor toolbarItems={organizerItems(toolbarOrder())} moreItems={organizerItems(moreToolsOrder())} historyActionsVisible={historyActionsVisible()} onHistoryActionsVisibleChange={setHistoryActionsVisiblePreference} onMove={moveToolbarTool} onReorder={reorderToolbarTool} onReset={resetToolbarOrder} onClose={() => setToolbarOrganizerOpen(false)} /></Show>
       <Show when={designWorkbenchOpen() && activePath() && isCanvasWorkspace()}><DesignWorkbenchPanel
         elements={elements()} selectedIndices={selectedIndices()} selected={selectedIndices().length === 1 ? elements()[selectedIndices()[0]] : undefined}
@@ -8937,21 +8905,21 @@ function App() {
       <Show when={updateNoticeVersion()}>{version => <aside class="update-notice" role="alert" aria-live="polite"><span><strong>SketchDraw {version()} is available.</strong><small>Update now or choose Later to keep working.</small></span><div>{isWindowsPlatform() || isAndroidPlatform() ? <button type="button" class="save-button" onClick={() => void installUpdate()}>Update</button> : <a href="https://github.com/Toushal29/SketchDraw/releases/latest" target="_blank" rel="noreferrer">View release</a>}<button type="button" class="quiet-button" onClick={dismissUpdateNotice}>Later</button></div></aside>}</Show>
       <Show when={!isWindowsPlatform()}>
         <MobileWorkspaceHeader
-          brandName={workspaceArea() === "ui-design" ? uiDesignSession.fileName() : workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}
-          hasFile={workspaceArea() === "ui-design" ? !!uiDesignSession.path() : workspaceArea() === "planning" ? !!planningPath() : !!activePath()}
+          brandName={workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}
+          hasFile={workspaceArea() === "planning" ? !!planningPath() : !!activePath()}
           readOnly={isCanvasWorkspace() && readOnlyView()}
           planning={workspaceArea() !== "canvas" && workspaceArea() !== "design"}
           documentTabs={!!activePath() && isCanvasWorkspace()}
           headerRef={element => { setAppTopbar(element); }}
-          commands={<Show when={workspaceArea() !== "ui-design"}><nav class="mobile-command-host" aria-label="File and application settings">{mobileCommandBar()}</nav></Show>}
+          commands={<nav class="mobile-command-host" aria-label="File and application settings">{mobileCommandBar()}</nav>}
           workspaceTabs={<Show when={!showWelcomeScreen() || isCompactTouchLayout()}><WorkspaceAreaTabs active={workspaceArea()} documentTabs={!!activePath() && isCanvasWorkspace()} onSelect={area => setWorkspaceArea(area)} /></Show>}
           pageMenu={<Show when={activePath() && isCanvasWorkspace()}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} onToggle={alignTouchMenuPopover} /></Show>}
-          status={<Show when={workspaceArea() === "ui-design" ? uiDesignSession.path() : workspaceArea() === "planning" ? planningPath() : activePath()}><div class="mobile-header-status"><span class={`save-status ${workspaceArea() === "ui-design" ? uiDesignSession.saving() ? "is-saving" : uiDesignSession.dirty() ? "is-dirty" : "is-saved" : workspaceArea() === "planning" ? planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved" : saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={workspaceArea() === "ui-design" ? uiDesignSession.saving() ? "Saving UI Design file" : uiDesignSession.dirty() ? "Unsaved UI Design changes" : "UI Design file saved" : workspaceArea() === "planning" ? planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved" : status()} title={workspaceArea() === "ui-design" ? uiDesignSession.savedAt() ? `UI Design saved ${uiDesignSession.savedAt()}` : "UI Design file status" : workspaceArea() === "planning" ? planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status" : status()}><i /></span></div></Show>}
+          status={<Show when={workspaceArea() === "planning" ? planningPath() : activePath()}><div class="mobile-header-status"><span class={`save-status ${workspaceArea() === "planning" ? planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved" : saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={workspaceArea() === "planning" ? planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved" : status()} title={workspaceArea() === "planning" ? planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status" : status()}><i /></span></div></Show>}
         />
       </Show>
       <Show when={isWindowsPlatform()}>
       <header class="topbar" ref={element => { setAppTopbar(element); }}>
-        <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={workspaceArea() === "ui-design" ? uiDesignSession.fileName() : workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}>{workspaceArea() === "ui-design" ? uiDesignSession.fileName() : workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView() && isCanvasWorkspace()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
+        <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}>{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView() && isCanvasWorkspace()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
         <nav class="app-menus" aria-label="Application menus">
           <Show when={isWindowsPlatform()}>
           <WindowsMenuRail settings={<AppSettingsMenu
@@ -8974,19 +8942,13 @@ function App() {
           <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => { keepOnlyActiveMenuOpen(menu); alignTouchMenuPopover(menu); }}>
             <summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
             <div class="system-menu-popover">
-              <div class="menu-file-label">{workspaceArea() === "ui-design" ? uiDesignSession.fileName() : workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}</div>
+              <div class="menu-file-label">{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}</div>
               <Show when={workspaceArea() === "planning"}>
                 <button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button>
                 <button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button>
                 <button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button>
                 <button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button>
                 <button disabled={!planningPath() || planningSaving()} onClick={() => closeSystemMenu(() => { if (planningPath()) void closePlanningTab(planningPath()!); })}>Close plan</button>
-              </Show>
-              <Show when={workspaceArea() === "ui-design"}>
-                <button onClick={() => closeSystemMenu(() => uiDesignSession.create())}>New UI design</button>
-                <button onClick={() => closeSystemMenu(() => void uiDesignSession.open())}>Open UI Design file...</button>
-                <button disabled={uiDesignSession.saving() || !uiDesignSession.dirty() && !!uiDesignSession.path()} onClick={() => closeSystemMenu(() => void uiDesignSession.save())}>Save UI Design <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button>
-                <button disabled={uiDesignSession.saving()} onClick={() => closeSystemMenu(() => void uiDesignSession.saveAs())}>Save UI Design as...</button>
               </Show>
               <Show when={isCanvasWorkspace()}>
                 <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button>
@@ -9087,10 +9049,9 @@ function App() {
           onOpenPlan={openRecentPlan}
           onExport={exportPlanningText}
         /></Suspense></Show>
-      <Show when={workspaceArea() === "ui-design" && !showWelcomeScreen()}><Suspense fallback={<AppStatusScreen state="loading" title="Loading UI Design…" message="Preparing your design workspace…" />}><UiDesignWorkspace session={uiDesignSession} /></Suspense></Show>
       <Show when={showWelcomeScreen()}>
-        <MobileHomeScreen planningViewport={workspaceArea() === "planning"} uiDesignViewport={workspaceArea() === "ui-design"} uiDesignSession={uiDesignSession} recentFiles={recentFiles()} recentPlans={recentPlans()} displayPathName={displayNameForPath} onCreate={createFile} onNewPlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentPlan={openRecentPlan} onCreateUIDesign={() => uiDesignSession.create()} onOpenUIDesign={() => uiDesignSession.open()} onOpenRecentUIDesign={path => uiDesignSession.openRecent(path)} />
-        <WelcomeScreen planningViewport={workspaceArea() === "planning"} uiDesignViewport={workspaceArea() === "ui-design"} uiDesignSession={uiDesignSession} recentFiles={recentFiles} recentPlans={recentPlans} displayNameForPath={displayNameForPath} onCreateFile={createFile} onOpenFile={openFile} onCreatePlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpenRecentPlan={openRecentPlan} onOpenRecentFile={loadFile} onCreateUIDesign={() => uiDesignSession.create()} onOpenUIDesign={() => uiDesignSession.open()} onOpenRecentUIDesign={path => uiDesignSession.openRecent(path)} onSelectWorkspace={area => setWorkspaceArea(area)} />
+        <MobileHomeScreen planningViewport={workspaceArea() === "planning"} recentFiles={recentFiles()} recentPlans={recentPlans()} displayPathName={displayNameForPath} onCreate={createFile} onNewPlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpen={openFile} onOpenRecent={loadFile} onOpenRecentPlan={openRecentPlan} />
+        <WelcomeScreen planningViewport={workspaceArea() === "planning"} recentFiles={recentFiles} recentPlans={recentPlans} displayNameForPath={displayNameForPath} onCreateFile={createFile} onOpenFile={openFile} onCreatePlan={createPlanningFromHome} onOpenPlan={openPlanningFile} onOpenRecentPlan={openRecentPlan} onOpenRecentFile={loadFile} onSelectWorkspace={area => setWorkspaceArea(area)} />
       </Show>
       <Show when={isCanvasWorkspace()}>
       <Show when={activePath()}>

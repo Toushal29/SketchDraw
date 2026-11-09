@@ -308,8 +308,8 @@ function UiDesignEditor(props: Props) {
     return unique.filter(id => !!hierarchy().get(id) && !hierarchy().hasSelectedAncestor(id, selectedSet));
   };
   const isEffectively = (node: UIElement, key: "hidden" | "locked") => node[key] || hierarchy().ancestors(node.id).some(parent => parent[key]);
-  const displayNodes = () => hierarchy().flatten().filter(node => !isEffectively(node, "hidden"));
-  const topVisible = () => pageRoots().filter(node => !isEffectively(node, "hidden"));
+  const displayNodes = createMemo(() => hierarchy().flatten().filter(node => !isEffectively(node, "hidden")));
+  const topVisible = createMemo(() => pageRoots().filter(node => !isEffectively(node, "hidden")));
   const worldBounds = (node: UIElement) => hierarchy().worldBounds(node.id);
   const selectedBounds = () => unionRects(rootsOnly(selectedIds()).flatMap(id => { const node = hierarchy().get(id), bounds = node && worldBounds(node); return bounds ? [bounds] : []; }));
   const snapTargetsFor = (ids: string[]): UISnapTarget[] => {
@@ -681,7 +681,7 @@ function UiDesignEditor(props: Props) {
       const snapped = resolveSmartSnap(active.startBounds, { x: dx, y: dy }, active.snapTargets, page().guides, document().guideSettings, camera().zoom, active.spacingParentId);
       setSnapLines(snapped.lines);
       updateNodes(nodes => {
-        const index = new UIHierarchyIndex<UIElement>(page().id, nodes);
+        const index = hierarchy();
         return nodes.map(node => {
         const original = active.originals.find(item => item.id === node.id); if (!original) return node;
         const worldStart = active.worldStarts.find(item => item.id === node.id); if (!worldStart) return node;
