@@ -161,7 +161,7 @@ assert.equal(sameTransform(ungroupedIndex.worldTransform(groupB.id), groupBWorld
 const reordered = moveHierarchyNodes(page.id, groupedNodes, [groupA.id], groupB.id, false);
 assert.ok(reordered, "a layer can be reordered within its sibling hierarchy");
 assert.equal(reordered.find(node => node.id === groupA.id)?.parentId, createdGroup.id, "reorder keeps the layer in its current parent");
-assert.ok(reordered.find(node => node.id === groupA.id).order > groupB.order, "drop on a sibling moves the layer to the end of that sibling list");
+assert.ok(reordered.find(node => node.id === groupA.id).order < reordered.find(node => node.id === groupB.id).order, "drop after a sibling in layer-panel order gives groupA lower paint order");
 assert.equal(moveHierarchyNodes(page.id, groupedNodes, [createdGroup.id], groupA.id, true), undefined, "a container cannot be moved into its own descendant");
 
 const serialized = serializeUIDesignDocument(document);

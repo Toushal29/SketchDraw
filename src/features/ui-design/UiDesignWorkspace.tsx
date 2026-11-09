@@ -1,8 +1,9 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { applyAutoLayout, resizeFrameChildren } from "./layout-engine";
-import { createUIElement, createUIFrame, createUIDesignId, normalizeUIDesignDocument, UI_FRAME_PRESETS, type UIComponentVariant, type UIElement, type UIElementKind, type UIFramePresetId, type UIGridMinmaxTrack, type UIInteraction, type UIPrototypeVariable, type UIDesignDocument, type UIPage, type UIResponsiveBreakpoint, type UIValueToken, type UITypographyStyle } from "./model";
+import { createUIElement, createUIFrame, createUIDesignId, normalizeUIDesignDocument, UI_FRAME_PRESETS, type UIComponentVariant, type UIElement, type UIElementKind, type UIFramePresetId, type UIGridMinmaxTrack, type UIInteraction, type UIManualGuide, type UIGuideSettings, type UIPrototypeVariable, type UIDesignDocument, type UIPage, type UIResponsiveBreakpoint, type UIValueToken, type UITypographyStyle } from "./model";
 import { fitGroupBounds, normalizeRect, resizeElement, unionRects, type UIRect } from "./geometry";
 import { UIHierarchyIndex } from "./hierarchy";
+import { measureFrameEdges, measureMultipleSpacing, measureRectDistances, resolveResizeSnap, resolveSmartSnap, type UIAlignmentLine, type UIDistanceMeasure, type UISnapTarget } from "./guides";
 import { moveHierarchyNodes, type HierarchyDropPosition } from "./hierarchy-operations";
 import { applyComponentVariant as applyComponentVariantTree, captureComponentVariant, detachComponentInstance, resetComponentInstance, resetComponentNodeOverride as resetComponentChildOverride, synchronizeComponentMasters, withComponentOverrides } from "./components";
 import { sanitizeSvg } from "./svg-import";
@@ -18,8 +19,9 @@ type Camera = { x: number; y: number; zoom: number };
 type Gesture =
   | { kind: "pan"; pointer: number; clientX: number; clientY: number; camera: Camera }
   | { kind: "draw"; pointer: number; tool: Tool; parentId: string; start: { x: number; y: number }; current: { x: number; y: number } }
-  | { kind: "move"; pointer: number; start: { x: number; y: number }; ids: string[]; originals: UIElement[]; worldStarts: Array<{ id: string; x: number; y: number }> }
-  | { kind: "resize"; pointer: number; start: { x: number; y: number }; id: string; original: UIElement; handle: string }
+  | { kind: "move"; pointer: number; start: { x: number; y: number }; ids: string[]; originals: UIElement[]; worldStarts: Array<{ id: string; x: number; y: number }>; startBounds: UIRect; snapTargets: UISnapTarget[]; spacingParentId?: string }
+  | { kind: "resize"; pointer: number; start: { x: number; y: number }; id: string; original: UIElement; handle: string; snapTargets: UISnapTarget[] }
+  | { kind: "guide"; pointer: number; guideId: string; axis: "x" | "y" }
   | { kind: "marquee"; pointer: number; start: { x: number; y: number }; current: { x: number; y: number }; additive: string[]; scopeParentId?: string; clickTargetId?: string }
   | { kind: "point"; pointer: number; id: string; point: number; side: "anchor" | "in" | "out" };
 type AssetPart = { kind: Exclude<UIElementKind, "frame" | "group" | "componentInstance">; name?: string; text?: string; x: number; y: number; width: number; height: number; fill?: string; radius?: number };
@@ -245,9 +247,11 @@ function UiDesignEditor(props: Props) {
   const [tool, setTool] = createSignal<Tool>("select");
   const [selectedIds, setSelectedIds] = createSignal<string[]>([]);
   const [camera, setCamera] = createSignal<Camera>({ x: 0, y: 0, zoom: 0.8 });
+  const [stageSize, setStageSize] = createSignal({ width: 0, height: 0 });
   const [gesture, setGesture] = createSignal<Gesture>();
   const [leftTab, setLeftTab] = createSignal<"pages" | "layers" | "assets">("pages");
   const [rightTab, setRightTab] = createSignal<InspectorTab>("design");
+  const [rightPanelOpen, setRightPanelOpen] = createSignal(true);
   const [layerSearch, setLayerSearch] = createSignal("");
   const [assetSearch, setAssetSearch] = createSignal("");
   const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
@@ -255,6 +259,11 @@ function UiDesignEditor(props: Props) {
   const [framePresetOpen, setFramePresetOpen] = createSignal(false);
   const [framePresetPosition, setFramePresetPosition] = createSignal({ left: 0, top: 0 });
   const [frameMoveArmed, setFrameMoveArmed] = createSignal("");
+  const [guidesMenuOpen, setGuidesMenuOpen] = createSignal(false);
+  const [guidesMenuPosition, setGuidesMenuPosition] = createSignal({ left: 8, top: 48 });
+  const [hoveredNodeId, setHoveredNodeId] = createSignal("");
+  const [altHeld, setAltHeld] = createSignal(false);
+  const [snapLines, setSnapLines] = createSignal<UIAlignmentLine[]>([]);
   const [editingId, setEditingId] = createSignal("");
   const [dragIds, setDragIds] = createSignal<string[]>([]);
   const [layerDrop, setLayerDrop] = createSignal<{ targetId?: string; position: HierarchyDropPosition }>();
@@ -267,6 +276,7 @@ function UiDesignEditor(props: Props) {
   const [previewHistory, setPreviewHistory] = createSignal<Array<{ pageId: string; nodeId: string }>>([]);
   const [previewOverlay, setPreviewOverlay] = createSignal<{ pageId: string; nodeId: string; position: "center" | "top" | "bottom"; background: string; opacity: number; closeOnOutside: boolean }>();
   const [previewTransition, setPreviewTransition] = createSignal<UIInteraction["transition"]>("instant");
+  const [previewVariables, setPreviewVariables] = createSignal<Record<string, string | number | boolean>>({});
   const [contextMenu, setContextMenu] = createSignal<{ x: number; y: number; world: { x: number; y: number }; nodeId?: string; selectionIds: string[] }>();
   const [message, setMessage] = createSignal("");
   const [findOpen, setFindOpen] = createSignal(false);
@@ -301,6 +311,60 @@ function UiDesignEditor(props: Props) {
   const displayNodes = () => hierarchy().flatten().filter(node => !isEffectively(node, "hidden"));
   const topVisible = () => pageRoots().filter(node => !isEffectively(node, "hidden"));
   const worldBounds = (node: UIElement) => hierarchy().worldBounds(node.id);
+  const selectedBounds = () => unionRects(rootsOnly(selectedIds()).flatMap(id => { const node = hierarchy().get(id), bounds = node && worldBounds(node); return bounds ? [bounds] : []; }));
+  const snapTargetsFor = (ids: string[]): UISnapTarget[] => {
+    const excluded = new Set(ids.flatMap(id => [id, ...hierarchy().descendants(id).map(node => node.id)]));
+    return displayNodes().filter(node => !excluded.has(node.id) && node.kind !== "group").flatMap(node => { const bounds = worldBounds(node); return bounds ? [{ id: node.id, parentId: node.parentId, bounds }] : []; });
+  };
+  const measurements = createMemo<UIDistanceMeasure[]>(() => {
+    const settings = document().guideSettings;
+    const active = gesture();
+    if (!settings.enabled || !settings.measurements || (!altHeld() && !["move", "resize"].includes(active?.kind ?? ""))) return [];
+    const selectedRoots = rootsOnly(selectedIds());
+    const bounds = selectedBounds();
+    if (!bounds || !selectedRoots.length) return [];
+    const selectedRects = selectedRoots.flatMap(id => { const node = hierarchy().get(id), rect = node && worldBounds(node); return rect ? [rect] : []; });
+    const ancestors = hierarchy().ancestors(selectedRoots[0]);
+    const frame = ancestors.find(candidate => candidate.kind === "frame" && selectedRoots.every(id => hierarchy().ancestors(id).some(parent => parent.id === candidate.id)));
+    const frameBounds = frame && worldBounds(frame);
+    const frameMeasures = frameBounds ? measureFrameEdges(bounds, frameBounds) : [];
+    const hovered = hoveredNodeId() ? hierarchy().get(hoveredNodeId()) : undefined;
+    if (altHeld() && hovered && !selectedRoots.includes(hovered.id) && !isEffectively(hovered, "hidden")) {
+      const hoveredBounds = worldBounds(hovered);
+      if (hoveredBounds) {
+        const containsSelection = hovered.kind === "frame" && selectedRoots.every(id => hierarchy().ancestors(id).some(parent => parent.id === hovered.id));
+        return containsSelection ? measureFrameEdges(bounds, hoveredBounds) : measureRectDistances(bounds, hoveredBounds);
+      }
+    }
+    if (selectedRects.length > 1) {
+      const spacing = measureMultipleSpacing(selectedRects);
+      if (active?.kind === "move" || active?.kind === "resize") {
+        let nearestX: UIDistanceMeasure | undefined;
+        let nearestY: UIDistanceMeasure | undefined;
+        for (const target of active.snapTargets) for (const measure of measureRectDistances(bounds, target.bounds)) {
+          if (measure.axis === "x" && (!nearestX || measure.value < nearestX.value)) nearestX = measure;
+          if (measure.axis === "y" && (!nearestY || measure.value < nearestY.value)) nearestY = measure;
+        }
+        const nearestByAxis = [nearestX, nearestY].filter((measure): measure is UIDistanceMeasure => !!measure);
+        return [...frameMeasures, ...spacing, ...nearestByAxis];
+      }
+      return spacing;
+    }
+    if (active?.kind === "move" || active?.kind === "resize") {
+      const targets = active.snapTargets.map(target => target.bounds);
+      let nearestX: UIDistanceMeasure | undefined;
+      let nearestY: UIDistanceMeasure | undefined;
+      for (const target of targets) for (const measure of measureRectDistances(bounds, target)) {
+        if (measure.axis === "x" && (!nearestX || measure.value < nearestX.value)) nearestX = measure;
+        if (measure.axis === "y" && (!nearestY || measure.value < nearestY.value)) nearestY = measure;
+      }
+      const nearestByAxis = [nearestX, nearestY].filter((measure): measure is UIDistanceMeasure => !!measure);
+      return [...frameMeasures, ...nearestByAxis];
+    }
+    if (frameMeasures.length) return frameMeasures;
+    return [];
+  });
+  const screenPoint = (x: number, y: number) => ({ x: camera().x + x * camera().zoom, y: camera().y + y * camera().zoom });
   const cameraWorld = (event: { clientX: number; clientY: number }) => { const rect = stage?.getBoundingClientRect(); return rect ? { x: (event.clientX - rect.left - camera().x) / camera().zoom, y: (event.clientY - rect.top - camera().y) / camera().zoom } : { x: 0, y: 0 }; };
   const viewportCenterWorld = () => { const rect = stage?.getBoundingClientRect(); return rect ? { x: (stage!.clientWidth / 2 - camera().x) / camera().zoom, y: (stage!.clientHeight / 2 - camera().y) / camera().zoom } : { x: 0, y: 0 }; };
   const insertionParentAt = (point = viewportCenterWorld()) => {
@@ -323,6 +387,23 @@ function UiDesignEditor(props: Props) {
   const addMessage = (text: string) => { setMessage(text); window.setTimeout(() => setMessage(""), 2600); };
   const updateDocument = (mutate: (current: UIDesignDocument) => UIDesignDocument, key?: string) => props.session.update(mutate(document()), key);
   const updatePage = (mutate: (current: UIPage) => UIPage, key?: string) => updateDocument(doc => ({ ...doc, pages: doc.pages.map(item => item.id === page().id ? mutate(item) : item) }), key);
+  const updateGuideSettings = (patch: Partial<UIGuideSettings>) => updateDocument(doc => ({ ...doc, guideSettings: { ...doc.guideSettings, ...patch } }), "guide-settings");
+  const addManualGuide = (axis: "x" | "y", position: number) => {
+    if (!Number.isFinite(position) || page().guides.length >= 256) return;
+    const guide: UIManualGuide = { id: createUIDesignId("guide"), axis, position: round(clamp(position, -1e7, 1e7)), visible: true, locked: false };
+    updatePage(current => ({ ...current, guides: [...current.guides, guide] }), "guide-add");
+  };
+  const updateManualGuide = (id: string, patch: Partial<UIManualGuide>) => updatePage(current => ({ ...current, guides: current.guides.map(guide => guide.id === id ? { ...guide, ...patch, position: patch.position === undefined ? guide.position : round(clamp(patch.position, -1e7, 1e7)) } : guide) }), `guide:${id}`);
+  const removeManualGuide = (id: string) => updatePage(current => ({ ...current, guides: current.guides.filter(guide => guide.id !== id || guide.locked) }), `guide-remove:${id}`);
+  const addCenteredGuide = (axis: "x" | "y") => {
+    const bounds = selectedBounds(); const center = bounds ? axis === "x" ? bounds.x + bounds.width / 2 : bounds.y + bounds.height / 2 : axis === "x" ? viewportCenterWorld().x : viewportCenterWorld().y;
+    addManualGuide(axis, center);
+  };
+  const addContextGuide = (axis: "x" | "y") => {
+    const menu = contextMenu(); if (!menu) return;
+    addManualGuide(axis, axis === "x" ? menu.world.x : menu.world.y);
+    setContextMenu(undefined);
+  };
   const updateResponsiveBreakpoints = (breakpoints: UIResponsiveBreakpoint[]) => {
     const sorted = [...breakpoints].sort((a, b) => a.minWidth - b.minWidth);
     if (sorted.some((item, index) => !item.name.trim() || item.maxWidth !== undefined && item.maxWidth < item.minWidth || index > 0 && (sorted[index - 1].maxWidth === undefined || sorted[index - 1].maxWidth! >= item.minWidth)) || new Set(sorted.map(item => item.name.trim().toLocaleLowerCase())).size !== sorted.length) {
@@ -479,12 +560,21 @@ function UiDesignEditor(props: Props) {
     const originals = ids.map(id => hierarchy().get(id)).filter((item): item is UIElement => !!item && !isEffectively(item, "locked"));
     const index = hierarchy();
     const worldStarts = originals.flatMap(item => { const transform = index.worldTransform(item.id); return transform ? [{ id: item.id, x: transform.x, y: transform.y }] : []; });
-    const value: Gesture = { kind: "move", pointer: event.pointerId, start: cameraWorld(event), ids: originals.map(item => item.id), originals, worldStarts };
+    const startBounds = unionRects(originals.flatMap(item => { const bounds = index.worldBounds(item.id); return bounds ? [bounds] : []; }));
+    if (!startBounds) return;
+    const spacingParentId = originals.length && originals.every(item => item.parentId === originals[0].parentId) ? originals[0].parentId : undefined;
+    const value: Gesture = { kind: "move", pointer: event.pointerId, start: cameraWorld(event), ids: originals.map(item => item.id), originals, worldStarts, startBounds, snapTargets: snapTargetsFor(originals.map(item => item.id)), spacingParentId };
     activeGesture = value; setGesture(value); stage?.setPointerCapture(event.pointerId);
   };
   const startResize = (event: PointerEvent, node: UIElement, handle: string) => {
     if (isEffectively(node, "locked")) return;
-    const value: Gesture = { kind: "resize", pointer: event.pointerId, start: cameraWorld(event), id: node.id, original: node, handle };
+    const value: Gesture = { kind: "resize", pointer: event.pointerId, start: cameraWorld(event), id: node.id, original: node, handle, snapTargets: snapTargetsFor([node.id]) };
+    activeGesture = value; setGesture(value); stage?.setPointerCapture(event.pointerId);
+  };
+  const startGuideMove = (event: PointerEvent, guide: UIManualGuide) => {
+    if (guide.locked || !guide.visible || !document().guideSettings.enabled) return;
+    event.preventDefault(); event.stopPropagation();
+    const value: Gesture = { kind: "guide", pointer: event.pointerId, guideId: guide.id, axis: guide.axis };
     activeGesture = value; setGesture(value); stage?.setPointerCapture(event.pointerId);
   };
   const startPoint = (event: PointerEvent, node: UIElement, point: number, side: "anchor" | "in" | "out" = "anchor") => {
@@ -576,18 +666,26 @@ function UiDesignEditor(props: Props) {
     startMove(event, node);
   };
   const handleStageMove = (event: PointerEvent) => {
-    const active = activeGesture; if (!active || active.pointer !== event.pointerId) return;
+    setAltHeld(event.altKey);
+    const active = activeGesture;
+    if (!active || active.pointer !== event.pointerId) {
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement>(".ui-node[data-node-id]") : undefined;
+      setHoveredNodeId(target?.dataset.nodeId ?? "");
+      return;
+    }
     const point = cameraWorld(event);
     if (active.kind === "pan") setCamera({ ...active.camera, x: active.camera.x + event.clientX - active.clientX, y: active.camera.y + event.clientY - active.clientY });
     else if (active.kind === "marquee" || active.kind === "draw") { const next = { ...active, current: point } as Gesture; activeGesture = next; setGesture(next); }
     else if (active.kind === "move") {
       const dx = point.x - active.start.x, dy = point.y - active.start.y;
+      const snapped = resolveSmartSnap(active.startBounds, { x: dx, y: dy }, active.snapTargets, page().guides, document().guideSettings, camera().zoom, active.spacingParentId);
+      setSnapLines(snapped.lines);
       updateNodes(nodes => {
         const index = new UIHierarchyIndex<UIElement>(page().id, nodes);
         return nodes.map(node => {
         const original = active.originals.find(item => item.id === node.id); if (!original) return node;
         const worldStart = active.worldStarts.find(item => item.id === node.id); if (!worldStart) return node;
-        const targetWorld = { x: round(worldStart.x + dx), y: round(worldStart.y + dy) };
+        const targetWorld = { x: round(worldStart.x + snapped.delta.x), y: round(worldStart.y + snapped.delta.y) };
         const targetLocal = index.worldToLocal(original.parentId, targetWorld);
         return targetLocal ? { ...original, x: round(targetLocal.x), y: round(targetLocal.y) } : node;
       });
@@ -596,8 +694,25 @@ function UiDesignEditor(props: Props) {
       const original = active.original; const transform = hierarchy().worldTransform(original.id);
       const radians = -(transform?.rotation ?? original.rotation) * Math.PI / 180; const dx = point.x - active.start.x; const dy = point.y - active.start.y;
       const localDx = dx * Math.cos(radians) - dy * Math.sin(radians); const localDy = dx * Math.sin(radians) + dy * Math.cos(radians);
-      const next = resizeElement(original, active.handle, localDx, localDy);
+      let next = resizeElement(original, active.handle, localDx, localDy);
+      if (Math.abs(transform?.rotation ?? original.rotation) < 0.001) {
+        const originalBounds = worldBounds(original);
+        if (originalBounds) {
+          const proposed = { ...originalBounds, x: originalBounds.x + next.x - original.x, y: originalBounds.y + next.y - original.y, width: next.width, height: next.height };
+          const snapped = resolveResizeSnap(proposed, active.handle, active.snapTargets, page().guides, document().guideSettings, camera().zoom);
+          setSnapLines(snapped.lines);
+          const west = active.handle.includes("w"), north = active.handle.includes("n");
+          next = {
+            ...next,
+            ...(active.handle.includes("e") ? { width: Math.max(1, next.width + snapped.correction.x) } : west ? { x: next.x + snapped.correction.x, width: Math.max(1, next.width - snapped.correction.x) } : {}),
+            ...(active.handle.includes("s") ? { height: Math.max(1, next.height + snapped.correction.y) } : north ? { y: next.y + snapped.correction.y, height: Math.max(1, next.height - snapped.correction.y) } : {}),
+          };
+        } else setSnapLines([]);
+      } else setSnapLines([]);
       updateNode(original.id, next, `resize:${original.id}`);
+    } else if (active.kind === "guide") {
+      const guide = page().guides.find(item => item.id === active.guideId);
+      if (guide && !guide.locked) updateManualGuide(active.guideId, { position: active.axis === "x" ? point.x : point.y });
     } else if (active.kind === "point") {
       const node = hierarchy().get(active.id); if (!node) return; const local = hierarchy().worldToLocal(node.parentId, point); if (!local) return;
       const dx = local.x - node.x; const dy = local.y - node.y; const radians = -node.rotation * Math.PI / 180;
@@ -637,6 +752,9 @@ function UiDesignEditor(props: Props) {
         : min;
       const node = createAt(active.tool, dragged ? { x: round(rect.x), y: round(rect.y) } : active.start, size, active.parentId);
       if (node && active.tool === "image") imageInput?.click();
+    } else if (active.kind === "guide") {
+      const rect = stage?.getBoundingClientRect();
+      if (rect && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) removeManualGuide(active.guideId);
     } else if (active.kind === "marquee") {
       const rect = normalizeRect(active.start, point);
       if (rect.width > 2 || rect.height > 2) {
@@ -664,12 +782,12 @@ function UiDesignEditor(props: Props) {
         }
       }
     }
-    activeGesture = undefined; setGesture(undefined);
+    activeGesture = undefined; setGesture(undefined); setSnapLines([]);
     try { stage?.releasePointerCapture(event.pointerId); } catch { /* Pointer may already have been released by the host. */ }
   };
   const cancelGesture = (event: PointerEvent) => {
     const active = activeGesture; if (!active || active.pointer !== event.pointerId) return;
-    activeGesture = undefined; setGesture(undefined);
+    activeGesture = undefined; setGesture(undefined); setSnapLines([]);
     try { stage?.releasePointerCapture(event.pointerId); } catch { /* Pointer may already have been released by the host. */ }
   };
   const handleWheel = (event: WheelEvent) => {
@@ -837,20 +955,20 @@ function UiDesignEditor(props: Props) {
     activeLayerDragIds = []; setDragIds([]); setLayerDrop(undefined);
   };
   const handleLayerListDragOver = (event: DragEvent) => {
-    if (event.target !== event.currentTarget) return;
+    if (event.target !== event.currentTarget || !event.currentTarget) return;
     event.preventDefault(); event.stopPropagation();
     const ids = layerDragIds(event);
-    const rect = event.currentTarget.getBoundingClientRect();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     const position: HierarchyDropPosition = event.clientY < rect.top + rect.height / 2 ? "front" : "back";
     if (!canDropLayer(ids, undefined, position)) { if (event.dataTransfer) event.dataTransfer.dropEffect = "none"; setLayerDrop(undefined); return; }
     if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
     setLayerDrop({ position });
   };
   const handleLayerListDrop = (event: DragEvent) => {
-    if (event.target !== event.currentTarget) return;
+    if (event.target !== event.currentTarget || !event.currentTarget) return;
     event.preventDefault(); event.stopPropagation();
     const ids = layerDragIds(event);
-    const rect = event.currentTarget.getBoundingClientRect();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     const position: HierarchyDropPosition = layerDrop()?.targetId === undefined ? layerDrop()?.position ?? (event.clientY < rect.top + rect.height / 2 ? "front" : "back") : event.clientY < rect.top + rect.height / 2 ? "front" : "back";
     commitLayerDrop(ids, undefined, position);
     activeLayerDragIds = []; setDragIds([]); setLayerDrop(undefined);
@@ -1034,7 +1152,7 @@ function UiDesignEditor(props: Props) {
       }
       if (!pdf.getPageCount()) { addMessage("No visible screen frames could be exported"); return; }
       const bytes = await pdf.save();
-      downloadBlob(`${source.name.replace(/[^\w-]+/g, "-")}.pdf`, new Blob([bytes], { type: "application/pdf" }));
+      downloadBlob(`${source.name.replace(/[^\w-]+/g, "-")}.pdf`, new Blob([bytes as BlobPart], { type: "application/pdf" }));
     } catch (error) { addMessage(error instanceof Error ? error.message : "PDF export failed"); }
   };
   const exportOfflinePresentation = () => {
@@ -1100,17 +1218,19 @@ function UiDesignEditor(props: Props) {
     const startPageId = flow?.startPageId ?? page().id;
     const startPage = document().pages.find(item => item.id === startPageId) ?? page();
     const startNode = flow?.startNodeId ?? startPage.elements.find(item => item.kind === "frame" && item.parentId === startPage.id)?.id ?? startPage.elements.find(item => item.parentId === startPage.id)?.id ?? "";
-    setPreviewPageId(startPage.id); setPreviewNodeId(startNode); setPreviewHistory([]); setPreviewOverlay(undefined); setPreview(true);
+    setPreviewPageId(startPage.id); setPreviewNodeId(startNode); setPreviewHistory([]); setPreviewOverlay(undefined); setPreviewVariables({}); setPreview(true);
   };
   const interactionPassesCondition = (interaction: UIInteraction) => {
     const condition = interaction.condition;
     if (!condition) return true;
-    const value = document().prototypeVariables.find(item => item.id === condition.variableId)?.value;
-    if (value === undefined) return false;
+    const overrides = previewVariables();
+    const base = document().prototypeVariables.find(item => item.id === condition.variableId);
+    if (!base) return false;
+    const value = condition.variableId in overrides ? overrides[condition.variableId] : base.value;
     if (condition.operator === "truthy") return !!value;
     if (condition.operator === "falsy") return !value;
-    if (condition.operator === "equals") return value === condition.value;
-    if (condition.operator === "not-equals") return value !== condition.value;
+    if (condition.operator === "equals") return value == condition.value;
+    if (condition.operator === "not-equals") return value != condition.value;
     const left = Number(value), right = Number(condition.value);
     if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
     return condition.operator === "greater" ? left > right : left < right;
@@ -1119,7 +1239,7 @@ function UiDesignEditor(props: Props) {
     if (!interactionPassesCondition(interaction)) return;
     if (interaction.action === "set-variable") {
       if (!interaction.variableId || interaction.variableValue === undefined) return;
-      updateDocument(doc => ({ ...doc, prototypeVariables: doc.prototypeVariables.map(item => item.id === interaction.variableId ? { ...item, value: interaction.variableValue! } : item) }), `prototype-variable:${interaction.variableId}`);
+      setPreviewVariables(prev => ({ ...prev, [interaction.variableId!]: interaction.variableValue! }));
       return;
     }
     if (interaction.action === "close-overlay") { setPreviewOverlay(undefined); return; }
@@ -1160,9 +1280,10 @@ function UiDesignEditor(props: Props) {
   };
   const updatePrototypeVariable = (id: string, patch: Partial<UIPrototypeVariable>) => updateDocument(doc => ({ ...doc, prototypeVariables: doc.prototypeVariables.map(variable => variable.id === id ? { ...variable, ...patch } : variable) }), `prototype-variable:${id}`);
   const renamePage = (item: UIPage) => { const value = window.prompt("Page name", item.name); if (value?.trim()) updateDocument(doc => ({ ...doc, pages: doc.pages.map(pageItem => pageItem.id === item.id ? { ...pageItem, name: value.trim().slice(0, 120) } : pageItem) })); };
-  const addPage = () => { const next: UIPage = { id: createUIDesignId("page"), name: `Page ${document().pages.length + 1}`, background: page().background, elements: [], prototypeFlows: [], activePrototypeFlowId: "" }; updateDocument(doc => ({ ...doc, pages: [...doc.pages, next], activePageId: next.id })); setSelectedIds([]); };
+  const addPage = () => { const next: UIPage = { id: createUIDesignId("page"), name: `Page ${document().pages.length + 1}`, background: page().background, elements: [], prototypeFlows: [], activePrototypeFlowId: "", guides: [] }; updateDocument(doc => ({ ...doc, pages: [...doc.pages, next], activePageId: next.id })); setSelectedIds([]); };
   const duplicatePage = (item: UIPage) => {
     const copy = structuredClone(item); const sourcePageId = item.id; copy.id = createUIDesignId("page"); copy.name = `${item.name} copy`;
+    copy.guides = copy.guides.map(guide => ({ ...guide, id: createUIDesignId("guide") }));
     const ids = new Map(copy.elements.map(node => [node.id, createUIDesignId(node.kind)]));
     for (const node of copy.elements) {
       const sourceNodeId = node.id;
@@ -1449,9 +1570,10 @@ function UiDesignEditor(props: Props) {
   };
 
   onMount(() => {
-    if (stage) setCamera({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, zoom: 0.8 });
+    if (stage) { setCamera({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, zoom: 0.8 }); setStageSize({ width: stage.clientWidth, height: stage.clientHeight }); }
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null; const typing = !!target?.matches("input,textarea,select,[contenteditable='true']");
+      if (event.key === "Alt") setAltHeld(true);
       if (event.code === "Space" && !typing) { spaceHeld = true; if (stage) stage.style.cursor = "grab"; }
       if (preview() && !typing) {
         const pageId = previewOverlay()?.pageId ?? previewPageId(); const rootId = previewOverlay()?.nodeId ?? previewNodeId();
@@ -1463,7 +1585,15 @@ function UiDesignEditor(props: Props) {
           if (matches.length) { event.preventDefault(); matches.forEach(runInteraction); return; }
         }
       }
-      if (typing) return;
+      if (event.key === "Escape" && preview()) { event.preventDefault(); setPreview(false); return; }
+      if (event.key === "Escape" && guidesMenuOpen()) { event.preventDefault(); setGuidesMenuOpen(false); return; }
+      if (typing || preview()) return;
+      if ((event.ctrlKey || event.metaKey) && event.code === "Semicolon") {
+        event.preventDefault();
+        if (event.shiftKey) updatePage(current => ({ ...current, guides: current.guides.filter(guide => guide.locked) }), "guide-clear");
+        else updateGuideSettings({ enabled: !document().guideSettings.enabled });
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? props.session.redo() : props.session.undo(); return; }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") { event.preventDefault(); props.session.redo(); return; }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") { event.preventDefault(); duplicateSelection(); return; }
@@ -1472,18 +1602,21 @@ function UiDesignEditor(props: Props) {
       if (event.key === "Delete" || event.key === "Backspace") { deleteSelection(); return; }
       if (event.key === "Escape" && contextMenu()) { event.preventDefault(); setContextMenu(undefined); return; }
       if (event.key === "Escape") { setTool("select"); setSelectedIds([]); setConnectSource(""); setPreview(false); setFindOpen(false); setFramePresetOpen(false); return; }
-       if (event.key.toLowerCase() === "v") setTool("select"); else if (event.key.toLowerCase() === "h") setTool("hand"); else if (event.key.toLowerCase() === "f") setTool("frame"); else if (event.key.toLowerCase() === "r") setTool("rectangle"); else if (event.key.toLowerCase() === "o") setTool("ellipse"); else if (event.key.toLowerCase() === "t") setTool("text"); else if (event.key.toLowerCase() === "l") setTool("line");
+      if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (event.key.toLowerCase() === "v") setTool("select"); else if (event.key.toLowerCase() === "h") setTool("hand"); else if (event.key.toLowerCase() === "f") setTool("frame"); else if (event.key.toLowerCase() === "r") setTool("rectangle"); else if (event.key.toLowerCase() === "o") setTool("ellipse"); else if (event.key.toLowerCase() === "t") setTool("text"); else if (event.key.toLowerCase() === "l") setTool("line");
+      }
     };
-    const onKeyUp = (event: KeyboardEvent) => { if (event.code === "Space") { spaceHeld = false; if (stage) stage.style.cursor = tool() === "hand" ? "grab" : ""; } };
-    window.addEventListener("keydown", onKey); window.addEventListener("keyup", onKeyUp); onCleanup(() => { window.removeEventListener("keydown", onKey); window.removeEventListener("keyup", onKeyUp); });
-    const observer = new ResizeObserver(() => { if (stage && camera().x === 0 && camera().y === 0) setCamera({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, zoom: 0.8 }); }); if (stage) observer.observe(stage); onCleanup(() => observer.disconnect());
+    const onKeyUp = (event: KeyboardEvent) => { if (event.key === "Alt") setAltHeld(false); if (event.code === "Space") { spaceHeld = false; if (stage) stage.style.cursor = tool() === "hand" ? "grab" : ""; } };
+    const onBlur = () => { spaceHeld = false; setAltHeld(false); if (stage) stage.style.cursor = tool() === "hand" ? "grab" : ""; };
+    window.addEventListener("keydown", onKey); window.addEventListener("keyup", onKeyUp); window.addEventListener("blur", onBlur); onCleanup(() => { window.removeEventListener("keydown", onKey); window.removeEventListener("keyup", onKeyUp); window.removeEventListener("blur", onBlur); });
+    const observer = new ResizeObserver(() => { if (!stage) return; setStageSize({ width: stage.clientWidth, height: stage.clientHeight }); if (camera().x === 0 && camera().y === 0) setCamera({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, zoom: 0.8 }); }); if (stage) observer.observe(stage); onCleanup(() => observer.disconnect());
   });
 
   const tools: Array<{ id: Tool; label: string; key?: string }> = [{ id: "select", label: "Select", key: "V" }, { id: "hand", label: "Pan", key: "H" }, { id: "frame", label: "Frame", key: "F" }, { id: "rectangle", label: "Rectangle", key: "R" }, { id: "ellipse", label: "Ellipse", key: "O" }, { id: "line", label: "Line", key: "L" }, { id: "path", label: "Vector path", key: "P" }, { id: "text", label: "Text", key: "T" }, { id: "button", label: "Button" }, { id: "input", label: "Input" }, { id: "checkbox", label: "Checkbox" }, { id: "image", label: "Image" }];
 
   const toolsForHeader = tools.filter(item => ["hand", "frame", "rectangle", "ellipse", "line", "path", "text", "image"].includes(item.id));
 
-  return <div class="ui-editor-shell">
+  return <div class="ui-editor-shell" onPointerDown={event => { const target = event.target instanceof Element ? event.target : undefined; if (!target?.closest(".ui-guide-menu-anchor")) setGuidesMenuOpen(false); }}>
     <header class="ui-editor-topbar">
       <button class="ui-topbar-back" onClick={() => props.session.goHome()} aria-label="Back to UI Design home" title="Home">&#8592;</button>
       <div class="ui-topbar-file"><span class="ui-brand-mark">U</span><div><strong>{document().name}</strong><small>{props.session.saving() ? "Saving…" : props.session.dirty() ? "Unsaved changes" : props.session.savedAt() ? `Saved ${props.session.savedAt()}` : "Local design"}</small></div></div>
@@ -1492,9 +1625,27 @@ function UiDesignEditor(props: Props) {
         <For each={toolsForHeader}>{item => item.id === "frame" ? <div class="ui-topbar-menu-anchor"><button type="button" class={`ui-tool-button ${tool() === item.id ? "is-active" : ""}`} aria-label={item.label} title={`${item.label} (F) · Choose a screen or container size`} aria-expanded={framePresetOpen()} onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setFramePresetPosition({ left: Math.min(rect.left, Math.max(8, window.innerWidth - 320)), top: rect.bottom + 4 }); setTool("frame"); setFramePresetOpen(value => !value); }}><ToolIcon tool={item.id} /></button><Show when={framePresetOpen()}><div class="ui-frame-preset-menu" style={{ left: `${framePresetPosition().left}px`, top: `${framePresetPosition().top}px` }} role="menu" aria-label="Create frame preset"><For each={UI_FRAME_PRESETS}>{preset => <button type="button" role="menuitem" onClick={() => chooseFramePreset(preset.id)}>{preset.label}<span>{preset.id === "custom" ? "Choose dimensions" : `${preset.width} × ${preset.height}`}</span></button>}</For></div></Show></div> : <button type="button" class={`ui-tool-button ${tool() === item.id ? "is-active" : ""}`} aria-label={item.label} title={`${item.label}${item.key ? ` (${item.key})` : ""}`} onClick={() => item.id === "image" ? imageInput?.click() : setTool(item.id)}><ToolIcon tool={item.id} /></button>}</For>
       </nav>
       <div class="ui-topbar-view-actions" aria-label="Canvas view controls"><button type="button" title="Fit all" onClick={() => fitContent()}>Fit</button><button type="button" title="Fit selection" disabled={!selected().length} onClick={() => fitContent(selected())}>Selection</button><button type="button" title="Zoom to 100%" onClick={() => setCamera(current => ({ ...current, zoom: 1 }))}>100%</button><button type="button" title="Zoom out" onClick={() => zoomAt((stage?.getBoundingClientRect().left ?? 0) + (stage?.clientWidth ?? 0) / 2, (stage?.getBoundingClientRect().top ?? 0) + (stage?.clientHeight ?? 0) / 2, camera().zoom / 1.2)}>−</button><output>{zoomLabel()}</output><button type="button" title="Zoom in" onClick={() => zoomAt((stage?.getBoundingClientRect().left ?? 0) + (stage?.clientWidth ?? 0) / 2, (stage?.getBoundingClientRect().top ?? 0) + (stage?.clientHeight ?? 0) / 2, camera().zoom * 1.2)}>＋</button></div>
-      <div class="ui-topbar-actions"><button type="button" disabled={!props.session.canUndo()} onClick={() => props.session.undo()} title="Undo (Ctrl/⌘+Z)" aria-label="Undo">↶</button><button type="button" disabled={!props.session.canRedo()} onClick={() => props.session.redo()} title="Redo (Ctrl/⌘+Y)" aria-label="Redo">↷</button><button type="button" onClick={() => void props.session.save()}>Save</button><button type="button" class="ui-present-button" onClick={startPrototype}>Present <span aria-hidden="true">▶</span></button><button type="button" onClick={() => props.session.goHome()}>Home</button></div>
+      <div class="ui-topbar-menu-anchor ui-guide-menu-anchor"><button type="button" class="ui-topbar-menu-trigger" aria-haspopup="dialog" aria-expanded={guidesMenuOpen()} onClick={event => { if (!guidesMenuOpen()) { const rect = event.currentTarget.getBoundingClientRect(); const width = Math.min(360, window.innerWidth - 16); const height = Math.min(560, window.innerHeight - 16); setGuidesMenuPosition({ left: clamp(rect.left, 8, Math.max(8, window.innerWidth - width - 8)), top: clamp(rect.bottom + 4, 8, Math.max(8, window.innerHeight - height - 8)) }); } setGuidesMenuOpen(value => !value); }}>Guides <span aria-hidden="true">⌄</span></button><Show when={guidesMenuOpen()}><div class="ui-guides-popover" role="dialog" aria-label="Guides and snapping" style={{ left: `${guidesMenuPosition().left}px`, top: `${guidesMenuPosition().top}px` }} onPointerDown={event => event.stopPropagation()}>
+        <header><strong>Guides</strong><div><button type="button" title="Add vertical guide at selection or canvas center" onClick={() => addCenteredGuide("x")}>＋ Vertical</button><button type="button" title="Add horizontal guide at selection or canvas center" onClick={() => addCenteredGuide("y")}>＋ Horizontal</button></div></header>
+        <label class="ui-guide-check"><input type="checkbox" checked={document().guideSettings.enabled} onChange={event => updateGuideSettings({ enabled: event.currentTarget.checked })} /><span>Show guides and smart feedback</span><kbd>Ctrl/⌘+;</kbd></label>
+        <div class="ui-guide-options">
+          <label><input type="checkbox" checked={document().guideSettings.smartGuides} onChange={event => updateGuideSettings({ smartGuides: event.currentTarget.checked })} /> Alignment lines</label>
+          <label><input type="checkbox" checked={document().guideSettings.snapObjects} onChange={event => updateGuideSettings({ snapObjects: event.currentTarget.checked })} /> Snap to objects</label>
+          <label><input type="checkbox" checked={document().guideSettings.snapGuides} onChange={event => updateGuideSettings({ snapGuides: event.currentTarget.checked })} /> Snap to manual guides</label>
+          <label><input type="checkbox" checked={document().guideSettings.equalSpacing} onChange={event => updateGuideSettings({ equalSpacing: event.currentTarget.checked })} /> Equal spacing</label>
+          <label><input type="checkbox" checked={document().guideSettings.snapGrid} onChange={event => updateGuideSettings({ snapGrid: event.currentTarget.checked })} /> Snap to grid</label>
+          <Show when={document().guideSettings.snapGrid}><label class="ui-guide-grid-size">Grid step <input type="number" min="1" max="512" step="1" value={document().guideSettings.gridSize} onChange={event => updateGuideSettings({ gridSize: Math.max(1, Math.min(512, Math.round(event.currentTarget.valueAsNumber || 1))) })} /> px</label></Show>
+          <label><input type="checkbox" checked={document().guideSettings.measurements} onChange={event => updateGuideSettings({ measurements: event.currentTarget.checked })} /> Distance labels · Alt or drag</label>
+          <label class="ui-guide-grid-size">Guide color <input type="color" aria-label="Guide color" value={document().guideSettings.color} onInput={event => updateGuideSettings({ color: event.currentTarget.value })} /></label>
+          <label class="ui-guide-grid-size">Snap distance <input type="number" min="1" max="32" step="1" value={document().guideSettings.threshold} onInput={event => updateGuideSettings({ threshold: Math.max(1, Math.min(32, Math.round(event.currentTarget.valueAsNumber || 1))) })} /> px</label>
+        </div>
+        <section class="ui-guide-list"><header><strong>Page guides</strong><button type="button" disabled={!page().guides.some(guide => !guide.locked)} title="Remove unlocked guides" onClick={() => updatePage(current => ({ ...current, guides: current.guides.filter(guide => guide.locked) }), "guide-clear")}>Clear</button></header>
+          <Show when={page().guides.length} fallback={<p>No manual guides. Add one here or right-click the canvas.</p>}><For each={page().guides}>{guide => <div class={`ui-guide-row ${guide.visible ? "" : "is-hidden"}`}><button type="button" class="ui-guide-visibility" aria-label={`${guide.visible ? "Hide" : "Show"} ${guide.axis === "x" ? "vertical" : "horizontal"} guide`} aria-pressed={guide.visible} onClick={() => updateManualGuide(guide.id, { visible: !guide.visible })}>{guide.visible ? "◉" : "○"}</button><span class={`ui-guide-axis axis-${guide.axis}`} aria-hidden="true"></span><span>{guide.axis === "x" ? "X" : "Y"}</span><input type="number" step="1" aria-label={`${guide.axis === "x" ? "Vertical" : "Horizontal"} guide position in pixels`} value={guide.position} onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) updateManualGuide(guide.id, { position: event.currentTarget.valueAsNumber }); }} /><span>px</span><button type="button" aria-label={`${guide.locked ? "Unlock" : "Lock"} guide`} aria-pressed={guide.locked} onClick={() => updateManualGuide(guide.id, { locked: !guide.locked })}>{guide.locked ? "▣" : "♙"}</button><button type="button" aria-label="Remove guide" disabled={guide.locked} onClick={() => removeManualGuide(guide.id)}>×</button></div>}</For></Show>
+        </section>
+      </div></Show></div>
+      <div class="ui-topbar-actions"><button type="button" disabled={!props.session.canUndo()} onClick={() => props.session.undo()} title="Undo (Ctrl/⌘+Z)" aria-label="Undo">↶</button><button type="button" disabled={!props.session.canRedo()} onClick={() => props.session.redo()} title="Redo (Ctrl/⌘+Y)" aria-label="Redo">↷</button><button type="button" onClick={() => void props.session.save()}>Save</button><button type="button" class="ui-present-button" onClick={startPrototype}>Present <span aria-hidden="true">▶</span></button><button type="button" onClick={() => setRightPanelOpen(v => !v)} title="Toggle inspector panel" aria-pressed={rightPanelOpen()}>{rightPanelOpen() ? "◧" : "◨"}</button><button type="button" onClick={() => props.session.goHome()}>Home</button></div>
     </header>
-    <div class="ui-editor-layout">
+    <div class={`ui-editor-layout${rightPanelOpen() ? "" : " inspector-hidden"}`}>
        <aside class="ui-left-panel" aria-label="Design navigation"><nav class="ui-panel-tabs" aria-label="Left panel sections"><For each={["pages", "layers", "assets"] as const}>{tab => <button type="button" aria-pressed={leftTab() === tab} class={leftTab() === tab ? "is-active" : ""} onClick={() => setLeftTab(tab)}>{tab}</button>}</For></nav>
         <Show when={leftTab() === "pages"}><section class="ui-left-section"><header><span>Pages</span><button title="Add page" onClick={addPage}>＋</button></header><For each={document().pages}>{item => <div class={`ui-page-row ${page().id === item.id ? "is-active" : ""}`}><button onClick={() => setPage(item.id)} onDblClick={() => renamePage(item)} title="Double-click to rename">▤ {item.name}</button><details><summary aria-label={`Page actions for ${item.name}`}>···</summary><div class="ui-page-menu"><button onClick={() => setPage(item.id)}>Open</button><button onClick={() => renamePage(item)}>Rename</button><button onClick={() => duplicatePage(item)}>Duplicate</button><button onClick={() => deletePage(item)}>Delete</button></div></details></div>}</For></section><section class="ui-left-section"><header><span>Prototype flows</span><button title="Add flow" onClick={() => updatePage(current => { const flow = { id: createUIDesignId("flow"), name: `Flow ${current.prototypeFlows.length + 1}`, startPageId: current.id, startNodeId: topVisible().find(node => node.kind === "frame")?.id }; return { ...current, prototypeFlows: [...current.prototypeFlows, flow], activePrototypeFlowId: flow.id }; })}>＋</button></header><For each={page().prototypeFlows}>{flow => <button class={`ui-flow-row ${page().activePrototypeFlowId === flow.id ? "is-active" : ""}`} onClick={() => updatePage(item => ({ ...item, activePrototypeFlowId: flow.id }))}>{flow.name}</button>}</For><Show when={!page().prototypeFlows.length}><p class="ui-panel-empty">Create a flow to set its starting screen.</p></Show></section><section class="ui-left-section"><header><span>Frames</span><button title="Add screen frame" onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setFramePresetPosition({ left: Math.min(rect.left, Math.max(8, window.innerWidth - 320)), top: rect.bottom + 4 }); setTool("frame"); setFramePresetOpen(true); }}>＋</button></header><For each={displayNodes().filter(node => node.kind === "frame")}>{frame => <button class={`ui-frame-row ${selectedIds().includes(frame.id) ? "is-active" : ""}`} style={{ "--frame-depth": `${Math.min(hierarchy().ancestors(frame.id).length, 5) * 12}px` }} onClick={() => { setSelectedIds([frame.id]); fitContent([frame]); }} onDblClick={() => renameNode(frame)}><span aria-hidden="true">▧</span><span>{frame.name}</span><small>{frame.frameType === "screen" ? "Screen" : "Container"}</small></button>}</For><Show when={!displayNodes().some(node => node.kind === "frame")}><p class="ui-panel-empty">No frames on this page yet.</p></Show><ResponsiveBreakpointsPanel breakpoints={document().responsiveBreakpoints} open={inspectorSections().has("responsive-breakpoints")} onToggle={() => toggleInspectorSection("responsive-breakpoints")} onChange={updateResponsiveBreakpoints} onCompare={() => setResponsivePreviewOpen(true)} /></section></Show>
         <Show when={leftTab() === "layers"}><section class="ui-left-section ui-layer-section"><header><span>{page().name.toUpperCase()} · LAYERS</span><button title="Group selected (Ctrl+G)" onClick={groupSelection}>＋</button></header><div class="ui-searchbox"><span>⌕</span><input placeholder="Search layers" value={layerSearch()} onInput={event => setLayerSearch(event.currentTarget.value)} /><button title="Clear search" onClick={() => setLayerSearch("")}>×</button></div><div class={`ui-layer-list ${layerDrop() && layerDrop()?.targetId === undefined ? `is-drop-${layerDrop()?.position ?? ""}` : ""}`} onDragOver={handleLayerListDragOver} onDrop={handleLayerListDrop}>{renderLayerTree(page().id, 0)}</div><Show when={!page().elements.length}><div class="ui-panel-empty">Add a frame or element to start.</div></Show><footer><button disabled={!selectedIds().length} onClick={bulkRename}>Rename</button><button disabled={selected().length < 2} onClick={groupSelection}>Group</button><button disabled={!selected().some(node => node.kind === "group" || node.kind === "frame")} onClick={ungroupSelection}>Ungroup</button></footer></section></Show>
@@ -1512,18 +1663,55 @@ function UiDesignEditor(props: Props) {
         </section></Show>
       </aside>
 
-      <main class="ui-center-workspace"><div ref={stage} class={`ui-canvas-stage tool-${tool()}`} style={{ background: page().background }} onPointerDown={handleStageDown} onPointerMove={handleStageMove} onPointerUp={finishGesture} onPointerCancel={cancelGesture} onWheel={handleWheel} onContextMenu={event => openContextMenu(event)}>
+      <main class="ui-center-workspace"><div ref={stage} class={`ui-canvas-stage tool-${tool()}`} style={{ background: page().background, "--ui-zoom": String(camera().zoom) }} onPointerDown={handleStageDown} onPointerMove={handleStageMove} onPointerUp={finishGesture} onPointerCancel={cancelGesture} onWheel={handleWheel} onContextMenu={event => openContextMenu(event)}>
         <div class="ui-infinite-plane" style={{ transform: `translate(${camera().x}px,${camera().y}px) scale(${camera().zoom})` }}>{renderChildren(page().id)}
           <Show when={connectSource()}><svg class="ui-prototype-wires" style={{ position: "absolute", left: `${sceneExtent().x}px`, top: `${sceneExtent().y}px`, width: `${sceneExtent().width}px`, height: `${sceneExtent().height}px`, overflow: "visible", "pointer-events": "none" }}><For each={displayNodes().flatMap(node => node.interactions.filter(link => link.targetNodeId).map(link => ({ node, link })))}>{entry => { const from = worldBounds(entry.node); const toNode = hierarchy().get(entry.link.targetNodeId ?? ""); const to = toNode && worldBounds(toNode); return from && to ? <path d={`M ${from.x + from.width - sceneExtent().x} ${from.y + from.height / 2 - sceneExtent().y} C ${from.x + from.width + 60 - sceneExtent().x} ${from.y + from.height / 2 - sceneExtent().y}, ${to.x - 60 - sceneExtent().x} ${to.y + to.height / 2 - sceneExtent().y}, ${to.x - sceneExtent().x} ${to.y + to.height / 2 - sceneExtent().y}`} /> : null; }}</For></svg></Show>
           <Show when={gesture()?.kind === "draw" && gestureRect()}><div class="ui-draw-preview" style={{ left: `${gestureRect()!.x}px`, top: `${gestureRect()!.y}px`, width: `${Math.max(1, gestureRect()!.width)}px`, height: `${Math.max(1, gestureRect()!.height)}px` }} /></Show>
           <Show when={gesture()?.kind === "marquee" && gestureRect()}><div class="ui-marquee" style={{ left: `${gestureRect()!.x}px`, top: `${gestureRect()!.y}px`, width: `${gestureRect()!.width}px`, height: `${gestureRect()!.height}px` }} /></Show>
           <Show when={connectSource()}><div class="ui-connect-hint">Select a frame to connect · Esc to cancel</div></Show>
         </div>
+        <Show when={document().guideSettings.enabled && stageSize().width > 0 && stageSize().height > 0}>
+          <svg class="ui-guides-overlay" aria-hidden="true" viewBox={`0 0 ${stageSize().width} ${stageSize().height}`}>
+            <For each={page().guides.filter(guide => guide.visible)}>{guide => {
+              const anchor = screenPoint(guide.axis === "x" ? guide.position : 0, guide.axis === "y" ? guide.position : 0);
+              const vertical = guide.axis === "x";
+              const value = `${vertical ? "X" : "Y"} ${round(guide.position)} px`;
+              const labelWidth = Math.max(48, value.length * 6.2 + 12);
+              const labelX = vertical ? clamp(anchor.x + 5, 2, stageSize().width - labelWidth - 2) : 5;
+              const labelY = vertical ? 17 : clamp(anchor.y - 5, 15, stageSize().height - 3);
+              return <g class={`ui-manual-guide ${vertical ? "is-vertical" : "is-horizontal"} ${guide.locked ? "is-locked" : ""}`}>
+                <line class="ui-guide-visible-line" x1={vertical ? anchor.x : 0} y1={vertical ? 0 : anchor.y} x2={vertical ? anchor.x : stageSize().width} y2={vertical ? stageSize().height : anchor.y} style={{ stroke: document().guideSettings.color }} />
+                <line class="ui-guide-hit-line" x1={vertical ? anchor.x : 0} y1={vertical ? 0 : anchor.y} x2={vertical ? anchor.x : stageSize().width} y2={vertical ? stageSize().height : anchor.y} style={{ "pointer-events": guide.locked ? "none" : "stroke", cursor: vertical ? "col-resize" : "row-resize" }} onPointerDown={event => startGuideMove(event, guide)} />
+                <g class="ui-guide-coordinate" style={{ "pointer-events": "none" }}><rect x={labelX} y={labelY - 13} width={labelWidth} height="17" rx="4" style={{ fill: document().guideSettings.color }} /><text x={labelX + 6} y={labelY - 1}>{value}</text></g>
+              </g>;
+            }}</For>
+            <For each={snapLines()}>{line => {
+              const start = line.axis === "x" ? screenPoint(line.position, line.from) : screenPoint(line.from, line.position);
+              const end = line.axis === "x" ? screenPoint(line.position, line.to) : screenPoint(line.to, line.position);
+              return <line class={`ui-smart-guide source-${line.source}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} />;
+            }}</For>
+            <For each={measurements()}>{measure => {
+              const start = measure.axis === "x" ? screenPoint(measure.start, measure.cross) : screenPoint(measure.cross, measure.start);
+              const end = measure.axis === "x" ? screenPoint(measure.end, measure.cross) : screenPoint(measure.cross, measure.end);
+              const horizontal = measure.axis === "x";
+              const labelWidth = Math.max(38, measure.label.length * 6.3 + 12);
+              const labelX = horizontal ? (start.x + end.x - labelWidth) / 2 : start.x + 8;
+              const labelY = horizontal ? start.y - 8 : (start.y + end.y) / 2;
+              return <g class="ui-distance-measure">
+                <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} />
+                <line x1={start.x - (horizontal ? 0 : 4)} y1={start.y - (horizontal ? 4 : 0)} x2={start.x + (horizontal ? 0 : 4)} y2={start.y + (horizontal ? 4 : 0)} />
+                <line x1={end.x - (horizontal ? 0 : 4)} y1={end.y - (horizontal ? 4 : 0)} x2={end.x + (horizontal ? 0 : 4)} y2={end.y + (horizontal ? 4 : 0)} />
+                <rect x={labelX} y={labelY - 8} width={labelWidth} height="17" rx="4" />
+                <text x={labelX + labelWidth / 2} y={labelY + 4} text-anchor="middle">{measure.label}</text>
+              </g>;
+            }}</For>
+          </svg>
+        </Show>
         <Show when={message()}><div class="ui-toast-message" role="status">{message()}</div></Show>
         </div>
       </main>
 
-      <InspectorPanel activeTab={rightTab()} onTabChange={setRightTab} design={<>
+      <Show when={rightPanelOpen()}><InspectorPanel activeTab={rightTab()} onTabChange={setRightTab} design={<>
         <div class="ui-inspector-scroll"><Show when={selectedOne()}>
           <SelectedInspector node={selectedOne()!} page={page()} document={document()} hierarchy={hierarchy()} openSections={inspectorSections} toggleSection={toggleInspectorSection} updateNode={updateNode} updateField={updateField} updatePage={updatePage} setColorMode={modeId => updateDocument(doc => ({ ...doc, activeColorModeId: modeId }))} createComponent={createComponent} applyVariant={applyVariant} saveComponentVariant={saveComponentVariant} detachComponent={detachComponent} resetComponent={resetComponent} resetComponentNode={resetComponentNode} />
         </Show><Show when={selected().length > 1}><MultiSelectionInspector count={selected().length} nodes={selected()} onFill={fill => updateSelection({ fill, fillTokenId: "", fillGradient: undefined })} onOpacity={opacity => updateSelection({ opacity })} /></Show><section class="ui-inspector-section ui-styles-section"><header><button type="button" class="ui-section-toggle" aria-expanded={inspectorSections().has("styles-library")} onClick={() => toggleInspectorSection("styles-library")}>{inspectorSections().has("styles-library") ? "v" : ">"} Local styles &amp; variables</button><button onClick={exportTokens} title="Export token JSON">↓</button></header><div class="ui-token-library" style={{ display: inspectorSections().has("styles-library") ? "block" : "none" }}><div class="ui-token-actions"><button onClick={() => tokenInput?.click()}>Import tokens</button><button onClick={exportTokens}>Export tokens</button></div><For each={document().colorModes}>{mode => <button class={`ui-mode-pill ${document().activeColorModeId === mode.id ? "is-active" : ""}`} onClick={() => updateDocument(doc => ({ ...doc, activeColorModeId: mode.id }))}>{mode.name}</button>}</For><TokenSection title="Colors" presets={tokenPresets.color.map(item => item.name)} onAdd={() => addToken("color")} onPreset={name => addToken("color", name)}><For each={document().colorTokens}>{token => <div class="ui-token-row"><input type="color" aria-label={`Color for ${token.name}`} value={resolveColorToken(document().colorTokens, token.id, document().activeColorModeId, token.value)} onInput={event => editColorToken(token.id, event.currentTarget.value)} /><input aria-label="Color token name" value={token.name} onInput={event => updateDocument(doc => ({ ...doc, colorTokens: doc.colorTokens.map(item => item.id === token.id ? { ...item, name: event.currentTarget.value } : item) }))} /><TokenAliasSelect token={token} tokens={document().colorTokens} onChange={aliasOf => changeTokenAlias("color", token.id, aliasOf)} /><button class="ui-token-remove" type="button" title={`Remove ${token.name}`} aria-label={`Remove ${token.name} color token`} onClick={() => removeToken("color", token.id)}>×</button></div>}</For></TokenSection><TokenSection title="Typography" presets={tokenPresets.type.map(item => item.name)} onAdd={() => addToken("type")} onPreset={name => addToken("type", name)}><For each={document().typographyTokens}>{token => <div class="ui-token-card ui-token-type-row"><input aria-label="Typography token name" value={token.name} onInput={event => updateDocument(doc => ({ ...doc, typographyTokens: doc.typographyTokens.map(item => item.id === token.id ? { ...item, name: event.currentTarget.value } : item) }))} /><div class="ui-token-type-fields"><select aria-label="Typography font family" value={resolveTypographyToken(token, document().activeColorModeId, document().typographyTokens)?.fontFamily ?? token.fontFamily} onChange={event => editTypographyToken(token.id, { fontFamily: event.currentTarget.value as typeof token.fontFamily })}><option value="system">System</option><option value="sans">Sans</option><option value="serif">Serif</option><option value="mono">Mono</option></select><input aria-label="Typography font size" type="number" min="1" max="512" value={resolveTypographyToken(token, document().activeColorModeId, document().typographyTokens)?.fontSize ?? token.fontSize} onInput={event => editTypographyToken(token.id, { fontSize: Math.max(1, Number(event.currentTarget.value) || 1) })} /><input aria-label="Typography font weight" type="number" min="100" max="900" step="100" value={resolveTypographyToken(token, document().activeColorModeId, document().typographyTokens)?.fontWeight ?? token.fontWeight} onInput={event => editTypographyToken(token.id, { fontWeight: clamp(Number(event.currentTarget.value) || 400, 100, 900) })} /><input aria-label="Typography line height" title="Line height" type="number" min="0.5" max="5" step="0.1" value={resolveTypographyToken(token, document().activeColorModeId, document().typographyTokens)?.lineHeight ?? token.lineHeight} onInput={event => editTypographyToken(token.id, { lineHeight: clamp(Number(event.currentTarget.value) || 1, 0.5, 5) })} /><input aria-label="Typography letter spacing" title="Letter spacing" type="number" min="-20" max="100" step="0.1" value={resolveTypographyToken(token, document().activeColorModeId, document().typographyTokens)?.letterSpacing ?? token.letterSpacing} onInput={event => editTypographyToken(token.id, { letterSpacing: clamp(Number(event.currentTarget.value) || 0, -20, 100) })} /></div><TokenAliasSelect token={token} tokens={document().typographyTokens} onChange={aliasOf => changeTokenAlias("type", token.id, aliasOf)} /><button class="ui-token-remove" type="button" title={`Remove ${token.name}`} aria-label={`Remove ${token.name} typography token`} onClick={() => removeToken("type", token.id)}>×</button></div>}</For></TokenSection><TokenSection title="Spacing" presets={tokenPresets.spacing.map(item => item.name)} onAdd={() => addToken("spacing")} onPreset={name => addToken("spacing", name)}><For each={document().spacingTokens}>{token => <TokenValue token={token} tokens={document().spacingTokens} modeId={document().activeColorModeId} onChange={value => editValueToken("spacing", token.id, value)} onRename={name => updateDocument(doc => ({ ...doc, spacingTokens: doc.spacingTokens.map(item => item.id === token.id ? { ...item, name } : item) }))} onAliasChange={aliasOf => changeTokenAlias("spacing", token.id, aliasOf)} onRemove={() => removeToken("spacing", token.id)} />}</For></TokenSection><TokenSection title="Radius" presets={tokenPresets.radius.map(item => item.name)} onAdd={() => addToken("radius")} onPreset={name => addToken("radius", name)}><For each={document().radiusTokens}>{token => <TokenValue token={token} tokens={document().radiusTokens} modeId={document().activeColorModeId} onChange={value => editValueToken("radius", token.id, value)} onRename={name => updateDocument(doc => ({ ...doc, radiusTokens: doc.radiusTokens.map(item => item.id === token.id ? { ...item, name } : item) }))} onAliasChange={aliasOf => changeTokenAlias("radius", token.id, aliasOf)} onRemove={() => removeToken("radius", token.id)} />}</For></TokenSection><TokenSection title="Effects" presets={tokenPresets.effect.map(item => item.name)} onAdd={() => addToken("effect")} onPreset={name => addToken("effect", name)}><For each={document().effectTokens}>{token => <div class="ui-token-card ui-token-effect-row"><input aria-label="Effect token name" value={token.name} onInput={event => updateDocument(doc => ({ ...doc, effectTokens: doc.effectTokens.map(item => item.id === token.id ? { ...item, name: event.currentTarget.value } : item) }))} /><input aria-label="Effect token value" value={resolveEffectToken(token, document().activeColorModeId, document().effectTokens) ?? token.value} onInput={event => editEffectToken(token.id, event.currentTarget.value)} /><TokenAliasSelect token={token} tokens={document().effectTokens} onChange={aliasOf => changeTokenAlias("effect", token.id, aliasOf)} /><button class="ui-token-remove" type="button" title={`Remove ${token.name}`} aria-label={`Remove ${token.name} effect token`} onClick={() => removeToken("effect", token.id)}>×</button></div>}</For></TokenSection></div></section>
@@ -1545,7 +1733,7 @@ function UiDesignEditor(props: Props) {
               <button class="ui-accessibility-export" type="button" onClick={exportAccessibilityReport}>Export report</button>
             </section>
           </div>
-        </>} />
+        </>} /></Show>
     </div>
     <Show when={contextMenu()}>
       <div class="ui-context-menu" role="menu" aria-label="Canvas actions" style={contextMenuPosition()} onContextMenu={event => event.preventDefault()}>
@@ -1561,6 +1749,7 @@ function UiDesignEditor(props: Props) {
             <strong>Create here</strong>
             <div class="ui-context-quick-actions"><button role="menuitem" onClick={() => addContextNode("rectangle")}>Rectangle</button><button role="menuitem" onClick={() => addContextNode("ellipse")}>Ellipse</button><button role="menuitem" onClick={() => addContextNode("text")}>Text</button><button role="menuitem" onClick={() => addContextNode("button")}>Button</button></div>
             <div class="ui-context-quick-actions"><For each={UI_FRAME_PRESETS.filter(preset => ["mobile-iphone", "tablet", "desktop", "custom"].includes(preset.id))}>{preset => <button role="menuitem" onClick={() => addContextFrame(preset.id)}>{preset.label}</button>}</For></div>
+            <div class="ui-context-quick-actions"><button role="menuitem" onClick={() => addContextGuide("x")}>Vertical guide</button><button role="menuitem" onClick={() => addContextGuide("y")}>Horizontal guide</button></div>
           </div>
         </Show>
         <Show when={contextNodes().length > 0}>
@@ -1647,7 +1836,7 @@ function SelectedInspector(props: { node: UIElement; page: UIPage; document: UID
     {section("position", "Position", <><div class="ui-property-grid"><NumberField label="X" value={position().x} onInput={value => setWorldPosition("x", value)} /><NumberField label="Y" value={position().y} onInput={value => setWorldPosition("y", value)} /><NumberField label="W" min={1} value={node().width} onInput={value => props.updateNode(node().id, { width: value })} /><NumberField label="H" min={1} value={node().height} onInput={value => props.updateNode(node().id, { height: value })} /><NumberField label="Rotation" value={node().rotation} onInput={value => edit("rotation", value)} /></div><label class="ui-field"><span>Layer name</span><input value={node().name} onInput={event => edit("name", event.currentTarget.value)} /></label><div class="ui-property-grid"><SelectField label="Horizontal" value={node().constraints.horizontal} options={["left", "right", "left-right", "center", "scale"]} onChange={horizontal => edit("constraints", { ...node().constraints, horizontal })} /><SelectField label="Vertical" value={node().constraints.vertical} options={["top", "bottom", "top-bottom", "center", "scale"]} onChange={vertical => edit("constraints", { ...node().constraints, vertical })} /></div></>)}
     {node().kind === "frame" ? <>{section("frame", "Frame", <><SelectField label="Type" value={node().frameType} options={["screen", "container"]} onChange={frameType => edit("frameType", frameType)} /><SelectField label="Preset" value={node().framePreset} options={UI_FRAME_PRESETS.map(item => item.id)} onChange={presetId => { const preset = UI_FRAME_PRESETS.find(item => item.id === presetId); if (preset) props.updateNode(node().id, { framePreset: preset.id, width: preset.width, height: preset.height, frameType: preset.id === "custom" ? "container" : "screen" }); }} /><label class="ui-check-row"><input type="checkbox" checked={node().clipContent} onChange={event => edit("clipContent", event.currentTarget.checked)} /> Clip children</label><label class="ui-color-field"><span>Frame fill</span><input type="color" value={colorValue(node().fillTokenId, node().fill)} onInput={event => props.updateNode(node().id, { fill: event.currentTarget.value, fillTokenId: "" })} /></label><label class="ui-check-row"><input type="checkbox" checked={node().mask} onChange={event => edit("mask", event.currentTarget.checked)} /> Use as mask for children</label></>)}{section("frame-preview", "Frame preview", <p class="ui-inspector-note">Child constraints update when this frame or a parent frame is resized.</p>)}</> : null}
     {section("layout", "Auto layout", <><label class="ui-check-row"><input type="checkbox" checked={node().autoLayout.enabled} onChange={event => edit("autoLayout", { ...node().autoLayout, enabled: event.currentTarget.checked })} /> Enable auto layout</label><Show when={node().autoLayout.enabled}><p class="ui-layout-summary" aria-live="polite">{layoutSummary()}</p><div class="ui-property-grid"><SelectField label="Direction" value={node().autoLayout.direction} options={["horizontal", "vertical", "grid"]} onChange={direction => edit("autoLayout", { ...node().autoLayout, direction })} />{spacingField("Gap", "gap", "gapTokenId")}<NumberField label="Columns" min={1} max={48} value={node().autoLayout.columns} onInput={columns => edit("autoLayout", { ...node().autoLayout, columns })} /><SelectField label="Align" value={node().autoLayout.alignment} options={["start", "center", "end", "stretch"]} onChange={alignment => edit("autoLayout", { ...node().autoLayout, alignment })} /><SelectField label="Justify" value={node().autoLayout.justification} options={["start", "center", "end", "space-between"]} onChange={justification => edit("autoLayout", { ...node().autoLayout, justification })} /><SelectField label="Width" value={node().autoLayout.widthMode} options={["fixed", "hug", "fill"]} onChange={widthMode => edit("autoLayout", { ...node().autoLayout, widthMode })} /><SelectField label="Height" value={node().autoLayout.heightMode} options={["fixed", "hug", "fill"]} onChange={heightMode => edit("autoLayout", { ...node().autoLayout, heightMode })} />{spacingField("Padding top", "paddingTop", "paddingTopTokenId")}{spacingField("Padding right", "paddingRight", "paddingRightTokenId")}{spacingField("Padding bottom", "paddingBottom", "paddingBottomTokenId")}{spacingField("Padding left", "paddingLeft", "paddingLeftTokenId")}</div><label class="ui-check-row"><input type="checkbox" checked={node().autoLayout.wrap} onChange={event => edit("autoLayout", { ...node().autoLayout, wrap: event.currentTarget.checked })} /> Wrap content</label><label class="ui-check-row"><input type="checkbox" checked={node().autoLayout.clip} onChange={event => edit("autoLayout", { ...node().autoLayout, clip: event.currentTarget.checked })} /> Clip content</label><Show when={node().autoLayout.direction === "grid"}><GridTracksEditor title="Columns" tracks={node().autoLayout.gridColumnMinmax} count={node().autoLayout.columns} onChange={tracks => edit("autoLayout", { ...node().autoLayout, gridColumnMinmax: tracks })} onCountChange={columns => edit("autoLayout", { ...node().autoLayout, columns })} /><GridTracksEditor title="Rows" tracks={node().autoLayout.gridRowMinmax} count={48} onChange={tracks => edit("autoLayout", { ...node().autoLayout, gridRowMinmax: tracks })} /></Show></Show>{!node().autoLayout.enabled ? <div class="ui-property-grid"><SelectField label="Width sizing" value={node().widthSizing} options={["fixed", "hug", "fill"]} onChange={widthSizing => edit("widthSizing", widthSizing)} /><SelectField label="Height sizing" value={node().heightSizing} options={["fixed", "hug", "fill"]} onChange={heightSizing => edit("heightSizing", heightSizing)} /></div> : null}</>)}
-    {section("appearance", "Appearance", <><div class="ui-property-grid"><label class="ui-color-field"><span>Fill</span><input type="color" value={colorValue(node().fillTokenId, node().fill)} onInput={event => props.updateNode(node().id, { fill: event.currentTarget.value, fillTokenId: "" })} /></label><label class="ui-field"><span>Fill token</span><select value={node().fillTokenId} onChange={event => { const token = props.document.colorTokens.find(item => item.id === event.currentTarget.value); props.updateNode(node().id, { fillTokenId: token?.id ?? "", fill: token ? resolveColorToken(props.document.colorTokens, token.id, props.document.activeColorModeId, node().fill) : node().fill }); }}><option value="">Custom</option><For each={props.document.colorTokens}>{token => <option value={token.id}>{token.name}</option>}</For></select></label><label class="ui-color-field"><span>Stroke</span><input type="color" value={colorValue(node().strokeTokenId, node().stroke === "none" ? "#ffffff" : node().stroke)} onInput={event => props.updateNode(node().id, { stroke: event.currentTarget.value, strokeTokenId: "" })} /></label><label class="ui-field"><span>Stroke token</span><select value={node().strokeTokenId} onChange={event => { const token = props.document.colorTokens.find(item => item.id === event.currentTarget.value); props.updateNode(node().id, { strokeTokenId: token?.id ?? "", stroke: token ? resolveColorToken(props.document.colorTokens, token.id, props.document.activeColorModeId, node().stroke) : node().stroke }); }}><option value="">Custom</option><For each={props.document.colorTokens}>{token => <option value={token.id}>{token.name}</option>}</For></select></label><NumberField label="Stroke width" min={0} value={node().strokeWidth} onInput={value => edit("strokeWidth", value)} /><NumberField label="Radius" min={0} value={radiusValue()} onInput={value => props.updateNode(node().id, { radius: value, radiusTokenId: "" })} /><label class="ui-field"><span>Radius token</span><select value={node().radiusTokenId} onChange={event => { const token = props.document.radiusTokens.find(item => item.id === event.currentTarget.value); props.updateNode(node().id, { radiusTokenId: token?.id ?? "", ...(token ? { radius: resolveValueToken(token, props.document.activeColorModeId, props.document.radiusTokens) ?? node().radius } : {}) }); }}><option value="">Custom</option><For each={props.document.radiusTokens}>{token => <option value={token.id}>{token.name}</option>}</For></select></label><NumberField label="Opacity %" min={0} max={100} value={round(node().opacity * 100)} onInput={value => edit("opacity", value / 100)} /><SelectField label="Shadow" value={node().shadow} options={["none", "soft", "strong"]} onChange={shadow => props.updateNode(node().id, { shadow, effectTokenId: "", effectValue: "" })} /><label class="ui-field"><span>Effect token</span><select value={node().effectTokenId} onChange={event => props.updateNode(node().id, { effectTokenId: event.currentTarget.value, effectValue: "", shadow: "none" })}><option value="">Custom</option><For each={props.document.effectTokens}>{token => <option value={token.id}>{token.name}</option>}</For></select></label><TextField label="Custom shadow" value={node().effectValue} placeholder="0 4px 12px #00000020" onInput={value => props.updateNode(node().id, { effectValue: value.slice(0, 256), effectTokenId: "", shadow: "none" })} /><SelectField label="Stroke style" value={node().strokeStyle} options={["solid", "dashed", "dotted"]} onChange={strokeStyle => edit("strokeStyle", strokeStyle)} /></div><Show when={node().kind !== "frame" && node().kind !== "group" && node().kind !== "componentInstance"}><label class="ui-check-row"><input type="checkbox" checked={!!node().fillGradient} onChange={event => props.updateNode(node().id, { fillGradient: event.currentTarget.checked ? node().fillGradient ?? { angle: 90, from: node().fill.startsWith("#") ? node().fill : "#365fe5", to: "#ffffff" } : undefined })} /> Linear gradient fill</label><Show when={node().fillGradient}><div class="ui-gradient-fields"><NumberField label="Angle °" min={-360} max={360} value={node().fillGradient?.angle ?? 90} onInput={angle => props.updateNode(node().id, { fillGradient: node().fillGradient ? { ...node().fillGradient, angle } : undefined })} /><label class="ui-color-field"><span>From</span><input type="color" value={node().fillGradient?.from ?? "#365fe5"} onInput={event => props.updateNode(node().id, { fillGradient: node().fillGradient ? { ...node().fillGradient, from: event.currentTarget.value } : undefined })} /></label><label class="ui-color-field"><span>To</span><input type="color" value={node().fillGradient?.to ?? "#ffffff"} onInput={event => props.updateNode(node().id, { fillGradient: node().fillGradient ? { ...node().fillGradient, to: event.currentTarget.value } : undefined })} /></label></div></Show></Show><label class="ui-field"><span>Token mode</span><select value={props.document.activeColorModeId} onChange={event => props.setColorMode(event.currentTarget.value)}>{props.document.colorModes.map(mode => <option value={mode.id}>{mode.name}</option>)}</select></label></>)}
+    {section("appearance", "Appearance", <><div class="ui-property-grid"><label class="ui-color-field"><span>Fill</span><input type="color" value={colorValue(node().fillTokenId, node().fill)} onInput={event => props.updateNode(node().id, { fill: event.currentTarget.value, fillTokenId: "" })} /></label><label class="ui-field"><span>Fill token</span><select value={node().fillTokenId} onChange={event => { const token = props.document.colorTokens.find(item => item.id === event.currentTarget.value); props.updateNode(node().id, { fillTokenId: token?.id ?? "", fill: token ? resolveColorToken(props.document.colorTokens, token.id, props.document.activeColorModeId, node().fill) : node().fill }); }}><option value="">Custom</option><For each={props.document.colorTokens}>{token => <option value={token.id}>{token.name}</option>}</For></select></label><label class="ui-color-field"><span>Stroke</span><input type="color" value={colorValue(node().strokeTokenId, node().stroke === "none" ? "#ffffff" : node().stroke)} onInput={event => props.updateNode(node().id, { stroke: event.currentTarget.value, strokeTokenId: "" })} /></label><label class="ui-field"><span>Stroke token</span><select value={node().strokeTokenId} onChange={event => { const token = props.document.colorTokens.find(item => item.id === event.currentTarget.value); props.updateNode(node().id, { strokeTokenId: token?.id ?? "", stroke: token ? resolveColorToken(props.document.colorTokens, token.id, props.document.activeColorModeId, node().stroke) : node().stroke }); }}><option value="">Custom</option><For each={props.document.colorTokens}>{token => <option value={token.id}>{token.name}</option>}</For></select></label><NumberField label="Stroke width" min={0} value={node().strokeWidth} onInput={value => edit("strokeWidth", value)} /><NumberField label="Radius" min={0} value={radiusValue()} onInput={value => props.updateNode(node().id, { radius: value, radiusTokenId: "" })} /><label class="ui-field"><span>Radius token</span><select value={node().radiusTokenId} onChange={event => { const token = props.document.radiusTokens.find(item => item.id === event.currentTarget.value); props.updateNode(node().id, { radiusTokenId: token?.id ?? "", ...(token ? { radius: resolveValueToken(token, props.document.activeColorModeId, props.document.radiusTokens) ?? node().radius } : {}) }); }}><option value="">Custom</option><For each={props.document.radiusTokens}>{token => <option value={token.id}>{token.name}</option>}</For></select></label><NumberField label="Opacity %" min={0} max={100} value={round(node().opacity * 100)} onInput={value => edit("opacity", value / 100)} /><SelectField label="Shadow" value={node().shadow} options={["none", "soft", "strong"]} onChange={shadow => props.updateNode(node().id, { shadow, effectTokenId: "", effectValue: "" })} /><label class="ui-field"><span>Effect token</span><select value={node().effectTokenId} onChange={event => props.updateNode(node().id, { effectTokenId: event.currentTarget.value, effectValue: "", shadow: "none" })}><option value="">Custom</option><For each={props.document.effectTokens}>{token => <option value={token.id}>{token.name}</option>}</For></select></label><TextField label="Custom shadow" value={node().effectValue} placeholder="0 4px 12px #00000020" onInput={value => props.updateNode(node().id, { effectValue: value.slice(0, 256), effectTokenId: "", shadow: "none" })} /><SelectField label="Stroke style" value={node().strokeStyle} options={["solid", "dashed", "dotted"]} onChange={strokeStyle => edit("strokeStyle", strokeStyle)} /></div><Show when={node().kind !== "frame" && node().kind !== "group" && node().kind !== "componentInstance"}><label class="ui-check-row"><input type="checkbox" checked={!!node().fillGradient} onChange={event => props.updateNode(node().id, { fillGradient: event.currentTarget.checked ? node().fillGradient ?? { angle: 90, from: node().fill.startsWith("#") ? node().fill : "#365fe5", to: "#ffffff" } : undefined })} /> Linear gradient fill</label><Show when={node().fillGradient}><div class="ui-gradient-fields"><NumberField label="Angle °" min={-360} max={360} value={node().fillGradient?.angle ?? 90} onInput={angle => { const g = node().fillGradient; if (g) props.updateNode(node().id, { fillGradient: { angle, from: g.from, to: g.to } }); }} /><label class="ui-color-field"><span>From</span><input type="color" value={node().fillGradient?.from ?? "#365fe5"} onInput={event => { const g = node().fillGradient; if (g) props.updateNode(node().id, { fillGradient: { angle: g.angle, from: event.currentTarget.value, to: g.to } }); }} /></label><label class="ui-color-field"><span>To</span><input type="color" value={node().fillGradient?.to ?? "#ffffff"} onInput={event => { const g = node().fillGradient; if (g) props.updateNode(node().id, { fillGradient: { angle: g.angle, from: g.from, to: event.currentTarget.value } }); }} /></label></div></Show></Show><label class="ui-field"><span>Token mode</span><select value={props.document.activeColorModeId} onChange={event => props.setColorMode(event.currentTarget.value)}>{props.document.colorModes.map(mode => <option value={mode.id}>{mode.name}</option>)}</select></label></>)}
     <Show when={props.document.responsiveBreakpoints.length > 0}><ResponsiveOverridesEditor node={node()} breakpoints={props.document.responsiveBreakpoints} onChange={responsiveOverrides => props.updateNode(node().id, { responsiveOverrides })} /></Show>
     <Show when={["text", "button", "input", "checkbox"].includes(node().kind)}>{section("text", "Text", <><TextField label="Content" value={node().text} onInput={value => edit("text", value)} multiline /><div class="ui-property-grid"><SelectField label="Font" value={node().fontFamily} options={["system", "sans", "serif", "mono"]} onChange={fontFamily => edit("fontFamily", fontFamily)} /><NumberField label="Size" min={1} max={512} value={node().fontSize} onInput={value => edit("fontSize", value)} /><NumberField label="Weight" min={100} max={900} step={100} value={node().fontWeight} onInput={value => edit("fontWeight", value)} /><NumberField label="Line height" min={50} max={500} value={round(node().lineHeight * 100)} onInput={value => edit("lineHeight", value / 100)} /><NumberField label="Letter spacing" value={node().letterSpacing} onInput={value => edit("letterSpacing", value)} /><SelectField label="Align" value={node().textAlign} options={["left", "center", "right"]} onChange={textAlign => edit("textAlign", textAlign)} /></div><label class="ui-field"><span>Text style</span><select value={node().typographyTokenId} onChange={event => { const token = props.document.typographyTokens.find(item => item.id === event.currentTarget.value); props.updateNode(node().id, { typographyTokenId: token?.id ?? "", ...(token ? resolveTypographyToken(token, props.document.activeColorModeId, props.document.typographyTokens) : {}) }); }}><option value="">Custom</option><For each={props.document.typographyTokens}>{token => <option value={token.id}>{token.name}</option>}</For></select></label></>)} </Show>
     <Show when={node().kind === "image"}>{section("image", "Image", <><SelectField label="Fit" value={node().imageFit} options={["cover", "contain", "fill"]} onChange={imageFit => edit("imageFit", imageFit)} /><div class="ui-property-grid"><NumberField label="Crop X %" min={0} max={100} value={round(node().imageCrop.x * 100)} onInput={value => edit("imageCrop", { ...node().imageCrop, x: value / 100 })} /><NumberField label="Crop Y %" min={0} max={100} value={round(node().imageCrop.y * 100)} onInput={value => edit("imageCrop", { ...node().imageCrop, y: value / 100 })} /><NumberField label="Crop W %" min={1} max={100} value={round(node().imageCrop.width * 100)} onInput={value => edit("imageCrop", { ...node().imageCrop, width: value / 100 })} /><NumberField label="Crop H %" min={1} max={100} value={round(node().imageCrop.height * 100)} onInput={value => edit("imageCrop", { ...node().imageCrop, height: value / 100 })} /></div></>)} </Show>
@@ -1700,7 +1889,7 @@ function InspectPanel(props: { node: UIElement; document: UIDesignDocument; elem
     const declarations = [
       "position: absolute", `left: ${round(props.world.x)}px`, `top: ${round(props.world.y)}px`,
       `width: ${round(node().width)}px`, `height: ${round(node().height)}px`, `transform: rotate(${round(props.world.rotation)}deg)`,
-      `opacity: ${node().opacity}`, ...(node().fill !== "none" ? [`background: ${node().fillGradient ? `linear-gradient(${node().fillGradient.angle}deg, ${node().fillGradient.from}, ${node().fillGradient.to})` : fill()}`] : []),
+      `opacity: ${node().opacity}`, ...(() => { const g = node().fillGradient; return node().fill !== "none" ? [`background: ${g ? `linear-gradient(${g.angle}deg, ${g.from}, ${g.to})` : fill()}`] : []; })(),
       ...(stroke() !== "none" && node().strokeWidth > 0 ? [`border: ${round(node().strokeWidth)}px ${node().strokeStyle} ${stroke()}`] : ["border: none"]),
       `border-radius: ${round(radius())}px`, ...(effect() !== "none" ? [`box-shadow: ${safeBoxShadow(effect())}`] : []),
     ];
@@ -1750,7 +1939,7 @@ function InspectPanel(props: { node: UIElement; document: UIDesignDocument; elem
     return solid ? `import type { Component } from "solid-js";\n\nexport const GeneratedLayer: Component = () => (\n${markup}\n);` : markup;
   };  const layoutRule = () => node().autoLayout.enabled ? `${node().autoLayout.direction} auto layout · ${round(node().autoLayout.gap)} px gap · padding ${round(node().autoLayout.paddingTop)}/${round(node().autoLayout.paddingRight)}/${round(node().autoLayout.paddingBottom)}/${round(node().autoLayout.paddingLeft)} px · ${node().autoLayout.wrap ? "wrap" : "no wrap"}` : `${node().layoutPosition} position · ${node().widthSizing} width · ${node().heightSizing} height`;
   const constraints = () => `${node().constraints.horizontal} / ${node().constraints.vertical}${node().constraints.minWidth || node().constraints.maxWidth || node().constraints.minHeight || node().constraints.maxHeight ? ` · min/max ${node().constraints.minWidth ?? "—"}/${node().constraints.maxWidth ?? "—"} × ${node().constraints.minHeight ?? "—"}/${node().constraints.maxHeight ?? "—"}` : ""}`;
-  return <div class="ui-inspect-content"><dl><dt>Width</dt><dd>{round(node().width)} px</dd><dt>Height</dt><dd>{round(node().height)} px</dd><dt>Position</dt><dd>{round(props.world.x)}, {round(props.world.y)} px</dd><dt>Rotation</dt><dd>{round(props.world.rotation)}°</dd><dt>Parent</dt><dd>{parent()?.name ?? "Page"}</dd><dt>Children</dt><dd>{childrenCount()}</dd><dt>Layout rule</dt><dd>{layoutRule()}</dd><dt>Constraints</dt><dd>{constraints()}</dd><dt>Clipping</dt><dd>{node().clipContent || node().mask || node().autoLayout.clip ? "Enabled" : "Off"}</dd><dt>Fill</dt><dd><i style={{ background: node().fillGradient ? `linear-gradient(${node().fillGradient.angle}deg, ${node().fillGradient.from}, ${node().fillGradient.to})` : fill() }} />{fill()}</dd><dt>Stroke</dt><dd>{stroke()}</dd><dt>Radius</dt><dd>{round(radius())} px</dd><dt>Effect</dt><dd>{effect()}</dd><dt>Layout</dt><dd>{node().autoLayout.enabled ? `Auto layout · ${node().autoLayout.direction}` : `${node().widthSizing} × ${node().heightSizing}`}</dd></dl><CodeBlock title="CSS" code={worldCss()} /><CodeBlock title="HTML structure" code={markup(false)} /><CodeBlock title="SolidJS structure" code={markup(true)} /></div>;
+  return <div class="ui-inspect-content"><dl><dt>Width</dt><dd>{round(node().width)} px</dd><dt>Height</dt><dd>{round(node().height)} px</dd><dt>Position</dt><dd>{round(props.world.x)}, {round(props.world.y)} px</dd><dt>Rotation</dt><dd>{round(props.world.rotation)}°</dd><dt>Parent</dt><dd>{parent()?.name ?? "Page"}</dd><dt>Children</dt><dd>{childrenCount()}</dd><dt>Layout rule</dt><dd>{layoutRule()}</dd><dt>Constraints</dt><dd>{constraints()}</dd><dt>Clipping</dt><dd>{node().clipContent || node().mask || node().autoLayout.clip ? "Enabled" : "Off"}</dd><dt>Fill</dt><dd>{(() => { const g = node().fillGradient; return <i style={{ background: g ? `linear-gradient(${g.angle}deg, ${g.from}, ${g.to})` : fill() }} />; })()}{fill()}</dd><dt>Stroke</dt><dd>{stroke()}</dd><dt>Radius</dt><dd>{round(radius())} px</dd><dt>Effect</dt><dd>{effect()}</dd><dt>Layout</dt><dd>{node().autoLayout.enabled ? `Auto layout · ${node().autoLayout.direction}` : `${node().widthSizing} × ${node().heightSizing}`}</dd></dl><CodeBlock title="CSS" code={worldCss()} /><CodeBlock title="HTML structure" code={markup(false)} /><CodeBlock title="SolidJS structure" code={markup(true)} /></div>;
 }function CodeBlock(props: { title: string; code: string }) { const [copied, setCopied] = createSignal(false); return <section class="ui-code-section"><header><strong>{props.title}</strong><button onClick={() => { void navigator.clipboard?.writeText(props.code); setCopied(true); window.setTimeout(() => setCopied(false), 1200); }}>{copied() ? "Copied" : "Copy"}</button></header><pre><code>{props.code}</code></pre></section>; }
 
 function PrototypePresentation(props: { document: UIDesignDocument; pageId: string; nodeId: string; overlay?: { pageId: string; nodeId: string; position: "center" | "top" | "bottom"; background: string; opacity: number; closeOnOutside: boolean }; historyLength: number; transition: UIInteraction["transition"]; renderNode: (nodeId: string, page: UIPage) => JSX.Element; onClose: () => void; onBack: () => void; onScreen: (pageId: string, nodeId: string) => void }) {

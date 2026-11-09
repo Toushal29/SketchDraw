@@ -66,13 +66,15 @@ export type UIElement = {
   autoLayout: UIAutoLayout; mask: boolean; imageFit: "cover" | "contain" | "fill"; imageCrop: { x: number; y: number; width: number; height: number };
   interactions: UIInteraction[];
 };
-export type UIPage = { id: string; name: string; background: string; elements: UIElement[]; prototypeFlows: UIPrototypeFlow[]; activePrototypeFlowId: string };
+export type UIManualGuide = { id: string; axis: "x" | "y"; position: number; visible: boolean; locked: boolean };
+export type UIGuideSettings = { enabled: boolean; smartGuides: boolean; equalSpacing: boolean; snapObjects: boolean; snapGuides: boolean; snapGrid: boolean; measurements: boolean; threshold: number; gridSize: number; color: string };
+export type UIPage = { id: string; name: string; background: string; elements: UIElement[]; prototypeFlows: UIPrototypeFlow[]; activePrototypeFlowId: string; guides: UIManualGuide[] };
 export type UIDesignDocument = {
   format: typeof UI_DESIGN_FORMAT; version: typeof UI_DESIGN_VERSION; id: string; name: string; activePageId: string; pages: UIPage[];
   colorTokens: UIColorToken[]; typographyTokens: UITypographyToken[]; spacingTokens: UIValueToken[]; radiusTokens: UIValueToken[];
   effectTokens: Array<{ id: string; name: string; value: string; modeValues?: Record<string, string>; aliasOf?: string }>; colorModes: UIColorMode[]; activeColorModeId: string;
   components: UIComponentDefinition[]; assetLibraries: Array<{ id: string; name: string; enabled: boolean; assetIds: string[] }>;
-  prototypeVariables: UIPrototypeVariable[]; responsiveBreakpoints: UIResponsiveBreakpoint[];
+  prototypeVariables: UIPrototypeVariable[]; responsiveBreakpoints: UIResponsiveBreakpoint[]; guideSettings: UIGuideSettings;
 };
 
 let idCounter = 0;
@@ -93,7 +95,7 @@ export function createUIElement(kind: UIElementKind, order: number, point: { x: 
     hidden: false, locked: false, text: kind === "button" ? "Button" : kind === "input" ? "Placeholder" : kind === "checkbox" ? "Checkbox" : kind === "text" ? "Text" : "", imageData: "",
     fillTokenId: "", strokeTokenId: "", typographyTokenId: "", radiusTokenId: "", effectTokenId: "", effectValue: "", componentId: "", componentSourceId: "", componentSourceIds: {}, componentVariantId: "", overrides: {}, pathPoints: [],
     fill: kind === "text" || kind === "line" || kind === "path" || kind === "group" ? "#26354d" : kind === "button" ? "#365fe5" : kind === "frame" ? "#ffffff" : "#e4ebf8",
-    stroke: kind === "text" || kind === "line" || kind === "path" || kind === "group" ? "none" : "#b9c7dc", strokeWidth: 1, strokeStyle: "solid", radius: kind === "button" ? 8 : kind === "input" ? 6 : kind === "frame" ? 0 : 4,
+    stroke: kind === "text" || kind === "path" || kind === "group" ? "none" : kind === "line" ? "#26354d" : "#b9c7dc", strokeWidth: 1, strokeStyle: "solid", radius: kind === "button" ? 8 : kind === "input" ? 6 : kind === "frame" ? 0 : 4,
     opacity: 1, shadow: "none", fontFamily: "system", fontSize: 16, fontWeight: kind === "button" ? 600 : 400, lineHeight: 1.4, letterSpacing: 0, textAlign: "left",
     clipContent: kind === "frame", frameType: "container", framePreset: preset.id, constraints: defaultConstraints(), widthSizing: "fixed", heightSizing: "fixed", layoutPosition: "flow", gridColumn: 0, gridRow: 0, gridColumnSpan: 1, gridRowSpan: 1, responsiveOverrides: {}, previewOverflow: "none", fixedOnScroll: false, autoLayout: defaultAutoLayout(), mask: false,
     imageFit: "cover", imageCrop: { x: 0, y: 0, width: 1, height: 1 }, interactions: [], fillGradient: undefined, booleanOperation: undefined,
@@ -112,7 +114,7 @@ export function createUIDesignDocument(name = "Untitled UI design"): UIDesignDoc
   const flowId = createUIDesignId("flow");
   return {
     format: UI_DESIGN_FORMAT, version: UI_DESIGN_VERSION, id: createUIDesignId("design"), name, activePageId: pageId,
-    pages: [{ id: pageId, name: "Page 1", background: "#edf1f7", elements: [], prototypeFlows: [{ id: flowId, name: "Flow 1", startPageId: pageId }], activePrototypeFlowId: flowId }],
+    pages: [{ id: pageId, name: "Page 1", background: "#edf1f7", elements: [], prototypeFlows: [{ id: flowId, name: "Flow 1", startPageId: pageId }], activePrototypeFlowId: flowId, guides: [] }],
     colorTokens: [
       { id: "color-primary", name: "Primary", value: "#365fe5" }, { id: "color-text", name: "Text", value: "#26354d" },
       { id: "color-surface", name: "Surface", value: "#ffffff" }, { id: "color-muted", name: "Muted", value: "#e4ebf8" },
@@ -124,6 +126,7 @@ export function createUIDesignDocument(name = "Untitled UI design"): UIDesignDoc
     colorModes: [{ id: "mode-light", name: "Light" }, { id: "mode-dark", name: "Dark" }], activeColorModeId: "mode-light", components: [],
     assetLibraries: [{ id: "library-core", name: "SketchDraw basics", enabled: true, assetIds: [] }],
     prototypeVariables: [], responsiveBreakpoints: [{ id: "breakpoint-mobile", name: "Mobile", minWidth: 0, maxWidth: 767 }, { id: "breakpoint-tablet", name: "Tablet", minWidth: 768, maxWidth: 1199 }, { id: "breakpoint-desktop", name: "Desktop", minWidth: 1200 }],
+    guideSettings: { enabled: true, smartGuides: true, equalSpacing: true, snapObjects: true, snapGuides: true, snapGrid: false, measurements: true, threshold: 7, gridSize: 8, color: "#7857d5" },
   };
 }
 
@@ -222,10 +225,14 @@ function cleanElement(value: unknown, pageId: string, index: number): UIElement 
       trigger: typeof item.trigger === "string" && ["click", "hover", "press", "keyboard", "timed"].includes(item.trigger) ? item.trigger as UIInteraction["trigger"] : "click",
       action: typeof item.action === "string" && ["navigate", "back", "open-overlay", "close-overlay", "set-variable"].includes(item.action) ? item.action as UIInteraction["action"] : "navigate",
       targetPageId: string(item.targetPageId), targetNodeId: string(item.targetNodeId), transition: typeof item.transition === "string" && ["instant", "dissolve", "slide-left", "slide-right"].includes(item.transition) ? item.transition as UIInteraction["transition"] : "instant",
-       overlayPosition: ["center", "top", "bottom"].includes(String(item.overlayPosition)) ? item.overlayPosition as NonNullable<UIInteraction["overlayPosition"]> : "center",
-       overlayBackground: /^#[\da-f]{6}$/i.test(String(item.overlayBackground ?? "")) ? String(item.overlayBackground) : "#172235",
-       overlayOpacity: number(item.overlayOpacity, 0.48, 0, 1), closeOnOutside: bool(item.closeOnOutside, true),
-      key: string(item.key, "Enter", 32), delayMs: number(item.delayMs, 1000, 0, 60000), variableId: string(item.variableId, "", 120),
+      ...(typeof item.action === "string" && (item.action === "open-overlay" || item.action === "close-overlay") ? {
+        overlayPosition: ["center", "top", "bottom"].includes(String(item.overlayPosition)) ? item.overlayPosition as NonNullable<UIInteraction["overlayPosition"]> : "center",
+        overlayBackground: /^#[\da-f]{6}$/i.test(String(item.overlayBackground ?? "")) ? String(item.overlayBackground) : "#172235",
+        overlayOpacity: number(item.overlayOpacity, 0.48, 0, 1), closeOnOutside: bool(item.closeOnOutside, true),
+      } : {}),
+      ...(typeof item.trigger === "string" && item.trigger === "keyboard" ? { key: string(item.key, "Enter", 32) } : {}),
+      ...(typeof item.trigger === "string" && item.trigger === "timed" ? { delayMs: number(item.delayMs, 1000, 0, 60000) } : {}),
+      ...(typeof item.action === "string" && item.action === "set-variable" ? { variableId: string(item.variableId, "", 120) } : {}),
       ...(typeof item.variableValue === "string" || typeof item.variableValue === "number" && Number.isFinite(item.variableValue) || typeof item.variableValue === "boolean" ? { variableValue: item.variableValue } : {}),
       ...(isRecord(item.condition) ? { condition: { variableId: string(item.condition.variableId, "", 120), operator: ["equals", "not-equals", "greater", "less", "truthy", "falsy"].includes(item.condition.operator as string) ? item.condition.operator as NonNullable<UIInteraction["condition"]>["operator"] : "truthy", ...(typeof item.condition.value === "string" || typeof item.condition.value === "number" && Number.isFinite(item.condition.value) || typeof item.condition.value === "boolean" ? { value: item.condition.value } : {}) } } : {}),
     })) : [],
@@ -243,11 +250,18 @@ function cleanPage(value: unknown, index: number): UIPage | undefined {
   const flows = Array.isArray(value.prototypeFlows) ? value.prototypeFlows.filter(isRecord).slice(0, 100).map((flow, i) => ({ id: string(flow.id, `flow-${i}`, 120), name: string(flow.name, `Flow ${i + 1}`, 120), startPageId: string(flow.startPageId, id, 120), startNodeId: string(flow.startNodeId) || undefined })) : [];
   for (const flow of flows) pages.add(flow.startPageId);
   const prototypeFlows = flows.filter(flow => pages.has(flow.startPageId));
+  const guideRows = value.guides === undefined ? [] : value.guides;
+  if (!Array.isArray(guideRows) || guideRows.length > 256 || guideRows.some(item => !isRecord(item))) return undefined;
+  const guides = guideRows.map((guide, guideIndex) => ({
+    id: string(guide.id, `guide-${guideIndex}`, 120), axis: guide.axis === "y" ? "y" as const : "x" as const,
+    position: number(guide.position, 0, -1e7, 1e7), visible: bool(guide.visible, true), locked: bool(guide.locked, false),
+  }));
+  if (guideRows.some((guide: Record<string, unknown>) => guide.axis !== "x" && guide.axis !== "y") || new Set(guides.map(guide => guide.id)).size !== guides.length) return undefined;
   const indexTree = new Map(elements.map(node => [node.id, node]));
   for (const node of elements) if (node.parentId !== id && !isHierarchyContainer(indexTree.get(node.parentId)?.kind ?? "")) node.parentId = id;
   // Remove cyclic or unreachable branches at the untrusted file boundary.
   if (!hierarchyIsValid(id, elements)) for (const node of elements) node.parentId = id;
-  return { id, name: string(value.name, `Page ${index + 1}`, 120), background: /^#[\da-f]{6}$/i.test(String(value.background ?? "")) ? String(value.background) : "#edf1f7", elements, prototypeFlows, activePrototypeFlowId: prototypeFlows.some(flow => flow.id === value.activePrototypeFlowId) ? string(value.activePrototypeFlowId) : prototypeFlows[0]?.id ?? "" };
+  return { id, name: string(value.name, `Page ${index + 1}`, 120), background: /^#[\da-f]{6}$/i.test(String(value.background ?? "")) ? String(value.background) : "#edf1f7", elements, prototypeFlows, activePrototypeFlowId: prototypeFlows.some(flow => flow.id === value.activePrototypeFlowId) ? string(value.activePrototypeFlowId) : prototypeFlows[0]?.id ?? "", guides };
 }
 export function normalizeUIDesignDocument(value: unknown): UIDesignDocument | undefined {
   if (!isRecord(value) || value.format !== UI_DESIGN_FORMAT || value.version !== UI_DESIGN_VERSION || !Array.isArray(value.pages) || !value.pages.length || value.pages.length > UI_DESIGN_MAX_PAGES) return undefined;
@@ -331,6 +345,16 @@ export function normalizeUIDesignDocument(value: unknown): UIDesignDocument | un
     value: typeof item.value === "number" && Number.isFinite(item.value) ? number(item.value, 0, -1e9, 1e9) : typeof item.value === "boolean" ? item.value : string(item.value, "", 10000),
   }));
   if (new Set(prototypeVariables.map(item => item.id)).size !== prototypeVariables.length) return undefined;
+  const guideSettingsSource = value.guideSettings === undefined ? document.guideSettings : value.guideSettings;
+  if (!isRecord(guideSettingsSource)) return undefined;
+  const guideSettings = {
+    enabled: bool(guideSettingsSource.enabled, true), smartGuides: bool(guideSettingsSource.smartGuides, true),
+    equalSpacing: bool(guideSettingsSource.equalSpacing, true), snapObjects: bool(guideSettingsSource.snapObjects, true),
+    snapGuides: bool(guideSettingsSource.snapGuides, true), snapGrid: bool(guideSettingsSource.snapGrid, false),
+    measurements: bool(guideSettingsSource.measurements, true), threshold: number(guideSettingsSource.threshold, 7, 1, 32),
+    gridSize: number(guideSettingsSource.gridSize, 8, 1, 512),
+    color: color(guideSettingsSource.color, "#7857d5"),
+  };
   const breakpointSource = value.responsiveBreakpoints === undefined ? document.responsiveBreakpoints : value.responsiveBreakpoints;
   if (!Array.isArray(breakpointSource) || breakpointSource.length > 32 || breakpointSource.some(item => !isRecord(item))) return undefined;
   const responsiveBreakpoints: UIResponsiveBreakpoint[] = breakpointSource.map((item: Record<string, unknown>, index: number) => ({
@@ -417,7 +441,7 @@ export function normalizeUIDesignDocument(value: unknown): UIDesignDocument | un
     spacingTokens: normalizedSpacingTokens, radiusTokens: normalizedRadiusTokens, effectTokens: normalizedEffectTokens,
     colorModes: modes, activeColorModeId: modeIds.has(value.activeColorModeId as string) ? value.activeColorModeId as string : modes[0]?.id ?? "",
     components: boundComponents,
-    assetLibraries, prototypeVariables, responsiveBreakpoints,
+    assetLibraries, prototypeVariables, responsiveBreakpoints, guideSettings,
   };
 }
 export function parseUIDesignDocument(contents: string): UIDesignDocument {

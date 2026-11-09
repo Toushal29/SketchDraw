@@ -4,9 +4,7 @@ import { createUIDesignDocument, parseUIDesignDocument, serializeUIDesignDocumen
 
 const RECENT_KEY = "sketchdraw-recent-ui-design-files-v1";
 const RECOVERY_KEY = "sketchdraw-ui-design-recovery-v2";
-const SNAPSHOT_KEY = "sketchdraw-ui-design-snapshots-v1";
 const HISTORY_LIMIT = 100;
-type UIDesignSnapshot = { id: string; name: string; createdAt: string; contents: string };
 
 export type UIDesignFileHost = {
   chooseOpen(): Promise<string | null>;
@@ -36,7 +34,6 @@ export function createUIDesignSession(host: UIDesignFileHost) {
   const [editorOpen, setEditorOpen] = createSignal(false);
   const [hasDocument, setHasDocument] = createSignal(false);
   const [historyRevision, setHistoryRevision] = createSignal(0);
-  const [snapshotRevision, setSnapshotRevision] = createSignal(0);
   const [recoveryAvailable, setRecoveryAvailable] = createSignal(false);
   const past: UIDesignDocument[] = [];
   const future: UIDesignDocument[] = [];
@@ -44,17 +41,6 @@ export function createUIDesignSession(host: UIDesignFileHost) {
   let lastHistoryKey: string | undefined;
   let lastHistoryAt = 0;
   let recoveryTimer: number | undefined;
-
-  function snapshotStorageKey() {
-    return `${SNAPSHOT_KEY}:${filePathIdentity(path() ?? document().name)}`;
-  }
-  function readSnapshots(): UIDesignSnapshot[] {
-    snapshotRevision();
-    try {
-      const value: unknown = JSON.parse(localStorage.getItem(snapshotStorageKey()) ?? "[]");
-      return Array.isArray(value) ? value.filter((item): item is UIDesignSnapshot => !!item && typeof item === "object" && typeof item.id === "string" && typeof item.name === "string" && typeof item.createdAt === "string" && typeof item.contents === "string").slice(0, 5) : [];
-    } catch { return []; }
-  }
 
   try { setRecoveryAvailable(!!localStorage.getItem(RECOVERY_KEY)); } catch { /* Recovery is optional when storage is unavailable. */ }
 
@@ -151,17 +137,6 @@ export function createUIDesignSession(host: UIDesignFileHost) {
     future.length = 0;
     lastHistoryKey = coalesceKey;
     lastHistoryAt = coalesceKey ? now : 0;
-    setDocument(next);
-    setDirty(true);
-    setError("");
-    scheduleRecovery(next);
-    setHistoryRevision(value => value + 1);
-  }
-
-  function navigate(next: UIDesignDocument) {
-    if (opening()) return;
-    const current = document();
-    if (next === current) return;
     setDocument(next);
     setDirty(true);
     setError("");
@@ -267,40 +242,12 @@ export function createUIDesignSession(host: UIDesignFileHost) {
     }
   }
   function dismissRecovery() { clearRecovery(); }
-  function createSnapshot(name = "Checkpoint"): boolean {
-    try {
-      const contents = serializeUIDesignDocument(document());
-      if (new TextEncoder().encode(contents).byteLength > 700_000) { setError("This design is too large for a local snapshot. Save a copy of the .sdui file instead."); return false; }
-      const snapshots = readSnapshots();
-      const next: UIDesignSnapshot[] = [{ id: crypto.randomUUID(), name: name.slice(0, 100), createdAt: new Date().toISOString(), contents }, ...snapshots].slice(0, 5);
-      localStorage.setItem(snapshotStorageKey(), JSON.stringify(next));
-      setSnapshotRevision(value => value + 1);
-      setError("");
-      return true;
-    } catch (cause) { setError(`Could not create a local snapshot: ${String(cause)}`); return false; }
-  }
-  function restoreSnapshot(id: string): boolean {
-    const snapshot = readSnapshots().find(item => item.id === id);
-    if (!snapshot) return false;
-    try {
-      const restored = parseUIDesignDocument(snapshot.contents);
-      update(restored);
-      setError("");
-      return true;
-    } catch (cause) { setError(`Could not restore this snapshot: ${String(cause)}`); return false; }
-  }
-  function deleteSnapshot(id: string) {
-    try {
-      localStorage.setItem(snapshotStorageKey(), JSON.stringify(readSnapshots().filter(item => item.id !== id)));
-      setSnapshotRevision(value => value + 1);
-    } catch { /* Snapshots are optional when storage is unavailable. */ }
-  }
   function goHome() { setEditorOpen(false); }
   function continueEditing() { setEditorOpen(true); }
 
   return {
     document, path, dirty, opening, saving, savedAt, error, recentPaths, recoveryAvailable, editorOpen, hasDocument,
-    open, openPath, openRecent, create, update, navigate, save, saveAs, undo, redo, reportError, restoreRecovery, dismissRecovery, createSnapshot, restoreSnapshot, deleteSnapshot, snapshots: readSnapshots, goHome, continueEditing,
+    open, openPath, openRecent, create, update, save, saveAs, undo, redo, reportError, restoreRecovery, dismissRecovery, goHome, continueEditing,
     canUndo: () => { historyRevision(); return !opening() && past.length > 0; },
     canRedo: () => { historyRevision(); return !opening() && future.length > 0; },
     fileName: () => path() ? host.displayName(path()!) : document().name,

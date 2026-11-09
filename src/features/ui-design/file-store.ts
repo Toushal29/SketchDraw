@@ -11,13 +11,6 @@ export function isUIDesignPath(path: string): boolean {
   return value.trim().toLowerCase().endsWith(".sdui");
 }
 
-export function withUIDesignExtension(path: string): string {
-  const value = normalizeFileUri(path);
-  if (/^content:\/\//i.test(value)) return value;
-  if (!isUIDesignPath(value)) throw new Error("Choose a filename ending in .sdui.");
-  return value;
-}
-
 export const uiDesignFileStore = {
   async authorize(path: string): Promise<string> {
     const normalized = normalizeFileUri(path);

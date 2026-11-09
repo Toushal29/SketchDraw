@@ -13,7 +13,7 @@ export function applyAutoLayout(page: UIPage, spacingTokens: readonly UIValueTok
   const containers = nodes.filter(node => node.autoLayout.enabled).sort((a, b) => depth(b, byId) - depth(a, byId));
   for (const container of containers) {
     const allChildren = childrenOf(nodes, container.id);
-    const children = allChildren.filter(child => child.layoutPosition !== "absolute");
+    const children = allChildren.filter(child => child.layoutPosition !== "absolute" && !child.hidden);
     if (!children.length) continue;
     const source = container.autoLayout;
     const resolve = (value: number, tokenId: string) => Math.max(0, tokenValues.get(tokenId) ?? value);
@@ -144,10 +144,17 @@ function layoutGrid(children: UIElement[], layout: UIAutoLayout, left: number, t
   }
   let cursor = 0;
   for (const child of children) if (!slots.has(child.id)) {
+    const colSpan = Math.min(child.gridColumnSpan, columns);
+    const rowSpan = child.gridRowSpan;
     let row = Math.floor(cursor / columns), column = cursor % columns;
-    while (occupied.has(`${row}:${column}`)) { cursor++; row = Math.floor(cursor / columns); column = cursor % columns; }
+    const fits = (r: number, c: number) => {
+      if (c + colSpan > columns) return false;
+      for (let dy = 0; dy < rowSpan && r + dy < 10000; dy++) for (let dx = 0; dx < colSpan; dx++) if (occupied.has(`${r + dy}:${c + dx}`)) return false;
+      return true;
+    };
+    while (!fits(row, column)) { cursor++; row = Math.floor(cursor / columns); column = cursor % columns; }
     slots.set(child.id, { row, column });
-    occupy(row, column, Math.min(child.gridRowSpan, 10000 - row), Math.min(child.gridColumnSpan, columns - column));
+    occupy(row, column, Math.min(rowSpan, 10000 - row), Math.min(colSpan, columns - column));
     cursor++;
   }
   const rowCount = Math.min(10000, Math.max(1, ...children.map(child => { const row = slots.get(child.id)!.row; return row + Math.min(child.gridRowSpan, 10000 - row); })));
