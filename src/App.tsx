@@ -52,7 +52,6 @@ import { MobileHomeScreen } from "./platform/mobile/MobileHomeScreen";
 import { DesktopPageTabs } from "./platform/windows/DesktopPageTabs";
 import { WindowsShapePalette, type WindowsShapeChoice } from "./platform/windows/WindowsShapePalette";
 import { TextToolPanel } from "./features/canvas/TextToolPanel";
-import { WindowsMenuRail } from "./platform/windows/WindowsMenuRail";
 import { CanvasOptionsMenu } from "./components/CanvasOptionsMenu";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { AppSettingsMenu } from "./components/AppSettingsMenu";
@@ -61,7 +60,7 @@ import { DialogInfoTip } from "./components/DialogInfoTip";
 import { SchemaCodeEditor } from "./features/diagrams/SchemaCodeEditor";
 import { ViewSettingsPopover } from "./components/ViewSettingsPopover";
 import { VisualEffectsInspector } from "./components/VisualEffectsInspector";
-import type { BlendMode, DropShadow, GradientFill, PatternFill, GhostLayerConfig } from "./model";
+import type { BlendMode, DropShadow, GradientFill, PatternFill } from "./model";
 import { createCanvasGradient, createPatternCanvas, applyShadowToContext, clearShadowFromContext, applyBlendMode } from "./features/canvas/visual-effects";
 import { ghostLayerElements, drawGhostLayer } from "./features/canvas/ghost-layer";
 import { PressureCurveEditor } from "./components/PressureCurveEditor";
@@ -9151,7 +9150,7 @@ function App() {
                 onToggleDrawingChallenge: () => setShowDrawingChallenge(v => !v),
                 onToggleSpatialBrowser: () => setShowSpatialBrowser(v => !v),
                 onToggleAmbientMode: () => setAmbientMode(v => !v),
-                onToggleSoundtrack: () => { const next = !soundtrackEnabled(); setSoundtrackEnabled(next); writeSoundtrackConfig({ enabled: next }); if (!next) disposeSoundtrack(); },
+                onToggleSoundtrack: () => { const next = !soundtrackEnabled(); setSoundtrackEnabled(next); const prev = readSoundtrackConfig(); writeSoundtrackConfig({ ...prev, enabled: next }); if (!next) disposeSoundtrack(); },
               }}
               accessibility={{
                 colorVisionMode: colorVisionMode(),

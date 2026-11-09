@@ -1,4 +1,4 @@
-import type { Bounds, CanvasState, Element } from "../../model";
+import type { CanvasState, Element } from "../../model";
 import { elementBounds, unionBounds } from "./bounds";
 
 export type AmbientConfig = {
@@ -38,7 +38,7 @@ export function createAmbientController(
     ];
   }
 
-  function tick(timestamp: number) {
+  function tick(_timestamp: number) {
     if (!running) return;
     if (path.length < 2) { path = computePath(); pathIndex = 0; progress = 0; }
 

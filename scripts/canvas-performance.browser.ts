@@ -4,7 +4,7 @@ import { SceneTileCache } from "../src/features/canvas/scene-tile-cache";
 import { ElementSpatialIndex } from "../src/features/canvas/spatial-index";
 import { createStrokeSampleGate } from "../src/features/canvas/stroke-input";
 import { appendSimplifiedStrokePoint } from "../src/features/canvas/stroke-simplification";
-import { canvasStateForTouchGesture, gridStepForStyle, gridSvgPattern, pointerToWorld, snapCanvasPoint, strokePointFromPointer, zoomCanvasStateAt } from "../src/features/canvas/input";
+import { canvasStateForTouchGesture, gridSpacingForStyle, gridStepForStyle, gridSvgPattern, pointerToWorld, snapCanvasPoint, strokePointFromPointer, zoomCanvasStateAt } from "../src/features/canvas/input";
 import { alignedTextStartX, anchorPoint, connectionAnchorsFor, flatten, isConnectable, labelBox, nearestBinding, textLayout, validReferences } from "../src/operations";
 import { ALL_FLOWCHART_SHAPES } from "../src/features/diagrams/config";
 import { adjustShapeAtPoint, shapeAdjustmentHandles, shapePathData } from "../src/features/shapes/geometry";
@@ -347,10 +347,11 @@ async function run() {
   });
   for (const zoom of [.2, .55, 1, 1.37, 2.2]) for (const ratio of [1, 1.25, 1.5, 2]) {
     const step = gridStepForStyle("small-grid", 50, zoom); const pitch = step * zoom * ratio;
+    const snapStep = gridSpacingForStyle("small-grid", 50);
     const snapped = snapCanvasPoint({ x: 137.4, y: -92.7 }, true, "small-grid", 50);
     const pattern = gridSvgPattern("small-grid", step * zoom);
     check(Number.isFinite(pitch) && pitch > 0, `Grid pitch is visible at zoom ${zoom} and pixel ratio ${ratio}`);
-    check(Math.abs(snapped.x / 50 - Math.round(snapped.x / 50)) < 1e-8 && Math.abs(snapped.y / 50 - Math.round(snapped.y / 50)) < 1e-8, `Grid snapping uses the 50-unit document lattice at zoom ${zoom} and pixel ratio ${ratio}`);
+    check(Math.abs(snapped.x / snapStep - Math.round(snapped.x / snapStep)) < 1e-8 && Math.abs(snapped.y / snapStep - Math.round(snapped.y / snapStep)) < 1e-8, `Grid snapping follows the fine-grid spacing at zoom ${zoom} and pixel ratio ${ratio}`);
     check(Math.abs(pattern.width - step * zoom) < 1e-8 && Math.abs(pattern.height - step * zoom) < 1e-8, `Paper pattern repeats at the snapped grid pitch at zoom ${zoom} and pixel ratio ${ratio}`);
   }
   const spatialElements: Element[] = Array.from({ length: 180 }, (_, index): ShapeElement => ({ type: "rectangle", id: `spatial-${index}`, x: (index % 18) * 900 - 7000, y: Math.floor(index / 18) * 900 - 3000, w: 100, h: 80, color: "#333", thickness: 1 }));
@@ -759,7 +760,8 @@ async function run() {
   const viewHost = document.createElement("div"); document.body.append(viewHost);
   let chosenVision = ""; let openedOutline = false; let openedNavigator = false;
   const disposeView = render(() => createComponent(ViewSettingsPopover, {
-    accentColor: "#3b82f6", toolbarColorChoice: "auto", accentOptions: [], toolbarColorOptions: [], boardColor: "#ffffff", renderedBoardColor: "#ffffff", boardColorUsesDefault: true, boardLocked: false, boardColors: [], paperPattern: "plain", patterns: [], namedVersionsDisabled: false,
+    themeMode: "light" as const, themeOptions: [{ value: "light" as const, label: "Light" }, { value: "dark" as const, label: "Dark" }], customThemeTokens: { background: "#ffffff", surface: "#ffffff", surfaceElevated: "#ffffff", surfaceInput: "#ffffff", border: "#d0d0d0", textPrimary: "#000000", textSecondary: "#666666", primary: "#3b82f6" }, onThemeChange() {}, onCustomTokenChange() {},
+    accentColor: "#3b82f6", toolbarColorChoice: "auto", accentOptions: [], toolbarColorOptions: [], boardColor: "#ffffff", renderedBoardColor: "#ffffff", boardColorUsesDefault: true, boardLocked: false, boardColors: [], paperPattern: "plain", patterns: [], namedVersionsDisabled: false, canvasToolsDisabled: false,
     onAccentChange() {}, onToolbarColorChange() {}, onBoardUseDefault() {}, onBoardColorChange() {}, onPaperPatternChange() {}, onNamedVersions() {},
     accessibility: { colorVisionMode: "none", colorVisionModes: [{ id: "none", label: "Normal vision" }, { id: "deuteranopia", label: "Deuteranopia (no green)" }], safePalette: false, documentDisabled: false, onColorVisionModeChange(mode: string) { chosenVision = mode; }, onSafePaletteChange() {}, onOpenOutline() { openedOutline = true; }, onOpenNavigator() { openedNavigator = true; } },
   }), viewHost);

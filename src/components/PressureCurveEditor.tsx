@@ -1,6 +1,6 @@
-import { createSignal, For, onMount } from "solid-js";
+import { createSignal, For } from "solid-js";
 import type { PressureCurvePoint } from "../model";
-import { DEFAULT_PRESSURE_CURVE, PRESSURE_PRESETS, readPressureCurve, writePressureCurve, evaluateCurve } from "../features/canvas/pressure-curve";
+import { PRESSURE_PRESETS, readPressureCurve, writePressureCurve, evaluateCurve } from "../features/canvas/pressure-curve";
 
 type Props = {
   onClose: () => void;
@@ -86,7 +86,7 @@ export function PressureCurveEditor(props: Props) {
     </header>
     <div class="pressure-curve-presets">
       <For each={PRESSURE_PRESETS}>{preset =>
-        <button type="button" onClick={() => save(preset.points)}>{preset.name}</button>
+        <button type="button" onClick={() => save(preset.curve.points)}>{preset.name}</button>
       }</For>
     </div>
     <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} class="pressure-curve-canvas"

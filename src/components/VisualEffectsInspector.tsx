@@ -1,5 +1,5 @@
 import { Show } from "solid-js";
-import type { BlendMode, DropShadow, GradientFill, GradientStop, PatternFill, PatternFillType, Element, ShapeElement } from "../model";
+import type { BlendMode, DropShadow, GradientFill, PatternFill, PatternFillType, ShapeElement } from "../model";
 import { BLEND_MODE_OPTIONS, DEFAULT_GRADIENT, DEFAULT_SHADOW, DEFAULT_PATTERN } from "../features/canvas/visual-effects";
 
 type EffectValues = {

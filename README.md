@@ -8,7 +8,7 @@ UI Design has a welcome screen with create/open actions, recent .sdui files, dra
 
 PlantUML imports and exports have documented editable subsets for activity, state, use-case, component, deployment, timing, mind map, WBS, Gantt, nwdiag network, JSON/YAML, and common ArchiMate declarations and relationships, alongside the existing class/object and sequence subsets. The editor shows supported syntax and known limits; advanced-family syntax errors include line and column information. Mapped text-label edits update retained source, while free canvas positions and added or deleted objects are not serialized.
 
-**App versions: Windows 17.1.0 | Android 17.1.0 | Document format: v3 | Copyright (c) 2026 Toushal Sampat**
+**App versions: Windows 18.0.0 | Android 18.0.0 | Document format: v3 | Copyright (c) 2026 Toushal Sampat**
 
 > SketchDraw saves version 3 .sketch documents for Canvas, version 1 .sdplan documents for Planning, and version 1 .sdui documents for UI Design. The UI Design parser rejects older or unknown schemas rather than silently migrating them. It reads version 2 sketches and migrates old Forms & UI component IDs and properties into the version 3 component record. Legacy .sketch versions 9 and 10 require confirmation before conversion; declining closes the source without saving. Earlier versions are unsupported. Canvas and Planning documents remain open when you switch workspaces. With a sketch open, a second navigation group switches between Canvas and Diagram tools within the Canvas workspace.
 

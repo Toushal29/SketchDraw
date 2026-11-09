@@ -1,4 +1,4 @@
-import type { StrokePoint, StrokeSmoothingProfile, StrokeDynamics, PressureCurvePoint } from "../../model";
+import type { StrokePoint, StrokeSmoothingProfile, StrokeDynamics } from "../../model";
 import { evaluateCurve } from "./pressure-curve";
 
 export const DYNAMICS_OPTIONS: { value: StrokeDynamics; label: string; description: string }[] = [

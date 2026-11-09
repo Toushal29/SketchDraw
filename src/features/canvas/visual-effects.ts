@@ -53,7 +53,7 @@ export const DEFAULT_GRADIENT: GradientFill = {
 
 // ── Pattern fill rendering ──
 
-export function createPatternCanvas(pattern: PatternFill, size: number): HTMLCanvasElement {
+export function createPatternCanvas(pattern: PatternFill, _size: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   const spacing = pattern.spacing ?? 8;
   const thickness = pattern.thickness ?? 1;

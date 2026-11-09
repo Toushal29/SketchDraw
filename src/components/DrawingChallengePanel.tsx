@@ -1,5 +1,5 @@
 import { createSignal, Show, onCleanup } from "solid-js";
-import { dailyChallenge, randomChallenge, createChallengeTimer, type DrawingChallenge, type ChallengeSession } from "../features/canvas/drawing-challenges";
+import { dailyChallenge, randomChallenge, createChallengeTimer, type DrawingChallenge } from "../features/canvas/drawing-challenges";
 
 type Props = {
   onClose: () => void;

@@ -44,7 +44,7 @@ export function estimateNoteCardContentHeight(content: string, kind: NoteKind, w
     if (inCode) estimated += Math.max(32, codeCount * fontSize * 1.55 + 20);
     else estimated -= trailingCodeGap;
   }
-  return Math.max(32, estimated + 1);
+  return Math.max(32, estimated + (tableRows ? 0 : 1));
 }
 
 export function noteCardMaxScroll(group: GroupElement, measureText?: ChecklistMeasureText): number {
@@ -69,6 +69,10 @@ const NOTE_CARD_PALETTES: Record<Theme, Record<NoteKind, { surface: string; bord
     sticky: { surface: "#332d20", border: "#55472b", accent: "#e2b95e", ink: "#f3ead1", muted: "#caba95", rule: "#4a402c", soft: "#403821", check: "#d9ad49" },
     checklist: { surface: "#223329", border: "#3e5747", accent: "#85c99a", ink: "#e4f1e6", muted: "#a8c0ac", rule: "#354a3b", soft: "#2a3d31", check: "#7cc392" },
   },
+  get system() { return this.light; },
+  get ai() { return this.dark; },
+  get minimalist() { return this.light; },
+  get custom() { return this.light; },
 };
 export const defaultNoteTitle = (kind: NoteKind) => kind === "sticky" ? "Sticky note" : kind === "checklist" ? "Checklist" : "Note + code";
 export const noteCardPalette = (kind: NoteKind, theme: Theme, appearance: "modern" | "simple" = "modern") => appearance === "simple"
