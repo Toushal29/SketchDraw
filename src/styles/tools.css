@@ -140,9 +140,7 @@
         width: auto;
     }
 
-    .app-shell .app-menus .view-settings-popover {
-        padding: 8px 12px 10px;
-    }
+    /* view-settings-popover styling is owned by toolbar-and-view-popovers.css */
 
     .app-shell .app-menus .touch-gesture-menu .system-menu-popover {
         display: grid;
@@ -262,8 +260,7 @@
         transform: translateY(-50%);
     }
 
-    .style-pane.quick-style-mode,
-    .style-pane.full-style-mode {
+    .style-pane.quick-style-mode {
         right: 8px;
         left: 56px;
     }

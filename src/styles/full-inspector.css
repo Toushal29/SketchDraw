@@ -1,36 +1,37 @@
+/* Full inspector — compact properties panel
+   Must override base styles from inspector.css, ui-overrides.css, foundation.css */
+
 .style-pane.full-style-mode {
   box-sizing: border-box;
   z-index: 70;
   display: flex;
-  width: min(300px, calc(var(--app-shell-width, 100vw) - 70px));
-  height: auto;
-  max-height: 85vh;
-  min-width: 0;
-  min-height: 0;
+  width: 256px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 72px);
   flex-direction: column;
-  overflow-x: hidden;
-  padding: 10px 0px 10px 10px;
+  overflow: hidden;
+  padding: 0;
   border: 1px solid var(--theme-border);
+  border-radius: 6px;
   color: var(--theme-text-primary);
   background: var(--theme-surface-elevated);
+  box-shadow: 0 1px 4px var(--theme-shadow);
 }
 
 .style-pane.full-style-mode.mobile-properties-collapsed {
   zoom: .9;
+  overflow: hidden;
 }
 
-.style-pane.full-style-mode>.quick-style-panel {
-  display: none;
-}
+.style-pane.full-style-mode > .quick-style-panel { display: none; }
 
-.style-pane.full-style-mode>.full-inspector {
+/* ── Scroll body ── */
+
+.style-pane.full-style-mode > .full-inspector {
   box-sizing: border-box;
   position: static;
-  z-index: auto;
   display: flex;
   width: 100%;
-  min-width: 0;
-  min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
   overflow-x: hidden;
@@ -39,24 +40,56 @@
   padding: 0;
   border: 0;
   border-radius: 0;
-  color: inherit;
   background: transparent;
   box-shadow: none;
-  font: var(--type-control)/var(--leading-normal) var(--font-ui);
+  font: 12px/1.4 var(--font-ui);
 }
+
+/* ── Header ── */
 
 .full-inspector-header {
   position: sticky;
   z-index: 1;
   top: 0;
   display: flex;
-  min-width: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 10px 8px 2px;
-  border-bottom: 1px solid var(--theme-border-subtle);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--theme-border);
   background: var(--theme-surface-elevated);
 }
+
+.full-inspector-header strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.full-inspector-header .full-inspector-close {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: var(--theme-text-tertiary);
+  background: transparent;
+  cursor: pointer;
+}
+.full-inspector-header .full-inspector-close:hover {
+  color: var(--theme-text-primary);
+  background: var(--theme-control-hover);
+}
+.full-inspector-header .full-inspector-close svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* ── Containment ── */
 
 .full-inspector,
 .full-inspector > *,
@@ -68,104 +101,422 @@
   max-width: 100%;
 }
 
-.full-inspector-header strong {
-  font-size: var(--type-body-compact);
-  font-weight: var(--font-weight-bold);
-}
-
-.full-inspector-header .full-inspector-close {
-  display: grid;
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
-  min-height: 32px;
-  place-items: center;
-  padding: 5px;
-  border: 1px solid var(--theme-border);
-  border-radius: 7px;
-  color: var(--theme-text-secondary);
-  background: var(--theme-surface);
-}
-
-.full-inspector-header .full-inspector-close:hover {
-  border-color: var(--ui-accent-border);
-  color: var(--ui-accent-ink);
-  background: var(--ui-accent-soft);
-}
-
-.full-inspector-header .full-inspector-close svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.full-inspector>.inspector-properties-content {
+.full-inspector > .inspector-properties-content {
   display: flex;
   width: 100%;
-  min-width: 0;
-  max-width: 100%;
   flex-direction: column;
+  padding: 0;
 }
+
+/* ── Sections ── */
 
 .full-inspector .pane-section {
-  min-width: 0;
-  padding: 10px 10px 11px 2px;
-  border-bottom: 1px solid var(--theme-border-subtle);
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid var(--theme-border);
 }
-
-.full-inspector .pane-section:last-child {
-  border-bottom: 0;
-}
+.full-inspector .pane-section:last-child { border-bottom: 0; }
 
 .full-inspector .inspector-section-heading {
   margin: 0 0 4px;
-  color: var(--theme-text-primary);
-  font-size: var(--type-caption);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: .025em;
+  color: var(--theme-text-tertiary);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
+/* ── Property rows — override base inspector.css ── */
+
 .full-inspector .property-label {
-  min-width: 0;
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.full-inspector .property-label > span {
+  color: var(--theme-text-secondary);
+  font-size: 11px;
+}
+
+.full-inspector .property-label > strong {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Override base input sizing from inspector.css (.property-label input height:34px) */
+.full-inspector .property-label input,
+.full-inspector .property-label select {
+  height: 28px;
+  padding: 2px 6px;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  color: var(--theme-text-primary);
+  background: var(--theme-surface-input);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  transition: border-color 80ms;
+}
+.full-inspector .property-label input:focus,
+.full-inspector .property-label select:focus {
+  border-color: var(--ui-accent);
+  outline: none;
+}
+.full-inspector .property-label input[type="range"] {
+  height: auto;
+  padding: 0;
+  border: 0;
+  outline: none;
+  accent-color: var(--ui-accent);
 }
 
 .full-inspector select,
 .full-inspector input,
 .full-inspector textarea {
   max-width: 100%;
+  box-sizing: border-box;
 }
 
-.full-inspector .inspector-color-control {
-  gap: 6px;
+/* ── Toggle switches — override base .component-state-control (38px, 8px margin) ── */
+
+.full-inspector .component-state-control {
+  min-height: 26px;
+  margin: 2px 0;
+  gap: 8px;
+  font-size: 11px;
 }
+
+.full-inspector .component-state-control > span:not(.component-switch) {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+
+.full-inspector .component-state-control > span.component-switch {
+  flex-basis: 32px;
+  width: 32px;
+  height: 18px;
+}
+
+.full-inspector .component-state-control > span.component-switch::after {
+  width: 14px;
+  height: 14px;
+  inset: 2px auto 2px 2px;
+}
+
+.full-inspector .component-state-control input:checked + span.component-switch::after {
+  transform: translateX(14px);
+}
+
+.full-inspector .component-state-control input {
+  width: 18px;
+  height: 18px;
+}
+
+.full-inspector .component-state-control > strong {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ── Colors — override base .color-swatch (26px) ── */
+
+.full-inspector .inspector-color-control { gap: 4px; }
 
 .full-inspector .inspector-inline-color-popover {
   position: static;
-  z-index: auto;
-  inset: auto;
   width: 100%;
-  min-width: 0;
-  padding: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .full-inspector .inspector-inline-color-popover .quick-style-swatches {
-  flex-wrap: wrap;
-  justify-content: flex-start;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20px, 1fr));
+  gap: 2px;
 }
+
+.full-inspector .inspector-inline-color-popover .color-swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 18px;
+  flex: none;
+  border: 2px solid transparent;
+  border-radius: 50%;
+}
+.full-inspector .inspector-inline-color-popover .color-swatch:hover { transform: scale(1.08); }
+.full-inspector .inspector-inline-color-popover .color-swatch.active { border-color: var(--ui-accent); }
+
+.full-inspector .inspector-inline-color-popover .custom-color-swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 18px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px dashed var(--theme-border);
+}
+
+/* ── Thickness ── */
+
+.full-inspector .full-inspector-thickness-control { gap: 4px; }
+
+.full-inspector .thickness-tuner {
+  display: grid;
+  grid-template-columns: 26px minmax(40px, 1fr) 26px;
+  align-items: center;
+  gap: 4px;
+}
+
+.full-inspector .thickness-tuner > button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  color: var(--theme-text-secondary);
+  background: transparent;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.full-inspector .thickness-tuner > button:hover:not(:disabled) {
+  color: var(--theme-text-primary);
+  background: var(--theme-control-hover);
+}
+.full-inspector .thickness-tuner > button:disabled { opacity: .3; cursor: default; }
+
+.full-inspector .thickness-preview {
+  display: flex;
+  min-height: 26px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  background: var(--theme-surface);
+}
+
+.full-inspector .thickness-preview i {
+  display: block;
+  width: 36px;
+  max-width: 70%;
+  min-height: 1px;
+  border-radius: 8px;
+}
+
+.full-inspector .thickness-preview strong {
+  color: var(--theme-text-tertiary);
+  font: 10px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.full-inspector .thickness-fine-slider {
+  margin: 2px 0 0;
+  color: var(--theme-text-tertiary);
+  font-size: 10px;
+}
+
+.full-inspector .thickness-fine-slider input[type="range"] {
+  width: 100%;
+  height: 2px;
+  margin: 0;
+}
+
+/* ── Quick thickness presets ── */
+
+.full-inspector .quick-thickness-presets {
+  gap: 3px;
+}
+
+.full-inspector .quick-thickness-presets button {
+  min-height: 28px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+/* ── Fill ── */
 
 .full-inspector .inspector-fill-properties {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-  padding-top: 8px;
+  gap: 5px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid var(--theme-border);
 }
 
-.full-inspector .inspector-fill-properties>.property-label {
-  margin-top: 0;
+.full-inspector .fill-options {
+  display: flex;
+  gap: 3px;
+}
+
+.full-inspector .fill-options button {
+  padding: 4px 6px;
+  font-size: 11px;
+  min-height: 26px;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  color: var(--theme-text-primary);
+  background: var(--theme-surface-input);
+  cursor: pointer;
+}
+.full-inspector .fill-options button.active {
+  border-color: var(--ui-accent-border);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+}
+
+.full-inspector .inspector-fill-opacity {
+  font-size: 11px;
+}
+
+/* ── Visual effects ── */
+
+.full-inspector .visual-effects-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.full-inspector .effect-toggle {
+  padding: 0;
+}
+
+.full-inspector .effect-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0 4px 6px;
+  border-left: 2px solid var(--theme-border);
+  margin-left: 3px;
+}
+
+.full-inspector .effect-controls .property-label {
+  font-size: 11px;
+  color: var(--theme-text-secondary);
+}
+
+.full-inspector .effect-controls select {
+  min-height: 24px;
+  padding: 1px 4px;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  color: var(--theme-text-primary);
+  background: var(--theme-surface-input);
+  font-size: 11px;
+}
+
+.full-inspector .effect-controls input[type="color"] {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--theme-border);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.full-inspector .effect-controls input[type="color"]::-webkit-color-swatch-wrapper { padding: 1px; }
+.full-inspector .effect-controls input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+.full-inspector .gradient-stops {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.full-inspector .gradient-stop {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.full-inspector .gradient-stop input[type="range"] {
+  flex: 1;
+  height: 2px;
+}
+
+/* ── Line style / choice deck ── */
+
+.full-inspector .choice-deck {
+  display: flex;
+  gap: 3px;
+}
+
+.full-inspector .choice-deck button {
+  min-height: 28px;
+  padding: 3px 4px;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  font-size: 9px;
+  color: var(--theme-text-primary);
+  background: var(--theme-surface-input);
+  cursor: pointer;
+}
+.full-inspector .choice-deck button.active {
+  border-color: var(--ui-accent-border);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+}
+.full-inspector .choice-deck button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Corner radius buttons ── */
+
+.full-inspector .format-row {
+  gap: 3px;
+  margin: 4px 0;
+}
+
+.full-inspector .format-row button {
+  min-height: 28px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+/* ── Geometry grid ── */
+
+.full-inspector .geometry-property-grid {
+  gap: 4px;
+}
+
+.full-inspector .geometry-property-grid input {
+  min-height: 26px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+/* ── Disclosure sections ── */
+
+.full-inspector .component-navigation-details {
+  margin-top: 4px;
+}
+
+.full-inspector .component-navigation-details > summary {
+  min-height: 30px;
+  font-size: 11px;
+}
+
+.full-inspector details.geometry-properties > summary.inspector-disclosure-summary,
+.full-inspector details.geometry-behavior-panel > summary.inspector-disclosure-summary,
+.full-inspector details.relationship-properties > summary.inspector-disclosure-summary {
+  min-height: 26px;
+  font-size: 10px;
+}
+
+/* ── Quiet buttons ── */
+
+.full-inspector .quiet-button {
+  min-height: 26px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
 }

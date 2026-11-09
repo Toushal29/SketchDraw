@@ -24,7 +24,29 @@ export type LiveDiagramFormat = "mermaid" | "plantuml" | "d2" | "cloud" | "org";
 export type FontFamily = "sans" | "hand" | "serif" | "mono" | "rounded" | "display";
 export type PageLinkTransition = "instant" | "fade" | "slide";
 export type EdgeStyle = "sharp" | "rounded" | "pill" | "cut";
-export type FreehandElement = LayerFlags & { type: "freehand"; points: StrokePoint[]; color: string; thickness: number; opacity?: number };
+
+// ── Visual effect types ──
+export type GradientStop = { offset: number; color: string };
+export type GradientFill = { type: "linear" | "radial"; angle?: number; stops: GradientStop[] };
+export type PatternFillType = "hatch" | "crosshatch" | "dots" | "diagonal" | "horizontal-lines" | "vertical-lines" | "custom";
+export type PatternFill = { type: PatternFillType; color: string; spacing?: number; thickness?: number; svgPattern?: string };
+export type DropShadow = { offsetX: number; offsetY: number; blur: number; spread?: number; color: string };
+export type BlendMode = "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "color-dodge" | "color-burn" | "hard-light" | "soft-light" | "difference" | "exclusion";
+
+// ── Pressure and stroke dynamics ──
+export type PressureCurvePoint = { input: number; output: number };
+export type PressureCurve = { points: PressureCurvePoint[]; minThickness: number; maxThickness: number };
+export type StrokeDynamics = "pressure" | "velocity" | "tilt";
+export type StrokeSmoothingProfile = { dynamics: StrokeDynamics; strength: number; curve?: PressureCurvePoint[] };
+
+// ── Symmetry ──
+export type SymmetryMode = "off" | "horizontal" | "vertical" | "quad" | "radial";
+export type SymmetryConfig = { mode: SymmetryMode; axes?: number; center?: Point };
+
+// ── Ghost layer ──
+export type GhostLayerConfig = { sourcePageId: string; opacity: number; tint?: string };
+
+export type FreehandElement = LayerFlags & { type: "freehand"; points: StrokePoint[]; color: string; thickness: number; opacity?: number; closedPath?: boolean; smoothingProfile?: StrokeSmoothingProfile };
 export type ConnectionPoint = { id: string; name: string; anchor: Point; accepts?: RelationshipType[] };
 export type AutoLayoutConfig = { direction: "horizontal" | "vertical" | "grid"; gap: number; padding: number; align: "start" | "center" | "end" | "stretch"; wrap?: boolean; columns?: number };
 export type ContainerMetadata = { kind: "frame" | "container" | "swimlane"; name: string; autoLayout?: AutoLayoutConfig; background?: string; showBorder?: boolean; showLabel?: boolean; borderColor?: string; borderThickness?: number; borderStyle?: StrokeStyle; clipChildren?: boolean; autoResize?: boolean; lockedSize?: boolean; collapsed?: boolean; expandedBounds?: Bounds; padding?: number; scrollDirection?: "vertical" | "horizontal" | "both"; connectionPoints?: ConnectionPoint[] };
@@ -37,9 +59,9 @@ export type ForkBranch = { end?: Point; routePoints?: Point[]; endHead?: ArrowHe
 export type RelationshipType = "association" | "dependency" | "data-flow" | "inheritance" | "aggregation" | "composition" | "sequence" | "network" | "other";
 export type RelationshipDirection = "forward" | "both" | "none";
 export type TransportSecurity = "encrypted" | "unencrypted" | "unknown";
-export type ShapeElement = LayerFlags & { type: "rectangle" | "circle" | "diamond" | "triangle" | "flowchart" | "line" | "arrow" | "svgPath"; x: number; y: number; w: number; h: number; color: string; thickness: number; fillColor?: string; fillOpacity?: number; opacity?: number; lineStyle?: StrokeStyle; edgeStyle?: EdgeStyle; cornerRadius?: number; flowchartShape?: FlowchartShape; shapeAdjustments?: { shaft?: number; head?: number; inset?: number }; pathData?: string; pathWidth?: number; pathHeight?: number; fillRule?: "nonzero" | "evenodd"; svgStroke?: boolean; svgNonScalingStroke?: boolean; connectionPoints?: ConnectionPoint[]; lineRoute?: LineRoute; arrowRoute?: ArrowRoute; autoRoute?: boolean; straightOnly?: boolean; routeWaypoints?: Point[]; startHead?: ArrowHead; endHead?: ArrowHead; startBinding?: Binding; endBinding?: Binding; routePoints?: Point[]; forkUpper?: ForkBranch; forkLower?: ForkBranch; label?: ShapeLabel; connectorLabels?: ShapeLabel[]; relationshipFields?: LibraryComponentFieldValue[]; schemaDiagramId?: string; relationshipType?: RelationshipType; cardinality?: string; relationshipDirection?: RelationshipDirection; transportSecurity?: TransportSecurity; protocol?: string; portNumber?: number; apiContract?: string; dataContract?: string; sequenceCondition?: string; sequenceDefault?: boolean };
-export type TextElement = LayerFlags & { type: "text"; x: number; y: number; text: string; color: string; fontSize: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify"; listType?: "none" | "bullet" | "number"; wrapWidth?: number; opacity?: number };
-export type ImageElement = LayerFlags & { type: "image"; x: number; y: number; w: number; h: number; dataUrl: string; sourceWidth?: number; sourceHeight?: number; cropX?: number; cropY?: number; cropW?: number; cropH?: number; opacity?: number; previewUrl?: string };
+export type ShapeElement = LayerFlags & { type: "rectangle" | "circle" | "diamond" | "triangle" | "flowchart" | "line" | "arrow" | "svgPath"; x: number; y: number; w: number; h: number; color: string; thickness: number; fillColor?: string; fillOpacity?: number; opacity?: number; gradientFill?: GradientFill; patternFill?: PatternFill; dropShadow?: DropShadow; blendMode?: BlendMode; lineStyle?: StrokeStyle; edgeStyle?: EdgeStyle; cornerRadius?: number; flowchartShape?: FlowchartShape; shapeAdjustments?: { shaft?: number; head?: number; inset?: number }; pathData?: string; pathWidth?: number; pathHeight?: number; fillRule?: "nonzero" | "evenodd"; svgStroke?: boolean; svgNonScalingStroke?: boolean; connectionPoints?: ConnectionPoint[]; lineRoute?: LineRoute; arrowRoute?: ArrowRoute; autoRoute?: boolean; straightOnly?: boolean; routeWaypoints?: Point[]; startHead?: ArrowHead; endHead?: ArrowHead; startBinding?: Binding; endBinding?: Binding; routePoints?: Point[]; forkUpper?: ForkBranch; forkLower?: ForkBranch; label?: ShapeLabel; connectorLabels?: ShapeLabel[]; relationshipFields?: LibraryComponentFieldValue[]; schemaDiagramId?: string; relationshipType?: RelationshipType; cardinality?: string; relationshipDirection?: RelationshipDirection; transportSecurity?: TransportSecurity; protocol?: string; portNumber?: number; apiContract?: string; dataContract?: string; sequenceCondition?: string; sequenceDefault?: boolean };
+export type TextElement = LayerFlags & { type: "text"; x: number; y: number; text: string; color: string; fontSize: number; fontFamily?: FontFamily; bold?: boolean; italic?: boolean; underline?: boolean; textAlign?: "left" | "center" | "right" | "justify"; listType?: "none" | "bullet" | "number"; wrapWidth?: number; opacity?: number; dropShadow?: DropShadow; blendMode?: BlendMode };
+export type ImageElement = LayerFlags & { type: "image"; x: number; y: number; w: number; h: number; dataUrl: string; sourceWidth?: number; sourceHeight?: number; cropX?: number; cropY?: number; cropW?: number; cropH?: number; opacity?: number; previewUrl?: string; dropShadow?: DropShadow; blendMode?: BlendMode };
 export type SchemaField = { id: string; name: string; dataType: string; primaryKey?: boolean; foreignTable?: string; foreignColumn?: string; nullable?: boolean };
 export type SchemaIndex = { name: string; columns: string[]; orders?: ("ASC" | "DESC")[]; method?: string; unique?: boolean; expression?: string };
 export type SchemaConstraint = { name?: string; kind: "unique" | "check" | "foreign-key" | "primary-key"; columns?: string[]; expression?: string; referencedTable?: string; referencedColumns?: string[]; onDelete?: "NO ACTION" | "RESTRICT" | "CASCADE" | "SET NULL" | "SET DEFAULT"; onUpdate?: "NO ACTION" | "RESTRICT" | "CASCADE" | "SET NULL" | "SET DEFAULT" };
@@ -125,7 +147,7 @@ export type DataSource = { id: string; name: string; headers: string[]; rows: st
 export type DataLink = { source: string; key: string; value: string; label?: string; rules?: string };
 /** Optional cost and capacity numbers on an object. Totals roll up through frames and containers. */
 export type ElementMetrics = { cost?: number; capacity?: number; unit?: string };
-export type SketchPage = { id: string; dataSources?: DataSource[]; bookmarks?: CanvasBookmark[]; name: string; canvasState: CanvasState; elements: Element[]; layers?: CanvasLayer[]; visibilityPresets?: CanvasLayerVisibilityPreset[]; componentMasters?: ComponentMaster[] ; styleLibrary?: StyleLibrary; prototypeVariables?: PrototypeVariable[]; comments?: ReviewCommentThread[] };
+export type SketchPage = { id: string; dataSources?: DataSource[]; bookmarks?: CanvasBookmark[]; name: string; canvasState: CanvasState; elements: Element[]; layers?: CanvasLayer[]; visibilityPresets?: CanvasLayerVisibilityPreset[]; componentMasters?: ComponentMaster[]; styleLibrary?: StyleLibrary; prototypeVariables?: PrototypeVariable[]; comments?: ReviewCommentThread[]; ghostLayer?: GhostLayerConfig };
 export type LegacyLibraryNote = { id: string; title: string; content: string; createdAt: number; updatedAt: number };
 export type LibraryStudyCard = { id: string; front: string; back: string; dueAt: number; intervalDays: number; easeFactor: number; repetitions: number; lastReviewedAt?: number; createdAt: number; updatedAt: number };
 export type LibraryWikiArticle = { id: string; title: string; content: string; tags: string[]; createdAt: number; updatedAt: number };
@@ -161,7 +183,7 @@ export type CanvasSnapTarget = { coordinate: number; bounds: Bounds; anchor: 0 |
 export type SnapGuideLine = { coordinate: number; moving: Bounds; reference: Bounds };
 export type CanvasSnapGuides = { x?: SnapGuideLine; y?: SnapGuideLine };
 export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; editingChildId?: string; shapeLabel?: boolean; shapeLabelIndex?: number; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };
-export type Theme = "light" | "dark";
+export type Theme = "light" | "dark" | "system" | "ai" | "minimalist" | "custom";
 
 export type Binding = { elementId: string; anchor: Point; rowId?: string; portId?: string };
 export type ShapeLabel = Omit<TextElement, keyof LayerFlags | "type" | "x" | "y"> & { verticalAlign: "top" | "middle" | "bottom"; offsetX?: number; offsetY?: number; routePosition?: number };

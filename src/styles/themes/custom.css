@@ -1,0 +1,32 @@
+/* Custom theme: all tokens driven by CSS custom properties the user sets at runtime.
+   The app writes --custom-* values on document.documentElement; this layer maps them
+   to the standard --theme-* tokens. Fallbacks are the light defaults. */
+[data-theme="custom"] {
+    color-scheme: var(--custom-color-scheme, light);
+
+    --theme-background: var(--custom-background, #F5F5F7);
+    --theme-board-background: var(--custom-board-background, #FFFFFF);
+    --theme-surface: var(--custom-surface, #FFFFFF);
+    --theme-surface-elevated: var(--custom-surface-elevated, #FFFFFF);
+    --theme-surface-input: var(--custom-surface-input, #F2F2F7);
+    --theme-border: var(--custom-border, #D1D1D6);
+    --theme-text-primary: var(--custom-text-primary, #1D1D1F);
+    --theme-text-secondary: var(--custom-text-secondary, #636366);
+    --theme-text-tertiary: var(--custom-text-tertiary, #8E8E93);
+    --theme-primary: var(--custom-primary, #007AFF);
+    --theme-primary-hover: var(--custom-primary-hover, #0066D6);
+    --theme-primary-muted: var(--custom-primary-muted, rgba(0, 122, 255, 0.08));
+    --theme-primary-contrast: var(--custom-primary-contrast, #FFFFFF);
+    --theme-success: var(--custom-success, #248A3D);
+    --theme-warning: var(--custom-warning, #9A6700);
+    --theme-error: var(--custom-error, #D70015);
+    --theme-info: var(--custom-info, #007AFF);
+    --diagram-ink: var(--custom-diagram-ink, #252A2E);
+    --diagram-edge: var(--custom-diagram-edge, #6F777E);
+    --diagram-fill: var(--custom-diagram-fill, #FFFFFF);
+    --diagram-soft: var(--custom-diagram-soft, #EDF0F2);
+    --theme-shadow: var(--custom-shadow, rgb(29 29 31 / 12%));
+    --theme-shadow-soft: var(--custom-shadow-soft, rgb(29 29 31 / 7%));
+    --theme-shadow-strong: var(--custom-shadow-strong, rgb(29 29 31 / 24%));
+    --theme-backdrop: var(--custom-backdrop, rgb(29 29 31 / 34%));
+}

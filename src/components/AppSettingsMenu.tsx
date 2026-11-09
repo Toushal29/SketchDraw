@@ -34,6 +34,7 @@ export function AppSettingsMenu(props: Props) {
     <summary aria-label="App settings" title="App settings"><span class="settings-menu-label">Settings</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></summary>
     <div class="system-menu-popover app-settings-popover">
       <header class="app-settings-heading"><strong>Settings</strong></header>
+
       {props.showMobileLayoutSettings && <section class="app-settings-section">
         <strong>Mobile layout</strong>
         <ButtonChoices label="Orientation" value={props.mobileOrientation} options={[{ value: "landscape", label: "Landscape" }, { value: "portrait", label: "Portrait" }]} onChange={props.onMobileOrientationChange} />

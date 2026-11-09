@@ -1,7 +1,15 @@
 import type { FreehandElement, Point, StrokePoint } from "../../model";
 import { getStroke } from "perfect-freehand";
+import { readPressureCurve, applyPressureCurve } from "./pressure-curve";
 
-export const stylusStrokeWidth = (point: StrokePoint, thickness: number) => thickness * (point.pressure === undefined ? 1 : .35 + Math.max(0, Math.min(1, point.pressure)) * 1.15) * (1 + Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) * .28);
+let _cachedCurve = readPressureCurve();
+let _curveStamp = 0;
+function getCurve() { const now = Date.now(); if (now - _curveStamp > 2000) { _cachedCurve = readPressureCurve(); _curveStamp = now; } return _cachedCurve; }
+
+export const stylusStrokeWidth = (point: StrokePoint, thickness: number) => {
+  const pressure = point.pressure === undefined ? 1 : applyPressureCurve(Math.max(0, Math.min(1, point.pressure)), getCurve());
+  return thickness * pressure * (1 + Math.min(1, Math.hypot(point.tiltX ?? 0, point.tiltY ?? 0) / 90) * .28);
+};
 export const stylusStrokeWidthAt = (points: StrokePoint[], index: number, thickness: number) => index === 0 ? stylusStrokeWidth(points[0], thickness) : (stylusStrokeWidth(points[index - 1], thickness) + stylusStrokeWidth(points[index], thickness)) / 2;
 
 type StrokeCache = {

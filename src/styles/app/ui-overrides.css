@@ -278,10 +278,6 @@
     font-size: var(--type-control);
 }
 
-.color-swatch:not(.custom-color-swatch) {
-    border-radius: 50%;
-}
-
 /* Compact controls and presentation options added for the 4.0 UI. */
 .app-shell .tool-deck {
     background-color: var(--theme-toolbar-custom-surface);
@@ -639,73 +635,79 @@
 
 .thickness-tuner {
     display: grid;
-    grid-template-columns: 32px minmax(80px, 1fr) 32px;
+    grid-template-columns: 30px minmax(60px, 1fr) 30px;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
 }
 
-.thickness-tuner>button {
+.thickness-tuner > button {
     display: grid;
     width: 30px;
     height: 30px;
     place-items: center;
     border: 1px solid var(--theme-border);
-    border-radius: 20px;
-    color: var(--theme-text-primary);
-    background: var(--theme-surface-input);
+    border-radius: 8px;
+    color: var(--theme-text-secondary);
+    background: transparent;
     font-size: var(--type-heading);
-    line-height: var(--leading-icon);
+    line-height: 1;
+    cursor: pointer;
+    transition: color 80ms, background 80ms, border-color 80ms;
 }
 
-.thickness-tuner>button:hover:not(:disabled) {
-    border-color: var(--theme-border);
-    color: var(--theme-text-tertiary);
-    background: var(--theme-surface-hover);
+.thickness-tuner > button:hover:not(:disabled) {
+    color: var(--theme-text-primary);
+    background: var(--theme-control-hover);
+    border-color: var(--theme-control-hover);
 }
 
-.thickness-tuner>button:disabled {
-    opacity: .4;
+.thickness-tuner > button:disabled {
+    opacity: .3;
+    cursor: default;
 }
 
 .thickness-preview {
     display: flex;
     min-width: 0;
-    min-height: 30px;
+    min-height: 36px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 4px;
-    border: 1px solid var(--theme-border);
-    border-radius: 10px;
-    background: linear-gradient(180deg, var(--theme-surface), var(--theme-surface));
+    border: 1px solid var(--theme-separator);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--theme-surface) 60%, var(--theme-surface-elevated));
 }
 
 .thickness-preview i {
     display: block;
-    width: 54px;
+    width: 48px;
     max-width: 70%;
     min-height: 1px;
     border-radius: 20px;
 }
 
 .thickness-preview strong {
-    color: var(--theme-text-secondary);
+    color: var(--theme-text-tertiary);
     font: var(--type-micro) var(--font-mono);
+    font-variant-numeric: tabular-nums;
 }
 
 .thickness-fine-slider {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 7px;
-    margin: 10px 0 0;
-    color: var(--theme-text-secondary);
+    gap: 4px;
+    margin: 4px 0 0;
+    color: var(--theme-text-tertiary);
     font-size: var(--type-micro);
 }
 
 .thickness-fine-slider input {
     width: 100%;
+    height: 4px;
     margin: 0;
     accent-color: var(--ui-accent);
+    cursor: pointer;
 }
 
 .quick-thickness-presets button small {

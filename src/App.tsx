@@ -60,6 +60,19 @@ import { ToolbarOrderEditor, type ToolbarZone } from "./components/ToolbarOrderE
 import { DialogInfoTip } from "./components/DialogInfoTip";
 import { SchemaCodeEditor } from "./features/diagrams/SchemaCodeEditor";
 import { ViewSettingsPopover } from "./components/ViewSettingsPopover";
+import { VisualEffectsInspector } from "./components/VisualEffectsInspector";
+import type { BlendMode, DropShadow, GradientFill, PatternFill, GhostLayerConfig } from "./model";
+import { createCanvasGradient, createPatternCanvas, applyShadowToContext, clearShadowFromContext, applyBlendMode } from "./features/canvas/visual-effects";
+import { ghostLayerElements, drawGhostLayer } from "./features/canvas/ghost-layer";
+import { PressureCurveEditor } from "./components/PressureCurveEditor";
+import { RadialContextMenu, type RadialMenuItem, type RadialMenuSubItem } from "./components/RadialContextMenu";
+import { InfiniteClipboardTray } from "./components/InfiniteClipboardTray";
+import { DrawingChallengePanel } from "./components/DrawingChallengePanel";
+import { SpatialFileBrowser } from "./components/SpatialFileBrowser";
+import { addToClipboard } from "./features/canvas/infinite-clipboard";
+import { addFileCard, readSpatialLayout, writeSpatialLayout } from "./features/canvas/spatial-file-browser";
+import { createAmbientController } from "./features/canvas/ambient-mode";
+import { playStrokeSound, playEraseSound, readSoundtrackConfig, writeSoundtrackConfig, disposeSoundtrack } from "./features/canvas/canvas-soundtrack";
 import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/PropertyPanelIcons";
 import { DesignShapePalette, type DesignPaletteItem } from "./features/workspace/DesignShapePalette";
 import { ComponentLibraryPanel } from "./features/components/ComponentLibraryPanel";
@@ -126,7 +139,6 @@ import { autoRouteConnectorSet, autoRouteMayIntersect, autoRoutePoints, createAu
 import { createPlanningSession } from "./features/project/planning-session";
 import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableMinimumHeight, schemaTableMinimumWidth, schemaTableResizeMinimumWidth, schemaTableRowHeight, schemaTableRowLayout } from "./features/diagrams/schema-table-layout";
 import { clearRetiredLibraryData, createLegacyLibraryData, createRetiredLibraryArchive, hasRetiredLibraryData } from "./features/files/legacy-library-data";
-import { WorkspaceAreaTabs } from "./features/workspace/WorkspaceAreaTabs";
 import type { WorkspaceArea } from "./features/workspace/workspace-types";
 import { createDocumentSession } from "./features/document/document-session";
 import { createDocumentSnapshotCoordinator } from "./features/document/document-snapshot";
@@ -141,6 +153,7 @@ import { findMarkdownTableBlock, replaceMarkdownTableBlock, standaloneMarkdownTa
 import { MarkdownTableEditor } from "./components/MarkdownTableEditor";
 import { RELEASES_API, compareReleaseVersions, androidReleaseApk } from "./app/release-check";
 import { FONT_FAMILY_CHOICES, type WhiteboardStyle, type DisplayMetrics, readDisplayMetrics, GRID_SIZE, TOUCH_DRAG_THRESHOLD, DEFAULT_UI_ACCENT, BOARD_COLORS, UI_ACCENTS, TOOLBAR_COLORS, BOARD_COLOR_NAMES, readPreference, readWhiteboardStyle, THICKNESS_PRESETS, ORIGINAL_INSPECTOR_THICKNESS_PRESETS, ERASER_SIZE_PRESETS, ARROW_ROUTES, LINE_ROUTES, ARROW_HEADS, RELATIONSHIP_TYPES } from "./app/canvas-options";
+import { THEME_OPTIONS, readThemePreference, writeThemePreference, applyTheme, resolvedColorScheme, readCustomTokens, writeCustomTokens, applyCustomTokens, clearCustomTokens, type CustomThemeTokens } from "./app/theme";
 import { rotateCanvasPoint, emptyCanvas, cloneElements, sameCanvasPoints, isShapeLike, isShapeLikeType } from "./app/canvas-helpers";
 import { ArrowHeadIcon } from "./components/ArrowHeadIcon";
 const SHAPE_CATALOG_COUNT = BASIC_SHAPES.length + FLOWCHART_SHAPES.length + GENERAL_SHAPES.length;
@@ -553,6 +566,13 @@ function App() {
   const [shortcutDialogOpen, setShortcutDialogOpen] = createSignal(false);
   const [shortcuts, setShortcuts] = createSignal<WindowsShortcutMap>(isWindowsPlatform() ? loadWindowsShortcuts() : { ...DEFAULT_WINDOWS_SHORTCUTS });
   const [presentationMode, setPresentationMode] = createSignal(false);
+  const [showPressureCurve, setShowPressureCurve] = createSignal(false);
+  const [showClipboardTray, setShowClipboardTray] = createSignal(false);
+  const [showDrawingChallenge, setShowDrawingChallenge] = createSignal(false);
+  const [showSpatialBrowser, setShowSpatialBrowser] = createSignal(false);
+  const [ambientMode, setAmbientMode] = createSignal(false);
+  const [soundtrackEnabled, setSoundtrackEnabled] = createSignal(readSoundtrackConfig().enabled);
+  const [radialMenu, setRadialMenu] = createSignal<{ x: number; y: number } | null>(null);
   const [canvasRunMode, setCanvasRunMode] = createSignal(false);
   const [designWorkbenchOpen, setDesignWorkbenchOpen] = createSignal(false);
   const prototypeRuntimePages = new Map<string, { before: Element[]; runtime: Element[] }>();
@@ -831,7 +851,10 @@ function App() {
   const [historyVersion, setHistoryVersion] = createSignal(0);
   const imageCache = new Map<string, HTMLImageElement>();
   const [canvasAssetRevision, setCanvasAssetRevision] = createSignal(0);
-  try { localStorage.removeItem("sketchdraw-theme"); } catch { /* Legacy theme settings are no longer used. */ }
+  const [themeMode, setThemeMode] = createSignal<Theme>(readThemePreference());
+  const [customThemeTokens, setCustomThemeTokens] = createSignal<CustomThemeTokens>(readCustomTokens());
+  applyTheme(readThemePreference());
+  if (readThemePreference() === "custom") applyCustomTokens(readCustomTokens());
   const [accentColor, setAccentColor] = createSignal((() => {
     try { const saved = localStorage.getItem("sketchdraw-accent"); return saved && /^#[\da-f]{6}$/i.test(saved) ? saved : DEFAULT_UI_ACCENT; }
     catch { return DEFAULT_UI_ACCENT; }
@@ -874,6 +897,14 @@ function App() {
   const freehandRenderer = createFreehandRenderer();
   onCleanup(freehandRenderer.dispose);
   createEffect(() => { activePath(); activePageId(); theme(); freehandRenderer.clearRasterCache(); });
+  const ambientController = createAmbientController(
+    elements,
+    canvasState,
+    (partial) => setCanvasState(prev => ({ ...prev, ...partial })),
+    () => { const rect = canvas?.getBoundingClientRect(); return rect ? { width: rect.width, height: rect.height } : { width: 800, height: 600 }; },
+  );
+  createEffect(() => { if (ambientMode()) ambientController.start(); else ambientController.stop(); });
+  onCleanup(() => ambientController.stop());
   let penEraserDrawing = false;
   let laserTimer: number | undefined;
   let restartAutosave: (() => void) | undefined;
@@ -1362,6 +1393,7 @@ function App() {
   async function copySelection() {
     if (!selectedElements().length) return;
     clipboardItems = copyElements(selectedElements(), 0, 0);
+    addToClipboard(clipboardItems);
     try { await navigator.clipboard.writeText(clipboardPayload()); } catch { /* The in-app clipboard remains available. */ }
   }
   async function pasteSelection(at?: Point) {
@@ -1413,7 +1445,54 @@ function App() {
     commitTextDraft(); const rect = canvas.getBoundingClientRect(); const view = canvasState(); const point = groupEditPointToScope({ x: (event.clientX - rect.left - view.panX) / view.zoom, y: (event.clientY - rect.top - view.panY) / view.zoom });
     const hit = hitTest(point); if (hit !== undefined && !selectedIndices().includes(hit)) setSelectedIndices([hit]);
     if (menu) menu.open = false; if (viewMenu) viewMenu.open = false; if (gestureMenu) gestureMenu.open = false;
+    const useRadial = readPreference("sketchdraw-radial-menu", "true") === "true";
+    if (useRadial) { setRadialMenu({ x: event.clientX, y: event.clientY }); return; }
     setContextMenu({ x: Math.max(8, Math.min(event.clientX, window.innerWidth - 252)), y: Math.max(8, Math.min(event.clientY, window.innerHeight - 510)), world: point });
+  }
+  function radialMenuItems(): RadialMenuItem[] {
+    const hasSelection = selectedIndices().length > 0;
+    const colorChildren: RadialMenuSubItem[] = [
+      { id: "c-black", label: "Black", color: "#1D1D1F", action: () => updateStrokeColor("#1D1D1F") },
+      { id: "c-red", label: "Red", color: "#FF3B30", action: () => updateStrokeColor("#FF3B30") },
+      { id: "c-orange", label: "Orange", color: "#FF9500", action: () => updateStrokeColor("#FF9500") },
+      { id: "c-green", label: "Green", color: "#34C759", action: () => updateStrokeColor("#34C759") },
+      { id: "c-blue", label: "Blue", color: "#007AFF", action: () => updateStrokeColor("#007AFF") },
+      { id: "c-purple", label: "Purple", color: "#AF52DE", action: () => updateStrokeColor("#AF52DE") },
+      { id: "c-gray", label: "Gray", color: "#8E8E93", action: () => updateStrokeColor("#8E8E93") },
+      { id: "c-white", label: "White", color: "#FFFFFF", action: () => updateStrokeColor("#FFFFFF") },
+    ];
+    const strokeChildren: RadialMenuSubItem[] = [
+      { id: "s-1", label: "1px", action: () => { setThickness(1); if (hasSelection) updateProperty("thickness", 1); } },
+      { id: "s-2", label: "2px", action: () => { setThickness(2); if (hasSelection) updateProperty("thickness", 2); } },
+      { id: "s-3", label: "3px", action: () => { setThickness(3); if (hasSelection) updateProperty("thickness", 3); } },
+      { id: "s-5", label: "5px", action: () => { setThickness(5); if (hasSelection) updateProperty("thickness", 5); } },
+      { id: "s-8", label: "8px", action: () => { setThickness(8); if (hasSelection) updateProperty("thickness", 8); } },
+      { id: "s-12", label: "12px", action: () => { setThickness(12); if (hasSelection) updateProperty("thickness", 12); } },
+    ];
+    const items: RadialMenuItem[] = [
+      { id: "pen", label: "Pen", icon: "✎", action: () => setTool("pen") },
+      { id: "color", label: "Color", icon: "◉", children: colorChildren },
+      { id: "select", label: "Select", icon: "⇲", action: () => setTool("select") },
+      { id: "stroke", label: "Stroke", icon: "━", children: strokeChildren },
+      { id: "eraser", label: "Eraser", icon: "⌫", action: () => setTool("eraser") },
+      { id: "text", label: "Text", icon: "T", action: () => setTool("text") },
+    ];
+    if (hasSelection) {
+      items.push(
+        { id: "copy", label: "Copy", icon: "⧉", action: () => void copySelection() },
+        { id: "delete", label: "Delete", icon: "✕", action: () => deleteSelected() },
+      );
+    }
+    return items;
+  }
+  function pasteClipboardElements(items: Element[]) {
+    if (!activePath() || boardLocked() || readOnlyView() || !items.length) return;
+    insertCopies(items, canvasCenterWorld());
+  }
+  async function openFileByPath(path: string) {
+    if (!path || nativeBusy() || documentBusy()) return;
+    setNativeBusy(true);
+    try { await loadFile(path); } catch (cause) { setError(`Could not open file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
   function resizeRouteContext(activeResize: NonNullable<typeof resizeOrigin>) {
     return activeResize.routeContext ??= autoRouteContextFor(activeResize.before);
@@ -1845,7 +1924,7 @@ function App() {
     setSelectedLayerPresetId("");
     setDirty(true);
   }
-  const theme = (): Theme => "light";
+  const theme = (): Theme => resolvedColorScheme(themeMode()) === "dark" ? "dark" : "light";
   const accentForTheme = () => accentColor() === DEFAULT_UI_ACCENT ? "var(--theme-primary)" : accentColor();
   const toolbarColor = () => toolbarColorChoice() === "auto" ? "var(--theme-surface)" : toolbarColorChoice();
   const selectedSet = createMemo(() => new Set(selectedIndices()));
@@ -3673,6 +3752,19 @@ function App() {
     pushUndo(before); setDirty(true);
   }
 
+  function updateVisualEffect(property: "gradientFill" | "patternFill" | "dropShadow" | "blendMode", value: GradientFill | PatternFill | DropShadow | BlendMode | undefined) {
+    if (boardLocked()) return;
+    const indices = new Set(selectedIndices().filter(i => !!elements()[i] && canMoveElement(elements()[i]))); if (!indices.size) return;
+    const before = cloneElements(elements());
+    setElements(items => items.map((el, i) => {
+      if (!indices.has(i) || isElementLocked(el)) return el;
+      if (el.type === "rectangle" || el.type === "circle" || el.type === "diamond" || el.type === "triangle" || el.type === "flowchart" || el.type === "svgPath") return { ...el, [property]: value } as Element;
+      if ((el.type === "text" || el.type === "image") && (property === "dropShadow" || property === "blendMode")) return { ...el, [property]: value } as Element;
+      return el;
+    }));
+    pushUndo(before); setDirty(true);
+  }
+
   function setConnectorHead(end: "start" | "end", value: ArrowHead) {
     const selected = focusedElement();
     if (selected && isConnector(selected)) { updateProperty(end === "start" ? "startHead" : "endHead", value); return; }
@@ -4986,6 +5078,8 @@ function App() {
     if (element.type === "image") {
       const image = imageCache.get(element.dataUrl);
       ctx.save(); ctx.globalAlpha = element.opacity ?? 1;
+      if (element.blendMode && element.blendMode !== "normal") applyBlendMode(ctx, element.blendMode);
+      if (element.dropShadow) applyShadowToContext(ctx, element.dropShadow);
       if (image?.complete && image.naturalWidth) {
         const sx = element.cropX ?? 0; const sy = element.cropY ?? 0; const sw = element.cropW ?? image.naturalWidth; const sh = element.cropH ?? image.naturalHeight;
         ctx.drawImage(image, sx, sy, sw, sh, element.x, element.y, element.w, element.h);
@@ -5004,7 +5098,10 @@ function App() {
     }
     if (element.type === "text") {
       if (textDraft()?.editingChildId === element.id || textDraft()?.editingIndex !== undefined && elements()[textDraft()!.editingIndex!]?.id === element.id) { if (element.rotation) ctx.restore(); return; }
-      ctx.save(); ctx.globalAlpha = element.opacity ?? 1; ctx.fillStyle = themeInk(element.color, theme());
+      ctx.save(); ctx.globalAlpha = element.opacity ?? 1;
+      if (element.blendMode && element.blendMode !== "normal") applyBlendMode(ctx, element.blendMode);
+      if (element.dropShadow) applyShadowToContext(ctx, element.dropShadow);
+      ctx.fillStyle = themeInk(element.color, theme());
       ctx.font = (element.italic ? "italic " : "") + (element.bold ? "700 " : "400 ") + element.fontSize + "px " + fontCss(element.fontFamily); ctx.textBaseline = "top"; ctx.textAlign = element.textAlign === "justify" ? "left" : element.textAlign ?? "left";
       const lines = textElementLines(element, ctx);
       lines.forEach((line, index) => { const y = element.y + index * element.fontSize * 1.25; ctx.fillText(line, element.x, y); if (element.underline) { const measured = ctx.measureText(line).width; const startX = alignedTextStartX(element.x, measured, element.textAlign); ctx.fillRect(startX, y + element.fontSize * 1.06, measured, Math.max(1, element.fontSize / 18)); } }); ctx.restore(); if (element.rotation) ctx.restore(); return;
@@ -5077,16 +5174,23 @@ function App() {
     }
     const shapePath = shapePathObject(element);
     if (!shapePath) { ctx.restore(); if (element.rotation) ctx.restore(); return; }
-    if (element.fillColor) {
-      ctx.save(); ctx.globalAlpha = (element.opacity ?? 1) * (element.fillOpacity ?? fillOpacity()); ctx.fillStyle = element.fillColor;
+    if (element.blendMode && element.blendMode !== "normal") applyBlendMode(ctx, element.blendMode);
+    if (element.dropShadow) applyShadowToContext(ctx, element.dropShadow);
+    if (element.fillColor || element.gradientFill || element.patternFill) {
+      ctx.save(); ctx.globalAlpha = (element.opacity ?? 1) * (element.fillOpacity ?? fillOpacity());
+      if (element.gradientFill) { ctx.fillStyle = createCanvasGradient(ctx, element.gradientFill, element.x, element.y, element.w, element.h); }
+      else if (element.patternFill) { const patCanvas = createPatternCanvas(element.patternFill, Math.max(element.w, element.h)); const pat = ctx.createPattern(patCanvas, "repeat"); if (pat) ctx.fillStyle = pat; }
+      else if (element.fillColor) { ctx.fillStyle = element.fillColor; }
       ctx.fill(shapePath, shapeFillRule(element)); ctx.restore();
     }
+    if (element.dropShadow) clearShadowFromContext(ctx);
     ctx.stroke(shapePath);
     if (element.lineStyle === "double") {
       ctx.save(); ctx.setLineDash([]); ctx.translate(element.x + element.w / 2, element.y + element.h / 2); ctx.scale(.94, .94); ctx.translate(-(element.x + element.w / 2), -(element.y + element.h / 2)); ctx.stroke(shapePath); ctx.restore();
     }
     const shapeDetails = shapeDetailPathObject(element);
     if (shapeDetails) ctx.stroke(shapeDetails);
+    if (element.blendMode && element.blendMode !== "normal") ctx.globalCompositeOperation = "source-over";
     ctx.restore(); if (isLabelShape(element) && textDraft()?.editingChildId !== element.id && !(textDraft()?.shapeLabel && elements()[textDraft()!.editingIndex!]?.id === element.id)) drawLabel(ctx, element); if (element.rotation) ctx.restore();
   }
 
@@ -5318,7 +5422,20 @@ function App() {
     drawFreehandPreview: (ctx, element) => { ctx.save(); ctx.globalAlpha = element.opacity ?? 1; freehandRenderer.draw(ctx, element, themeInk(element.color, theme()), false, true); ctx.restore(); },
   });
   onCleanup(sceneRenderer.dispose);
-  const drawScene = sceneRenderer.drawScene;
+  const rawDrawScene = sceneRenderer.drawScene;
+  const drawScene: typeof rawDrawScene = (ctx, width, height, dpr, selection, transparent, viewOverride, sourceItems, includeGrid, includeStrokePreview) => {
+    rawDrawScene(ctx, width, height, dpr, selection, transparent, viewOverride, sourceItems, includeGrid, includeStrokePreview);
+    const page = pages().find(p => p.id === activePageId());
+    if (page?.ghostLayer && page.ghostLayer.sourcePageId) {
+      const ghostElements = ghostLayerElements(page.ghostLayer, pages());
+      if (ghostElements?.length) {
+        const state = viewOverride ?? canvasState();
+        ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.translate(state.panX, state.panY); ctx.scale(state.zoom, state.zoom);
+        drawGhostLayer(ctx, ghostElements, page.ghostLayer, state, (c, el) => drawElement(c, el));
+        ctx.restore();
+      }
+    }
+  };
 
   const canvasRenderScheduler = createCanvasRenderScheduler({
     canvas: () => canvas, hasDocument: () => !!activePath(),
@@ -5533,6 +5650,10 @@ function App() {
       if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && !typingTarget && activePath() && isCanvasWorkspace()) {
         if (event.code === "KeyO") { event.preventDefault(); openDocumentOutline(); return; }
         if (event.code === "KeyF") { event.preventDefault(); setNavigatorOpen(value => !value); return; }
+        if (event.code === "KeyP") { event.preventDefault(); setShowPressureCurve(v => !v); return; }
+        if (event.code === "KeyC") { event.preventDefault(); setShowClipboardTray(v => !v); return; }
+        if (event.code === "KeyD") { event.preventDefault(); setShowDrawingChallenge(v => !v); return; }
+        if (event.code === "KeyB") { event.preventDefault(); setShowSpatialBrowser(v => !v); return; }
         const digit = /^Digit([1-9])$/.exec(event.code); if (digit) { event.preventDefault(); jumpToBookmarkNumber(Number(digit[1])); return; }
       }
       if (!typingTarget && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "Tab" || event.key === "Enter") && activePath() && isCanvasWorkspace() && !readOnlyView() && !boardLocked() && selectedIndices().length === 1 && isMindMapNode(elements()[selectedIndices()[0]])) {
@@ -5584,7 +5705,7 @@ function App() {
       else if (key === "delete" || key === "backspace") { event.preventDefault(); deleteSelected(); }
     };
     const clipboardAllowed = (target: EventTarget | null) => !readOnlyView() && activePath() && !pageDialog() && !schemaDialog() && !validationOpen() && !objectSearchOpen() && !outlineOpen() && !mermaidDialog() && !webEmbedDialog() && !exportOptionsOpen() && !showClearConfirm() && !recoveryPrompt() && !syncConflict() && !noteEditor() && !(target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea")));
-    const copy = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || !selectedElements().length) return; event.preventDefault(); event.clipboardData?.setData("text/plain", clipboardPayload()); clipboardItems = copyElements(selectedElements(), 0, 0); };
+    const copy = (event: ClipboardEvent) => { if (!clipboardAllowed(event.target) || !selectedElements().length) return; event.preventDefault(); event.clipboardData?.setData("text/plain", clipboardPayload()); clipboardItems = copyElements(selectedElements(), 0, 0); addToClipboard(clipboardItems); };
     const paste = (event: ClipboardEvent) => {
       if (!clipboardAllowed(event.target) || boardLocked()) return;
       const items = [...(event.clipboardData?.items ?? [])]; const image = items.find(item => item.type.startsWith("image/"))?.getAsFile();
@@ -5691,6 +5812,25 @@ function App() {
     onCleanup(() => { restartAutosave = undefined; unlistenClose?.(); window.clearInterval(laserTimer); if (autosaveTimer !== undefined) window.clearTimeout(autosaveTimer); if (syncPollTimer !== undefined) window.clearInterval(syncPollTimer); if (syncObservationTimer !== undefined) window.clearTimeout(syncObservationTimer); window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("pointerdown", mouseShortcutPointerDown, true); window.removeEventListener("auxclick", mouseShortcutAuxClick, true); window.removeEventListener("contextmenu", mouseShortcutContextMenu, true); window.removeEventListener("blur", blur); window.removeEventListener("resize", alignViewSettingsPopover); window.removeEventListener("resize", updateDisplayMetrics); window.removeEventListener("orientationchange", updateDisplayMetrics); document.removeEventListener("pointerdown", outsideClick); document.removeEventListener("keydown", closeMenuOnEscape); });
   });
 
+  function setThemePreference(value: Theme) {
+    setThemeMode(value);
+    writeThemePreference(value);
+    applyTheme(value);
+    if (value === "custom") {
+      applyCustomTokens(customThemeTokens());
+    } else {
+      clearCustomTokens();
+    }
+  }
+
+  function setCustomThemeToken(key: keyof CustomThemeTokens, color: string) {
+    if (!/^#[\da-f]{6}$/i.test(color)) return;
+    const tokens = { ...customThemeTokens(), [key]: color };
+    setCustomThemeTokens(tokens);
+    writeCustomTokens(tokens);
+    if (themeMode() === "custom") applyCustomTokens(tokens);
+  }
+
   function setAccentPreference(value: string) {
     if (!/^#[\da-f]{6}$/i.test(value)) return;
     setAccentColor(value);
@@ -5771,6 +5911,7 @@ function App() {
     try { localStorage.removeItem("sketchdraw-toolbar-layout"); localStorage.removeItem("sketchdraw-toolbar-order"); localStorage.removeItem("sketchdraw-history-actions-visible"); } catch { /* The default toolbar remains active for this session. */ }
   }
   function restoreAppSettings() {
+    setThemePreference("system");
     setAccentPreference(UI_ACCENTS[0].value);
     setToolbarColorPreference("auto");
     setInterfaceScalePreference(1);
@@ -6249,7 +6390,10 @@ function App() {
     }
     setError("");
     const opened = await docController.open(path, openReadOnly);
-    if (opened) setWorkspaceArea("canvas");
+    if (opened) {
+      setWorkspaceArea("canvas");
+      try { const cards = readSpatialLayout(); const name = path.split(/[\\/]/).pop() ?? path; const card = addFileCard(name, path, cards); if (!cards.find(c => c.path === path)) writeSpatialLayout([...cards, card]); else writeSpatialLayout(cards); } catch { /* spatial browser is optional */ }
+    }
     if (!opened && isMissingFileError(error())) forgetRecentFile(path);
   }
 
@@ -7358,7 +7502,7 @@ function App() {
       const hit = hitTest(point) ?? hitInterior(point); if (hit !== undefined && (isLabelShape(elements()[hit]) || isConnector(elements()[hit]))) editShapeLabel(hit, event.pointerId, connectorLabelIndexAt(elements()[hit], point)); else startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined, event.pointerId); return;
     }
     if (tool() === "bucket") { const hit = hitInterior(point); if (hit !== undefined) updatePropertyForIndex(hit, fillColor()); return; }
-    if (tool() === "eraser") { eraseAtPoint(point); drawing = true; canvas.setPointerCapture(event.pointerId); return; }
+    if (tool() === "eraser") { eraseAtPoint(point); drawing = true; canvas.setPointerCapture(event.pointerId); if (soundtrackEnabled()) playEraseSound(); return; }
     if (tool() === "crop") { const hit = hitTest(point); if (hit !== undefined && elements()[hit].type === "image") { setSelectedIndices([hit]); marqueeOrigin = { point, additive: false, moved: false, cropIndex: hit }; setMarquee({ start: point, end: point }); canvas.setPointerCapture(event.pointerId); } return; }
     drawing = true; canvas.setPointerCapture(event.pointerId);
     activeDrawingTool = tool() === "laser" ? "pen" : tool() as Preview["type"];
@@ -7366,6 +7510,7 @@ function App() {
     if (activeDrawingTool === "pen") {
       const laser = tool() === "laser"; const mode = brushMode();
       const strokePoint = tool() === "pen" ? strokePointFromPointer(event, point) : point; currentPoints = [strokePoint]; strokePointLimitReached = false;
+      if (soundtrackEnabled() && !laser) { const cr = canvas.getBoundingClientRect(); playStrokeSound(point.x, point.y, event.pressure ?? 0.5, cr.width, cr.height); }
       strokeSampleGate.reset(event.timeStamp);
       const brushStyle: Record<BrushMode, { width: number; opacity: number }> = { fine: { width: 1, opacity: 1 }, pencil: { width: .72, opacity: .62 }, brush: { width: 2.2, opacity: .9 }, marker: { width: 3, opacity: .78 }, highlighter: { width: 6, opacity: .28 }, chalk: { width: 1.7, opacity: .48 } };
       const style = brushStyle[mode];
@@ -8912,17 +9057,159 @@ function App() {
           documentTabs={!!activePath() && isCanvasWorkspace()}
           headerRef={element => { setAppTopbar(element); }}
           commands={<nav class="mobile-command-host" aria-label="File and application settings">{mobileCommandBar()}</nav>}
-          workspaceTabs={<Show when={!showWelcomeScreen() || isCompactTouchLayout()}><WorkspaceAreaTabs active={workspaceArea()} documentTabs={!!activePath() && isCanvasWorkspace()} onSelect={area => setWorkspaceArea(area)} /></Show>}
+          workspaceTabs={null}
           pageMenu={<Show when={activePath() && isCanvasWorkspace()}><TouchPageMenu pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} onToggle={alignTouchMenuPopover} /></Show>}
           status={<Show when={workspaceArea() === "planning" ? planningPath() : activePath()}><div class="mobile-header-status"><span class={`save-status ${workspaceArea() === "planning" ? planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved" : saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={workspaceArea() === "planning" ? planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved" : status()} title={workspaceArea() === "planning" ? planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status" : status()}><i /></span></div></Show>}
         />
       </Show>
       <Show when={isWindowsPlatform()}>
       <header class="topbar" ref={element => { setAppTopbar(element); }}>
-        <div class="header-leading"><div class="brand"><img class="brand-mark-image" src={sketchDrawMark} alt="" /><span title={workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}>{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}</span></div><Show when={readOnlyView() && isCanvasWorkspace()}><span class="view-only-badge">VIEW ONLY</span></Show></div>
-        <nav class="app-menus" aria-label="Application menus">
-          <Show when={isWindowsPlatform()}>
-          <WindowsMenuRail settings={<AppSettingsMenu
+        <div class="topbar-lead">
+          <img class="topbar-logo" src={sketchDrawMark} alt="" />
+          <span class="topbar-filename" title={workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}>{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "SketchDraw"}</span>
+          <Show when={readOnlyView() && isCanvasWorkspace()}><span class="topbar-badge">VIEW ONLY</span></Show>
+        </div>
+
+        <nav class="topbar-menus" aria-label="Application menus">
+          <details class="topbar-menu" ref={menu} onToggle={() => { keepOnlyActiveMenuOpen(menu); alignTouchMenuPopover(menu); }}>
+            <summary><svg class="topbar-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg class="topbar-menu-chevron" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
+            <div class="topbar-popover">
+              <div class="topbar-popover-label">{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}</div>
+              <Show when={workspaceArea() === "planning"}>
+                <button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button>
+                <button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button>
+                <button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button>
+                <button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button>
+                <button disabled={!planningPath() || planningSaving()} onClick={() => closeSystemMenu(() => { if (planningPath()) void closePlanningTab(planningPath()!); })}>Close plan</button>
+              </Show>
+              <Show when={isCanvasWorkspace()}>
+                <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button>
+                <button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button>
+                <button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open sketch as view only</button>
+                <button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save sketch <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button>
+                <button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save sketch as...</button>
+                <button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button>
+                <div class="topbar-popover-sep" />
+                <button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close sketch</button>
+              </Show>
+            </div>
+          </details>
+          <Show when={isCanvasWorkspace() && activePath()}>
+            <details class="topbar-menu" ref={importExportMenu} onToggle={() => { keepOnlyActiveMenuOpen(importExportMenu); alignTouchMenuPopover(importExportMenu); }}>
+              <summary><svg class="topbar-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8m0 0-3-3m3 3 3-3M5 14v5h14v-5M5 7H3v11h4m14-11h-2" /></svg><span>Import / Export</span><svg class="topbar-menu-chevron" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
+              <div class="topbar-popover">
+                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importPdf())}>Import PDF for markup...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile(true))}>Import draw.io diagram...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile())}>Import editable diagram/code...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked()} onClick={() => closeSystemMenu(openWebEmbedDialog)}>Embed web page...</button>
+                <div class="topbar-popover-sep" />
+                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(false))}>Export interactive HTML...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(true))}>Export clickable prototype...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("drawio"))}>Export draw.io...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("vsdx"))}>Export Visio VSDX...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("excalidraw"))}>Export Excalidraw...</button>
+                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => setDiagramCodeExportOpen(true))}>Export diagram code...</button>
+                <Show when={hasRetiredLibraryData(legacyLibraryData())}><button disabled={readOnlyView() || documentBusy() || nativeBusy()} onClick={() => closeSystemMenu(() => void exportRetiredLibraryArchive())}>Export retired Library data...</button></Show>
+              </div>
+            </details>
+          </Show>
+          <details class="topbar-menu topbar-menu-view" ref={viewMenu} onToggle={onViewMenuToggle}>
+            <summary><svg class="topbar-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>View</span><svg class="topbar-menu-chevron" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
+            <ViewSettingsPopover
+              themeMode={themeMode()}
+              themeOptions={THEME_OPTIONS}
+              customThemeTokens={customThemeTokens()}
+              onThemeChange={setThemePreference}
+              onCustomTokenChange={setCustomThemeToken}
+              accentColor={accentColor()}
+              toolbarColorChoice={toolbarColorChoice()}
+              accentOptions={UI_ACCENTS}
+              toolbarColorOptions={TOOLBAR_COLORS}
+              boardColor={boardColor()}
+              renderedBoardColor={renderedBoardColor()}
+              boardColorUsesDefault={boardColorFollowsTheme()}
+              boardLocked={boardLocked()}
+              boardColors={BOARD_COLORS.map(value => ({ value, label: BOARD_COLOR_NAMES[value] ?? value }))}
+              paperPattern={whiteboardStyle()}
+              patterns={[{ value: "plain", label: "Plain" }, { value: "dots", label: "Dots" }, { value: "small-dots", label: "Fine dots" }, { value: "lines", label: "Grid" }, { value: "small-grid", label: "Fine grid" }, { value: "ruled", label: "Ruled" }, { value: "isometric", label: "Isometric" }]}
+              namedVersionsDisabled={!activePath() || !isCanvasWorkspace()}
+              canvasToolsDisabled={!activePath() || !isCanvasWorkspace()}
+              canvasTools={{
+                pressureCurve: showPressureCurve(),
+                clipboardTray: showClipboardTray(),
+                drawingChallenge: showDrawingChallenge(),
+                spatialBrowser: showSpatialBrowser(),
+                ambientMode: ambientMode(),
+                soundtrack: soundtrackEnabled(),
+                onTogglePressureCurve: () => setShowPressureCurve(v => !v),
+                onToggleClipboardTray: () => setShowClipboardTray(v => !v),
+                onToggleDrawingChallenge: () => setShowDrawingChallenge(v => !v),
+                onToggleSpatialBrowser: () => setShowSpatialBrowser(v => !v),
+                onToggleAmbientMode: () => setAmbientMode(v => !v),
+                onToggleSoundtrack: () => { const next = !soundtrackEnabled(); setSoundtrackEnabled(next); writeSoundtrackConfig({ enabled: next }); if (!next) disposeSoundtrack(); },
+              }}
+              accessibility={{
+                colorVisionMode: colorVisionMode(),
+                colorVisionModes: COLOR_VISION_MODES.map(mode => ({ id: mode.id, label: mode.label })),
+                safePalette: safeColorPalette(),
+                documentDisabled: !activePath() || !isCanvasWorkspace(),
+                onColorVisionModeChange: value => { if (isColorVisionMode(value)) setColorVisionMode(value); },
+                onSafePaletteChange: setSafeColorPalette,
+                onOpenOutline: () => { viewMenu.open = false; openDocumentOutline(); },
+                onOpenNavigator: () => { viewMenu.open = false; setNavigatorOpen(true); },
+              }}
+              onAccentChange={setAccentPreference}
+              onToolbarColorChange={setToolbarColorPreference}
+              onBoardUseDefault={() => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } }}
+              onBoardColorChange={value => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } }}
+              onPaperPatternChange={setWhiteboardStylePreference}
+              onNamedVersions={openNamedSnapshots}
+            />
+          </details>
+          <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
+          <details class="topbar-menu" ref={helpMenu} onToggle={() => { keepOnlyActiveMenuOpen(helpMenu); alignTouchMenuPopover(helpMenu); }}>
+            <summary><svg class="topbar-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg class="topbar-menu-chevron" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
+            <div class="topbar-popover">
+              <button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button>
+              <button onClick={() => closeSystemMenu(() => setDiagramGuidesOpen(true))}>Diagram guides</button>
+              <button onClick={() => closeSystemMenu(() => { if (isWindowsPlatform()) setShortcutDialogOpen(true); else { setHelpSection("shortcuts"); setHelpOpen(true); } })}>Keyboard shortcuts <kbd>F1</kbd></button>
+              <button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>{formatShortcutBindings(shortcuts().commandPalette)}</kbd></button>
+              <div class="topbar-popover-sep" />
+              <button disabled={updateCheck() === "checking" || updateCheck() === "installing"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button>
+              <span class="update-menu-version">Installed version {appVersion()}</span>
+              <Show when={updateCheck() === "installing"}><span class="update-menu-status available">Installing update {updateVersion()}…</span></Show>
+              <Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show>
+              <Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span><button onClick={() => void installUpdate()}>Download and install</button></Show>
+              <Show when={updateCheck() === "error"}><span class="update-menu-status error">Update check or installation failed.</span></Show>
+            </div>
+          </details>
+        </nav>
+
+        <div class="topbar-tabs">
+          <Show when={activePath() && openSketchPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openSketchPaths()} activePath={activePath()} displayName={displayNameForPath} onSelect={path => { if (path !== activePath()) void loadFile(path); }} onClose={path => void closeSketchTab(path)} /></Suspense></Show>
+          <Show when={workspaceArea() === "planning" && planningPath() && openPlanningPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openPlanningPaths()} activePath={planningPath()} displayName={displayNameForPath} ariaLabel="Open Planning files" onSelect={path => { if (normalizeFileUri(path).toLowerCase() !== normalizeFileUri(planningPath() ?? "").toLowerCase()) void openRecentPlan(path); }} onClose={path => void closePlanningTab(path)} /></Suspense></Show>
+        </div>
+
+        <Show when={isCanvasWorkspace() && activePath()}>
+          <nav class="topbar-view-tabs" role="tablist" aria-label="Canvas views">
+            <button type="button" role="tab" aria-selected={workspaceArea() === "canvas"} class={workspaceArea() === "canvas" ? "active" : ""} onClick={() => setWorkspaceArea("canvas")}>Canvas</button>
+            <button type="button" role="tab" aria-selected={workspaceArea() === "design"} class={workspaceArea() === "design" ? "active" : ""} onClick={() => setWorkspaceArea("design")}>Diagram</button>
+          </nav>
+        </Show>
+
+        <div class="topbar-trail">
+          <Show when={workspaceArea() === "planning" && planningPath()}>
+            <span class={`topbar-save ${planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved"} title={planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status"}><i /><time>{planningSavedAt() || "—"}</time></span>
+          </Show>
+          <Show when={isCanvasWorkspace() && activePath()}>
+            <span class={`topbar-save ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span>
+          </Show>
+          <AppSettingsMenu
             interfaceScale={interfaceScale()}
             mobileOrientation={mobileOrientation()}
             toolbarPosition={toolbarPosition()}
@@ -8938,98 +9225,8 @@ function App() {
             onRestoreDefaults={restoreAppSettings}
             detailsRef={element => { appSettingsMenu = element; }}
             onToggle={onAppSettingsMenuToggle}
-          />}>
-          <details class="menu-dropdown file-menu-dropdown" ref={menu} onToggle={() => { keepOnlyActiveMenuOpen(menu); alignTouchMenuPopover(menu); }}>
-            <summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2zM3.5 10h18" /></svg><span>File</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
-            <div class="system-menu-popover">
-              <div class="menu-file-label">{workspaceArea() === "planning" ? planningPath() ? displayNameForPath(planningPath()!) : "Planning" : activePath() ? fileName() : "No file open"}</div>
-              <Show when={workspaceArea() === "planning"}>
-                <button onClick={() => closeSystemMenu(() => void createPlanningFromHome())}>New plan</button>
-                <button onClick={() => closeSystemMenu(() => void openPlanningFile())}>Open plan...</button>
-                <button disabled={planningSaving() || !planningDirty() && !!planningPath()} onClick={() => closeSystemMenu(() => void savePlanningDocument())}>Save plan <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button>
-                <button disabled={planningSaving()} onClick={() => closeSystemMenu(() => void savePlanningAs())}>Save plan as...</button>
-                <button disabled={!planningPath() || planningSaving()} onClick={() => closeSystemMenu(() => { if (planningPath()) void closePlanningTab(planningPath()!); })}>Close plan</button>
-              </Show>
-              <Show when={isCanvasWorkspace()}>
-                <button onClick={() => closeSystemMenu(() => void createFile())}>New sketch <kbd>{formatShortcutBindings(shortcuts().newSketch)}</kbd></button>
-                <button onClick={() => closeSystemMenu(() => void openFile())}>Open sketch <kbd>{formatShortcutBindings(shortcuts().openSketch)}</kbd></button>
-                <button onClick={() => closeSystemMenu(() => void openFileAsView())}>Open sketch as view only</button>
-                <button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveToPath(activePath()!); })}>Save sketch <kbd>{formatShortcutBindings(shortcuts().saveSketch)}</kbd></button>
-                <button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => { if (activePath()) void saveAs(); })}>Save sketch as...</button>
-                <button disabled={!activePath() || readOnlyView()} onClick={() => closeSystemMenu(openRenameFileDialog)}>Rename sketch...</button>
-                <div class="menu-separator" />
-                <button disabled={!activePath() || documentBusy()} onClick={() => closeSystemMenu(() => void closeFile())}>Close sketch</button>
-              </Show>
-            </div>
-          </details>
-          <Show when={isCanvasWorkspace() && activePath()}>
-            <details class="menu-dropdown import-export-menu-dropdown" ref={importExportMenu} onToggle={() => { keepOnlyActiveMenuOpen(importExportMenu); alignTouchMenuPopover(importExportMenu); }}>
-              <summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8m0 0-3-3m3 3 3-3M5 14v5h14v-5M5 7H3v11h4m14-11h-2" /></svg><span>Import / Export</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
-              <div class="system-menu-popover">
-                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) void importImage(); })}>Import image...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => void importSvg())}>Import SVG...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importPdf())}>Import PDF for markup...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile(true))}>Import draw.io diagram...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void importDiagramFile())}>Import editable diagram/code...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView() || boardLocked()} onClick={() => closeSystemMenu(openWebEmbedDialog)}>Embed web page...</button>
-                <div class="menu-separator" />
-                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("png"); })}>Export PNG...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("pdf"); })}>Print preview / PDF...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView()} onClick={() => closeSystemMenu(() => { if (activePath()) openExportOptions("svg"); })}>Export SVG...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(false))}>Export interactive HTML...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView() || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportInteractiveHtml(true))}>Export clickable prototype...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("drawio"))}>Export draw.io...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("vsdx"))}>Export Visio VSDX...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => void exportEditableDiagram("excalidraw"))}>Export Excalidraw...</button>
-                <button disabled={!isCanvasWorkspace() || readOnlyView() || !elements().length || nativeBusy() || documentBusy()} onClick={() => closeSystemMenu(() => setDiagramCodeExportOpen(true))}>Export diagram code...</button>
-                <Show when={hasRetiredLibraryData(legacyLibraryData())}><button disabled={readOnlyView() || documentBusy() || nativeBusy()} onClick={() => closeSystemMenu(() => void exportRetiredLibraryArchive())}>Export retired Library data...</button></Show>
-              </div>
-            </details>
-          </Show>
-            <details class="menu-dropdown view-menu-dropdown" ref={viewMenu} onToggle={onViewMenuToggle}>
-              <summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg><span>View</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary>
-              <ViewSettingsPopover
-                accentColor={accentColor()}
-                toolbarColorChoice={toolbarColorChoice()}
-                accentOptions={UI_ACCENTS}
-                toolbarColorOptions={TOOLBAR_COLORS}
-                boardColor={boardColor()}
-                renderedBoardColor={renderedBoardColor()}
-                boardColorUsesDefault={boardColorFollowsTheme()}
-                boardLocked={boardLocked()}
-                boardColors={BOARD_COLORS.map(value => ({ value, label: BOARD_COLOR_NAMES[value] ?? value }))}
-                paperPattern={whiteboardStyle()}
-                patterns={[{ value: "plain", label: "Plain" }, { value: "dots", label: "Dots" }, { value: "small-dots", label: "Fine dots" }, { value: "lines", label: "Grid" }, { value: "small-grid", label: "Fine grid" }, { value: "ruled", label: "Ruled" }, { value: "isometric", label: "Isometric" }]}
-                namedVersionsDisabled={!activePath() || !isCanvasWorkspace()}
-                accessibility={{
-                  colorVisionMode: colorVisionMode(),
-                  colorVisionModes: COLOR_VISION_MODES.map(mode => ({ id: mode.id, label: mode.label })),
-                  safePalette: safeColorPalette(),
-                  documentDisabled: !activePath() || !isCanvasWorkspace(),
-                  onColorVisionModeChange: value => { if (isColorVisionMode(value)) setColorVisionMode(value); },
-                  onSafePaletteChange: setSafeColorPalette,
-                  onOpenOutline: () => { viewMenu.open = false; openDocumentOutline(); },
-                  onOpenNavigator: () => { viewMenu.open = false; setNavigatorOpen(true); },
-                }}
-                onAccentChange={setAccentPreference}
-                onToolbarColorChange={setToolbarColorPreference}
-                onBoardUseDefault={() => { if (!boardLocked()) { setBoardColorFollowsTheme(true); setCanvasState({ ...canvasState(), boardColorFollowsTheme: true }); setDirty(true); } }}
-                onBoardColorChange={value => { if (!boardLocked()) { setBoardColor(value); setBoardColorFollowsTheme(false); setCanvasState({ ...canvasState(), backgroundColor: value, boardColorFollowsTheme: false }); setDirty(true); } }}
-                onPaperPatternChange={setWhiteboardStylePreference}
-                onNamedVersions={openNamedSnapshots}
-              />
-            </details>
-          <GestureSettings section={gestureMenuSection()} onSectionChange={section => setGestureMenuSection(section)} oneFingerTapAction={oneFingerTapAction()} twoFingerTapAction={twoFingerTapAction()} threeFingerTapAction={threeFingerTapAction()} oneFingerDragAction={oneFingerDragAction()} twoFingerGestureAction={twoFingerGestureAction()} threeFingerGestureAction={threeFingerGestureAction()} onTapChange={(fingers, action) => setTouchTapPreference(fingers, action)} onGestureChange={(fingers, action) => setTouchGesturePreference(fingers, action)} detailsRef={element => { gestureMenu = element; }} onToggle={() => alignTouchMenuPopover(gestureMenu)} />
-          <details class="menu-dropdown help-menu" ref={helpMenu} onToggle={() => { keepOnlyActiveMenuOpen(helpMenu); alignTouchMenuPopover(helpMenu); }}><summary><svg class="touch-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.2 1.6c-1.3 1.1-1.9 1.4-1.9 3M12 17.4v.1" /></svg><span>Help</span><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg></summary><div class="system-menu-popover"><button onClick={() => closeSystemMenu(() => { setHelpSection("guide"); setHelpOpen(true); })}>Guide</button><button onClick={() => closeSystemMenu(() => setDiagramGuidesOpen(true))}>Diagram guides</button><button onClick={() => closeSystemMenu(() => { if (isWindowsPlatform()) setShortcutDialogOpen(true); else { setHelpSection("shortcuts"); setHelpOpen(true); } })}>Keyboard shortcuts <kbd>F1</kbd></button><Show when={isWindowsPlatform()}><button onClick={() => closeSystemMenu(() => setCommandPaletteOpen(true))}>Command palette <kbd>{formatShortcutBindings(shortcuts().commandPalette)}</kbd></button></Show><div class="menu-separator" /><button disabled={updateCheck() === "checking" || updateCheck() === "installing"} onClick={() => void checkForUpdates()}>{updateCheck() === "checking" ? "Checking for updates..." : "Check for updates"}</button><span class="update-menu-version">Installed version {appVersion()}</span><Show when={updateCheck() === "installing"}><span class="update-menu-status available">Installing update {updateVersion()}…</span></Show><Show when={updateCheck() === "current"}><span class="update-menu-status current">No newer release is available.</span></Show><Show when={updateCheck() === "available"}><span class="update-menu-status available">New version {updateVersion()} is available.</span><Show when={isWindowsPlatform()}><button onClick={() => void installUpdate()}>Download and install</button></Show></Show><Show when={updateCheck() === "error"}><span class="update-menu-status error">Update check or installation failed.</span></Show></div></details>
-          </WindowsMenuRail>
-          </Show>
-        </nav>
-        <Show when={!showWelcomeScreen()}><WorkspaceAreaTabs active={workspaceArea()} documentTabs={!!activePath() && isCanvasWorkspace()} onSelect={area => setWorkspaceArea(area)} /></Show>
-        <Show when={isWindowsPlatform() && activePath() && openSketchPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openSketchPaths()} activePath={activePath()} displayName={displayNameForPath} onSelect={path => { if (path !== activePath()) void loadFile(path); }} onClose={path => void closeSketchTab(path)} /></Suspense></Show>
-        <Show when={isWindowsPlatform() && workspaceArea() === "planning" && planningPath() && openPlanningPaths().length > 0}><Suspense fallback={null}><WindowsDocumentTabs paths={openPlanningPaths()} activePath={planningPath()} displayName={displayNameForPath} ariaLabel="Open Planning files" onSelect={path => { if (normalizeFileUri(path).toLowerCase() !== normalizeFileUri(planningPath() ?? "").toLowerCase()) void openRecentPlan(path); }} onClose={path => void closePlanningTab(path)} /></Suspense></Show>
-
-          <Show when={workspaceArea() === "planning" && planningPath()}><div class="top-actions"><span class={`save-status ${planningSaving() ? "is-saving" : planningDirty() ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={planningSaving() ? "Saving Planning file" : planningDirty() ? "Unsaved Planning changes" : "Planning file saved"} title={planningSavedAt() ? `Planning saved ${planningSavedAt()}` : "Planning file status"}><i /><time>{planningSavedAt() || "—"}</time></span></div></Show>
-          <Show when={isCanvasWorkspace() && activePath()}><div class="top-actions"><span class={`save-status ${saving() ? "is-saving" : (dirty() || textDraft()) ? "is-dirty" : "is-saved"}`} role="status" aria-live="polite" aria-label={status()} title={status()}><i /><time>{savedAt() || "—"}</time></span></div></Show>
+          />
+        </div>
       </header>
       </Show>
       <Show when={workspaceArea() === "planning" && planningPath()}><Suspense fallback={null}><ProjectWorkspace
@@ -9530,6 +9727,16 @@ function App() {
                           <label class="property-label inspector-fill-opacity">Fill opacity<input aria-label="Fill opacity" type="range" min="5" max="100" value={Math.round(selectedFillOpacity() * 100)} disabled={boardLocked()} onInput={event => { const value = Number(event.currentTarget.value) / 100; setFillOpacity(value); if (selectedIndices().length) updateProperty("fillOpacity", value); }} /><span>{Math.round(selectedFillOpacity() * 100)}%</span></label>
                         </div>
                       </Show>
+                      <Show when={quickHasShapeFill()}>
+                        <VisualEffectsInspector
+                          element={() => styleTargetElement() as any}
+                          disabled={boardLocked()}
+                          onGradientChange={g => updateVisualEffect("gradientFill", g)}
+                          onPatternChange={p => updateVisualEffect("patternFill", p)}
+                          onShadowChange={s => updateVisualEffect("dropShadow", s)}
+                          onBlendModeChange={m => updateVisualEffect("blendMode", m)}
+                        />
+                      </Show>
                       <Show when={quickIsConnector() && !quickShapeSelection()?.straightOnly}>
                         <label class="property-label">Connector route<select aria-label="Connector route" value={quickCurrentRoute()} disabled={boardLocked()} onChange={event => { const route = event.currentTarget.value; if (quickElementType() === "arrow") { if (styleTargetElement()?.type === "arrow") updateProperty("arrowRoute", route); else setArrowRoute(route as ArrowRoute); } else if (styleTargetElement()?.type === "line") updateProperty("lineRoute", route); else setLineRoute(route as LineRoute); }}>
                           {quickRouteChoices().map(route => <option value={route.value}>{route.label}</option>)}
@@ -9766,6 +9973,11 @@ function App() {
         <button role="menuitem" disabled={!selectedIndices().length} onClick={() => { setExportScope("selection"); openExportOptions("png"); }}>Export selection…</button>
         <button role="menuitem" disabled={boardLocked() || !selectedIndices().length} onClick={deleteSelected}>Delete <kbd>Del</kbd></button>
       </div>}</Show>
+      <Show when={radialMenu()}>{pos => <RadialContextMenu x={pos().x} y={pos().y} items={radialMenuItems()} onClose={() => setRadialMenu(null)} />}</Show>
+      <Show when={showPressureCurve() && activePath() && isCanvasWorkspace()}><PressureCurveEditor onClose={() => setShowPressureCurve(false)} /></Show>
+      <Show when={showClipboardTray() && activePath() && isCanvasWorkspace()}><InfiniteClipboardTray onClose={() => setShowClipboardTray(false)} onPaste={pasteClipboardElements} /></Show>
+      <Show when={showDrawingChallenge() && activePath() && isCanvasWorkspace()}><DrawingChallengePanel onClose={() => setShowDrawingChallenge(false)} /></Show>
+      <Show when={showSpatialBrowser()}><SpatialFileBrowser onOpenFile={path => { setShowSpatialBrowser(false); openFileByPath(path); }} onClose={() => setShowSpatialBrowser(false)} /></Show>
       <Show when={dataPanelOpen() && activePath() && isCanvasWorkspace()}><Suspense fallback={null}><DataLinkPanel sources={activeDataSources()} canEdit={!boardLocked() && !readOnlyView()} selection={dataPanelSelection()} message={dataMessage()}
         onAddFile={() => void loadDataFile()} onRefresh={id => void refreshDataSource(id)} onRemove={removeDataSource} onLink={linkSelectedObject} onUnlink={unlinkSelectedObject} onClose={() => setDataPanelOpen(false)} /></Suspense></Show>
       <Show when={playback() && activePath() && isCanvasWorkspace()}><Suspense fallback={null}><SequencePlaybackPanel steps={playback()!.steps} index={playback()!.index} playing={playback()!.playing}

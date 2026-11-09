@@ -1,0 +1,356 @@
+/* ── Topbar: Windows desktop header ── */
+
+.app-shell.platform-windows > .topbar {
+    position: relative;
+    z-index: 1300;
+    display: grid;
+    grid-template-columns: auto 1fr auto auto auto;
+    align-items: center;
+    gap: 0;
+    height: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
+    padding: 0 10px 0 14px;
+    border-bottom: 1px solid var(--theme-separator);
+    background: var(--toolbar-surface, var(--theme-surface));
+    color: var(--toolbar-ink, var(--theme-text-primary));
+    font-family: var(--font-ui);
+}
+
+/* ── Lead: logo + filename ── */
+
+.topbar .topbar-lead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding-right: 8px;
+}
+
+.topbar .topbar-logo {
+    display: block;
+    width: 26px;
+    height: 26px;
+    flex: 0 0 26px;
+    border-radius: 6px;
+}
+
+.topbar .topbar-filename {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--type-body-compact);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: -0.2px;
+}
+
+.topbar .topbar-badge {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--theme-warning) 14%, transparent);
+    color: var(--theme-warning);
+    font-size: 9px;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+}
+
+/* ── Menus ── */
+
+.topbar .topbar-menus {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    min-width: 0;
+    padding: 0 4px;
+}
+
+.topbar .topbar-menu {
+    position: relative;
+}
+
+.topbar .topbar-menu > summary {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    list-style: none;
+    padding: 5px 7px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--theme-text-secondary);
+    cursor: pointer;
+    font-size: var(--type-caption);
+    font-weight: var(--font-weight-medium);
+    transition: color 80ms, background 80ms;
+    user-select: none;
+}
+
+.topbar .topbar-menu > summary::-webkit-details-marker { display: none; }
+
+.topbar .topbar-menu > summary:hover {
+    color: var(--theme-text-primary);
+    background: var(--theme-control-hover);
+}
+
+.topbar .topbar-menu[open] > summary {
+    color: var(--theme-text-primary);
+    background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+}
+
+.topbar .topbar-menu > summary .topbar-menu-chevron {
+    width: 10px;
+    height: 10px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.4;
+}
+
+.topbar .topbar-menu > summary .topbar-menu-icon {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.6;
+}
+
+/* ── Menu popovers ── */
+
+.topbar .topbar-popover {
+    position: absolute;
+    z-index: 20;
+    left: 0;
+    top: calc(100% + 3px);
+    min-width: 200px;
+    max-width: calc(100vw - 16px);
+    padding: 4px;
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    background: var(--theme-surface-elevated);
+    box-shadow: 0 4px 16px var(--theme-shadow);
+}
+
+.topbar .topbar-popover button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--theme-text-primary);
+    text-align: left;
+    font-size: var(--type-control);
+    cursor: pointer;
+    transition: background 80ms;
+}
+
+.topbar .topbar-popover button:hover {
+    background: var(--theme-control-hover);
+}
+
+.topbar .topbar-popover button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.topbar .topbar-popover button:disabled:hover {
+    background: transparent;
+}
+
+.topbar .topbar-popover kbd {
+    color: var(--theme-text-tertiary);
+    font: var(--type-micro) var(--font-mono);
+}
+
+.topbar .topbar-popover-label {
+    overflow: hidden;
+    padding: 6px 8px 7px;
+    border-bottom: 1px solid var(--theme-separator);
+    margin-bottom: 2px;
+    color: var(--theme-text-tertiary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--type-micro);
+    font-weight: var(--font-weight-medium);
+}
+
+.topbar .topbar-popover-sep {
+    height: 1px;
+    margin: 3px 6px;
+    background: var(--theme-separator);
+}
+
+.topbar .topbar-menu-view > .topbar-popover {
+    width: 274px;
+}
+
+/* Help menu extras */
+.topbar .topbar-popover .update-menu-version {
+    display: block;
+    padding: 4px 8px 2px;
+    color: var(--theme-text-tertiary);
+    font-size: var(--type-micro);
+}
+
+.topbar .topbar-popover .update-menu-status {
+    display: block;
+    padding: 2px 8px 4px;
+    font-size: var(--type-micro);
+}
+
+.topbar .topbar-popover .update-menu-status.current { color: var(--theme-success); }
+.topbar .topbar-popover .update-menu-status.available { color: var(--theme-info); }
+.topbar .topbar-popover .update-menu-status.error { color: var(--theme-error); }
+
+/* ── Document file tabs ── */
+
+.topbar .topbar-tabs {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: 0 4px;
+}
+
+/* ── Canvas view tabs (Canvas / Diagram) ── */
+
+.topbar .topbar-view-tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 8px;
+    margin-left: auto;
+}
+
+.topbar .topbar-view-tabs button {
+    padding: 4px 10px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--theme-text-tertiary);
+    font: var(--font-weight-medium) var(--type-caption)/var(--leading-tight) var(--font-ui);
+    cursor: pointer;
+    transition: color 80ms, background 80ms;
+}
+
+.topbar .topbar-view-tabs button:hover {
+    color: var(--theme-text-primary);
+    background: var(--theme-control-hover);
+}
+
+.topbar .topbar-view-tabs button.active {
+    color: var(--theme-text-primary);
+    background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+    font-weight: var(--font-weight-semibold);
+}
+
+.topbar .topbar-view-tabs button:focus-visible {
+    outline: 2px solid var(--ui-accent);
+    outline-offset: 1px;
+}
+
+/* ── Trailing: save status + settings ── */
+
+.topbar .topbar-trail {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding-left: 6px;
+}
+
+.topbar .topbar-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font: var(--type-micro) var(--font-mono);
+    color: var(--theme-text-tertiary);
+    white-space: nowrap;
+}
+
+.topbar .topbar-save i {
+    display: block;
+    width: 6px;
+    height: 6px;
+    flex: 0 0 6px;
+    border-radius: 50%;
+    background: var(--theme-success);
+    opacity: 0.7;
+    transition: background 200ms, opacity 200ms;
+}
+
+.topbar .topbar-save.is-dirty i {
+    background: var(--theme-warning);
+    opacity: 0.9;
+}
+
+.topbar .topbar-save.is-saving i {
+    background: var(--theme-warning);
+    animation: topbar-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes topbar-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+/* ── Override old topbar wrapper classes ── */
+
+.app-shell.platform-windows > .topbar .header-leading,
+.app-shell.platform-windows > .topbar .app-menus,
+.app-shell.platform-windows > .topbar .app-menu-rail,
+.app-shell.platform-windows > .topbar .app-menu-items,
+.app-shell.platform-windows > .topbar .top-actions {
+    display: contents;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 900px) {
+    .topbar .topbar-filename { max-width: 120px; }
+}
+
+@media (max-width: 700px) {
+    .app-shell.platform-windows > .topbar {
+        grid-template-columns: auto 1fr auto auto;
+        padding: 0 8px;
+        height: 40px;
+        min-height: 40px;
+        flex: 0 0 40px;
+    }
+
+    .topbar .topbar-filename { max-width: 80px; font-size: var(--type-caption); }
+    .topbar .topbar-menu > summary { padding: 4px 5px; font-size: var(--type-micro); }
+    .topbar .topbar-tabs { display: none; }
+    .topbar .topbar-view-tabs { padding: 0 4px; }
+    .topbar .topbar-view-tabs button { padding: 3px 7px; font-size: var(--type-micro); }
+    .topbar .topbar-save time { display: none; }
+    .topbar .topbar-trail { gap: 6px; padding-left: 4px; }
+}
+
+@media (max-width: 480px) {
+    .app-shell.platform-windows > .topbar {
+        grid-template-columns: auto 1fr auto;
+        padding: 0 6px;
+        height: 38px;
+        min-height: 38px;
+        flex: 0 0 38px;
+    }
+    .topbar .topbar-lead { gap: 6px; }
+    .topbar .topbar-logo { width: 22px; height: 22px; flex-basis: 22px; }
+    .topbar .topbar-filename { max-width: 60px; font-size: var(--type-micro); }
+    .topbar .topbar-menus { gap: 0; padding: 0 2px; }
+    .topbar .topbar-menu > summary { padding: 3px 4px; font-size: 10px; }
+    .topbar .topbar-view-tabs { display: none; }
+    .topbar .topbar-popover { min-width: min(200px, calc(100vw - 16px)); max-width: calc(100vw - 16px); }
+}

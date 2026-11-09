@@ -174,13 +174,13 @@
     cursor: not-allowed;
 }
 
-/* Shared elevation keeps floating controls distinct in both color modes. */
+/* Shared elevation keeps floating controls distinct in both color modes.
+   .style-pane and .view-settings-popover own their own box-shadow in
+   full-inspector.css and toolbar-and-view-popovers.css respectively. */
 .app-shell :is(
     .system-menu-popover,
     .tool-options,
-    .style-pane,
     .floating-layer-panel,
-    .view-settings-popover,
     .app-settings-popover,
     .gesture-settings-popover,
     .mobile-command-panel,
@@ -189,6 +189,9 @@
     .component-library-panel,
     .canvas-context-menu
 ) {
+    box-shadow: var(--theme-elevation-popover);
+}
+.app-shell .style-pane.quick-style-mode {
     box-shadow: var(--theme-elevation-popover);
 }
 

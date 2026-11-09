@@ -14,13 +14,13 @@
   line-height: var(--leading-compact);
 }
 
-:is(.system-menu-popover, .view-settings-popover, .app-settings-popover) {
+:is(.system-menu-popover, .app-settings-popover) {
   font-family: var(--menu-font-family);
   font-size: var(--menu-font-size);
   line-height: var(--menu-line-height);
 }
 
-:is(.system-menu-popover, .view-settings-popover, .app-settings-popover) :is(button, input, select, textarea) {
+:is(.system-menu-popover, .app-settings-popover) :is(button, input, select, textarea) {
   font-family: var(--menu-font-family);
   font-size: var(--menu-font-size);
   font-weight: var(--font-weight-medium);

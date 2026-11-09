@@ -1,305 +1,202 @@
-/* Adapt the same workspace for compact windows, tablets and touch phones. */
-html,
-body,
-#root {
-    min-width: 0;
-    min-height: 0;
+/* ── Platform responsive ──
+   Desktop-first. Three breakpoints: tablet (≤900), small (≤620), phone (≤420).
+   Only rules here — no decoration, no panel redesign. */
+
+/* ── Foundation: prevent horizontal overflow ── */
+
+html, body, #root {
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
-.canvas-wrap,
-.drawing-canvas {
-    min-width: 0;
-    min-height: 0;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
+
+/* ── Floating panels: always stay inside viewport ── */
+
+.floating-layer-panel,
+.style-pane,
+.component-editor-dock,
+.app-settings-popover,
+.view-settings-popover,
+.clipboard-tray,
+.pressure-curve-editor,
+.drawing-challenge-panel,
+.canvas-context-menu {
+  max-width: calc(100vw - 16px);
+}
+
+.menu-dropdown .system-menu-popover {
+  max-width: calc(100vw - 16px);
+  max-height: min(76dvh, 620px);
+  overflow-y: auto;
+}
+
+/* ── ≤ 900px — Tablet / compact window / coarse pointer ── */
 
 @media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-    .topbar {
-        flex: 0 0 auto;
-        min-height: 50px;
-        height: auto;
-        gap: 5px;
-        padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
-    }
 
-    .header-leading {
-        flex: 0 1 auto;
-        min-width: 0;
-        max-width: min(34vw, 230px);
-    }
+  /* Topbar */
+  .topbar {
+    min-height: 48px;
+    height: auto;
+    gap: 4px;
+    padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+  }
+  .header-leading { max-width: min(34vw, 230px); }
+  .topbar .brand > span { max-width: min(28vw, 180px); font-size: var(--type-control); }
+  .app-menus { gap: 0; margin: 0; }
+  .topbar .menu-dropdown > summary { min-height: 38px; padding: 4px 6px; font-size: var(--type-caption); }
+  .topbar .save-status { padding: 6px; }
+  .topbar .save-status time { display: none; }
 
-    .topbar .brand {
-        min-width: 0;
-        gap: 7px;
-    }
+  /* Page tabs */
+  .page-tabs {
+    top: 8px;
+    right: 8px;
+    max-width: min(76vw, calc(100% - 68px));
+    padding: 3px;
+    border-radius: 12px;
+  }
+  .page-tab-list { max-width: min(54vw, 380px); }
+  .page-tab { height: 36px; max-width: 130px; padding: 0 8px; font-size: var(--type-caption); }
 
-    .topbar .brand > span {
-        max-width: min(31vw, 190px);
-        font-size: var(--type-control);
-    }
+  /* Quick style panel */
+  .style-pane.quick-style-mode {
+    bottom: calc(env(safe-area-inset-bottom) + 70px);
+    left: 8px;
+    right: auto;
+    max-height: min(60vh, 500px);
+  }
+  .style-pane .quick-style-popover {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom) + 70px);
+    right: 8px;
+    left: auto;
+    max-width: min(340px, calc(100vw - 16px));
+    max-height: min(46vh, 380px);
+    overflow: auto;
+    transform: none;
+  }
 
-    .app-menus {
-        flex: 0 0 auto;
-        gap: 0;
-        margin: 0;
-    }
+  /* Zoom + help */
+  .canvas-zoom-reset {
+    right: 10px;
+    bottom: calc(env(safe-area-inset-bottom) + 68px);
+    left: auto;
+    transform: none;
+  }
+  .canvas-help { display: none; }
 
-    .topbar .menu-dropdown > summary {
-        min-height: 40px;
-        gap: 3px;
-        padding: 5px 6px;
-        font-size: var(--type-caption);
-    }
-
-    .topbar .menu-dropdown > summary svg {
-        width: 11px;
-        height: 11px;
-    }
-
-    .top-actions {
-        flex: 0 0 auto;
-        gap: 4px;
-    }
-
-    .topbar .save-status {
-        min-width: 19px;
-        justify-content: center;
-        margin: 0;
-        padding: 6px;
-    }
-
-    .topbar .save-status time {
-        display: none;
-    }
-
-    .canvas-wrap {
-        flex: 1 1 auto;
-    }
-
-    .page-tabs {
-        top: 8px;
-        right: 8px;
-        bottom: auto;
-        max-width: min(76vw, calc(100% - 68px));
-        padding: 3px;
-        border-radius: 12px;
-    }
-
-    .page-tab-list {
-        max-width: min(54vw, 380px);
-    }
-
-    .page-tab {
-        height: 36px;
-        max-width: 130px;
-        padding: 0 8px;
-        font-size: var(--type-caption);
-    }
-
-    .page-tabs > button,
-    .page-menu > summary {
-        min-width: 38px;
-        min-height: 38px;
-        padding: 6px 9px;
-    }
-
-    .style-pane.quick-style-mode {
-        top: auto;
-        bottom: calc(env(safe-area-inset-bottom) + 70px);
-        left: 8px;
-        max-height: min(60vh, 500px);
-    }
-
-    .style-pane .quick-style-popover {
-        position: fixed;
-        top: auto;
-        right: 8px;
-        bottom: calc(env(safe-area-inset-bottom) + 70px);
-        width: auto;
-        max-width: 340px;
-        max-height: min(46vh, 380px);
-        overflow: auto;
-        transform: none;
-    }
-
-    .canvas-zoom-reset {
-        right: 10px;
-        bottom: calc(env(safe-area-inset-bottom) + 68px);
-        left: auto;
-        transform: none;
-        min-height: 38px;
-    }
-
-    .canvas-help {
-        display: none;
-    }
-
-    .floating-layer-panel {
-        top: auto;
-        right: 8px;
-        bottom: calc(env(safe-area-inset-bottom) + 70px);
-        width: auto;
-        max-height: min(52vh, 440px);
-    }
-
-    .canvas-context-menu {
-        max-width: calc(100vw - 16px);
-        max-height: 65dvh;
-        overflow-y: auto;
-    }
-
-    .menu-dropdown .system-menu-popover {
-        top: calc(100% + 4px);
-        max-width: calc(100vw - 16px);
-        max-height: min(76dvh, 620px);
-        overflow-y: auto;
-    }
+  /* Layer panel */
+  .floating-layer-panel {
+    right: 8px;
+    bottom: calc(env(safe-area-inset-bottom) + 70px);
+    max-height: min(52vh, 440px);
+  }
 }
 
-@media (max-width: 560px) {
-    .topbar {
-        min-height: 48px;
-        gap: 2px;
-        padding-top: 2px;
-        padding-bottom: 2px;
-    }
+/* ── ≤ 620px — Small tablet ── */
 
-    .topbar .brand-mark-image {
-        width: 21px;
-        height: 21px;
-        flex-basis: 21px;
-    }
+@media (max-width: 620px) {
+  .component-editor-dock:not(.collapsed) {
+    right: 6px;
+    width: min(var(--component-editor-width, 280px), calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+  }
+  .floating-layer-panel {
+    right: 6px;
+    width: min(320px, calc(100vw - 16px));
+  }
+  .style-pane { max-width: calc(100vw - 14px); }
+  .clipboard-tray { right: 6px; width: min(240px, calc(100vw - 16px)); }
+  .pressure-curve-editor { left: 6px; width: min(220px, calc(100vw - 16px)); }
+  .drawing-challenge-panel { left: 6px; width: min(240px, calc(100vw - 16px)); }
+}
 
-    .header-leading {
-        max-width: 31vw;
-    }
+/* ── ≤ 420px — Phone ── */
 
-    .topbar .brand > span {
-        max-width: 25vw;
-        font-size: var(--type-caption);
-    }
+@media (max-width: 420px) {
+  .topbar .brand > span { max-width: 25vw; font-size: var(--type-caption); }
+  .topbar .menu-dropdown > summary { padding: 3px 4px; font-size: var(--type-micro); }
 
-    .topbar .menu-dropdown > summary {
-        gap: 1px;
-        padding-right: 4px;
-        padding-left: 4px;
-        font-size: var(--type-micro);
-    }
+  .component-editor-dock:not(.collapsed),
+  .floating-layer-panel,
+  .style-pane.quick-style-mode {
+    left: 4px;
+    right: 4px;
+    width: auto;
+  }
 
-    .page-tabs {
-        max-width: calc(100% - 68px);
-    }
+  .clipboard-tray { left: 4px; right: 4px; width: auto; }
+  .pressure-curve-editor { left: 4px; right: 4px; width: auto; }
+  .drawing-challenge-panel { left: 4px; right: 4px; width: auto; }
 
-    .page-tab-list {
-        max-width: min(48vw, 250px);
-    }
+  .style-pane .quick-style-popover {
+    left: 8px;
+    right: 8px;
+    max-width: none;
+  }
 
-    .style-pane .quick-style-popover {
-        left: 60px;
-        right: 7px;
-        max-height: min(43vh, 340px);
-    }
+  .canvas-minimap {
+    right: 4px;
+    width: min(160px, 45vw);
+  }
+}
 
-    .tool-deck .tool-icon-button,
-    .tool-deck .tool-collapse {
-        width: 40px;
-        min-width: 40px;
-    }
+/* ── Short + narrow — landscape phones ── */
+
+@media (max-width: 900px) and (orientation: landscape) {
+  .style-pane.quick-style-mode {
+    right: 8px;
+    bottom: calc(env(safe-area-inset-bottom) + 66px);
+    left: 8px;
+    width: auto;
+    height: 48px;
+    max-height: 48px;
+    padding: 4px 7px;
+    overflow: visible;
+  }
+  .style-pane.quick-style-mode > .quick-style-panel {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    gap: 7px;
+    overflow: visible;
+  }
+  .style-pane .quick-style-heading { flex: 0 0 34px; height: 36px; margin: 0; }
+  .style-pane .quick-style-controls {
+    flex: 1 1 auto;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .style-pane .quick-style-controls::-webkit-scrollbar { display: none; }
+  .style-pane .quick-style-icon { width: 38px; height: 38px; flex: 0 0 38px; }
+  .style-pane .quick-style-popover {
+    bottom: calc(env(safe-area-inset-bottom) + 122px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    max-height: min(38dvh, 190px);
+  }
+  .floating-layer-panel {
+    bottom: calc(env(safe-area-inset-bottom) + 122px);
+    max-height: min(44dvh, 220px);
+  }
+  .canvas-zoom-reset { top: 8px; right: auto; bottom: auto; left: 8px; }
+  .error-toast { right: 8px; bottom: calc(env(safe-area-inset-bottom) + 66px); left: 8px; max-width: none; }
 }
 
 @media (max-height: 540px) and (max-width: 900px) {
-    .style-pane.quick-style-mode {
-        bottom: calc(env(safe-area-inset-bottom) + 62px);
-    }
-
-    .style-pane .quick-style-popover {
-        bottom: calc(env(safe-area-inset-bottom) + 62px);
-        max-height: 45dvh;
-    }
+  .style-pane.quick-style-mode { bottom: calc(env(safe-area-inset-bottom) + 62px); }
+  .style-pane .quick-style-popover { bottom: calc(env(safe-area-inset-bottom) + 62px); max-height: 45dvh; }
 }
-
-/* Short landscape phones get two compact control rows above the canvas edge. */
-@media (max-width: 900px) and (orientation: landscape) {
-    .style-pane.quick-style-mode {
-        right: 8px;
-        bottom: calc(env(safe-area-inset-bottom) + 66px);
-        left: 8px;
-        width: auto;
-        height: 48px;
-        max-height: 48px;
-        padding: 4px 7px;
-        overflow: visible;
-    }
-
-    .style-pane.quick-style-mode > .quick-style-panel {
-        display: flex;
-        width: 100%;
-        height: 100%;
-        align-items: center;
-        gap: 7px;
-        overflow: visible;
-    }
-
-    .style-pane .quick-style-heading {
-        flex: 0 0 34px;
-        height: 36px;
-        margin: 0;
-    }
-
-    .style-pane .quick-style-controls {
-        min-width: 0;
-        flex: 1 1 auto;
-        flex-direction: row;
-        flex-wrap: nowrap;
-        justify-content: flex-start;
-        gap: 4px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        scrollbar-width: none;
-        touch-action: pan-x;
-    }
-
-    .style-pane .quick-style-controls::-webkit-scrollbar {
-        display: none;
-    }
-
-    .style-pane .quick-style-icon {
-        width: 38px;
-        height: 38px;
-        flex: 0 0 38px;
-    }
-
-    .style-pane .quick-style-popover {
-        top: auto;
-        right: 8px;
-        bottom: calc(env(safe-area-inset-bottom) + 122px);
-        left: 8px;
-        width: auto;
-        max-width: none;
-        max-height: min(38dvh, 190px);
-    }
-
-    .floating-layer-panel {
-        bottom: calc(env(safe-area-inset-bottom) + 122px);
-        max-height: min(44dvh, 220px);
-    }
-
-    .canvas-zoom-reset {
-        top: 8px;
-        right: auto;
-        bottom: auto;
-        left: 8px;
-    }
-
-    .tool-family.options-open .tool-options {
-        bottom: calc(env(safe-area-inset-bottom) + 66px);
-        max-height: min(46dvh, 230px);
-    }
-
-    .error-toast {
-        right: 8px;
-        bottom: calc(env(safe-area-inset-bottom) + 66px);
-        left: 8px;
-        max-width: none;
-    }
-}
-

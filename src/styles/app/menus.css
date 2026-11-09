@@ -510,11 +510,11 @@
     display: block;
 }
 
-.style-pane .pane-heading {
+.style-pane.quick-style-mode .pane-heading {
     font-size: var(--type-body-compact);
 }
 
-.style-pane .quiet-button {
+.style-pane.quick-style-mode .quiet-button {
     margin: 5px 4px 5px 0;
     font-size: var(--type-control);
 }

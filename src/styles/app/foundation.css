@@ -473,7 +473,6 @@ h1 em {
     height: 31px;
     flex: 0 0 31px;
 }
-
 .fill-palette .color-swatch.active {
     outline: 2px solid var(--theme-primary-border);
     outline-offset: 2px;
@@ -481,8 +480,19 @@ h1 em {
 
 .color-swatch {
     padding: 0;
+    width: 26px;
+    height: 26px;
     border: 2px solid var(--theme-border);
     border-radius: 50%;
+    transition: transform 80ms;
+}
+
+.color-swatch:hover {
+    transform: scale(1.1);
+}
+
+.color-swatch.active {
+    border-color: var(--ui-accent);
 }
 
 .fill-options {

@@ -1,0 +1,43 @@
+/* System theme: follows the OS light/dark preference via media query. */
+[data-theme="system"] {
+    color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    [data-theme="system"] {
+        --theme-background: #111113;
+        --theme-board-background: #1A1A1E;
+        --theme-surface: #1E1E22;
+        --theme-surface-elevated: #252529;
+        --theme-surface-input: #2A2A2F;
+        --theme-border: #3A3A42;
+        --theme-text-primary: #ECECF0;
+        --theme-text-secondary: #9E9EA8;
+        --theme-text-tertiary: #6C6C78;
+        --theme-primary: #6B8AFF;
+        --theme-primary-hover: #839EFF;
+        --theme-primary-muted: rgba(107, 138, 255, 0.12);
+        --theme-primary-contrast: #FFFFFF;
+        --theme-ink-on-light: #1D1D1F;
+        --theme-ink-on-dark: #ECECF0;
+        --theme-success: #4ADE80;
+        --theme-warning: #FACC15;
+        --theme-error: #F87171;
+        --theme-info: #60A5FA;
+        --theme-measurement: #FBA94C;
+        --theme-on-danger: #FFFFFF;
+        --diagram-ink: #D4D4DC;
+        --diagram-edge: #8888A0;
+        --diagram-fill: #252529;
+        --diagram-soft: #2E2E35;
+        --diagram-muted: #7A7A8A;
+        --diagram-accent: #A0A0B0;
+        --diagram-accent-blue: #6B8AFF;
+        --diagram-accent-warm: #FBA94C;
+        --theme-shadow: rgb(0 0 0 / 32%);
+        --theme-shadow-soft: rgb(0 0 0 / 18%);
+        --theme-shadow-strong: rgb(0 0 0 / 48%);
+        --theme-shadow-control: rgb(0 0 0 / 14%);
+        --theme-backdrop: rgb(0 0 0 / 52%);
+    }
+}
