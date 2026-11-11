@@ -1,9 +1,13 @@
+/* ── Foundation: resets, shell, and shared primitives ── */
+
 :root {
     font-family: var(--font-ui);
     color: var(--theme-text-primary);
-    background: var(--theme-surface);
+    background: var(--theme-background);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -35,14 +39,10 @@ button {
     cursor: pointer;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-ui);
     line-height: var(--leading-tight);
+    margin: 0;
 }
 
 h2 {
@@ -55,9 +55,7 @@ h3 {
     font-weight: var(--font-weight-semibold);
 }
 
-h4,
-h5,
-h6 {
+h4, h5, h6 {
     font-size: var(--type-control);
     font-weight: var(--font-weight-semibold);
 }
@@ -65,6 +63,8 @@ h6 {
 .app-shell :where(strong, b) {
     font-weight: var(--font-weight-bold);
 }
+
+/* ── Application shell ── */
 
 .app-shell {
     min-width: 0;
@@ -79,20 +79,22 @@ h6 {
     line-height: var(--leading-normal);
 }
 
+/* ── Topbar (base, overridden per platform) ── */
+
 .topbar {
     position: relative;
     z-index: 1300;
     min-width: 0;
     gap: 6px;
-    height: 44px;
-    min-height: 44px;
-    flex: 0 0 44px;
+    height: 42px;
+    min-height: 42px;
+    flex: 0 0 42px;
     border-bottom: 1px solid var(--theme-separator);
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 12px;
-    background: var(--theme-toolbar-surface);
+    background: var(--theme-surface);
 }
 
 .brand,
@@ -102,7 +104,7 @@ h6 {
 }
 
 .brand {
-    gap: 11px;
+    gap: 10px;
     font-size: var(--type-body);
     font-weight: var(--font-weight-bold);
     letter-spacing: -.3px;
@@ -111,26 +113,26 @@ h6 {
 .brand-mark {
     display: grid;
     place-items: center;
-    width: 25px;
-    height: 25px;
-    border-radius: 7px;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
     color: var(--theme-primary-contrast);
     background: var(--theme-primary);
     font-family: var(--font-serif);
     font-style: italic;
-    font-size: var(--type-heading);
+    font-size: var(--type-heading-small);
 }
 
 .brand-mark-image {
     display: block;
-    width: 30px;
-    height: 30px;
-    flex: 0 0 30px;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
 }
 
 .file-name {
     border-left: 1px solid var(--theme-border);
-    padding-left: 14px;
+    padding-left: 12px;
     margin-left: 4px;
     color: var(--theme-text-secondary);
     font-size: var(--type-control);
@@ -138,8 +140,10 @@ h6 {
 }
 
 .top-actions {
-    gap: 18px;
+    gap: 14px;
 }
+
+/* ── System menu ── */
 
 .system-menu {
     position: relative;
@@ -148,7 +152,7 @@ h6 {
 .system-menu summary {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     list-style: none;
     cursor: pointer;
 }
@@ -161,12 +165,24 @@ h6 {
     position: absolute;
     z-index: 20;
     left: -10px;
-    top: 42px;
-    width: 220px;
-    padding: var(--ui-space-2);
-    border: 1px solid var(--theme-border-floating);
-    border-radius: var(--ui-radius-popover);
-    background: var(--theme-surface-floating);
+    top: 40px;
+    width: 216px;
+    padding: 4px;
+    border: 0;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--theme-surface-elevated) 82%, transparent);
+    backdrop-filter: blur(40px) saturate(1.6);
+    -webkit-backdrop-filter: blur(40px) saturate(1.6);
+    box-shadow:
+        0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 8%, transparent),
+        0 4px 16px color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
+}
+
+:root[data-theme="light"] .system-menu-popover {
+    background: color-mix(in srgb, var(--theme-surface-elevated) 76%, transparent);
+    box-shadow:
+        0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 6%, transparent),
+        0 4px 20px color-mix(in srgb, var(--theme-text-primary) 6%, transparent);
 }
 
 .system-menu-popover button {
@@ -174,34 +190,35 @@ h6 {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 5px;
+    padding: 6px 8px;
     border: 0;
-    border-radius: var(--ui-radius-control);
+    border-radius: 7px;
     background: transparent;
     color: var(--theme-text-primary);
     text-align: left;
     font-size: var(--type-control);
+    transition: background-color 100ms ease;
 }
 
 .system-menu-popover button:hover {
-    background: var(--theme-control-hover);
+    background: color-mix(in srgb, var(--theme-text-primary) 7%, transparent);
 }
 
 .system-menu-popover button:disabled {
-    opacity: .4;
+    opacity: .35;
     cursor: default;
 }
 
 .system-menu-popover kbd {
-    color: var(--theme-text-secondary);
+    color: var(--theme-text-tertiary);
     font: var(--type-micro) var(--font-mono);
 }
 
 .menu-file-label {
     overflow: hidden;
-    padding: 9px 10px 10px;
-    border-bottom: 1px solid var(--theme-border);
-    color: var(--theme-text-secondary);
+    padding: 7px 8px 8px;
+    border-bottom: 1px solid var(--theme-separator);
+    color: var(--theme-text-tertiary);
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: var(--type-micro);
@@ -209,12 +226,14 @@ h6 {
 
 .menu-separator {
     height: 1px;
-    margin: 5px 4px;
+    margin: 3px 4px;
     background: var(--theme-separator);
 }
 
+/* ── Save status ── */
+
 .save-status {
-    margin-right: 7px;
+    margin-right: 6px;
 }
 
 .save-status i {
@@ -226,47 +245,56 @@ h6 {
     background: var(--theme-warning-muted);
 }
 
+/* ── Buttons ── */
+
 .quiet-button,
 .save-button {
-    border: 1px solid var(--theme-primary);
-    border-radius: 7px;
+    border: 0;
+    border-radius: 8px;
     background: var(--theme-primary);
     color: var(--theme-primary-contrast);
-    padding: 8px 14px;
+    padding: 7px 14px;
     font-size: var(--type-control);
-    font-weight: var(--font-weight-semibold);
+    font-weight: 600;
+    transition: background-color 160ms cubic-bezier(.2, .7, .4, 1),
+                transform 120ms cubic-bezier(.2, .7, .4, 1);
 }
 
 .quiet-button:hover {
-    border-color: var(--theme-border);
     color: var(--theme-text-primary);
-    background: var(--theme-surface);
+    background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+}
+
+.quiet-button:active {
+    transform: scale(0.97);
 }
 
 .save-button {
     color: var(--theme-primary-contrast);
-    border-color: var(--theme-primary);
     background: var(--theme-primary);
 }
 
 .save-button:hover {
-    background: var(--theme-primary);
+    background: var(--theme-primary-hover);
+}
+
+.save-button:active {
+    transform: scale(0.97);
 }
 
 .eyebrow {
-    margin: 0 0 13px;
-    color: var(--theme-text-secondary);
+    margin: 0 0 12px;
+    color: var(--theme-text-tertiary);
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    letter-spacing: 1.2px;
     font: var(--type-micro) var(--font-mono);
 }
 
 h1 {
-    margin: 0;
-    font-size: clamp(42px, 5vw, 62px);
+    font-size: clamp(38px, 5vw, 56px);
     line-height: var(--leading-display);
     font-weight: var(--font-weight-medium);
-    letter-spacing: -3.1px;
+    letter-spacing: -2.5px;
 }
 
 h1 em {
@@ -276,7 +304,7 @@ h1 em {
 }
 
 .save-button span {
-    padding-left: 15px;
+    padding-left: 12px;
     font-size: var(--type-heading-small);
     line-height: var(--leading-compact);
 }
@@ -284,6 +312,8 @@ h1 em {
 .zoom-reset {
     font-size: var(--type-title);
 }
+
+/* ── Canvas area ── */
 
 .canvas-wrap {
     position: relative;
@@ -313,6 +343,8 @@ h1 em {
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
 }
+
+/* ── Tool deck (floating toolbar) ── */
 
 .tool-deck {
     position: absolute;
@@ -347,12 +379,12 @@ h1 em {
     border-radius: 50%;
     fill: none;
     stroke-width: 2.4;
-    opacity: .9;
+    opacity: .8;
 }
 
-.tool-family:hover>.tool-icon-button,
-.tool-family:focus-within>.tool-icon-button,
-.tool-family.options-open>.tool-icon-button {
+.tool-family:hover > .tool-icon-button,
+.tool-family:focus-within > .tool-icon-button,
+.tool-family.options-open > .tool-icon-button {
     color: var(--theme-primary);
     border-color: var(--theme-primary-border);
     background: var(--theme-primary-muted);
@@ -384,13 +416,15 @@ h1 em {
     cursor: pointer;
 }
 
-.tool-options button>svg {
+.tool-options button > svg {
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
     stroke-linecap: round;
     stroke-linejoin: round;
 }
+
+/* ── Style pane (left property panel) ── */
 
 .style-pane {
     position: absolute;
@@ -400,8 +434,10 @@ h1 em {
     max-height: calc(100% - 36px);
     overflow-y: auto;
     border: 1px solid var(--theme-border);
-    border-radius: 12px;
+    border-radius: var(--ui-radius-panel);
     background: var(--theme-surface-elevated);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     box-shadow: var(--theme-elevation-popover);
 }
 
@@ -414,7 +450,7 @@ h1 em {
 .property-label {
     display: flex;
     flex-direction: column;
-    margin-top: 9px;
+    margin-top: 8px;
     color: var(--theme-text-secondary);
 }
 
@@ -429,18 +465,18 @@ h1 em {
     justify-content: space-between;
     align-items: center;
     border: 1px solid var(--theme-border);
-    border-radius: 7px;
+    border-radius: var(--ui-radius-control);
     background: var(--theme-surface-input);
     color: var(--theme-info);
 }
 
 .pane-group-button kbd {
-    color: var(--theme-text-secondary);
+    color: var(--theme-text-tertiary);
     font: var(--type-micro) var(--font-mono);
 }
 
 .pane-section {
-    border-bottom: 1px solid var(--theme-border);
+    border-bottom: 1px solid var(--theme-separator);
 }
 
 .pane-section:last-child {
@@ -456,22 +492,24 @@ h1 em {
 }
 
 .pane-heading span {
-    color: var(--theme-text-secondary);
+    color: var(--theme-text-tertiary);
     font: var(--type-micro) var(--font-mono);
 }
+
+/* ── Color swatches ── */
 
 .fill-palette {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
 }
 
 .fill-palette .color-swatch,
 .fill-palette .custom-color-swatch {
-    width: 31px;
-    height: 31px;
-    flex: 0 0 31px;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
 }
 .fill-palette .color-swatch.active {
     outline: 2px solid var(--theme-primary-border);
@@ -480,15 +518,15 @@ h1 em {
 
 .color-swatch {
     padding: 0;
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     border: 2px solid var(--theme-border);
     border-radius: 50%;
     transition: transform 80ms;
 }
 
 .color-swatch:hover {
-    transform: scale(1.1);
+    transform: scale(1.12);
 }
 
 .color-swatch.active {
@@ -497,9 +535,9 @@ h1 em {
 
 .fill-options {
     display: flex;
-    padding: 3px;
+    padding: 2px;
     border: 1px solid var(--theme-border);
-    border-radius: 7px;
+    border-radius: var(--ui-radius-control);
     background: var(--theme-surface-elevated);
 }
 
@@ -515,6 +553,8 @@ h1 em {
     color: var(--theme-primary);
     background: var(--theme-primary-muted);
 }
+
+/* ── Canvas text editor ── */
 
 .canvas-text-editor {
     position: absolute;
@@ -538,7 +578,7 @@ h1 em {
 
 .canvas-text-editor:empty::before {
     content: attr(data-placeholder);
-    color: var(--theme-text-secondary);
+    color: var(--theme-text-tertiary);
     pointer-events: none;
 }
 
@@ -546,7 +586,7 @@ h1 em {
     position: absolute;
     right: 20px;
     pointer-events: none;
-    color: var(--theme-text-secondary);
+    color: var(--theme-text-tertiary);
     font: var(--type-micro) var(--font-mono);
 }
 
@@ -555,18 +595,20 @@ h1 em {
     color: var(--theme-text-tertiary);
 }
 
+/* ── Error toast ── */
+
 .error-toast {
     position: fixed;
-    right: 20px;
-    bottom: 20px;
+    right: 16px;
+    bottom: 16px;
     z-index: 5;
-    max-width: 440px;
+    max-width: 420px;
     display: flex;
-    gap: 14px;
+    gap: 12px;
     align-items: center;
-    padding: 13px 15px;
+    padding: 12px 14px;
     border: 1px solid var(--theme-error-border);
-    border-radius: 8px;
+    border-radius: var(--ui-radius-menu);
     background: var(--theme-error-muted);
     color: var(--theme-error);
     font-size: var(--type-control);

@@ -1,96 +1,119 @@
-/* Readable property and layer controls */
+/* ── Inspector: Apple-inspired property panel ── */
+
 .style-pane {
-    width: 280px;
+    width: 272px;
     padding: 10px 12px 12px;
 }
 
-/* full-style-mode is owned by full-inspector.css */
-
 .pane-section {
-    padding: 10px 0;
+    padding: 8px 0;
 }
 
 .pane-heading {
     font-size: var(--type-control);
-    font-weight: var(--font-weight-bold);
+    font-weight: 600;
+    letter-spacing: -0.01em;
     margin-bottom: 8px;
+    color: var(--theme-text-primary);
 }
 
 .pane-heading span {
     font-size: var(--type-caption);
+    color: var(--theme-text-secondary);
+    font-weight: 500;
 }
+
+/* ── Property controls ── */
 
 .property-label {
     font-size: var(--type-control);
     gap: 4px;
+    color: var(--theme-text-secondary);
 }
 
 .property-label input,
 .property-label select {
-    height: 34px;
-    padding: 0 9px;
-    border: 1px solid var(--theme-border);
-    border-radius: 7px;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 80%, transparent);
+    border-radius: 8px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
     font-size: var(--type-control);
-    transition: border-color 80ms;
+    transition: border-color 160ms cubic-bezier(.2, .7, .4, 1),
+                box-shadow 160ms cubic-bezier(.2, .7, .4, 1);
 }
 
 .property-label input:focus,
 .property-label select:focus {
     border-color: var(--ui-accent);
-    outline: 2px solid color-mix(in srgb, var(--ui-accent) 20%, transparent);
-    outline-offset: -1px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 12%, transparent);
+    outline: none;
+}
+
+:root[data-theme="light"] .property-label input:focus,
+:root[data-theme="light"] .property-label select:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 10%, transparent);
 }
 
 .property-label input[type="range"] {
     height: auto;
     padding: 0;
     border: 0;
+    box-shadow: none;
     outline: none;
+    accent-color: var(--ui-accent);
 }
 
-/* .color-swatch base is in foundation.css */
-
 .fill-options button {
-    padding: 7px 6px;
+    padding: 6px 5px;
     font-size: var(--type-control);
 }
 
 .pane-group-button {
     font-size: var(--type-body-compact);
-    padding: 11px;
+    padding: 10px;
+    border-radius: 8px;
+    transition: background-color 140ms ease;
 }
+
+/* ── Format row ── */
 
 .format-row {
     display: flex;
-    gap: 7px;
-    margin: 9px 0;
+    gap: 4px;
+    margin: 8px 0;
 }
 
 .format-row button {
     flex: 1;
-    min-height: 36px;
-    border: 1px solid var(--theme-border);
-    border-radius: 7px;
+    min-height: 32px;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent);
+    border-radius: 8px;
     background: var(--theme-surface-input);
     color: var(--theme-text-primary);
     font-size: var(--type-body-compact);
+    transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.format-row button:hover {
+    background: color-mix(in srgb, var(--theme-text-primary) 5%, transparent);
 }
 
 .format-row button.active {
     color: var(--theme-primary);
-    border-color: var(--theme-primary-border);
-    background: var(--theme-control-selected);
+    border-color: color-mix(in srgb, var(--theme-primary) 40%, transparent);
+    background: color-mix(in srgb, var(--theme-primary) 8%, transparent);
 }
+
+/* ── Layer list ── */
 
 .layer-list {
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 3px;
     min-height: 0;
-    padding: 12px 1px 1px;
+    padding: 8px 0;
 }
 
 .layer-row {
@@ -98,25 +121,30 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     min-width: 0;
-    gap: 7px;
-    padding: 5px;
-    border: 1px solid var(--layer-border, var(--theme-border));
-    border-radius: 11px;
-    background: var(--layer-surface, var(--theme-surface));
+    gap: 6px;
+    padding: 4px 6px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    transition: background-color 140ms ease;
+}
+
+.layer-row:hover {
+    background: color-mix(in srgb, var(--theme-text-primary) 4%, transparent);
 }
 
 .layer-row.selected {
-    border-color: var(--ui-accent-border, var(--theme-primary-border));
-    background: var(--ui-accent-soft, var(--theme-primary-muted));
+    border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent);
+    background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
 }
 
 .layer-row .layer-name {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
     min-width: 0;
-    min-height: 45px;
-    padding: 4px 6px;
+    min-height: 40px;
+    padding: 3px 4px;
     border: 0;
     border-radius: 8px;
     background: transparent;
@@ -126,23 +154,23 @@
 }
 
 .layer-row .layer-name:hover {
-    background: color-mix(in srgb, currentColor 5%, transparent);
+    background: color-mix(in srgb, currentColor 4%, transparent);
 }
 
 .layer-type-icon {
     display: grid;
-    flex: 0 0 34px;
-    width: 34px;
-    height: 34px;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
     place-items: center;
-    border-radius: 10px;
-    color: var(--ui-accent, var(--theme-info));
-    background: var(--ui-accent-soft, var(--theme-surface-hover));
+    border-radius: 8px;
+    color: var(--ui-accent);
+    background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
 }
 
 .layer-type-icon svg {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.5;
@@ -153,7 +181,7 @@
 .layer-copy {
     display: grid;
     min-width: 0;
-    gap: 3px;
+    gap: 2px;
 }
 
 .layer-copy strong,
@@ -165,17 +193,20 @@
 
 .layer-copy strong {
     font-size: var(--type-control);
-    font-weight: var(--font-weight-semibold);
+    font-weight: 600;
+    letter-spacing: -0.01em;
 }
 
 .layer-copy small {
-    color: var(--layer-muted, var(--theme-text-secondary));
+    color: var(--theme-text-tertiary);
     font-size: var(--type-micro);
 }
 
+/* ── Save status ── */
+
 .save-status i {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
 }
 
 .save-status.is-dirty {
@@ -190,60 +221,74 @@
     background: var(--theme-success-muted);
 }
 
+/* ── Geometry grid ── */
+
 .geometry-property-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 6px;
 }
 
 .geometry-property-grid label {
     display: grid;
     min-width: 0;
-    gap: 4px;
-    color: var(--theme-text-secondary);
+    gap: 3px;
+    color: var(--theme-text-tertiary);
     font-size: var(--type-micro);
-    font-weight: var(--font-weight-semibold);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
 }
 
 .geometry-property-grid input {
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
-    min-height: 32px;
-    padding: 5px 7px;
-    border: 1px solid var(--theme-border);
-    border-radius: 5px;
+    min-height: 28px;
+    padding: 4px 6px;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 70%, transparent);
+    border-radius: 7px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
     font: inherit;
     font-size: var(--type-caption);
+    font-variant-numeric: tabular-nums;
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.geometry-property-grid input:focus {
+    border-color: var(--ui-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 12%, transparent);
+    outline: none;
 }
 
 .geometry-properties .connector-dimension-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-top: 8px;
+    margin-top: 6px;
 }
 
 .geometry-properties .connector-position-grid,
 .geometry-properties .geometry-property-grid + .geometry-property-grid {
-    margin-top: 8px;
+    margin-top: 6px;
 }
 
-.geometry-properties>.quiet-button {
+.geometry-properties > .quiet-button {
     width: 100%;
-    margin-top: 8px;
+    margin-top: 6px;
 }
 
 @media (max-width: 760px) {
     .style-pane {
-        width: min(288px, calc(100vw - 30px));
+        width: min(280px, calc(100vw - 30px));
     }
 }
 
+/* ── Component navigation disclosure ── */
+
 .component-navigation-details {
-    margin-top: 8px;
+    margin-top: 6px;
     padding: 0;
-    border-top: 1px solid var(--theme-border);
+    border-top: 1px solid var(--theme-separator);
 }
 
 .component-navigation-details > summary {
@@ -251,32 +296,61 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 42px;
+    min-height: 38px;
     color: var(--theme-text-primary);
     font-size: var(--type-control);
-    font-weight: var(--font-weight-semibold);
+    font-weight: 600;
     cursor: pointer;
     list-style: none;
+    transition: color 140ms ease;
+}
+
+.component-navigation-details > summary:hover {
+    color: var(--ui-accent);
 }
 
 .component-navigation-details > summary::-webkit-details-marker { display: none; }
-.component-navigation-details > summary::after { content: "+"; color: var(--theme-text-secondary); font-size: var(--type-heading-small); }
-.component-navigation-details[open] > summary::after { content: "−"; }
-.component-navigation-details > .pane-section { margin: 0; padding: 6px 0; }
+.component-navigation-details > summary::after {
+    content: "+";
+    color: var(--theme-text-tertiary);
+    font-size: var(--type-heading-small);
+    transition: transform 200ms cubic-bezier(.2, .7, .4, 1);
+}
+.component-navigation-details[open] > summary::after { content: "\2212"; }
+.component-navigation-details > .pane-section { margin: 0; padding: 4px 0; }
+
 .relationship-properties > summary.inspector-disclosure-summary,
 .geometry-properties > summary.inspector-disclosure-summary,
-.geometry-behavior-panel > summary.inspector-disclosure-summary { display: flex; min-height: 34px; align-items: center; justify-content: space-between; color: var(--theme-text-secondary); font-size: var(--type-micro); font-weight: var(--font-weight-semibold); cursor: pointer; list-style: none; }
+.geometry-behavior-panel > summary.inspector-disclosure-summary {
+    display: flex;
+    min-height: 30px;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--theme-text-tertiary);
+    font-size: var(--type-micro);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    cursor: pointer;
+    list-style: none;
+    transition: color 140ms ease;
+}
+.relationship-properties > summary.inspector-disclosure-summary:hover,
+.geometry-properties > summary.inspector-disclosure-summary:hover,
+.geometry-behavior-panel > summary.inspector-disclosure-summary:hover {
+    color: var(--theme-text-secondary);
+}
 .relationship-properties > summary.inspector-disclosure-summary::-webkit-details-marker,
 .geometry-properties > summary.inspector-disclosure-summary::-webkit-details-marker,
 .geometry-behavior-panel > summary.inspector-disclosure-summary::-webkit-details-marker { display: none; }
 .relationship-properties > summary.inspector-disclosure-summary::after,
 .geometry-properties > summary.inspector-disclosure-summary::after,
-.geometry-behavior-panel > summary.inspector-disclosure-summary::after { content: "+"; color: var(--theme-text-secondary); font-size: var(--type-heading-small); }
+.geometry-behavior-panel > summary.inspector-disclosure-summary::after { content: "+"; color: var(--theme-text-tertiary); font-size: var(--type-heading-small); }
 .relationship-properties[open] > summary.inspector-disclosure-summary::after,
 .geometry-properties[open] > summary.inspector-disclosure-summary::after,
-.geometry-behavior-panel[open] > summary.inspector-disclosure-summary::after { content: "−"; }
+.geometry-behavior-panel[open] > summary.inspector-disclosure-summary::after { content: "\2212"; }
 .geometry-properties > summary.inspector-disclosure-summary { margin: 0; }
-.geometry-properties[open] > summary.inspector-disclosure-summary { margin-bottom: 10px; }
+.geometry-properties[open] > summary.inspector-disclosure-summary { margin-bottom: 8px; }
 .geometry-behavior-panel[open] > summary.inspector-disclosure-summary { margin-bottom: 4px; }
 .nested-page-link { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
 .nested-page-link > span { min-width: 0; overflow-wrap: anywhere; color: var(--theme-text-secondary); font-size: var(--type-caption); }

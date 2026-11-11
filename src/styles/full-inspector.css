@@ -1,5 +1,4 @@
-/* Full inspector — compact properties panel
-   Must override base styles from inspector.css, ui-overrides.css, foundation.css */
+/* Full inspector — Apple-inspired compact properties panel */
 
 .style-pane.full-style-mode {
   box-sizing: border-box;
@@ -11,11 +10,24 @@
   flex-direction: column;
   overflow: hidden;
   padding: 0;
-  border: 1px solid var(--theme-border);
-  border-radius: 6px;
+  border: 0;
+  border-radius: 14px;
   color: var(--theme-text-primary);
-  background: var(--theme-surface-elevated);
-  box-shadow: 0 1px 4px var(--theme-shadow);
+  background: color-mix(in srgb, var(--theme-surface-elevated) 82%, transparent);
+  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 8%, transparent),
+    0 2px 8px color-mix(in srgb, var(--theme-text-primary) 8%, transparent),
+    0 12px 32px color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
+}
+
+:root[data-theme="light"] .style-pane.full-style-mode {
+  background: color-mix(in srgb, var(--theme-surface-elevated) 76%, transparent);
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 6%, transparent),
+    0 2px 6px color-mix(in srgb, var(--theme-text-primary) 5%, transparent),
+    0 12px 40px color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
 }
 
 .style-pane.full-style-mode.mobile-properties-collapsed {
@@ -54,14 +66,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--theme-border);
-  background: var(--theme-surface-elevated);
+  padding: 7px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent);
+  background: color-mix(in srgb, var(--theme-surface-elevated) 70%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .full-inspector-header strong {
   font-size: 12px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .full-inspector-header .full-inspector-close {
@@ -71,14 +86,18 @@
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--theme-text-tertiary);
   background: transparent;
   cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease;
 }
 .full-inspector-header .full-inspector-close:hover {
   color: var(--theme-text-primary);
-  background: var(--theme-control-hover);
+  background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+}
+.full-inspector-header .full-inspector-close:active {
+  background: color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
 }
 .full-inspector-header .full-inspector-close svg {
   width: 12px;
@@ -111,21 +130,21 @@
 /* ── Sections ── */
 
 .full-inspector .pane-section {
-  padding: 6px 10px 8px;
-  border-bottom: 1px solid var(--theme-border);
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-separator) 50%, transparent);
 }
 .full-inspector .pane-section:last-child { border-bottom: 0; }
 
 .full-inspector .inspector-section-heading {
-  margin: 0 0 4px;
+  margin: 0 0 5px;
   color: var(--theme-text-tertiary);
   font-size: 9px;
   font-weight: 600;
-  letter-spacing: .04em;
+  letter-spacing: .05em;
   text-transform: uppercase;
 }
 
-/* ── Property rows — override base inspector.css ── */
+/* ── Property rows ── */
 
 .full-inspector .property-label {
   display: grid;
@@ -143,28 +162,30 @@
   font-weight: 500;
 }
 
-/* Override base input sizing from inspector.css (.property-label input height:34px) */
 .full-inspector .property-label input,
 .full-inspector .property-label select {
   height: 28px;
-  padding: 2px 6px;
-  border: 1px solid var(--theme-border);
-  border-radius: 4px;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent);
+  border-radius: 7px;
   color: var(--theme-text-primary);
   background: var(--theme-surface-input);
   font-size: 11px;
   font-family: var(--font-ui);
-  transition: border-color 80ms;
+  transition: border-color 160ms cubic-bezier(.2, .7, .4, 1),
+              box-shadow 160ms cubic-bezier(.2, .7, .4, 1);
 }
 .full-inspector .property-label input:focus,
 .full-inspector .property-label select:focus {
   border-color: var(--ui-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 12%, transparent);
   outline: none;
 }
 .full-inspector .property-label input[type="range"] {
   height: auto;
   padding: 0;
   border: 0;
+  box-shadow: none;
   outline: none;
   accent-color: var(--ui-accent);
 }
@@ -176,7 +197,7 @@
   box-sizing: border-box;
 }
 
-/* ── Toggle switches — override base .component-state-control (38px, 8px margin) ── */
+/* ── Toggle switches ── */
 
 .full-inspector .component-state-control {
   min-height: 26px;
@@ -189,19 +210,30 @@
   flex: 0 0 16px;
   width: 16px;
   height: 16px;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 .full-inspector .component-state-control > span.component-switch {
-  flex-basis: 32px;
-  width: 32px;
-  height: 18px;
+  flex-basis: 34px;
+  width: 34px;
+  height: 20px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--theme-text-primary) 18%, transparent);
+  transition: background-color 200ms cubic-bezier(.2, .7, .4, 1);
+}
+
+.full-inspector .component-state-control input:checked + span.component-switch {
+  background: var(--ui-accent);
 }
 
 .full-inspector .component-state-control > span.component-switch::after {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   inset: 2px auto 2px 2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.15);
+  transition: transform 200ms cubic-bezier(.2, .7, .4, 1);
 }
 
 .full-inspector .component-state-control input:checked + span.component-switch::after {
@@ -218,7 +250,7 @@
   font-weight: 500;
 }
 
-/* ── Colors — override base .color-swatch (26px) ── */
+/* ── Colors ── */
 
 .full-inspector .inspector-color-control { gap: 4px; }
 
@@ -235,7 +267,7 @@
 .full-inspector .inspector-inline-color-popover .quick-style-swatches {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(20px, 1fr));
-  gap: 2px;
+  gap: 3px;
 }
 
 .full-inspector .inspector-inline-color-popover .color-swatch {
@@ -246,8 +278,9 @@
   flex: none;
   border: 2px solid transparent;
   border-radius: 50%;
+  transition: transform 120ms cubic-bezier(.2, .7, .4, 1), border-color 120ms ease;
 }
-.full-inspector .inspector-inline-color-popover .color-swatch:hover { transform: scale(1.08); }
+.full-inspector .inspector-inline-color-popover .color-swatch:hover { transform: scale(1.12); }
 .full-inspector .inspector-inline-color-popover .color-swatch.active { border-color: var(--ui-accent); }
 
 .full-inspector .inspector-inline-color-popover .custom-color-swatch {
@@ -256,7 +289,7 @@
   min-height: 18px;
   flex: none;
   border-radius: 50%;
-  border: 2px dashed var(--theme-border);
+  border: 2px dashed color-mix(in srgb, var(--theme-border) 60%, transparent);
 }
 
 /* ── Thickness ── */
@@ -275,17 +308,21 @@
   width: 26px;
   height: 26px;
   place-items: center;
-  border: 1px solid var(--theme-border);
-  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent);
+  border-radius: 7px;
   color: var(--theme-text-secondary);
   background: transparent;
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease;
 }
 .full-inspector .thickness-tuner > button:hover:not(:disabled) {
   color: var(--theme-text-primary);
-  background: var(--theme-control-hover);
+  background: color-mix(in srgb, var(--theme-text-primary) 6%, transparent);
+}
+.full-inspector .thickness-tuner > button:active:not(:disabled) {
+  transform: scale(0.94);
 }
 .full-inspector .thickness-tuner > button:disabled { opacity: .3; cursor: default; }
 
@@ -296,8 +333,8 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
-  border: 1px solid var(--theme-border);
-  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 50%, transparent);
+  border-radius: 7px;
   background: var(--theme-surface);
 }
 
@@ -335,8 +372,9 @@
 
 .full-inspector .quick-thickness-presets button {
   min-height: 28px;
-  border-radius: 4px;
+  border-radius: 7px;
   font-size: 10px;
+  transition: background-color 140ms ease;
 }
 
 /* ── Fill ── */
@@ -347,7 +385,7 @@
   gap: 5px;
   margin-top: 6px;
   padding-top: 6px;
-  border-top: 1px solid var(--theme-border);
+  border-top: 1px solid color-mix(in srgb, var(--theme-border) 40%, transparent);
 }
 
 .full-inspector .fill-options {
@@ -359,16 +397,20 @@
   padding: 4px 6px;
   font-size: 11px;
   min-height: 26px;
-  border: 1px solid var(--theme-border);
-  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 50%, transparent);
+  border-radius: 7px;
   color: var(--theme-text-primary);
   background: var(--theme-surface-input);
   cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.full-inspector .fill-options button:hover {
+  background: color-mix(in srgb, var(--theme-text-primary) 5%, transparent);
 }
 .full-inspector .fill-options button.active {
-  border-color: var(--ui-accent-border);
-  color: var(--ui-accent-ink);
-  background: var(--ui-accent-soft);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
 }
 
 .full-inspector .inspector-fill-opacity {
@@ -391,8 +433,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 4px 0 4px 6px;
-  border-left: 2px solid var(--theme-border);
+  padding: 4px 0 4px 8px;
+  border-left: 2px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
   margin-left: 3px;
 }
 
@@ -404,8 +446,8 @@
 .full-inspector .effect-controls select {
   min-height: 24px;
   padding: 1px 4px;
-  border: 1px solid var(--theme-border);
-  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 50%, transparent);
+  border-radius: 6px;
   color: var(--theme-text-primary);
   background: var(--theme-surface-input);
   font-size: 11px;
@@ -415,7 +457,7 @@
   width: 20px;
   height: 20px;
   padding: 0;
-  border: 1px solid var(--theme-border);
+  border: 1px solid color-mix(in srgb, var(--theme-border) 50%, transparent);
   border-radius: 50%;
   background: none;
   cursor: pointer;
@@ -441,7 +483,7 @@
   height: 2px;
 }
 
-/* ── Line style / choice deck ── */
+/* ── Choice deck ── */
 
 .full-inspector .choice-deck {
   display: flex;
@@ -451,24 +493,28 @@
 .full-inspector .choice-deck button {
   min-height: 28px;
   padding: 3px 4px;
-  border: 1px solid var(--theme-border);
-  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 50%, transparent);
+  border-radius: 7px;
   font-size: 9px;
   color: var(--theme-text-primary);
   background: var(--theme-surface-input);
   cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.full-inspector .choice-deck button:hover {
+  background: color-mix(in srgb, var(--theme-text-primary) 5%, transparent);
 }
 .full-inspector .choice-deck button.active {
-  border-color: var(--ui-accent-border);
-  color: var(--ui-accent-ink);
-  background: var(--ui-accent-soft);
+  border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
 }
 .full-inspector .choice-deck button svg {
   width: 16px;
   height: 16px;
 }
 
-/* ── Corner radius buttons ── */
+/* ── Corner radius / format buttons ── */
 
 .full-inspector .format-row {
   gap: 3px;
@@ -477,8 +523,9 @@
 
 .full-inspector .format-row button {
   min-height: 28px;
-  border-radius: 4px;
+  border-radius: 7px;
   font-size: 11px;
+  transition: background-color 140ms ease;
 }
 
 /* ── Geometry grid ── */
@@ -490,7 +537,7 @@
 .full-inspector .geometry-property-grid input {
   min-height: 26px;
   padding: 3px 5px;
-  border-radius: 4px;
+  border-radius: 7px;
   font-size: 11px;
 }
 
@@ -518,5 +565,6 @@
   min-height: 26px;
   padding: 3px 8px;
   font-size: 11px;
-  border-radius: 4px;
+  border-radius: 7px;
+  transition: background-color 140ms ease;
 }

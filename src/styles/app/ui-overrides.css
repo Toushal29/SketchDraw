@@ -73,11 +73,14 @@
     width: min(356px, calc(100vw - 32px));
     max-height: min(66vh, 560px);
     overflow: hidden;
-    padding: 12px 13px 10px;
-    border: 1px solid var(--layer-border, var(--theme-border));
-    border-radius: 15px;
-    color: var(--layer-ink, var(--theme-text-primary));
-    background: var(--layer-surface, var(--theme-surface-elevated));
+    padding: 11px 12px 9px;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ui-radius-popover);
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-elevated);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: var(--theme-elevation-popover);
 }
 
 .floating-layer-panel .layer-panel-heading {
@@ -85,8 +88,8 @@
     align-items: center;
     gap: 10px;
     flex: 0 0 auto;
-    padding: 1px 1px 11px;
-    border-bottom: 1px solid var(--layer-border, var(--theme-border));
+    padding: 1px 1px 10px;
+    border-bottom: 1px solid var(--theme-separator);
 }
 
 .floating-layer-panel .layer-panel-heading>div {
@@ -102,7 +105,7 @@
 
 .floating-layer-panel .layer-panel-heading p {
     margin: 4px 0 0;
-    color: var(--layer-muted, var(--theme-text-secondary));
+    color: var(--theme-text-secondary);
     font-size: var(--type-micro);
 }
 
@@ -112,10 +115,10 @@
     height: 28px;
     padding: 0 7px;
     place-items: center;
-    border: 1px solid var(--layer-border, var(--theme-border));
+    border: 1px solid var(--theme-border);
     border-radius: 9px;
-    color: var(--layer-muted, var(--theme-text-secondary));
-    background: var(--layer-inset, var(--theme-surface-elevated));
+    color: var(--theme-text-secondary);
+    background: var(--theme-surface);
     font-size: var(--type-caption);
     font-weight: var(--font-weight-semibold);
 }
@@ -126,7 +129,7 @@
     height: 30px;
     place-items: center;
     border: 0;
-    border-radius: 8px;
+    border-radius: var(--ui-radius-menu);
     background: transparent;
     color: inherit;
     font-size: var(--type-title);
@@ -140,8 +143,8 @@
 .layer-visibility-presets {
     display: grid;
     gap: 7px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--layer-border, var(--theme-border));
+    padding: 9px 0;
+    border-bottom: 1px solid var(--theme-separator);
 }
 
 .layer-visibility-presets label,
@@ -150,7 +153,7 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
-    color: var(--layer-muted, var(--theme-text-secondary));
+    color: var(--theme-text-secondary);
     font-size: var(--type-micro);
 }
 
@@ -159,10 +162,10 @@
     min-width: 0;
     height: 30px;
     padding: 0 8px;
-    border: 1px solid var(--layer-border, var(--theme-border));
-    border-radius: 7px;
-    color: var(--layer-ink, var(--theme-text-primary));
-    background: var(--layer-inset, var(--theme-surface-elevated));
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ui-radius-control);
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
     font: inherit;
 }
 
@@ -175,10 +178,10 @@
 .layer-preset-delete {
     min-height: 30px;
     padding: 0 9px;
-    border: 1px solid var(--layer-border, var(--theme-border));
-    border-radius: 7px;
-    color: var(--layer-ink, var(--theme-text-primary));
-    background: var(--layer-inset, var(--theme-surface-elevated));
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ui-radius-control);
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
     font: inherit;
     cursor: pointer;
 }
@@ -186,7 +189,7 @@
 .layer-preset-delete {
     justify-self: start;
     min-height: 26px;
-    color: var(--layer-muted, var(--theme-text-secondary));
+    color: var(--theme-text-secondary);
     font-size: var(--type-micro);
 }
 
@@ -216,21 +219,21 @@
     padding: 0;
     place-items: center;
     border: 0;
-    border-radius: 8px;
-    color: var(--layer-muted, var(--theme-text-secondary));
+    border-radius: var(--ui-radius-menu);
+    color: var(--theme-text-secondary);
     background: transparent;
     cursor: pointer;
 }
 
 .layer-action:hover,
 .layer-order-controls button:not(:disabled):hover {
-    color: var(--layer-ink, var(--theme-text-tertiary));
+    color: var(--theme-text-primary);
     background: color-mix(in srgb, currentColor 7%, transparent);
 }
 
 .layer-action[aria-pressed="true"] {
-    color: var(--ui-accent-ink, var(--theme-primary));
-    background: var(--ui-accent-soft, var(--theme-primary-muted));
+    color: var(--theme-primary);
+    background: var(--theme-primary-muted);
 }
 
 .layer-action svg,
@@ -264,8 +267,8 @@
     display: grid;
     justify-items: center;
     gap: 6px;
-    padding: 24px 14px 28px;
-    color: var(--layer-muted, var(--theme-text-tertiary));
+    padding: 22px 14px 26px;
+    color: var(--theme-text-tertiary);
     text-align: center;
 }
 
@@ -274,30 +277,30 @@
 }
 
 .layer-empty-state strong {
-    color: var(--layer-ink, var(--theme-text-tertiary));
+    color: var(--theme-text-secondary);
     font-size: var(--type-control);
 }
 
-/* Compact controls and presentation options added for the 4.0 UI. */
+/* Tool deck inherits the dark surface. */
 .app-shell .tool-deck {
-    background-color: var(--theme-toolbar-custom-surface);
-    color: var(--toolbar-ink);
+    background-color: var(--theme-surface);
+    color: var(--theme-text-primary);
 }
 
 .app-shell .tool-deck .tool-icon-button,
 .app-shell .tool-deck .tool-collapse {
-    color: var(--toolbar-ink);
+    color: var(--theme-text-secondary);
 }
 
 .app-shell .tool-deck .tool-icon-button:hover {
-    background: color-mix(in srgb, var(--toolbar-ink) 10%, var(--toolbar-surface));
+    background: var(--theme-control-hover);
 }
 
 .pane-close-icon {
     width: 28px;
     height: 28px;
     padding: 0;
-    border-radius: 8px;
+    border-radius: var(--ui-radius-menu);
     font-size: var(--type-title);
     line-height: var(--leading-icon);
 }
@@ -377,8 +380,8 @@
 }
 
 .app-shell .tool-deck .tool-cluster {
-    background: color-mix(in srgb, var(--toolbar-surface) 91%, var(--toolbar-ink));
-    border-color: color-mix(in srgb, var(--toolbar-surface) 82%, var(--toolbar-ink));
+    background: var(--theme-surface-elevated);
+    border-color: var(--theme-separator);
 }
 
 .app-shell .tool-deck .tool-cluster-paint-brushes {
@@ -390,20 +393,20 @@
 
 .app-shell .tool-deck .tool-icon-button.selected,
 .app-shell .tool-deck .tool-family.options-open>.tool-icon-button {
-    color: var(--ui-accent-ink);
+    color: var(--ui-accent);
     border-color: var(--ui-accent-border);
     background: var(--ui-accent-soft);
 }
 
 .app-shell .tool-deck .tool-icon-button.selected:hover {
-    color: var(--ui-accent-ink);
+    color: var(--ui-accent);
     background: var(--ui-accent-soft);
 }
 
 .mermaid-dialog {
     box-sizing: border-box;
     display: grid;
-    padding: 16px;
+    padding: 14px;
     gap: 8px;
     min-width: 0;
     min-height: 0;
@@ -446,7 +449,7 @@
     resize: vertical;
     padding: 10px;
     border: 1px solid var(--theme-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius-panel);
     outline: none;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
@@ -483,7 +486,7 @@
     flex-direction: column;
     overflow: hidden;
     border: 1px solid var(--theme-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius-panel);
     background: var(--theme-surface-elevated);
 }
 
@@ -492,8 +495,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 9px 11px;
-    border-bottom: 1px solid var(--theme-border);
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--theme-separator);
     color: var(--theme-text-secondary);
     font-size: var(--type-micro);
     font-weight: var(--font-weight-bold);
@@ -531,7 +534,7 @@
 }
 
 .mermaid-preview-controls button:hover {
-    background: var(--theme-surface-hover);
+    background: var(--theme-control-hover);
 }
 
 .mermaid-preview-controls output {
@@ -549,7 +552,7 @@
     min-height: 0;
     flex: 1;
     background-color: var(--theme-surface);
-    background-image: radial-gradient(var(--theme-surface-hover) 1px, transparent 1px);
+    background-image: radial-gradient(var(--theme-separator) 1px, transparent 1px);
     background-size: 18px 18px;
     cursor: grab;
     touch-action: none;
@@ -593,7 +596,7 @@
 }
 
 .mermaid-dialog-footer>span {
-    color: var(--muted);
+    color: var(--theme-text-secondary);
     font-size: var(--type-caption);
 }
 
@@ -646,7 +649,7 @@
     height: 30px;
     place-items: center;
     border: 1px solid var(--theme-border);
-    border-radius: 8px;
+    border-radius: var(--ui-radius-menu);
     color: var(--theme-text-secondary);
     background: transparent;
     font-size: var(--type-heading);
@@ -675,7 +678,7 @@
     justify-content: center;
     gap: 4px;
     border: 1px solid var(--theme-separator);
-    border-radius: 8px;
+    border-radius: var(--ui-radius-menu);
     background: color-mix(in srgb, var(--theme-surface) 60%, var(--theme-surface-elevated));
 }
 
@@ -721,7 +724,7 @@
     border: 1px solid var(--theme-border);
     border-radius: 999px;
     color: var(--theme-text-primary);
-    background: var(--theme-surface-hover);
+    background: var(--theme-surface-elevated);
     font-size: var(--type-micro);
     font-weight: var(--font-weight-bold);
     letter-spacing: .08em;
@@ -754,10 +757,10 @@
     min-height: 34px;
     resize: vertical;
     padding: 8px 9px;
-    border: 1px solid var(--pane-line, var(--theme-border));
-    border-radius: 7px;
-    background: var(--pane-surface, var(--theme-surface-input));
-    color: var(--pane-ink, var(--theme-text-primary));
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ui-radius-control);
+    background: var(--theme-surface-input);
+    color: var(--theme-text-primary);
     font: var(--type-control)/var(--leading-normal) var(--font-mono);
 }
 
@@ -776,7 +779,7 @@
 
 .component-field-list .property-label>span {
     overflow: hidden;
-    color: var(--pane-muted, var(--theme-text-secondary));
+    color: var(--theme-text-secondary);
     font-size: var(--type-caption);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -790,7 +793,7 @@
     min-height: 38px;
     margin: 8px 0;
     cursor: pointer;
-    color: var(--pane-ink, var(--theme-text-primary));
+    color: var(--theme-text-primary);
     font-size: var(--type-control);
 }
 
@@ -810,7 +813,7 @@
     height: 20px;
     border: 1.5px solid var(--theme-border);
     border-radius: 5px;
-    background: var(--pane-surface, var(--theme-surface));
+    background: var(--theme-surface);
 }
 
 .component-state-control>span::after {
@@ -823,12 +826,12 @@
 }
 
 .component-state-control input:checked+span:not(.component-switch) {
-    border-color: var(--ui-accent, var(--theme-info-border));
-    background: var(--ui-accent, var(--theme-info-muted));
+    border-color: var(--ui-accent);
+    background: var(--ui-accent);
 }
 
 .component-state-control input:checked+span:not(.component-switch)::after {
-    border-color: var(--theme-border);
+    border-color: var(--theme-surface);
     transform: rotate(45deg) scale(1);
 }
 
@@ -838,7 +841,7 @@
     height: 23px;
     border: 0;
     border-radius: 99px;
-    background: var(--theme-surface);
+    background: var(--theme-surface-input);
 }
 
 .component-state-control>span.component-switch::after {
@@ -847,7 +850,7 @@
     height: 17px;
     border: 0;
     border-radius: 50%;
-    background: var(--theme-surface);
+    background: var(--theme-text-tertiary);
     transform: translateX(0);
     box-shadow: 0 1px 3px var(--theme-shadow);
 }
@@ -857,11 +860,12 @@
 }
 
 .component-state-control input:checked+span.component-switch::after {
+    background: var(--theme-success);
     transform: translateX(17px);
 }
 
 .component-state-control input:focus-visible+span {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent, var(--theme-shadow)) 25%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent);
 }
 
 .database-schema-dialog {
@@ -869,7 +873,7 @@
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     gap: 8px;
     overflow: hidden;
-    padding: 16px;
+    padding: 14px;
 }
 
 .database-schema-dialog.schema-error-present {
@@ -928,7 +932,7 @@
     }
 }
 
-/* Code editors share one large, viewport-bounded dialog size so their input and preview area have stable room. */
+/* Code editors share one large, viewport-bounded dialog size. */
 .app-shell .confirm-dialog:is(.schema-dialog, .mermaid-dialog, .database-schema-dialog) {
     width: min(1080px, calc(100vw - 48px));
     height: min(82dvh, 820px);
@@ -981,7 +985,7 @@
 .dialog-info-tip > summary:focus-visible,
 .dialog-info-tip[open] > summary {
     border-color: var(--ui-accent-border);
-    color: var(--ui-accent-ink);
+    color: var(--ui-accent);
     outline: none;
     background: var(--ui-accent-soft);
 }
@@ -995,9 +999,9 @@
     max-height: min(56vh, 420px);
     gap: 8px;
     overflow: auto;
-    padding: 12px 14px;
+    padding: 11px 13px;
     border: 1px solid var(--theme-border);
-    border-radius: 9px;
+    border-radius: var(--ui-radius-panel);
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
     box-shadow: 0 8px 24px var(--theme-shadow);
@@ -1031,19 +1035,19 @@
     [aria-labelledby="diagram-code-export-title"]
 ) {
     border: 1px solid color-mix(in srgb, var(--theme-border) 78%, var(--ui-accent-border));
-    border-radius: 15px;
+    border-radius: var(--ui-radius-dialog);
     background: var(--theme-surface-elevated);
     box-shadow: 0 24px 72px color-mix(in srgb, var(--theme-shadow) 70%, transparent);
 }
 
 .app-shell .confirm-dialog:is(.database-schema-dialog, .mermaid-dialog, .csv-chart-dialog, [aria-labelledby="blueprint-export-title"], [aria-labelledby="diagram-code-export-title"]) > header {
-    padding-bottom: 11px;
-    border-bottom: 1px solid var(--theme-border);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--theme-separator);
 }
 
 .app-shell .confirm-dialog:is(.database-schema-dialog, .mermaid-dialog, .csv-chart-dialog, [aria-labelledby="blueprint-export-title"], [aria-labelledby="diagram-code-export-title"]) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea:not(.schema-code-textarea)) {
     border-color: var(--theme-border);
-    border-radius: 8px;
+    border-radius: var(--ui-radius-menu);
     background-color: var(--theme-surface-input);
 }
 
@@ -1052,7 +1056,7 @@
     outline-offset: 1px;
 }
 
-/* Data to Visual: make the CSV editor the primary workspace and keep mapping controls grouped beside it. */
+/* Data to Visual dialog */
 .app-shell .confirm-dialog.data-to-visual-dialog {
     box-sizing: border-box;
     display: grid;
@@ -1061,10 +1065,10 @@
     max-height: min(88dvh, 900px);
     grid-template-columns: minmax(0, 1.25fr) minmax(250px, .75fr);
     align-content: start;
-    gap: 14px 18px;
+    gap: 12px 16px;
     overflow-x: hidden;
     overflow-y: auto;
-    padding: 24px;
+    padding: 22px;
 }
 
 .data-to-visual-dialog > header,
@@ -1082,8 +1086,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    padding-bottom: 13px;
-    border-bottom: 1px solid var(--theme-border);
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--theme-separator);
 }
 
 .data-to-visual-intro,
@@ -1117,9 +1121,9 @@
     min-height: clamp(180px, 30vh, 320px);
     max-height: 46vh;
     resize: vertical;
-    padding: 13px;
+    padding: 12px;
     border: 1px solid var(--theme-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius-panel);
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
     font: var(--type-control)/var(--leading-relaxed) var(--font-mono, ui-monospace, Consolas, monospace);
@@ -1146,9 +1150,9 @@
     min-height: 100%;
     align-content: start;
     gap: 8px;
-    padding: 12px;
+    padding: 11px;
     border-color: var(--theme-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius-panel);
     background: var(--theme-surface);
 }
 
@@ -1193,11 +1197,11 @@
     justify-content: flex-end;
     gap: 9px;
     margin-top: 2px;
-    padding-top: 14px;
-    border-top: 1px solid var(--theme-border);
+    padding-top: 12px;
+    border-top: 1px solid var(--theme-separator);
 }
 
-/* Code Blueprint: separate the export target from the scope and explain its output before download. */
+/* Code Blueprint dialog */
 .app-shell .confirm-dialog.code-blueprint-dialog {
     box-sizing: border-box;
     display: grid;
@@ -1206,10 +1210,10 @@
     max-height: min(86dvh, 820px);
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-content: start;
-    gap: 16px 20px;
+    gap: 14px 18px;
     overflow-x: hidden;
     overflow-y: auto;
-    padding: 24px;
+    padding: 22px;
 }
 
 .code-blueprint-dialog > header,
@@ -1231,7 +1235,7 @@
     gap: 4px;
     padding: 4px;
     border: 1px solid var(--theme-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius-panel);
     background: var(--theme-surface);
 }
 
@@ -1239,14 +1243,14 @@
     min-height: 36px;
     padding-inline: 12px;
     border: 1px solid transparent;
-    border-radius: 7px;
+    border-radius: var(--ui-radius-control);
     color: var(--theme-text-secondary);
     background: transparent;
 }
 
 .code-blueprint-dialog .export-scope button.active {
     border-color: var(--ui-accent-border);
-    color: var(--ui-accent-ink);
+    color: var(--ui-accent);
     background: var(--ui-accent-soft);
 }
 
@@ -1258,9 +1262,9 @@
     grid-column: 2;
     align-self: stretch;
     margin: 0;
-    padding: 14px;
+    padding: 13px;
     border: 1px solid var(--theme-border);
-    border-radius: 10px;
+    border-radius: var(--ui-radius-panel);
     background: var(--theme-surface);
 }
 
@@ -1272,7 +1276,7 @@
         max-height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
         grid-template-columns: minmax(0, 1fr);
         gap: 12px;
-        padding: 16px;
+        padding: 14px;
     }
 
     .data-to-visual-dialog > *,
@@ -1296,9 +1300,9 @@
     .data-to-visual-actions,
     .code-blueprint-actions {
         position: sticky;
-        bottom: -16px;
-        margin: 0 -16px -16px;
-        padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+        bottom: -14px;
+        margin: 0 -14px -14px;
+        padding: 12px 14px max(12px, env(safe-area-inset-bottom));
         background: var(--theme-surface-elevated);
     }
 }

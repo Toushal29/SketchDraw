@@ -341,6 +341,27 @@ export function createCanvasSceneRenderer(ports: CanvasSceneRendererPorts) {
       };
       if (activeSnapGuides.x) drawGuide("x", activeSnapGuides.x);
       if (activeSnapGuides.y) drawGuide("y", activeSnapGuides.y);
+      if (activeSnapGuides.distances?.length) {
+        ctx.setLineDash([]); ctx.lineWidth = 1 / state.zoom;
+        for (const d of activeSnapGuides.distances) {
+          const lo = Math.min(d.movingEdge, d.referenceEdge); const hi = Math.max(d.movingEdge, d.referenceEdge);
+          ctx.beginPath();
+          if (d.axis === "x") { ctx.moveTo(lo, d.cross); ctx.lineTo(hi, d.cross); } else { ctx.moveTo(d.cross, lo); ctx.lineTo(d.cross, hi); }
+          ctx.stroke();
+          const capLen = 4 / state.zoom;
+          ctx.beginPath();
+          if (d.axis === "x") { ctx.moveTo(lo, d.cross - capLen); ctx.lineTo(lo, d.cross + capLen); ctx.moveTo(hi, d.cross - capLen); ctx.lineTo(hi, d.cross + capLen); }
+          else { ctx.moveTo(d.cross - capLen, lo); ctx.lineTo(d.cross + capLen, lo); ctx.moveTo(d.cross - capLen, hi); ctx.lineTo(d.cross + capLen, hi); }
+          ctx.stroke();
+          const label = `${Number(d.gap.toFixed(1))}`;
+          const mid = (lo + hi) / 2;
+          ctx.font = `600 ${9 / state.zoom}px system-ui, sans-serif`; ctx.textBaseline = "middle"; ctx.textAlign = "center";
+          const px = d.axis === "x" ? mid : d.cross; const py = d.axis === "x" ? d.cross - 8 / state.zoom : mid;
+          ctx.lineWidth = 2.5 / state.zoom; ctx.strokeStyle = "#fff"; ctx.strokeText(label, px, py);
+          ctx.fillStyle = "#e24978"; ctx.fillText(label, px, py);
+          ctx.lineWidth = 1 / state.zoom; ctx.strokeStyle = "#e24978";
+        }
+      }
       ctx.restore();
     }
     const endpointGuide = includeSelection && sourceItems === ports.elements() && currentResize && isConnector(currentResize.original) ? currentResize.endpointGuide : undefined;

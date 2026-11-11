@@ -3,7 +3,7 @@
     box-sizing: border-box;
     gap: 10px;
     padding: 16px;
-    border-radius: 10px;
+    border-radius: var(--ui-radius-panel);
 }
 
 .validation-dialog {
@@ -195,7 +195,7 @@
 }
 
 .schema-dialog-footer>span {
-    color: var(--muted);
+    color: var(--theme-text-secondary);
     font-size: var(--type-caption);
 }
 

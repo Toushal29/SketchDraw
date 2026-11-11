@@ -116,6 +116,12 @@ export function changeCanvasLayerNesting(layers: CanvasLayer[], id: string, acti
   return layers.map(layer => layer.id === id ? { ...layer, parentId: grandParent, order: siblings.length } : layer);
 }
 
+export function descendantLayerIds(layers: CanvasLayer[], ids: Set<string>): Set<string> {
+  const result = new Set(ids); let changed = true;
+  while (changed) { changed = false; for (const layer of layers) if (layer.parentId && result.has(layer.parentId) && !result.has(layer.id)) { result.add(layer.id); changed = true; } }
+  return result;
+}
+
 export function deleteCanvasLayers(layers: CanvasLayer[], ids: string[]): { layers: CanvasLayer[]; reassignment: Map<string, string | undefined> } {
   const removing = new Set(ids); const removed = layers.filter(layer => removing.has(layer.id));
   const layersById = new Map(layers.map(layer => [layer.id, layer]));

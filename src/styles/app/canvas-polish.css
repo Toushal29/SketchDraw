@@ -1,11 +1,11 @@
 /* Refined canvas chrome and note editing surfaces. */
 .topbar {
     border-bottom-color: var(--theme-separator);
-    background: var(--theme-toolbar-surface);
+    background: var(--theme-surface);
 }
 
 .topbar .brand-mark-image {
-    filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--theme-text-secondary) 8.63%, transparent));
+    filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent));
 }
 
 .menu-dropdown>summary,
@@ -27,8 +27,10 @@
     padding: 0px;
     border-color: var(--theme-border);
     border-radius: 14px;
-    background: var(--theme-surface-floating);
+    background: var(--theme-surface);
     box-shadow: var(--theme-elevation-popover);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
 .tool-cluster {
@@ -52,13 +54,15 @@
 
 .tool-icon-button.selected {
     border-color: var(--theme-primary-border);
-    background: linear-gradient(180deg, var(--theme-primary-muted), var(--theme-primary-muted));
+    background: var(--theme-primary-muted);
 }
 
 .tool-options {
-    border-color: var(--theme-border-floating);
-    background: var(--theme-surface-floating);
+    border-color: var(--theme-border);
+    background: var(--theme-surface-elevated);
     box-shadow: var(--theme-elevation-popover);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .tool-options button:focus-visible,
@@ -71,7 +75,6 @@
     outline-offset: 2px;
 }
 
-/* Keep toolbar sizing beside the chrome it belongs to. */
 .tool-icon-button svg:not(.tool-family-caret) {
     width: 19px;
     height: 19px;

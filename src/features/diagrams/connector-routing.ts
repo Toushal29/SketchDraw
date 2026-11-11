@@ -116,8 +116,20 @@ function routeLeg(start: Point, end: Point, rects: Rect[]): Point[] | undefined 
   minX -= margin; maxX += margin; minY -= margin; maxY += margin;
   // The outer rails give A* a guaranteed way around a wall of overlapping
   // obstacle rectangles instead of forcing it to take a path through a node.
-  const xs = [...new Set([start.x, end.x, minX, maxX, ...rects.flatMap(rect => [rect.left, rect.right])])].sort((a, b) => a - b);
-  const ys = [...new Set([start.y, end.y, minY, maxY, ...rects.flatMap(rect => [rect.top, rect.bottom])])].sort((a, b) => a - b);
+  // Add midpoints between distant grid lines so routes don't hug obstacle edges unnecessarily
+  const rawXs = [...new Set([start.x, end.x, minX, maxX, ...rects.flatMap(rect => [rect.left, rect.right])])].sort((a, b) => a - b);
+  const rawYs = [...new Set([start.y, end.y, minY, maxY, ...rects.flatMap(rect => [rect.top, rect.bottom])])].sort((a, b) => a - b);
+  const midThreshold = 120;
+  const addMids = (sorted: number[]) => {
+    const out = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] - sorted[i - 1] > midThreshold) out.push((sorted[i - 1] + sorted[i]) / 2);
+      out.push(sorted[i]);
+    }
+    return out;
+  };
+  const xs = addMids(rawXs);
+  const ys = addMids(rawYs);
   const width = xs.length; const height = ys.length; const nodeCount = width * height;
   const pointAt = (node: number): Point => ({ x: xs[Math.floor(node / height)], y: ys[node % height] });
   const nodeAt = (x: number, y: number) => xs.indexOf(x) * height + ys.indexOf(y);
@@ -157,7 +169,8 @@ function routeLeg(start: Point, end: Point, rects: Rect[]): Point[] | undefined 
       if (blockedPoint(next, rects) || blockedSegment(here, next, rects)) continue;
       const edge = Math.abs(next.x - here.x) + Math.abs(next.y - here.y);
       const nextState = neighbor.node * 3 + neighbor.direction;
-      const cost = costs[state] + edge + (direction !== 2 && direction !== neighbor.direction ? 28 : 0);
+      const bendPenalty = direction !== 2 && direction !== neighbor.direction ? 48 : 0;
+      const cost = costs[state] + edge + bendPenalty;
       if (cost >= costs[nextState]) continue;
       costs[nextState] = cost; previous[nextState] = state; push(nextState, cost, cost + heuristic(neighbor.node));
     }
@@ -186,7 +199,7 @@ export function autoRoutePoints(connector: ShapeElement, items: Element[] | Auto
     if (!bounds || excluded.has(item.id)) return [];
     const radius = Math.hypot(bounds.w, bounds.h) / 2;
     return { item, bounds, distance: Math.max(0, distanceToSegment({ x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h / 2 }, start, end) - radius) };
-  }).sort((a, b) => a.distance - b.distance).slice(0, 28);
+  }).sort((a, b) => a.distance - b.distance).slice(0, 48);
   const padding = Math.max(10, Math.min(24, connector.thickness * 2));
   const sharedTargets = new Set([connector.startBinding?.elementId, connector.endBinding?.elementId].filter(Boolean));
   const nodeRects = nearby.filter(({ item }) => !sharedTargets.has(item.id)).map(({ bounds }) => ({ left: bounds.x - padding, top: bounds.y - padding, right: bounds.x + bounds.w + padding, bottom: bounds.y + bounds.h + padding }));
@@ -206,7 +219,7 @@ export function autoRoutePoints(connector: ShapeElement, items: Element[] | Auto
     });
   const nearbyRouteObstacles = routeObstacles
     .sort((left, right) => distanceToSegment({ x: (left.left + left.right) / 2, y: (left.top + left.bottom) / 2 }, start, end) - distanceToSegment({ x: (right.left + right.right) / 2, y: (right.top + right.bottom) / 2 }, start, end))
-    .slice(0, 32);
+    .slice(0, 48);
   const rects = [...nodeRects, ...nearbyRouteObstacles];
   const key = JSON.stringify([start, end, connector.startBinding, connector.endBinding, connector.thickness, pins, nearby.map(({ item, bounds }) => [item.id, bounds.x, bounds.y, bounds.w, bounds.h]), nearbyRouteObstacles]);
   if (cached?.key === key) {
@@ -299,18 +312,23 @@ export function autoRouteConnectorSet(
 }
 
 function detourLeg(start: Point, end: Point, rects: Rect[]): Point[] {
-  const margin = 24;
+  const margin = 36;
   const top = Math.min(start.y, end.y, ...rects.map(rect => rect.top)) - margin;
   const bottom = Math.max(start.y, end.y, ...rects.map(rect => rect.bottom)) + margin;
   const left = Math.min(start.x, end.x, ...rects.map(rect => rect.left)) - margin;
   const right = Math.max(start.x, end.x, ...rects.map(rect => rect.right)) + margin;
-  const paths = [
+  const paths: Point[][] = [
+    // L-shaped: go horizontal first then vertical
+    [start, { x: end.x, y: start.y }, end],
+    // L-shaped: go vertical first then horizontal
+    [start, { x: start.x, y: end.y }, end],
+    // U-shaped detours around all obstacles
     [start, { x: start.x, y: top }, { x: end.x, y: top }, end],
     [start, { x: start.x, y: bottom }, { x: end.x, y: bottom }, end],
     [start, { x: left, y: start.y }, { x: left, y: end.y }, end],
     [start, { x: right, y: start.y }, { x: right, y: end.y }, end],
   ];
   const clear = paths.filter(path => path.slice(1).every((point, index) => !blockedSegment(path[index], point, rects)));
-  const score = (path: Point[]) => path.slice(1).reduce((total, point, index) => total + Math.abs(point.x - path[index].x) + Math.abs(point.y - path[index].y), 0);
+  const score = (path: Point[]) => path.slice(1).reduce((total, point, index) => total + Math.abs(point.x - path[index].x) + Math.abs(point.y - path[index].y), 0) + (path.length - 2) * 20;
   return (clear.sort((a, b) => score(a) - score(b))[0] ?? [start, { x: start.x, y: top }, { x: end.x, y: top }, end]).filter((point, index, path) => index === 0 || index === path.length - 1 || !((point.x === path[index - 1].x && point.x === path[index + 1].x) || (point.y === path[index - 1].y && point.y === path[index + 1].y)));
 }

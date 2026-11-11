@@ -1,4 +1,5 @@
-/* Desktop and Windows window sizing; touch layouts override this in their own files. */
+/* ── Windows desktop: platform overrides ── */
+
 .platform-windows .touch-gesture-menu {
     display: none !important;
 }
@@ -8,30 +9,34 @@
     display: contents;
 }
 
+/* ── Tool deck clusters ── */
+
 .platform-windows .tool-deck .tool-cluster {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
     gap: 1px;
-    padding: 2px 4px;
+    padding: 2px 2px;
     border: 0;
     border-radius: 0;
     background: transparent;
 }
 
 .platform-windows .tool-deck .touch-style-open {
-    margin-left: 3px;
-    padding-left: 7px;
-    border-left: 1px solid color-mix(in srgb, var(--toolbar-ink) 15%, transparent);
+    margin-left: 2px;
+    padding-left: 5px;
+    border-left: 1px solid color-mix(in srgb, var(--theme-text-tertiary) 18%, transparent);
 }
+
+/* ── Tool buttons ── */
 
 .platform-windows .tool-deck .tool-icon-button,
 .platform-windows .tool-deck .canvas-options-trigger {
-    width: 30px;
-    min-width: 30px;
-    height: 30px;
-    min-height: 30px;
-    border-radius: 100%;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    border-radius: 9px;
 }
 
 .platform-windows .tool-deck .tool-icon-button {
@@ -39,114 +44,129 @@
     gap: 0;
 }
 
-.platform-windows .tool-deck .tool-icon-button>svg:not(.tool-family-caret) {
-    width: 19px;
-    height: 19px;
+.platform-windows .tool-deck .tool-icon-button > svg:not(.tool-family-caret) {
+    width: 17px;
+    height: 17px;
 }
 
 .platform-windows .tool-deck .tool-icon-button kbd {
     display: none;
 }
 
+/* ── Selection delete button ── */
+
 .platform-windows .tool-deck .touch-selection-delete {
     position: relative;
     color: var(--theme-error);
-    border-color: color-mix(in srgb, var(--theme-error) 22%, transparent);
-    background: color-mix(in srgb, var(--theme-error) 7%, transparent);
+    border-color: transparent;
+    background: color-mix(in srgb, var(--theme-error) 8%, transparent);
 }
 
 .platform-windows .tool-deck .touch-selection-delete:hover:not(:disabled) {
     color: var(--theme-error);
-    border-color: color-mix(in srgb, var(--theme-error) 42%, transparent);
-    background: color-mix(in srgb, var(--theme-error) 13%, transparent);
+    background: color-mix(in srgb, var(--theme-error) 14%, transparent);
 }
 
-.platform-windows .tool-deck .touch-selection-delete:disabled { opacity: .45; }
+.platform-windows .tool-deck .touch-selection-delete:disabled { opacity: .35; }
 
 .platform-windows .tool-deck .touch-selection-count {
     position: absolute;
-    top: -2px;
-    right: -2px;
+    top: -3px;
+    right: -3px;
     display: grid;
     min-width: 14px;
     height: 14px;
     box-sizing: border-box;
     place-items: center;
     padding: 0 3px;
-    border: 1px solid var(--toolbar-surface, var(--theme-surface-elevated));
+    border: 1.5px solid var(--theme-surface);
     border-radius: 999px;
     color: var(--theme-on-danger);
     background: var(--theme-error);
-    font: var(--font-weight-bold) var(--type-micro)/var(--leading-icon) var(--font-sans, sans-serif);
+    font: 600 9px/1 var(--font-ui);
     pointer-events: none;
 }
+
+/* ── Tool families ── */
 
 .platform-windows .tool-deck .tool-family {
     height: 36px;
 }
 
 .platform-windows .tool-deck .tool-family .tool-icon-button {
-    width: 30px;
-    min-width: 30px;
-    height: 30px;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
 }
 
 .platform-windows .tool-deck .tool-family .tool-family-caret {
     right: 1px;
-    top: 12px;
+    top: 13px;
 }
 
 .platform-windows .tool-deck .tool-cluster-canvas {
     background: transparent;
 }
 
-/* The page strip stays compact and expands only when the user has many pages. */
+/* ── Page tabs strip ── */
+
 .app-shell.platform-windows .desktop-page-tabs {
     right: 14px;
     bottom: 12px;
     left: auto;
     width: max-content;
-    max-width: min(440px, 38vw);
-    min-height: 30px;
-    gap: 3px;
+    max-width: min(420px, 36vw);
+    min-height: 28px;
+    gap: 2px;
     padding: 3px;
-    border-color: color-mix(in srgb, var(--toolbar-ink) 13%, transparent);
-    border-radius: 9px;
-    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
-    box-shadow: 0 4px 18px var(--theme-shadow);
+    border: 0;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--theme-surface) 78%, transparent);
+    backdrop-filter: blur(40px) saturate(1.6);
+    -webkit-backdrop-filter: blur(40px) saturate(1.6);
+    box-shadow:
+        0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 8%, transparent),
+        0 4px 16px color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
+}
+
+:root[data-theme="light"] .app-shell.platform-windows .desktop-page-tabs {
+    background: color-mix(in srgb, var(--theme-surface) 72%, transparent);
+    box-shadow:
+        0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 6%, transparent),
+        0 4px 20px color-mix(in srgb, var(--theme-text-primary) 6%, transparent);
 }
 
 .app-shell.platform-windows .desktop-page-tabs .page-tab-list {
-    max-width: min(380px, 33vw);
+    max-width: min(360px, 32vw);
     gap: 2px;
     scrollbar-width: none;
 }
 
 .app-shell.platform-windows .desktop-page-tabs .page-tab {
-    min-width: 36px;
-    max-width: 132px;
-    height: 26px;
-    padding: 0 9px;
-    border-radius: 6px;
-    color: color-mix(in srgb, var(--toolbar-ink) 68%, transparent);
+    min-width: 34px;
+    max-width: 126px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 7px;
+    color: var(--theme-text-secondary);
     font-size: var(--type-caption);
+    transition: background-color 140ms ease, color 140ms ease;
 }
 
 .app-shell.platform-windows .desktop-page-tabs .page-tab.active {
     border-color: transparent;
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
-    box-shadow: inset 0 -2px 0 var(--ui-accent);
+    color: var(--theme-primary-contrast);
+    background: var(--theme-primary);
 }
 
 .app-shell.platform-windows .desktop-page-tabs .page-tab:hover:not(.active) {
-    background: color-mix(in srgb, var(--toolbar-ink) 6%, transparent);
+    background: color-mix(in srgb, var(--theme-text-primary) 6%, transparent);
 }
 
 .app-shell.platform-windows .desktop-page-tabs .page-add svg,
-.app-shell.platform-windows .desktop-page-tabs .page-menu>summary svg {
-    width: 14px;
-    height: 14px;
+.app-shell.platform-windows .desktop-page-tabs .page-menu > summary svg {
+    width: 13px;
+    height: 13px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -154,69 +174,81 @@
     stroke-linejoin: round;
 }
 
-.app-shell.platform-windows .desktop-page-tabs .page-menu>summary {
+.app-shell.platform-windows .desktop-page-tabs .page-menu > summary {
     list-style: none;
     cursor: pointer;
 }
 
-.app-shell.platform-windows .desktop-page-tabs .page-menu>summary::-webkit-details-marker {
+.app-shell.platform-windows .desktop-page-tabs .page-menu > summary::-webkit-details-marker {
     display: none;
 }
 
-.app-shell.platform-windows .desktop-page-tabs>button,
-.app-shell.platform-windows .desktop-page-tabs .page-menu>summary {
+.app-shell.platform-windows .desktop-page-tabs > button,
+.app-shell.platform-windows .desktop-page-tabs .page-menu > summary {
     display: grid;
-    min-width: 26px;
-    width: 26px;
-    height: 26px;
+    min-width: 24px;
+    width: 24px;
+    height: 24px;
     place-items: center;
     padding: 0;
-    border-radius: 6px;
-    color: color-mix(in srgb, var(--toolbar-ink) 72%, transparent);
+    border-radius: 7px;
+    color: var(--theme-text-secondary);
     font-size: var(--type-heading-small);
+    transition: color 140ms ease, background-color 140ms ease;
 }
 
-.app-shell.platform-windows .desktop-page-tabs>button:hover,
-.app-shell.platform-windows .desktop-page-tabs .page-menu>summary:hover {
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
+.app-shell.platform-windows .desktop-page-tabs > button:hover,
+.app-shell.platform-windows .desktop-page-tabs .page-menu > summary:hover {
+    color: var(--theme-text-primary);
+    background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
 }
+
+/* ── Selected tool state ── */
 
 .platform-windows .tool-deck .tool-icon-button.selected {
-    border-color: color-mix(in srgb, var(--ui-accent) 28%, transparent);
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
+    border-color: transparent;
+    color: var(--theme-primary-contrast);
+    background: var(--theme-primary);
 }
 
-/* Keep the hide action icon-only and parked at the toolbar's right edge. */
+:root[data-theme="light"] .platform-windows .tool-deck .tool-icon-button.selected {
+    color: #ffffff;
+}
+
+/* ── Collapse/reopen toggle ── */
+
 .platform-windows .tool-deck .tool-collapse {
     position: absolute;
     top: 50%;
-    right: -47px;
+    right: -44px;
     display: grid;
-    width: 38px;
-    min-width: 38px;
-    height: 38px;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
     place-items: center;
     padding: 0;
-    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
-    border-radius: 11px;
-    color: var(--toolbar-ink);
-    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
+    border: 0;
+    border-radius: 10px;
+    color: var(--theme-text-secondary);
+    background: color-mix(in srgb, var(--theme-surface) 78%, transparent);
+    backdrop-filter: blur(40px) saturate(1.6);
+    -webkit-backdrop-filter: blur(40px) saturate(1.6);
+    box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 8%, transparent),
+                0 2px 8px color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
     transform: translateY(-50%);
+    transition: color 140ms ease, background-color 140ms ease;
 }
 
 .platform-windows .tool-deck .tool-collapse:hover,
 .platform-windows .tool-deck-reopen:hover {
-    border-color: var(--ui-accent-border);
-    color: var(--ui-accent-ink);
-    background: var(--ui-accent-soft);
+    color: var(--theme-text-primary);
+    background: color-mix(in srgb, var(--theme-text-primary) 8%, var(--theme-surface));
 }
 
 .platform-windows .tool-deck .tool-collapse svg,
 .platform-windows .tool-deck-reopen svg {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
 }
 
 .platform-windows .tool-deck-reopen {
@@ -224,14 +256,19 @@
     z-index: 20;
     top: 50px;
     display: grid;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     place-items: center;
-    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
-    border-radius: 12px;
-    color: var(--toolbar-ink);
-    background: color-mix(in srgb, var(--toolbar-surface) 96%, transparent);
+    border: 0;
+    border-radius: 10px;
+    color: var(--theme-text-secondary);
+    background: color-mix(in srgb, var(--theme-surface) 78%, transparent);
+    backdrop-filter: blur(40px) saturate(1.6);
+    -webkit-backdrop-filter: blur(40px) saturate(1.6);
+    box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 8%, transparent),
+                0 2px 8px color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
     transform: none;
+    transition: color 140ms ease, background-color 140ms ease;
 }
 
 .platform-windows .tool-collapse svg,
@@ -243,27 +280,37 @@
     stroke-linejoin: round;
 }
 
+/* ── Hide idle quick-style pane on Windows (select/pan/crop with nothing selected) ── */
+
+.platform-windows .style-pane.quick-style-idle-hidden {
+    display: none;
+}
+
+/* ── Style pane position ── */
+
 .platform-windows .style-pane {
-    top: 65px;
+    top: 60px;
     right: auto;
     bottom: auto;
-    left: 15px;
+    left: 14px;
     max-height: calc(100% - 36px);
 }
 
 .app-shell.platform-windows.design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded {
-    top: 65px;
+    top: 60px;
     right: auto;
-    bottom: 16px;
-    left: 15px;
-    width: min(280px, calc(100vw - 30px));
-    max-width: calc(100vw - 30px);
+    bottom: 14px;
+    left: 14px;
+    width: min(272px, calc(100vw - 28px));
+    max-width: calc(100vw - 28px);
     max-height: none;
 }
 
 .platform-windows .style-pane.quick-style-mode.mobile-properties-collapsed {
-    top: 65px;
+    top: 60px;
 }
+
+/* ── Desktop minimum size ── */
 
 @media (min-width: 901px) and (pointer: fine) {
     .app-shell.platform-windows {
@@ -294,34 +341,37 @@
     }
 }
 
-/* Windows-only desktop document tabs and focus controls. */
+/* ── Document tabs ── */
+
 .app-shell.platform-windows .windows-document-tabs {
-    --tab-ink: var(--toolbar-ink);
-    --tab-line: color-mix(in srgb, var(--toolbar-ink) 13%, transparent);
-    --tab-surface: color-mix(in srgb, var(--toolbar-surface) 62%, transparent);
-    --tab-active: color-mix(in srgb, var(--ui-accent) 13%, var(--toolbar-surface));
+    --tab-ink: var(--theme-text-primary);
+    --tab-line: var(--theme-border);
+    --tab-surface: color-mix(in srgb, var(--theme-surface) 60%, transparent);
+    --tab-active: color-mix(in srgb, var(--ui-accent) 12%, var(--theme-surface));
     display: flex;
     min-width: 0;
-    max-width: min(44vw, 720px);
-    height: 34px;
+    max-width: min(44vw, 700px);
+    height: 32px;
     align-items: stretch;
-    gap: 3px;
+    gap: 2px;
     overflow-x: auto;
-    padding: 2px 4px;
+    padding: 2px 3px;
     border: 1px solid var(--tab-line);
-    border-radius: 9px;
+    border-radius: var(--ui-radius-menu);
     color: var(--tab-ink);
     background: var(--tab-surface);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     scrollbar-width: thin;
 }
 
 .app-shell.platform-windows .windows-document-tab {
     display: flex;
-    min-width: 110px;
-    max-width: 220px;
+    min-width: 100px;
+    max-width: 210px;
     align-items: center;
     overflow: hidden;
-    border-radius: 6px;
+    border-radius: 5px;
     color: var(--tab-ink);
 }
 
@@ -342,7 +392,7 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
-    padding: 5px 7px;
+    padding: 4px 6px;
     color: inherit;
     text-align: left;
     text-overflow: ellipsis;
@@ -352,27 +402,27 @@
 
 .app-shell.platform-windows .windows-document-tab-close {
     display: grid;
-    width: 23px;
-    min-width: 23px;
-    height: 23px;
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
     place-items: center;
-    margin-right: 3px;
+    margin-right: 2px;
     padding: 0;
-    border-radius: 6px;
+    border-radius: 5px;
     color: inherit;
-    opacity: .7;
+    opacity: .6;
 }
 
 .app-shell.platform-windows .windows-document-tab-close:hover,
 .app-shell.platform-windows .windows-document-tab-close:focus-visible {
     color: inherit;
-    background: color-mix(in srgb, var(--tab-ink) 12%, transparent);
+    background: color-mix(in srgb, var(--tab-ink) 10%, transparent);
     opacity: 1;
 }
 
 .app-shell.platform-windows .windows-document-tab-close svg {
-    width: 13px;
-    height: 13px;
+    width: 12px;
+    height: 12px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.6;
@@ -384,6 +434,8 @@
     outline-offset: -2px;
 }
 
+/* ── Backdrop overlays ── */
+
 .app-shell.platform-windows .windows-command-backdrop,
 .app-shell.platform-windows .windows-dialog-backdrop {
     position: fixed;
@@ -392,7 +444,9 @@
     display: grid;
     place-items: start center;
     padding: 12vh 18px 24px;
-    background: color-mix(in srgb, var(--theme-background) 72.16%, transparent);
+    background: var(--theme-backdrop);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
 }
 
 .app-shell.platform-windows .windows-dialog-backdrop {
@@ -401,31 +455,33 @@
     padding: 24px;
 }
 
+/* ── Auto-route toggle ── */
+
 .app-shell.platform-windows .auto-route-toggle {
     display: flex;
-    min-height: 48px;
+    min-height: 44px;
     align-items: center;
-    gap: 9px;
-    padding: 8px 10px;
-    border: 1px solid var(--setting-line, var(--theme-border));
-    border-radius: 9px;
-    color: var(--toolbar-ink);
-    background: color-mix(in srgb, var(--toolbar-ink) 3%, var(--toolbar-surface));
+    gap: 8px;
+    padding: 7px 9px;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ui-radius-menu);
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-input);
     cursor: pointer;
 }
 
 .app-shell.platform-windows .auto-route-toggle input {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
     flex: 0 0 auto;
     accent-color: var(--ui-accent);
 }
 
-.app-shell.platform-windows .auto-route-toggle>span {
+.app-shell.platform-windows .auto-route-toggle > span {
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
 }
 
 .app-shell.platform-windows .auto-route-toggle strong {
@@ -434,74 +490,77 @@
 }
 
 .app-shell.platform-windows .auto-route-toggle small {
-    color: color-mix(in srgb, var(--toolbar-ink) 62%, transparent);
+    color: var(--theme-text-secondary);
     font-size: var(--type-micro);
 }
 
-/* Windows shape library: grouped stencils, consistent cards, and full labels. */
+/* ── Shape palette ── */
+
 .app-shell.platform-windows .tool-family.options-open .windows-shape-palette {
     display: grid;
-    width: min(620px, calc(100vw - 28px));
-    max-height: min(72vh, 620px);
+    width: min(600px, calc(100vw - 28px));
+    max-height: min(70vh, 600px);
     grid-template-columns: minmax(0, 1fr);
-    gap: 5px;
+    gap: 4px;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
     -webkit-overflow-scrolling: touch;
-    padding: 10px;
-    border-color: color-mix(in srgb, var(--ui-accent) 20%, var(--toolbar-ink) 13%);
-    border-radius: 15px;
-    box-shadow: 0 16px 44px color-mix(in srgb, var(--theme-shadow) 18%, transparent);
+    padding: 9px;
+    border-color: var(--theme-border);
+    border-radius: var(--ui-radius-popover);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 12px 40px var(--theme-shadow);
     transform: translateX(-50%);
 }
 
 .app-shell.platform-windows .windows-shape-group {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 5px;
+    gap: 4px;
 }
 
 .app-shell.platform-windows .windows-shape-group-title {
     grid-column: 1 / -1;
-    margin: 3px 1px 1px;
-    padding: 4px 2px 6px;
-    border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 11%, transparent);
-    color: color-mix(in srgb, var(--toolbar-ink) 66%, transparent);
+    margin: 2px 1px 1px;
+    padding: 3px 2px 5px;
+    border-bottom: 1px solid var(--theme-separator);
+    color: var(--theme-text-tertiary);
     font: var(--font-weight-bold) var(--type-micro)/var(--leading-tight) var(--font-ui);
-    letter-spacing: .08em;
+    letter-spacing: .07em;
     text-transform: uppercase;
 }
 
 .app-shell.platform-windows .windows-shape-option {
     display: grid;
     min-width: 0;
-    min-height: 64px;
+    min-height: 60px;
     align-content: center;
     justify-items: center;
-    gap: 6px;
-    padding: 7px 5px;
+    gap: 5px;
+    padding: 6px 4px;
     border: 1px solid transparent;
-    border-radius: 9px;
-    color: var(--toolbar-ink);
-    background: color-mix(in srgb, var(--toolbar-ink) 3%, transparent);
+    border-radius: var(--ui-radius-menu);
+    color: var(--theme-text-secondary);
+    background: color-mix(in srgb, var(--theme-text-primary) 3%, transparent);
     cursor: pointer;
 }
 
 .app-shell.platform-windows .windows-shape-option:hover,
 .app-shell.platform-windows .windows-shape-option.active,
 .app-shell.platform-windows .windows-shape-option:focus-visible {
-    border-color: color-mix(in srgb, var(--ui-accent) 34%, transparent);
+    border-color: color-mix(in srgb, var(--ui-accent) 30%, transparent);
     color: var(--ui-accent-ink);
     background: var(--ui-accent-soft);
     outline: none;
 }
 
 .app-shell.platform-windows .windows-shape-option svg {
-    width: 25px;
-    height: 25px;
-    fill: color-mix(in srgb, var(--ui-accent) 7%, transparent);
+    width: 24px;
+    height: 24px;
+    fill: color-mix(in srgb, var(--ui-accent) 6%, transparent);
     stroke: currentColor;
     stroke-width: 1.55;
     stroke-linecap: round;
@@ -525,28 +584,30 @@
 
 .app-shell.platform-windows .windows-shape-footer {
     position: sticky;
-    bottom: -10px;
+    bottom: -9px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 9px 3px 2px;
-    border-top: 1px solid var(--theme-border);
+    gap: 10px;
+    padding: 8px 3px 2px;
+    border-top: 1px solid var(--theme-separator);
     background: var(--theme-surface-elevated);
     color: var(--theme-text-secondary);
     font: var(--type-micro)/var(--leading-tight) var(--font-ui);
 }
 
 .app-shell.platform-windows .windows-shape-footer button {
-    padding: 6px 10px;
+    padding: 5px 9px;
     border: 1px solid var(--ui-accent-border);
-    border-radius: 6px;
+    border-radius: 5px;
     color: var(--ui-accent-ink);
     background: var(--ui-accent-soft);
     cursor: pointer;
 }
 
-.app-shell.platform-windows .windows-shape-footer button:disabled { opacity: .5; cursor: default; }
+.app-shell.platform-windows .windows-shape-footer button:disabled { opacity: .45; cursor: default; }
+
+/* ── Presentation / fullscreen modes ── */
 
 .platform-windows.windows-presentation-mode .topbar,
 .platform-windows.windows-presentation-mode .touch-tool-bar,
@@ -568,12 +629,10 @@
     display: none !important;
 }
 
-.app-shell.platform-windows.windows-fullscreen-mode>.canvas-wrap {
+.app-shell.platform-windows.windows-fullscreen-mode > .canvas-wrap {
     position: fixed;
     z-index: 60;
     inset: 0;
-    /* The shell dimensions are expanded to offset its interface zoom. Match
-       those dimensions here so the scaled fixed canvas still fills the view. */
     width: var(--app-shell-width, 100vw);
     height: var(--app-shell-height-vh, 100vh);
     height: var(--app-shell-height-dvh, 100dvh);
@@ -589,29 +648,33 @@
     display: flex;
 }
 
+/* ── Focus tools (fullscreen bar) ── */
+
 .app-shell.platform-windows .windows-focus-tools {
     position: fixed;
     z-index: 80;
-    top: 14px;
+    top: 12px;
     left: 50%;
     display: none;
     align-items: center;
-    gap: 4px;
-    padding: 5px;
-    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 15%, transparent);
-    border-radius: 12px;
-    color: var(--toolbar-ink);
-    background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent);
+    gap: 3px;
+    padding: 4px;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ui-radius-panel);
+    color: var(--theme-text-primary);
+    background: color-mix(in srgb, var(--theme-surface) 90%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     transform: translateX(-50%);
 }
 
 .app-shell.platform-windows .windows-focus-tools button {
     display: grid;
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     place-items: center;
     border: 0;
-    border-radius: 8px;
+    border-radius: var(--ui-radius-control);
     color: inherit;
     background: transparent;
     cursor: pointer;
@@ -624,13 +687,13 @@
 }
 
 .app-shell.platform-windows .windows-focus-tools button:disabled {
-    opacity: .35;
+    opacity: .3;
     cursor: not-allowed;
 }
 
 .app-shell.platform-windows .windows-focus-tools svg {
-    width: 19px;
-    height: 19px;
+    width: 18px;
+    height: 18px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -640,23 +703,24 @@
 
 .app-shell.platform-windows .windows-focus-divider {
     width: 1px;
-    height: 22px;
-    margin: 0 3px;
-    background: color-mix(in srgb, var(--toolbar-ink) 16%, transparent);
+    height: 20px;
+    margin: 0 2px;
+    background: var(--theme-separator);
 }
 
-/* Keep the settings popover aligned with the selected application theme. */
+/* ── Settings popover ── */
+
 .app-shell.platform-windows .app-settings-popover {
-    width: min(380px, calc(100vw - 24px));
-    max-height: min(620px, calc(100dvh - 24px));
+    width: min(370px, calc(100vw - 24px));
+    max-height: min(600px, calc(100dvh - 24px));
     border-color: var(--theme-border);
     color: var(--theme-text-primary);
     background: var(--theme-surface-elevated);
 }
 
 .app-shell.platform-windows .app-settings-heading {
-    padding: 0 2px 8px;
-    border-color: var(--theme-border-subtle);
+    padding: 0 2px 7px;
+    border-color: var(--theme-separator);
 }
 
 .app-shell.platform-windows .app-settings-heading strong {
@@ -664,60 +728,61 @@
 }
 
 .app-shell.platform-windows .app-settings-reset {
-    min-height: 34px;
+    min-height: 32px;
     border-color: var(--theme-border);
-    border-radius: 6px;
+    border-radius: 5px;
     color: var(--theme-text-primary);
     background: var(--theme-surface-input);
     cursor: pointer;
 }
 
 .app-shell.platform-windows .app-settings-reset:disabled {
-    opacity: .45;
+    opacity: .4;
     cursor: not-allowed;
 }
 
-/* Keep Windows dialogs synchronized with the selected toolbar palette. */
+/* ── Keyboard shortcuts dialog ── */
+
 .app-shell.platform-windows .windows-shortcut-dialog {
     box-sizing: border-box;
     display: flex;
-    width: min(720px, 100%);
-    min-height: min(420px, calc(100dvh - 48px));
-    max-height: min(780px, calc(100dvh - 48px));
+    width: min(700px, 100%);
+    min-height: min(400px, calc(100dvh - 48px));
+    max-height: min(760px, calc(100dvh - 48px));
     flex-direction: column;
     overflow: hidden;
-    --dialog-surface: var(--toolbar-surface);
-    --dialog-ink: var(--toolbar-ink);
-    --dialog-muted: color-mix(in srgb, var(--toolbar-ink) 66%, transparent);
-    --dialog-line: color-mix(in srgb, var(--toolbar-ink) 14%, transparent);
-    --dialog-well: color-mix(in srgb, var(--toolbar-ink) 5%, var(--toolbar-surface));
+    --dialog-surface: var(--theme-surface-elevated);
+    --dialog-ink: var(--theme-text-primary);
+    --dialog-muted: var(--theme-text-secondary);
+    --dialog-line: var(--theme-border);
+    --dialog-well: var(--theme-surface-input);
     border-color: var(--dialog-line);
     color: var(--dialog-ink);
     background: var(--dialog-surface);
 }
 
-.app-shell.platform-windows .windows-shortcut-dialog>header {
+.app-shell.platform-windows .windows-shortcut-dialog > header {
     display: flex;
     flex: 0 0 auto;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 16px;
-    padding: 19px 21px 15px;
+    gap: 14px;
+    padding: 17px 19px 13px;
     border-bottom: 1px solid var(--dialog-line);
 }
 
-.app-shell.platform-windows .windows-shortcut-dialog>header>div {
+.app-shell.platform-windows .windows-shortcut-dialog > header > div {
     min-width: 0;
 }
 
-.app-shell.platform-windows .windows-shortcut-dialog>header h2 {
-    margin: 0 0 5px;
+.app-shell.platform-windows .windows-shortcut-dialog > header h2 {
+    margin: 0 0 4px;
     color: var(--dialog-ink);
     font-size: var(--type-title);
 }
 
-.app-shell.platform-windows .windows-shortcut-dialog>header p {
-    max-width: 58ch;
+.app-shell.platform-windows .windows-shortcut-dialog > header p {
+    max-width: 56ch;
     margin: 0;
     color: var(--dialog-muted);
     font-size: var(--type-control);
@@ -726,13 +791,13 @@
 
 .app-shell.platform-windows .windows-shortcut-dialog .windows-shortcut-close {
     display: grid;
-    width: 34px;
-    height: 34px;
-    flex: 0 0 34px;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
     place-items: center;
     padding: 0;
     border: 1px solid var(--dialog-line);
-    border-radius: 9px;
+    border-radius: var(--ui-radius-menu);
     color: var(--dialog-muted);
     background: transparent;
     cursor: pointer;
@@ -744,8 +809,8 @@
 }
 
 .app-shell.platform-windows .windows-shortcut-dialog .windows-shortcut-close svg {
-    width: 17px;
-    height: 17px;
+    width: 16px;
+    height: 16px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -759,14 +824,14 @@
 
 .app-shell.platform-windows .windows-shortcut-filter {
     display: flex;
-    min-height: 42px;
+    min-height: 40px;
     flex: 0 0 auto;
     align-items: center;
-    gap: 9px;
-    margin: 12px 18px 4px;
-    padding: 0 11px;
+    gap: 8px;
+    margin: 10px 16px 3px;
+    padding: 0 10px;
     border: 1px solid var(--dialog-line);
-    border-radius: 9px;
+    border-radius: var(--ui-radius-menu);
     color: var(--dialog-muted);
     background: var(--dialog-well);
 }
@@ -776,9 +841,9 @@
 }
 
 .app-shell.platform-windows .windows-shortcut-filter svg {
-    width: 17px;
-    height: 17px;
-    flex: 0 0 17px;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -789,7 +854,7 @@
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
-    height: 40px;
+    height: 38px;
     padding: 0;
     border: 0;
     outline: 0;
@@ -802,7 +867,7 @@
     color: var(--dialog-muted);
 }
 
-.app-shell.platform-windows .windows-shortcut-filter>span {
+.app-shell.platform-windows .windows-shortcut-filter > span {
     flex: 0 0 auto;
     color: var(--dialog-muted);
     font-size: var(--type-micro);
@@ -812,46 +877,46 @@
     min-height: 0;
     flex: 1 1 auto;
     overflow: auto;
-    padding: 7px 18px 12px;
+    padding: 6px 16px 10px;
     overscroll-behavior: contain;
-    scrollbar-color: color-mix(in srgb, var(--toolbar-ink) 25%, transparent) transparent;
+    scrollbar-color: color-mix(in srgb, var(--theme-text-primary) 20%, transparent) transparent;
     scrollbar-width: thin;
 }
 
-.app-shell.platform-windows .windows-shortcut-group+.windows-shortcut-group {
-    margin-top: 13px;
+.app-shell.platform-windows .windows-shortcut-group + .windows-shortcut-group {
+    margin-top: 12px;
 }
 
 .app-shell.platform-windows .windows-shortcut-group h3 {
-    margin: 8px 7px 4px;
+    margin: 7px 6px 3px;
     color: var(--dialog-muted);
     font-size: var(--type-micro);
     font-weight: var(--font-weight-bold);
-    letter-spacing: .08em;
+    letter-spacing: .07em;
     text-transform: uppercase;
 }
 
 .app-shell.platform-windows .windows-shortcut-columns,
 .app-shell.platform-windows .windows-shortcut-row {
     display: grid;
-    grid-template-columns: minmax(150px, 1fr) minmax(126px, 180px) minmax(140px, 180px);
+    grid-template-columns: minmax(140px, 1fr) minmax(120px, 170px) minmax(130px, 170px);
     align-items: center;
-    gap: 10px;
-    padding-inline: 7px;
+    gap: 9px;
+    padding-inline: 6px;
 }
 
 .app-shell.platform-windows .windows-shortcut-columns {
-    min-height: 25px;
+    min-height: 24px;
     color: var(--dialog-muted);
     font-size: var(--type-micro);
     font-weight: var(--font-weight-semibold);
 }
 
 .app-shell.platform-windows .windows-shortcut-row {
-    min-height: 46px;
-    padding-block: 5px;
-    border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 9%, transparent);
-    border-radius: 6px;
+    min-height: 44px;
+    padding-block: 4px;
+    border-bottom: 1px solid var(--theme-separator);
+    border-radius: 5px;
     color: var(--dialog-ink);
     font-size: var(--type-control);
 }
@@ -861,7 +926,7 @@
 }
 
 .app-shell.platform-windows .windows-shortcut-row:hover {
-    background: color-mix(in srgb, var(--toolbar-ink) 4%, transparent);
+    background: color-mix(in srgb, var(--theme-text-primary) 3%, transparent);
 }
 
 .app-shell.platform-windows .windows-shortcut-row:last-child {
@@ -872,10 +937,10 @@
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
-    min-height: 36px;
-    padding: 6px 9px;
+    min-height: 34px;
+    padding: 5px 8px;
     border: 1px solid var(--dialog-line);
-    border-radius: 8px;
+    border-radius: var(--ui-radius-control);
     color: var(--dialog-ink);
     background: var(--dialog-well);
     cursor: pointer;
@@ -894,41 +959,41 @@
 
 .app-shell.platform-windows .windows-shortcut-empty {
     margin: 0;
-    padding: 28px 12px;
+    padding: 26px 10px;
     color: var(--dialog-muted);
     text-align: center;
     font-size: var(--type-control);
 }
 
 .app-shell.platform-windows .windows-shortcut-reference {
-    margin-top: 15px;
-    padding: 9px 7px 3px;
+    margin-top: 13px;
+    padding: 8px 6px 2px;
     border-top: 1px solid var(--dialog-line);
 }
 
 .app-shell.platform-windows .windows-shortcut-reference h3 {
-    margin: 3px 0 4px;
+    margin: 2px 0 3px;
     color: var(--dialog-muted);
     font-size: var(--type-micro);
     font-weight: var(--font-weight-bold);
-    letter-spacing: .08em;
+    letter-spacing: .07em;
     text-transform: uppercase;
 }
 
 .app-shell.platform-windows .windows-shortcut-reference p {
-    margin: 0 0 6px;
+    margin: 0 0 5px;
     color: var(--dialog-muted);
     font-size: var(--type-micro);
 }
 
 .app-shell.platform-windows .windows-shortcut-reference-row {
     display: grid;
-    min-height: 32px;
-    grid-template-columns: minmax(120px, .7fr) minmax(0, 1fr);
+    min-height: 30px;
+    grid-template-columns: minmax(110px, .7fr) minmax(0, 1fr);
     align-items: center;
-    gap: 10px;
-    padding: 4px 7px;
-    border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 9%, transparent);
+    gap: 9px;
+    padding: 3px 6px;
+    border-bottom: 1px solid var(--theme-separator);
     color: var(--dialog-ink);
     font-size: var(--type-caption);
 }
@@ -936,19 +1001,19 @@
 .app-shell.platform-windows .windows-shortcut-reference-row:last-child { border-bottom: 0; }
 .app-shell.platform-windows .windows-shortcut-reference-row kbd { color: var(--dialog-ink); font: var(--font-weight-semibold) var(--type-micro) var(--font-mono); }
 
-.app-shell.platform-windows .windows-shortcut-dialog>footer {
+.app-shell.platform-windows .windows-shortcut-dialog > footer {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
     justify-content: flex-end;
-    gap: 8px;
-    padding: 12px 18px;
+    gap: 7px;
+    padding: 10px 16px;
     border-top: 1px solid var(--dialog-line);
 }
 
-.app-shell.platform-windows .windows-shortcut-dialog>footer [role="status"] {
+.app-shell.platform-windows .windows-shortcut-dialog > footer [role="status"] {
     flex: 1 1 auto;
-    min-width: 150px;
+    min-width: 140px;
     color: var(--dialog-muted);
     font-size: var(--type-caption);
     line-height: var(--leading-normal);
@@ -956,9 +1021,9 @@
 
 .app-shell.platform-windows .windows-shortcut-dialog .quiet-button,
 .app-shell.platform-windows .windows-shortcut-dialog .save-button {
-    min-height: 36px;
-    padding: 7px 11px;
-    border-radius: 9px;
+    min-height: 34px;
+    padding: 6px 10px;
+    border-radius: var(--ui-radius-menu);
     font: var(--font-weight-semibold) var(--type-caption) var(--font-ui);
     cursor: pointer;
 }
@@ -970,7 +1035,7 @@
 }
 
 .app-shell.platform-windows .windows-shortcut-dialog .quiet-button:hover {
-    background: color-mix(in srgb, var(--toolbar-ink) 10%, var(--dialog-surface));
+    background: color-mix(in srgb, var(--theme-text-primary) 8%, var(--dialog-surface));
 }
 
 .app-shell.platform-windows .windows-shortcut-dialog .save-button {
@@ -985,95 +1050,97 @@
         max-height: calc(100dvh - 20px);
     }
 
-    .app-shell.platform-windows .windows-shortcut-dialog>header {
-        gap: 10px;
-        padding: 14px 13px 12px;
+    .app-shell.platform-windows .windows-shortcut-dialog > header {
+        gap: 9px;
+        padding: 12px 12px 10px;
     }
 
-    .app-shell.platform-windows .windows-shortcut-dialog>header h2 {
+    .app-shell.platform-windows .windows-shortcut-dialog > header h2 {
         font-size: var(--type-heading-small);
     }
 
     .app-shell.platform-windows .windows-shortcut-filter {
-        margin-inline: 12px;
+        margin-inline: 10px;
     }
 
     .app-shell.platform-windows .windows-shortcut-list {
-        padding-inline: 12px;
+        padding-inline: 10px;
     }
 
     .app-shell.platform-windows .windows-shortcut-columns,
     .app-shell.platform-windows .windows-shortcut-row {
-        grid-template-columns: minmax(105px, 1fr) minmax(92px, .9fr) minmax(104px, .95fr);
-        gap: 7px;
-        padding-inline: 5px;
-        font-size: var(--type-micro);
-    }
-
-    .app-shell.platform-windows .windows-shortcut-columns {
-        font-size: var(--type-micro);
-    }
-
-    .app-shell.platform-windows .windows-shortcut-row input {
+        grid-template-columns: minmax(100px, 1fr) minmax(88px, .9fr) minmax(100px, .95fr);
+        gap: 6px;
         padding-inline: 4px;
         font-size: var(--type-micro);
     }
 
-    .app-shell.platform-windows .windows-shortcut-dialog>footer {
-        flex-wrap: wrap;
-        padding: 10px 12px;
+    .app-shell.platform-windows .windows-shortcut-row input {
+        padding-inline: 3px;
+        font-size: var(--type-micro);
     }
 
-    .app-shell.platform-windows .windows-shortcut-dialog>footer [role="status"] {
+    .app-shell.platform-windows .windows-shortcut-dialog > footer {
+        flex-wrap: wrap;
+        padding: 9px 10px;
+    }
+
+    .app-shell.platform-windows .windows-shortcut-dialog > footer [role="status"] {
         min-width: 100%;
     }
 }
 
+/* ── Command palette ── */
+
 .app-shell.platform-windows .windows-command-backdrop {
     place-items: start center;
     overflow-y: auto;
-    padding: clamp(36px, 12vh, 112px) 18px 24px;
-    background: color-mix(in srgb, var(--theme-background) 66%, transparent);
+    padding: clamp(32px, 12vh, 108px) 16px 24px;
+    background: var(--theme-backdrop);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
 }
 
 .app-shell.platform-windows .windows-command-palette {
     box-sizing: border-box;
-    width: min(680px, 100%);
-    max-height: min(72vh, 700px);
+    width: min(660px, 100%);
+    max-height: min(70vh, 680px);
     display: flex;
     flex-direction: column;
-    border-color: color-mix(in srgb, var(--toolbar-ink) 15%, transparent);
-    border-radius: 17px;
-    background: var(--toolbar-surface);
-    color: var(--toolbar-ink);
+    border-color: var(--theme-border);
+    border-radius: var(--ui-radius-dialog);
+    background: var(--theme-surface-elevated);
+    color: var(--theme-text-primary);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .app-shell.platform-windows .windows-command-search {
     display: flex;
-    min-height: 66px;
+    min-height: 62px;
     flex: 0 0 auto;
     align-items: center;
-    gap: 12px;
-    padding: 0 17px;
-    border-bottom: 1px solid color-mix(in srgb, var(--toolbar-ink) 12%, transparent);
+    gap: 11px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--theme-separator);
 }
 
-.app-shell.platform-windows .windows-command-search>svg {
-    width: 21px;
-    height: 21px;
-    flex: 0 0 21px;
+.app-shell.platform-windows .windows-command-search > svg {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
     stroke-linecap: round;
-    opacity: .58;
+    opacity: .5;
 }
 
-.app-shell.platform-windows .windows-command-search>input {
+.app-shell.platform-windows .windows-command-search > input {
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
-    height: 58px;
+    height: 54px;
     padding: 0;
     border: 0;
     outline: 0;
@@ -1082,22 +1149,22 @@
     font: var(--font-weight-regular) var(--type-heading-small)/var(--leading-normal) var(--font-ui);
 }
 
-.app-shell.platform-windows .windows-command-search>input::placeholder {
-    color: color-mix(in srgb, var(--toolbar-ink) 48%, transparent);
+.app-shell.platform-windows .windows-command-search > input::placeholder {
+    color: var(--theme-text-tertiary);
 }
 
-.app-shell.platform-windows .windows-command-search>kbd,
+.app-shell.platform-windows .windows-command-search > kbd,
 .app-shell.platform-windows .windows-command-results kbd,
 .app-shell.platform-windows .windows-command-palette footer kbd {
     display: inline-flex;
-    min-height: 21px;
+    min-height: 20px;
     align-items: center;
     justify-content: center;
-    padding: 2px 6px;
-    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 16%, transparent);
-    border-radius: 6px;
+    padding: 2px 5px;
+    border: 1px solid var(--theme-border);
+    border-radius: 5px;
     color: inherit;
-    background: color-mix(in srgb, var(--toolbar-ink) 5%, var(--toolbar-surface));
+    background: var(--theme-surface-input);
     font: var(--font-weight-medium) var(--type-micro)/var(--leading-tight) var(--font-ui);
     white-space: nowrap;
 }
@@ -1106,103 +1173,103 @@
     display: grid;
     align-content: start;
     gap: 2px;
-    min-height: 72px;
-    max-height: min(58vh, 560px);
+    min-height: 68px;
+    max-height: min(56vh, 540px);
     overflow: auto;
-    padding: 8px;
-    scrollbar-color: color-mix(in srgb, var(--toolbar-ink) 25%, transparent) transparent;
+    padding: 7px;
+    scrollbar-color: color-mix(in srgb, var(--theme-text-primary) 20%, transparent) transparent;
     scrollbar-width: thin;
 }
 
-.app-shell.platform-windows .windows-command-results>button {
+.app-shell.platform-windows .windows-command-results > button {
     display: flex;
     width: 100%;
     align-items: center;
     justify-content: space-between;
-    gap: 14px;
+    gap: 12px;
     border: 0;
     color: inherit;
     background: transparent;
     text-align: left;
     cursor: pointer;
-    min-height: 54px;
-    padding: 8px 11px;
-    border-radius: 10px;
+    min-height: 50px;
+    padding: 7px 10px;
+    border-radius: var(--ui-radius-menu);
 }
 
-.app-shell.platform-windows .windows-command-results>button:hover,
-.app-shell.platform-windows .windows-command-results>button.active {
-    background: color-mix(in srgb, var(--ui-accent) 13%, transparent);
+.app-shell.platform-windows .windows-command-results > button:hover,
+.app-shell.platform-windows .windows-command-results > button.active {
+    background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
 }
 
-.app-shell.platform-windows .windows-command-results>button:focus-visible {
+.app-shell.platform-windows .windows-command-results > button:focus-visible {
     outline: 2px solid var(--ui-accent);
     outline-offset: -2px;
 }
 
-.app-shell.platform-windows .windows-command-results>button span {
+.app-shell.platform-windows .windows-command-results > button span {
     display: grid;
     min-width: 0;
-    gap: 3px;
+    gap: 2px;
 }
 
 .app-shell.platform-windows .windows-command-results small {
-    color: color-mix(in srgb, var(--toolbar-ink) 62%, transparent);
+    color: var(--theme-text-secondary);
     font-size: var(--type-micro);
 }
 
 .app-shell.platform-windows .windows-command-results strong {
-    color: var(--toolbar-ink);
+    color: var(--theme-text-primary);
     font-size: var(--type-body-compact);
     font-weight: var(--font-weight-semibold);
 }
 
-.app-shell.platform-windows .windows-command-results>p {
+.app-shell.platform-windows .windows-command-results > p {
     margin: 0;
-    padding: 22px 12px;
-    color: color-mix(in srgb, var(--toolbar-ink) 65%, transparent);
+    padding: 20px 10px;
+    color: var(--theme-text-secondary);
     text-align: center;
     font-size: var(--type-control);
 }
 
 .app-shell.platform-windows .windows-command-palette footer {
-    min-height: 36px;
+    min-height: 34px;
     flex: 0 0 auto;
     align-items: center;
-    gap: 16px;
-    padding: 7px 14px;
-    border-top: 1px solid color-mix(in srgb, var(--toolbar-ink) 12%, transparent);
-    color: color-mix(in srgb, var(--toolbar-ink) 68%, transparent);
+    gap: 14px;
+    padding: 6px 12px;
+    border-top: 1px solid var(--theme-separator);
+    color: var(--theme-text-tertiary);
     font-size: var(--type-micro);
 }
 
 .app-shell.platform-windows .windows-command-palette footer span {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
 }
 
 .app-shell.platform-windows .windows-command-palette footer kbd {
-    min-height: 19px;
-    padding: 1px 5px;
+    min-height: 18px;
+    padding: 1px 4px;
 }
 
 @media (max-width: 540px) {
     .app-shell.platform-windows .windows-command-backdrop {
-        padding: 42px 10px 12px;
+        padding: 38px 9px 10px;
     }
 
     .app-shell.platform-windows .windows-command-palette {
-        max-height: calc(100dvh - 54px);
+        max-height: calc(100dvh - 50px);
     }
 
     .app-shell.platform-windows .windows-command-results {
-        max-height: calc(100dvh - 180px);
+        max-height: calc(100dvh - 170px);
     }
 
     .app-shell.platform-windows .windows-command-palette footer {
         justify-content: space-between;
-        gap: 5px;
-        padding-inline: 9px;
+        gap: 4px;
+        padding-inline: 8px;
     }
 }

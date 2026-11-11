@@ -1,107 +1,146 @@
-/* Route every click on an option's artwork to its full button hit area. */
-.tool-icon-button>svg:not(.tool-family-caret),
-.tool-options button>*,
-.quick-style-icon>*,
-.quick-arrow-heads button>*,
-.arrow-head-choices button>* {
+/* ── Toolbar: Apple-inspired floating tool dock ── */
+
+.tool-icon-button > svg:not(.tool-family-caret),
+.tool-options button > *,
+.quick-style-icon > *,
+.quick-arrow-heads button > *,
+.arrow-head-choices button > * {
     pointer-events: none;
 }
 
-.tool-icon-button>.tool-family-caret {
+.tool-icon-button > .tool-family-caret {
     pointer-events: auto;
 }
 
 .choice-deck.arrow-head-choices {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
+    gap: 3px;
 }
 
 .choice-deck.arrow-head-choices button {
-    width: 36px;
-    min-width: 32px;
-    min-height: 42px;
+    width: 32px;
+    min-width: 28px;
+    min-height: 38px;
     padding: 4px;
 }
 
 .choice-deck.arrow-head-choices button svg {
-    width: 23px;
-    height: 23px;
+    width: 20px;
+    height: 20px;
 }
 
-/* Group the floating toolbar into clear, compact tool families. */
+/* ── Floating tool deck ── */
+
 .tool-deck {
     z-index: 12;
     align-items: center;
     width: max-content;
     max-width: calc(100vw - 24px);
-    border: 1px solid var(--theme-border);
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--theme-surface) 78%, transparent);
+    backdrop-filter: blur(40px) saturate(1.6);
+    -webkit-backdrop-filter: blur(40px) saturate(1.6);
+    box-shadow:
+        0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 8%, transparent),
+        0 1px 3px color-mix(in srgb, var(--theme-text-primary) 6%, transparent),
+        0 8px 24px color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
+}
+
+:root[data-theme="light"] .tool-deck {
+    background: color-mix(in srgb, var(--theme-surface) 72%, transparent);
+    box-shadow:
+        0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 6%, transparent),
+        0 1px 2px color-mix(in srgb, var(--theme-text-primary) 4%, transparent),
+        0 8px 32px color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
 }
 
 .tool-cluster {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    border: 1px solid var(--theme-border);
+    gap: 1px;
+    border: 0;
+    background: transparent;
 }
 
-/* One quiet divider marks each tool family boundary. */
 .tool-deck .touch-tool-content > .tool-cluster:not(.tool-cluster-canvas)::before,
 .tool-deck .touch-tool-content > .tool-family.tool-extra-family::before {
     width: 1px;
-    height: 22px;
+    height: 16px;
     flex: 0 0 1px;
     align-self: center;
     margin: 0 4px;
     border-radius: 1px;
-    background: color-mix(in srgb, var(--toolbar-ink, var(--theme-border)) 18%, transparent);
+    background: color-mix(in srgb, var(--theme-text-tertiary) 28%, transparent);
     content: "";
 }
 
-.tool-cluster-canvas {
-    border-color: transparent;
+:root[data-theme="light"] .tool-deck .touch-tool-content > .tool-cluster:not(.tool-cluster-canvas)::before,
+:root[data-theme="light"] .tool-deck .touch-tool-content > .tool-family.tool-extra-family::before {
+    background: color-mix(in srgb, var(--theme-text-tertiary) 22%, transparent);
 }
 
-.tool-cluster-connectors {
-    background: transparent;
-}
-
-.tool-cluster-shapes {
-    background: transparent;
-}
-
+.tool-cluster-canvas,
+.tool-cluster-connectors,
+.tool-cluster-shapes,
 .tool-cluster-content,
 .tool-cluster-history {
     background: transparent;
 }
 
+/* ── Tool buttons ── */
+
 .tool-icon-button {
     gap: 2px;
     color: var(--theme-text-secondary);
+    border-radius: 10px;
+    transition: color 180ms cubic-bezier(.2, .7, .4, 1),
+                background-color 180ms cubic-bezier(.2, .7, .4, 1),
+                transform 120ms cubic-bezier(.2, .7, .4, 1);
 }
 
 .tool-icon-button:hover:not(:disabled) {
-    border-color: var(--theme-control-outline);
-    color: var(--theme-primary);
-    background: var(--theme-control-hover);
+    border-color: transparent;
+    color: var(--theme-text-primary);
+    background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+}
+
+:root[data-theme="light"] .tool-icon-button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--theme-text-primary) 6%, transparent);
+}
+
+.tool-icon-button:active:not(:disabled) {
+    transform: scale(0.92);
+    transition-duration: 60ms;
 }
 
 .tool-icon-button.selected {
-    color: var(--theme-primary);
+    color: var(--theme-primary-contrast);
+    background: var(--theme-primary);
+    border-color: transparent;
+}
+
+:root[data-theme="light"] .tool-icon-button.selected {
+    color: #ffffff;
+    background: var(--theme-primary);
 }
 
 .tool-icon-button.selected:hover {
-    border-color: var(--theme-control-outline);
-    background: var(--theme-control-selected);
+    border-color: transparent;
+    background: var(--theme-primary-hover);
 }
 
 .tool-icon-button kbd {
-    color: var(--theme-text-secondary);
+    color: var(--theme-text-tertiary);
     font: var(--font-size-micro) var(--font-mono);
 }
 
 .tool-icon-button.selected kbd {
-    color: var(--theme-primary);
+    color: inherit;
+    opacity: 0.7;
 }
 
 .tool-icon-button.has-options {
@@ -109,46 +148,85 @@
 }
 
 .tool-icon-button .tool-family-caret {
-    top: 4px;
-    right: 4px;
-    width: 11px;
-    height: 11px;
-    padding: 2px;
-    border: 1px solid var(--theme-border);
-    color: var(--theme-text-secondary);
-    background: var(--theme-surface-input);
+    top: 3px;
+    right: 3px;
+    width: 9px;
+    height: 9px;
+    padding: 1.5px;
+    border: 0;
+    border-radius: 50%;
+    color: var(--theme-text-tertiary);
+    background: color-mix(in srgb, var(--theme-surface-elevated) 90%, transparent);
+    box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
 }
 
-.tool-family.options-open>.tool-icon-button,
-.tool-family:focus-within>.tool-icon-button {
-    border-color: var(--theme-primary-border);
+.tool-icon-button.selected .tool-family-caret {
+    color: var(--theme-primary-contrast);
+    background: color-mix(in srgb, var(--theme-primary-hover) 80%, transparent);
+    box-shadow: none;
+}
+
+.tool-family.options-open > .tool-icon-button,
+.tool-family:focus-within > .tool-icon-button {
+    border-color: transparent;
     color: var(--theme-primary);
     background: var(--theme-primary-muted);
 }
 
+/* ── Tool options flyout ── */
+
 .tool-options {
     z-index: 30;
+    padding: 6px;
+    border: 0;
+    border-radius: 14px;
     color: var(--theme-text-primary);
+    background: color-mix(in srgb, var(--theme-surface-elevated) 82%, transparent);
+    backdrop-filter: blur(40px) saturate(1.6);
+    -webkit-backdrop-filter: blur(40px) saturate(1.6);
+    box-shadow:
+        0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 8%, transparent),
+        0 4px 16px color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
+}
+
+:root[data-theme="light"] .tool-options {
+    background: color-mix(in srgb, var(--theme-surface-elevated) 76%, transparent);
+    box-shadow:
+        0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 6%, transparent),
+        0 4px 20px color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
 }
 
 .tool-options button {
     border: 1px solid transparent;
+    border-radius: 8px;
     color: var(--theme-text-secondary);
     background: transparent;
+    transition: color 140ms ease, background-color 140ms ease;
 }
 
-.tool-options button>svg {
+.tool-options button:hover {
+    color: var(--theme-text-primary);
+    background: color-mix(in srgb, var(--theme-text-primary) 7%, transparent);
+}
+
+.tool-options button > svg {
     color: inherit;
 }
 
-.tool-options button>span {
+.tool-options button > span {
     color: inherit;
     text-align: center;
 }
 
 .tool-collapse,
 .tool-deck-reopen {
-    color: var(--theme-text-secondary);
+    color: var(--theme-text-tertiary);
+    transition: color 140ms ease, background-color 140ms ease;
+}
+
+.tool-collapse:hover,
+.tool-deck-reopen:hover {
+    color: var(--theme-text-primary);
 }
 
 @media (max-width: 760px) {
@@ -159,13 +237,13 @@
 }
 
 .canvas-utility-button kbd {
-    color: var(--theme-text-secondary);
+    color: var(--theme-text-tertiary);
     font: var(--font-size-micro) var(--font-mono);
     line-height: var(--leading-icon);
     white-space: nowrap;
 }
 
 .canvas-utility-button:disabled {
-    opacity: .35;
+    opacity: .3;
     cursor: default;
 }

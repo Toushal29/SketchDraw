@@ -5,10 +5,13 @@
     bottom: 18px;
     width: 224px;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--toolbar-ink) 18%, transparent);
-    border-radius: 10px;
-    color: var(--toolbar-ink);
-    background: color-mix(in srgb, var(--toolbar-surface) 94%, transparent);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ui-radius-popover);
+    color: var(--theme-text-primary);
+    background: var(--theme-surface-elevated);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 16px var(--theme-shadow);
 }
 
 .canvas-minimap header {
@@ -17,7 +20,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 8px 0 10px;
-    color: var(--toolbar-ink);
+    color: var(--theme-text-secondary);
     font-size: var(--type-caption);
 }
 
@@ -35,7 +38,7 @@
 }
 
 .canvas-minimap header button:hover {
-    background: color-mix(in srgb, var(--toolbar-ink) 9%, transparent);
+    background: var(--theme-control-hover);
 }
 
 .canvas-minimap svg {
@@ -47,8 +50,8 @@
 }
 
 .minimap-board {
-    fill: color-mix(in srgb, var(--toolbar-surface) 99%, var(--theme-text-tertiary));
-    stroke: color-mix(in srgb, var(--toolbar-ink) 15%, transparent);
+    fill: var(--theme-surface);
+    stroke: var(--theme-separator);
 }
 
 .minimap-object {
@@ -87,10 +90,12 @@
     padding: 4px 9px;
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--theme-primary) 32%, var(--theme-border));
-    border-radius: 7px;
+    border-radius: var(--ui-radius-control);
     color: var(--theme-text-secondary);
-    background: color-mix(in srgb, var(--theme-surface-elevated) 94%, transparent);
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--theme-shadow) 12%, transparent);
+    background: var(--theme-surface-elevated);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 2px 8px var(--theme-shadow);
     font-size: var(--type-caption);
     pointer-events: none;
     white-space: nowrap;
@@ -183,10 +188,13 @@
     max-width: calc(100% - 24px);
     padding: 5px 7px;
     overflow-x: auto;
-    border: 1px solid color-mix(in srgb, var(--theme-border) 18.82%, transparent);
-    border-radius: 10px;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--ui-radius-panel);
     color: var(--theme-text-tertiary);
-    background: color-mix(in srgb, var(--theme-surface-elevated) 90.98%, transparent);
+    background: var(--theme-surface-elevated);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 4px 16px var(--theme-shadow);
     transform: translateX(-50%);
 }
 
@@ -196,13 +204,13 @@
     border: 0;
     border-radius: 6px;
     color: inherit;
-    background: color-mix(in srgb, var(--theme-surface-input) 8.63%, transparent);
+    background: transparent;
     cursor: pointer;
     touch-action: manipulation;
 }
 
 .canvas-presentation-controls button:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--theme-surface) 16.86%, transparent);
+    background: var(--theme-control-hover);
 }
 
 .canvas-presentation-controls button:disabled {

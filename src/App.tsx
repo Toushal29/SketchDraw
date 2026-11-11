@@ -12,14 +12,14 @@ import type { PdfRasterPage } from "./features/export/pdf-renderer";
 import sketchDrawMark from "../icons/sketchdraw-mark.svg";
 
 import { SKETCH_CLIPBOARD_VERSION, SKETCH_FORMAT_VERSION } from "./model";
-import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, SchemaField, Element, GroupElement, Tool, ToolbarItem, CanvasState, CanvasSnapGuides, CanvasSnapTarget, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipDirection, ConnectionPoint, CanvasLayer, CanvasLayerVisibilityPreset, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition, PrototypeAction, PrototypeVariable, PrototypeComponentState, DecisionCardMetadata } from "./model";
+import type { Point, StrokePoint, FreehandElement, ArrowHead, FlowchartShape, ArrowRoute, LineRoute, StrokeStyle, ShapeElement, TextElement, ImageElement, SchemaTableElement, Element, GroupElement, Tool, ToolbarItem, CanvasState, CanvasSnapGuides, CanvasSnapTarget, SketchPage, SketchFile, Preview, Bounds, TextDraft, Theme, Binding, ShapeLabel, EdgeStyle, FontFamily, RelationshipDirection, ConnectionPoint, CanvasLayer, CanvasLayerVisibilityPreset, ContainerMetadata, ComponentMaster, ComponentOverrides, LibraryChartKind, LibraryChartData, PageLinkTransition, PrototypeAction, PrototypeVariable, PrototypeComponentState, DecisionCardMetadata } from "./model";
 import { ensureIds, resolveBindings, copyElements, flatten, isConnector, isLabelShape, isConnectable, anchorPoint, nearestBinding, validReferences, labelBox, alignedTextStartX, textElementLines, textFont, textLayout, DEFAULT_TEXT_WRAP_WIDTH, reattachDanglingConnectors } from "./operations";
 import type { ChecklistItem, NoteKind } from "./model";
 import { buildNoteGroup, checklistIndexAt, noteCollapseHit, drawNoteCard, defaultNoteTitle, measureNoteInlineText, noteCardMaxScroll, toggleChecklistItem } from "./notes";
 import { checklistTextLength, checklistToText, formatChecklistTextSelection, parseChecklistText } from "./features/notes/checklist";
 import { buildLibraryComponent, buildLibraryRelationship, defaultLibraryChartData, defaultLibraryUiComponent, LIBRARY_COMPONENTS, type LibraryComponentKind } from "./features/components/library-components";
 import { MAX_SCHEMA_SOURCE_CHARACTERS, parseSchema } from "./schema";
-import { schemaRelationshipConnectors } from "./features/diagrams/schema-visualizer";
+import { createSchemaInsertion } from "./app/schema-insertion";
 import { importDrawioWithReport, importExcalidraw, exportDrawio, exportExcalidraw } from "./features/diagrams/interchange";
 import { importVsdx, exportVsdx } from "./features/diagrams/visio-vsdx";
 import { cloudProviderComponent, loadCloudProviderGlyph } from "./features/diagrams/cloud-providers";
@@ -65,13 +65,8 @@ import { createCanvasGradient, createPatternCanvas, applyShadowToContext, clearS
 import { ghostLayerElements, drawGhostLayer } from "./features/canvas/ghost-layer";
 import { PressureCurveEditor } from "./components/PressureCurveEditor";
 import { RadialContextMenu, type RadialMenuItem, type RadialMenuSubItem } from "./components/RadialContextMenu";
-import { InfiniteClipboardTray } from "./components/InfiniteClipboardTray";
-import { DrawingChallengePanel } from "./components/DrawingChallengePanel";
-import { SpatialFileBrowser } from "./components/SpatialFileBrowser";
 import { addToClipboard } from "./features/canvas/infinite-clipboard";
 import { addFileCard, readSpatialLayout, writeSpatialLayout } from "./features/canvas/spatial-file-browser";
-import { createAmbientController } from "./features/canvas/ambient-mode";
-import { playStrokeSound, playEraseSound, readSoundtrackConfig, writeSoundtrackConfig, disposeSoundtrack } from "./features/canvas/canvas-soundtrack";
 import { AdvancedPropertiesIcon, QuickPropertiesIcon } from "./components/PropertyPanelIcons";
 import { DesignShapePalette, type DesignPaletteItem } from "./features/workspace/DesignShapePalette";
 import { ComponentLibraryPanel } from "./features/components/ComponentLibraryPanel";
@@ -82,7 +77,7 @@ import { arrowHeadPoints, connectorControlPoints, connectorPoint, defaultCurveCo
 import { unionBounds, elementBounds, elementGridBounds, visibleElementBounds, distanceToSegment, lockAspectResizeBounds, resizeHandleAxes, type ResizeHandleAxes } from "./features/canvas/bounds";
 import { ElementSpatialIndex } from "./features/canvas/spatial-index";
 import { getToolLayers, reorderToolLayers, toggleToolLayer, type ToolLayerKind } from "./features/canvas/tool-layers";
-import { changeCanvasLayerNesting, deleteCanvasLayers, ensureCanvasLayerPath, fitAutoResizeContainers, fitContainerToContent, layerHidden, layerLocked, moveCanvasLayer, moveElementsIntoContainer, orderCanvasLayers, removeContainer, resizeContainerWithChildren, selectConnectedIndices, selectSimilarIndices } from "./features/canvas/structure";
+import { changeCanvasLayerNesting, deleteCanvasLayers, descendantLayerIds, ensureCanvasLayerPath, fitAutoResizeContainers, fitContainerToContent, layerHidden, layerLocked, moveCanvasLayer, moveElementsIntoContainer, orderCanvasLayers, removeContainer, resizeContainerWithChildren, selectConnectedIndices, selectSimilarIndices } from "./features/canvas/structure";
 import { translateElement } from "./features/canvas/translate";
 import { createCanvasHistory } from "./features/canvas/history";
 import { canvasStateForTouchGesture, gridStepForStyle, gridSvgPattern, isometricRowHeight, isometricRowOffset, pointerToWorld, snapCanvasPoint, strokePointFromPointer as makeStrokePoint, zoomCanvasStateAt } from "./features/canvas/input";
@@ -107,7 +102,7 @@ import { appendLassoPoint, lassoSelectIndices } from "./features/canvas/lasso-se
 import { type TidyPreview } from "./features/canvas/tidy-selection";
 import { clusterStickyNotes, createPrioritizationBoard, placeSelectionInQuadrant } from "./features/canvas/design-actions";
 import { DesignWorkbenchPanel } from "./features/canvas/DesignWorkbenchPanel";
-import { ALT_TEXT_MAX_LENGTH, COLOR_BLIND_SAFE_PALETTE, COLOR_VISION_MODES, buildDocumentOutline, describeElement, isColorVisionMode, type ColorVisionMode, type OutlineEntry } from "./features/accessibility/accessibility";
+import { ALT_TEXT_MAX_LENGTH, buildDocumentOutline, describeElement, type OutlineEntry } from "./features/accessibility/accessibility";
 import { MAX_COLOR_TOKENS, MAX_STROKE_STYLES, MAX_STYLE_MODES, MAX_TEXT_STYLES, STYLE_SLOT_LABELS, resolveColorToken, wouldCreateAliasCycle, applyTokenDeep, bindingState, captureToken, countTokenUsage, isStructuralGroup, isStyleLibraryEmpty, mergeStyleLibraries, newColorToken, newStrokeStyleToken, newTextStyleToken, refreshElementList, removeBinding, supportedSlots } from "./features/styles/style-library";
 import "./features/accessibility/accessibility.css";
 import { normalizeAutoLayout, reflowAutoLayoutFrames, type AutoLayoutPorts } from "./features/canvas/auto-layout-frame";
@@ -136,7 +131,7 @@ import { createWindowsSyncMetadata } from "./platform/windows/sync";
 import { DEFAULT_WINDOWS_SHORTCUTS, WINDOWS_SHORTCUTS, displayShortcut, formatShortcutBindings, loadWindowsShortcuts, matchesWindowsMouseShortcut, matchesWindowsShortcut, normalizeShortcut, shortcutFromMouseEvent, type WindowsShortcutId, type WindowsShortcutMap, type WindowsShortcutSlot } from "./platform/windows/shortcuts";
 import { autoRouteConnectorSet, autoRouteMayIntersect, autoRoutePoints, createAutoRouteContext, type AutoRouteContext } from "./features/diagrams/connector-routing";
 import { createPlanningSession } from "./features/project/planning-session";
-import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableMinimumHeight, schemaTableMinimumWidth, schemaTableResizeMinimumWidth, schemaTableRowHeight, schemaTableRowLayout } from "./features/diagrams/schema-table-layout";
+import { fitSchemaTableText, schemaTableColors, schemaTableContentInset, schemaTableMetrics, schemaTableMinimumHeight, schemaTableResizeMinimumWidth, schemaTableRowHeight, schemaTableRowLayout } from "./features/diagrams/schema-table-layout";
 import { clearRetiredLibraryData, createLegacyLibraryData, createRetiredLibraryArchive, hasRetiredLibraryData } from "./features/files/legacy-library-data";
 import type { WorkspaceArea } from "./features/workspace/workspace-types";
 import { createDocumentSession } from "./features/document/document-session";
@@ -153,6 +148,7 @@ import { MarkdownTableEditor } from "./components/MarkdownTableEditor";
 import { RELEASES_API, compareReleaseVersions, androidReleaseApk } from "./app/release-check";
 import { FONT_FAMILY_CHOICES, type WhiteboardStyle, type DisplayMetrics, readDisplayMetrics, GRID_SIZE, TOUCH_DRAG_THRESHOLD, DEFAULT_UI_ACCENT, BOARD_COLORS, UI_ACCENTS, TOOLBAR_COLORS, BOARD_COLOR_NAMES, readPreference, readWhiteboardStyle, THICKNESS_PRESETS, ORIGINAL_INSPECTOR_THICKNESS_PRESETS, ERASER_SIZE_PRESETS, ARROW_ROUTES, LINE_ROUTES, ARROW_HEADS, RELATIONSHIP_TYPES } from "./app/canvas-options";
 import { THEME_OPTIONS, readThemePreference, writeThemePreference, applyTheme, resolvedColorScheme, readCustomTokens, writeCustomTokens, applyCustomTokens, clearCustomTokens, type CustomThemeTokens } from "./app/theme";
+import { createDialogState } from "./app/dialog-state";
 import { rotateCanvasPoint, emptyCanvas, cloneElements, sameCanvasPoints, isShapeLike, isShapeLikeType } from "./app/canvas-helpers";
 import { ArrowHeadIcon } from "./components/ArrowHeadIcon";
 const SHAPE_CATALOG_COUNT = BASIC_SHAPES.length + FLOWCHART_SHAPES.length + GENERAL_SHAPES.length;
@@ -516,7 +512,25 @@ function App() {
     setDirtySignal(value);
   };
   const toolLayers = createMemo(() => getToolLayers(elements(), pages().find(page => page.id === activePageId())?.layers ?? []));
-  const [renameFileOpen, setRenameFileOpen] = createSignal(false);
+  const {
+    renameFileOpen, setRenameFileOpen, styleLibraryOpen, setStyleLibraryOpen,
+    outlineOpen, setOutlineOpen, navigatorOpen, setNavigatorOpen,
+    dataPanelOpen, setDataPanelOpen, commandPaletteOpen, setCommandPaletteOpen,
+    diagramGuidesOpen, setDiagramGuidesOpen, shortcutDialogOpen, setShortcutDialogOpen,
+    showPressureCurve, setShowPressureCurve, designWorkbenchOpen, setDesignWorkbenchOpen,
+    layerPanelOpen, setLayerPanelOpen, helpOpen, setHelpOpen,
+    toolBarOpen, setToolBarOpen, mobileQuickPropertiesOpen, setMobileQuickPropertiesOpen,
+    touchStylePanel, setTouchStylePanel, showClearConfirm, setShowClearConfirm,
+    exportOptionsOpen, setExportOptionsOpen, canvasOptionsOpen, setCanvasOptionsOpen,
+    toolbarOrganizerOpen, setToolbarOrganizerOpen, moreToolsOpen, setMoreToolsOpen,
+    moreBrushPickerOpen, setMoreBrushPickerOpen, schemaDialog, setSchemaDialog,
+    validationOpen, setValidationOpen, bpmnSimulationOpen, setBpmnSimulationOpen,
+    namedSnapshotsOpen, setNamedSnapshotsOpen, objectSearchOpen, setObjectSearchOpen,
+    mermaidDialog, setMermaidDialog, codeDataOpen, setCodeDataOpen,
+    diagramSourcePreviewOpen, setDiagramSourcePreviewOpen, csvChartOpen, setCsvChartOpen,
+    diagramCodeExportOpen, setDiagramCodeExportOpen, blueprintExportOpen, setBlueprintExportOpen,
+    webEmbedDialog, setWebEmbedDialog, componentLibraryOpen, setComponentLibraryOpen,
+  } = createDialogState();
   const [renameFileName, setRenameFileName] = createSignal("");
   const [renameFileError, setRenameFileError] = createSignal("");
   const [topbarHeight, setTopbarHeight] = createSignal(66);
@@ -532,12 +546,6 @@ function App() {
   const [penEraser, setPenEraser] = createSignal(true);
   // Select and Lasso are separate toolbar tools that share the Select tool: Lasso switches the empty-space drag to a freeform loop.
   const [selectionMode, setSelectionMode] = createSignal<"box" | "lasso">("box");
-  const [safeColorPalette, setSafeColorPaletteValue] = createSignal(readPreference("sketchdraw-safe-palette", "false") === "true");
-  const [colorVisionMode, setColorVisionMode] = createSignal<ColorVisionMode>("none");
-  const [styleLibraryOpen, setStyleLibraryOpen] = createSignal(false);
-  const [outlineOpen, setOutlineOpen] = createSignal(false);
-  const [navigatorOpen, setNavigatorOpen] = createSignal(false);
-  const [dataPanelOpen, setDataPanelOpen] = createSignal(false);
   const [dataMessage, setDataMessage] = createSignal("");
   const [playback, setPlayback] = createSignal<{ steps: SequenceStep[]; index: number; playing: boolean }>();
   let playbackTimer: number | undefined;
@@ -547,7 +555,6 @@ function App() {
   let liveTextarea: HTMLTextAreaElement | undefined; let liveApplyTimer: number | undefined; let liveApplyGeneration = 0; let liveSyncSuppressed = false; let liveUndoAt = 0;
   let selectedNoteCardEdit: { index: number; before: Element[]; changed: boolean } | undefined; let selectedNoteCardEditTimer: number | undefined;
   const [screenReaderMessage, setScreenReaderMessage] = createSignal("");
-  const setSafeColorPalette = (enabled: boolean) => { setSafeColorPaletteValue(enabled); try { localStorage.setItem("sketchdraw-safe-palette", String(enabled)); } catch { /* The setting still applies for this session. */ } };
   const [laserColor, setLaserColor] = createSignal((() => { const value = readPreference("sketchdraw-laser-color", "#ff3265"); return /^#[\da-f]{6}$/i.test(value) ? value : "#ff3265"; })());
   const [laserThickness, setLaserThickness] = createSignal(Math.max(1, Math.min(24, Number(readPreference("sketchdraw-laser-thickness", "5")) || 5)));
   const [laserFadeDuration, setLaserFadeDuration] = createSignal(Math.max(250, Math.min(5000, Number(readPreference("sketchdraw-laser-fade", "1100")) || 1100)));
@@ -560,20 +567,10 @@ function App() {
   const [noteToggleHovered, setNoteToggleHovered] = createSignal(false);
   const [showGrid, setShowGrid] = createSignal(true);
   const [showMinimap, setShowMinimap] = createSignal(readPreference("sketchdraw-canvas-minimap", readPreference("sketchdraw-windows-minimap", isWindowsPlatform() ? "true" : "false")) !== "false");
-  const [commandPaletteOpen, setCommandPaletteOpen] = createSignal(false);
-  const [diagramGuidesOpen, setDiagramGuidesOpen] = createSignal(false);
-  const [shortcutDialogOpen, setShortcutDialogOpen] = createSignal(false);
   const [shortcuts, setShortcuts] = createSignal<WindowsShortcutMap>(isWindowsPlatform() ? loadWindowsShortcuts() : { ...DEFAULT_WINDOWS_SHORTCUTS });
   const [presentationMode, setPresentationMode] = createSignal(false);
-  const [showPressureCurve, setShowPressureCurve] = createSignal(false);
-  const [showClipboardTray, setShowClipboardTray] = createSignal(false);
-  const [showDrawingChallenge, setShowDrawingChallenge] = createSignal(false);
-  const [showSpatialBrowser, setShowSpatialBrowser] = createSignal(false);
-  const [ambientMode, setAmbientMode] = createSignal(false);
-  const [soundtrackEnabled, setSoundtrackEnabled] = createSignal(readSoundtrackConfig().enabled);
   const [radialMenu, setRadialMenu] = createSignal<{ x: number; y: number } | null>(null);
   const [canvasRunMode, setCanvasRunMode] = createSignal(false);
-  const [designWorkbenchOpen, setDesignWorkbenchOpen] = createSignal(false);
   const prototypeRuntimePages = new Map<string, { before: Element[]; runtime: Element[] }>();
   const prototypeRuntimeVariables = new Map<string, Record<string, string | number | boolean>>();
   const prototypeScrollOffsets = new Map<string, Point>();
@@ -628,7 +625,6 @@ function App() {
   const [boardColorFollowsTheme, setBoardColorFollowsTheme] = createSignal(true);
   const [boardLocked, setBoardLocked] = createSignal(false);
   const [sidebarTab, setSidebarTab] = createSignal<"properties">("properties");
-  const [layerPanelOpen, setLayerPanelOpen] = createSignal(false);
   const [selectedLayerKeys, setSelectedLayerKeys] = createSignal<ToolLayerKind[]>([]);
   const [classCardDraft, setClassCardDraft] = createSignal<{ x: number; y: number; name: string; attributes: string; methods: string; fontSize: number; width?: number; height?: number; componentId?: string }>();
   const [libraryComponentDraft, setLibraryComponentDraft] = createSignal<GroupElement>();
@@ -701,7 +697,6 @@ function App() {
   })());
   const [displayMetrics, setDisplayMetrics] = createSignal<DisplayMetrics>(readDisplayMetrics());
   const [toolbarColorChoice, setToolbarColorChoice] = createSignal((() => { const value = readPreference("sketchdraw-toolbar-color", "auto"); if (value.toLowerCase() === "#252c31") return "#171717"; return value === "auto" || /^#[\da-f]{6}$/i.test(value) ? value : "auto"; })());
-  const [helpOpen, setHelpOpen] = createSignal(false);
   const [appVersion, setAppVersion] = createSignal("...");
   const [updateCheck, setUpdateCheck] = createSignal<"idle" | "checking" | "current" | "available" | "permission" | "unavailable" | "installing" | "error">("idle");
   const [updateVersion, setUpdateVersion] = createSignal<string>();
@@ -724,13 +719,10 @@ function App() {
   const [defaultUnderline, setDefaultUnderline] = createSignal(false);
   const [defaultTextAlign, setDefaultTextAlign] = createSignal<"left" | "center" | "right">("left");
   const [defaultListType, setDefaultListType] = createSignal<"none" | "bullet" | "number">("none");
-  const [toolBarOpen, setToolBarOpen] = createSignal(true);
   const [touchFocusMode, setTouchFocusMode] = createSignal(false);
   const [windowsFullscreenMode, setWindowsFullscreenMode] = createSignal(false);
-  const [mobileQuickPropertiesOpen, setMobileQuickPropertiesOpen] = createSignal(false);
   const [designPanelCollapsed, setDesignPanelCollapsed] = createSignal(false);
   const [schemaEditorCollapsed, setSchemaEditorCollapsed] = createSignal(false);
-  const [touchStylePanel, setTouchStylePanel] = createSignal(false);
   const [gestureMenuSection, setGestureMenuSection] = createSignal<"taps" | "gestures">("taps");
   const [oneFingerTapAction, setOneFingerTapAction] = createSignal<TouchTapAction>(readTouchTapAction("sketchdraw-one-finger-tap", "none"));
   const [twoFingerTapAction, setTwoFingerTapAction] = createSignal<TouchTapAction>(readTouchTapAction("sketchdraw-two-finger-tap", "undo"));
@@ -738,16 +730,10 @@ function App() {
   const [oneFingerDragAction, setOneFingerDragAction] = createSignal<OneFingerDragAction>(readPreference("sketchdraw-one-finger-drag", "activeTool") === "pan" ? "pan" : "activeTool");
   const [twoFingerGestureAction, setTwoFingerGestureAction] = createSignal<TouchGestureAction>(readTouchGestureAction("sketchdraw-two-finger-gesture", "panZoom"));
   const [threeFingerGestureAction, setThreeFingerGestureAction] = createSignal<TouchGestureAction>(readTouchGestureAction("sketchdraw-three-finger-gesture", "panZoom"));
-  const [showClearConfirm, setShowClearConfirm] = createSignal(false);
   const [recoveryPrompt, setRecoveryPrompt] = createSignal<{ path: string; snapshot: SketchFile; baselineRaw?: string }>();
   const [legacyMigrationPath, setLegacyMigrationPath] = createSignal<string>();
   const [syncConflict, setSyncConflict] = createSignal<{ path: string; remote: string }>();
   const [documentControllerStatus, setDocumentControllerStatus] = createSignal<DocumentControllerStatus>("idle");
-  const [exportOptionsOpen, setExportOptionsOpen] = createSignal(false);
-  const [canvasOptionsOpen, setCanvasOptionsOpen] = createSignal(false);
-  const [toolbarOrganizerOpen, setToolbarOrganizerOpen] = createSignal(false);
-  const [moreToolsOpen, setMoreToolsOpen] = createSignal(false);
-  const [moreBrushPickerOpen, setMoreBrushPickerOpen] = createSignal(false);
   const [exportFormat, setExportFormat] = createSignal<"png" | "svg" | "pdf">("png");
   const [exportWidth, setExportWidth] = createSignal(1600);
   const [exportHeight, setExportHeight] = createSignal(1000);
@@ -776,7 +762,6 @@ function App() {
   let textEditorPendingPointerId: number | undefined;
   let textEditorFocusTimer: number | undefined;
   let textEditorFocusOnCanvasClick = false;
-  const [schemaDialog, setSchemaDialog] = createSignal(false);
   const [schemaImporting, setSchemaImporting] = createSignal(false);
   const [schemaInput, setSchemaInput] = createSignal("");
   const [schemaPanelTextWrap, setSchemaPanelTextWrap] = createSignal(true);
@@ -787,42 +772,31 @@ function App() {
   const [schemaEditingDiagram, setSchemaEditingDiagram] = createSignal<string>();
   const [schemaPanelDiagramId, setSchemaPanelDiagramId] = createSignal<string>();
   let schemaPanelTextarea: HTMLTextAreaElement | undefined;
-  let activeSchemaPanelDiagramId: string | undefined;
-  let lastAppliedSchemaSource: string | undefined;
-  let schemaLiveUndoDiagramId: string | undefined;
-  let schemaLiveUndoBefore: Element[] | undefined;
+  // activeSchemaPanelDiagramId, lastAppliedSchemaSource, schemaLiveUndo* moved to schemaCtx (created after isElementHidden)
   let schemaLiveTimer: number | undefined;
   let schemaLivePending: { value: string; diagramId: string } | undefined;
-  let schemaLiveApplying = false;
-  const [validationOpen, setValidationOpen] = createSignal(false);
+  // schemaLiveApplying moved to schemaCtx
   const [validationIssues, setValidationIssues] = createSignal<DiagramIssue[]>([]);
   const [validationProfile, setValidationProfile] = createSignal<DiagramLintProfile>("general");
   const [validationIncludeOverlaps, setValidationIncludeOverlaps] = createSignal(false);
   const [validationWarnEmptyLabels, setValidationWarnEmptyLabels] = createSignal(false);
   const [importSummary, setImportSummary] = createSignal<{ fileName: string; format: string; kept: number; simplified: number; skipped: number; details?: string[] }>();
-  const [bpmnSimulationOpen, setBpmnSimulationOpen] = createSignal(false);
   const [bpmnSimulationSteps, setBpmnSimulationSteps] = createSignal<BpmnSimulationStep[]>([]);
   const [bpmnSimulationIndex, setBpmnSimulationIndex] = createSignal(-1);
   const [bpmnContextText, setBpmnContextText] = createSignal("");
   let bpmnSimulationTimer: number | undefined;
-  const [namedSnapshotsOpen, setNamedSnapshotsOpen] = createSignal(false);
   const [namedSnapshots, setNamedSnapshots] = createSignal<NamedDocumentSnapshot[]>([]);
   const [namedSnapshotTitle, setNamedSnapshotTitle] = createSignal("");
   const [snapshotComparison, setSnapshotComparison] = createSignal<string[]>([]);
   const [snapshotVisuals, setSnapshotVisuals] = createSignal<{ before: string; current: string }>();
-  const [objectSearchOpen, setObjectSearchOpen] = createSignal(false);
   const [objectSearchQuery, setObjectSearchQuery] = createSignal("");
   const [objectReplaceText, setObjectReplaceText] = createSignal("");
-  const [mermaidDialog, setMermaidDialog] = createSignal(false);
   const [mermaidEditingDiagram, setMermaidEditingDiagram] = createSignal<string>();
   const [mermaidFormat, setMermaidFormat] = createSignal<"mermaid" | "plantuml">("mermaid");
   const [mermaidInput, setMermaidInput] = createSignal("flowchart TD\n  Start([Start]) --> Check{Ready?}\n  Check -->|Yes| Done[Finish]\n  Check -->|No| Wait[Wait]");
   const [mermaidError, setMermaidError] = createSignal("");
-  const [codeDataOpen, setCodeDataOpen] = createSignal(false);
   const [diagramSourceDraft, setDiagramSourceDraft] = createSignal("");
-  const [diagramSourcePreviewOpen, setDiagramSourcePreviewOpen] = createSignal(false);
   const [diagramSourceMessage, setDiagramSourceMessage] = createSignal("");
-  const [csvChartOpen, setCsvChartOpen] = createSignal(false);
   const [csvEditingChartId, setCsvEditingChartId] = createSignal<string>();
   const [csvChartInput, setCsvChartInput] = createSignal("Category,Sales,Costs\nNorth,42,18\nSouth,35,21\nWest,58,24");
   const [csvChartLabelColumn, setCsvChartLabelColumn] = createSignal(0);
@@ -831,13 +805,10 @@ function App() {
   const [csvChartError, setCsvChartError] = createSignal("");
   const [flowchartPaletteSearch, setFlowchartPaletteSearch] = createSignal("");
   const [flowchartPaletteCategory, setFlowchartPaletteCategory] = createSignal<"Basic" | "Common" | "Other" | "General" | "All">("Common");
-  const [diagramCodeExportOpen, setDiagramCodeExportOpen] = createSignal(false);
   const [diagramCodeFormat, setDiagramCodeFormat] = createSignal<DiagramCodeFormat>("mmd");
   const [diagramCodeScope, setDiagramCodeScope] = createSignal<"page" | "selection">("page");
   const [sqlExportDialect, setSqlExportDialect] = createSignal<SqlDialect>("postgresql");
-  const [blueprintExportOpen, setBlueprintExportOpen] = createSignal(false);
   const [blueprintFormat, setBlueprintFormat] = createSignal<BlueprintFormat>("java");
-  const [webEmbedDialog, setWebEmbedDialog] = createSignal(false);
   const [webEmbedInput, setWebEmbedInput] = createSignal("");
   const [webEmbedError, setWebEmbedError] = createSignal("");
   const [activeWebPreview, setActiveWebPreview] = createSignal<{ id: string; url: string; embedUrl: string }>();
@@ -896,14 +867,6 @@ function App() {
   const freehandRenderer = createFreehandRenderer();
   onCleanup(freehandRenderer.dispose);
   createEffect(() => { activePath(); activePageId(); theme(); freehandRenderer.clearRasterCache(); });
-  const ambientController = createAmbientController(
-    elements,
-    canvasState,
-    (partial) => setCanvasState(prev => ({ ...prev, ...partial })),
-    () => { const rect = canvas?.getBoundingClientRect(); return rect ? { width: rect.width, height: rect.height } : { width: 800, height: 600 }; },
-  );
-  createEffect(() => { if (ambientMode()) ambientController.start(); else ambientController.stop(); });
-  onCleanup(() => ambientController.stop());
   let penEraserDrawing = false;
   let laserTimer: number | undefined;
   let restartAutosave: (() => void) | undefined;
@@ -991,7 +954,6 @@ function App() {
   });
   const [documentBusy, setDocumentBusy] = createSignal(false);
   const [openToolOptions, setOpenToolOptions] = createSignal<Tool | "paintBrushes">();
-  const [componentLibraryOpen, setComponentLibraryOpen] = createSignal(false);
   const [customStencils, setCustomStencils] = createSignal<CustomStencil[]>(readCustomStencils());
   const [stencilFavorites, setStencilFavorites] = createSignal<string[]>(readStencilFavorites());
   const [recentStencils, setRecentStencils] = createSignal<string[]>(readRecentStencils());
@@ -1201,6 +1163,47 @@ function App() {
       y: command === "top" ? all.y - box.y : command === "middle" ? all.y + all.h / 2 - box.y - box.h / 2 : command === "bottom" ? all.y + all.h - box.y - box.h : 0,
     });
     const before = cloneElements(elements()); setElements(items => items.map((item, index) => { const delta = translations.get(index); return delta ? moveElement(item, delta.x, delta.y) : item; })); pushUndo(before); setDirty(true);
+  }
+
+  function snapSelectionToGrid() {
+    if (boardLocked() || readOnlyView()) return;
+    const selected = selectedIndices().filter(i => elements()[i] && canMoveElement(elements()[i]));
+    if (!selected.length) return;
+    const style = whiteboardStyle();
+    const before = cloneElements(elements());
+    setElements(items => items.map((item, index) => {
+      if (!selected.includes(index)) return item;
+      const bounds = elementBounds(item);
+      const snapped = snapCanvasPoint({ x: bounds.x, y: bounds.y }, true, style, GRID_SIZE);
+      const dx = snapped.x - bounds.x;
+      const dy = snapped.y - bounds.y;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return item;
+      return moveElement(item, dx, dy);
+    }));
+    pushUndo(before); setDirty(true);
+  }
+
+  type MorphableType = "rectangle" | "circle" | "diamond" | "triangle" | "flowchart";
+  function morphSelectedShape(targetType: MorphableType, flowchartShape?: FlowchartShape) {
+    if (boardLocked() || readOnlyView()) return;
+    const selected = selectedIndices();
+    if (!selected.length) return;
+    const before = cloneElements(elements());
+    let changed = false;
+    setElements(items => items.map((item, index) => {
+      if (!selected.includes(index)) return item;
+      if (item.type !== "rectangle" && item.type !== "circle" && item.type !== "diamond" && item.type !== "triangle" && item.type !== "flowchart") return item;
+      if (item.type === targetType && (!flowchartShape || item.flowchartShape === flowchartShape)) return item;
+      changed = true;
+      const morphed: typeof item = {
+        ...item,
+        type: targetType,
+        ...(targetType === "flowchart" && flowchartShape ? { flowchartShape } : {}),
+        ...(targetType !== "flowchart" ? { flowchartShape: undefined } : {}),
+      } as typeof item;
+      return morphed;
+    }));
+    if (changed) { pushUndo(before); setDirty(true); }
   }
 
   function toggleSelectedContainerCollapsed() {
@@ -1483,15 +1486,6 @@ function App() {
       );
     }
     return items;
-  }
-  function pasteClipboardElements(items: Element[]) {
-    if (!activePath() || boardLocked() || readOnlyView() || !items.length) return;
-    insertCopies(items, canvasCenterWorld());
-  }
-  async function openFileByPath(path: string) {
-    if (!path || nativeBusy() || documentBusy()) return;
-    setNativeBusy(true);
-    try { await loadFile(path); } catch (cause) { setError(`Could not open file: ${String(cause)}`); } finally { setNativeBusy(false); }
   }
   function resizeRouteContext(activeResize: NonNullable<typeof resizeOrigin>) {
     return activeResize.routeContext ??= autoRouteContextFor(activeResize.before);
@@ -1939,6 +1933,15 @@ function App() {
     const selected = selectedRootElement();
     return selected?.type === "schemaTable" ? selected : undefined;
   };
+  const schemaCtx = createSchemaInsertion({
+    activePath, elements, boardLocked, canvas: () => canvas, canvasState,
+    schemaImporting, setSchemaImporting, schemaInput, schemaEditingDiagram,
+    selectedElements, selectedRootElement, defaultFontSize, schemaPanelDiagramId,
+    isElementHidden, isElementLocked, pushUndo,
+    setElements: setElements as any, setSelectedIndices, setTool, setTextMode,
+    setSchemaDialog, setSchemaInput, setSchemaError, setSchemaEditingDiagram, setDirty,
+  });
+  const insertSchemaVisual = schemaCtx.insertSchemaVisual;
   let lastSchemaEditorId = selectedSchemaTable()?.id;
   createEffect(() => {
     const schemaId = selectedSchemaTable()?.id;
@@ -1963,19 +1966,19 @@ function App() {
     const selected = selectedSchemaTable();
     const diagramId = selected?.schemaDiagramId;
     const source = selected?.schemaSource ?? "";
-    if (diagramId !== activeSchemaPanelDiagramId) {
-      activeSchemaPanelDiagramId = diagramId;
-      lastAppliedSchemaSource = source;
-      schemaLiveUndoDiagramId = undefined;
-      schemaLiveUndoBefore = undefined;
+    if (diagramId !== schemaCtx.activeSchemaPanelDiagramId) {
+      schemaCtx.activeSchemaPanelDiagramId = diagramId;
+      schemaCtx.lastAppliedSchemaSource = source;
+      schemaCtx.schemaLiveUndoDiagramId = undefined;
+      schemaCtx.schemaLiveUndoBefore = undefined;
       setSchemaPanelDiagramId(diagramId);
       if (selected) { setSchemaInput(source); setSchemaError(""); }
       return;
     }
-    if (selected && source !== lastAppliedSchemaSource) {
-      lastAppliedSchemaSource = source;
-      schemaLiveUndoDiagramId = undefined;
-      schemaLiveUndoBefore = undefined;
+    if (selected && source !== schemaCtx.lastAppliedSchemaSource) {
+      schemaCtx.lastAppliedSchemaSource = source;
+      schemaCtx.schemaLiveUndoDiagramId = undefined;
+      schemaCtx.schemaLiveUndoBefore = undefined;
       setSchemaInput(source);
       setSchemaError("");
     }
@@ -4620,141 +4623,6 @@ function App() {
     const index = elements().length; pushUndo(cloneElements(elements())); setElements(items => [...items, group]); setSelectedIndices([index]); setTool("select"); setSidebarTab("properties"); setDirty(true);
   }
 
-  // Turn parsed schema definitions into editable cards; live edits reuse card positions and field anchors.
-  async function insertSchemaVisual(liveUpdate = false, liveSource?: string, liveDiagramId?: string) {
-    const path = activePath(); const beforeElements = elements();
-    if (!path || boardLocked() || !canvas || (!liveUpdate && schemaImporting()) || (liveUpdate && schemaLiveApplying)) return;
-    const editingId = liveUpdate ? liveDiagramId : schemaEditingDiagram();
-    if (liveUpdate && !editingId) return;
-    if (liveUpdate) schemaLiveApplying = true;
-    else setSchemaImporting(true);
-    try {
-      const source = (liveUpdate ? liveSource : schemaInput())?.trim() ?? "";
-      const parsedTables = parseSchema(source); const tableNames = new Set<string>();
-      for (const table of parsedTables) {
-        const tableName = `${table.objectKind ?? "table"}:${table.name.toLowerCase()}`; if (tableNames.has(tableName)) throw new Error(`${table.objectKind ?? "table"} "${table.name}" appears more than once.`); tableNames.add(tableName);
-        const columnNames = new Set<string>(); for (const column of table.columns) { const columnName = column.name.toLowerCase(); if (columnNames.has(columnName)) throw new Error(`Column "${column.name}" appears more than once in table "${table.name}".`); columnNames.add(columnName); }
-      }
-
-      const width = 170; const gapX = 64; const gapY = 42;
-      const columnsPerRow = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(parsedTables.length))));
-      const existing = editingId ? beforeElements.filter((item): item is SchemaTableElement => item.type === "schemaTable" && item.schemaDiagramId === editingId) : [];
-      if (liveUpdate && !existing.length) throw new Error("Select a schema card before editing its source.");
-      if (liveUpdate && existing.every(table => table.schemaSource === source)) return;
-      const selectedTableIds = liveUpdate ? selectedElements().filter((item): item is SchemaTableElement => item.type === "schemaTable" && item.schemaDiagramId === editingId).flatMap(item => item.id ? [item.id] : []) : [];
-      const selectedPrimaryId = liveUpdate ? selectedRootElement()?.id : undefined;
-      const objectKey = (table: (typeof parsedTables)[number] | SchemaTableElement) => `${table.objectKind ?? "table"}:${table.name.toLowerCase()}`;
-      const oldByName = new Map(existing.map(table => [objectKey(table), table]));
-      const cardFontSize = (table: (typeof parsedTables)[number]) => oldByName.get(objectKey(table))?.fontSize ?? defaultFontSize();
-      const cardWidth = (table: (typeof parsedTables)[number]) => {
-        const old = oldByName.get(objectKey(table));
-        return old?.w ?? Math.max(width, schemaTableMinimumWidth(table.columns.map(column => ({ name: column.name, dataType: column.type })), cardFontSize(table), width, table.name));
-      };
-      const cardHeight = (table: (typeof parsedTables)[number]) => schemaTableMinimumHeight(table.columns.length, cardFontSize(table));
-      const positions = new Map<string, Point>();
-      if (!existing.length) {
-        const columnWidths = Array.from({ length: columnsPerRow }, (_, col) => Math.max(...parsedTables.filter((_table, index) => index % columnsPerRow === col).map(cardWidth)));
-        const rowHeights = Array.from({ length: Math.ceil(parsedTables.length / columnsPerRow) }, (_, row) => Math.max(...parsedTables.slice(row * columnsPerRow, (row + 1) * columnsPerRow).map(cardHeight)));
-        const totalWidth = columnWidths.reduce((sum, item) => sum + item, 0) + (columnsPerRow - 1) * gapX;
-        const totalHeight = rowHeights.reduce((sum, item) => sum + item, 0) + (rowHeights.length - 1) * gapY;
-        const rect = canvas.getBoundingClientRect(); const view = canvasState();
-        const originX = (rect.width / 2 - view.panX) / view.zoom - totalWidth / 2;
-        const originY = (rect.height / 2 - view.panY) / view.zoom - totalHeight / 2;
-        parsedTables.forEach((table, index) => {
-          const row = Math.floor(index / columnsPerRow); const col = index % columnsPerRow;
-          positions.set(objectKey(table), { x: originX + columnWidths.slice(0, col).reduce((sum, current) => sum + current + gapX, 0), y: originY + rowHeights.slice(0, row).reduce((sum, current) => sum + current + gapY, 0) });
-        });
-      } else {
-        const right = Math.max(...existing.map(table => table.x + table.w));
-        let nextY = Math.min(...existing.map(table => table.y));
-        for (const table of parsedTables) {
-          const key = objectKey(table); const old = oldByName.get(key);
-          if (old) positions.set(key, { x: old.x, y: old.y });
-          else { positions.set(key, { x: right + gapX, y: nextY }); nextY += cardHeight(table) + gapY; }
-        }
-      }
-
-      const diagramId = editingId ?? crypto.randomUUID();
-      const created: SchemaTableElement[] = parsedTables.map(table => {
-        const old = oldByName.get(objectKey(table));
-        const fieldsByName = new Map(old?.columns.map(field => [field.name.toLowerCase(), field]) ?? []);
-        const fields: SchemaField[] = table.columns.map(column => ({ id: fieldsByName.get(column.name.toLowerCase())?.id ?? crypto.randomUUID(), name: column.name, dataType: column.type, primaryKey: column.primaryKey, foreignTable: column.foreignTable, foreignColumn: column.foreignColumn, nullable: column.nullable }));
-        const fontSize = old?.fontSize ?? defaultFontSize(); const position = positions.get(objectKey(table))!;
-        return { type: "schemaTable", id: old?.id ?? crypto.randomUUID(), schemaDiagramId: diagramId, schemaSource: source, name: table.name, objectKind: table.objectKind ?? "table", ...(table.viewQuery ? { viewQuery: table.viewQuery } : {}), ...(table.enumValues?.length ? { enumValues: table.enumValues } : {}), columns: fields, ...(table.indexes?.length ? { indexes: table.indexes } : {}), ...(table.constraints?.length ? { constraints: table.constraints } : {}), ...position, w: cardWidth(table), h: cardHeight(table), fontSize, rotation: old?.rotation ?? 0, opacity: old?.opacity ?? 1 };
-      });
-
-      const relations = schemaRelationshipConnectors(created.filter(table => (table.objectKind ?? "table") === "table"), diagramId);
-
-      let imported: Element[] = [...relations, ...created];
-      if (!liveUpdate && !existing.length && created.length > 1) {
-        const { autoLayoutElements } = await import("./features/diagrams/auto-layout");
-        imported = await autoLayoutElements(imported, [], "RIGHT", "erd", "layered", "page", 48, isElementHidden, isElementLocked);
-        if (activePath() !== path || elements() !== beforeElements) return;
-        const tableBounds = unionBounds(imported.filter((item): item is SchemaTableElement => item.type === "schemaTable").map(elementBounds));
-        if (tableBounds) {
-          const rect = canvas.getBoundingClientRect(); const view = canvasState();
-          const centerX = (rect.width / 2 - view.panX) / view.zoom; const centerY = (rect.height / 2 - view.panY) / view.zoom;
-          const dx = centerX - tableBounds.x - tableBounds.w / 2; const dy = centerY - tableBounds.y - tableBounds.h / 2;
-          imported = imported.map(item => item.type === "schemaTable"
-            ? { ...item, x: item.x + dx, y: item.y + dy }
-            : isConnector(item) ? { ...item, x: item.x + dx, y: item.y + dy, routePoints: item.routePoints?.map(point => ({ x: point.x + dx, y: point.y + dy })), routeWaypoints: item.routeWaypoints?.map(point => ({ x: point.x + dx, y: point.y + dy })) } : item);
-        }
-      }
-      // Rebuild links after layout so row anchors use the final table positions,
-      // then route them as a set so parallel relationships keep clear paths.
-      const laidOutTables = imported.filter((item): item is SchemaTableElement => item.type === "schemaTable");
-      const laidOutRelations = schemaRelationshipConnectors(laidOutTables.filter(table => (table.objectKind ?? "table") === "table"), diagramId);
-      imported = autoRouteConnectorSet([...laidOutRelations, ...laidOutTables], isElementHidden, isElementLocked);
-      if (activePath() !== path || elements() !== beforeElements) return;
-
-      const existingIds = new Set(existing.flatMap(table => table.id ? [table.id] : []));
-      const removedRelations = new Set(beforeElements.filter(item => isConnector(item) && item.schemaDiagramId === diagramId).flatMap(item => item.id ? [item.id] : []));
-      const oldIds = new Set([...existingIds, ...removedRelations]);
-      const kept = beforeElements.filter(item => !oldIds.has(item.id ?? ""));
-      const updatedElements = resolveBindings([...kept, ...imported]);
-      if (liveUpdate) {
-        // One undo entry covers the full typing session, even though each valid edit redraws immediately.
-        if (schemaLiveUndoDiagramId !== diagramId || !schemaLiveUndoBefore) {
-          schemaLiveUndoDiagramId = diagramId;
-          schemaLiveUndoBefore = cloneElements(beforeElements);
-          pushUndo(schemaLiveUndoBefore);
-        }
-        if (activeSchemaPanelDiagramId === diagramId) lastAppliedSchemaSource = source;
-        setElements(updatedElements);
-        const selectedIndexes = selectedTableIds.map(id => updatedElements.findIndex(item => item.id === id)).filter(index => index >= 0);
-        if (selectedIndexes.length) setSelectedIndices(selectedIndexes);
-        else {
-          const fallbackId = selectedPrimaryId && created.some(table => table.id === selectedPrimaryId) ? selectedPrimaryId : created[0]?.id;
-          const fallbackIndex = fallbackId ? updatedElements.findIndex(item => item.id === fallbackId) : -1;
-          setSelectedIndices(fallbackIndex >= 0 ? [fallbackIndex] : []);
-        }
-      } else {
-        pushUndo(cloneElements(beforeElements)); setElements(updatedElements);
-        const firstIndex = kept.length; setSelectedIndices(created.map((_item, index) => firstIndex + relations.length + index)); setTool("select"); setTextMode("text");
-        setSchemaDialog(false); setSchemaInput(""); setSchemaError(""); setSchemaEditingDiagram(undefined);
-      }
-      setDirty(true);
-    } catch (cause) {
-      if (activePath() === path && liveUpdate && editingId && typeof liveSource === "string" && liveSource.length > MAX_SCHEMA_SOURCE_CHARACTERS && schemaPanelDiagramId() === editingId) {
-        const existingSchema = beforeElements.filter((item): item is SchemaTableElement => item.type === "schemaTable" && item.schemaDiagramId === editingId);
-        if (existingSchema.length) {
-          if (schemaLiveUndoDiagramId !== editingId || !schemaLiveUndoBefore) {
-            schemaLiveUndoDiagramId = editingId;
-            schemaLiveUndoBefore = cloneElements(beforeElements);
-            pushUndo(schemaLiveUndoBefore);
-          }
-          lastAppliedSchemaSource = liveSource;
-          setElements(beforeElements.map(item => item.type === "schemaTable" && item.schemaDiagramId === editingId ? { ...item, schemaSource: liveSource } : item));
-          setDirty(true);
-          setSchemaError(`The full source text was saved. Diagram preview updates are limited to ${MAX_SCHEMA_SOURCE_CHARACTERS.toLocaleString()} characters.`);
-          return;
-        }
-      }
-      if (activePath() === path && (!liveUpdate || schemaPanelDiagramId() === editingId)) setSchemaError(cause instanceof Error ? cause.message : String(cause));
-    }
-    finally { if (liveUpdate) schemaLiveApplying = false; else setSchemaImporting(false); }
-  }
-
   function fitDocumentToViewport(items: Element[]) {
     if (!canvas || items.length === 0) return;
     const rect = canvas.getBoundingClientRect();
@@ -5650,9 +5518,6 @@ function App() {
         if (event.code === "KeyO") { event.preventDefault(); openDocumentOutline(); return; }
         if (event.code === "KeyF") { event.preventDefault(); setNavigatorOpen(value => !value); return; }
         if (event.code === "KeyP") { event.preventDefault(); setShowPressureCurve(v => !v); return; }
-        if (event.code === "KeyC") { event.preventDefault(); setShowClipboardTray(v => !v); return; }
-        if (event.code === "KeyD") { event.preventDefault(); setShowDrawingChallenge(v => !v); return; }
-        if (event.code === "KeyB") { event.preventDefault(); setShowSpatialBrowser(v => !v); return; }
         const digit = /^Digit([1-9])$/.exec(event.code); if (digit) { event.preventDefault(); jumpToBookmarkNumber(Number(digit[1])); return; }
       }
       if (!typingTarget && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key === "Tab" || event.key === "Enter") && activePath() && isCanvasWorkspace() && !readOnlyView() && !boardLocked() && selectedIndices().length === 1 && isMindMapNode(elements()[selectedIndices()[0]])) {
@@ -6936,7 +6801,8 @@ function App() {
       requested.add(key.slice(6));
       const explicit = currentLayers().filter(layer => requested.has(layer.id));
       const nextValue = explicit.some(layer => !layer[property]);
-      updateCurrentLayers(layers => layers.map(layer => requested.has(layer.id) ? { ...layer, [property]: nextValue } : layer));
+      const affected = descendantLayerIds(currentLayers(), requested);
+      updateCurrentLayers(layers => layers.map(layer => affected.has(layer.id) ? { ...layer, [property]: nextValue } : layer));
       return;
     }
     const before = cloneElements(elements());
@@ -7501,7 +7367,7 @@ function App() {
       const hit = hitTest(point) ?? hitInterior(point); if (hit !== undefined && (isLabelShape(elements()[hit]) || isConnector(elements()[hit]))) editShapeLabel(hit, event.pointerId, connectorLabelIndexAt(elements()[hit], point)); else startTextDraft(point, hit !== undefined && elements()[hit]?.type === "text" ? hit : undefined, event.pointerId); return;
     }
     if (tool() === "bucket") { const hit = hitInterior(point); if (hit !== undefined) updatePropertyForIndex(hit, fillColor()); return; }
-    if (tool() === "eraser") { eraseAtPoint(point); drawing = true; canvas.setPointerCapture(event.pointerId); if (soundtrackEnabled()) playEraseSound(); return; }
+    if (tool() === "eraser") { eraseAtPoint(point); drawing = true; canvas.setPointerCapture(event.pointerId); return; }
     if (tool() === "crop") { const hit = hitTest(point); if (hit !== undefined && elements()[hit].type === "image") { setSelectedIndices([hit]); marqueeOrigin = { point, additive: false, moved: false, cropIndex: hit }; setMarquee({ start: point, end: point }); canvas.setPointerCapture(event.pointerId); } return; }
     drawing = true; canvas.setPointerCapture(event.pointerId);
     activeDrawingTool = tool() === "laser" ? "pen" : tool() as Preview["type"];
@@ -7509,7 +7375,6 @@ function App() {
     if (activeDrawingTool === "pen") {
       const laser = tool() === "laser"; const mode = brushMode();
       const strokePoint = tool() === "pen" ? strokePointFromPointer(event, point) : point; currentPoints = [strokePoint]; strokePointLimitReached = false;
-      if (soundtrackEnabled() && !laser) { const cr = canvas.getBoundingClientRect(); playStrokeSound(point.x, point.y, event.pressure ?? 0.5, cr.width, cr.height); }
       strokeSampleGate.reset(event.timeStamp);
       const brushStyle: Record<BrushMode, { width: number; opacity: number }> = { fine: { width: 1, opacity: 1 }, pencil: { width: .72, opacity: .62 }, brush: { width: 2.2, opacity: .9 }, marker: { width: 3, opacity: .78 }, highlighter: { width: 6, opacity: .28 }, chalk: { width: 1.7, opacity: .48 } };
       const style = brushStyle[mode];
@@ -7915,7 +7780,32 @@ function App() {
       ? { coordinate: objectX.target.coordinate, moving: movingAfter, reference: objectX.target.bounds } : undefined;
     const guideY = objectCorrectionY !== undefined && (!spacingY || Math.abs(objectCorrectionY) <= Math.abs(spacingY.correction)) && objectY
       ? { coordinate: objectY.target.coordinate, moving: movingAfter, reference: objectY.target.bounds } : undefined;
-    return { dx: finalDx, dy: finalDy, guides: { x: guideX, y: guideY } };
+    const distances: import("./model").CanvasDistanceGuide[] = [];
+    if (snapToObjects() && (guideX || guideY)) {
+      const mAfter = movingAfter;
+      const mCx = mAfter.x + mAfter.w / 2; const mCy = mAfter.y + mAfter.h / 2;
+      for (const { box } of (snapTargets.spacingBoxes ?? []).map(b => ({ box: b }))) {
+        const bCx = box.x + box.w / 2; const bCy = box.y + box.h / 2;
+        if (Math.hypot(bCx - mCx, bCy - mCy) > 600 / Math.max(.02, canvasState().zoom)) continue;
+        const gapLeft = box.x - (mAfter.x + mAfter.w);
+        const gapRight = mAfter.x - (box.x + box.w);
+        const gapTop = box.y - (mAfter.y + mAfter.h);
+        const gapBottom = mAfter.y - (box.y + box.h);
+        const yOverlap = Math.min(mAfter.y + mAfter.h, box.y + box.h) - Math.max(mAfter.y, box.y);
+        const xOverlap = Math.min(mAfter.x + mAfter.w, box.x + box.w) - Math.max(mAfter.x, box.x);
+        if (yOverlap > 0) {
+          const crossY = Math.max(mAfter.y, box.y) + Math.min(yOverlap, mAfter.h, box.h) / 2;
+          if (gapLeft > 1) distances.push({ axis: "x", movingEdge: mAfter.x + mAfter.w, referenceEdge: box.x, cross: crossY, gap: gapLeft });
+          else if (gapRight > 1) distances.push({ axis: "x", movingEdge: mAfter.x, referenceEdge: box.x + box.w, cross: crossY, gap: gapRight });
+        }
+        if (xOverlap > 0) {
+          const crossX = Math.max(mAfter.x, box.x) + Math.min(xOverlap, mAfter.w, box.w) / 2;
+          if (gapTop > 1) distances.push({ axis: "y", movingEdge: mAfter.y + mAfter.h, referenceEdge: box.y, cross: crossX, gap: gapTop });
+          else if (gapBottom > 1) distances.push({ axis: "y", movingEdge: mAfter.y, referenceEdge: box.y + box.h, cross: crossX, gap: gapBottom });
+        }
+      }
+    }
+    return { dx: finalDx, dy: finalDy, guides: { x: guideX, y: guideY, distances: distances.length ? distances.slice(0, 6) : undefined } };
   }
 
   function hitInterior(point: Point): number | undefined {
@@ -8240,7 +8130,7 @@ function App() {
   const visibleGeneralShapes = () => flowchartPaletteCategory() === "General" || flowchartPaletteCategory() === "All"
     ? GENERAL_SHAPES.filter(shape => !flowchartPaletteSearch().trim() || `${shape.label} ${shape.value}`.toLowerCase().includes(flowchartPaletteSearch().trim().toLowerCase()))
     : [];
-  const swatches = () => safeColorPalette() ? COLOR_BLIND_SAFE_PALETTE.map(entry => entry.value) : ["#252525", "#e76b62", "#6b91c9", "#74a582", "#d8a448", "#a581bb", "#e5915b"];
+  const swatches = () => ["#252525", "#e76b62", "#6b91c9", "#74a582", "#d8a448", "#a581bb", "#e5915b"];
   const inspectorColorControl = (label: string, value: () => string, onChange: (color: string) => void) => <div class="property-label inspector-color-control">
     <span>{label}</span>
     <div class="quick-style-popover quick-color-popover inspector-inline-color-popover" role="group" aria-label={`${label} colors`}>
@@ -8937,6 +8827,17 @@ function App() {
       { id: "align-bottom", label: "Align selection bottom", category: "Arrange", run: () => runPaletteSelectionAction("aligning objects", 2, () => alignSelection("bottom")) },
       { id: "distribute-horizontal", label: "Distribute horizontal spacing", category: "Arrange", run: () => runPaletteSelectionAction("distributing objects", 3, () => alignSelection("horizontal")) },
       { id: "distribute-vertical", label: "Distribute vertical spacing", category: "Arrange", run: () => runPaletteSelectionAction("distributing objects", 3, () => alignSelection("vertical")) },
+      { id: "snap-selection-grid", label: "Snap selection to grid", category: "Arrange", keywords: "align grid snap position", run: () => { if (!selectedIndices().length) setError("Select objects to snap to the grid."); else snapSelectionToGrid(); } },
+      { id: "morph-rectangle", label: "Convert to rectangle", category: "Shape morph", keywords: "morph convert shape change", run: () => morphSelectedShape("rectangle") },
+      { id: "morph-circle", label: "Convert to circle", category: "Shape morph", keywords: "morph convert shape change ellipse", run: () => morphSelectedShape("circle") },
+      { id: "morph-diamond", label: "Convert to diamond", category: "Shape morph", keywords: "morph convert shape change rhombus", run: () => morphSelectedShape("diamond") },
+      { id: "morph-triangle", label: "Convert to triangle", category: "Shape morph", keywords: "morph convert shape change", run: () => morphSelectedShape("triangle") },
+      { id: "morph-rounded-rect", label: "Convert to rounded rectangle", category: "Shape morph", keywords: "morph convert shape change pill", run: () => morphSelectedShape("flowchart", "rounded-rectangle") },
+      { id: "morph-hexagon", label: "Convert to hexagon", category: "Shape morph", keywords: "morph convert shape change", run: () => morphSelectedShape("flowchart", "hexagon") },
+      { id: "morph-star", label: "Convert to star", category: "Shape morph", keywords: "morph convert shape change", run: () => morphSelectedShape("flowchart", "star") },
+      { id: "morph-cloud", label: "Convert to cloud", category: "Shape morph", keywords: "morph convert shape change", run: () => morphSelectedShape("flowchart", "cloud") },
+      { id: "morph-callout", label: "Convert to callout", category: "Shape morph", keywords: "morph convert shape change speech bubble", run: () => morphSelectedShape("flowchart", "callout") },
+      { id: "morph-parallelogram", label: "Convert to parallelogram", category: "Shape morph", keywords: "morph convert shape change data", run: () => morphSelectedShape("flowchart", "parallelogram") },
       { id: "auto-layout", label: "Auto arrange left to right", category: "Arrange", keywords: "automatic layout graph flowchart nodes edges hierarchy", run: () => void autoLayoutDiagram("RIGHT") },
       { id: "auto-layout-down", label: "Auto arrange top to bottom", category: "Arrange", keywords: "automatic layout graph flowchart nodes edges hierarchy", run: () => void autoLayoutDiagram("DOWN") },
       { id: "auto-layout-selection", label: "Auto arrange selection left to right", category: "Arrange", keywords: "automatic layout selected objects graph flowchart nodes edges", run: () => { if (selectedIndices().length < 2) setError("Select at least two objects to arrange a selection."); else void autoLayoutDiagram("RIGHT", "default", layoutAlgorithm(), "selection"); } },
@@ -9140,25 +9041,10 @@ function App() {
               canvasToolsDisabled={!activePath() || !isCanvasWorkspace()}
               canvasTools={{
                 pressureCurve: showPressureCurve(),
-                clipboardTray: showClipboardTray(),
-                drawingChallenge: showDrawingChallenge(),
-                spatialBrowser: showSpatialBrowser(),
-                ambientMode: ambientMode(),
-                soundtrack: soundtrackEnabled(),
                 onTogglePressureCurve: () => setShowPressureCurve(v => !v),
-                onToggleClipboardTray: () => setShowClipboardTray(v => !v),
-                onToggleDrawingChallenge: () => setShowDrawingChallenge(v => !v),
-                onToggleSpatialBrowser: () => setShowSpatialBrowser(v => !v),
-                onToggleAmbientMode: () => setAmbientMode(v => !v),
-                onToggleSoundtrack: () => { const next = !soundtrackEnabled(); setSoundtrackEnabled(next); const prev = readSoundtrackConfig(); writeSoundtrackConfig({ ...prev, enabled: next }); if (!next) disposeSoundtrack(); },
               }}
               accessibility={{
-                colorVisionMode: colorVisionMode(),
-                colorVisionModes: COLOR_VISION_MODES.map(mode => ({ id: mode.id, label: mode.label })),
-                safePalette: safeColorPalette(),
                 documentDisabled: !activePath() || !isCanvasWorkspace(),
-                onColorVisionModeChange: value => { if (isColorVisionMode(value)) setColorVisionMode(value); },
-                onSafePaletteChange: setSafeColorPalette,
                 onOpenOutline: () => { viewMenu.open = false; openDocumentOutline(); },
                 onOpenNavigator: () => { viewMenu.open = false; setNavigatorOpen(true); },
               }}
@@ -9335,7 +9221,7 @@ function App() {
               onLaserChange={(key, value) => setLaserPreference(key, value)}
               onBucketColorChange={setFillColor}
             /></Show>
-            <canvas ref={canvas} class="drawing-canvas" classList={{ "color-vision-preview": colorVisionMode() !== "none" }} role="application" aria-roledescription="drawing canvas" aria-label={canvasAccessibleLabel()} title={hoverTooltip()} style={{ filter: colorVisionMode() === "none" ? undefined : `url(#sketchdraw-cvd-${colorVisionMode()})`, cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onWheel={handleCanvasWheel} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); if (measureMode() && !measureOrigin) setMeasurement(undefined); setNoteToggleHovered(false); updatePrototypeHover(undefined); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} />
+            <canvas ref={canvas} class="drawing-canvas" role="application" aria-roledescription="drawing canvas" aria-label={canvasAccessibleLabel()} title={hoverTooltip()} style={{ cursor: isPanning() ? "grabbing" : spaceDown() || tool() === "pan" ? "grab" : boardLocked() && !readOnlyView() ? "not-allowed" : noteToggleHovered() ? "pointer" : tool() === "select" ? hoveredIndex() !== undefined ? "move" : "default" : tool() === "text" ? "text" : tool() === "eraser" ? "cell" : tool() === "bucket" ? "copy" : tool() === "crop" ? "crosshair" : "crosshair" }} onWheel={handleCanvasWheel} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel} onLostPointerCapture={pointerLostCapture} onClick={() => { if (!textEditorFocusOnCanvasClick) return; textEditorFocusOnCanvasClick = false; if (textEditorFocusTimer !== undefined) { window.clearTimeout(textEditorFocusTimer); textEditorFocusTimer = undefined; } focusTextEditor(); }} onPointerLeave={() => { if (!moveOrigin && !resizeOrigin) setHoveredIndex(undefined); if (measureMode() && !measureOrigin) setMeasurement(undefined); setNoteToggleHovered(false); updatePrototypeHover(undefined); }} onDblClick={handleCanvasDoubleClick} onContextMenu={onContextMenu} />
             <Show when={presentationMode() && presentationTransition()}><div class="canvas-presentation-transition" classList={{ "canvas-presentation-transition-fade": presentationTransition() === "fade", "canvas-presentation-transition-slide": presentationTransition() === "slide" }} aria-hidden="true" /></Show>
             <CanvasInteractionOverlay state={canvasState()} measurement={measurement()} nodeHandles={pathNodeHandles()} disabled={boardLocked() || readOnlyView()} onPathNodePointerDown={beginPathNodeEdit} onPathNodePointerMove={moveEditedPathNode} onPathNodePointerUp={finishPathNodeEdit} onPathNodePointerCancel={cancelPathNodeEdit} />
             <Show when={activeWebPreview()}>{preview => <Show when={elements().find((item): item is ImageElement => item.type === "image" && item.id === preview().id)}>{item => {
@@ -9974,9 +9860,6 @@ function App() {
       </div>}</Show>
       <Show when={radialMenu()}>{pos => <RadialContextMenu x={pos().x} y={pos().y} items={radialMenuItems()} onClose={() => setRadialMenu(null)} />}</Show>
       <Show when={showPressureCurve() && activePath() && isCanvasWorkspace()}><PressureCurveEditor onClose={() => setShowPressureCurve(false)} /></Show>
-      <Show when={showClipboardTray() && activePath() && isCanvasWorkspace()}><InfiniteClipboardTray onClose={() => setShowClipboardTray(false)} onPaste={pasteClipboardElements} /></Show>
-      <Show when={showDrawingChallenge() && activePath() && isCanvasWorkspace()}><DrawingChallengePanel onClose={() => setShowDrawingChallenge(false)} /></Show>
-      <Show when={showSpatialBrowser()}><SpatialFileBrowser onOpenFile={path => { setShowSpatialBrowser(false); openFileByPath(path); }} onClose={() => setShowSpatialBrowser(false)} /></Show>
       <Show when={dataPanelOpen() && activePath() && isCanvasWorkspace()}><Suspense fallback={null}><DataLinkPanel sources={activeDataSources()} canEdit={!boardLocked() && !readOnlyView()} selection={dataPanelSelection()} message={dataMessage()}
         onAddFile={() => void loadDataFile()} onRefresh={id => void refreshDataSource(id)} onRemove={removeDataSource} onLink={linkSelectedObject} onUnlink={unlinkSelectedObject} onClose={() => setDataPanelOpen(false)} /></Suspense></Show>
       <Show when={playback() && activePath() && isCanvasWorkspace()}><Suspense fallback={null}><SequencePlaybackPanel steps={playback()!.steps} index={playback()!.index} playing={playback()!.playing}
@@ -9998,7 +9881,6 @@ function App() {
         onAddStrokeStyle={addStrokeStyle} onUpdateStrokeStyle={updateStrokeStyle} onRemoveStrokeStyle={id => removeStyleToken("strokeStyles", id)}
         onApply={applyStyleToSelection} onDetach={detachStyleFromSelection} onClose={() => setStyleLibraryOpen(false)} /></Suspense></Show>
       <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">{screenReaderMessage()}</div>
-      <svg class="sr-only" aria-hidden="true" width="0" height="0"><defs>{COLOR_VISION_MODES.filter(mode => mode.matrix).map(mode => <filter id={`sketchdraw-cvd-${mode.id}`} color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values={mode.matrix} /></filter>)}</defs></svg>
       <Show when={objectSearchOpen()}><ObjectSearchDialog query={objectSearchQuery()} replacement={objectReplaceText()} results={objectSearchMatches()} canReplace={!boardLocked() && !readOnlyView()} onQuery={setObjectSearchQuery} onReplacement={setObjectReplaceText} onSelect={selectObjectSearchResult} onReplace={replaceObjectSearchResult} onClose={() => setObjectSearchOpen(false)} /></Show>
       <Show when={validationOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setValidationOpen(false); }}><section class="confirm-dialog validation-dialog" role="dialog" aria-modal="true" aria-labelledby="validation-title"><header><div><span class="eyebrow">DIAGRAM CHECK</span><h2 id="validation-title">Diagram validation</h2></div><button class="help-close" aria-label="Close validation report" onClick={() => setValidationOpen(false)}>&times;</button></header><div class="validation-profile-options" role="group" aria-label="Diagram lint profile">{DIAGRAM_LINT_PROFILES.map(profile => <button type="button" class={validationProfile() === profile.id ? "active" : ""} aria-pressed={validationProfile() === profile.id} onClick={() => runProfileValidation(profile.id)}>{profile.label}</button>)}</div><div class="validation-optional-checks"><label><input type="checkbox" checked={validationIncludeOverlaps()} onChange={event => { setValidationIncludeOverlaps(event.currentTarget.checked); runProfileValidation(validationProfile()); }} />Check overlaps</label><label><input type="checkbox" checked={validationWarnEmptyLabels()} onChange={event => { setValidationWarnEmptyLabels(event.currentTarget.checked); runProfileValidation(validationProfile()); }} />Warn about empty labels</label></div><p>{visibleValidationIssues().length ? `${visibleValidationIssues().length} possible issue${visibleValidationIssues().length === 1 ? "" : "s"} found. Select an item to select and zoom to it on the canvas.` : `No ${validationProfile() === "all" ? "common diagram" : validationProfile().toUpperCase()} issues were found.`}</p><Show when={visibleValidationIssues().length > 0}><ul class="validation-issue-list">{visibleValidationIssues().map(issue => <li><button type="button" disabled={!issue.elementId} onClick={() => selectValidationIssue(issue)}><span class={`validation-severity ${issue.severity}`}>{issue.severity}</span><span>{issue.message}</span></button></li>)}</ul></Show><div><button class="save-button" onClick={() => setValidationOpen(false)}>Done</button></div></section></div></Show>
       <Show when={namedSnapshotsOpen()}><div class="confirm-backdrop" onPointerDown={event => { if (event.target === event.currentTarget) setNamedSnapshotsOpen(false); }}><section class="confirm-dialog named-snapshots-dialog" role="dialog" aria-modal="true" aria-labelledby="named-snapshots-title"><header><div><span class="eyebrow">DOCUMENT HISTORY</span><h2 id="named-snapshots-title">Named versions</h2></div><button class="help-close" aria-label="Close named versions" onClick={() => setNamedSnapshotsOpen(false)}>&times;</button></header><p>Save up to ten local versions of this sketch. You can compare each with the open document and restore it as an unsaved change.</p><div class="named-snapshot-create"><label>Version name<input maxlength="80" value={namedSnapshotTitle()} onInput={event => setNamedSnapshotTitle(event.currentTarget.value)} /></label><button class="save-button" disabled={readOnlyView() || boardLocked() || !namedSnapshotTitle().trim()} onClick={saveNamedSnapshot}>Save current version</button></div><div class="named-snapshot-portability"><button class="quiet-button" disabled={!namedSnapshots().length || nativeBusy()} onClick={() => void exportNamedSnapshots()}>Export portable versions</button><button class="quiet-button" disabled={readOnlyView() || boardLocked() || nativeBusy()} onClick={() => void importNamedSnapshots()}>Import versions</button></div><Show when={namedSnapshots().length} fallback={<p>No named versions saved for this file yet.</p>}><ul class="named-snapshot-list">{namedSnapshots().map(record => <li><div><strong>{record.name}</strong><small>{new Date(record.createdAt).toLocaleString()}</small></div><button class="quiet-button" onClick={() => compareNamedSnapshot(record)}>Compare</button><button class="quiet-button" disabled={readOnlyView() || boardLocked()} onClick={() => restoreNamedSnapshot(record)}>Restore</button><button class="quiet-button" onClick={() => deleteNamedSnapshot(record)}>Delete</button></li>)}</ul></Show><Show when={snapshotVisuals()}>{visuals => <section class="named-snapshot-visual-compare"><figure><figcaption>Saved version</figcaption><img src={visuals().before} alt="Canvas preview of the saved version" /></figure><figure><figcaption>Current sketch</figcaption><img src={visuals().current} alt="Canvas preview of the current sketch" /></figure></section>}</Show><Show when={snapshotComparison().length}><section class="named-snapshot-diff"><strong>Comparison with current document</strong><ul>{snapshotComparison().map(change => <li>{change}</li>)}</ul></section></Show><div><button class="quiet-button" onClick={() => setNamedSnapshotsOpen(false)}>Done</button></div></section></div></Show>

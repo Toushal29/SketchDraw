@@ -181,9 +181,11 @@ export type Preview = { type: Exclude<Tool, "select" | "pan" | "laser" | "text" 
 export type Bounds = { x: number; y: number; w: number; h: number };
 export type CanvasSnapTarget = { coordinate: number; bounds: Bounds; anchor: 0 | 1 | 2 };
 export type SnapGuideLine = { coordinate: number; moving: Bounds; reference: Bounds };
-export type CanvasSnapGuides = { x?: SnapGuideLine; y?: SnapGuideLine };
+export type CanvasDistanceGuide = { axis: "x" | "y"; movingEdge: number; referenceEdge: number; cross: number; gap: number };
+export type CanvasSnapGuides = { x?: SnapGuideLine; y?: SnapGuideLine; distances?: CanvasDistanceGuide[] };
 export type TextDraft = { x: number; y: number; value: string; editingIndex?: number; editingChildId?: string; shapeLabel?: boolean; shapeLabelIndex?: number; width?: number; height?: number; verticalAlign?: "top" | "middle" | "bottom"; rotation?: number; color: string; opacity: number; fontSize: number; fontFamily: FontFamily; bold: boolean; italic: boolean; underline: boolean; textAlign: "left" | "center" | "right" | "justify"; listType: "none" | "bullet" | "number" };
 export type Theme = "light" | "dark" | "system" | "ai" | "minimalist" | "custom";
+// UI only uses "dark" now; other literals kept for file-compatibility.
 
 export type Binding = { elementId: string; anchor: Point; rowId?: string; portId?: string };
 export type ShapeLabel = Omit<TextElement, keyof LayerFlags | "type" | "x" | "y"> & { verticalAlign: "top" | "middle" | "bottom"; offsetX?: number; offsetY?: number; routePosition?: number };

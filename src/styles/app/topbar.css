@@ -7,13 +7,13 @@
     grid-template-columns: auto 1fr auto auto auto;
     align-items: center;
     gap: 0;
-    height: 44px;
-    min-height: 44px;
-    flex: 0 0 44px;
+    height: 42px;
+    min-height: 42px;
+    flex: 0 0 42px;
     padding: 0 10px 0 14px;
     border-bottom: 1px solid var(--theme-separator);
-    background: var(--toolbar-surface, var(--theme-surface));
-    color: var(--toolbar-ink, var(--theme-text-primary));
+    background: var(--theme-surface);
+    color: var(--theme-text-primary);
     font-family: var(--font-ui);
 }
 
@@ -29,10 +29,10 @@
 
 .topbar .topbar-logo {
     display: block;
-    width: 26px;
-    height: 26px;
-    flex: 0 0 26px;
-    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    border-radius: 5px;
 }
 
 .topbar .topbar-filename {
@@ -47,13 +47,13 @@
 
 .topbar .topbar-badge {
     flex: 0 0 auto;
-    padding: 1px 6px;
+    padding: 1px 5px;
     border-radius: 3px;
     background: color-mix(in srgb, var(--theme-warning) 14%, transparent);
     color: var(--theme-warning);
     font-size: 9px;
     font-weight: var(--font-weight-bold);
-    letter-spacing: 0.6px;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
 }
 
@@ -108,7 +108,7 @@
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
-    opacity: 0.4;
+    opacity: 0.35;
 }
 
 .topbar .topbar-menu > summary .topbar-menu-icon {
@@ -119,7 +119,7 @@
     stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
-    opacity: 0.6;
+    opacity: 0.5;
 }
 
 /* ── Menu popovers ── */
@@ -133,9 +133,11 @@
     max-width: calc(100vw - 16px);
     padding: 4px;
     border: 1px solid var(--theme-border);
-    border-radius: 8px;
+    border-radius: var(--ui-radius-popover);
     background: var(--theme-surface-elevated);
-    box-shadow: 0 4px 16px var(--theme-shadow);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 4px 20px var(--theme-shadow);
 }
 
 .topbar .topbar-popover button {
@@ -146,7 +148,7 @@
     gap: 12px;
     padding: 6px 8px;
     border: 0;
-    border-radius: 5px;
+    border-radius: var(--ui-radius-menu);
     background: transparent;
     color: var(--theme-text-primary);
     text-align: left;
@@ -160,7 +162,7 @@
 }
 
 .topbar .topbar-popover button:disabled {
-    opacity: 0.35;
+    opacity: .3;
     cursor: default;
 }
 
@@ -250,7 +252,7 @@
 
 .topbar .topbar-view-tabs button.active {
     color: var(--theme-text-primary);
-    background: color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+    background: color-mix(in srgb, var(--theme-primary) 14%, transparent);
     font-weight: var(--font-weight-semibold);
 }
 
@@ -285,13 +287,13 @@
     flex: 0 0 6px;
     border-radius: 50%;
     background: var(--theme-success);
-    opacity: 0.7;
+    opacity: 0.6;
     transition: background 200ms, opacity 200ms;
 }
 
 .topbar .topbar-save.is-dirty i {
     background: var(--theme-warning);
-    opacity: 0.9;
+    opacity: 0.85;
 }
 
 .topbar .topbar-save.is-saving i {
@@ -300,7 +302,7 @@
 }
 
 @keyframes topbar-pulse {
-    0%, 100% { opacity: 0.5; }
+    0%, 100% { opacity: 0.4; }
     50% { opacity: 1; }
 }
 

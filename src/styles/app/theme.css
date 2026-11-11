@@ -1,25 +1,15 @@
-/* Shared application color and typography tokens. */
-:root {
-    color-scheme: light;
+/* ── SketchDraw design tokens ──
+   Dark (default) and light themes. All UI surfaces, controls, and
+   canvas chrome derive from these tokens. */
 
+:root {
+    color-scheme: dark;
+
+    /* ── Typography ── */
     --font-ui: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
     --font-mono: ui-monospace, "Cascadia Code", Consolas, "Liberation Mono", monospace;
     --font-serif: Georgia, "Times New Roman", serif;
 
-    /* Shared interface scale for controls, panels, and spacing. */
-    --ui-space-1: 4px;
-    --ui-space-2: 8px;
-    --ui-space-3: 12px;
-    --ui-radius-control: 8px;
-    --ui-radius-panel: 12px;
-    --ui-radius-popover: 14px;
-    --ui-radius-dialog: 18px;
-    --ui-radius-menu: 9px;
-    --ui-control-height-compact: 32px;
-    --ui-control-height: 36px;
-    --ui-motion-fast: 120ms;
-
-    /* Shared UI scale. Canvas text keeps the font and size saved on each object. */
     --type-micro: 10px;
     --type-caption: 11px;
     --type-control: 12px;
@@ -43,55 +33,117 @@
     --leading-normal: 1.5;
     --leading-relaxed: 1.6;
 
-    /* Light system palette: soft grouped backgrounds, clear surfaces, and blue accents. */
-    --theme-background: #F5F5F7;
-    --theme-board-background: #FFFFFF;
-    --theme-surface: #FFFFFF;
-    --theme-surface-elevated: #FFFFFF;
-    --theme-surface-input: #F2F2F7;
-    --theme-border: #D1D1D6;
-    --theme-text-primary: #1D1D1F;
-    --theme-text-secondary: #636366;
-    --theme-text-tertiary: #8E8E93;
-    --theme-primary: #007AFF;
-    --theme-primary-hover: #0066D6;
-    --theme-primary-muted: #E8F2FF;
-    --theme-primary-contrast: #FFFFFF;
-    --theme-ink-on-light: #1D1D1F;
-    --theme-ink-on-dark: #F5F5F7;
-    --theme-success: #248A3D;
-    --theme-warning: #9A6700;
-    --theme-error: #D70015;
-    --theme-info: #007AFF;
-    --theme-measurement: #BF6000;
-    --theme-on-danger: #FFFFFF;
-    --diagram-ink: #252A2E;
-    --diagram-edge: #6F777E;
-    --diagram-fill: #FFFFFF;
-    --diagram-soft: #EDF0F2;
-    --diagram-muted: #737B82;
-    --diagram-accent: #46525B;
-    --diagram-accent-blue: #376FCA;
-    --diagram-accent-warm: #ED8B00;
-    --theme-shadow: rgb(29 29 31 / 12%);
-    --theme-shadow-soft: rgb(29 29 31 / 7%);
-    --theme-shadow-strong: rgb(29 29 31 / 24%);
-    --theme-shadow-control: rgb(29 29 31 / 7%);
-    --theme-backdrop: rgb(29 29 31 / 34%);
-    --theme-focus-ring: color-mix(in srgb, var(--theme-primary) 72%, white);
+    /* ── Layout scale ── */
+    --ui-space-1: 4px;
+    --ui-space-2: 8px;
+    --ui-space-3: 12px;
+    --ui-radius-control: 7px;
+    --ui-radius-panel: 10px;
+    --ui-radius-popover: 12px;
+    --ui-radius-dialog: 16px;
+    --ui-radius-menu: 8px;
+    --ui-control-height-compact: 30px;
+    --ui-control-height: 34px;
+    --ui-motion-fast: 100ms;
+
+    /* ── Dark palette ── */
+    --theme-background: #0c0c0e;
+    --theme-board-background: #141416;
+    --theme-surface: #18181b;
+    --theme-surface-elevated: #1f1f23;
+    --theme-surface-input: #26262b;
+    --theme-border: #2c2c33;
+    --theme-text-primary: #e4e4e8;
+    --theme-text-secondary: #8b8b96;
+    --theme-text-tertiary: #5c5c68;
+    --theme-primary: #3b82f6;
+    --theme-primary-hover: #60a5fa;
+    --theme-primary-muted: rgba(59, 130, 246, 0.11);
+    --theme-primary-contrast: #ffffff;
+    --theme-ink-on-light: #18181b;
+    --theme-ink-on-dark: #e4e4e8;
+    --theme-success: #22c55e;
+    --theme-warning: #eab308;
+    --theme-error: #ef4444;
+    --theme-info: #3b82f6;
+    --theme-measurement: #f59e0b;
+    --theme-on-danger: #ffffff;
+
+    /* ── Diagram ink ── */
+    --diagram-ink: #d0d0d8;
+    --diagram-edge: #7a7a8c;
+    --diagram-fill: #1f1f23;
+    --diagram-soft: #27272e;
+    --diagram-muted: #6c6c7a;
+    --diagram-accent: #9898a8;
+    --diagram-accent-blue: #3b82f6;
+    --diagram-accent-warm: #f59e0b;
+
+    /* ── Shadows ── */
+    --theme-shadow: rgb(0 0 0 / 36%);
+    --theme-shadow-soft: rgb(0 0 0 / 18%);
+    --theme-shadow-strong: rgb(0 0 0 / 52%);
+    --theme-shadow-control: rgb(0 0 0 / 14%);
+    --theme-backdrop: rgb(0 0 0 / 56%);
+    --theme-focus-ring: color-mix(in srgb, var(--theme-primary) 60%, transparent);
 }
 
+/* ── Light palette ── */
+
+:root[data-theme="light"] {
+    color-scheme: light;
+
+    --theme-background: #f5f5f7;
+    --theme-board-background: #ececef;
+    --theme-surface: #ffffff;
+    --theme-surface-elevated: #ffffff;
+    --theme-surface-input: #f0f0f3;
+    --theme-border: #d4d4da;
+    --theme-text-primary: #1a1a1e;
+    --theme-text-secondary: #6b6b78;
+    --theme-text-tertiary: #9898a5;
+    --theme-primary: #2563eb;
+    --theme-primary-hover: #1d4ed8;
+    --theme-primary-muted: rgba(37, 99, 235, 0.09);
+    --theme-primary-contrast: #ffffff;
+    --theme-ink-on-light: #1a1a1e;
+    --theme-ink-on-dark: #f5f5f7;
+    --theme-success: #16a34a;
+    --theme-warning: #ca8a04;
+    --theme-error: #dc2626;
+    --theme-info: #2563eb;
+    --theme-measurement: #d97706;
+    --theme-on-danger: #ffffff;
+
+    --diagram-ink: #2c2c35;
+    --diagram-edge: #888899;
+    --diagram-fill: #ffffff;
+    --diagram-soft: #f0f0f3;
+    --diagram-muted: #9898a5;
+    --diagram-accent: #6b6b78;
+    --diagram-accent-blue: #2563eb;
+    --diagram-accent-warm: #d97706;
+
+    --theme-shadow: rgb(0 0 0 / 8%);
+    --theme-shadow-soft: rgb(0 0 0 / 5%);
+    --theme-shadow-strong: rgb(0 0 0 / 14%);
+    --theme-shadow-control: rgb(0 0 0 / 6%);
+    --theme-backdrop: rgb(0 0 0 / 28%);
+    --theme-focus-ring: color-mix(in srgb, var(--theme-primary) 40%, transparent);
+}
+
+/* ── Derived tokens (scoped to .app-shell so they recalculate once) ── */
+
 .app-shell {
-    /* Calculate derived colors here so dark mode uses its own foregrounds. */
     --theme-border-strong: color-mix(in srgb, var(--theme-border) 58%, var(--theme-text-secondary));
-    --theme-separator: color-mix(in srgb, var(--theme-border) 78%, transparent);
+    --theme-separator: color-mix(in srgb, var(--theme-border) 62%, transparent);
     --theme-surface-floating: var(--theme-surface-elevated);
-    --theme-border-floating: color-mix(in srgb, var(--theme-border) 82%, transparent);
+    --theme-border-floating: color-mix(in srgb, var(--theme-border) 72%, transparent);
     --theme-toolbar-custom-surface: var(--toolbar-surface, var(--theme-surface));
     --theme-toolbar-surface: var(--theme-surface);
-    --theme-control-hover: color-mix(in srgb, var(--theme-primary) 7%, var(--theme-surface-elevated));
-    --theme-control-selected: color-mix(in srgb, var(--theme-primary) 11%, var(--theme-surface-elevated));
-    --theme-control-outline: color-mix(in srgb, var(--theme-primary) 32%, var(--theme-border));
+    --theme-control-hover: color-mix(in srgb, var(--theme-primary) 8%, var(--theme-surface-elevated));
+    --theme-control-selected: color-mix(in srgb, var(--theme-primary) 13%, var(--theme-surface-elevated));
+    --theme-control-outline: color-mix(in srgb, var(--theme-primary) 28%, var(--theme-border));
     --theme-preview-node-fill: var(--theme-surface-input);
     --theme-preview-node-header: color-mix(in srgb, var(--theme-primary) 9%, var(--theme-surface));
     --theme-preview-node-stroke: var(--theme-border-strong);
@@ -101,19 +153,18 @@
     --theme-preview-frame-fill: color-mix(in srgb, var(--theme-surface-input) 78%, transparent);
     --theme-preview-frame-stroke: var(--theme-border-strong);
     --theme-preview-frame-ink: var(--theme-text-secondary);
-    --theme-surface-hover: color-mix(in srgb, var(--theme-surface-elevated) 78%, var(--theme-background));
-    --theme-border-subtle: color-mix(in srgb, var(--theme-border) 72%, transparent);
-    --theme-primary-border: color-mix(in srgb, var(--theme-primary) 40%, var(--theme-border));
-    --theme-success-border: color-mix(in srgb, var(--theme-success) 42%, var(--theme-border));
-    --theme-warning-border: color-mix(in srgb, var(--theme-warning) 42%, var(--theme-border));
-    --theme-error-border: color-mix(in srgb, var(--theme-error) 42%, var(--theme-border));
-    --theme-info-border: color-mix(in srgb, var(--theme-info) 42%, var(--theme-border));
+    --theme-surface-hover: color-mix(in srgb, var(--theme-surface-elevated) 72%, var(--theme-background));
+    --theme-border-subtle: color-mix(in srgb, var(--theme-border) 60%, transparent);
+    --theme-primary-border: color-mix(in srgb, var(--theme-primary) 36%, var(--theme-border));
+    --theme-success-border: color-mix(in srgb, var(--theme-success) 36%, var(--theme-border));
+    --theme-warning-border: color-mix(in srgb, var(--theme-warning) 36%, var(--theme-border));
+    --theme-error-border: color-mix(in srgb, var(--theme-error) 36%, var(--theme-border));
+    --theme-info-border: color-mix(in srgb, var(--theme-info) 36%, var(--theme-border));
     --theme-success-muted: color-mix(in srgb, var(--theme-success) 10%, var(--theme-surface));
     --theme-warning-muted: color-mix(in srgb, var(--theme-warning) 11%, var(--theme-surface));
     --theme-error-muted: color-mix(in srgb, var(--theme-error) 9%, var(--theme-surface));
     --theme-info-muted: color-mix(in srgb, var(--theme-info) 10%, var(--theme-surface));
 
-    /* Diagram-family accents use the same contrast and surface system. */
     --theme-diagram-uml: var(--theme-primary);
     --theme-diagram-data: var(--theme-success);
     --theme-diagram-architecture: var(--theme-info);
@@ -127,14 +178,14 @@
     --theme-diagram-network-muted: color-mix(in srgb, var(--theme-diagram-network) 10%, var(--theme-surface));
     --theme-diagram-forms-muted: color-mix(in srgb, var(--theme-diagram-forms) 10%, var(--theme-surface));
 
-    --theme-elevation-popover: 0 8px 28px var(--theme-shadow);
-    --theme-elevation-dialog: 0 20px 56px var(--theme-shadow-strong);
+    --theme-elevation-popover: 0 6px 24px var(--theme-shadow), 0 0 0 1px var(--theme-border-floating);
+    --theme-elevation-dialog: 0 16px 48px var(--theme-shadow-strong), 0 0 0 1px var(--theme-border-floating);
 
     --ui-accent: var(--theme-primary);
     --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 12%, var(--theme-surface));
-    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 42%, var(--theme-border));
+    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 36%, var(--theme-border));
     --ui-accent-ink: var(--ui-accent);
-    --theme-focus-ring: color-mix(in srgb, var(--ui-accent) 72%, var(--theme-surface));
+    --theme-focus-ring: color-mix(in srgb, var(--ui-accent) 60%, transparent);
     --layer-ink: var(--theme-text-primary);
     --layer-muted: var(--theme-text-secondary);
     --layer-surface: var(--theme-surface);
@@ -157,13 +208,10 @@
     color: var(--theme-text-primary);
 }
 
-/* Minimalist keeps every workspace layout intact while simplifying its palette and surfaces. */
-
-/* Draw.io-inspired minimal treatment keeps the same controls and layout, with flatter surfaces. */
-
-/* Keep interaction transitions consistent across tools, dialogs, and inspectors. */
+/* ── Global interaction transitions ── */
 .app-shell :where(button, input, select, textarea) {
-    transition: color var(--ui-motion-fast) ease, background-color var(--ui-motion-fast) ease, border-color var(--ui-motion-fast) ease, box-shadow var(--ui-motion-fast) ease;
+    transition: color var(--ui-motion-fast) ease, background-color var(--ui-motion-fast) ease,
+        border-color var(--ui-motion-fast) ease, box-shadow var(--ui-motion-fast) ease;
 }
 
 .app-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]), select, textarea) {
@@ -174,9 +222,7 @@
     cursor: not-allowed;
 }
 
-/* Shared elevation keeps floating controls distinct in both color modes.
-   .style-pane and .view-settings-popover own their own box-shadow in
-   full-inspector.css and toolbar-and-view-popovers.css respectively. */
+/* ── Shared elevation for floating surfaces ── */
 .app-shell :is(
     .system-menu-popover,
     .tool-options,

@@ -1,4 +1,6 @@
-/* Ordered style manifest; ownership and platform rules are documented in ../docs/architecture/styles.md. */
+/* ── SketchDraw style manifest ── */
+
+/* Tokens and foundation */
 @import "./styles/app/theme.css";
 @import "./styles/themes/dark.css";
 @import "./styles/themes/system.css";
@@ -6,19 +8,49 @@
 @import "./styles/themes/minimalist.css";
 @import "./styles/themes/custom.css";
 @import "./styles/app/foundation.css";
+
+/* Canvas and tools */
 @import "./styles/canvas-navigation.css";
-@import "./styles/app/inspector.css";
-@import "./styles/app/menus.css";
 @import "./styles/app/canvas-tools.css";
-@import "./styles/app/dialogs.css";
-@import "./styles/app/home.css";
+@import "./styles/app/canvas-polish.css";
+@import "./styles/canvas-features.css";
+@import "./styles/tools.css";
+
+/* Inspector and properties */
+@import "./styles/app/inspector.css";
+@import "./styles/property-panel-redesign.css";
+@import "./styles/full-inspector.css";
+@import "./styles/schema-editor.css";
+
+/* Menus, toolbar, and popovers */
+@import "./styles/app/menus.css";
 @import "./styles/app/toolbar-polish.css";
+@import "./styles/app/topbar.css";
+@import "./styles/menu-panels.css";
+@import "./styles/menu-typography.css";
+@import "./styles/toolbar-and-view-popovers.css";
+
+/* Dialogs and overlays */
+@import "./styles/app/dialogs.css";
 @import "./styles/app/export-pages.css";
 @import "./styles/app/note-cards.css";
-@import "./styles/app/canvas-polish.css";
-@import "./styles/app/ui-overrides.css";
+
+/* Home and settings */
+@import "./styles/app/home.css";
+@import "./styles/app-settings.css";
+
+/* Workspace */
+@import "./styles/workspace-ui.css";
+@import "./styles/workspace-view-panel.css";
+@import "./features/workspace/workspace-shell.css";
+@import "./features/workspace/database-workspace.css";
+@import "./features/project/project-workspace.css";
+
+/* Platform: Windows desktop */
+@import "./platform/windows/windows.css";
 @import "./styles/platform-responsive.css";
-@import "./styles/tools.css";
+
+/* Platform: Mobile (kept for compatibility, excluded from rework) */
 @import "./platform/mobile/workspace.css";
 @import "./platform/mobile/overrides.css";
 @import "./platform/mobile/mobile.css";
@@ -26,24 +58,11 @@
 @import "./platform/mobile/home.css";
 @import "./platform/mobile/touch-style.css";
 @import "./platform/mobile/quick-style.css";
-@import "./styles/menu-panels.css";
-@import "./platform/windows/windows.css";
-@import "./features/workspace/workspace-shell.css";
-@import "./styles/workspace-ui.css";
-@import "./features/project/project-workspace.css";
 @import "./platform/mobile/layout-fixes.css";
 @import "./platform/mobile/touch-bars.css";
 @import "./platform/mobile/command-bar.css";
 @import "./platform/mobile/touch-toolbar.css";
-@import "./styles/property-panel-redesign.css";
-@import "./styles/app-settings.css";
-@import "./styles/toolbar-and-view-popovers.css";
-@import "./styles/workspace-view-panel.css";
-@import "./styles/schema-editor.css";
-@import "/src/features/workspace/database-workspace.css";
 @import "./platform/mobile/design-workspace.css";
-@import "./styles/menu-typography.css";
-@import "./styles/app/topbar.css";
-@import "./styles/canvas-features.css";
-/* Full inspector loads last to override base inspector/foundation/ui-overrides */
-@import "./styles/full-inspector.css";
+
+/* Overrides (last) */
+@import "./styles/app/ui-overrides.css";

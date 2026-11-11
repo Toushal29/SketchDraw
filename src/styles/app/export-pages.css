@@ -12,10 +12,10 @@
 .pdf-settings {
     display: grid;
     gap: 8px;
-    margin: 14px 0 8px;
-    padding: 12px;
+    margin: 12px 0 8px;
+    padding: 11px;
     border: 1px solid var(--theme-border);
-    border-radius: 9px;
+    border-radius: var(--ui-radius-panel);
     background: var(--theme-surface-elevated);
 }
 
@@ -35,10 +35,10 @@
 .export-size-settings {
     display: grid;
     gap: 8px;
-    margin: 14px 0 8px;
-    padding: 12px;
+    margin: 12px 0 8px;
+    padding: 11px;
     border: 1px solid var(--theme-border);
-    border-radius: 9px;
+    border-radius: var(--ui-radius-panel);
     background: var(--theme-surface-elevated);
 }
 
@@ -60,7 +60,7 @@
     gap: 2px;
     padding: 5px 4px;
     border: 1px solid var(--theme-border);
-    border-radius: 7px;
+    border-radius: var(--ui-radius-control);
     color: var(--theme-text-secondary);
     background: var(--theme-surface-input);
     font-size: var(--type-caption);
@@ -145,7 +145,7 @@
     gap: 6px;
     padding: 5px 7px;
     border: 1px solid var(--theme-border);
-    border-radius: 7px;
+    border-radius: var(--ui-radius-control);
     color: var(--theme-text-secondary);
     background: var(--theme-surface-input);
     font-size: var(--type-caption);
@@ -223,9 +223,9 @@
     gap: 3px;
     margin-top: 3px;
     padding: 9px;
-    border-radius: 7px;
+    border-radius: var(--ui-radius-control);
     color: var(--theme-info);
-    background: var(--theme-surface-hover);
+    background: var(--theme-surface-elevated);
 }
 
 .pdf-page-count strong {
@@ -291,7 +291,7 @@
 .update-menu-status {
     display: block;
     padding: 6px 10px;
-    color: var(--muted);
+    color: var(--theme-text-secondary);
     font-size: var(--type-caption);
     line-height: var(--leading-normal);
     overflow-wrap: anywhere;
@@ -300,7 +300,7 @@
 .update-menu-version {
     display: block;
     padding: 4px 10px 6px;
-    color: var(--muted);
+    color: var(--theme-text-tertiary);
     font-size: var(--type-micro);
 }
 
@@ -309,7 +309,7 @@
 .update-menu-status.error {
     margin: 4px 7px;
     padding: 7px 9px;
-    border-radius: 7px;
+    border-radius: var(--ui-radius-control);
     font-weight: var(--font-weight-semibold);
 }
 

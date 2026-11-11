@@ -758,18 +758,16 @@ async function run() {
   check(styleLibraryOpened, "Canvas settings open the style library");
   check(!menuHost.querySelector('input[aria-label="Stroke smoothing"]') && !menuHost.querySelector('select[aria-label="Selection drag mode"]') && !menuHost.querySelector('select[aria-label="Color vision preview"]'), "Canvas settings no longer carry stroke smoothing, selection mode, or color vision controls");
   const viewHost = document.createElement("div"); document.body.append(viewHost);
-  let chosenVision = ""; let openedOutline = false; let openedNavigator = false;
+  let openedOutline = false; let openedNavigator = false;
   const disposeView = render(() => createComponent(ViewSettingsPopover, {
     themeMode: "light" as const, themeOptions: [{ value: "light" as const, label: "Light" }, { value: "dark" as const, label: "Dark" }], customThemeTokens: { background: "#ffffff", surface: "#ffffff", surfaceElevated: "#ffffff", surfaceInput: "#ffffff", border: "#d0d0d0", textPrimary: "#000000", textSecondary: "#666666", primary: "#3b82f6" }, onThemeChange() {}, onCustomTokenChange() {},
     accentColor: "#3b82f6", toolbarColorChoice: "auto", accentOptions: [], toolbarColorOptions: [], boardColor: "#ffffff", renderedBoardColor: "#ffffff", boardColorUsesDefault: true, boardLocked: false, boardColors: [], paperPattern: "plain", patterns: [], namedVersionsDisabled: false, canvasToolsDisabled: false,
     onAccentChange() {}, onToolbarColorChange() {}, onBoardUseDefault() {}, onBoardColorChange() {}, onPaperPatternChange() {}, onNamedVersions() {},
-    accessibility: { colorVisionMode: "none", colorVisionModes: [{ id: "none", label: "Normal vision" }, { id: "deuteranopia", label: "Deuteranopia (no green)" }], safePalette: false, documentDisabled: false, onColorVisionModeChange(mode: string) { chosenVision = mode; }, onSafePaletteChange() {}, onOpenOutline() { openedOutline = true; }, onOpenNavigator() { openedNavigator = true; } },
+    accessibility: { documentDisabled: false, onOpenOutline() { openedOutline = true; }, onOpenNavigator() { openedNavigator = true; } },
   }), viewHost);
-  const visionSelect = viewHost.querySelector<HTMLSelectElement>('select[aria-label="Color vision preview"]');
-  if (visionSelect) { visionSelect.value = "deuteranopia"; visionSelect.dispatchEvent(new Event("change", { bubbles: true })); }
   const viewButtons = [...viewHost.querySelectorAll<HTMLButtonElement>("button")];
   viewButtons.find(button => button.textContent?.includes("Document outline"))?.click(); viewButtons.find(button => button.textContent?.includes("Frame navigator"))?.click();
-  check(chosenVision === "deuteranopia" && openedOutline && openedNavigator && [...viewHost.querySelectorAll("input[type=checkbox]")].some(box => box.parentElement?.textContent?.includes("Color-blind-safe swatches")), "The View menu holds the color vision preview, safe swatches, document outline, and frame navigator");
+  check(openedOutline && openedNavigator, "The View menu holds the document outline and frame navigator");
   disposeView(); viewHost.remove();
   check(DEFAULT_TOOL_ORDER.indexOf("lasso") === DEFAULT_TOOL_ORDER.indexOf("select") + 1 && DEFAULT_TOOL_ORDER.indexOf("lasso") > 0, "Lasso is its own toolbar tool placed right after Select");
   const defaultLayout = defaultToolbarLayout();

@@ -1,7 +1,7 @@
 .live-diagram-panel {
   position: fixed; top: 64px; left: 12px; bottom: 16px; z-index: 40; width: min(420px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px;
-  padding: 10px 12px 12px; border: 1px solid var(--theme-border); border-radius: 8px;
-  background: var(--theme-surface-elevated); color: var(--theme-text-primary); font-size: 12px; box-shadow: var(--theme-elevation-popover);
+  padding: 10px 12px 12px; border: 1px solid var(--theme-border); border-radius: var(--ui-radius-popover);
+  background: var(--theme-surface-elevated); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); color: var(--theme-text-primary); font-size: 12px; box-shadow: var(--theme-elevation-popover);
 }
 .live-diagram-panel header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .live-diagram-panel header strong { font-size: 14px; }
@@ -12,7 +12,7 @@
 .live-diagram-controls button:disabled { opacity: .5; cursor: not-allowed; }
 .live-diagram-source {
   flex: 1; min-height: 160px; resize: none; padding: 8px; border: 1px solid var(--theme-border); border-radius: 6px;
-  background: transparent; color: inherit; font: 12px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; tab-size: 2; white-space: pre; overflow: auto;
+  background: var(--theme-surface-input); color: inherit; font: 12px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; tab-size: 2; white-space: pre; overflow: auto;
 }
 .live-diagram-status { margin: 0; min-height: 1.4em; color: var(--theme-text-tertiary); font-size: 11px; line-height: 1.4; }
 .live-diagram-status.ok { color: var(--theme-success); }

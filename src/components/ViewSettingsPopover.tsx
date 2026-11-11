@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { Show } from "solid-js";
 import type { Theme } from "../model";
 import type { CustomThemeTokens } from "../app/theme";
 
@@ -8,17 +8,7 @@ type ColorChoice = { label: string; value: string };
 
 type CanvasToolToggles = {
   pressureCurve: boolean;
-  clipboardTray: boolean;
-  drawingChallenge: boolean;
-  spatialBrowser: boolean;
-  ambientMode: boolean;
-  soundtrack: boolean;
   onTogglePressureCurve: () => void;
-  onToggleClipboardTray: () => void;
-  onToggleDrawingChallenge: () => void;
-  onToggleSpatialBrowser: () => void;
-  onToggleAmbientMode: () => void;
-  onToggleSoundtrack: () => void;
 };
 
 type Props = {
@@ -42,12 +32,7 @@ type Props = {
   canvasToolsDisabled: boolean;
   canvasTools?: CanvasToolToggles;
   accessibility?: {
-    colorVisionMode: string;
-    colorVisionModes: { id: string; label: string }[];
-    safePalette: boolean;
     documentDisabled: boolean;
-    onColorVisionModeChange: (mode: string) => void;
-    onSafePaletteChange: (enabled: boolean) => void;
     onOpenOutline: () => void;
     onOpenNavigator: () => void;
   };
@@ -127,38 +112,17 @@ export function ViewSettingsPopover(props: Props) {
       </div>
     </section>
 
-    {/* ── Drawing tools: direct aids for drawing ── */}
+    {/* ── Drawing tools ── */}
     <Show when={props.canvasTools}>{tools => <section class="view-settings-section">
       <h3>Drawing tools</h3>
       <label class="view-settings-check"><input type="checkbox" checked={tools().pressureCurve} disabled={props.canvasToolsDisabled} onChange={tools().onTogglePressureCurve} /> Pressure curve editor</label>
-      <label class="view-settings-check"><input type="checkbox" checked={tools().clipboardTray} disabled={props.canvasToolsDisabled} onChange={tools().onToggleClipboardTray} /> Clipboard tray</label>
-      <label class="view-settings-check"><input type="checkbox" checked={tools().drawingChallenge} disabled={props.canvasToolsDisabled} onChange={tools().onToggleDrawingChallenge} /> Drawing challenge</label>
     </section>}</Show>
 
-    {/* ── Experience: ambient and spatial extras ── */}
-    <Show when={props.canvasTools}>{tools => <section class="view-settings-section">
-      <h3>Experience</h3>
-      <button type="button" class="view-settings-action" disabled={props.canvasToolsDisabled} onClick={tools().onToggleSpatialBrowser}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4m0 0l9-4m-9 4v10"/></svg>
-        <span>Spatial file browser</span><span aria-hidden="true">›</span>
-      </button>
-      <label class="view-settings-check"><input type="checkbox" checked={tools().ambientMode} disabled={props.canvasToolsDisabled} onChange={tools().onToggleAmbientMode} /> Ambient auto-pan</label>
-      <label class="view-settings-check"><input type="checkbox" checked={tools().soundtrack} disabled={props.canvasToolsDisabled} onChange={tools().onToggleSoundtrack} /> Canvas soundtrack</label>
-    </section>}</Show>
-
-    {/* ── Accessibility: vision aids and navigation ── */}
+    {/* ── Accessibility: navigation aids ── */}
     <Show when={props.accessibility}>{access => <section class="view-settings-section">
       <h3>Accessibility</h3>
-      <div class="view-settings-row">
-        <span>Color vision preview</span>
-        <select aria-label="Color vision preview" value={access().colorVisionMode} onChange={event => access().onColorVisionModeChange(event.currentTarget.value)}>
-          <For each={access().colorVisionModes}>{mode => <option value={mode.id}>{mode.label}</option>}</For>
-        </select>
-      </div>
-      <label class="view-settings-check"><input type="checkbox" checked={access().safePalette} onChange={event => access().onSafePaletteChange(event.currentTarget.checked)} /> Color-blind-safe swatches</label>
       <button type="button" class="view-settings-action" disabled={access().documentDisabled} onClick={access().onOpenNavigator}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v16H3zM9 4v16M3 10h6"/></svg><span>Frame navigator</span><kbd>Alt+Shift+F</kbd></button>
       <button type="button" class="view-settings-action" disabled={access().documentDisabled} onClick={access().onOpenOutline}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9"/></svg><span>Document outline</span><kbd>Alt+Shift+O</kbd></button>
-      <p class="view-settings-note">The color vision preview changes only what you see here, never exports.</p>
     </section>}</Show>
 
     {/* ── Document: versioning ── */}

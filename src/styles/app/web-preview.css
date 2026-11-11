@@ -8,7 +8,7 @@
   overflow: hidden;
   box-sizing: border-box;
   border: 1px solid var(--theme-border);
-  border-radius: 7px;
+  border-radius: var(--ui-radius-panel);
   background: var(--theme-surface);
   color: var(--theme-text-primary);
   box-shadow: 0 8px 28px var(--theme-shadow);
