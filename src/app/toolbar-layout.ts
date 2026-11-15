@@ -1,7 +1,7 @@
 import type { ToolbarItem } from "../model";
 
 export const DEFAULT_TOOL_ORDER: ToolbarItem[] = ["select", "lasso", "pan", "pen", "paintBrushes", "eraser", "laser", "line", "arrow", "rectangle", "circle", "diamond", "flowchart", "text", "componentLibrary", "image", "bucket", "crop", "measure", "codeData", "pathEdit", "frame"];
-export const DEFAULT_MORE_TOOL_ORDER: ToolbarItem[] = ["lasso", "laser", "arrow", "rectangle", "circle", "diamond", "crop", "measure", "codeData", "pathEdit", "frame"];
+export const DEFAULT_MORE_TOOL_ORDER: ToolbarItem[] = ["bucket", "measure", "crop"];
 export type ToolbarLayout = { toolbar: ToolbarItem[]; more: ToolbarItem[] };
 export type OrderedToolbarEntry = { id: string; label: string; tools: ToolbarItem[] };
 

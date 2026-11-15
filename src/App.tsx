@@ -2776,17 +2776,6 @@ function App() {
     return false;
   };
   const quickSupportsTextFormatting = () => (tool() === "text" && textMode() === "text" || !!textDraft() || !!selectedText()) && styleTargetElement()?.type !== "schemaTable";
-  const quickStylePanelTitle = () => {
-    const type = quickElementType();
-    if (type === "text" || quickHasText() && tool() === "select") return "Text";
-    if (["rectangle", "circle", "diamond", "triangle", "flowchart", "svgPath"].includes(type)) return "Shapes";
-    if (type === "group") {
-      const group = focusedElement();
-      return group?.type === "group" ? group.libraryComponent?.label ?? group.container?.name ?? "Group" : "Group";
-    }
-    if (styleContainerSelection()) return "Container";
-    return ({ select: "Selection", pan: "Hand", pen: "Pen", eraser: "Eraser", laser: "Laser", line: "Line", arrow: "Arrow", bucket: "Fill", crop: "Image crop" } as Record<string, string>)[type] ?? "Quick style";
-  };
   const quickTextFontFamily = () => selectedText()?.fontFamily ?? defaultFontFamily();
   const quickTextControlsDisabled = () => boardLocked() || readOnlyView() || !!focusedElement()?.locked;
   // Component selections expose formatting as soon as they contain visible text or a label.
@@ -8485,7 +8474,7 @@ function App() {
             <Show when={showMinimap()}><Suspense fallback={null}><CanvasMinimap elements={elements()} zoom={canvasState().zoom} panX={canvasState().panX} panY={canvasState().panY} viewportWidth={canvas.clientWidth} viewportHeight={canvas.clientHeight} onNavigate={center => setCanvasState(current => ({ ...current, panX: canvas.clientWidth / 2 - center.x * current.zoom, panY: canvas.clientHeight / 2 - center.y * current.zoom }))} onClose={() => { setShowMinimap(false); try { localStorage.setItem("sketchdraw-canvas-minimap", "false"); } catch { /* The current view still updates. */ } }} /></Suspense></Show>
             <Show when={presentationMode()}><div class="canvas-presentation-controls"><button title="Previous frame or page" aria-label="Previous frame or page" onClick={() => changePresentationPage(-1)}>‹</button><span>{presentationTarget() === "frames" && presentationFrameIndex() >= 0 ? (currentFrameElements()[presentationFrameIndex()]?.container?.name ?? "Frame") + " · " + (presentationFrameIndex() + 1) + "/" + currentFrameElements().length : currentPage()?.name ?? "Sketch"}</span><button title="Next frame or page" aria-label="Next frame or page" onClick={() => changePresentationPage(1)}>›</button><button class={presentationTarget() === "pages" ? "active" : ""} title="Present pages" onClick={() => setPresentationModeTarget("pages")}>Pages</button><button class={presentationTarget() === "frames" ? "active" : ""} disabled={!currentFrameElements().length} title="Present frames on this page" onClick={() => setPresentationModeTarget("frames")}>Frames</button><button title="Exit presentation mode" onClick={() => void togglePresentationMode(false)}>Exit</button></div></Show>
             <DesktopPageTabs pages={pages()} activePageId={activePageId()} boardLocked={boardLocked() || readOnlyView()} onSelectPage={switchPage} onAddPage={addPage} onRenamePage={() => openPageDialog("rename")} onDuplicatePage={duplicatePage} onReorderPage={direction => reorderPage(direction)} onDeletePage={() => openPageDialog("delete")} />
-            <WindowsToolBar open={toolBarOpen()} label={workspaceArea() === "design" ? "Design tools" : "Canvas tools"} customize={workspaceArea() !== "design"} onShow={() => setToolBarOpen(true)} onHide={() => setToolBarOpen(false)} onCustomize={() => { setToolbarOrganizerOpen(true); setMoreToolsOpen(false); closeToolOptions(); setComponentLibraryOpen(false); }}>
+            <WindowsToolBar open={toolBarOpen()} label={workspaceArea() === "design" ? "Design tools" : "Canvas tools"} onShow={() => setToolBarOpen(true)} onHide={() => setToolBarOpen(false)}>
               <Show when={workspaceArea() === "design"} fallback={<>
               <div class="tool-cluster tool-cluster-canvas " role="group" aria-label="Canvas view">
               <CanvasOptionsMenu
@@ -8784,12 +8773,7 @@ function App() {
               {/* Full mode replaces the quick-style rail; its controls live in this inspector. */}
               <Show when={workspaceArea() !== "design"}>
               <div class="full-inspector" classList={{ "connector-properties": selectedIndices().length === 1 && !!focusedElement() && isConnector(focusedElement()!) }}>
-                <header class="full-inspector-header">
-                  <Show when={styleMenuMode() === "quick"} fallback={<><strong>Properties</strong><button type="button" class="full-inspector-close" onClick={toggleQuickProperties} aria-label="Close properties panel" title="Close properties panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></>}>
-                    <div class="quick-style-context-heading"><span>Quick style</span><strong>{quickStylePanelTitle()}</strong></div>
-                    <button type="button" class="full-inspector-close quick-style-mode-toggle" onClick={toggleQuickProperties} aria-label="Open full properties" title="Open full properties"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></button>
-                  </Show>
-                </header>
+                <header class="full-inspector-header"><strong>Properties</strong><button type="button" class="full-inspector-close" onClick={toggleQuickProperties} aria-label="Close properties panel" title="Close properties panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
 
                 <Show when={sidebarTab() === "properties"}>
                   <div class="inspector-properties-content" id="inspector-properties-content">

@@ -338,206 +338,12 @@
     }
 }
 
-/* Windows toolbar: labeled tool dock with the contextual style card beside the canvas. */
-.app-shell.platform-windows .desktop-tool-host {
-    position: absolute;
-    z-index: 20;
-    top: 10px;
-    left: 50%;
-    display: block;
-    width: max-content;
-    max-width: calc(100% - 28px);
-    transform: translateX(-50%);
-}
-
-.app-shell.platform-windows .tool-deck {
-    position: relative;
-    top: auto;
-    left: auto;
-    display: flex;
-    width: max-content;
-    max-width: 100%;
-    align-items: stretch;
-    gap: 4px;
-    padding: 6px;
-    overflow-x: auto;
-    border: 1px solid var(--theme-border);
-    border-radius: 14px;
-    background: var(--theme-surface);
-    box-shadow: 0 5px 22px color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
-    transform: none;
-    scrollbar-width: thin;
-}
-
-.app-shell.platform-windows .desktop-tool-content,
-.app-shell.platform-windows .desktop-tool-actions {
-    display: flex;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: 3px;
-}
-
-.app-shell.platform-windows .desktop-tool-content > .tool-cluster {
-    gap: 3px;
-    padding: 0 2px;
-}
-
-.app-shell.platform-windows .desktop-tool-content > .tool-cluster:not(.tool-cluster-canvas)::before,
-.app-shell.platform-windows .desktop-tool-content > .tool-family.tool-extra-family::before {
-    height: 38px;
-    margin: 0 4px;
-}
-
-.app-shell.platform-windows .tool-deck .tool-icon-button,
-.app-shell.platform-windows .tool-deck .canvas-options-trigger,
-.app-shell.platform-windows .tool-deck .tool-family,
-.app-shell.platform-windows .tool-deck .tool-family .tool-icon-button {
-    box-sizing: border-box;
-    width: 60px;
-    min-width: 60px;
-    height: 58px;
-    min-height: 58px;
-    border-radius: 9px;
-}
-
-.app-shell.platform-windows .tool-deck .tool-family {
-    display: flex;
-    flex: 0 0 60px;
-    align-items: center;
-}
-
-.app-shell.platform-windows .tool-deck .tool-icon-button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 5px 3px 4px;
-    color: var(--theme-text-primary);
-    background: transparent;
-}
-
-.app-shell.platform-windows .tool-deck .tool-icon-button > svg:not(.tool-family-caret) {
-    width: 19px;
-    height: 19px;
-    flex: 0 0 19px;
-}
-
-.app-shell.platform-windows .tool-deck .tool-icon-button[data-toolbar-label]::after {
-    max-width: 100%;
-    overflow: hidden;
-    color: var(--theme-text-secondary);
-    content: attr(data-toolbar-label);
-    font-size: 9px;
-    font-weight: 500;
-    line-height: 1.1;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.app-shell.platform-windows .tool-deck .tool-icon-button.selected {
-    color: var(--ui-accent);
-    background: color-mix(in srgb, var(--ui-accent) 13%, var(--theme-surface));
-}
-
-.app-shell.platform-windows .tool-deck .tool-icon-button.selected::after { color: var(--ui-accent); }
-.app-shell.platform-windows .tool-deck .tool-icon-button kbd { display: none; }
-.app-shell.platform-windows .tool-deck .tool-family .tool-family-caret { right: 4px; top: 7px; width: 9px; height: 9px; }
-.app-shell.platform-windows .tool-deck .more-tools-family { display: none; }
-.app-shell.platform-windows .desktop-tool-actions { padding-left: 4px; border-left: 1px solid var(--theme-border); }
-
-.app-shell.platform-windows .toolbar-customize-button {
-    display: flex;
-    width: 78px;
-    min-width: 78px;
-    height: 58px;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 4px;
-    border: 0;
-    border-radius: 9px;
-    color: var(--theme-text-secondary);
-    background: var(--theme-surface-input);
-    font: 500 9px/1.1 var(--font-ui);
-    cursor: pointer;
-}
-
-.app-shell.platform-windows .toolbar-customize-button:hover {
-    color: var(--ui-accent);
-    background: color-mix(in srgb, var(--ui-accent) 12%, var(--theme-surface));
-}
-
-.app-shell.platform-windows .toolbar-customize-button svg {
-    width: 19px;
-    height: 19px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.app-shell.platform-windows .tool-deck .tool-collapse { width: 30px; min-width: 30px; height: 58px; }
-
-/* Quick Style replaces the compact icon rail with the selected tool's useful controls. */
-.app-shell.platform-windows .style-pane.quick-style-mode:not(.schema-editor-active) {
-    box-sizing: border-box;
-    z-index: 18;
-    top: 82px;
-    right: auto;
-    bottom: auto;
-    left: 16px;
-    display: flex;
-    width: 232px;
-    max-width: min(232px, calc(100vw - 32px));
-    max-height: calc(100% - 98px);
-    flex-direction: column;
-    overflow: hidden;
-    padding: 0;
-    border: 1px solid var(--theme-border);
-    border-radius: 13px;
-    background: var(--theme-surface-elevated);
-    box-shadow: 0 4px 18px color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
-}
-
-.app-shell.platform-windows .style-pane.quick-style-mode:not(.schema-editor-active) > .quick-style-panel { display: none; }
-.app-shell.platform-windows .style-pane.quick-style-mode:not(.schema-editor-active) > .full-inspector {
-    position: static;
-    display: flex;
-    width: 100%;
-    min-height: 0;
-    flex: 1 1 auto;
-    flex-direction: column;
-    overflow-x: hidden;
-    overflow-y: auto;
-    padding: 0;
-    border: 0;
-    border-radius: inherit;
-    background: transparent;
-    box-shadow: none;
-}
-
-.app-shell.platform-windows .quick-style-mode .full-inspector-header {
-    min-height: 56px;
-    padding: 9px 13px;
-    border-bottom: 1px solid var(--theme-border);
-    background: var(--theme-surface-elevated);
-}
-
-.app-shell.platform-windows .quick-style-context-heading { display: grid; gap: 3px; }
-.app-shell.platform-windows .quick-style-context-heading > span { color: var(--theme-text-tertiary); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.app-shell.platform-windows .quick-style-context-heading > strong { color: var(--theme-text-primary); font-size: 15px; font-weight: 600; }
-.app-shell.platform-windows .quick-style-mode-toggle { transform: rotate(-90deg); }
-.app-shell.platform-windows .quick-style-mode .inspector-properties-content { gap: 0; padding: 0; }
-.app-shell.platform-windows .quick-style-mode .inspector-properties-content > .pane-section { padding: 9px 12px; border-bottom-color: var(--theme-border); }
-
 /* The customizer mirrors the two distinct tool lists shown in the Windows toolbar design. */
 .app-shell.platform-windows .toolbar-customizer {
     width: min(1000px, calc(100vw - 48px));
+    height: min(640px, calc(100dvh - 40px));
     max-height: min(760px, calc(100dvh - 40px));
-    grid-template-rows: auto minmax(150px, 1fr) auto auto auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
     gap: 12px;
     padding: 20px 22px 14px;
     border-radius: 18px;
@@ -562,27 +368,27 @@
 .app-shell.platform-windows .toolbar-config-zone-heading strong { font-size: 12px; font-weight: 650; }
 .app-shell.platform-windows .toolbar-config-zone-heading > span { display: grid; min-width: 22px; height: 22px; place-items: center; border-radius: 99px; color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 13%, var(--theme-surface-elevated)); font-size: 10px; }
 .app-shell.platform-windows .toolbar-config-zone-heading small { margin-left: auto; color: var(--theme-text-tertiary); font-size: 10px; }
-.app-shell.platform-windows .toolbar-config-grid { display: grid; min-height: 0; max-height: min(34vh, 300px); grid-template-columns: repeat(5, minmax(0, 1fr)); align-content: start; gap: 8px; margin: 0; padding: 1px; overflow: auto; list-style: none; }
-.app-shell.platform-windows .toolbar-config-grid > li { box-sizing: border-box; display: grid; min-width: 0; min-height: 86px; grid-template-columns: 22px minmax(0, 1fr) 22px; grid-template-rows: 22px 1fr 22px; align-items: center; justify-items: center; gap: 2px; padding: 5px; border: 1px solid var(--theme-border); border-radius: 9px; background: var(--theme-surface-input); }
+.app-shell.platform-windows .toolbar-config-grid { display: grid; width: 70%; min-height: 0; height: min(24vh, 210px); max-height: min(24vh, 210px); grid-template-columns: repeat(5, minmax(0, 1fr)); justify-self: center; align-content: start; gap: 6px; margin: 0; padding: 1px; overflow: auto; list-style: none; }
+.app-shell.platform-windows .toolbar-config-grid > li { box-sizing: border-box; display: grid; min-width: 0; min-height: 60px; grid-template-columns: 16px minmax(0, 1fr) 16px; grid-template-rows: 16px 1fr 16px; align-items: center; justify-items: center; gap: 1px; padding: 4px; border: 1px solid var(--theme-border); border-radius: 7px; background: var(--theme-surface-input); }
 .app-shell.platform-windows .toolbar-config-grid > li.toolbar-config-item-drop-target { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
-.app-shell.platform-windows .toolbar-config-grip { display: grid; width: 20px; min-width: 20px; min-height: 20px; grid-column: 1; grid-row: 1; place-items: center; padding: 2px; border: 0; color: var(--theme-text-tertiary); background: transparent; cursor: grab; }
-.app-shell.platform-windows .toolbar-config-grip svg { width: 13px; height: 13px; fill: currentColor; }
-.app-shell.platform-windows .toolbar-config-icon { width: 23px; height: 23px; grid-column: 2; grid-row: 1 / span 2; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.app-shell.platform-windows .toolbar-config-label { max-width: 100%; grid-column: 2; grid-row: 3; overflow: hidden; color: var(--theme-text-primary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell.platform-windows .toolbar-config-grip { display: grid; width: 14px; min-width: 14px; min-height: 14px; grid-column: 1; grid-row: 1; place-items: center; padding: 1px; border: 0; color: var(--theme-text-tertiary); background: transparent; cursor: grab; }
+.app-shell.platform-windows .toolbar-config-grip svg { width: 10px; height: 10px; fill: currentColor; }
+.app-shell.platform-windows .toolbar-config-icon { width: 16px; height: 16px; grid-column: 2; grid-row: 1 / span 2; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.app-shell.platform-windows .toolbar-config-label { max-width: 100%; grid-column: 2; grid-row: 3; overflow: hidden; color: var(--theme-text-primary); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .app-shell.platform-windows .toolbar-config-remove,
-.app-shell.platform-windows .toolbar-config-add { display: inline-flex; min-width: 23px; min-height: 22px; grid-column: 3; grid-row: 1; align-items: center; justify-content: center; gap: 2px; padding: 2px; border: 1px solid var(--theme-border); border-radius: 6px; background: var(--theme-surface-elevated); }
+.app-shell.platform-windows .toolbar-config-add { display: inline-flex; min-width: 16px; min-height: 16px; grid-column: 3; grid-row: 1; align-items: center; justify-content: center; gap: 2px; padding: 1px; border: 1px solid var(--theme-border); border-radius: 5px; background: var(--theme-surface-elevated); }
 .app-shell.platform-windows .toolbar-config-remove svg,
-.app-shell.platform-windows .toolbar-config-add svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-.app-shell.platform-windows .toolbar-config-excluded { padding-top: 11px; border-top: 1px solid var(--theme-border); }
-.app-shell.platform-windows .toolbar-config-excluded .toolbar-config-grid { max-height: 130px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.app-shell.platform-windows .toolbar-config-excluded .toolbar-config-grid > li { min-height: 62px; grid-template-columns: 24px minmax(0, 1fr) auto; grid-template-rows: 1fr; justify-items: start; gap: 8px; padding: 7px 9px; }
+.app-shell.platform-windows .toolbar-config-add svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.app-shell.platform-windows .toolbar-config-excluded { padding-top: 8px; border-top: 1px solid var(--theme-border); }
+.app-shell.platform-windows .toolbar-config-excluded .toolbar-config-grid { height: 90px; max-height: 90px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.app-shell.platform-windows .toolbar-config-excluded .toolbar-config-grid > li { min-height: 44px; grid-template-columns: 17px minmax(0, 1fr) auto; grid-template-rows: 1fr; justify-items: start; gap: 6px; padding: 5px; }
 .app-shell.platform-windows .toolbar-config-excluded .toolbar-config-grip,
 .app-shell.platform-windows .toolbar-config-excluded .toolbar-config-remove { display: none; }
-.app-shell.platform-windows .toolbar-config-excluded .toolbar-config-icon { width: 20px; height: 20px; grid-column: 1; grid-row: 1; }
+.app-shell.platform-windows .toolbar-config-excluded .toolbar-config-icon { width: 14px; height: 14px; grid-column: 1; grid-row: 1; }
 .app-shell.platform-windows .toolbar-config-excluded .toolbar-config-label { grid-column: 2; grid-row: 1; }
-.app-shell.platform-windows .toolbar-config-excluded .toolbar-config-add { grid-column: 3; grid-row: 1; padding: 3px 6px; color: var(--ui-accent); }
-.app-shell.platform-windows .toolbar-config-excluded .toolbar-config-add span { font-size: 10px; }
-.app-shell.platform-windows .toolbar-config-empty { display: grid; min-height: 54px; place-items: center; border: 1px dashed var(--theme-border); border-radius: 8px; color: var(--theme-text-secondary); font-size: 11px; }
+.app-shell.platform-windows .toolbar-config-excluded .toolbar-config-add { grid-column: 3; grid-row: 1; padding: 2px 4px; color: var(--ui-accent); }
+.app-shell.platform-windows .toolbar-config-excluded .toolbar-config-add span { font-size: 9px; }
+.app-shell.platform-windows .toolbar-config-empty { display: grid; min-height: 38px; place-items: center; border: 1px dashed var(--theme-border); border-radius: 8px; color: var(--theme-text-secondary); font-size: 10px; }
 .app-shell.platform-windows .toolbar-customizer-preferences { display: flex; align-items: center; gap: 10px; color: var(--theme-text-secondary); font-size: 11px; }
 .app-shell.platform-windows .toolbar-customizer-preferences label { display: flex; align-items: center; gap: 7px; color: var(--theme-text-primary); }
 .app-shell.platform-windows .toolbar-customizer-preferences input { margin: 0; accent-color: var(--ui-accent); }
@@ -593,11 +399,11 @@
 .app-shell.platform-windows .toolbar-customizer > footer .toolbar-customizer-save { border-color: var(--ui-accent); color: white; background: var(--ui-accent); font-weight: 600; }
 
 @media (max-width: 1000px) {
-    .app-shell.platform-windows .toolbar-config-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .app-shell.platform-windows .toolbar-config-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
 @media (max-width: 680px) {
-    .app-shell.platform-windows .toolbar-config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .app-shell.platform-windows .toolbar-config-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .app-shell.platform-windows .toolbar-config-excluded .toolbar-config-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
