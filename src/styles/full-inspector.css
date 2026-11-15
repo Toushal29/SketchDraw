@@ -23,16 +23,11 @@
 }
 
 :root[data-theme="light"] .style-pane.full-style-mode {
-  background: color-mix(in srgb, var(--theme-surface-elevated) 76%, transparent);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
   box-shadow:
-    0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 6%, transparent),
-    0 2px 6px color-mix(in srgb, var(--theme-text-primary) 5%, transparent),
-    0 12px 40px color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
-}
-
-.style-pane.full-style-mode.mobile-properties-collapsed {
-  zoom: .9;
-  overflow: hidden;
+    0 2px 8px color-mix(in srgb, var(--theme-text-primary) 8%, transparent),
+    0 12px 40px color-mix(in srgb, var(--theme-text-primary) 12%, transparent);
 }
 
 .style-pane.full-style-mode > .quick-style-panel { display: none; }

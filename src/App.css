@@ -26,7 +26,6 @@
 @import "./styles/app/menus.css";
 @import "./styles/app/toolbar-polish.css";
 @import "./styles/app/topbar.css";
-@import "./styles/menu-panels.css";
 @import "./styles/menu-typography.css";
 @import "./styles/toolbar-and-view-popovers.css";
 
@@ -40,7 +39,6 @@
 @import "./styles/app-settings.css";
 
 /* Workspace */
-@import "./styles/workspace-ui.css";
 @import "./styles/workspace-view-panel.css";
 @import "./features/workspace/workspace-shell.css";
 @import "./features/workspace/database-workspace.css";
@@ -48,21 +46,7 @@
 
 /* Platform: Windows desktop */
 @import "./platform/windows/windows.css";
-@import "./styles/platform-responsive.css";
-
-/* Platform: Mobile (kept for compatibility, excluded from rework) */
-@import "./platform/mobile/workspace.css";
-@import "./platform/mobile/overrides.css";
-@import "./platform/mobile/mobile.css";
-@import "./platform/mobile/ui-refresh.css";
-@import "./platform/mobile/home.css";
-@import "./platform/mobile/touch-style.css";
-@import "./platform/mobile/quick-style.css";
-@import "./platform/mobile/layout-fixes.css";
-@import "./platform/mobile/touch-bars.css";
-@import "./platform/mobile/command-bar.css";
-@import "./platform/mobile/touch-toolbar.css";
-@import "./platform/mobile/design-workspace.css";
+@import "./platform/windows/windows-radial-menu.css";
 
 /* Overrides (last) */
 @import "./styles/app/ui-overrides.css";

@@ -1,4 +1,4 @@
-/* Shared welcome components. Touch layout and visibility belong in platform/mobile/home.css. */
+/* Welcome / home screen components. */
 .home-screen {
     position: relative;
     isolation: isolate;
@@ -23,9 +23,6 @@
     display: block;
 }
 
-.home-screen-mobile {
-    display: none;
-}
 
 .home-desktop-layout {
     display: grid;

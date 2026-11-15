@@ -384,6 +384,10 @@
     border-color: var(--theme-separator);
 }
 
+:root[data-theme="light"] .app-shell .tool-deck .tool-cluster {
+    background: var(--theme-surface-input);
+}
+
 .app-shell .tool-deck .tool-cluster-paint-brushes {
     gap: 0;
     padding: 0;
@@ -733,11 +737,8 @@
 .read-only-view .tool-deck .tool-cluster:not(.tool-cluster-laser),
 .read-only-view .tool-deck .tool-extra-family,
 .read-only-view .tool-deck .canvas-options-family,
-.read-only-view .touch-tool-bar .tool-cluster:not(.tool-cluster-laser),
-.read-only-view .touch-tool-bar .tool-extra-family,
-.read-only-view .touch-tool-bar .canvas-options-family,
 .read-only-view .tool-deck .tool-collapse,
-.read-only-view .touch-tool-actions,
+.read-only-view .desktop-tool-actions,
 .read-only-view .style-pane,
 .read-only-view .floating-layer-panel {
     display: none !important;
@@ -1266,43 +1267,4 @@
     border: 1px solid var(--theme-border);
     border-radius: var(--ui-radius-panel);
     background: var(--theme-surface);
-}
-
-@media (max-width: 700px) {
-    .app-shell .confirm-dialog.data-to-visual-dialog,
-    .app-shell .confirm-dialog.code-blueprint-dialog {
-        width: calc(100vw - 20px);
-        max-width: calc(100vw - 20px);
-        max-height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-        grid-template-columns: minmax(0, 1fr);
-        gap: 12px;
-        padding: 14px;
-    }
-
-    .data-to-visual-dialog > *,
-    .data-to-visual-dialog .csv-chart-mapping,
-    .data-to-visual-dialog .csv-chart-type,
-    .code-blueprint-dialog > *,
-    .code-blueprint-dialog .code-blueprint-format,
-    .code-blueprint-dialog .code-blueprint-note {
-        grid-column: 1;
-    }
-
-    .data-to-visual-dialog .csv-chart-mapping {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .data-to-visual-dialog .csv-chart-data-field textarea {
-        min-height: 190px;
-        max-height: 42vh;
-    }
-
-    .data-to-visual-actions,
-    .code-blueprint-actions {
-        position: sticky;
-        bottom: -14px;
-        margin: 0 -14px -14px;
-        padding: 12px 14px max(12px, env(safe-area-inset-bottom));
-        background: var(--theme-surface-elevated);
-    }
 }

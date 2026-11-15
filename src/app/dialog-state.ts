@@ -14,8 +14,6 @@ export function createDialogState() {
   const [layerPanelOpen, setLayerPanelOpen] = createSignal(false);
   const [helpOpen, setHelpOpen] = createSignal(false);
   const [toolBarOpen, setToolBarOpen] = createSignal(true);
-  const [mobileQuickPropertiesOpen, setMobileQuickPropertiesOpen] = createSignal(false);
-  const [touchStylePanel, setTouchStylePanel] = createSignal(false);
   const [showClearConfirm, setShowClearConfirm] = createSignal(false);
   const [exportOptionsOpen, setExportOptionsOpen] = createSignal(false);
   const [canvasOptionsOpen, setCanvasOptionsOpen] = createSignal(false);
@@ -50,8 +48,6 @@ export function createDialogState() {
     layerPanelOpen, setLayerPanelOpen,
     helpOpen, setHelpOpen,
     toolBarOpen, setToolBarOpen,
-    mobileQuickPropertiesOpen, setMobileQuickPropertiesOpen,
-    touchStylePanel, setTouchStylePanel,
     showClearConfirm, setShowClearConfirm,
     exportOptionsOpen, setExportOptionsOpen,
     canvasOptionsOpen, setCanvasOptionsOpen,

@@ -2446,13 +2446,7 @@
   }
 }
 
-@media (pointer: coarse) {
-  .app-shell:not(.platform-windows) .project-workspace-nav {
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
-  }
-}
+
 
 @media print {
   body * {

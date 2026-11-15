@@ -2656,8 +2656,7 @@ export function preloadComponentArtwork(elements: Element[], onReady?: () => voi
     visit(item.elements);
   });
   visit(elements);
-  const mobileLimit = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches ? 64 : MAX_COMPONENT_ARTWORK_SPRITES;
-  const ordered = [...urls].sort().slice(0, mobileLimit);
+  const ordered = [...urls].sort().slice(0, MAX_COMPONENT_ARTWORK_SPRITES);
   const signature = shortHash(ordered.join("\u0000"));
   if (componentArtworkSprite?.signature === signature) { onReady?.(); return; }
   if (componentArtworkPreload?.signature === signature) { void componentArtworkPreload.promise.then(() => onReady?.()); return; }

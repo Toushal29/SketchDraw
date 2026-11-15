@@ -1,14 +1,8 @@
 type Props = {
   interfaceScale: number;
-  mobileOrientation: "landscape" | "portrait";
-  toolbarPosition: "top" | "bottom" | "left" | "right";
-  orientationMessage: string;
-  showMobileLayoutSettings: boolean;
   autosaveSeconds: 5 | 10;
   thicknessPickerMode: "presets" | "stepper";
   onInterfaceScaleChange: (scale: number) => void;
-  onMobileOrientationChange: (orientation: Props["mobileOrientation"]) => void;
-  onToolbarPositionChange: (position: Props["toolbarPosition"]) => void;
   onAutosaveChange: (seconds: 5 | 10) => void;
   onThicknessPickerModeChange: (mode: Props["thicknessPickerMode"]) => void;
   onRestoreDefaults: () => void;
@@ -35,12 +29,6 @@ export function AppSettingsMenu(props: Props) {
     <div class="system-menu-popover app-settings-popover">
       <header class="app-settings-heading"><strong>Settings</strong></header>
 
-      {props.showMobileLayoutSettings && <section class="app-settings-section">
-        <strong>Mobile layout</strong>
-        <ButtonChoices label="Orientation" value={props.mobileOrientation} options={[{ value: "landscape", label: "Landscape" }, { value: "portrait", label: "Portrait" }]} onChange={props.onMobileOrientationChange} />
-        {props.orientationMessage && <small role="status">{props.orientationMessage}</small>}
-        <ButtonChoices label="Toolbar position" value={props.toolbarPosition} options={[{ value: "top", label: "Top" }, { value: "bottom", label: "Bottom" }, { value: "left", label: "Left" }, { value: "right", label: "Right" }]} onChange={props.onToolbarPositionChange} />
-      </section>}
       <ButtonChoices label="Interface scale" value={props.interfaceScale} options={scales.map(scale => ({ value: scale, label: `${Math.round(scale * 100)}%` }))} onChange={props.onInterfaceScaleChange} />
       <ButtonChoices label="Autosave interval" value={props.autosaveSeconds} options={[{ value: 5, label: "5 sec" }, { value: 10, label: "10 sec" }]} onChange={props.onAutosaveChange} />
       <ButtonChoices label="Pen and brush thickness control" value={props.thicknessPickerMode} options={[{ value: "presets", label: "Presets" }, { value: "stepper", label: "Fine tune" }]} onChange={props.onThicknessPickerModeChange} />

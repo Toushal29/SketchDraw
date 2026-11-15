@@ -136,7 +136,7 @@ export type StencilParameterData = { template: Element[]; parameters: string[]; 
 export type GroupElement = LayerFlags & { type: "group"; elements: Element[]; componentBounds?: Bounds; container?: ContainerMetadata; note?: NoteMetadata; mermaid?: MermaidMetadata; libraryComponent?: LibraryComponentData; masterId?: string; componentOverrides?: ComponentOverrides; variantKey?: string; connectionPoints?: ConnectionPoint[]; stencilParameters?: StencilParameterData };
 export type Element = FreehandElement | ShapeElement | TextElement | ImageElement | SchemaTableElement | GroupElement;
 export type Tool = "select" | "pan" | "pen" | "laser" | "rectangle" | "circle" | "diamond" | "triangle" | "flowchart" | "line" | "arrow" | "text" | "bucket" | "eraser" | "crop";
-export type ToolbarItem = Tool | "lasso" | "paintBrushes" | "measure" | "pathEdit" | "frame" | "codeData" | "componentLibrary";
+export type ToolbarItem = Tool | "lasso" | "paintBrushes" | "measure" | "pathEdit" | "frame" | "codeData" | "componentLibrary" | "image";
 // Retained only to round-trip this legacy .sketch field; the editor no longer exposes or applies guides.
 export type CanvasGuide = { axis: "x" | "y"; position: number };
 export type CanvasState = { zoom: number; panX: number; panY: number; backgroundColor: string; boardColorFollowsTheme?: boolean; guides?: CanvasGuide[] };

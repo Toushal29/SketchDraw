@@ -14,10 +14,6 @@ export const planningFileStore = {
   },
 
   async write(path: string, contents: string, expected: string | null): Promise<void> {
-    if (/^content:\/\//i.test(path)) {
-      await invoke("write_sketch_document", { uri: path, contents });
-      return;
-    }
     await invoke("atomic_save_planning", { path: normalizeFileUri(path), contents, expected });
   },
 };

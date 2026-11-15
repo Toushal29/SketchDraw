@@ -44,7 +44,6 @@ import { assignLibraryComponentIds, resizeLibraryGroup } from "../src/features/c
 import { renderLibraryChartSvg } from "../src/features/components/chart-engine";
 import { loadCloudProviderGlyph } from "../src/features/diagrams/cloud-providers";
 import { normalizeElement } from "../src/features/files/parse-sketch";
-import mobileToolbarCss from "../src/platform/mobile/touch-toolbar.css?inline";
 import canvasToolsCss from "../src/styles/app/canvas-tools.css?inline";
 import homeCss from "../src/styles/app/home.css?inline";
 import popoverCss from "../src/styles/toolbar-and-view-popovers.css?inline";
@@ -157,11 +156,8 @@ async function run() {
   const longStrokeAppendPointReads = reads;
 
   const gate = createStrokeSampleGate(); gate.reset(10);
-  check(gate.accept("pointer", 11) && gate.accept("pointer", 12) && !gate.accept("pointer", 11) && !gate.accept("pointer", 12) && gate.accept("pointer", 13), "Raw and coalesced pointer samples cannot replay older points");
-  check(!gate.accept("native", 90000), "Late Android batches cannot interleave another clock");
-  gate.reset(20);
-  check(gate.accept("native", 91000) && !gate.accept("pointer", 21) && gate.accept("native", 91004), "Native input owns the stroke when it arrives first");
-  gate.reset(30); check(gate.accept("pointer", 31), "Next stroke resets input ownership");
+  check(gate.accept(11) && gate.accept(12) && !gate.accept(11) && !gate.accept(12) && gate.accept(13), "Raw and coalesced pointer samples cannot replay older points");
+  gate.reset(30); check(gate.accept(31), "Next stroke resets pointer sample ordering");
   const stylusEvent = new PointerEvent("pointermove", { pointerType: "pen", pressure: .82, tiltX: 45, tiltY: -30, twist: 325 });
   Object.defineProperty(stylusEvent, "twist", { value: 725 });
   const stylusPoint = strokePointFromPointer(stylusEvent, { x: 12, y: 18 }, true, true);
@@ -169,11 +165,11 @@ async function run() {
   const touchPoint = strokePointFromPointer(new PointerEvent("pointermove", { pointerType: "touch", pressure: 1 }), { x: 14, y: 20 }, true, true);
   check(!("pressure" in touchPoint) && touchPoint.x === 14 && touchPoint.y === 20, "Touch drawing does not inherit synthetic stylus pressure");
 
-  function capturedCurve(source: "pointer" | "native", stylus: boolean) {
+  function capturedCurve(stylus: boolean) {
     const samples: StrokePoint[] = []; const sampleGate = createStrokeSampleGate(); sampleGate.reset(1000);
     for (let index = 0; index < 320; index++) {
-      const time = source === "pointer" ? 1001 + index : 1001 + index * 4;
-      if (!sampleGate.accept(source, time)) continue;
+      const time = 1001 + index;
+      if (!sampleGate.accept(time)) continue;
       const phase = index / 319;
       appendSimplifiedStrokePoint(samples, {
         x: 35 + phase * 270,
@@ -188,12 +184,11 @@ async function run() {
     y: 100 + Math.sin((index / (count - 1)) * Math.PI * 2) * 42,
     ...(stylus ? { pressure: .2 + .75 * (index % 40) / 39, tiltX: Math.sin(index / 21) * 28, tiltY: Math.cos(index / 19) * 22, orientation: index % 360 } : {}),
   }));
-  for (const { source, stylus, label } of [
-    { source: "pointer", stylus: false, label: "Mobile touch" },
-    { source: "pointer", stylus: true, label: "Pointer pen" },
-    { source: "native", stylus: true, label: "Android stylus batches" },
+  for (const { stylus, label } of [
+    { stylus: false, label: "Touch pointer" },
+    { stylus: true, label: "Pointer pen" },
   ] as const) {
-    const points = capturedCurve(source, stylus);
+    const points = capturedCurve(stylus);
     const captured: FreehandElement = { type: "freehand", points, color: "#202124", thickness: 12, opacity: .7 };
     const curveCanvas = canvas(); const finishedCanvas = canvas(); const fullResolutionCanvas = canvas();
     const fullResolution: FreehandElement = { ...captured, points: fullCurve(320, stylus) };
@@ -654,8 +649,8 @@ async function run() {
     if (!passed) console.info("Audit relationship diagnostic:", JSON.stringify({ caption, serializedType: serialized?.type, serializedDirection: serialized?.type === "arrow" ? serialized.relationshipDirection : undefined, both, forward, none }));
     return passed;
   });
-  console.info("Audit: mobile controls and performance workloads");
-  const style = document.createElement("style"); style.textContent = `${foundationCss}\n${mobileToolbarCss}\n${canvasToolsCss}\n${homeCss}\n${popoverCss}`; document.head.append(style);
+  console.info("Audit: Windows controls and performance workloads");
+  const style = document.createElement("style"); style.textContent = `${foundationCss}\n${canvasToolsCss}\n${homeCss}\n${popoverCss}`; document.head.append(style);
   const styleFixtureHost = document.createElement("div");
   styleFixtureHost.className = "app-shell platform-windows";
   styleFixtureHost.style.cssText = "--theme-primary:rgb(30,90,200);--theme-primary-border:rgb(60,110,200);--theme-primary-muted:rgb(220,230,255);--theme-info:rgb(20,140,200);--theme-warning:rgb(210,150,30);--theme-background:rgb(245,247,250);--theme-surface:rgb(250,250,252);--theme-surface-elevated:rgb(255,255,255);--theme-border:rgb(200,210,220);--theme-shadow:rgb(0 0 0 / 0.2);--theme-text-primary:rgb(20,25,35);--theme-text-secondary:rgb(70,80,90);--theme-text-tertiary:rgb(100,110,120)";
@@ -746,7 +741,7 @@ async function run() {
   const viewMenu = menuHost.querySelector<HTMLElement>(".canvas-options-family");
   const sections = [...menuHost.querySelectorAll<HTMLElement>(".workspace-view-section")];
   const canvasAidsSection = sections.find(section => section.querySelector("h2")?.textContent?.includes("Canvas aids"));
-  check(!!viewMenu && !viewMenu.classList.contains("mobile-simple-mode") && sections.length > 0 && sections.every(section => section.tagName === "SECTION"), "Canvas settings use plain, always-visible sections");
+  check(!!viewMenu && sections.length > 0 && sections.every(section => section.tagName === "SECTION"), "Canvas settings use plain, always-visible sections");
   check(!!canvasAidsSection && sections[0] === canvasAidsSection && !menuHost.querySelector("details.workspace-view-section, .workspace-view-section > summary, .workspace-view-header button"), "Canvas aids appear first with no expand or close controls");
   check(!!menuHost.querySelector(".workspace-view-section h2") && controls.some(control => control.textContent?.includes("Pressure width")), "Canvas and pen settings remain available in the panel");
   const unlabeledControls = controls.filter(control => !(control.getAttribute("aria-label") || control.getAttribute("title") || control.textContent?.trim() || control.closest("label")?.textContent?.trim()));

@@ -179,7 +179,6 @@ export function DiagramGuideGallery(props: Props) {
   const [category, setCategory] = createSignal<DiagramGuideCategory | "All guides">("All guides");
   const [query, setQuery] = createSignal("");
   const [selectedId, setSelectedId] = createSignal<DiagramGuideId | undefined>(DIAGRAM_GUIDES[0]?.id);
-  const [mobileDetail, setMobileDetail] = createSignal(false);
   let dialogElement: HTMLElement | undefined;
   let previousFocus: HTMLElement | null = null;
 
@@ -197,12 +196,10 @@ export function DiagramGuideGallery(props: Props) {
 
   const selectGuide = (guide: DiagramGuide) => {
     setSelectedId(guide.id);
-    setMobileDetail(true);
   };
 
   const showCategory = (item: DiagramGuideCategory | "All guides") => {
     setCategory(item);
-    setMobileDetail(false);
     const first = DIAGRAM_GUIDES.find(guide => item === "All guides" || guide.category === item);
     setSelectedId(first?.id);
   };
@@ -213,7 +210,6 @@ export function DiagramGuideGallery(props: Props) {
     setCategory("All guides");
     setQuery("");
     setSelectedId(id);
-    setMobileDetail(true);
   };
 
   const handleDialogKeyDown = (event: KeyboardEvent) => {
@@ -268,7 +264,6 @@ export function DiagramGuideGallery(props: Props) {
     <section
       ref={element => { dialogElement = element; }}
       class="diagram-guides-dialog"
-      classList={{ "mobile-guide-detail": mobileDetail() }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="diagram-guides-title"
@@ -337,9 +332,6 @@ export function DiagramGuideGallery(props: Props) {
           <p>Select an example to see its preview, steps, and modeling notes.</p>
         </div>}>
           {guide => <>
-            <button type="button" class="diagram-guide-mobile-back" onClick={() => setMobileDetail(false)}>
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5" /></svg>All guides
-            </button>
             <div class="diagram-guide-detail-preview">
               <GuidePreview guide={guide()} />
               <span class="diagram-guide-preview-caption">Editable example preview</span>

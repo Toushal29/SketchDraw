@@ -138,7 +138,6 @@
 .app-shell.presentation-mode .tool-deck,
 .app-shell.presentation-mode .style-pane,
 .app-shell.presentation-mode .desktop-page-tabs,
-.app-shell.presentation-mode .touch-page-control,
 .app-shell.presentation-mode .canvas-zoom-reset,
 .app-shell.presentation-mode .floating-layer-panel {
     display: none;
@@ -228,17 +227,4 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: var(--type-control);
-}
-
-@media (max-width: 720px),
-(pointer: coarse) and (max-width: 1100px) {
-    .canvas-minimap {
-        right: max(8px, env(safe-area-inset-right));
-        bottom: max(58px, calc(env(safe-area-inset-bottom) + 52px));
-        width: min(188px, 48vw);
-    }
-
-    .canvas-minimap svg {
-        height: 112px;
-    }
 }

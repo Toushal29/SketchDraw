@@ -30,6 +30,12 @@
     height: 20px;
 }
 
+/* ── Touch wrapper pass-through (desktop) ── */
+
+.desktop-tool-host,
+.desktop-tool-content,
+.desktop-tool-actions { display: contents; }
+
 /* ── Floating tool deck ── */
 
 .tool-deck {
@@ -50,11 +56,11 @@
 }
 
 :root[data-theme="light"] .tool-deck {
-    background: color-mix(in srgb, var(--theme-surface) 72%, transparent);
+    background: var(--theme-surface);
     box-shadow:
-        0 0 0 0.5px color-mix(in srgb, var(--theme-text-primary) 6%, transparent),
-        0 1px 2px color-mix(in srgb, var(--theme-text-primary) 4%, transparent),
-        0 8px 32px color-mix(in srgb, var(--theme-text-primary) 8%, transparent);
+        0 0 0 1px var(--theme-border),
+        0 2px 8px color-mix(in srgb, var(--theme-text-primary) 8%, transparent),
+        0 8px 32px color-mix(in srgb, var(--theme-text-primary) 10%, transparent);
 }
 
 .tool-cluster {
@@ -66,8 +72,8 @@
     background: transparent;
 }
 
-.tool-deck .touch-tool-content > .tool-cluster:not(.tool-cluster-canvas)::before,
-.tool-deck .touch-tool-content > .tool-family.tool-extra-family::before {
+.tool-deck .desktop-tool-content > .tool-cluster:not(.tool-cluster-canvas)::before,
+.tool-deck .desktop-tool-content > .tool-family.tool-extra-family::before {
     width: 1px;
     height: 16px;
     flex: 0 0 1px;
@@ -78,8 +84,8 @@
     content: "";
 }
 
-:root[data-theme="light"] .tool-deck .touch-tool-content > .tool-cluster:not(.tool-cluster-canvas)::before,
-:root[data-theme="light"] .tool-deck .touch-tool-content > .tool-family.tool-extra-family::before {
+:root[data-theme="light"] .tool-deck .desktop-tool-content > .tool-cluster:not(.tool-cluster-canvas)::before,
+:root[data-theme="light"] .tool-deck .desktop-tool-content > .tool-family.tool-extra-family::before {
     background: color-mix(in srgb, var(--theme-text-tertiary) 22%, transparent);
 }
 

@@ -93,12 +93,12 @@
 :root[data-theme="light"] {
     color-scheme: light;
 
-    --theme-background: #f5f5f7;
-    --theme-board-background: #ececef;
+    --theme-background: #ffffff;
+    --theme-board-background: #f7f7f9;
     --theme-surface: #ffffff;
     --theme-surface-elevated: #ffffff;
-    --theme-surface-input: #f0f0f3;
-    --theme-border: #d4d4da;
+    --theme-surface-input: #f5f5f7;
+    --theme-border: #e0e0e6;
     --theme-text-primary: #1a1a1e;
     --theme-text-secondary: #6b6b78;
     --theme-text-tertiary: #9898a5;
@@ -124,11 +124,11 @@
     --diagram-accent-blue: #2563eb;
     --diagram-accent-warm: #d97706;
 
-    --theme-shadow: rgb(0 0 0 / 8%);
-    --theme-shadow-soft: rgb(0 0 0 / 5%);
-    --theme-shadow-strong: rgb(0 0 0 / 14%);
-    --theme-shadow-control: rgb(0 0 0 / 6%);
-    --theme-backdrop: rgb(0 0 0 / 28%);
+    --theme-shadow: rgb(0 0 0 / 12%);
+    --theme-shadow-soft: rgb(0 0 0 / 7%);
+    --theme-shadow-strong: rgb(0 0 0 / 20%);
+    --theme-shadow-control: rgb(0 0 0 / 8%);
+    --theme-backdrop: rgb(0 0 0 / 32%);
     --theme-focus-ring: color-mix(in srgb, var(--theme-primary) 40%, transparent);
 }
 
@@ -208,6 +208,13 @@
     color: var(--theme-text-primary);
 }
 
+:root[data-theme="light"] .app-shell {
+    --ui-accent-soft: color-mix(in srgb, var(--ui-accent) 16%, var(--theme-surface));
+    --ui-accent-border: color-mix(in srgb, var(--ui-accent) 42%, var(--theme-border));
+    --theme-control-hover: color-mix(in srgb, var(--theme-primary) 10%, var(--theme-surface-elevated));
+    --theme-control-selected: color-mix(in srgb, var(--theme-primary) 16%, var(--theme-surface-elevated));
+}
+
 /* ── Global interaction transitions ── */
 .app-shell :where(button, input, select, textarea) {
     transition: color var(--ui-motion-fast) ease, background-color var(--ui-motion-fast) ease,
@@ -228,9 +235,6 @@
     .tool-options,
     .floating-layer-panel,
     .app-settings-popover,
-    .gesture-settings-popover,
-    .mobile-command-panel,
-    .touch-pages-popover,
     .workspace-view-panel,
     .component-library-panel,
     .canvas-context-menu

@@ -18,7 +18,7 @@
 | Interactive prototype/run mode | Run mode routes clicks to linked pages and built-in form controls. Form changes are temporary and reset when run mode ends. | Added for the built-in controls and page links. It does not provide a general variable/expression engine or arbitrary user-defined triggers. |
 | UML/database code blueprints | Generate Java or Python class starter files from UML cards, or a Prisma schema from database cards, in a local ZIP | Added. Output is a scaffold and needs review for application-specific types and relationships. |
 | Planning burndown/velocity | Planning Home graphs remaining tasks from creation/completion timestamps and reports tasks completed in the last week | Added. Historical data begins when a task's dates are available; older tasks without completion timestamps use their last update as an approximation. |
-| Weekly local archive and 30-day rotation | On desktop, create a ZIP of clean open sketch/Planning documents weekly in app-local `.sdbackup` storage and remove archives older than 30 days | Added. This is local-only, excludes Android, and does not back up unsaved changes. |
+| Weekly local archive and 30-day rotation | On Windows, create a ZIP of clean open sketch/Planning documents weekly in app-local `.sdbackup` storage and remove archives older than 30 days | Added. This is local-only and does not back up unsaved changes. |
 | Resizable component editor | Drag the dock's side or use arrow keys to set its width; the preference persists locally and is capped for the current viewport | Added for the component and note editor dock. |
 
 ## Design boundary

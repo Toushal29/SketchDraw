@@ -33,6 +33,10 @@
     -webkit-backdrop-filter: blur(12px);
 }
 
+:root[data-theme="light"] .tool-deck {
+    border: 1px solid var(--theme-border);
+}
+
 .tool-cluster {
     gap: 2px;
     padding: 2px;
@@ -57,12 +61,23 @@
     background: var(--theme-primary-muted);
 }
 
+:root[data-theme="light"] .tool-icon-button.selected {
+    color: var(--theme-primary);
+    border-color: color-mix(in srgb, var(--theme-primary) 30%, transparent);
+    background: color-mix(in srgb, var(--theme-primary) 12%, #ffffff);
+}
+
 .tool-options {
     border-color: var(--theme-border);
     background: var(--theme-surface-elevated);
     box-shadow: var(--theme-elevation-popover);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
+}
+
+:root[data-theme="light"] .tool-options {
+    border: 1px solid var(--theme-border);
+    background: var(--theme-surface);
 }
 
 .tool-options button:focus-visible,

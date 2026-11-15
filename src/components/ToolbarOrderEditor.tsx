@@ -1,33 +1,53 @@
-﻿import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import type { ToolbarItem } from "../model";
+import { WINDOWS_TOOL_CATALOG } from "../platform/windows/windows-tool-catalog";
 
-export type ToolbarOrderItem = { value: ToolbarItem; label: string; canTransfer?: boolean };
-export type ToolbarZone = "toolbar" | "more";
+type Zone = "toolbar" | "excluded";
+type DragState = { value: ToolbarItem; source: Zone; pointerId: number; startX: number; startY: number; active: boolean };
 
 type Props = {
-  toolbarItems: ToolbarOrderItem[];
-  moreItems: ToolbarOrderItem[];
+  toolbarItems: ToolbarItem[];
+  excludedItems: ToolbarItem[];
+  defaultToolbarItems: ToolbarItem[];
+  defaultExcludedItems: ToolbarItem[];
   historyActionsVisible: boolean;
-  onHistoryActionsVisibleChange: (visible: boolean) => void;
-  onMove: (tool: ToolbarItem, zone: ToolbarZone, before?: ToolbarItem) => void;
-  onReorder: (zone: ToolbarZone, from: ToolbarItem, to: ToolbarItem) => void;
-  onReset: () => void;
+  onSave: (toolbar: ToolbarItem[], excluded: ToolbarItem[], historyActionsVisible: boolean) => void;
   onClose: () => void;
 };
 
-type DragState = { value: ToolbarItem; source: ToolbarZone; pointerId: number; startX: number; startY: number; active: boolean };
-
 export function ToolbarOrderEditor(props: Props) {
+  const [toolbar, setToolbar] = createSignal([...props.toolbarItems]);
+  const [excluded, setExcluded] = createSignal([...props.excludedItems]);
+  const [historyVisible, setHistoryVisible] = createSignal(props.historyActionsVisible);
   const [drag, setDrag] = createSignal<DragState>();
-  const [dropTarget, setDropTarget] = createSignal<{ zone: ToolbarZone; value?: ToolbarItem }>();
+  const [dropTarget, setDropTarget] = createSignal<{ zone: Zone; value?: ToolbarItem }>();
+  const list = (zone: Zone) => zone === "toolbar" ? toolbar() : excluded();
+  const setList = (zone: Zone, values: ToolbarItem[]) => zone === "toolbar" ? setToolbar(values) : setExcluded(values);
   const clearDrag = () => { setDrag(undefined); setDropTarget(undefined); };
-  const locateDropTarget = (x: number, y: number) => {
+
+  function locateDropTarget(x: number, y: number) {
     const target = document.elementFromPoint(x, y);
     const item = target?.closest<HTMLElement>("[data-toolbar-item]");
     const zoneElement = item?.closest<HTMLElement>("[data-toolbar-zone]") ?? target?.closest<HTMLElement>("[data-toolbar-zone]");
-    const zone = zoneElement?.dataset.toolbarZone as ToolbarZone | undefined;
+    const zone = zoneElement?.dataset.toolbarZone as Zone | undefined;
     return zone ? { zone, value: item?.dataset.toolbarItem as ToolbarItem | undefined } : undefined;
-  };
+  }
+
+  function moveTool(value: ToolbarItem, source: Zone, destination: Zone, before?: ToolbarItem) {
+    const sourceItems = list(source).filter(item => item !== value);
+    if (source === destination) {
+      const index = before ? sourceItems.indexOf(before) : -1;
+      sourceItems.splice(index < 0 ? sourceItems.length : index, 0, value);
+      setList(source, sourceItems);
+      return;
+    }
+    const destinationItems = list(destination).filter(item => item !== value);
+    const index = before ? destinationItems.indexOf(before) : -1;
+    destinationItems.splice(index < 0 ? destinationItems.length : index, 0, value);
+    setList(source, sourceItems);
+    setList(destination, destinationItems);
+  }
+
   const moveDrag = (event: PointerEvent) => {
     const current = drag();
     if (!current || current.pointerId !== event.pointerId) return;
@@ -37,70 +57,72 @@ export function ToolbarOrderEditor(props: Props) {
     if (!current.active) setDrag({ ...current, active: true });
     setDropTarget(locateDropTarget(event.clientX, event.clientY));
   };
+
   const finishDrag = (event: PointerEvent) => {
     const current = drag();
     if (!current || current.pointerId !== event.pointerId) return clearDrag();
     if (current.active) {
       const destination = locateDropTarget(event.clientX, event.clientY);
-      if (destination) {
-        if (destination.zone === current.source) {
-          if (destination.value && destination.value !== current.value) props.onReorder(current.source, current.value, destination.value);
-          else if (!destination.value) {
-            props.onMove(current.value, current.source);
-          }
-        } else {
-          const sourceItems = current.source === "toolbar" ? props.toolbarItems : props.moreItems;
-          const draggedItem = sourceItems.find(item => item.value === current.value);
-          if (draggedItem?.canTransfer !== false) props.onMove(current.value, destination.zone, destination.value);
-        }
-      }
+      if (destination && !(destination.zone === current.source && destination.value === current.value)) moveTool(current.value, current.source, destination.zone, destination.value);
     }
     clearDrag();
   };
 
-  const renderZone = (zone: ToolbarZone, title: string, items: ToolbarOrderItem[]) => <section
-    class="toolbar-organizer-zone"
+  const renderZone = (zone: Zone, title: string, items: ToolbarItem[]) => <section
+    class={`toolbar-config-zone toolbar-config-${zone}`}
     data-toolbar-zone={zone}
-    classList={{ "toolbar-organizer-drop-target": dropTarget()?.zone === zone && dropTarget()?.value === undefined }}
+    classList={{ "toolbar-config-drop-target": dropTarget()?.zone === zone && dropTarget()?.value === undefined }}
   >
-    <header><strong>{title}</strong><span>{items.length}</span></header>
-    <ol aria-label={title}>
-      <For each={items}>{(item, index) => <li
-        data-toolbar-item={item.value}
-        classList={{ "toolbar-order-dragging": drag()?.active && drag()?.value === item.value, "toolbar-order-drop-target": dropTarget()?.zone === zone && dropTarget()?.value === item.value && drag()?.value !== item.value }}
-        onPointerDown={event => {
-          if (!(event.target as HTMLElement).closest(".toolbar-organizer-grip") || event.button !== 0) return;
-          event.preventDefault();
-          setDrag({ value: item.value, source: zone, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false });
-          try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* The pointer may be canceled before capture. */ }
-        }}
-        onPointerMove={moveDrag}
-        onPointerUp={finishDrag}
-        onPointerCancel={clearDrag}
-      >
-        <span class="toolbar-organizer-grip" aria-label={`Drag ${item.label}`} title={`Drag ${item.label}`} role="button" tabindex="0" onKeyDown={event => {
-          if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-          event.preventDefault();
-          const target = items[index() + (event.key === "ArrowUp" ? -1 : 1)];
-          if (target) props.onReorder(zone, event.key === "ArrowUp" ? item.value : target.value, event.key === "ArrowUp" ? target.value : item.value);
-        }}>⠿</span>
-        <span class="toolbar-order-label">{item.label}</span>
-        <div class="toolbar-organizer-row-actions">
-          <button type="button" aria-label={`Move ${item.label} up`} title="Move up" disabled={index() === 0} onClick={() => { const previous = items[index() - 1]; if (previous) props.onReorder(zone, item.value, previous.value); }}>↑</button>
-          <button type="button" aria-label={`Move ${item.label} down`} title="Move down" disabled={index() === items.length - 1} onClick={() => { const next = items[index() + 1]; if (next) props.onReorder(zone, next.value, item.value); }}>↓</button>
-          <button type="button" class="toolbar-organizer-transfer" aria-label={item.canTransfer === false ? `${item.label} stays on the toolbar` : `Move ${item.label} to ${zone === "toolbar" ? "More Tools" : "toolbar"}`} title={item.canTransfer === false ? `${item.label} stays on the toolbar` : `Move to ${zone === "toolbar" ? "More Tools" : "toolbar"}`} disabled={item.canTransfer === false} onClick={() => props.onMove(item.value, zone === "toolbar" ? "more" : "toolbar")}>{zone === "toolbar" ? "›" : "‹"}</button>
-        </div>
-      </li>}</For>
-      <Show when={!items.length}><li class="toolbar-organizer-empty">Empty</li></Show>
-    </ol>
+    <header class="toolbar-config-zone-heading"><strong>{title}</strong><span>{items.length}</span><Show when={zone === "toolbar"}><small>Drag the handle to reorder · − to hide</small></Show></header>
+    <Show when={items.length} fallback={<div class="toolbar-config-empty">{zone === "toolbar" ? "Add tools from Excluded tools" : "All tools are in your toolbar"}</div>}>
+      <ol class="toolbar-config-grid" aria-label={title}>
+        <For each={items}>{value => {
+          const definition = WINDOWS_TOOL_CATALOG[value];
+          return <li
+            data-toolbar-item={value}
+            classList={{ "toolbar-config-dragging": drag()?.active && drag()?.value === value, "toolbar-config-item-drop-target": dropTarget()?.zone === zone && dropTarget()?.value === value && drag()?.value !== value }}
+            onPointerDown={event => {
+              if (!(event.target as HTMLElement).closest(".toolbar-config-grip") || event.button !== 0) return;
+              event.preventDefault();
+              setDrag({ value, source: zone, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false });
+              try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* The pointer can be canceled before capture. */ }
+            }}
+            onPointerMove={moveDrag}
+            onPointerUp={finishDrag}
+            onPointerCancel={clearDrag}
+          >
+            <button type="button" class="toolbar-config-grip" aria-label={`Drag ${definition.label}`} title={`Drag ${definition.label}`} onKeyDown={event => {
+              if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+              event.preventDefault();
+              const values = list(zone);
+              const index = values.indexOf(value);
+              const target = values[index + (event.key === "ArrowUp" ? -1 : 1)];
+              if (target) moveTool(value, zone, zone, event.key === "ArrowUp" ? target : values[index + 2]);
+            }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="6" r="1"/><circle cx="16" cy="6" r="1"/><circle cx="8" cy="12" r="1"/><circle cx="16" cy="12" r="1"/><circle cx="8" cy="18" r="1"/><circle cx="16" cy="18" r="1"/></svg></button>
+            <svg class="toolbar-config-icon" viewBox="0 0 24 24" aria-hidden="true"><path d={definition.iconPath} /></svg>
+            <span class="toolbar-config-label">{definition.label}</span>
+            <Show when={zone === "toolbar"} fallback={<button type="button" class="toolbar-config-add" aria-label={`Add ${definition.label} to toolbar`} onClick={() => moveTool(value, "excluded", "toolbar")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg><span>Add</span></button>}>
+              <button type="button" class="toolbar-config-remove" aria-label={`Hide ${definition.label}`} title={`Hide ${definition.label}`} onClick={() => moveTool(value, "toolbar", "excluded")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg></button>
+            </Show>
+          </li>;
+        }}</For>
+      </ol>
+    </Show>
   </section>;
 
   return <div class="toolbar-organizer-backdrop" role="presentation" onPointerDown={event => { if (event.target === event.currentTarget) props.onClose(); }}>
-    <section class="toolbar-order-editor" role="dialog" aria-modal="true" aria-labelledby="toolbar-organizer-title">
-      <header class="toolbar-organizer-heading"><strong id="toolbar-organizer-title">Customize tools</strong><button type="button" aria-label="Close toolbar organizer" onClick={props.onClose}>×</button></header>
-      <label class="toolbar-organizer-history-option"><input type="checkbox" checked={props.historyActionsVisible} onChange={event => props.onHistoryActionsVisibleChange(event.currentTarget.checked)} /><span><strong>Show Undo and Redo</strong><small>Keep both history buttons in the toolbar.</small></span></label>
-      <div class="toolbar-organizer-columns">{renderZone("toolbar", "Toolbar", props.toolbarItems)}{renderZone("more", "More Tools", props.moreItems)}</div>
-      <footer><button type="button" class="toolbar-organizer-reset" onClick={props.onReset}>Restore defaults</button><button type="button" class="toolbar-organizer-done" onClick={props.onClose}>Done</button></footer>
+    <section class="toolbar-order-editor toolbar-customizer" role="dialog" aria-modal="true" aria-labelledby="toolbar-organizer-title">
+      <header class="toolbar-customizer-heading">
+        <div><h2 id="toolbar-organizer-title">Customize toolbar</h2><p>Drag to reorder. Hide tools you don’t use, and add them back anytime.</p></div>
+        <button type="button" aria-label="Close toolbar customizer" onClick={props.onClose}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
+      </header>
+      {renderZone("toolbar", "In your toolbar", toolbar())}
+      {renderZone("excluded", "Excluded tools", excluded())}
+      <div class="toolbar-customizer-preferences"><label><input type="checkbox" checked={historyVisible()} onChange={event => setHistoryVisible(event.currentTarget.checked)} /><span>Show Undo and Redo in the toolbar</span></label><small>Changes apply only when you save.</small></div>
+      <footer>
+        <button type="button" class="toolbar-customizer-reset" onClick={() => { setToolbar([...props.defaultToolbarItems]); setExcluded([...props.defaultExcludedItems]); setHistoryVisible(true); }}>Reset to default</button>
+        <div><button type="button" class="toolbar-customizer-cancel" onClick={props.onClose}>Cancel</button><button type="button" class="toolbar-customizer-save" onClick={() => props.onSave(toolbar(), excluded(), historyVisible())}>Save toolbar</button></div>
+      </footer>
     </section>
   </div>;
 }

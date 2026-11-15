@@ -31,7 +31,7 @@ export function isPdfBytes(bytes: Uint8Array): boolean {
 export async function renderPdfPages(bytes: Uint8Array, options: { maxPages?: number; onProgress?: (done: number, total: number) => void; isCancelled?: () => boolean } = {}): Promise<PdfImportResult> {
   if (bytes.length > MAX_PDF_IMPORT_BYTES) throw new Error("This PDF is larger than the 100 MB import limit.");
   if (!isPdfBytes(bytes)) throw new Error("The selected file is not a PDF document.");
-  // The legacy build runs in older Android WebViews; the worker is bundled as a same-origin asset.
+  // Bundle the worker as a same-origin asset for the desktop WebView.
   const [pdfjs, worker] = await Promise.all([import("pdfjs-dist/legacy/build/pdf.mjs"), import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url")]);
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
   const task = pdfjs.getDocument({ data: bytes.slice(), useSystemFonts: true });

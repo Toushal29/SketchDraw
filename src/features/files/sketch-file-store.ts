@@ -45,31 +45,9 @@ export const desktopSketchFileAdapter: SketchFileStoreAdapter = {
   },
 };
 
-/** SAF grants access to one selected document; provider writes have no portable compare-and-swap. */
-export const androidSafSketchFileAdapter: SketchFileStoreAdapter = {
-  capabilities: {
-    canReportRevisionToken: false,
-    supportsConditionalWrite: false,
-    supportsAtomicWrite: false,
-    supportsBackgroundUpdateCheck: false,
-    supportsConflictPreflight: true,
-  },
-
-  authorize(path) {
-    return invoke<string>("authorize_sketch_file", { path });
-  },
-
-  read(path) {
-    return readTextFile(path);
-  },
-
-  async write(path, contents) {
-    await invoke("write_sketch_document", { uri: path, contents });
-  },
-};
-
 export function sketchFileAdapterFor(path: string): SketchFileStoreAdapter {
-  return /^content:\/\//i.test(path) ? androidSafSketchFileAdapter : desktopSketchFileAdapter;
+  void path;
+  return desktopSketchFileAdapter;
 }
 
 /** Routes document I/O through the platform adapter selected for the authorized path. */

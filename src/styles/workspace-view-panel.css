@@ -84,8 +84,3 @@
 .workspace-view-color-row button:not(:first-child) { background: var(--swatch-color); }
 .workspace-view-custom-color input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .workspace-view-custom-color i { width: 15px; height: 15px; border: 1px solid var(--theme-border); border-radius: 50%; background: var(--swatch-color); pointer-events: none; }
-@media (max-width: 900px), (max-width: 1600px) and (pointer: coarse) {
-  .app-shell:not(.platform-windows) .canvas-options-family .workspace-view-action-grid { grid-template-columns: minmax(0, 1fr); }
-  .app-shell:not(.platform-windows) .canvas-options-family .workspace-view-toggle,
-  .app-shell:not(.platform-windows) .canvas-options-family .workspace-view-action-grid > button { min-height: 40px; }
-}

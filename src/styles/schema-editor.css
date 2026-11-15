@@ -86,68 +86,6 @@
 .schema-editor-font { display: grid; grid-template-columns: 1fr 82px; align-items: center; gap: 8px; color: var(--theme-text-secondary); font-size: var(--type-micro); }
 .schema-editor-font input { box-sizing: border-box; width: 100%; height: 28px; padding: 3px 6px; border: 1px solid var(--theme-border); border-radius: 5px; color: var(--theme-text-primary); background: var(--theme-surface-input); }
 
-@media (max-width: 900px) {
-  .style-pane.schema-editor-active { bottom: calc(env(safe-area-inset-bottom) + 70px); width: min(var(--schema-editor-width, 380px), calc(100vw - 16px)); }
-  .app-shell:not(.platform-windows) .style-pane.schema-editor-active.mobile-properties-expanded {
-    right: 8px;
-    bottom: calc(env(safe-area-inset-bottom) + 66px);
-    left: max(66px, calc(env(safe-area-inset-left) + 60px));
-    width: auto;
-    min-width: 0;
-    padding: 8px;
-  }
-  .app-shell:not(.platform-windows) .style-pane.schema-editor-active.schema-editor-collapsed {
-    top: calc(var(--touch-header-height, 48px) + 8px);
-    right: auto;
-    bottom: auto;
-    left: max(8px, env(safe-area-inset-left));
-  }
-  .app-shell.mobile-toolbar-top:not(.platform-windows) .style-pane.schema-editor-active.schema-editor-collapsed {
-    top: calc(var(--touch-header-height, 48px) + var(--touch-toolbar-top-offset, 4px) + var(--mobile-horizontal-toolbar-height, 50px) + 8px);
-  }
-  .app-shell.mobile-toolbar-left:not(.platform-windows) .style-pane.schema-editor-active.schema-editor-collapsed {
-    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
-  }
-  .app-shell.mobile-toolbar-right:not(.platform-windows) .style-pane.schema-editor-active.schema-editor-collapsed {
-    right: calc(max(8px, env(safe-area-inset-right)) + 52px);
-    left: auto;
-  }
-  .schema-editor-active > .schema-editor-panel { height: 100%; }
-  .schema-side-input { min-height: 90px; }
-}
-
-@media (max-width: 900px) and (orientation: landscape) {
-  .style-pane.schema-editor-active:not(.mobile-properties-expanded) {
-    right: auto;
-    bottom: calc(env(safe-area-inset-bottom) + 66px);
-    left: 8px;
-    width: min(var(--schema-editor-width, 380px), calc(100vw - 16px));
-    padding: 8px;
-  }
-  .style-pane.schema-editor-active.schema-editor-collapsed {
-    top: calc(var(--touch-header-height, 48px) + 8px);
-    right: auto;
-    bottom: auto;
-    left: 8px;
-    width: 42px;
-    min-width: 42px;
-    height: 42px;
-    min-height: 42px;
-    max-height: 42px;
-    padding: 4px;
-  }
-  .app-shell.mobile-toolbar-top:not(.platform-windows) .style-pane.schema-editor-active.schema-editor-collapsed {
-    top: calc(var(--touch-header-height, 48px) + var(--touch-toolbar-top-offset, 4px) + var(--mobile-horizontal-toolbar-height, 50px) + 8px);
-  }
-  .app-shell.mobile-toolbar-left:not(.platform-windows) .style-pane.schema-editor-active.schema-editor-collapsed {
-    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
-  }
-  .app-shell.mobile-toolbar-right:not(.platform-windows) .style-pane.schema-editor-active.schema-editor-collapsed {
-    right: calc(max(8px, env(safe-area-inset-right)) + 52px);
-    left: auto;
-  }
-}
-
 /* The quick-style rail normally collapses to a narrow icon strip. A live schema
    editor is a full panel and must restore its own width, stacking, and scrolling. */
 .style-pane.quick-style-mode.schema-editor-active {
@@ -195,7 +133,7 @@
 }
 
 @media (min-width: 901px) and (pointer: fine) {
-  .app-shell.platform-windows .style-pane.quick-style-mode.schema-editor-active.mobile-properties-expanded {
+  .app-shell.platform-windows .style-pane.quick-style-mode.schema-editor-active {
     position: fixed;
     top: 65px;
     right: auto;

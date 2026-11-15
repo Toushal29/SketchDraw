@@ -75,7 +75,6 @@
 
 .diagram-guides-close svg,
 .diagram-guides-search button svg,
-.diagram-guide-mobile-back svg,
 .diagram-guides-insert svg,
 .diagram-guide-empty-detail svg {
   width: 16px;
@@ -169,7 +168,6 @@
 .diagram-guide-category--security { color: var(--theme-error); background: var(--theme-error-muted); }
 
 .diagram-guide-detail { min-width: 0; min-height: 0; overflow: auto; padding: 22px clamp(18px, 3vw, 38px) 28px; overscroll-behavior: contain; scrollbar-width: thin; }
-.diagram-guide-mobile-back { display: none; }
 .diagram-guide-detail-preview { position: relative; overflow: hidden; border: 1px solid var(--theme-border); border-radius: var(--ui-radius-panel); background: var(--theme-surface-input); }
 .diagram-guide-preview { display: block; width: 100%; height: clamp(185px, 26vh, 250px); }
 .diagram-guide-preview-background-start { stop-color: var(--theme-surface-input); }
@@ -229,39 +227,3 @@
 .diagram-guides-insert:hover:not(:disabled) { border-color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 18%, var(--theme-surface)); }
 .diagram-guides-insert:disabled { opacity: .55; cursor: not-allowed; }
 .diagram-guides-dialog :is(button, input, a):focus-visible { outline: 2px solid var(--theme-focus-ring); outline-offset: 2px; }
-
-@media (max-width: 760px) {
-  .diagram-guides-backdrop { padding: max(7px, env(safe-area-inset-top)) max(7px, env(safe-area-inset-right)) max(7px, env(safe-area-inset-bottom)) max(7px, env(safe-area-inset-left)); }
-  .diagram-guides-dialog { width: 100%; height: 100%; max-height: 100%; grid-template-columns: minmax(0, 1fr); border-radius: var(--ui-radius-panel); }
-  .diagram-guides-header { padding: 14px 15px 12px; }
-  .diagram-guides-header h2 { font-size: var(--type-title); }
-  .diagram-guides-header p { max-width: 480px; }
-  .diagram-guides-sidebar,
-  .diagram-guide-detail { grid-column: 1; grid-row: 2; border-right: 0; }
-  .diagram-guides-sidebar { border-bottom: 0; }
-  .diagram-guides-dialog.mobile-guide-detail .diagram-guides-sidebar { display: none; }
-  .diagram-guides-dialog:not(.mobile-guide-detail) .diagram-guide-detail { display: none; }
-  .diagram-guides-search { padding: 10px 11px 8px; }
-  .diagram-guides-categories { display: flex; max-height: none; overflow-x: auto; padding: 0 9px 8px; scrollbar-width: thin; }
-  .diagram-guides-categories button { flex: 0 0 auto; gap: 7px; padding-inline: 9px; border-color: var(--theme-border); background: var(--theme-surface); }
-  .diagram-guides-list-heading { min-height: 31px; }
-  .diagram-guides-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 0 8px 10px; }
-  .diagram-guide-picker { align-content: start; padding: 8px; }
-  .diagram-guide-picker strong { white-space: normal; }
-  .diagram-guide-detail { padding: 10px 12px 18px; }
-  .diagram-guide-mobile-back { display: inline-flex; min-height: 32px; align-items: center; gap: 6px; margin: 0 0 9px; padding: 3px 8px; border: 1px solid var(--theme-border); border-radius: var(--ui-radius-control); color: var(--theme-text-primary); background: var(--theme-surface); font: var(--type-caption) var(--font-ui); }
-  .diagram-guide-mobile-back svg { width: 14px; height: 14px; }
-  .diagram-guide-preview { height: clamp(150px, 23vh, 215px); }
-  .diagram-guide-detail-copy { gap: 13px; margin-top: 13px; }
-  .diagram-guide-advice-grid { grid-template-columns: minmax(0, 1fr); }
-  .diagram-guides-footer { padding: 8px 10px 8px 12px; }
-}
-
-@media (max-width: 430px) {
-  .diagram-guides-list { grid-template-columns: minmax(0, 1fr); }
-  .diagram-guides-footer { font-size: var(--type-micro); }
-  .diagram-guides-footer>div { gap: 5px; }
-  .diagram-guides-close-footer,
-  .diagram-guides-insert { min-height: 32px; padding-inline: 8px; font-size: var(--type-micro); }
-  .diagram-guides-insert { gap: 5px; }
-}

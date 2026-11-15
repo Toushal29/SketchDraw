@@ -1,15 +1,8 @@
 use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-#[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
-use tauri::Emitter;
 use tauri::Manager;
 use tauri_plugin_fs::FsExt;
-
-mod android_documents;
-mod android_stylus;
-mod android_updater;
-mod orientation;
 
 static SAVE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const CURRENT_SKETCH_FORMAT_VERSION: u64 = 3;
@@ -135,13 +128,9 @@ fn save_document_atomic(
                 );
             }
         }
-        // Rust uses replacement semantics on Windows (MoveFileExW) and rename on Unix.
+        // Rust uses replacement semantics on Windows (MoveFileExW).
         std::fs::rename(&temporary, &target)
             .map_err(|e| format!("Could not replace the document: {e}"))?;
-        #[cfg(unix)]
-        std::fs::File::open(parent)
-            .and_then(|directory| directory.sync_all())
-            .map_err(|e| e.to_string())?;
         Ok(())
     })();
     if created_temporary {
@@ -163,12 +152,6 @@ fn take_startup_files(files: tauri::State<'_, StartupFiles>) -> Vec<String> {
 
 #[tauri::command]
 fn authorize_sketch_file(app: tauri::AppHandle, path: String) -> Result<String, String> {
-    if path.to_lowercase().starts_with("content://") {
-        app.fs_scope()
-            .allow_file(std::path::PathBuf::from(&path))
-            .map_err(|error| format!("Could not grant access to the selected sketch: {error}"))?;
-        return Ok(path);
-    }
     let candidate = std::path::PathBuf::from(path);
     let is_sketch = candidate
         .extension()
@@ -196,14 +179,6 @@ fn authorize_sketch_file(app: tauri::AppHandle, path: String) -> Result<String, 
 
 #[tauri::command]
 fn authorize_planning_file(app: tauri::AppHandle, path: String) -> Result<String, String> {
-    if path.to_lowercase().starts_with("content://") {
-        app.fs_scope()
-            .allow_file(std::path::PathBuf::from(&path))
-            .map_err(|error| {
-                format!("Could not grant access to the selected Planning file: {error}")
-            })?;
-        return Ok(path);
-    }
     let candidate = std::path::PathBuf::from(path);
     if !candidate
         .extension()
@@ -229,12 +204,6 @@ fn authorize_planning_file(app: tauri::AppHandle, path: String) -> Result<String
 
 #[tauri::command]
 fn authorize_ui_design_file(app: tauri::AppHandle, path: String) -> Result<String, String> {
-    if path.to_lowercase().starts_with("content://") {
-        app.fs_scope()
-            .allow_file(std::path::PathBuf::from(&path))
-            .map_err(|error| format!("Could not grant access to the selected UI Design file: {error}"))?;
-        return Ok(path);
-    }
     let candidate = std::path::PathBuf::from(path);
     if !candidate
         .extension()
@@ -264,11 +233,6 @@ fn rename_sketch_file(
     path: String,
     file_name: String,
 ) -> Result<String, String> {
-    if path.to_lowercase().starts_with("content://") {
-        return Err(
-            "Android document provider files must be renamed through the document picker.".into(),
-        );
-    }
     let source = std::path::PathBuf::from(path);
     if !source.is_absolute()
         || !source
@@ -339,11 +303,6 @@ fn is_recent_sketch_path(path: &str) -> bool {
     if path.len() > 4096 {
         return false;
     }
-    // SAF document providers return opaque content URIs whose IDs rarely end
-    // in the original filename extension. The picker already filtered these.
-    if path.starts_with("content://") {
-        return true;
-    }
     if !path.to_lowercase().ends_with(".sketch") {
         return false;
     }
@@ -355,20 +314,13 @@ fn is_recent_sketch_path(path: &str) -> bool {
 }
 
 fn recent_sketch_identity(path: &str) -> String {
-    if path.to_lowercase().starts_with("content://") {
-        return path.trim().to_string();
-    }
     let mut normalized = path.trim().replace('/', "\\");
     if normalized.to_lowercase().starts_with("\\\\?\\unc\\") {
         normalized = format!("\\\\{}", &normalized[8..]);
     } else if normalized.starts_with("\\\\?\\") {
         normalized = normalized[4..].to_string();
     }
-    if cfg!(windows) {
-        normalized.to_lowercase()
-    } else {
-        normalized
-    }
+    normalized.to_lowercase()
 }
 
 #[tauri::command]
@@ -387,9 +339,6 @@ fn load_recent_sketches(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     let mut recent = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for path in paths.into_iter().filter(|path| is_recent_sketch_path(path)) {
-        if path.to_lowercase().starts_with("content://") {
-            let _ = app.fs_scope().allow_file(std::path::PathBuf::from(&path));
-        }
         if seen.insert(recent_sketch_identity(&path)) {
             recent.push(path);
         }
@@ -423,7 +372,6 @@ fn save_recent_sketches(app: tauri::AppHandle, paths: Vec<String>) -> Result<(),
         .map_err(|error| format!("Could not save recent sketches: {error}"))
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
         .manage(StartupFiles(Mutex::new(
@@ -437,10 +385,6 @@ pub fn run() {
         )))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(android_documents::init())
-        .plugin(android_stylus::init())
-        .plugin(android_updater::init())
-        .plugin(orientation::init())
         .setup(|_app| {
             #[cfg(windows)]
             {
@@ -463,55 +407,10 @@ pub fn run() {
             atomic_save_ui_design,
             load_recent_sketches,
             save_recent_sketches,
-            orientation::set_mobile_orientation,
-            android_documents::pick_sketch_document,
-            android_documents::create_sketch_document,
-            android_documents::pick_planning_document,
-            android_documents::create_planning_document,
-            android_documents::pick_ui_design_document,
-            android_documents::create_ui_design_document,
-            android_documents::create_planning_export,
-            android_documents::create_text_export,
-            android_documents::create_legacy_library_archive,
-            android_documents::write_sketch_document,
-            android_documents::rename_sketch_document,
-            android_documents::has_sketch_document_write_access,
-            android_documents::get_sketch_document_display_name,
-            android_stylus::set_android_stylus_preview,
-            android_updater::install_android_release_apk,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
-    app.run(|_app, _event| {
-        #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
-        {
-            if let tauri::RunEvent::Opened { urls } = _event {
-                let paths: Vec<String> = urls
-                    .into_iter()
-                    .map(|url| {
-                        url.to_file_path()
-                            .map(|path| path.to_string_lossy().into_owned())
-                            .unwrap_or_else(|_| url.to_string())
-                    })
-                    .filter(|path| {
-                        let lower = path.to_lowercase();
-                        lower.ends_with(".sketch")
-                            || lower.ends_with(".sdplan")
-                            || lower.ends_with(".sdui")
-                            || lower.starts_with("content://")
-                    })
-                    .collect();
-                if !paths.is_empty() {
-                    if let Some(files) = _app.try_state::<StartupFiles>() {
-                        if let Ok(mut pending) = files.0.lock() {
-                            pending.extend(paths.iter().cloned());
-                        }
-                    }
-                    let _ = _app.emit("open-files", paths);
-                }
-            }
-        }
-    });
+    app.run(|_, _| {});
 }
 
 #[cfg(test)]

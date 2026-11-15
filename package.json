@@ -8,7 +8,6 @@
     "dev": "vite --configLoader native",
     "dev:windows": "node scripts/dev-windows.mjs",
     "dev:windows:server": "vite --configLoader native --port 28649 --strictPort",
-    "dev:android": "tauri android dev",
     "build": "vite build --configLoader native",
     "typecheck": "tsc --noEmit --pretty false",
     "test:canvas": "node scripts/check-canvas-performance.mjs",

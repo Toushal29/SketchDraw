@@ -1,9 +1,5 @@
 export function withSketchExtension(path: string): string {
-  // Native mobile pickers return security-scoped URIs rather than ordinary
-  // filesystem paths. The selected document type is enforced by the picker,
-  // and its content is validated when it is opened.
   path = path.trim().replace(/^(["'])(.*)\1$/, "$2");
-  if (/^content:\/\//i.test(path)) return path;
   path = normalizeFileUri(path);
   if (!isSketchPath(path)) throw new Error("Choose a filename ending in .sketch in the save dialog.");
   return path;
@@ -11,7 +7,6 @@ export function withSketchExtension(path: string): string {
 
 export function withPlanningExtension(path: string): string {
   path = path.trim().replace(/^(["'])(.*)\1$/, "$2");
-  if (/^content:\/\//i.test(path)) return path;
   path = normalizeFileUri(path);
   if (!isPlanningPath(path)) throw new Error("Choose a filename ending in .sdplan in the save dialog.");
   return path;
@@ -32,7 +27,6 @@ export function normalizeFileUri(path: string): string {
 /** Canonical identity key used to merge paths reported by the web and native layers. */
 export function filePathIdentity(path: string): string {
   let normalized = normalizeFileUri(path).trim();
-  if (/^content:\/\//i.test(normalized)) return normalized;
   normalized = normalized.replace(/^\\\\\?\\UNC\\/i, "\\\\").replace(/^\\\\\?\\/, "");
   const isWindowsPath = /^[a-z]:[\\/]/i.test(normalized) || /^[\\/]{2}/.test(normalized);
   if (isWindowsPath) {
@@ -51,7 +45,6 @@ export function isMissingFileError(cause: unknown): boolean {
 
 /** Return a safe, readable parent path for recent-file cards. */
 export function displayPathLocation(path: string): string {
-  if (/^content:\/\//i.test(path)) return "Cloud drive or device folder";
   let normalized = normalizeFileUri(path)
     .replace(/^\\\\\?\\UNC\\/i, "\\\\")
     .replace(/^\\\\\?\\/, "")
@@ -64,7 +57,6 @@ export function displayPathLocation(path: string): string {
 
 export function isSketchPath(path: string): boolean {
   const normalized = normalizeFileUri(path);
-  if (/^content:\/\//i.test(normalized)) return true;
   let decoded = normalized;
   for (let pass = 0; pass < 2; pass++) {
     try { const next = decodeURIComponent(decoded); if (next === decoded) break; decoded = next; }
@@ -75,7 +67,6 @@ export function isSketchPath(path: string): boolean {
 
 export function isPlanningPath(path: string): boolean {
   const normalized = normalizeFileUri(path);
-  if (/^content:\/\//i.test(normalized)) return true;
   let decoded = normalized;
   for (let pass = 0; pass < 2; pass++) {
     try { const next = decodeURIComponent(decoded); if (next === decoded) break; decoded = next; }
@@ -94,8 +85,6 @@ export function displayPathName(path: string): string {
       candidate = uri.host && uri.host.toLowerCase() !== "localhost" ? `//${uri.host}${uri.pathname}` : uri.pathname;
       uriPath = true;
     } catch { /* Keep the native picker path as a fallback. */ }
-  } else if (/^content:\/\//i.test(candidate)) {
-    try { candidate = new URL(candidate).pathname; uriPath = true; } catch { /* Keep the provider URI as a fallback. */ }
   }
   let decoded = candidate;
   if (uriPath) {

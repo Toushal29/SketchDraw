@@ -3,7 +3,7 @@
     z-index: 6;
     top: 62px;
     right: 12px;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
+    bottom: 56px;
     display: grid;
     box-sizing: border-box;
     width: min(var(--component-editor-width, 320px), calc(var(--app-shell-width, 100vw) - 40px));
@@ -83,27 +83,6 @@
     outline-offset: -2px;
 }
 
-.component-editor-resize-handle.component-editor-resize-right {
-    right: 0;
-    left: auto;
-    border-radius: 0 8px 8px 0;
-    background: linear-gradient(270deg, color-mix(in srgb, var(--ui-accent) 25%, var(--theme-surface-elevated)), color-mix(in srgb, var(--ui-accent) 8%, transparent));
-}
-
-.component-editor-resize-handle.component-editor-resize-right::after {
-    right: 4px;
-    left: auto;
-}
-
-.component-editor-resize-handle.component-editor-resize-right::before {
-    right: 2px;
-    left: auto;
-}
-
-.component-editor-resize-handle.component-editor-resize-right:hover,
-.component-editor-resize-handle.component-editor-resize-right:focus-visible {
-    background: linear-gradient(270deg, color-mix(in srgb, var(--ui-accent) 38%, var(--theme-surface-elevated)), color-mix(in srgb, var(--ui-accent) 12%, transparent));
-}
 
 .component-editor-dock.collapsed {
     top: 50%;
@@ -204,48 +183,9 @@
     scrollbar-gutter: stable;
 }
 
-.component-editor-dock.resize-edge-right .component-editor-scroll {
-    padding-right: 16px;
-    padding-left: 8px;
-}
-
 .component-editor-scroll,
 .component-editor-scroll :where(*) { box-sizing: border-box; min-width: 0; max-width: 100%; }
 
-@media (max-width: 980px) {
-    .app-shell:not(.platform-windows) .component-editor-dock:not(.collapsed) {
-        top: 58px;
-        right: 8px;
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 58px);
-        width: min(var(--component-editor-width, 320px), calc(var(--app-shell-width, 100vw) - 24px));
-        min-width: min(190px, calc(var(--app-shell-width, 100vw) - 24px));
-        max-width: calc(var(--app-shell-width, 100vw) - 24px);
-    }
-
-    .app-shell:not(.platform-windows) .component-editor-dock.collapsed {
-        top: 50%;
-        right: 0;
-        bottom: auto;
-        width: 42px;
-        min-width: 42px;
-        max-width: 42px;
-        height: 44px;
-    }
-}
-
-@media (max-width: 900px) and (orientation: landscape) {
-    .component-editor-dock:not(.collapsed) {
-        top: auto;
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 120px);
-        max-height: min(42dvh, 250px);
-    }
-
-    .component-editor-dock.collapsed {
-        top: auto;
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 120px);
-        transform: none;
-    }
-}
 
 .component-editor-scroll > * { order: 20; }
 .component-editor-scroll > :is(.library-component-properties, .note-editor-fields, .class-component-properties, .stencil-parameter-editor, .container-properties) { order: 10; }

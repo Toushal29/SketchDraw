@@ -5,7 +5,7 @@ type Props = {
   settings: JSX.Element;
 };
 
-/** Menu rail used by the Windows desktop header. Touch layouts use MobileCommandBar. */
+/** Menu rail used by the Windows desktop header. */
 export function WindowsMenuRail(props: Props) {
   return <div class="app-menu-rail"><div class="app-menu-items">{props.children}</div>{props.settings}</div>;
 }

@@ -169,7 +169,7 @@
   background: var(--theme-surface-elevated);
 }
 
-.app-shell.design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded {
+.app-shell.design-workspace-active .style-pane.design-palette-active {
   z-index: 80;
   width: 320px;
   min-width: 0;
@@ -180,7 +180,7 @@
   box-shadow: 0 12px 30px color-mix(in srgb, var(--theme-shadow) 18%, transparent);
 }
 
-/* Keep the Design dock visible through the legacy mobile rule that hides the generic property pane. */
+/* Keep the Design dock visible above the generic property pane. */
 .app-shell.design-workspace-active .style-pane.design-palette-active,
 .app-shell.design-workspace-active .style-pane.schema-editor-active {
   z-index: 30;
@@ -188,8 +188,8 @@
   pointer-events: auto;
 }
 
-.app-shell.design-workspace-active .style-pane.design-palette-active.mobile-properties-expanded,
-.app-shell.design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
+.app-shell.design-workspace-active .style-pane.design-palette-active,
+.app-shell.design-workspace-active .style-pane.schema-editor-active {
   visibility: visible;
   opacity: 1;
   pointer-events: auto;
@@ -609,104 +609,7 @@
   touch-action: manipulation;
 }
 
-@media (max-width: 900px),
-(max-width: 1600px) and (pointer: coarse) {
-  .app-shell:not(.platform-windows) .design-toolbar {
-    gap: 2px;
-  }
-
-  .app-shell:not(.platform-windows) .design-toolbar-group {
-    gap: 1px;
-    padding: 0 2px;
-  }
-
-  .app-shell:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
-    position: fixed;
-    z-index: 70;
-    display: flex;
-    top: calc(var(--touch-header-height, 48px) + 8px);
-    right: 8px;
-    bottom: max(8px, env(safe-area-inset-bottom));
-    left: max(60px, calc(env(safe-area-inset-left) + 52px));
-    width: auto;
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    padding: 8px;
-    overflow: hidden;
-    border-radius: 12px;
-  }
-
-  .app-shell:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded>.schema-editor-panel {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    flex: 1 1 auto;
-  }
-
-  .app-shell:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded>.schema-editor-panel {
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .app-shell:not(.platform-windows).design-workspace-active .schema-side-input {
-    min-height: 90px;
-    max-height: none;
-    flex: 1 1 180px;
-  }
-
-  .app-shell.mobile-toolbar-top:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
-    top: calc(var(--touch-header-height, 48px) + var(--touch-toolbar-top-offset, 4px) + var(--mobile-horizontal-toolbar-height, 50px) + 8px);
-    right: 8px;
-    bottom: max(8px, env(safe-area-inset-bottom));
-    left: max(8px, env(safe-area-inset-left));
-  }
-
-  .app-shell.mobile-toolbar-bottom:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
-    top: calc(var(--touch-header-height, 48px) + 8px);
-    right: 8px;
-    bottom: calc(var(--mobile-horizontal-toolbar-height, 50px) + max(8px, env(safe-area-inset-bottom)) + 8px);
-    left: max(8px, env(safe-area-inset-left));
-  }
-
-  .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
-    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
-  }
-
-  .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.mobile-properties-expanded {
-    right: calc(max(8px, env(safe-area-inset-right)) + 52px);
-    left: max(8px, env(safe-area-inset-left));
-  }
-
-  .app-shell:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.design-panel-collapsed,
-  .app-shell:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.design-panel-collapsed {
-    position: fixed;
-    z-index: 70;
-    display: flex;
-    top: calc(var(--touch-header-height, 48px) + 8px);
-    right: auto;
-    bottom: auto;
-    left: max(8px, env(safe-area-inset-left));
-  }
-
-  .app-shell.mobile-toolbar-top:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.design-panel-collapsed,
-  .app-shell.mobile-toolbar-top:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.design-panel-collapsed {
-    top: calc(var(--touch-header-height, 48px) + var(--touch-toolbar-top-offset, 4px) + var(--mobile-horizontal-toolbar-height, 50px) + 8px);
-  }
-
-  .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.design-panel-collapsed,
-  .app-shell.mobile-toolbar-left:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.design-panel-collapsed {
-    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
-  }
-
-  .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.design-palette-active.design-panel-collapsed,
-  .app-shell.mobile-toolbar-right:not(.platform-windows).design-workspace-active .style-pane.schema-editor-active.design-panel-collapsed {
-    right: calc(max(8px, env(safe-area-inset-right)) + 52px);
-    left: auto;
-  }
-}
-
-/* Align Design panels below the fixed desktop toolbar. Touch layouts set their own lane positions above. */
+/* Align Design panels below the fixed desktop toolbar. */
 @media (min-width: 901px) and (pointer: fine) {
 
   .app-shell.design-workspace-active .style-pane.design-palette-active,
