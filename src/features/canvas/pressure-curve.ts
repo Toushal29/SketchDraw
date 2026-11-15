@@ -65,11 +65,11 @@ export function writePressureCurve(curve: PressureCurve) {
 function isValidCurve(value: unknown): value is PressureCurve {
   if (typeof value !== "object" || !value) return false;
   const candidate = value as PressureCurve;
-  return Array.isArray(candidate.points) &&
-    candidate.points.length >= 2 &&
-    candidate.points.every(p => typeof p.input === "number" && typeof p.output === "number" && p.input >= 0 && p.input <= 1 && p.output >= 0 && p.output <= 1) &&
-    typeof candidate.minThickness === "number" &&
-    typeof candidate.maxThickness === "number";
+  return Array.isArray(candidate.points) && candidate.points.length >= 2 && candidate.points.length <= 64 &&
+    candidate.points.every((point, index) => typeof point?.input === "number" && Number.isFinite(point.input) && point.input >= 0 && point.input <= 1 && typeof point.output === "number" && Number.isFinite(point.output) && point.output >= 0 && point.output <= 1 && (index === 0 || point.input > candidate.points[index - 1].input)) &&
+    candidate.points[0].input === 0 && candidate.points[candidate.points.length - 1].input === 1 &&
+    typeof candidate.minThickness === "number" && Number.isFinite(candidate.minThickness) && candidate.minThickness > 0 && candidate.minThickness <= 4 &&
+    typeof candidate.maxThickness === "number" && Number.isFinite(candidate.maxThickness) && candidate.maxThickness >= candidate.minThickness && candidate.maxThickness <= 4;
 }
 
 export function evaluateCurve(points: PressureCurvePoint[], input: number): number {

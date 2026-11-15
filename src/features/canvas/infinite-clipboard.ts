@@ -14,8 +14,20 @@ const MAX_ENTRIES = 50;
 export function readClipboard(): ClipboardEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) return [];
+    return value.filter(isClipboardEntry).slice(0, MAX_ENTRIES);
   } catch { return []; }
+}
+
+function isClipboardEntry(value: unknown): value is ClipboardEntry {
+  if (typeof value !== "object" || value === null) return false;
+  const entry = value as Partial<ClipboardEntry>;
+  return typeof entry.id === "string" && entry.id.length > 0 &&
+    typeof entry.timestamp === "number" && Number.isFinite(entry.timestamp) &&
+    typeof entry.label === "string" && Array.isArray(entry.elements) &&
+    (entry.thumbnail === undefined || typeof entry.thumbnail === "string");
 }
 
 function writeClipboard(entries: ClipboardEntry[]) {

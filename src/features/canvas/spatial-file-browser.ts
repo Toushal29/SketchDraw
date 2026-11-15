@@ -20,8 +20,25 @@ const COLUMNS = 4;
 export function readSpatialLayout(): SpatialFileCard[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) return [];
+    return value.filter(isSpatialFileCard);
   } catch { return []; }
+}
+
+function isSpatialFileCard(value: unknown): value is SpatialFileCard {
+  if (typeof value !== "object" || value === null) return false;
+  const card = value as Partial<SpatialFileCard>;
+  return typeof card.id === "string" && card.id.length > 0 &&
+    typeof card.name === "string" && typeof card.path === "string" &&
+    typeof card.x === "number" && Number.isFinite(card.x) &&
+    typeof card.y === "number" && Number.isFinite(card.y) &&
+    typeof card.w === "number" && Number.isFinite(card.w) && card.w > 0 &&
+    typeof card.h === "number" && Number.isFinite(card.h) && card.h > 0 &&
+    typeof card.lastModified === "number" && Number.isFinite(card.lastModified) &&
+    (card.thumbnail === undefined || typeof card.thumbnail === "string") &&
+    (card.group === undefined || typeof card.group === "string");
 }
 
 export function writeSpatialLayout(cards: SpatialFileCard[]) {

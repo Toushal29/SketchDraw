@@ -60,7 +60,15 @@ export function PressureCurveEditor(props: Props) {
     const points = [...curve()];
     if (idx === 0) points[idx] = { input: 0, output };
     else if (idx === points.length - 1) points[idx] = { input: 1, output };
-    else points[idx] = { input, output };
+    else {
+      const previousInput = points[idx - 1].input;
+      const nextInput = points[idx + 1].input;
+      const gap = nextInput - previousInput;
+      if (gap > 0) {
+        const minimumGap = Math.min(0.005, gap / 2);
+        points[idx] = { input: Math.max(previousInput + minimumGap, Math.min(nextInput - minimumGap, input)), output };
+      }
+    }
     save(points);
   }
 
@@ -69,6 +77,7 @@ export function PressureCurveEditor(props: Props) {
   function addPoint(event: MouseEvent) {
     if (dragging() !== null) return;
     const { input, output } = fromSvg(event.clientX, event.clientY);
+    if (curve().length >= 64 || curve().some(point => Math.abs(point.input - input) < 0.005)) return;
     const points = [...curve(), { input, output }].sort((a, b) => a.input - b.input);
     save(points);
   }

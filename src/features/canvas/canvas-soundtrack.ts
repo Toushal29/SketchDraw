@@ -5,12 +5,18 @@ export type SoundtrackConfig = {
 };
 
 const STORAGE_KEY = "sketchdraw-soundtrack";
+const DEFAULT_SOUNDTRACK_CONFIG: SoundtrackConfig = { enabled: false, volume: 0.15, style: "ambient" };
 
 export function readSoundtrackConfig(): SoundtrackConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { enabled: false, volume: 0.15, style: "ambient" };
-  } catch { return { enabled: false, volume: 0.15, style: "ambient" }; }
+    if (!raw) return DEFAULT_SOUNDTRACK_CONFIG;
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== "object" || value === null) return DEFAULT_SOUNDTRACK_CONFIG;
+    const config = value as Partial<SoundtrackConfig>;
+    if (typeof config.enabled !== "boolean" || typeof config.volume !== "number" || !Number.isFinite(config.volume) || config.volume < 0 || config.volume > 1 || !["ambient", "tonal", "percussive"].includes(config.style ?? "")) return DEFAULT_SOUNDTRACK_CONFIG;
+    return { enabled: config.enabled, volume: config.volume, style: config.style as SoundtrackConfig["style"] };
+  } catch { return DEFAULT_SOUNDTRACK_CONFIG; }
 }
 
 export function writeSoundtrackConfig(config: SoundtrackConfig) {
